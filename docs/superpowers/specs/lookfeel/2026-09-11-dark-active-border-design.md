@@ -1,7 +1,7 @@
 # The dark active-border value — design
 
 **Date:** 2026-09-11
-**Status:** approved, not implemented
+**Status:** implemented; the manual dark matrix is outstanding — see *Verification*
 **Branch:** `feature-dark-active-border`, cut from `epic-74519`
 **Resolves:** the assembly-selection-border ticket recorded on `feature-chart-palette-retune`
 (`333a377118`). That file is not on this branch and arrives with the palette re-tune; this document
@@ -110,12 +110,22 @@ It improves both palettes, so **this fix does not depend on the palette re-tune 
 re-tune is what makes it urgent — it pushes the collision from 0.119, above the line, to 0.079,
 below it — but the defect and the improvement both exist on `epic-74519` as it stands.
 
-Holding the brand hue at 61°, the curve cannot do much better: `#C56C00` at L 0.62 buys ΔE 0.141 for
-4.05:1, `#BF6600` at L 0.60 buys 0.156 for 3.76:1. Leaving the hue toward ~82° buys more
-(`#C38E01`: 0.138 at 5.28:1) but the accent stops reading as the brand orange, which is most of what
-decision 1 was protecting. Two costs are accepted rather than hidden: legibility drops from 5.88:1
-to 4.23:1 at 1px dotted, still above the 3:1 floor; and a light `Modern` palette selected on a dark
-chart sits at ΔE 0.108, near the line — improved from today's 0.106, not solved.
+Staying in the brand-orange family, the curve cannot do much better. Measured against the re-tuned
+palette, where `#C96F12` scores 0.130: `#C56C00` buys ΔE 0.141 at 4.05:1, `#BF6600` buys 0.156 at
+3.76:1. Leaving the family toward ~82° buys more (`#C38E01`: 0.138 at 5.28:1) but the accent stops
+reading as the brand orange, which is most of what decision 1 was protecting. The hue is not held
+exactly — `#E58A2A` is 61.4° and `#C96F12` is 57.9°, with the alternatives at 57.5-59.0° — but all
+stay in the orange family against 81.9° for the yellow candidate.
+
+Three costs are accepted rather than hidden. **Legibility** drops from 5.88:1 to 4.23:1 at 1px
+dotted, still above the 3:1 floor. **A light palette on a dark chart** moves the wrong way against
+this branch's light `Modern` head, from ΔE 0.060 to 0.143 — that is an improvement in separation,
+but the earlier draft of this document quoted 0.106 → 0.108 here, which are the figures for the
+**re-tuned** light head and belong to a palette that is not on this branch. **The 40-colour tail**
+is the real one: `VSChartPaletteDefaults.spliceLegacy` pads both `Modern` and `Modern Dark` to 40
+from the legacy palette, so any chart with more than eight series draws slots 9-40 from it, and slot
+31 is `#CC6600` — ΔE **0.019** from `#C96F12`, against 0.052 from `#E58A2A` today. At nine or more
+series the ring and a mark are effectively the same colour. See *What this leaves open*.
 
 ## The change
 
@@ -161,18 +171,36 @@ same value `:root` gives; and the div is empty, so neither class can reach a sub
 `.vs-combo-box-trigger:focus` (`_bootstrap-override.scss:1318`), the token's other consumer — it
 changes in dark too, and should: same affordance, same collision.
 
-**Does not change.** Light mode in every form. Every gate-off assembly, which carries neither class
-and still resolves `:root`'s orange. `.bd-selected-cell` and its `@extend` site at
+**Does not change.** Light mode in every form. `.bd-selected-cell` and its `@extend` site at
 `_themeable.scss:467`, which are the selected family, untouched. The composer's handle outline.
+
+**Changes more widely than first stated, and for the better.** A gate-off assembly carries neither
+viz class, so it has no declaration of its own and inherits the body-level one — and `viz-shell-dark`
+sits on `document.body` (`viewer-app.component.ts:2830`), inside the same block this change repoints.
+So a gate-off assembly in a **dark org** does change. Since the seed mark made the org gate
+creation-time only, that is the normal state of every pre-existing dashboard, not an edge case. The
+effect is an improvement: a gate-off assembly renders light (`vs-object-model.ts:68` — `vizDark` is
+never true unless `vizModern` is), and on its white card the ring goes from **2.62:1** to **3.64:1**,
+crossing WCAG 1.4.11's 3:1 floor it previously failed. Found by the final review, not by the design.
 
 ## Verification
 
-`styles.scss` compiles; the portal suite stays green.
+`global.scss` compiles and the compiled output asserts the token chain. `styles.scss`, which an
+earlier draft of this section named, imports neither `_viz-tokens.scss` nor `_themeable.scss` and
+would have compiled green whatever this change did. The portal suite stays green — with the caveat
+that `npm run test:portal` collects 106 spec files where the target's `include` and
+`projects/portal/tsconfig.spec.json` scope 225, a pre-existing gap this change neither caused nor
+closes.
+
+**The manual dark matrix below has NOT been run.** It is the release gate, and nothing automated
+substitutes for it: no check in this work looks at a rendered pixel. It is recorded as outstanding
+rather than quietly dropped.
 
 Then the manual dark matrix the ticket asks for: chart, table / crosstab / calc table, selection list
 and tree, range slider, calendar, and a text or gauge output — focused in a dark org **and** as a
 `MODERN_DARK` assembly inside a **light** org, which is the case the body-class route gets wrong and
-the per-assembly binding exists to fix.
+the per-assembly binding exists to fix. One more row, added by the final review: a **gate-off**
+assembly in a **dark** org, which inherits the body-level token and therefore changes too.
 
 **The template binding ships unguarded, and that is a deliberate trade.** All four
 `vs-object-container` spec files instantiate the component directly through `makeComponent()`; none
@@ -183,11 +211,21 @@ one-attribute change. Recorded rather than hidden.
 
 - **The composer's `#123C44` handle outline on a dark card.** Same family of problem, different
   mechanism, not measured here.
-- **Palette × mode combinations generally.** A customer may select any palette, including custom
-  ones, on a dark chart. This design measures the two `Modern Dark` sets and the light `Modern` set;
-  it does not attempt a guarantee across the legacy 40 or authored palettes. A state colour cannot
-  be proof against an arbitrary data palette by hue alone — the durable answer is a two-tone or
-  haloed outline, which is a visual change to a shipped affordance and was not taken here.
+- **The 40-colour tail, and why no hue escapes it.** `VSChartPaletteDefaults.spliceLegacy` pads both
+  `Modern` and `Modern Dark` to 40 slots from `CategoricalColorFrame.COLOR_PALETTE`, so a chart with
+  nine or more series reaches the legacy tail. `#C96F12` sits ΔE **0.019** from its slot 31,
+  `#CC6600` — worse than the 0.052 `#E58A2A` manages today, and the one axis on which this change is
+  a regression. **No available value fixes it.** That tail carries `#CC6600`, `#CC9933`, `#993300`,
+  `#FF9900`, `#a88637` and `#d2b267` for any orange, and `#666666`, `#CCCCCC`, `#95a5a6` and
+  `#dadfe1` for the neutral this design already declined on other grounds. A state colour cannot be
+  made safe against a 40-colour data palette by choosing a better hue; the durable answer is the
+  two-tone or haloed outline named below. Accepted here because the collision needs nine series to
+  reach, and recorded so it is not rediscovered as a bug report.
+- **A two-tone or haloed outline** is what actually solves the class of problem, at the cost of a
+  visual change to a shipped affordance in both modes. Not taken here.
+- **Custom and authored palettes.** A customer may select any palette on a dark chart. This design
+  measures the two `Modern Dark` sets, both light `Modern` heads and the spliced 40; it attempts no
+  guarantee beyond those.
 - **The teal selection family's owner** is unaffected. This design deliberately does **not** point
   the focus outline at it, so the retirement question in roadmap item 3 stays exactly as open as it
   was, with one fewer consumer to migrate.

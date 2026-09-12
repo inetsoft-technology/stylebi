@@ -408,9 +408,11 @@ Set `viewsheet.darkMode` on the org, open a dashboard whose assemblies carry a m
 
 In a **light** org, place an assembly whose own mark is `MODERN_DARK`. Focus it. The ring must be the **dark** value, following the assembly's mark — not the light orange the org gate would have given. This is the check that proves Task 2 Step 4 was necessary; if this one is wrong, the bindings did not land.
 
-- [ ] **Step 4: Confirm light mode is unchanged**
+- [ ] **Step 4: Confirm light mode is unchanged, and check gate-off in both orgs**
 
-Focus assemblies in a light org, modern and gate-off both. The ring must still be `#E58A2A`. A gate-off assembly carries neither viz class and resolves `:root`.
+Focus assemblies in a light org, modern and gate-off both. The ring must still be `#E58A2A`. A gate-off assembly there carries neither viz class and resolves `:root`.
+
+Then focus a **gate-off** assembly in a **dark** org. This one DOES change: with no viz class of its own it inherits the body-level `viz-shell-dark` token, so its ring becomes `#C96F12`. On its white card that is an improvement, 2.62:1 to 3.64:1. Confirm it looks deliberate rather than like a stray colour.
 
 - [ ] **Step 5: Check the token's other consumer**
 
@@ -424,7 +426,7 @@ Append the outcome to the design document's Verification section — which assem
 
 ## Self-Review
 
-**Spec coverage.** All four changes in the design's "The change" section map to tasks: items 1 and 2 to Task 1, items 3 and 4 to Task 2. The design's Verification section maps to Task 2 steps 6-7 and Task 4. Its "Blast radius" claims about `.vs-combo-box-trigger:focus` and light-mode immutability are asserted in Task 1 step 5 (the count check) and Task 4 steps 4-5. The roadmap registration named in the design's scope is Task 3. The design's "What this leaves open" items are deliberately unimplemented and need no task.
+**Spec coverage.** All four changes in the design's "The change" section map to tasks: items 1 and 2 to Task 1, items 3 and 4 to Task 2. The design's Verification section maps to Task 2 steps 6-7 and Task 4. Its "Blast radius" claims about `.vs-combo-box-trigger:focus` and light-mode immutability are asserted in Task 1 step 5 (the count check) and Task 4 steps 4-5. Task 3, the roadmap registration, is scope this plan adds rather than something the design requests — recorded here so the addition is visible rather than looking like a spec requirement. The design's "What this leaves open" items are deliberately unimplemented and need no task.
 
 **Placeholders.** None. Every command was executed against this branch before being written down: `sass` compiles `global.scss` in ~1.4s and emits `--inet-primary-color-dark: #C96F12`; the scoped TL run reports 98 tests across 3 files.
 
