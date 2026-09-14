@@ -19,9 +19,13 @@ package inetsoft.web.wiz.script;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.util.cachefs.BinaryTransfer;
@@ -139,6 +143,105 @@ class ScriptImageServiceTest {
       verifyNoInteractions(imageService);
    }
 
+   /**
+    * Bug #76647 / VCA-003 gap (b): a tree/network/circular chart with a bound table but no
+    * 'source'/'target' can never produce a plotted graph — {@code AssemblyImageService}'s
+    * {@code ChartVSAssembly} branch treats that identically to "still computing" and returns
+    * {@code retryAfter=1} forever, so without this refusal the render loop below burns all
+    * {@code RENDER_MAX_ATTEMPTS} attempts and then throws {@link RenderNotReadyException} —
+    * advising a retry that can never succeed. Same shape as
+    * {@link #refusesAnUnboundChartWithoutAttemptingARender}: refused up front, before the
+    * {@code AssemblyImageService} mock is ever touched.
+    */
+   @Test
+   void refusesARelationChartMissingSourceAndTargetWithoutAttemptingARender() {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly("Chart1");
+      RelationVSChartInfo relationInfo = new RelationVSChartInfo();
+      relationInfo.setChartType(GraphTypes.CHART_TREE);
+      chart.setVSChartInfo(relationInfo);
+
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      ScriptImageService svc = new ScriptImageService(
+         imageService, mock(BinaryTransferService.class), mock(VSExportService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.getAssemblyImage(
+         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org")));
+
+      assertTrue(ex.getMessage().contains("'source' and 'target'"),
+                 "must name both missing shelves, got: [" + ex.getMessage() + "]");
+      assertTrue(ex.getMessage().contains("set_chart_single_shelf"),
+                 "the refusal must name how to bind them, got: [" + ex.getMessage() + "]");
+      verifyNoInteractions(imageService);
+   }
+
+   /** Same as above, but only 'target' is missing — the message names only the missing one. */
+   @Test
+   void refusesARelationChartMissingOnlyTargetWithoutAttemptingARender() {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly("Chart1");
+      RelationVSChartInfo relationInfo = new RelationVSChartInfo();
+      relationInfo.setChartType(GraphTypes.CHART_NETWORK);
+      relationInfo.setSourceField(new VSChartDimensionRef(new AttributeRef("NODE")));
+      chart.setVSChartInfo(relationInfo);
+
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      ScriptImageService svc = new ScriptImageService(
+         imageService, mock(BinaryTransferService.class), mock(VSExportService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.getAssemblyImage(
+         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org")));
+
+      assertTrue(ex.getMessage().contains("'target'"),
+                 "must name the missing shelf, got: [" + ex.getMessage() + "]");
+      assertFalse(ex.getMessage().contains("'source' and 'target'"),
+                 "must not claim 'source' is also missing, got: [" + ex.getMessage() + "]");
+      verifyNoInteractions(imageService);
+   }
+
+   /**
+    * A relation chart with BOTH 'source' and 'target' bound is unaffected by the new guard — it
+    * proceeds to the normal render path exactly like a non-relation chart does.
+    */
+   @Test
+   void rendersARelationChartWithBothSourceAndTargetBound() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly("Chart1");
+      RelationVSChartInfo relationInfo = new RelationVSChartInfo();
+      relationInfo.setChartType(GraphTypes.CHART_TREE);
+      relationInfo.setSourceField(new VSChartDimensionRef(new AttributeRef("PARENT")));
+      relationInfo.setTargetField(new VSChartDimensionRef(new AttributeRef("CHILD")));
+      chart.setVSChartInfo(relationInfo);
+
+      byte[] png = fakePng(800, 600);
+      BinaryTransfer transfer = mock(BinaryTransfer.class);
+      AssemblyImageService.ImageRenderResult result =
+         new AssemblyImageService.ImageRenderResult(true, transfer, 800, 600);
+
+      AssemblyImageService imageService = mock(AssemblyImageService.class);
+      when(imageService.processGetAssemblyImage(
+         eq(rvs), anyString(), eq(800.0), eq(600.0), eq(800.0), eq(600.0),
+         isNull(), eq(0), eq(0), eq(0), any(), eq(false), eq(true)))
+         .thenReturn(result);
+
+      BinaryTransferService binaryTransferService = mock(BinaryTransferService.class);
+      when(binaryTransferService.getData(transfer)).thenReturn(png);
+
+      ScriptImageService svc = new ScriptImageService(
+         imageService, binaryTransferService, mock(VSExportService.class));
+      ScriptImageService.ChartImage img = svc.getAssemblyImage(
+         rvs, "Chart1", null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertArrayEquals(png, img.pngBytes());
+   }
+
+   /**
+    * A non-relation chart type (e.g. bar) has no 'source'/'target' concept at all — the default
+    * {@code viewsheetWithChart} builds a plain {@code VSChartInfo}, which is not a
+    * {@code RelationChartInfo}, so the new guard's {@code instanceof} check never fires and the
+    * existing "no table bound" / render behavior is unaffected. Regression guard for bug #76647 /
+    * VCA-003 gap (b) not over-reaching into unrelated chart types.
+    */
    @Test
    void returnsThePngOnASuccessfulRender() throws Exception {
       RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
