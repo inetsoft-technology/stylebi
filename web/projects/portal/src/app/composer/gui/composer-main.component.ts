@@ -1779,7 +1779,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       const type = event.type;
       const id = event.assetId;
       let index = this.sheets.findIndex((sheet) =>
-         sheet.id === id && sheet.runtimeId.indexOf(AssetConstants.PREVIEW_VIEWSHEET) == -1);
+         sheet.type === type && sheet.id === id &&
+         sheet.runtimeId.indexOf(AssetConstants.PREVIEW_VIEWSHEET) == -1);
       this.scriptDisabled = true;
 
       if(this.focusedSheet && this.focusedSheet.id === id && index >= 0) {
@@ -2946,7 +2947,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.zone.run(() => {
             if(command.viewsheet) {
                const sheet = this.sheets.find((s) =>
-                  s.id === command.assetId && s.runtimeId.indexOf(AssetConstants.PREVIEW_VIEWSHEET) == -1);
+                  s.type === "viewsheet" && s.id === command.assetId &&
+                  s.runtimeId.indexOf(AssetConstants.PREVIEW_VIEWSHEET) == -1);
 
                if(!!sheet) {
                   const viewsheet: Viewsheet = sheet as Viewsheet;

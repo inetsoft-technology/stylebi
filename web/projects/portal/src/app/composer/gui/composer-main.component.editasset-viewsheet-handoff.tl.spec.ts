@@ -24,16 +24,18 @@
  * EMPTY, so the command.viewsheet===true branch never ran under test. This file drives it with a
  * real Subject so the branch actually executes.
  *
- * Covers the two symptoms the diagnosis traced to this handler:
+ * Covers both symptoms the diagnosis traced to this handler:
  *  - a new viewsheet tab must be opened using command.runtimeId (server-minted runtime), not
- *    left null;
+ *    left null (non-colliding case below);
  *  - the handler must not locate/force-cast an unrelated already-open sheet and fire a stray
- *    socket event on it. That could previously happen because the server used to send the new
- *    viewsheet's BASE WORKSHEET id as command.assetId, colliding with the open worksheet tab's
- *    own Sheet.id (fixed server-side in SheetOpenService.createViewsheet to send the new
- *    viewsheet's own temporary asset id instead) -- this test pins the client handler's half of
- *    the contract: given a command.assetId that does not collide with any open tab, it opens
- *    a new tab and touches no other sheet's socketConnection.
+ *    socket event on it, even when command.assetId collides with that sheet's own Sheet.id
+ *    (collision case below). Pre-#5219, the server itself sent a colliding assetId (the new
+ *    viewsheet's BASE WORKSHEET id); that was fixed server-side in SheetOpenService.createViewsheet.
+ *    But the client handler's own sheets.find had no type check, so it could still force-cast a
+ *    same-id Worksheet into a Viewsheet and fire on its socketConnection -- confirmed still true
+ *    even after #5219 by driving a colliding command directly into this handler. The client-side
+ *    fix adds `s.type === "viewsheet"` to the find predicate so this can't happen regardless of
+ *    what assetId the server sends.
  */
 
 import "@angular/compiler";
@@ -89,5 +91,37 @@ describe("ComposerMainComponent — editAsset viewsheet handoff (bug #76636)", (
       expect(opened.type).toBe("viewsheet");
       expect(opened.runtimeId).toBe("Untitled-8-7");
       expect(opened.closeOnServer).toBe(false);
+   });
+
+   it("does not force-cast or fire on an open worksheet tab whose id collides with command.assetId (pre-#5219 server shape)", async () => {
+      const editAsset = new Subject<OpenComposerAssetCommand>();
+      const mocks = makeMocks();
+      mocks.composerClient.editAsset = editAsset as any;
+
+      const { comp } = await renderComponent({ deployed: false }, mocks);
+
+      // An already-open worksheet tab whose id DOES collide with command.assetId below --
+      // this reproduces the pre-#5219 server behavior of sending the base worksheet's own id
+      // as command.assetId for a new viewsheet.
+      const ws = new Worksheet();
+      ws.id = "1^128^__NULL__^Monthly Order Total 2026";
+      ws.runtimeId = "Untitled-6-5";
+      ws.socketConnection = { sendEvent: vi.fn() } as any;
+      comp.sheets.push(ws);
+
+      editAsset.next({
+         assetId: ws.id,
+         folderId: null,
+         viewsheet: true,
+         wsWizard: false,
+         runtimeId: "Untitled-8-7",
+      } as OpenComposerAssetCommand);
+
+      expect(ws.socketConnection.sendEvent).not.toHaveBeenCalled();
+
+      expect(comp.sheets.length).toBe(2);
+      const opened = comp.sheets[1] as Viewsheet;
+      expect(opened.type).toBe("viewsheet");
+      expect(opened.runtimeId).toBe("Untitled-8-7");
    });
 });
