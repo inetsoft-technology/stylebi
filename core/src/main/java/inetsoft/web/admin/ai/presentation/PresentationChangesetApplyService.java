@@ -167,14 +167,53 @@ public class PresentationChangesetApplyService {
                }
             }
             catch(Exception e) {
-               // A throw carries no verifiable before/after evidence for THIS change -- must never
-               // be treated as rolled back, same rule every prior area's apply service follows.
-               results.add(new PresentationApplyOutcome(key, before, null,
+               // access.write itself carries no verifiable before/after evidence for THIS change --
+               // but unlike the sub-model call, we own the read side too, so re-read the sub-model
+               // the same way the success path above already does and compare it to `before`. That
+               // tells us whether access.write mutated anything before throwing (e.g. a validation
+               // check inside a sub-service's own setModel, which fires before any SreeEnv write),
+               // mirroring AdminChangesetApplyService#apply's own `moved` gate.
+               String actualAfter = null;
+               boolean readFailed = false;
+
+               try {
+                  actualAfter = PresentationChangePlanService.projectedValue(
+                     entry.subModel(), PresentationJson.toNode(
+                        access.read(entry.subModel(), user, entry.global())));
+               }
+               catch(Exception readEx) {
+                  // Can't tell whether anything moved -- fall through to the unknown-state branch
+                  // below, same as today's unconditional behavior.
+                  readFailed = true;
+               }
+
+               boolean moved = !readFailed && !Objects.equals(before, actualAfter);
+
+               results.add(new PresentationApplyOutcome(key, before, readFailed ? null : actualAfter,
                   AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
-               unknownStateFailures.add(new RollbackFailure(key,
-                  "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
-               writeAudit(txId, reviewedTask, key, entry, AdminChangeRecord.ACTION_APPLY, before, null,
-                         AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+               writeAudit(txId, reviewedTask, key, entry, AdminChangeRecord.ACTION_APPLY, before,
+                         readFailed ? null : actualAfter, AdminChangeRecord.STATUS_FAILED, backupRef,
+                         reviewOutcome, user);
+
+               if(moved) {
+                  // Something did mutate before the throw -- this genuinely needs a rollback
+                  // attempt, not a "state unknown" report that would silently skip restoring it.
+                  if(entry.subModel().isStorageScope()) {
+                     appliedStorage.add(entry);
+                  }
+                  else {
+                     undoableValue.add(entry);
+                  }
+               }
+               else if(readFailed) {
+                  // Genuinely unknown state -- must never be treated as rolled back.
+                  unknownStateFailures.add(new RollbackFailure(key,
+                     "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               }
+               // else: confirmed nothing moved -- treated the same as a never-mutated item, so a
+               // batch where every other item rolls back cleanly correctly reports rolled-back
+               // rather than rollback-failed.
+
                failed = true;
                break;
             }
