@@ -306,6 +306,12 @@ public class LayoutMutationService {
                      textAssembly.setTextValue(text);
                   }
                }
+               else if(object.containsKey("text")) {
+                  throw new IllegalArgumentException(
+                     "edit_layout_objects add: \"" + name + "\" is an existing viewsheet " +
+                     "assembly -- \"text\" only applies when creating a new layout-only text " +
+                     "object.");
+               }
 
                VSAssemblyLayout assemblyLayout = vsLayoutService
                   .createAssemblyLayout(event, masterVs, name, assembly, existAssembly);

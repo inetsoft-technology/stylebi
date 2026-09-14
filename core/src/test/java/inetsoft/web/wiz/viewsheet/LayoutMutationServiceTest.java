@@ -325,6 +325,29 @@ class LayoutMutationServiceTest {
    }
 
    /**
+    * bug-VAR-003 review round 1: {@code add} placing an EXISTING viewsheet assembly (not
+    * creating a new layout-only object) must reject a caller-supplied {@code text}, mirroring
+    * {@code moveResize}'s own rejection for its non-{@link VSEditableAssemblyLayout} case,
+    * instead of silently dropping it while the placement still succeeds.
+    */
+   @Test
+   void addWithTextRejectsAnExistingAssemblyPlacement() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      // "Table1" is a real assembly already on the master viewsheet (see Fixture), so this
+      // "add" call resolves existAssembly == true via masterVs.getAssembly(name) != null.
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Table1", "x", 750, "y", 0, "text", "Confidential")), false));
+
+      assertTrue(thrown.getMessage().contains("Table1"), thrown.getMessage());
+      LayoutObjectModelHolder table = fx.readTableObject();
+      assertEquals(300, table.layoutX(), "a rejected add must leave the existing object untouched");
+      assertEquals(400, table.layoutY());
+   }
+
+   /**
     * bug-VAR-003: {@code moveResize} must be able to update an existing layout-only text
     * object's content later, not just at creation, mirroring how it already updates position/
     * size for the same {@link VSEditableAssemblyLayout} branch.
