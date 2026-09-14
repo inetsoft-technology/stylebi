@@ -1446,6 +1446,17 @@ wizard-binding-tree .bg-node-selected {
   border-color: var(--inet-primary-color);
 }
 
+// Dark only. The accent above is the light #E58A2A in both modes, so a dark card drew a light
+// orange over its own marks. Dark moves to the selected family, agreeing with a selected title,
+// and to that family's ink rather than its border: the stroke lands on the marks, and
+// --inet-viz-selected-border is an exact match to Modern Dark's slot 7. Light keeps the accent
+// deliberately -- the family's light border is 1.43:1 on a white plot. The fill stays a literal
+// wash because canvas silently drops a computed value it cannot parse.
+.viz-dark .chart-object-canvas {
+  color: rgba(168, 238, 245, 0.28);
+  border-color: var(--inet-viz-selected-text);
+}
+
 .collapse-pane-button {
   background-color: var(--inet-overlay-subtle-bg-color);
 
