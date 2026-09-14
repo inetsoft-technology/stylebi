@@ -26,6 +26,7 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
@@ -1873,6 +1874,7 @@ class ViewsheetAssemblyAgentControllerTest {
       AssetEntry probedEntry = probeCaptor.getValue();
       assertEquals("Examples/Orders", probedEntry.getProperty("prefix"));
       assertEquals("Order Model", probedEntry.getProperty("source"));
+      assertEquals(XSourceInfo.MODEL + "", probedEntry.getProperty("type"));
    }
 
    /**
