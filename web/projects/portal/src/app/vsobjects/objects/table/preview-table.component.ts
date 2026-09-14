@@ -218,6 +218,9 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
                this.initColumnWidths();
                this.updateHorizontalDist();
                this.updateColumnRange();
+               // Bug #76573: see the matching comment in updateWidths() -- this deferred
+               // callback needs its own view check too.
+               this.changeRef.detectChanges();
             }
          });
       }
@@ -280,6 +283,9 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
             this.initColumnWidths();
             this.renderer.setProperty(this.previewContainer.nativeElement, "scrollLeft",
                this.scrollXPos);
+            // Bug #76573: see the matching comment in updateWidths() -- this deferred
+            // callback needs its own view check too.
+            this.changeRef.detectChanges();
          });
       }
    }
@@ -488,6 +494,14 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
 
       setTimeout(() => {
          this.updateColumnRange();
+
+         // Bug #76573: this callback runs outside any Angular-bound event, so nothing
+         // triggers a view check afterward when hosted inside the elements/viewer-element
+         // Angular Elements bundle -- columnIndexRange (computed above, and gating every
+         // header/body cell in the template) would stay applied-but-unrendered until an
+         // unrelated DOM event (e.g. scroll, which calls updateColumnRange() directly from
+         // a bound (scroll) handler and so gets a check for free) forced a repaint.
+         this.changeRef.detectChanges();
       }, 0);
    }
 
