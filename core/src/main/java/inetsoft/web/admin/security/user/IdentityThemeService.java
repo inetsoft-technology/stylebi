@@ -119,10 +119,16 @@ public class IdentityThemeService {
       themes.stream().map(theme -> {
          if(fn.apply(theme).contains(oldId)) {
             fn.apply(theme).remove(oldId);
-            fn.apply(theme).add(id);
+
+            // only keep the identity in this theme if it's the one being (re)assigned to,
+            // or no reassignment was requested (pure rename) -- otherwise reassigning to a
+            // different theme would silently leave a stale membership behind here.
+            if(ntheme == null || Tool.equals(theme.getId(), ntheme)) {
+               fn.apply(theme).add(id);
+            }
          }
 
-         if(Tool.equals(theme.getId(), ntheme) && !fn.apply(theme).contains(oldId)) {
+         if(ntheme != null && Tool.equals(theme.getId(), ntheme) && !fn.apply(theme).contains(id)) {
             fn.apply(theme).add(id);
          }
 

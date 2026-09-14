@@ -141,4 +141,28 @@ class IdentityThemeServiceTest {
       assertFalse(theme.getUsers().contains("newuser1"),
          "a null ntheme (no theme requested) must not add the identity to an unrelated theme");
    }
+
+   // Round-2 review finding (05-review-r1.md): reassigning an identity to a DIFFERENT theme
+   // without a rename (oldId == id) previously only ever added it to the new theme -- the
+   // remove(oldId)+add(id) in the same theme netted to a no-op whenever oldId == id, so the
+   // identity was left a member of BOTH its previous theme and the new one.
+   @Test
+   void assignTheme_reassignWithoutRename_removesFromPreviousThemeAndAddsToNewOne() {
+      CustomTheme themeA = new CustomTheme();
+      themeA.setId("theme-a");
+      themeA.setUsers(new ArrayList<>(List.of("user1")));
+
+      CustomTheme themeB = new CustomTheme();
+      themeB.setId("theme-b");
+
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(themeA, themeB)));
+
+      service.assignTheme("user1", "user1", "theme-b", CustomTheme::getUsers);
+
+      assertFalse(themeA.getUsers().contains("user1"),
+         "reassigning to a different theme (no rename) must remove the identity from its "
+         + "previous theme, not leave it a member of both");
+      assertTrue(themeB.getUsers().contains("user1"),
+         "reassigning to a different theme (no rename) must add the identity to the new theme");
+   }
 }
