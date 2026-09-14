@@ -916,16 +916,26 @@ describe("ViewerAppComponent — ngOnDestroy()", () => {
 // ---------------------------------------------------------------------------
 
 describe("ViewerAppComponent — openViewsheet() waitResize (Bug #76510)", () => {
-   // 🔁 Regression-sensitive: waitResize must depend only on scaleToScreen/fitToWidth, NOT on
-   // inPortal. The embed/web-component path always has inPortal=false; if waitResize were
-   // gated on inPortal again, the initial OpenViewsheetEvent would race the host page's layout
-   // (offsetWidth/offsetHeight read before the custom element is sized), reproducing the
-   // overlapping/misplaced Scale-to-Screen layout from Bug #76510.
-   it("should delay sending the open-viewsheet event when scaleToScreen && !fitToWidth, even when inPortal=false", async () => {
+   // 🔁 Regression-sensitive: for any host that is NOT mounted as a child route of the portal
+   // (embed/web-component, the standalone /app/viewer/** route, Composer's linkView tabs),
+   // `inPortal` is never bound and stays at its component default (false), and — critically —
+   // `scaleToScreen`/`fitToWidth` are ALSO still at their component defaults (false/false) at
+   // the moment openViewsheet() runs: they are only ever populated by ngOnInit() reading
+   // viewDataService.data (embed never goes through the portal's route resolver that fills
+   // that in) or by processSetViewsheetInfoCommand(), which is the server's response to the
+   // very OpenViewsheetEvent openViewsheet() is about to send. So a formula that gates the
+   // wait on scaleToScreen/fitToWidth alone (round 1's fix) is a no-op for these hosts: it
+   // must instead wait unconditionally whenever !inPortal. This first test models exactly
+   // that real "embed defaults, before processSetViewsheetInfoCommand ever arrives" state
+   // (nothing set directly on the component beyond what renderComponent() gives it) — it fails
+   // against round 1's `this.scaleToScreen && !this.fitToWidth` formula (evaluates to 0
+   // immediately) and passes against `!this.inPortal || (this.scaleToScreen && !this.fitToWidth)`.
+   it("should delay sending the open-viewsheet event for a non-portal host left at its real pre-server-response defaults", async () => {
       const { comp } = await renderComponent();
-      comp.inPortal = false;
-      comp.scaleToScreen = true;
-      comp.fitToWidth = false;
+      // Deliberately NOT setting inPortal/scaleToScreen/fitToWidth here -- this is the point:
+      // for embed (and the standalone viewer route, and Composer's linkView tabs), none of
+      // these are ever assigned before openViewsheet() runs, so they stay at their real
+      // component defaults (false/false/false).
       VS_CLIENT_MOCK.sendEvent.mockClear();
 
       vi.useFakeTimers();
@@ -933,7 +943,11 @@ describe("ViewerAppComponent — openViewsheet() waitResize (Bug #76510)", () =>
       try {
          (comp as any).openViewsheet();
 
-         // must not fire immediately -- must wait a tick for the host layout to settle
+         // Advancing by exactly 0ms first is essential to discriminate a genuine 100ms delay
+         // from waitResize=0 (a setTimeout(fn, 0) never fires synchronously either way, so
+         // asserting "not called" without advancing the fake clock at all would pass
+         // regardless of which delay was actually computed).
+         vi.advanceTimersByTime(0);
          expect(VS_CLIENT_MOCK.sendEvent).not.toHaveBeenCalledWith("/events/open", expect.anything());
 
          vi.advanceTimersByTime(100);
@@ -945,9 +959,38 @@ describe("ViewerAppComponent — openViewsheet() waitResize (Bug #76510)", () =>
       }
    });
 
-   it("should send the open-viewsheet event immediately when fitToWidth=true, regardless of inPortal", async () => {
+   // Portal's own conditional wait (this is the one host where inPortal really is known, via
+   // the route resolver, ahead of openViewsheet() running) must keep working exactly as
+   // before: still delay when scaleToScreen && !fitToWidth...
+   it("should still delay for a portal host when scaleToScreen && !fitToWidth", async () => {
       const { comp } = await renderComponent();
-      comp.inPortal = false;
+      comp.inPortal = true;
+      comp.scaleToScreen = true;
+      comp.fitToWidth = false;
+      VS_CLIENT_MOCK.sendEvent.mockClear();
+
+      vi.useFakeTimers();
+
+      try {
+         (comp as any).openViewsheet();
+
+         vi.advanceTimersByTime(0);
+         expect(VS_CLIENT_MOCK.sendEvent).not.toHaveBeenCalledWith("/events/open", expect.anything());
+
+         vi.advanceTimersByTime(100);
+
+         expect(VS_CLIENT_MOCK.sendEvent).toHaveBeenCalledWith("/events/open", expect.anything());
+      }
+      finally {
+         vi.useRealTimers();
+      }
+   });
+
+   // ...and still fire immediately when fitToWidth=true, since that combination doesn't need
+   // the extra wait and never did.
+   it("should still send immediately for a portal host when fitToWidth=true", async () => {
+      const { comp } = await renderComponent();
+      comp.inPortal = true;
       comp.scaleToScreen = true;
       comp.fitToWidth = true;
       VS_CLIENT_MOCK.sendEvent.mockClear();
