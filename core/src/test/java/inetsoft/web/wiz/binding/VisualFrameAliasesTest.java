@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.util.CoreTool;
 import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.aesthetic.*;
 import org.junit.jupiter.api.Tag;
@@ -853,5 +854,65 @@ class VisualFrameAliasesTest {
                                                  "colorValueFrame", false)));
 
       assertFalse(frame.isColorValueFrame());
+   }
+
+   // ── the "null"-string mapping entry is a deliberate per-key delete sentinel (VCA-005) ──────
+   //
+   // The plugin's TypeScript layer forwards a null mapping value as the four-character string
+   // "null" (String(null)), not a JSON null -- and VisualFrameAliases.mapping() already drops
+   // a genuinely-null-valued entry before it ever reaches this class, so the literal string is the
+   // shape that actually arrives here. Tool.getColorFromHexString already special-cases the
+   // literal string CoreTool.NULL ("null") and returns Java null for it, which
+   // Viewsheet.setDimensionColors' own filter then drops from the rebuilt column -- a genuine
+   // single-key delete. The only thing standing between a mapping entry and that mechanism was
+   // this function hex-validating "null" and throwing. The sentinel must now pass through
+   // unchanged instead.
+
+   @Test
+   void aNullStringMappingValuePassesThroughAsTheDeleteSentinelInsteadOfThrowing() {
+      Map<String, Object> mapping = new LinkedHashMap<>();
+      mapping.put("Furniture", CoreTool.NULL);
+
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical", "mapping", mapping)));
+
+      assertEquals(1, frame.getColorMaps().length);
+      assertEquals("Furniture", frame.getColorMaps()[0].getOption());
+      assertEquals(CoreTool.NULL, frame.getColorMaps()[0].getColor(),
+                   "the sentinel must reach Tool.getColorFromHexString verbatim, not be hex-" +
+                   "normalized into something it no longer recognizes");
+   }
+
+   /** Sharing must not change which values are treated as the sentinel. */
+   @Test
+   void aNullStringMappingValuePassesThroughAsTheSentinelWhenShared() {
+      Map<String, Object> mapping = new LinkedHashMap<>();
+      mapping.put("Furniture", CoreTool.NULL);
+
+      CategoricalColorModel frame = assertInstanceOf(
+         CategoricalColorModel.class,
+         VisualFrameAliases.create("color", spec("type", "categorical", "shareColors", true,
+                                                 "mapping", mapping)));
+
+      assertEquals(1, frame.getGlobalColorMaps().length);
+      assertEquals(CoreTool.NULL, frame.getGlobalColorMaps()[0].getColor());
+   }
+
+   /**
+    * The sentinel is exactly one literal string, not a general escape hatch -- every other
+    * malformed value must still be refused precisely as before.
+    */
+   @Test
+   void anInvalidNonHexMappingValueStillThrows() {
+      Map<String, Object> mapping = new LinkedHashMap<>();
+      mapping.put("Furniture", "notacolor");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> VisualFrameAliases.create("color", spec("type", "categorical", "mapping", mapping)));
+
+      assertTrue(thrown.getMessage().contains("notacolor"));
+      assertTrue(thrown.getMessage().contains("#RRGGBB"));
    }
 }

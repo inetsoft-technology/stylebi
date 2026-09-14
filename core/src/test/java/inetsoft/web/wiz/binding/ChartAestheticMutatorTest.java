@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.util.CoreTool;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.*;
@@ -1440,6 +1441,50 @@ class ChartAestheticMutatorTest {
          assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
       assertEquals(1, frame.getGlobalColorMaps().length);
       assertEquals("#000000", frame.getGlobalColorMaps()[0].getColor());
+   }
+
+   /**
+    * VCA-005: the fix for "a shared pin can never be removed" rides the CoreTool.NULL sentinel
+    * through this exact merge, not around it. Note what this class can and cannot prove:
+    * ChartAestheticMutator.setFrame/carryShareColorState/mergePins operate purely on the
+    * in-memory ChartBindingModel/CategoricalColorModel -- there is no real Viewsheet in this test
+    * class, so the actual delete (Viewsheet.setDimensionColors' null-filter, already covered by
+    * ViewsheetTest.setDimensionColorsGenuinelyDropsANullSentinelEntry) never runs here. What this
+    * merge layer must get right instead is: the sentinel-valued pin survives the merge unchanged
+    * -- not silently dropped, not corrupted into a different color -- alongside a coexisting pin
+    * on the same column that the merge is carrying forward untouched (mirroring what
+    * aSharedMappingAddsToTheColumnsPinsInsteadOfReplacingThem already proves for an ordinary
+    * colour). mergePins has no null-awareness of its own (it keys purely on
+    * ColorMapModel.getOption(), never inspects getColor()), so it must neither special-case nor
+    * mangle the sentinel -- it should reach VSChartBindingFactory exactly as written.
+    */
+   @Test
+   void aSharedMappingsNullSentinelSurvivesTheMergeAlongsideACoexistingPin() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setGlobalColorMaps(new ColorMapModel[]{
+         new ColorMapModel("East", "#D64541"), new ColorMapModel("West", "#F28E2C") });
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", true, "mapping", Map.of("East", CoreTool.NULL)));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      Map<String, String> pins = new LinkedHashMap<>();
+
+      for(ColorMapModel pin : frame.getGlobalColorMaps()) {
+         pins.put(pin.getOption(), pin.getColor());
+      }
+
+      assertEquals(Map.of("East", CoreTool.NULL, "West", "#F28E2C"), pins,
+                   "the merge must carry the sentinel through unchanged for East and leave West " +
+                   "untouched -- the actual delete happens downstream in " +
+                   "Viewsheet.setDimensionColors, not in this merge");
    }
 
    /**
