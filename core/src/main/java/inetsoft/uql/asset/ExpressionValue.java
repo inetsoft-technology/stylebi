@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
+import java.util.regex.Pattern;
 
 /**
  * Expression value.
@@ -68,6 +69,19 @@ public class ExpressionValue implements AssetObject {
     */
    public void setType(String type) {
       this.type = type;
+   }
+
+   /**
+    * Checks if this is a JAVASCRIPT-typed expression whose text references the per-row
+    * {@code field} binding ({@code field['Col']}/{@code field.Col}). Such an expression
+    * cannot be resolved once as a fixed scalar the way a JAVASCRIPT expression referencing
+    * only {@code parameter} can -- it must instead be re-evaluated for each row, with
+    * {@code field} bound to that row's own data (WBS-042).
+    * @return {@code true} if this expression needs a genuine per-row {@code field} binding.
+    */
+   public boolean referencesField() {
+      return JAVASCRIPT.equals(type) && expression != null &&
+         FIELD_REFERENCE.matcher(expression).find();
    }
 
    /**
@@ -158,6 +172,7 @@ public class ExpressionValue implements AssetObject {
 
    public static final String SQL = "SQL";
    public static final String JAVASCRIPT = "Javascript";
+   private static final Pattern FIELD_REFERENCE = Pattern.compile("\\bfield\\s*[\\[.]");
    private String type = null;
    private String expression = null;
 
