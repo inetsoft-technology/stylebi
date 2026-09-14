@@ -30,9 +30,17 @@ import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import inetsoft.test.SwapperTestConfiguration;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.ArrayList;
@@ -43,6 +51,19 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * {@code VSUtil}'s static initializer (touched by {@code TableBindingService.liveCrosstabRef}'s
+ * {@code VSUtil.isFake} check on the aggregates shelf) needs a Spring/Catalog context, unlike the
+ * rest of this file's mocked-{@code RuntimeViewsheet} tests -- so this class carries the same
+ * Spring context bootstrap {@code CrossTabFilterTest}/{@code
+ * CrosstabSortByValueAliasedAggregateNameTest} already use, additive to (not a replacement for)
+ * every other test here.
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
+                      initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
 @Tag("core")
 class TableBindingServiceTest {
    private static FieldRef dim(String column) {
@@ -214,6 +235,213 @@ class TableBindingServiceTest {
          Exception.class,
          () -> service.read("tok", principal(), "Calc1"));
       assertTrue(thrown.getMessage().contains("cell layout"));
+   }
+
+   // ── set_column_labels (VTB-011) ────────────────────────────────────────────
+
+   /**
+    * Table needs no rendered lens: the alias goes straight onto the model's own
+    * {@code ColumnRefModel}, and this also rekeys a pre-existing per-column {@code FormatInfo}
+    * entry from the old display name to the new one (ported from
+    * {@code ComposerVSTableService.changeColumnTitle}'s own Table-branch rekey).
+    */
+   @Test
+   void setColumnLabelsRenamesATableColumnAndRekeysItsFormat() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableBindingMutator.setShelf(existing, "details", List.of(dim("REGION")));
+
+      inetsoft.uql.viewsheet.FormatInfo formatInfo = new inetsoft.uql.viewsheet.FormatInfo();
+      inetsoft.report.TableDataPath oldPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "REGION" });
+      inetsoft.uql.viewsheet.VSCompositeFormat oldFormat =
+         new inetsoft.uql.viewsheet.VSCompositeFormat();
+      oldFormat.getUserDefinedFormat().setBackgroundValue("16711680");
+      formatInfo.setFormat(oldPath, oldFormat);
+
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getFormatInfo()).thenReturn(formatInfo);
+      when(assembly.getTableDataVSAssemblyInfo())
+         .thenReturn(mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class));
+      ArgumentCaptor<inetsoft.uql.viewsheet.FormatInfo> rekeyed =
+         ArgumentCaptor.forClass(inetsoft.uql.viewsheet.FormatInfo.class);
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessionsFor(assembly), existing, bindings)
+         .setColumnLabels("tok", principal(), "Table1",
+                          Map.of("REGION", "Sales Region"), null);
+
+      verify(assembly).setFormatInfo(rekeyed.capture());
+      inetsoft.report.TableDataPath newPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Sales Region" });
+      assertEquals("16711680",
+         rekeyed.getValue().getFormat(newPath).getUserDefinedFormat().getBackgroundValue(),
+         "the pre-existing format must follow the rename to the new display name");
+      assertNull(rekeyed.getValue().getFormat(oldPath),
+         "the old display name's entry must not remain once rekeyed");
+
+      TableBindingModel posted = (TableBindingModel) capture(bindings).getBinding();
+      assertEquals("Sales Region",
+         ((inetsoft.web.binding.drm.ColumnRefModel) posted.getDetails().get(0)).getAlias());
+      assertEquals(List.of("REGION -> Sales Region"), applied);
+   }
+
+   /**
+    * Structural only, per VTB-011's design doc S5: this proves the write landed in the right
+    * field ({@code FormatInfo} at the resolved header {@code TableDataPath}) with a mocked lens —
+    * it does not prove a real render shows it, which is what the manual {@code
+    * get_viewsheet_image} check is for.
+    */
+   @Test
+   void setColumnLabelsWritesAMessageFormatEntryForACrosstabColumn() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region")));
+
+      inetsoft.uql.viewsheet.VSDimensionRef liveRegion = new inetsoft.uql.viewsheet.VSDimensionRef();
+      liveRegion.setGroupColumnValue("Region");
+      inetsoft.uql.viewsheet.VSCrosstabInfo crossInfo = new inetsoft.uql.viewsheet.VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveRegion });
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getAbsoluteName()).thenReturn("Crosstab1");
+      inetsoft.uql.viewsheet.FormatInfo formatInfo = new inetsoft.uql.viewsheet.FormatInfo();
+      when(assembly.getFormatInfo()).thenReturn(formatInfo);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
+      inetsoft.report.TableDataPath headerPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" });
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath);
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessions, existing, bindings)
+         .setColumnLabels("tok", principal(), "Crosstab1",
+                          Map.of("Region", "Sales Region"), null);
+
+      inetsoft.uql.viewsheet.VSCompositeFormat written = formatInfo.getFormat(headerPath);
+      assertNotNull(written, "a format must land at the resolved header TableDataPath");
+      assertEquals(inetsoft.uql.viewsheet.VSFormat.MESSAGE_FORMAT,
+         written.getUserDefinedFormat().getFormatValue());
+      assertEquals("Sales Region", written.getUserDefinedFormat().getFormatExtentValue());
+      assertEquals(List.of("rows[0] -> Sales Region"), applied);
+
+      // The Crosstab branch has no ColumnRefModel.alias to write -- the model posted back must
+      // be otherwise untouched by this call.
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals(1, posted.getRows().size());
+   }
+
+   /**
+    * Regression test for VTB-011 fix round 1, defect 1 -- live-reproduced on a crosstab with
+    * exactly 1 row dimension, 0 column dimensions, 1 aggregate (a common, unremarkable shape):
+    * {@code set_column_labels(CT1, {"Paid": "Revenue"})} failed with "Could not find
+    * 'aggregates[0]' on the rendered header", even though the column-identity resolution had
+    * already succeeded. Root cause: with no column-shelf dimension, the aggregate's header cell
+    * renders side-by-side in the single header *row*, past the header *column* rectangle ({@code
+    * col == getHeaderColCount()}, not {@code < getHeaderColCount()}) -- {@code findHeaderPath}'s
+    * old scan bound never reached it. {@code SetTableHeaderAliasHandlerTest} covers the same fix
+    * at the unit level with a mocked lens; this proves it through the actual
+    * {@code TableBindingService.setColumnLabels} call path.
+    */
+   @Test
+   void setColumnLabelsRenamesACrosstabAggregateHeaderRenderedPastTheHeaderColumnRectangle()
+      throws Exception
+   {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Date")));
+      TableBindingMutator.setShelf(existing, "aggregates",
+                                   List.of(new FieldRef("Paid", "measure", "Sum", null, null)));
+
+      inetsoft.uql.viewsheet.VSDimensionRef liveDate = new inetsoft.uql.viewsheet.VSDimensionRef();
+      liveDate.setGroupColumnValue("Date");
+      // A mock, not a real VSAggregateRef -- constructing a real one and calling getFullName()
+      // touches AggregateFormula's static initializer, which needs a Spring/Catalog context this
+      // plain unit test doesn't have (see SetTableHeaderAliasHandlerTest's own comment for the
+      // same constraint).
+      inetsoft.uql.viewsheet.VSAggregateRef livePaid =
+         mock(inetsoft.uql.viewsheet.VSAggregateRef.class);
+      when(livePaid.getFullName()).thenReturn("Sum(Paid)");
+
+      inetsoft.uql.viewsheet.VSCrosstabInfo crossInfo = new inetsoft.uql.viewsheet.VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveDate });
+      crossInfo.setDesignAggregates(new inetsoft.uql.erm.DataRef[]{ livePaid });
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getAbsoluteName()).thenReturn("CT1");
+      inetsoft.uql.viewsheet.FormatInfo formatInfo = new inetsoft.uql.viewsheet.FormatInfo();
+      when(assembly.getFormatInfo()).thenReturn(formatInfo);
+
+      // Mirrors the live shape: headerRowCount=1, headerColCount=1 (just the Date dimension
+      // column) -- the aggregate's GROUP_HEADER cell is at (0,1), past the header-column
+      // rectangle, inside the single header row.
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(3);
+      inetsoft.report.TableDataPath dimPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" });
+      inetsoft.report.TableDataPath aggPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.GROUP_HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Sum(Paid)" });
+      when(lens.getTableDataPath(0, 0)).thenReturn(dimPath);
+      when(lens.getTableDataPath(0, 1)).thenReturn(aggPath);
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("CT1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessions, existing, bindings)
+         .setColumnLabels("tok", principal(), "CT1", Map.of("Paid", "Revenue"), null);
+
+      inetsoft.uql.viewsheet.VSCompositeFormat written = formatInfo.getFormat(aggPath);
+      assertNotNull(written,
+         "the aggregate's GROUP_HEADER cell (past the header-column rectangle) must be found");
+      assertEquals(inetsoft.uql.viewsheet.VSFormat.MESSAGE_FORMAT,
+         written.getUserDefinedFormat().getFormatValue());
+      assertEquals("Revenue", written.getUserDefinedFormat().getFormatExtentValue());
+      assertEquals(List.of("aggregates[0] -> Revenue"), applied);
    }
 
    // ── harness ───────────────────────────────────────────────────────────────

@@ -144,12 +144,15 @@ public class ClearTableHeaderAliasHandler {
       ufmt.setFormatExtentValue(null);
    }
 
-   private static boolean matchAgg(DataRef dataRef, String[] path) {
+   // Package-visible (not private): SetTableHeaderAliasHandler.findHeaderPath reuses this exact
+   // matching logic for the reverse direction (name -> TableDataPath rather than
+   // TableDataPath -> name), rather than re-deriving the same regex/full-name match a second time.
+   static boolean matchAgg(DataRef dataRef, String[] path) {
       return dataRef instanceof VSAggregateRef
          && ((VSAggregateRef) dataRef).getFullName().equals(path[path.length - 1]);
    }
 
-   private static boolean matchDim(DataRef dataRef, String[] path, int colIndex) {
+   static boolean matchDim(DataRef dataRef, String[] path, int colIndex) {
       Matcher matcher = HEADER_ROW_PATH_PATTERN.matcher(path[path.length - 1]);
 
       if(!(dataRef instanceof VSDimensionRef) || !matcher.matches()) {
