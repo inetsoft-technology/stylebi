@@ -2582,6 +2582,10 @@ public class WorksheetAgentController {
             editor.setRanking(req.table(), req.ranking());
          case "set_rankings" ->
             editor.setRankings(req.table(), req.rankings());
+         case "set_mv_conditions" ->
+            editor.setMVConditions(req.table(), req.mvUpdatePreConditions(),
+               req.mvUpdatePostConditions(), req.mvDeletePreConditions(),
+               req.mvDeletePostConditions(), req.mvForceAppendUpdates());
          case "add_rotate" ->
             editor.addRotate(req.name(), req.source());
          case "add_unpivot" ->

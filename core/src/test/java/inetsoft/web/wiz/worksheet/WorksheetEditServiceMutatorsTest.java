@@ -2788,6 +2788,109 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(t.getPostConditionList() == null || t.getPostConditionList().isEmpty());
    }
 
+   // =========================================================================
+   // set_mv_conditions (Bug #76626 WBS-044)
+   // =========================================================================
+
+   @Test
+   void setMVConditionsRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setMVConditions(
+            "T", List.of(), null, null, null, true)));
+
+      assertTrue(t.getMVUpdatePreConditionList() == null
+                 || t.getMVUpdatePreConditionList().isEmpty());
+      assertFalse(t.isMVForceAppendUpdates());
+   }
+
+   /**
+    * Round-trips all five MV fields ({@code set_mv_conditions}) through the real
+    * {@link WorksheetMutationSupport#setMVConditions} mutator onto the real
+    * {@link TableAssembly} MV accessor/mutator pairs
+    * ({@code TableAssembly.java:181-232}) -- the same fields the Composer's own MV Condition
+    * pane (out of scope here) writes for a human user, but reached here through the
+    * agent-bridge's own direct-TableAssembly path.
+    */
+   @Test
+   void setMVConditionsWritesAllFiveFieldsOntoTheTableAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("a", "=", "1")),
+         List.of(conditionNode("a", "=", "2")),
+         List.of(conditionNode("a", "=", "3")),
+         List.of(conditionNode("a", "=", "4")),
+         true));
+
+      assertEquals(1, t.getMVUpdatePreConditionList().getConditionSize());
+      assertEquals(1, t.getMVUpdatePostConditionList().getConditionSize());
+      assertEquals(1, t.getMVDeletePreConditionList().getConditionSize());
+      assertEquals(1, t.getMVDeletePostConditionList().getConditionSize());
+      assertTrue(t.isMVForceAppendUpdates());
+   }
+
+   /**
+    * {@code null} on any one of the four MV condition-list fields must leave that
+    * {@link TableAssembly} field untouched -- not clear it -- matching
+    * {@link WorksheetMutationSupport#setConditions}'s own null-vs-empty-list convention for the
+    * ordinary pre/post lists (an explicit empty list clears; {@code null} is "don't touch").
+    * Likewise {@code mvForceAppendUpdates == null} must leave the flag as it was.
+    */
+   @Test
+   void setMVConditionsNullLeavesThatFieldUntouched() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("a", "=", "1")),
+         List.of(conditionNode("a", "=", "2")),
+         List.of(conditionNode("a", "=", "3")),
+         List.of(conditionNode("a", "=", "4")),
+         true));
+
+      // Second call touches only mvUpdatePreConditions and the flag; the other three lists and
+      // an explicit re-set of the flag to false must leave/replace only what was passed.
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("a", "=", "9")), null, null, null, null));
+
+      assertEquals(1, t.getMVUpdatePreConditionList().getConditionSize());
+      assertEquals("9", firstConditionValue(t.getMVUpdatePreConditionList()));
+      assertEquals(1, t.getMVUpdatePostConditionList().getConditionSize(),
+         "null mvUpdatePostConditions must leave the previously-set list untouched");
+      assertEquals(1, t.getMVDeletePreConditionList().getConditionSize(),
+         "null mvDeletePreConditions must leave the previously-set list untouched");
+      assertEquals(1, t.getMVDeletePostConditionList().getConditionSize(),
+         "null mvDeletePostConditions must leave the previously-set list untouched");
+      assertTrue(t.isMVForceAppendUpdates(),
+         "null mvForceAppendUpdates must leave the previously-set flag untouched");
+   }
+
+   private static WorksheetMutationSupport.ConditionNode conditionNode(
+      String field, String operation, String value)
+   {
+      return new WorksheetMutationSupport.ConditionNode(
+         new WorksheetMutationSupport.ConditionSpec(field, operation, List.of(value), false, null),
+         null, 0);
+   }
+
+   private static String firstConditionValue(ConditionListWrapper wrapper) {
+      ConditionItem item = (ConditionItem) wrapper.getConditionItem(0);
+      return String.valueOf(((Condition) item.getXCondition()).getValue(0));
+   }
+
    @Test
    void editExpressionUpdatesExistingColumn() throws Exception {
       Worksheet ws = new Worksheet();

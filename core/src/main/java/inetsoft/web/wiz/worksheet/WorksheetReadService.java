@@ -116,6 +116,14 @@ public class WorksheetReadService {
          readConditions(t.getPostConditionList());
       List<WorksheetModel.FilterModel> rankingConditions =
          readConditions(t.getRankingConditionList());
+      List<WorksheetModel.FilterModel> mvUpdatePreConditions =
+         readConditions(t.getMVUpdatePreConditionList());
+      List<WorksheetModel.FilterModel> mvUpdatePostConditions =
+         readConditions(t.getMVUpdatePostConditionList());
+      List<WorksheetModel.FilterModel> mvDeletePreConditions =
+         readConditions(t.getMVDeletePreConditionList());
+      List<WorksheetModel.FilterModel> mvDeletePostConditions =
+         readConditions(t.getMVDeletePostConditionList());
       WorksheetModel.AggregateModel aggregates = readAggregates(t);
       List<WorksheetModel.SortModel> sorts = readSorts(t);
 
@@ -134,7 +142,10 @@ public class WorksheetReadService {
          maxRows <= 0 ? null : maxRows,
          t.isDistinct(), t.isSQLMergeable(), t.isVisibleTable(), tableMode(t),
          offset == null ? null : offset.x, offset == null ? null : offset.y,
-         readReferencedVariables(t));
+         readReferencedVariables(t),
+         mvUpdatePreConditions, mvUpdatePostConditions,
+         mvDeletePreConditions, mvDeletePostConditions,
+         t.isMVForceAppendUpdates());
    }
 
    /**
