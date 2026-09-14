@@ -42,6 +42,7 @@ import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
@@ -1688,6 +1689,8 @@ public class ViewsheetAssemblyAgentController {
                                            trimmedPath, null, uname.orgID);
          entry.setProperty("prefix", datasourceName);
          entry.setProperty("source", modelName);
+         // Viewsheet.getWorksheet reads this to build a SourceInfo when the viewsheet is opened.
+         entry.setProperty("type", XSourceInfo.MODEL + "");
 
          // Unlike a worksheet/viewsheet, a logical model is not an AbstractSheet -- rep.getSheet()
          // does not apply. rep.getEntries(entry, user, ResourceAction.READ) IS the permission +
