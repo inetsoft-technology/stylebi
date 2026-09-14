@@ -78,6 +78,10 @@ class SeedChromeDefaultsTest {
       return info.getFormatInfo().getFormat(VSAssemblyInfo.TITLEPATH);
    }
 
+   private static VSFormat activeTabDefault(TabVSAssemblyInfo info) {
+      return info.getFormatInfo().getFormat(TabVSAssemblyInfo.ACTIVE_TAB_PATH).getDefaultFormat();
+   }
+
    private TableVSAssemblyInfo newTable() {
       Viewsheet vs = new Viewsheet();
       TableVSAssembly table = new TableVSAssembly(vs, "Table1");
@@ -373,17 +377,30 @@ class SeedChromeDefaultsTest {
    }
 
    @Test
-   void aFreshTabUnderAnOpenGateKeepsItsOwnRadiusAndBorder() {
-      // Tab writes its own round corner and border colour after super(), overwriting whatever
-      // the hook wrote; a fresh tab must come out unchanged by the gate being open
+   void aFreshTabUnderAnOpenGateTakesTheModernRadiusAndBorder() {
+      // Tab now has its own gated seedChromeDefaults override (see
+      // TabVSAssemblyInfo.seedChromeDefaults), so a fresh tab under an open gate takes the same
+      // modern object chrome as the other card-style assemblies, not the legacy hardcoded values.
       gateOn();
+      VizContext ctx = VizContext.ofGate();
+      VSFormat fmt = objectDefault(newTab());
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(), fmt.getRoundCornerValue());
+      assertEquals(VSObjectChromeDefaults.objectBorderColor(ctx),
+                   fmt.getBorderColorsValue().topColor);
+   }
+
+   @Test
+   void aFreshTabUnderAClosedGateKeepsTheLegacyRadiusAndBorder() {
+      gateOff();
       VSFormat fmt = objectDefault(newTab());
       assertEquals(4, fmt.getRoundCornerValue());
       assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR, fmt.getBorderColorsValue().topColor);
    }
 
    @Test
-   void theHookDoesNothingForATabEvenUnderTheGate() {
+   void reseedingATabUnderTheSameGateIsIdempotent() {
+      // Tab's hook does do something now (unlike the old hardcode-after-super() behaviour this
+      // test used to pin) - re-running it under the same gate must not move the values further.
       gateOn();
       TabVSAssemblyInfo info = newTab();
       VSFormat fmt = objectDefault(info);
@@ -394,6 +411,47 @@ class SeedChromeDefaultsTest {
 
       assertEquals(radiusBefore, fmt.getRoundCornerValue());
       assertEquals(borderBefore, fmt.getBorderColorsValue().topColor);
+   }
+
+   @Test
+   void theHookRevertsAPreviouslyModernizedTabToo() {
+      gateOn();
+      VizContext ctx = VizContext.ofGate();
+      TabVSAssemblyInfo info = newTab();
+      assertEquals(VSObjectChromeDefaults.cardCornerRadius(),
+                   objectDefault(info).getRoundCornerValue());
+      assertEquals(VSObjectChromeDefaults.activeIndicatorColor(ctx),
+                   activeTabDefault(info).getBorderColorsValue().topColor);
+
+      info.seedChromeDefaults(VizContext.LEGACY);
+
+      assertEquals(4, objectDefault(info).getRoundCornerValue());
+      assertEquals(VSAssemblyInfo.DEFAULT_BORDER_COLOR,
+                   objectDefault(info).getBorderColorsValue().topColor);
+      assertEquals(new Color(237, 113, 28),
+                   activeTabDefault(info).getBorderColorsValue().topColor);
+   }
+
+   @Test
+   void aModernActiveTabIndicatorUsesTheSelectionTeal() {
+      gateOn();
+      assertEquals(new Color(0xBFDDE5),
+                   activeTabDefault(newTab()).getBorderColorsValue().topColor);
+   }
+
+   @Test
+   void aDarkActiveTabIndicatorUsesTheDarkSelectionTeal() {
+      SreeEnv.setProperty("viewsheet.modernVisualization", "true");
+      SreeEnv.setProperty("viewsheet.darkMode", "true");
+      assertEquals(new Color(0x2DD4BF),
+                   activeTabDefault(newTab()).getBorderColorsValue().topColor);
+   }
+
+   @Test
+   void aLegacyActiveTabIndicatorKeepsTheOriginalOrange() {
+      gateOff();
+      assertEquals(new Color(237, 113, 28),
+                   activeTabDefault(newTab()).getBorderColorsValue().topColor);
    }
 
    // ---- the title border, and who wins the title composite -----------------------------------
