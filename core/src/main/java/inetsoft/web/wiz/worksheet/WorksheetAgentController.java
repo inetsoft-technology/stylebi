@@ -238,9 +238,12 @@ public class WorksheetAgentController {
     *                      fresh from the live {@link JoinSession} on every call, never cached.
     * @param followFocusEnabled whether Follow Focus is opted in for this session (see
     *                      {@code SheetSessionService.setFollowFocus}).
+    * @param crossSheetFollowEnabled whether cross-sheet-follow is opted in for this session (see
+    *                      {@code SheetSessionService.setCrossSheetFollow}) -- added for Lane C,
+    *                      mirroring the script-domain endpoint's identical field and reasoning.
     */
    public record SessionInfo(String runtimeId, String sheetType, EditorContext editorContext,
-                             boolean followFocusEnabled) {}
+                             boolean followFocusEnabled, boolean crossSheetFollowEnabled) {}
 
    /**
     * Reports this session's OWN current scope, resolved fresh from the live {@link JoinSession}
@@ -276,7 +279,8 @@ public class WorksheetAgentController {
       }
 
       return new SessionInfo(session.runtimeId(), session.sheetType().name().toLowerCase(),
-                             session.editorContext(), session.followFocusEnabled());
+                             session.editorContext(), session.followFocusEnabled(),
+                             session.crossSheetFollowEnabled());
    }
 
    /**

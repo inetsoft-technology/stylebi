@@ -779,7 +779,7 @@ class WorksheetAgentControllerTest {
       EditorContext ctx = new EditorContext("worksheetExpression", "T", "Calc1", null);
       JoinSession s = new JoinSession("TOK", "Worksheet/ws-1", "alice~;~host-org",
          SheetType.WORKSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED,
-         null, null, ctx, true, false);
+         null, null, ctx, true, false, true);
 
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       WorksheetEditService editSvc = mock(WorksheetEditService.class);
@@ -798,6 +798,7 @@ class WorksheetAgentControllerTest {
       assertEquals("worksheet", info.sheetType());
       assertEquals(ctx, info.editorContext());
       assertTrue(info.followFocusEnabled());
+      assertTrue(info.crossSheetFollowEnabled());
    }
 
    /**
