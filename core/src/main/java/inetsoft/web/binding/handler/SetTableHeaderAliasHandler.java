@@ -101,12 +101,23 @@ public class SetTableHeaderAliasHandler {
    /**
     * The missing link a name-based rename needs that a UI click already has for free: given the
     * live {@code DataRef} a shelf/column/index resolved to, scans the rendered lens's header
-    * extent ({@code row} in {@code [0, getHeaderRowCount())}, {@code col} in
-    * {@code [0, getHeaderColCount())} — the same extent {@code HighlightDialogService
-    * .getFirstDataCell} already computes for a different feature) and returns the first
-    * {@code TableDataPath} that {@link ClearTableHeaderAliasHandler#matchAgg}/{@code matchDim}
-    * would also recognize as this ref's header cell. {@code null} if the rendered lens currently
-    * has no such cell (e.g. the column does not render at all right now).
+    * region and returns the first {@code TableDataPath} that {@link
+    * ClearTableHeaderAliasHandler#matchAgg}/{@code matchDim} would also recognize as this ref's
+    * header cell. {@code null} if the rendered lens currently has no such cell (e.g. the column
+    * does not render at all right now).
+    *
+    * <p>A crosstab's header region is an L-shape, not the {@code [0, getHeaderRowCount())} x
+    * {@code [0, getHeaderColCount())} rectangle {@code HighlightDialogService.getFirstDataCell}
+    * computes for a different purpose (the position of the first true *data* cell, a single
+    * point — not a scan bound for every axis). When an aggregate shelf has no dimension bound on
+    * the opposite axis (e.g. a crosstab with row dimensions but no column dimensions, laid out
+    * side-by-side), its header cell renders inside a header *row* ({@code row <
+    * getHeaderRowCount()}) but past the header *column* rectangle ({@code col >=
+    * getHeaderColCount()}) — the "arm" of the L that the rectangle-only scan missed, which is why
+    * an aggregate rename on exactly this common shape (1 row dimension, 0 column dimensions, 1+
+    * aggregates) previously failed with "could not find" even though the column-identity
+    * resolution itself succeeded. The mirrored arm (a header *column* extending past the header
+    * *row* rectangle, for the transposed shape with no row dimension) is scanned symmetrically.
     *
     * @param colIndex the ref's position on its own shelf — {@code matchDim} addresses a dimension
     *                 header purely positionally (its {@code "Cell [row,col]"} path segment), not
@@ -117,9 +128,32 @@ public class SetTableHeaderAliasHandler {
    public static TableDataPath findHeaderPath(VSTableLens lens, DataRef dataRef, int colIndex) {
       int headerRows = lens.getHeaderRowCount();
       int headerCols = lens.getHeaderColCount();
+      int colCount = lens.getColCount();
+      int rowCount = lens.getRowCount();
 
-      for(int row = 0; row < headerRows; row++) {
-         for(int col = 0; col < headerCols; col++) {
+      // The top headerRows rows are header rows by definition, regardless of column --
+      // side-by-side aggregate headers live here past the headerCols rectangle.
+      int rowArmColBound = colCount < 0 ? headerCols : colCount;
+      TableDataPath found = scanHeaderRegion(lens, dataRef, colIndex, 0, headerRows, 0,
+                                             rowArmColBound);
+
+      if(found != null) {
+         return found;
+      }
+
+      // The left headerCols columns are header columns by definition, regardless of row --
+      // the mirrored (non-side-by-side) summary header column lives here past the headerRows
+      // rectangle. Rows already covered by the arm above are skipped.
+      int colArmRowBound = rowCount < 0 ? headerRows : rowCount;
+      return scanHeaderRegion(lens, dataRef, colIndex, headerRows, colArmRowBound, 0, headerCols);
+   }
+
+   private static TableDataPath scanHeaderRegion(VSTableLens lens, DataRef dataRef, int colIndex,
+                                                  int rowStart, int rowEnd, int colStart,
+                                                  int colEnd)
+   {
+      for(int row = rowStart; row < rowEnd; row++) {
+         for(int col = colStart; col < colEnd; col++) {
             TableDataPath path = lens.getTableDataPath(row, col);
             String[] segments = path == null ? null : path.getPath();
 

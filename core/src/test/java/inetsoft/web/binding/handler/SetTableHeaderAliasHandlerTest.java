@@ -21,6 +21,7 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.FormatInfo;
+import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.VSFormat;
@@ -99,6 +100,8 @@ class SetTableHeaderAliasHandlerTest {
       VSTableLens lens = mock(VSTableLens.class);
       when(lens.getHeaderRowCount()).thenReturn(1);
       when(lens.getHeaderColCount()).thenReturn(2);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(1);
 
       TableDataPath col0 = headerPath("Cell [0,0]");
       TableDataPath col1 = headerPath("Cell [0,1]");
@@ -116,10 +119,48 @@ class SetTableHeaderAliasHandlerTest {
       VSTableLens lens = mock(VSTableLens.class);
       when(lens.getHeaderRowCount()).thenReturn(1);
       when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
       when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Cell [0,0]"));
 
       VSDimensionRef dimension = new VSDimensionRef();
 
       assertNull(SetTableHeaderAliasHandler.findHeaderPath(lens, dimension, 5));
+   }
+
+   /**
+    * Regression test for VTB-011 fix round 1, defect 1: a crosstab with a row dimension but no
+    * column dimension lays its (side-by-side) aggregate header out in the same single header
+    * *row* as the dimension header, but past the header *column* rectangle ({@code
+    * headerColCount}) -- e.g. dimension at (0,0), aggregate at (0,1) when {@code
+    * headerRowCount=1, headerColCount=1}. The pre-fix scan bound (col {@code <
+    * getHeaderColCount()}) never reached column 1, so the aggregate's real, correctly-typed
+    * {@code GROUP_HEADER} cell (segment {@code "Sum(PAID)"}, matching {@code
+    * VSAggregateRef.getFullName()}) was never tested against {@code matchAgg} at all --
+    * live-reproduced as "Could not find 'aggregates[0]'..." even though the column-identity
+    * resolution itself had already succeeded.
+    */
+   @Test
+   void findsAnAggregatesHeaderPathWhenItRendersPastTheHeaderColumnRectangle() {
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(3);
+
+      TableDataPath dimHeader = headerPath("Cell [0,0]");
+      TableDataPath aggHeader = headerPath("Sum(PAID)");
+      aggHeader.setType(TableDataPath.GROUP_HEADER);
+      when(lens.getTableDataPath(0, 0)).thenReturn(dimHeader);
+      when(lens.getTableDataPath(0, 1)).thenReturn(aggHeader);
+
+      // A mock, not a real VSAggregateRef -- constructing a real one touches AggregateFormula's
+      // static initializer, which needs a Spring/Catalog context this plain unit test doesn't
+      // have (see TableBindingMutator's own MULTI_ARG_FORMULA_NAMES comment for the same
+      // constraint). Only getFullName() is needed for matchAgg's comparison.
+      VSAggregateRef aggregate = mock(VSAggregateRef.class);
+      when(aggregate.getFullName()).thenReturn("Sum(PAID)");
+
+      assertSame(aggHeader, SetTableHeaderAliasHandler.findHeaderPath(lens, aggregate, 0));
    }
 }
