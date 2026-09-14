@@ -187,10 +187,11 @@ crossing WCAG 1.4.11's 3:1 floor it previously failed. Found by the final review
 
 `global.scss` compiles and the compiled output asserts the token chain. `styles.scss`, which an
 earlier draft of this section named, imports neither `_viz-tokens.scss` nor `_themeable.scss` and
-would have compiled green whatever this change did. The portal suite stays green — with the caveat
-that `npm run test:portal` collects 106 spec files where the target's `include` and
-`projects/portal/tsconfig.spec.json` scope 225, a pre-existing gap this change neither caused nor
-closes.
+would have compiled green whatever this change did. The suite stays green: `npm run test:portal`
+runs **two** projects and prints a summary block for each — portal at 225 files / 1454 tests, then
+em at 106 / 376. Reading only the trailing block is how an earlier draft of this section came to
+claim a collection gap, reporting em's 106 as portal's and setting it against the 225 spec files
+the portal target scopes. There is no gap: portal collects all 225.
 
 **The manual dark matrix below has NOT been run.** It is the release gate, and nothing automated
 substitutes for it: no check in this work looks at a rendered pixel. It is recorded as outstanding
