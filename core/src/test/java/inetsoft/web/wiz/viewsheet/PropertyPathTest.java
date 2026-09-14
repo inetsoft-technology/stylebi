@@ -142,6 +142,38 @@ class PropertyPathTest {
       assertEquals("false", target.getVisible());
    }
 
+   /**
+    * {@code visible} is backed by a {@code DynamicValue} and StyleBI's own Composer UI offers a
+    * "Variable" button on it, so a well-formed {@code $(ComponentName)} reference must pass this
+    * closed-value gate unresolved -- resolution happens at render time
+    * ({@code ViewsheetSandbox.executeDynamicValue}), never here. Existence of the named
+    * assembly is deliberately not checked at this layer (see below) -- that is the plugin's job.
+    */
+   @Test
+   void acceptsADynamicReferenceForVisible() {
+      StringVisible target = new StringVisible();
+
+      PropertyPath.set(target, "visible", "$(RadioButton1)");
+
+      assertEquals("$(RadioButton1)", target.getVisible(),
+                   "a dynamic reference passes through unresolved, not one of the enum tokens");
+   }
+
+   /**
+    * PropertyPath has no access to the viewsheet's assembly list, so it cannot and must not
+    * check whether the referenced component actually exists -- that check belongs to the
+    * plugin (existence/type validation against a live model), a separate layer entirely.
+    */
+   @Test
+   void acceptsADynamicReferenceForVisibleRegardlessOfWhetherTheNamedAssemblyExists() {
+      StringVisible target = new StringVisible();
+
+      PropertyPath.set(target, "visible", "$(Whatever)");
+
+      assertEquals("$(Whatever)", target.getVisible(),
+                   "existence of the named assembly is checked elsewhere, not by this gate");
+   }
+
    // ── Immutables support ────────────────────────────────────────────────────
    //
    // Five dialog models are Immutables: accessors are bare (imageGeneralPaneModel(), no "get")
@@ -543,6 +575,22 @@ class PropertyPathTest {
       assertTrue(thrown.getMessage().contains("Linear"), "list the tokens that do work");
    }
 
+   /**
+    * Regression guard: trendLineType is NOT DynamicValue-backed (ChartLinePaneModel/
+    * PlotDescriptor resolve it once, design-time, into an int index) -- a "$(...)" string here
+    * would be stored and never resolved by anything, so the dynamic-reference bypass added for
+    * visible must not extend to this property.
+    */
+   @Test
+   void stillRefusesADynamicReferenceForTrendLineType() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new TrendLine(), "trendLineType", "$(RadioButton1)"));
+
+      assertTrue(thrown.getMessage().contains("trendLineType"), "name the property");
+      assertTrue(thrown.getMessage().contains("Linear"), "list the tokens that do work");
+   }
+
    /** Mirrors {@code LegendFormatGeneralPaneModel.position}. */
    public static class Position {
       public String getPosition() { return position; }
@@ -573,6 +621,20 @@ class PropertyPathTest {
       Exception thrown = assertThrows(
          IllegalArgumentException.class,
          () -> PropertyPath.set(new Position(), "position", "sideways"));
+
+      assertTrue(thrown.getMessage().contains("position"), "name the property");
+      assertTrue(thrown.getMessage().contains("Right"), "list the tokens that do work");
+   }
+
+   /**
+    * Regression guard: position is NOT DynamicValue-backed (LegendFormatDialogModel resolves it
+    * once, design-time, into an int index) -- same reasoning as trendLineType above.
+    */
+   @Test
+   void stillRefusesADynamicReferenceForLegendPosition() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(new Position(), "position", "$(RadioButton1)"));
 
       assertTrue(thrown.getMessage().contains("position"), "name the property");
       assertTrue(thrown.getMessage().contains("Right"), "list the tokens that do work");
