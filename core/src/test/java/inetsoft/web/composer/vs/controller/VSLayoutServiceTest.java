@@ -344,6 +344,49 @@ class VSLayoutServiceTest {
          "print layout configured yet, not throw NullPointerException");
    }
 
+   /**
+    * VAR-002 (Redmine #76629): getPageNumber(int, int) is a 1-indexed ceiling-division page
+    * lookup that must special-case y &lt;= 0 back to page 1, since Math.ceil(0 / height) would
+    * otherwise degenerate to 0.
+    */
+   @Test
+   void getPageNumberIntOverloadHandlesTheOriginBoundary() {
+      int pageHeight = 720;
+
+      assertEquals(1, service.getPageNumber(0, pageHeight),
+         "y=0 is still the first page, not the ceiling-division degenerate 0");
+      assertEquals(1, service.getPageNumber(1, pageHeight));
+      assertEquals(1, service.getPageNumber(pageHeight, pageHeight),
+         "an object whose top edge exactly touches the page bottom is still that page -- "
+         + "deliberate boundary-inclusive convention, not left untested by oversight");
+      assertEquals(2, service.getPageNumber(pageHeight + 1, pageHeight));
+      assertEquals(-1, service.getPageNumber(100, 0), "pageHeight=0 is not computable");
+   }
+
+   /**
+    * Same VAR-002 boundary, via the VSAssemblyLayout/Dimension overload used by LayoutReadService.
+    */
+   @Test
+   void getPageNumberLayoutOverloadHandlesTheOriginBoundary() {
+      int pageHeight = 720;
+      Dimension pageSize = new Dimension(500, pageHeight);
+
+      assertEquals(1, service.getPageNumber(
+         new VSAssemblyLayout("Text1", new Point(0, 0), new Dimension(30, 40)), pageSize),
+         "y=0 is still the first page, not the ceiling-division degenerate 0");
+      assertEquals(1, service.getPageNumber(
+         new VSAssemblyLayout("Text1", new Point(0, 1), new Dimension(30, 40)), pageSize));
+      assertEquals(1, service.getPageNumber(
+         new VSAssemblyLayout("Text1", new Point(0, pageHeight), new Dimension(30, 40)), pageSize),
+         "boundary-inclusive convention, same as the int overload");
+      assertEquals(2, service.getPageNumber(
+         new VSAssemblyLayout("Text1", new Point(0, pageHeight + 1), new Dimension(30, 40)),
+         pageSize));
+      assertEquals(-1, service.getPageNumber(
+         new VSAssemblyLayout("Text1", new Point(0, 100), new Dimension(30, 40)),
+         new Dimension(500, 0)), "pageSize.height=0 is not computable");
+   }
+
    private VSObjectModel mockObjectModel() {
       VSObjectModel model = mock(VSObjectModel.class);
       VSFormatModel fmt = new VSFormatModel();

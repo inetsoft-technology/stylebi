@@ -182,6 +182,21 @@ class LayoutReadServiceTest {
    }
 
    @Test
+   void getReportsPageOneForAnObjectAtTheExactPageOrigin() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayoutWithObjectAtPageOrigin();
+
+      LayoutModel model = fx.service.get("tok1", AGENT, PRINT_LAYOUT);
+
+      LayoutObjectModel text = model.objects().stream()
+         .filter(o -> "Text1".equals(o.name())).findFirst().orElseThrow();
+      // y=0 is still the first page, not a sentinel/absent page -- Math.ceil(0 / height)
+      // degenerates to 0 under the raw formula (VAR-002, Redmine #76629); getPageNumber must
+      // special-case this boundary back to 1.
+      assertEquals(1, text.pageIndex(), "an object at the exact page origin (y=0) is page 1");
+   }
+
+   @Test
    void getReportsNullPageIndexWhenThePrintLayoutHasNeverHadPrintInfoConfigured()
       throws Exception
    {
@@ -411,6 +426,28 @@ class LayoutReadServiceTest {
          List<VSAssemblyLayout> objects = new ArrayList<>();
          objects.add(new VSAssemblyLayout("Text1", new Point(100, 200), new Dimension(30, 40)));
          objects.add(new VSAssemblyLayout("Table1", new Point(300, 800), new Dimension(50, 60)));
+         layout.setVSAssemblyLayouts(objects);
+
+         masterVs.getLayoutInfo().setPrintLayout(layout);
+      }
+
+      /**
+       * A print layout using the same real Letter/0.5in PrintInfo as {@link #installPrintLayout},
+       * but with {@code Text1} sitting at the exact page origin ({@code y=0}) -- the VAR-002
+       * boundary case where {@code Math.ceil(0 / height)} degenerates to {@code 0} instead of the
+       * correct first-page value of {@code 1}.
+       */
+      void installPrintLayoutWithObjectAtPageOrigin() {
+         TextVSAssembly text = new TextVSAssembly(masterVs, "Text1");
+         text.setPixelOffset(new Point(10, 20));
+         text.setPixelSize(new Dimension(15, 10));
+         masterVs.addAssembly(text);
+
+         PrintLayout layout = new PrintLayout();
+         layout.setPrintInfo(new PrintInfo("Letter", new DimensionD(8.5, 11),
+                                            0.5f, 0.5f, 0.5f, 0.5f, "inches"));
+         List<VSAssemblyLayout> objects = new ArrayList<>();
+         objects.add(new VSAssemblyLayout("Text1", new Point(100, 0), new Dimension(30, 40)));
          layout.setVSAssemblyLayouts(objects);
 
          masterVs.getLayoutInfo().setPrintLayout(layout);
