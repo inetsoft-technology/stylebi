@@ -768,6 +768,86 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // session -- Lane C (design doc section 7.7 item 2): worksheet-domain counterpart of
+   // ViewsheetAgentController#session, so sessionProbe.ts's runtimeId/sheetType re-probe can
+   // reach a worksheet-hosted session too, not just a viewsheet-hosted one.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void sessionReportsTheLiveSessionsCurrentScope() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      EditorContext ctx = new EditorContext("worksheetExpression", "T", "Calc1", null);
+      JoinSession s = new JoinSession("TOK", "Worksheet/ws-1", "alice~;~host-org",
+         SheetType.WORKSHEET, 0L, Long.MAX_VALUE, JoinSession.ConnectionMode.PAIRED,
+         null, null, ctx, true, false);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), sessions,
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      WorksheetAgentController.SessionInfo info = ctrl.session("TOK", agent);
+
+      assertEquals("Worksheet/ws-1", info.runtimeId());
+      assertEquals("worksheet", info.sheetType());
+      assertEquals(ctx, info.editorContext());
+      assertTrue(info.followFocusEnabled());
+   }
+
+   /**
+    * Mirrors the script-domain endpoint's own "also verifies the runtime still exists" behavior:
+    * a live pairing record whose underlying runtime has been independently evicted must still
+    * read as expired here, not as a stale success -- exercised by having editService.resolve
+    * itself throw, exactly what it does for a runtime that's gone.
+    */
+   @Test
+   void sessionThrowsWhenTheUnderlyingRuntimeIsGone() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent)))
+         .thenThrow(new PairingException(PairingException.Kind.SESSION_EXPIRED, "gone"));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      assertThrows(PairingException.class, () -> ctrl.session("TOK", agent));
+   }
+
+   @Test
+   void sessionThrowsWhenTheSessionIsExpiredOrUnknown() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      // sessions.resolve(...) defaults to null -- unknown/expired token.
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () -> ctrl.session("TOK", agent));
+      assertEquals(PairingException.Kind.SESSION_EXPIRED, ex.getKind());
+   }
+
+   @Test
+   void sessionRejectsFlagOff() {
+      WorksheetAgentController ctrl = controller(featureOff(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      assertThrows(ResponseStatusException.class,
+         () -> ctrl.session("TOK", TestPrincipals.user("alice", "host-org")));
+   }
+
+   // ---------------------------------------------------------------------------
    // preview
    // ---------------------------------------------------------------------------
 
@@ -7163,7 +7243,10 @@ class WorksheetAgentControllerTest {
    /** Methods that must NOT enforce the whole-sheet guard, and why. */
    private static final Set<String> WHOLE_SHEET_GUARD_EXEMPT = Set.of(
       // Ending a pane-scoped session is exactly what detach is for -- see its own javadoc.
-      "detach"
+      "detach",
+      // A session is always entitled to know its own scope, whole-sheet or pane-scoped alike --
+      // see session()'s own javadoc, mirroring the script-domain endpoint's identical exemption.
+      "session"
    );
 
    private static String sessionTokenMappingPath(Method m) {

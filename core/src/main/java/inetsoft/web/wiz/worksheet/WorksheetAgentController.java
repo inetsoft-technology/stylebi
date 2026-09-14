@@ -234,6 +234,52 @@ public class WorksheetAgentController {
    }
 
    /**
+    * @param editorContext the session's CURRENT scope -- {@code null} for whole-sheet -- read
+    *                      fresh from the live {@link JoinSession} on every call, never cached.
+    * @param followFocusEnabled whether Follow Focus is opted in for this session (see
+    *                      {@code SheetSessionService.setFollowFocus}).
+    */
+   public record SessionInfo(String runtimeId, String sheetType, EditorContext editorContext,
+                             boolean followFocusEnabled) {}
+
+   /**
+    * Reports this session's OWN current scope, resolved fresh from the live {@link JoinSession}
+    * on every call -- the worksheet-domain counterpart of
+    * {@code inetsoft.web.wiz.script.ViewsheetAgentController#session}, added for Lane C
+    * (cross-sheet-follow, design doc section 7.7 item 2). Before this, {@code sessionProbe.ts}'s
+    * runtimeId/sheetType re-probe only ever reached the script-domain `/session` endpoint
+    * (guarded there by {@code sheetType === "viewsheet"}), because no worksheet-domain equivalent
+    * existed at all -- see that file's own header comment. A worksheet-hosted,
+    * cross-sheet-follow-enabled session can now be re-probed the same way, closing that gap
+    * rather than leaving worksheet sessions permanently unable to self-correct.
+    *
+    * <p>Also verifies the runtime the pairing names still exists (mirrors the script-domain
+    * endpoint's own reasoning): {@code sessionService.resolve} alone only checks the in-memory
+    * pairing record, not whether the {@link RuntimeWorksheet} it points at has since been evicted
+    * independently.
+    *
+    * <p>Requires no whole-sheet check of its own (unlike {@link #read}/{@link #edit}, which call
+    * {@link #requireWholeSheetSession}) -- a session is always entitled to know its own scope,
+    * whole-sheet or pane-scoped alike, exactly as the script-domain endpoint documents.
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/session")
+   public SessionInfo session(@PathVariable String sessionToken, Principal user)
+      throws PairingException
+   {
+      requireEnabled();
+      editService.resolve(sessionToken, user);
+      JoinSession session = sessionService.resolve(sessionToken, agentKey(user));
+
+      if(session == null) {
+         throw new PairingException(
+            PairingException.Kind.SESSION_EXPIRED, "Invalid or expired session: " + sessionToken);
+      }
+
+      return new SessionInfo(session.runtimeId(), session.sheetType().name().toLowerCase(),
+                             session.editorContext(), session.followFocusEnabled());
+   }
+
+   /**
     * Read the current structural model of the worksheet identified by {@code sessionToken}.
     *
     * @param sessionToken the token obtained at join time
