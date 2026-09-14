@@ -614,6 +614,59 @@ class BindableFieldsServiceTest {
    }
 
    /**
+    * Bug #76607: a viewsheet-scoped calc field on a Logical Model is stored keyed by the model's
+    * own name, not any one entity's -- so {@code BaseTreeModelBuilder} gives it no per-entity
+    * TABLE ancestor either, and it lands in an untagged Dimensions/Measures folder directly under
+    * the tree root (its actual, correct home -- it does not belong to any single entity). Scoped
+    * to an assembly whose viewsheet base is this same model, that untagged folder must fold into
+    * the model's own group -- not be read as a separate, unbindable pseudo-table literally named
+    * "Dimensions", which is what made the field permanently unbindable.
+    */
+   @Test
+   void foldsAnUntaggedRootFolderIntoTheModelForAScopedCallOnALogicModelBase() throws Exception {
+      TreeNodeModel customer = TreeNodeModel.builder().label("Customer").data(entityEntry("Order Model"))
+         .addChildren(columnNode("Customer:Region", "string")).build();
+      // The shape BaseTreeModelBuilder.appendColumnNodes/addAggregateNode's addLMEntryLevel=true
+      // branch actually produces: a plain FOLDER node, no per-entity TABLE ancestor, directly
+      // under root, alongside the tagged entity nodes.
+      TreeNodeModel untaggedDimensions = TreeNodeModel.builder().label("Dimensions")
+         .data(entry(AssetEntry.Type.FOLDER, "Dimensions", null))
+         .addChildren(columnNode("Net Revenue", "double")).build();
+      TreeNodeModel root = TreeNodeModel.builder().label("root")
+         .addChildren(customer).addChildren(untaggedDimensions).build();
+
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getSourceInfo())
+         .thenReturn(new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Order Model"));
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly("Chart1")).thenReturn(chart);
+      AssetEntry baseEntry = mock(AssetEntry.class);
+      when(baseEntry.isLogicModel()).thenReturn(true);
+      when(baseEntry.getName()).thenReturn("Order Model");
+      when(vs.getBaseEntry()).thenReturn(baseEntry);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetService engine = mock(ViewsheetService.class);
+      when(engine.getViewsheet(eq("rt1"), any(Principal.class))).thenReturn(rvs);
+      VSBindingTreeService tree = mock(VSBindingTreeService.class);
+      when(tree.getBinding(eq("rt1"), eq("Chart1"), anyBoolean(), any(Principal.class)))
+         .thenReturn(root);
+      BindableFieldsService service = new BindableFieldsService(tree, engine);
+
+      List<BindableTable> tables = service.list("rt1", "Chart1", principal());
+
+      assertEquals(1, tables.size(),
+                   "the untagged folder must fold into the model, not become its own pseudo-table");
+      assertEquals("Order Model", tables.get(0).name());
+      assertEquals(Boolean.TRUE, tables.get(0).current());
+      assertEquals(List.of("Customer:Region", "Net Revenue"),
+                   tables.get(0).fields().stream().map(BindableField::column).toList(),
+                   "the model-level calc field must sit alongside the entity's own columns, in " +
+                   "the one model group -- not fabricate an entity ancestor for it, and not " +
+                   "leave it in a separate, unbindable 'Dimensions' pseudo-table");
+   }
+
+   /**
     * The regression that a folder test missed: entities arrive typed TABLE, so gating the prefix on
     * {@code isFolder} left the columns bare, and bare is ambiguous — Address, City, Company,
     * Region, State and Zip each occur under more than one entity of the sample model.
