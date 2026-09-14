@@ -444,6 +444,34 @@ public abstract class BaseTreeModelBuilder {
       VSUtil.appendCalcFields(list, assembly, vs, false,
          isWizard || !(info instanceof ChartVSAssemblyInfo));
 
+      // Bug #76607: also surface a calc field stored under the LOGIC MODEL's own name --
+      // add_calc_field(table:"<Model Name>", ...) stores it there, not under any one entity, so
+      // the entity-keyed lookup above never finds it. Added to exactly one entity's node
+      // (lmModelCalcFieldsAdded dedupes across the per-entity loop in addCurrentQueryNode).
+      // Restricted to !addLMEntryLevel: the addLMEntryLevel=true caller (addLMEntryLevel(List,
+      // Node) when AggregateInfo is empty) puts Dimensions/Measures folders directly under the
+      // tree root with no per-entity TABLE-typed ancestor node (aname is deliberately "" there),
+      // so a field added through that path can never be tagged as belonging to the model
+      // (applyTableNodeProperties/modelOf need a TABLE-entry ancestor) and surfaces instead
+      // through BindableFieldsService's untagged-fallback grouping -- a second, spurious sighting
+      // of the same field alongside the correctly-grouped one added below.
+      if(!addLMEntryLevel && baseEntry != null && baseEntry.isLogicModel() && vs != null) {
+         String modelName = baseEntry.getName();
+         CalculateRef[] modelCalcs = vs.getCalcFields(modelName);
+
+         if(modelCalcs != null) {
+            for(CalculateRef calc : modelCalcs) {
+               if(calc.isDcRuntime() || list.contains(calc) ||
+                  !lmModelCalcFieldsAdded.add(modelName + "." + calc.getName()))
+               {
+                  continue;
+               }
+
+               list.add(calc);
+            }
+         }
+      }
+
       if(list.size() == 0) {
          return;
       }
@@ -791,4 +819,13 @@ public abstract class BaseTreeModelBuilder {
    protected boolean isWizard = false;
    protected Catalog catalog = Catalog.getCatalog();
    protected Map<String, String> statusMap = new HashMap();
+
+   // Bug #76607: a viewsheet-scoped calc field on a Logical Model is stored keyed by the
+   // model's own name (Viewsheet.calcmap), but this builder fans a logic model out into one
+   // TableAssembly per entity and looks calc fields up keyed by the entity's name (see
+   // appendColumnNodes) -- a model-level calc field never matches any entity's name, so it never
+   // appears here at all. Tracked per builder instance (one instance per tree-build request, see
+   // CubeTreeModelBuilder.getCubeTreeModel) so the model-keyed lookup below is added to exactly
+   // one entity's node instead of duplicating onto every entity.
+   private final Set<String> lmModelCalcFieldsAdded = new HashSet<>();
 }
