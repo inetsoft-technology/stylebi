@@ -76,10 +76,27 @@ import java.util.List;
  *                         field, never {@code calculateInfo}. Removing a calculator once set
  *                         requires a follow-up capability (a real "clear" signal), not something
  *                         this record already supports.
+ * @param secondaryY       plot the measure on the secondary Y axis, measures only -- mutually
+ *                         exclusive with the (currently unexposed on this path) discrete flag.
+ *                         {@code null}/absent means "not specified", applied as {@code false} on
+ *                         write.
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
                        String namedGroup, Integer chartType, Integer runtimeChartType,
-                       NamedGroupValues namedGroupValues, CalculateInfo calculateInfo) {
+                       NamedGroupValues namedGroupValues, CalculateInfo calculateInfo,
+                       Boolean secondaryY) {
+   /**
+    * The shape before {@code secondaryY} was added -- kept so this addition did not touch every
+    * call site that already named {@code calculateInfo}.
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup, Integer chartType, Integer runtimeChartType,
+                   NamedGroupValues namedGroupValues, CalculateInfo calculateInfo)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
+           namedGroupValues, calculateInfo, null);
+   }
+
    /**
     * Every caller but the chart read builds a ref with no chart type. Kept so that adding the
     * components did not touch forty-odd construction sites that have nothing to do with charts.
