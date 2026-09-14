@@ -243,7 +243,7 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       if(token != null) {
          securityToken = Tool.decryptPassword(token);
       }
-      else if(getCredential() instanceof CloudCredential cloudCredential &&
+      else if(!isOauth() && getCredential() instanceof CloudCredential cloudCredential &&
          !Tool.isEmptyString(cloudCredential.getId()))
       {
          // Data sources that used "Use Secret ID" before this class switched to
@@ -251,7 +251,10 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          // JSON, under the legacy CloudSecurityTokenCredential schema ("security_token"). The
          // new credential type has no such field and never reads that key, so without this the
          // token would be permanently orphaned in the vault. Read the raw secret directly
-         // instead of relying on the new credential class to deserialize it.
+         // instead of relying on the new credential class to deserialize it. Gated on Legacy
+         // Password mode (!isOauth()) since OAuth-mode data sources never had a security token
+         // to migrate, and this call reaches a live vault API (billed per call on services like
+         // AWS Secrets Manager).
          try {
             JsonNode node = loadCloudSecurityToken(cloudCredential.getId());
 
