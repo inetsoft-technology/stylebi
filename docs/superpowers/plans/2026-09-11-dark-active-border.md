@@ -1,6 +1,6 @@
 # Dark active-border value — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Give `--inet-viz-active-border` a dark value so the assembly focus outline stops drawing the light brand orange on dark cards, and make the outline's DOM position able to resolve that value.
 
@@ -9,6 +9,18 @@
 **Tech Stack:** Dart Sass (`node_modules/.bin/sass`), Angular 21 template bindings, Vitest 4.1.7 via `ng run portal:test-tl`.
 
 **Spec:** `docs/superpowers/specs/lookfeel/2026-09-11-dark-active-border-design.md`
+
+> **Executed, with one addition this plan did not contain.** A second defect with the same symptom —
+> the light brand orange on a dark card — turned up while verifying Task 2, in a mechanism no token
+> change can reach: chart mark selection is painted on a `<canvas>` from the computed style of
+> `.viz-modern .chart-object-canvas`, which named `--inet-primary-color` directly. It was fixed on
+> this branch rather than deferred, in the commit *"Draw chart mark selection in the selected family,
+> dark only"*, and is written up in the design's **The second defect** section. It is recorded here
+> rather than retrofitted as a Task 5, so the plan still reads as what was planned.
+>
+> The branch was later rebased onto `epic-74519` after the palette re-tune (#5188) landed there,
+> which changed every `Modern Dark` head colour and so changed the ΔE figures quoted throughout the
+> design. They were re-measured; the conclusions held.
 
 ## Global Constraints
 
@@ -34,7 +46,7 @@ The deliverable is standalone: after this task `--inet-viz-active-border` resolv
 - Consumes: `--inet-primary-color-dark`, declared at `web/projects/portal/src/scss/_variables.scss:495` inside the `:root` block that spans `:248-614`. Verified to emit `#C96F12`.
 - Produces: `--inet-viz-active-border-dark`, a `:root`-level custom property; and `--inet-viz-active-border` resolving to it inside `.viz-dark, .viz-shell-dark`. Task 2 consumes `--inet-viz-active-border`.
 
-- [ ] **Step 1: Write the failing assertion**
+- [x] **Step 1: Write the failing assertion**
 
 This change is CSS custom properties, so the falsifiable check is the compiled stylesheet. Save this script as `check-active-border.sh` in your scratch directory (not in the repo):
 
@@ -62,7 +74,7 @@ rm -f "$OUT"
 exit $fail
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bash check-active-border.sh`
 
@@ -76,7 +88,7 @@ FAIL: dark scope consumes it
 FAIL: light active-border count is 3, expected 2
 ```
 
-- [ ] **Step 3: Insert the dark token**
+- [x] **Step 3: Insert the dark token**
 
 In `web/projects/portal/src/scss/_viz-tokens.scss`, find this line in the customer-overridable dark block:
 
@@ -92,7 +104,7 @@ Insert directly **after** it (mirroring the light block's order at `:33-44`, whe
   --inet-viz-active-border-dark: var(--inet-primary-color-dark);
 ```
 
-- [ ] **Step 4: Re-point the dark scope**
+- [x] **Step 4: Re-point the dark scope**
 
 In the same file, inside the `.viz-dark, .viz-shell-dark` block, find:
 
@@ -106,7 +118,7 @@ There are three occurrences of that exact text in the file — at `:38` (`:root`
   --inet-viz-active-border: var(--inet-viz-active-border-dark);
 ```
 
-- [ ] **Step 5: Run the assertion to verify it passes**
+- [x] **Step 5: Run the assertion to verify it passes**
 
 Run: `bash check-active-border.sh`
 
@@ -122,7 +134,7 @@ PASS: exactly 2 light active-border declarations remain
 
 If the light count reads 1, you edited `:38` or `:109` by mistake — revert and change only the occurrence inside the dark block.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add web/projects/portal/src/scss/_viz-tokens.scss
@@ -157,7 +169,7 @@ These two edits ship together because either alone is wrong: re-pointing the cla
 - Consumes: `--inet-viz-active-border` from Task 1; `VSObjectModel.vizModern` and `VSObjectModel.vizDark` (`vs-object-container.component.ts` model, declared at `vs-object-model.ts:67-68`, both `boolean`, and `vizDark` is never true unless `vizModern` is).
 - Produces: nothing consumed by a later task.
 
-- [ ] **Step 1: Write the failing assertions**
+- [x] **Step 1: Write the failing assertions**
 
 Two checks, because the change has two halves. Save as `check-focus-outline.sh` in your scratch directory:
 
@@ -193,7 +205,7 @@ done
 exit $fail
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `bash check-focus-outline.sh`
 
@@ -205,7 +217,7 @@ FAIL: .focus-assembly does not bind viz-modern
 FAIL: .focus-assembly does not bind viz-dark
 ```
 
-- [ ] **Step 3: Re-point the class**
+- [x] **Step 3: Re-point the class**
 
 In `web/projects/portal/src/scss/_themeable.scss`, find:
 
@@ -227,7 +239,7 @@ Replace the declaration with:
 
 Leave `.bd-selected-cell` immediately above it untouched — it is the selected family and keeps `--inet-viz-selected-border`.
 
-- [ ] **Step 4: Bind the viz classes onto the focus overlay**
+- [x] **Step 4: Bind the viz classes onto the focus overlay**
 
 In `web/projects/portal/src/app/vsobjects/objects/vs-object-container.component.html`, find the opening of the focus overlay:
 
@@ -249,7 +261,7 @@ Bind both, not only `viz-dark`: the dark block in `_viz-tokens.scss` states the 
 
 Do **not** add a comment inside the HTML file; this project does not comment Angular templates.
 
-- [ ] **Step 5: Run the assertions to verify they pass**
+- [x] **Step 5: Run the assertions to verify they pass**
 
 Run: `bash check-focus-outline.sh`
 
@@ -261,7 +273,7 @@ PASS: .focus-assembly binds viz-modern
 PASS: .focus-assembly binds viz-dark
 ```
 
-- [ ] **Step 6: Run the container's test suite for regressions**
+- [x] **Step 6: Run the container's test suite for regressions**
 
 The template edit is not itself guarded — none of the four `vs-object-container` spec files renders the template — so this run is a regression check, not a proof of the change.
 
@@ -275,13 +287,13 @@ Expected: `Test Files 3 passed (3)`, `Tests 98 passed (98)`. That is the measure
 
 **If it reports 0 tests, the command is wrong, not the code.** `ng test portal --include='**/*.tl.spec.ts'` matches nothing and exits 0; TL specs only run under the `portal:test-tl` target.
 
-- [ ] **Step 7: Run the portal unit suite**
+- [x] **Step 7: Run the portal unit suite**
 
 Run from `community/web`: `npm run test:portal`
 
 Expected: green. This is the slow gate; it catches nothing specific to this change but is the branch's standing requirement.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add web/projects/portal/src/scss/_themeable.scss \
@@ -317,7 +329,7 @@ The ticket was never referenced from `chart-card-roadmap.md`, so the defect and 
 **Interfaces:**
 - Consumes: nothing. Produces: nothing.
 
-- [ ] **Step 1: Add the Done row**
+- [x] **Step 1: Add the Done row**
 
 The table's shape is `| Item | Commit |`, with the commit column quoting subjects in italics. Insert a new row directly beneath the header separator at `:1557`:
 
@@ -325,7 +337,7 @@ The table's shape is `| Item | Commit |`, with the commit column quoting subject
 | **The dark active-border value.** `--inet-viz-active-border` was the one token whose dark-block entry re-pointed at the *light* primary accent rather than taking a dark value, so every assembly's focus outline drew `#E58A2A` on a dark card while the selected cell four lines away in the same stylesheet drew teal. Predates the whole track — `0d2cdd433a`, 2024-07-12 — and is not a regression from the dark pass or the palette re-tune. **Two of the recording ticket's three framing questions fell to measurement rather than taste**: matching the cell's teal would have collapsed the active/selected split `_viz-tokens.scss:100` documents as deliberate *and* fed a family this file ranks for retirement; and going neutral, which the palette-coordination decision test argues for in the abstract, measures ΔE **0.060** against `Modern Dark`'s slate `#94A3B8` — worse than the orange it replaces. The value is `var(--inet-primary-color-dark)`, `#C96F12`, the brand accent's existing deep step: ΔE 0.155 here and 0.130 against the re-tuned palette, both clear of the design set's 0.106 line, at 4.23:1 on the card. **A dark accent has to go deeper, not lighter** — every `Modern Dark` member is high-lightness by design, so lightness is the axis that separates. The ticket also had the blast radius wrong in both directions: the class occurs **once** in the repo, not across composer and viewer (the composer solved this for its own handles long ago, at `editable-object-container.component.scss:42`), but its overlay div is a *preceding sibling* of the wrapper carrying `viz-modern`/`viz-dark`, so no dark token could reach it and the reachability half was unmentioned. Design: [the dark active-border value](./2026-09-11-dark-active-border-design.md) | *"Give the viz active border a dark value"* · *"Draw the assembly focus outline in the dark accent"* |
 ```
 
-- [ ] **Step 2: Annotate the teal question**
+- [x] **Step 2: Annotate the teal question**
 
 In `## Still undecided`, find the final bullet:
 
@@ -344,7 +356,7 @@ Append to it:
   retirement more expensive, not less.
 ```
 
-- [ ] **Step 3: Verify both edits landed**
+- [x] **Step 3: Verify both edits landed**
 
 Run from `community/`:
 
@@ -355,7 +367,7 @@ grep -c "one fewer consumer to migrate" docs/superpowers/specs/lookfeel/chart-ca
 
 Expected: `1` and `1`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/specs/lookfeel/chart-card-roadmap.md
@@ -379,7 +391,7 @@ This is the release gate the design and the ticket both name, and nothing above 
 
 **Files:** none.
 
-- [ ] **Step 1: Build and start the server**
+- [x] **Step 1: Build and start the server**
 
 From the enterprise root, per `CLAUDE.md`:
 
@@ -390,35 +402,35 @@ cd docker/target/docker-test && docker compose up -d
 
 Access `http://localhost:8080`. If a build is already current, `npm run build` from `community/web` plus a restart is enough — the change is stylesheet and template only.
 
-- [ ] **Step 2: Check each assembly type, focused, in a dark org**
+- [x] **Step 2: Check each assembly type, focused, in a dark org**
 
 Set `viewsheet.darkMode` on the org, open a dashboard whose assemblies carry a modern mark, and click each in turn to focus it. Confirm the 1px dotted ring is the deep orange `#C96F12` and not `#E58A2A`, and that it is legible against the card:
 
-- [ ] chart
-- [ ] table
-- [ ] crosstab
-- [ ] calc table
-- [ ] selection list
-- [ ] selection tree
-- [ ] range slider
-- [ ] calendar
-- [ ] a text or gauge output assembly
+- [x] chart
+- [x] table
+- [x] crosstab
+- [x] calc table
+- [x] selection list
+- [x] selection tree
+- [x] range slider
+- [x] calendar
+- [x] a text or gauge output assembly
 
-- [ ] **Step 3: Check the case the body-class route gets wrong**
+- [x] **Step 3: Check the case the body-class route gets wrong**
 
 In a **light** org, place an assembly whose own mark is `MODERN_DARK`. Focus it. The ring must be the **dark** value, following the assembly's mark — not the light orange the org gate would have given. This is the check that proves Task 2 Step 4 was necessary; if this one is wrong, the bindings did not land.
 
-- [ ] **Step 4: Confirm light mode is unchanged, and check gate-off in both orgs**
+- [x] **Step 4: Confirm light mode is unchanged, and check gate-off in both orgs**
 
 Focus assemblies in a light org, modern and gate-off both. The ring must still be `#E58A2A`. A gate-off assembly there carries neither viz class and resolves `:root`.
 
 Then focus a **gate-off** assembly in a **dark** org. This one DOES change: with no viz class of its own it inherits the body-level `viz-shell-dark` token, so its ring becomes `#C96F12`. On its white card that is an improvement, 2.62:1 to 3.64:1. Confirm it looks deliberate rather than like a stray colour.
 
-- [ ] **Step 5: Check the token's other consumer**
+- [x] **Step 5: Check the token's other consumer**
 
 Focus a combo-box assembly in dark so `.vs-combo-box-trigger:focus` applies. Its focus border changes with this work, by design. Confirm it reads as a focus state and not as a disabled or error one.
 
-- [ ] **Step 6: Record the result**
+- [x] **Step 6: Record the result**
 
 Append the outcome to the design document's Verification section — which assemblies were checked, on what build, and anything that looked wrong. If something fails, stop and report rather than patching the colour: the value came from a measurement, and changing it invalidates the design's argument.
 

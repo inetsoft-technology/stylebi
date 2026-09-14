@@ -1,11 +1,13 @@
 # The dark active-border value — design
 
 **Date:** 2026-09-11
-**Status:** implemented; the manual dark matrix is outstanding — see *Verification*
+**Status:** implemented and verified; the manual dark matrix passed on every row — see *Verification*
+for the one caveat, that it ran before the rebase onto the re-tuned palette
 **Branch:** `feature-dark-active-border`, cut from `epic-74519`
-**Resolves:** the assembly-selection-border ticket recorded on `feature-chart-palette-retune`
-(`333a377118`). That file is not on this branch and arrives with the palette re-tune; this document
-restates its mechanism in full so it stands alone.
+**Resolves:** [the assembly-selection-border ticket](./2026-09-11-dark-assembly-selection-border-ticket.md).
+It was authored on `feature-chart-palette-retune` and reached `epic-74519` with the palette re-tune
+(#5188); this branch was rebased onto that, so the two now sit side by side. This document restates
+its mechanism in full and stands alone regardless.
 
 ## What this is
 
@@ -127,6 +129,51 @@ from the legacy palette, so any chart with more than eight series draws slots 9-
 31 is `#CC6600` — ΔE **0.019** from `#C96F12`, against 0.052 from `#E58A2A` today. At nine or more
 series the ring and a mark are effectively the same colour. See *What this leaves open*.
 
+## The second defect — chart mark selection is canvas-painted and never saw the dark pass
+
+Found while verifying the above, in a different mechanism, and fixed in the same branch because it
+is the same symptom: the light brand orange drawn on a dark card by a selection affordance. It is
+not reachable from the token work — no amount of repointing `--inet-viz-active-border` touches it.
+
+`.viz-modern .chart-object-canvas` (`_themeable.scss:1444`) names `--inet-primary-color` directly
+and has no dark counterpart. A chart's selected marks are not DOM: `ChartTool.drawRegions`
+(`chart-tool.ts:781`) reads the **canvas element's computed style** — `color` becomes `fillStyle`,
+`borderColor` becomes `strokeStyle` — and paints them. So the affordance resolves through exactly
+one rule, and that rule named a value with no dark form. Every custom property the dark scope
+redefines was reaching the canvas correctly and being ignored, because nothing read one.
+
+Dark now takes the **selected** family rather than the accent, so a selected mark and a selected
+title agree. Within that family it takes the *ink* rather than the *border*, which is the opposite
+of what naming would suggest and is forced by where the stroke lands — on top of the marks:
+
+Measured against the re-tuned `Modern Dark` head-8 this branch now sits on, not the pre-rebase one:
+
+| dark stroke candidate | contrast on `#252428` | ΔE to nearest `Modern Dark` |
+|---|---|---|
+| `#E58A2A` today | 5.88:1 | 0.079 — slot 2 `#FF8367` |
+| `--inet-viz-selected-border` `#2DD4BF` | 8.28:1 | 0.072 — slot 4 `#2DEEC6` |
+| `--inet-viz-selected-text` `#A8EEF5` | 11.91:1 | 0.114 — slot 4 `#2DEEC6` |
+
+The family's border is the palette's own teal to within ΔE 0.072, under the design set's 0.106
+separation line, so a selection stroked with it would not read apart from the data underneath it.
+The ink is the only candidate that clears the line, and it is the highest contrast of the three.
+
+Light is untouched and stays on the accent deliberately: the selected family's *light* border is
+1.43:1 on a white plot, which is not a usable outline.
+
+**Why the fill token carries pre-multiplied alpha.** The fill is `--inet-viz-selected-fill-dark`,
+the same ink at the 28% `--inet-focus-ring-color` uses in light. It is authored as a literal
+`rgba()` rather than mixed from `--inet-viz-selected-text-dark` because `ctx.fillStyle` rejects the
+`oklab()` / `color(srgb …)` form `getComputedStyle` returns for a `color-mix()`, and drops it
+without raising — the selection would simply keep the previous fill. A plain `var()` is fine and is
+what the stroke uses; it is the *mixing* that canvas cannot take. `--inet-focus-ring-color`
+(`_variables.scss:605`) is authored the same way for the same reason.
+
+**The rule's position is load-bearing.** `.viz-dark .chart-object-canvas` ties
+`.viz-modern .chart-object-canvas` on specificity (0-2-0) and a dark assembly carries both classes,
+so only source order decides. It must stay after the light rule; a reorder reverts dark charts to
+the light accent silently.
+
 ## The change
 
 **1. `_viz-tokens.scss`, the customer-overridable dark block (`:58-63`)** — add
@@ -165,11 +212,28 @@ carry viz-modern + viz-dark together."* Adding `viz-modern` changes nothing visu
 light `.viz-modern` block resolves `--inet-viz-active-border` to `var(--inet-primary-color)`, the
 same value `:root` gives; and the div is empty, so neither class can reach a subtree.
 
+The div is empty but not inert: it hosts `VSDataTip` and `VSPopComponent`, and both directives call
+`GuiTool.isVizModernElement(this.elementRef.nativeElement)`, which is a `closest(".viz-modern")`.
+Adding the class flips that call's answer from false to true for a marked assembly. It is still
+safe, but by a second reason rather than the emptiness one: both call sites
+(`vs-data-tip.directive.ts:248`, `vs-pop-component.directive.ts:298`) sit inside `if(this.miniToolbar)`
+and neither host on this div sets `miniToolbar`, so the changed value is never read. Found by the
+PR review, not by this design.
+
+**5. `_viz-tokens.scss`, the same dark block** — add `--inet-viz-selected-fill-dark`, the selected
+ink at 28%, for the canvas fill. Pre-multiplied rather than mixed; see the second defect above.
+
+**6. `_themeable.scss`, after `.viz-modern .chart-object-canvas`** — a `.viz-dark` counterpart that
+fills `var(--inet-viz-selected-fill-dark)` and strokes `var(--inet-viz-selected-text)`. Must stay
+after the light rule.
+
 ## Blast radius
 
 **Changes.** Every assembly type's focus outline in the viewer, dark only. Plus
 `.vs-combo-box-trigger:focus` (`_bootstrap-override.scss:1318`), the token's other consumer — it
-changes in dark too, and should: same affordance, same collision.
+changes in dark too, and should: same affordance, same collision. Separately, every canvas-painted
+chart selection on a marked-dark assembly: plot marks, and the axis, legend and title chrome, since
+all five canvases carry `.chart-object-canvas`.
 
 **Does not change.** Light mode in every form. `.bd-selected-cell` and its `@extend` site at
 `_themeable.scss:467`, which are the selected family, untouched. The composer's handle outline.
@@ -193,15 +257,21 @@ em at 106 / 376. Reading only the trailing block is how an earlier draft of this
 claim a collection gap, reporting em's 106 as portal's and setting it against the 225 spec files
 the portal target scopes. There is no gap: portal collects all 225.
 
-**The manual dark matrix below has NOT been run.** It is the release gate, and nothing automated
-substitutes for it: no check in this work looks at a rendered pixel. It is recorded as outstanding
-rather than quietly dropped.
+**The manual dark matrix has been run, and passed on every row.** It is the release gate, and
+nothing automated substitutes for it: no check in this work looks at a rendered pixel. Every row the
+ticket asks for was checked — chart, table / crosstab / calc table, selection list and tree, range
+slider, calendar, and a text or gauge output — focused in a dark org **and** as a `MODERN_DARK`
+assembly inside a **light** org, which is the case the body-class route gets wrong and the
+per-assembly binding exists to fix. Plus the two rows the final review added: a **gate-off** assembly
+in a **dark** org, which inherits the body-level token and therefore changes too, and
+`.vs-combo-box-trigger:focus`, the token's other consumer. Nothing looked wrong.
 
-Then the manual dark matrix the ticket asks for: chart, table / crosstab / calc table, selection list
-and tree, range slider, calendar, and a text or gauge output — focused in a dark org **and** as a
-`MODERN_DARK` assembly inside a **light** org, which is the case the body-class route gets wrong and
-the per-assembly binding exists to fix. One more row, added by the final review: a **gate-off**
-assembly in a **dark** org, which inherits the body-level token and therefore changes too.
+**One caveat on what that pass covers.** The matrix ran before this branch was rebased onto the
+palette re-tune (#5188), which replaced all eight `Modern Dark` head colours. So the separation it
+confirmed by eye was against a palette the branch no longer carries. The re-measured figures are in
+the tables above and the conclusions hold — `#C96F12` at ΔE 0.130 and `#A8EEF5` at 0.114 both clear
+the 0.106 line against the re-tuned head-8 — but that is arithmetic, not a second look at a rendered
+pixel. A re-check of the chart rows against the re-tuned palette is cheap and has not been done.
 
 **The template binding ships unguarded, and that is a deliberate trade.** All four
 `vs-object-container` spec files instantiate the component directly through `makeComponent()`; none
@@ -227,6 +297,9 @@ one-attribute change. Recorded rather than hidden.
 - **Custom and authored palettes.** A customer may select any palette on a dark chart. This design
   measures the two `Modern Dark` sets, both light `Modern` heads and the spliced 40; it attempts no
   guarantee beyond those.
-- **The teal selection family's owner** is unaffected. This design deliberately does **not** point
-  the focus outline at it, so the retirement question in roadmap item 3 stays exactly as open as it
-  was, with one fewer consumer to migrate.
+- **The teal selection family's owner** is still unowned, and this branch leaves the retirement
+  question **more** expensive rather than less. The focus outline deliberately does not point at the
+  family — it is an *active* affordance, and the accent split is on purpose. But the second defect
+  above puts canvas-painted chart selection onto `--inet-viz-selected-text` and adds
+  `--inet-viz-selected-fill-dark` beside it, so the family gains two dark consumers here. An earlier
+  draft of this line claimed the opposite, counting only the outline; corrected after the PR review.
