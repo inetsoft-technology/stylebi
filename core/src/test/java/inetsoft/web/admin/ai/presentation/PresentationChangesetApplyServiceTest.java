@@ -40,6 +40,7 @@ import org.mockito.quality.Strictness;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -400,5 +401,113 @@ class PresentationChangesetApplyServiceTest {
       // The storage-scope write itself is never undone -- still the new value.
       Object stillApplied = state.get(stateKey(PresentationSubModel.LOOK_AND_FEEL, true));
       assertTrue(((LookAndFeelSettingsModel) stillApplied).expand());
+   }
+
+   // ---------------------------------------------------------------- rollback: throw-before-mutation (bug 76634)
+
+   @Test
+   void applyRollsBackCleanlyWhenAValueScopeChangeThrowsBeforeAnyMutation() throws Exception {
+      // The core regression proof for bug 76634: a value-scope change whose access.write throws
+      // strictly before mutating anything (the real PresentationFormatsSettingsService shape for a
+      // malformed dateFormat like "BAD"/"qqqq" -- checkDateFormatPattern throws before any SreeEnv
+      // write) must not force rollback-failed just because the loop can't tell "threw before
+      // touching state" from "threw mid-write". The rest of the batch rolls back cleanly, so the
+      // correct overall status is rolled-back.
+      seed(PresentationSubModel.DASHBOARD, false, dashboard(true));
+      seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+
+      PresentationApplyRequest req = applyRequest("t", "ok", null,
+         change("dashboard", "organization", obj().put("enabled", false)),
+         change("formats", "organization", obj().put("dateFormat", "BAD")));
+
+      // access.write never touches `state` for this call -- mirrors checkDateFormatPattern throwing
+      // before the first SreeEnv mutation in the real PresentationFormatsSettingsService#setModel.
+      doThrow(new IllegalArgumentException("Illegal pattern character 'B'"))
+         .when(access).write(eq(PresentationSubModel.FORMATS), any(), any(), anyBoolean());
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      // dashboard was applied, then rolled back to its original value.
+      Object restoredDashboard = state.get(stateKey(PresentationSubModel.DASHBOARD, false));
+      assertTrue(((PresentationDashboardSettingsModel) restoredDashboard).enabled());
+   }
+
+   @Test
+   void applyStillReportsRollbackFailedWhenAValueScopeChangeGenuinelyFailsMidWrite() throws Exception {
+      // Regression guard against over-correcting bug 76634's fix into blindly downgrading every
+      // unknown-state failure: when the re-read after a throw shows the sub-model's value is STILL
+      // the proposed one (i.e. the write actually landed before throwing, e.g. a post-write
+      // audit/side-effect failure), that is a genuine unknown/undo-needed state and must still be
+      // able to end in rollback-failed once the rollback attempt for it also fails.
+      seed(PresentationSubModel.DASHBOARD, false, dashboard(true));
+      seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+
+      PresentationApplyRequest req = applyRequest("t", "ok", null,
+         change("dashboard", "organization", obj().put("enabled", false)),
+         change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd")));
+
+      // Every write to FORMATS (both the initial apply and any later rollback attempt) mutates
+      // `state` and then throws -- simulating a sub-service that genuinely can't be trusted to
+      // leave a clean, restorable state even on rollback.
+      doAnswer(inv -> {
+         PresentationSubModel subModel = inv.getArgument(0);
+         Object model = inv.getArgument(1);
+         boolean global = inv.getArgument(3);
+         state.put(stateKey(subModel, global), model);
+         throw new RuntimeException("boom");
+      }).when(access).write(eq(PresentationSubModel.FORMATS), any(), any(), anyBoolean());
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertTrue(result.rollbackFailures().stream()
+                    .anyMatch(f -> f.property().startsWith("formats:")));
+   }
+
+   @Test
+   void applyAttemptsAndCompletesRollbackForAValueScopeChangeThatMutatedBeforeThrowing()
+      throws Exception
+   {
+      // Covers the "moved but threw" branch the refuter flagged as a design-completeness
+      // requirement: no real value-scope sub-service exhibits a partial-mutation-before-throw
+      // shape today (only the storage-scope PortalIntegrationViewSettingsService does), so this
+      // mocks access.write directly to produce that shape rather than skipping coverage. The first
+      // write (the apply attempt) mutates `state` and then throws; the item must still be added to
+      // the undoable set and get a genuine rollback attempt (the second write, on rollback, which
+      // this mock lets succeed) -- not be silently reported as clean without ever being restored.
+      seed(PresentationSubModel.DASHBOARD, false, dashboard(true));
+      seed(PresentationSubModel.FORMATS, false, formats("MM/dd/yyyy"));
+
+      PresentationApplyRequest req = applyRequest("t", "ok", null,
+         change("dashboard", "organization", obj().put("enabled", false)),
+         change("formats", "organization", obj().put("dateFormat", "yyyy-MM-dd")));
+
+      AtomicInteger formatsWrites = new AtomicInteger();
+      doAnswer(inv -> {
+         PresentationSubModel subModel = inv.getArgument(0);
+         Object model = inv.getArgument(1);
+         boolean global = inv.getArgument(3);
+         state.put(stateKey(subModel, global), model);
+
+         if(formatsWrites.getAndIncrement() == 0) {
+            throw new RuntimeException("partial mutation before throw");
+         }
+
+         return null;
+      }).when(access).write(eq(PresentationSubModel.FORMATS), any(), any(), anyBoolean());
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      // Proves an actual rollback attempt happened (not just a report that skipped it): one write
+      // for the apply attempt, one more for the rollback attempt that restored the original value.
+      verify(access, times(2))
+         .write(eq(PresentationSubModel.FORMATS), any(), any(), anyBoolean());
+      Object restoredFormats = state.get(stateKey(PresentationSubModel.FORMATS, false));
+      assertEquals("MM/dd/yyyy", ((PresentationFormatsSettingsModel) restoredFormats).dateFormat());
    }
 }
