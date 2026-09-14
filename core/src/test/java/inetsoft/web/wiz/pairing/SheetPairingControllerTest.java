@@ -315,4 +315,93 @@ class SheetPairingControllerTest {
 
       verifyNoInteractions(broadcast);
    }
+
+   // ---- Lane C: current-focus / cross-sheet-follow STOMP endpoints ---------------------------
+
+   @Test
+   void currentFocusViaSocketRetargetsAnOptedInSessionAndBroadcastsAgentActive() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, broadcast, true);
+
+      JoinSession portal = sessions.open(null, "alice~;~host-org", null, "stomp-portal", "alice", null);
+      c.crossSheetFollowViaSocket(new SheetPairingController.CrossSheetFollowRequest(true),
+         accessorFor("stomp-portal"));
+
+      c.currentFocusViaSocket(
+         new SheetPairingController.CurrentFocusRequest("Viewsheet/vs-1", SheetType.VIEWSHEET),
+         accessorFor("stomp-portal"));
+
+      JoinSession resolved = sessions.resolve(portal.sessionToken(), "alice~;~host-org");
+      assertEquals("Viewsheet/vs-1", resolved.runtimeId());
+      assertEquals(SheetType.VIEWSHEET, resolved.sheetType());
+      verify(broadcast).sendAgentActive(
+         org.mockito.ArgumentMatchers.argThat(s -> s.runtimeId().equals("Viewsheet/vs-1")));
+   }
+
+   @Test
+   void currentFocusViaSocketDoesNotBroadcastWhenNoSessionHasOptedIn() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, broadcast, true);
+
+      // Directly-established but never toggled on.
+      sessions.open(null, "alice~;~host-org", null, "stomp-portal", "alice", null);
+
+      c.currentFocusViaSocket(
+         new SheetPairingController.CurrentFocusRequest("Viewsheet/vs-1", SheetType.VIEWSHEET),
+         accessorFor("stomp-portal"));
+
+      verifyNoInteractions(broadcast);
+   }
+
+   @Test
+   void crossSheetFollowViaSocketEnablesOnADirectlyEstablishedSession() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, mock(SheetAgentBroadcastService.class), true);
+
+      JoinSession portal = sessions.open(null, "alice~;~host-org", null, "stomp-portal", "alice", null);
+
+      SheetPairingController.CrossSheetFollowResponse resp = c.crossSheetFollowViaSocket(
+         new SheetPairingController.CrossSheetFollowRequest(true), accessorFor("stomp-portal"));
+
+      assertTrue(resp.ok());
+      assertNull(resp.error());
+      assertTrue(sessions.resolve(portal.sessionToken(), "alice~;~host-org").crossSheetFollowEnabled());
+   }
+
+   /**
+    * Charter assertion 11's own controller-level case: attempting the toggle-enable STOMP message
+    * against a pane-scoped session's socketSessionId is refused, not a silent no-op or silent
+    * success.
+    */
+   @Test
+   void crossSheetFollowViaSocketRefusesAPaneScopedSession() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, mock(SheetAgentBroadcastService.class), true);
+
+      JoinSession pane = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                       "stomp-pane", "alice", null);
+
+      SheetPairingController.CrossSheetFollowResponse resp = c.crossSheetFollowViaSocket(
+         new SheetPairingController.CrossSheetFollowRequest(true), accessorFor("stomp-pane"));
+
+      assertFalse(resp.ok());
+      assertNotNull(resp.error());
+      assertFalse(sessions.resolve(pane.sessionToken(), "alice~;~host-org").crossSheetFollowEnabled());
+   }
+
+   private static SimpMessageHeaderAccessor accessorFor(String sessionId) {
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId(sessionId);
+      return accessor;
+   }
 }
