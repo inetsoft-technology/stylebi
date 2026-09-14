@@ -3697,12 +3697,27 @@ class WorksheetAgentControllerTest {
    private static WorksheetAgentController controllerWithOpenService(
       SheetAgentFeature feature, inetsoft.web.wiz.viewsheet.SheetOpenService openService)
    {
+      return controllerWithOpenService(feature, openService, mock(AssetRepository.class));
+   }
+
+   /** Overload that exposes {@code assetRepository} -- for the attach-by-path (path/scope)
+    *  create_worksheet tests, which need to stub what {@code getSheet} resolves to. */
+   private static WorksheetAgentController controllerWithOpenService(
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService, AssetRepository assetRepository)
+   {
+      return controllerWithOpenService(featureOn(), openService, assetRepository);
+   }
+
+   private static WorksheetAgentController controllerWithOpenService(
+      SheetAgentFeature feature, inetsoft.web.wiz.viewsheet.SheetOpenService openService,
+      AssetRepository assetRepository)
+   {
       return new WorksheetAgentController(feature,
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), mock(WorksheetEditService.class),
          mock(WorksheetService.class), mock(WorksheetPreviewService.class),
          mock(SheetAgentBroadcastService.class), mock(inetsoft.uql.XRepository.class),
-         mock(inetsoft.uql.asset.AssetRepository.class),
+         assetRepository,
          mock(inetsoft.web.wiz.service.MetadataApiService.class),
          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
@@ -3765,6 +3780,132 @@ class WorksheetAgentControllerTest {
          ctrl.createWorksheet(new WorksheetAgentController.CreateWorksheetRequest("tok-acting"),
             TestPrincipals.user("alice", "host-org")));
       verifyNoInteractions(openService);
+   }
+
+   // ── create_worksheet, attach-by-path (portal-session-pairing Lane B) ────────
+
+   /** Charter assertion 5 (worksheet half): kind:"worksheet" + path attaches the existing asset,
+    *  by calling SheetOpenService's 3-arg overload with the resolved, permission-checked entry. */
+   @Test
+   void createWorksheetWithPathResolvesTheEntryAndCallsTheThreeArgOverload() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(AssetEntry.class), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(AbstractSheet.class));
+
+      JoinSession created = new JoinSession("tok-ws-new", "ws-runtime-existing", "alice~;~host-org",
+         SheetType.WORKSHEET, 0L, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-1", "alice-browser", null);
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService =
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class);
+      when(openService.createWorksheet(eq("tok-acting"), eq(agent), any(AssetEntry.class)))
+         .thenReturn(created);
+
+      WorksheetAgentController ctrl = controllerWithOpenService(openService, rep);
+
+      WorksheetAgentController.JoinResponse response = ctrl.createWorksheet(
+         new WorksheetAgentController.CreateWorksheetRequest(
+            "tok-acting", "Sample Queries/customers", null),
+         agent);
+
+      assertEquals("ws-runtime-existing", response.runtimeId());
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(openService).createWorksheet(eq("tok-acting"), eq(agent), entryCaptor.capture());
+      assertEquals(AssetEntry.Type.WORKSHEET, entryCaptor.getValue().getType());
+      assertEquals("Sample Queries/customers", entryCaptor.getValue().getPath());
+      assertEquals(AssetRepository.GLOBAL_SCOPE, entryCaptor.getValue().getScope());
+      // The 2-arg overload must NOT also be called -- exactly one create call per request.
+      verify(openService, never()).createWorksheet(anyString(), any(Principal.class));
+   }
+
+   @Test
+   void createWorksheetWithPathAndUserScopeResolvesAUserScopedEntry() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(AssetEntry.class), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(AbstractSheet.class));
+
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService =
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class);
+      when(openService.createWorksheet(eq("tok-acting"), eq(agent), any(AssetEntry.class)))
+         .thenReturn(new JoinSession("tok-ws-new", "ws-runtime-existing", "alice~;~host-org",
+            SheetType.WORKSHEET, 0L, SheetSessionService.TTL_MILLIS,
+            JoinSession.ConnectionMode.PAIRED, "sock-1", "alice-browser", null));
+
+      WorksheetAgentController ctrl = controllerWithOpenService(openService, rep);
+
+      ctrl.createWorksheet(
+         new WorksheetAgentController.CreateWorksheetRequest(
+            "tok-acting", "My Private WS", "user"),
+         agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(openService).createWorksheet(eq("tok-acting"), eq(agent), entryCaptor.capture());
+      assertEquals(AssetRepository.USER_SCOPE, entryCaptor.getValue().getScope());
+      assertEquals(IdentityID.getIdentityIDFromKey(agent.getName()), entryCaptor.getValue().getUser());
+   }
+
+   @Test
+   void createWorksheetRefusesWhenPathNotFoundOrNoPermission() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(AssetEntry.class), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(null);
+
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService =
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class);
+      WorksheetAgentController ctrl = controllerWithOpenService(openService, rep);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         ctrl.createWorksheet(
+            new WorksheetAgentController.CreateWorksheetRequest(
+               "tok-acting", "Sample Queries/nope", null),
+            agent));
+      assertTrue(ex.getMessage().contains("no worksheet named"), ex.getMessage());
+      verifyNoInteractions(openService);
+   }
+
+   @Test
+   void createWorksheetRefusesAPathContainingACaretBeforeCallingSheetOpenService() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService =
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class);
+      WorksheetAgentController ctrl = controllerWithOpenService(openService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         ctrl.createWorksheet(
+            new WorksheetAgentController.CreateWorksheetRequest("tok-acting", "Sample^WS", null),
+            agent));
+      assertTrue(ex.getMessage().contains("path"), ex.getMessage());
+      verifyNoInteractions(openService);
+   }
+
+   /** No path: byte-for-byte the same 2-arg call this endpoint already made before this lane's
+    *  attach-by-path change -- see createWorksheetReturnsTheNewlyMintedWorksheetSession above,
+    *  which is the pre-existing regression guard for this exact case (charter assertion 8). */
+   @Test
+   void createWorksheetWithNoPathStillCallsTheTwoArgOverload() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      JoinSession created = new JoinSession("tok-ws-new", "ws-runtime-new", "alice~;~host-org",
+         SheetType.WORKSHEET, 0L, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-1", "alice-browser", null);
+      inetsoft.web.wiz.viewsheet.SheetOpenService openService =
+         mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class);
+      when(openService.createWorksheet(eq("tok-acting"), eq(agent))).thenReturn(created);
+
+      WorksheetAgentController ctrl = controllerWithOpenService(openService);
+
+      ctrl.createWorksheet(
+         new WorksheetAgentController.CreateWorksheetRequest("tok-acting", null, null), agent);
+
+      verify(openService).createWorksheet(eq("tok-acting"), eq(agent));
+      verify(openService, never())
+         .createWorksheet(anyString(), any(Principal.class), any(AssetEntry.class));
    }
 
    // ---------------------------------------------------------------------------

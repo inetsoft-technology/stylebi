@@ -194,24 +194,77 @@ public class WorksheetAgentController {
     *
     * @param fromSessionToken the already-paired session (worksheet or viewsheet) whose browser
     *                         connection the new session reuses
+    * @param path             path of an existing, saved worksheet asset to open AS-IS instead of
+    *                         minting a brand-new, blank one (attach-by-path), e.g.
+    *                         {@code "Sample Queries/customers"}. Optional; omit for the existing
+    *                         always-blank behavior.
+    * @param scope            where to resolve {@code path}: {@code "user"} for the caller's own
+    *                         user-scoped assets, otherwise the global scope. Ignored when
+    *                         {@code path} is omitted.
     */
-   public record CreateWorksheetRequest(String fromSessionToken) {}
+   public record CreateWorksheetRequest(String fromSessionToken, String path, String scope) {
+      /** Backward-compatible 1-arg form: every pre-existing caller implies no path (always blank). */
+      public CreateWorksheetRequest(String fromSessionToken) {
+         this(fromSessionToken, null, null);
+      }
+   }
 
    /**
-    * {@code create_worksheet}. Mints a brand-new, blank worksheet runtime and pairs the caller to
-    * it directly -- no new pairing code needed, and the browser visually follows along in the
-    * currently-open Composer window -- by reusing the ALREADY-PAIRED session named by
+    * Resolves a caller-named worksheet path into a permission-checked {@link AssetEntry}, for
+    * {@link #createWorksheet}'s attach-by-path case. Mirrors
+    * {@code ViewsheetAssemblyAgentController#resolveDataSourceEntry}'s own {@code "worksheet"}
+    * branch (not shared directly -- that method is private to a different controller class, and
+    * this one has no logicalModel/physicalTable/viewsheet cases to also support).
+    *
+    * @throws PairingException if {@code path} is blank/invalid, or names no worksheet the caller
+    *                          can read
+    */
+   private AssetEntry resolveWorksheetEntry(String path, String scope, XPrincipal xp)
+      throws Exception
+   {
+      WizUtil.requireNoCaret(path, "path");
+
+      IdentityID uname = IdentityID.getIdentityIDFromKey(xp.getName());
+      int assetScope = "user".equalsIgnoreCase(scope)
+         ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+      AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, path.trim(),
+                                        owner, uname.orgID);
+      Object resolved;
+
+      try {
+         resolved = assetRepository.getSheet(entry, xp, true, AssetContent.ALL, false);
+      }
+      catch(Exception e) {
+         throw new PairingException(
+            "no worksheet named '" + path + "' was found, or you lack permission to read it", e);
+      }
+
+      if(resolved == null) {
+         throw new PairingException(
+            "no worksheet named '" + path + "' was found, or you lack permission to read it");
+      }
+
+      return entry;
+   }
+
+   /**
+    * {@code create_worksheet}. Mints a brand-new, blank worksheet runtime -- or, when {@code path}
+    * is given, opens that existing, saved worksheet asset directly (attach-by-path) -- and pairs
+    * the caller to it directly -- no new pairing code needed, and the browser visually follows
+    * along in the currently-open Composer window -- by reusing the ALREADY-PAIRED session named by
     * {@code fromSessionToken} (worksheet or viewsheet, either is accepted). {@link SheetOpenService}
-    * performs every guard and the browser broadcast; this endpoint only translates its
-    * {@link JoinSession} into the same join shape {@link #join} returns.
+    * performs every guard and the browser broadcast; this endpoint only resolves {@code path} (when
+    * given) and translates the resulting {@link JoinSession} into the same join shape {@link #join}
+    * returns.
     *
-    * <p>The worksheet this mints is always blank -- no table, no source. Design it with the
-    * existing add_table/add_join/add_calc_field family of tools, then save_worksheet to persist
-    * it. If the acting session is a viewsheet with no source of its own, attach_base_worksheet is
-    * the tool that connects the saved worksheet back to it.
+    * <p>With no {@code path}, the worksheet this mints is always blank -- no table, no source.
+    * Design it with the existing add_table/add_join/add_calc_field family of tools, then
+    * save_worksheet to persist it. If the acting session is a viewsheet with no source of its own,
+    * attach_base_worksheet is the tool that connects the saved worksheet back to it.
     *
-    * @throws PairingException naming the specific problem: no acting session, no live browser
-    *                          connection on it, or a permission failure.
+    * @throws PairingException naming the specific problem: no acting session, an unresolvable
+    *                          {@code path}, or a permission failure.
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/create")
    public JoinResponse createWorksheet(@RequestBody CreateWorksheetRequest body, Principal user)
@@ -219,10 +272,36 @@ public class WorksheetAgentController {
    {
       requireEnabled();
 
+      AssetEntry existingEntry = null;
+
+      if(body != null && body.path() != null && !body.path().isBlank()) {
+         if(!(user instanceof XPrincipal xp)) {
+            throw new PairingException("Cannot create worksheet: agent principal is not an " +
+                                       "XPrincipal (" + user.getClass().getName() + ")");
+         }
+
+         try {
+            existingEntry = resolveWorksheetEntry(body.path(), body.scope(), xp);
+         }
+         catch(PairingException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to create worksheet: " + e.getMessage(), e);
+         }
+      }
+
       JoinSession session;
+      String fromSessionToken = body == null ? null : body.fromSessionToken();
 
       try {
-         session = openService.createWorksheet(body == null ? null : body.fromSessionToken(), user);
+         // Calls the pre-existing 2-arg overload for the no-path case rather than the 3-arg one
+         // with a null existingEntry -- behaviorally identical (the 2-arg overload simply
+         // delegates), but keeps this call site byte-for-byte what it already was before this
+         // lane's change for every caller that never passes path.
+         session = existingEntry == null
+            ? openService.createWorksheet(fromSessionToken, user)
+            : openService.createWorksheet(fromSessionToken, user, existingEntry);
       }
       catch(IllegalArgumentException e) {
          throw new PairingException(e.getMessage(), e);
