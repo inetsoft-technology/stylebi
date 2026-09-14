@@ -243,6 +243,14 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
                }
             }
             else if(format.equals(CURRENCY_FORMAT)) {
+               if(format_spec != null && !format_spec.isEmpty()) {
+                  LOG.warn(
+                     "\"format_spec\" (\"{}\") has no effect on \"CurrencyFormat\" -- its " +
+                     "symbol/pattern is derived entirely from the locale ({}); use " +
+                     "\"DecimalFormat\" with a quoted literal (e.g. \"'$'#,##0.00\") to force a " +
+                     "specific symbol/pattern", format_spec, locale);
+               }
+
                fmt = NumberFormat.getCurrencyInstance(locale);
             }
             else if(format.equals(PERCENT_FORMAT)) {
