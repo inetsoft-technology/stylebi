@@ -92,6 +92,28 @@ class RemedyforceDataSourceTest {
       assertEquals("mytoken", dataSource.getSecurityToken());
    }
 
+   /**
+    * OAuth-mode data sources never had a security token to migrate, and the vault fallback
+    * reaches a live, billed-per-call secrets manager API — it must not fire for them.
+    */
+   @Test
+   void oauthModeNeverConsultsTheVaultForALegacySecurityToken() throws Exception {
+      RemedyforceDataSource dataSource = new RemedyforceDataSource() {
+         @Override
+         protected JsonNode loadCloudSecurityToken(String credentialId) {
+            fail("OAuth-mode data sources must not query the vault for a legacy security token");
+            return null;
+         }
+      };
+      dataSource.setAuthType(AuthType.OAUTH);
+      dataSource.setCredential(new FakeCloudCredential("secret-123"));
+
+      Element root = parse("<ds_" + RemedyforceDataSource.TYPE + " name=\"test\"/>");
+      dataSource.parseXML(root);
+
+      assertNull(dataSource.getSecurityToken());
+   }
+
    @Test
    void securityTokenStaysVisibleInLegacyModeRegardlessOfCredentialSource() {
       RemedyforceDataSource dataSource = new RemedyforceDataSource();
