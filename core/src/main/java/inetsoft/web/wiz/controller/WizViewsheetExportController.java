@@ -220,8 +220,8 @@ public class WizViewsheetExportController {
 
       List<PptxDeckMerger.ChartSlide> chartSlides = new ArrayList<>();
 
-      for(WizExportReportEvent.ChartEntry chart : charts) {
-         chartSlides.add(exportOneChartForPptx(chart, principal));
+      for(int i = 0; i < charts.size(); i++) {
+         chartSlides.add(exportOneChartForPptx(charts.get(i), principal, i == 0));
       }
 
       boolean allFailed = !chartSlides.isEmpty() &&
@@ -255,9 +255,13 @@ public class WizViewsheetExportController {
     *  caller decides whether the whole export aborts (only if every chart failed). An
     *  out-of-folder savedId is treated the same as an open/export failure: a per-chart
     *  placeholder, not a request-level abort (deliberate divergence from the pdf path's strict
-    *  dashboardId guard, which gates the single asset the whole pdf export depends on). */
+    *  dashboardId guard, which gates the single asset the whole pdf export depends on).
+    *  {@code isFirst} (bug-76110 round 3) marks the chart whose own slide will also carry the
+    *  board's title/recap header (PoiPptxDeckMerger.addBoardHeader) -- see
+    *  {@link #enlargeChartForSlide} for how that shrinks the chart's own rendered region to make
+    *  room. */
    private PptxDeckMerger.ChartSlide exportOneChartForPptx(WizExportReportEvent.ChartEntry chart,
-                                                           Principal principal)
+                                                           Principal principal, boolean isFirst)
    {
       AssetEntry entry;
 
@@ -292,7 +296,7 @@ public class WizViewsheetExportController {
       try {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
          boolean hasInsights = chart.getInsightsMarkdown() != null && !chart.getInsightsMarkdown().isBlank();
-         enlargeChartForSlide(rvs, hasInsights);
+         enlargeChartForSlide(rvs, hasInsights, isFirst);
          ByteArrayOutputStream out = new ByteArrayOutputStream();
          exportService.exportViewsheet(rvs, FileFormatInfo.EXPORT_TYPE_POWERPOINT, false, false, true,
             false, false, new String[0], false, new ExportResponse(out), principal);
@@ -329,17 +333,29 @@ public class WizViewsheetExportController {
     * PoiPptxDeckMerger.CHART_INSIGHTS_TOP_PT/HEIGHT_PT, which must stay in sync with this height if
     * either changes) -- only worth shrinking for when something will actually occupy the freed
     * region; a chart with no insights markdown keeps the original full height instead of rendering
-    * shorter for no reason. Runtime-only (a throwaway export runtime) — the saved asset is
-    * untouched.
+    * shorter for no reason.
+    * <p>{@code isFirst} (bug-76110 round 3) additionally shifts the chart down by
+    * {@link #PPTX_FIRST_CHART_HEADER_OFFSET_PX} and shrinks it by that same amount, freeing room
+    * at the top of its slide for PoiPptxDeckMerger's shared board title/recap header
+    * (addBoardHeader/BOARD_HEADER_HEIGHT_PT, which this offset must stay in sync with). Shifting
+    * and shrinking by the identical amount keeps the chart's own BOTTOM edge exactly where it
+    * would otherwise be, so CHART_INSIGHTS_TOP_PT needs no separate first-chart variant. Runtime-
+    * only (a throwaway export runtime) — the saved asset is untouched.
     */
-   private void enlargeChartForSlide(RuntimeViewsheet rvs, boolean hasInsights) {
+   private void enlargeChartForSlide(RuntimeViewsheet rvs, boolean hasInsights, boolean isFirst) {
       Viewsheet vs = rvs != null ? rvs.getViewsheet() : null;
 
       if(vs == null || vs.getAssemblies() == null) {
          return;
       }
 
+      int yPx = PPTX_CHART_Y_PX;
       int heightPx = hasInsights ? PPTX_CHART_WITH_INSIGHTS_H_PX : PPTX_CHART_FULL_H_PX;
+
+      if(isFirst) {
+         yPx += PPTX_FIRST_CHART_HEADER_OFFSET_PX;
+         heightPx -= PPTX_FIRST_CHART_HEADER_OFFSET_PX;
+      }
 
       for(var assembly : vs.getAssemblies()) {
          // Charts render as a scaled image and tables/crosstabs as a native PPT table; both are
@@ -349,7 +365,7 @@ public class WizViewsheetExportController {
             assembly instanceof inetsoft.uql.viewsheet.TableDataVSAssembly)
          {
             inetsoft.uql.viewsheet.VSAssembly vsa = (inetsoft.uql.viewsheet.VSAssembly) assembly;
-            vsa.getVSAssemblyInfo().setPixelOffset(new java.awt.Point(PPTX_CHART_X_PX, PPTX_CHART_Y_PX));
+            vsa.getVSAssemblyInfo().setPixelOffset(new java.awt.Point(PPTX_CHART_X_PX, yPx));
             vsa.getVSAssemblyInfo().setPixelSize(new java.awt.Dimension(PPTX_CHART_W_PX, heightPx));
          }
       }
@@ -369,6 +385,9 @@ public class WizViewsheetExportController {
    // chart's own insights text on the same slide. Only used when the chart actually has
    // insightsMarkdown to place there.
    private static final int PPTX_CHART_WITH_INSIGHTS_H_PX = 300;
+   // 100px * 0.75 = 75pt = PoiPptxDeckMerger.BOARD_HEADER_HEIGHT_PT (bug-76110 round 3). Applied
+   // only to the first chart's own slide, which also carries the board's title/recap header.
+   private static final int PPTX_FIRST_CHART_HEADER_OFFSET_PX = 100;
 
    private final ViewsheetService viewsheetService;
    private final WizVsService wizVsService;

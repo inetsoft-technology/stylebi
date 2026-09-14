@@ -119,7 +119,9 @@ class PoiPptxDeckMergerTest {
          new PptxDeckMerger.ChartSlide(title, caption, oneSlideDeckWithText("chart"), false)));
 
       try(XMLSlideShow show = new XMLSlideShow(new ByteArrayInputStream(deck))) {
-         XSLFTextBox captionBox = show.getSlides().get(1).getShapes().stream()
+         // Only chart, so it's also the first chart: its slide (index 0) now carries the shared
+         // board title header (bug-76110 round 3) alongside its own caption.
+         XSLFTextBox captionBox = show.getSlides().get(0).getShapes().stream()
             .filter(sh -> sh instanceof XSLFTextBox)
             .map(sh -> (XSLFTextBox) sh)
             .filter(b -> b.getText() != null && b.getText().startsWith("bar —"))
@@ -145,7 +147,9 @@ class PoiPptxDeckMergerTest {
          new PptxDeckMerger.ChartSlide("Revenue", "by region", oneSlideDeckWithText("chart"), false)));
 
       try(XMLSlideShow show = new XMLSlideShow(new ByteArrayInputStream(deck))) {
-         XSLFTextBox captionBox = show.getSlides().get(1).getShapes().stream()
+         // Only chart, so it's also the first chart: its slide (index 0) now carries the shared
+         // board title header (bug-76110 round 3) alongside its own caption.
+         XSLFTextBox captionBox = show.getSlides().get(0).getShapes().stream()
             .filter(sh -> sh instanceof XSLFTextBox)
             .map(sh -> (XSLFTextBox) sh)
             .filter(b -> b.getText() != null && b.getText().startsWith("Revenue"))
@@ -159,7 +163,7 @@ class PoiPptxDeckMergerTest {
    }
 
    @Test
-   void mergesTitleSlidePlusOnePerChart() throws Exception {
+   void mergesBoardHeaderOntoFirstChartPlusOneSlidePerLaterChart() throws Exception {
       byte[] chart1 = oneSlideDeckWithText("CHART_ONE_MARKER");
       byte[] chart2 = oneSlideDeckWithText("CHART_TWO_MARKER");
       List<PptxDeckMerger.ChartSlide> slides = List.of(
@@ -170,19 +174,111 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Q39 Board", "Premium drives revenue.", slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(3, result.getSlides().size(), "title slide + 2 chart slides");
+         // bug-76110 round 3: the board title/recap now shares the FIRST chart's own slide
+         // instead of getting a standalone slide of its own -- one fewer slide overall.
+         assertEquals(2, result.getSlides().size(), "chart1-with-board-header + chart2");
 
-         String titleSlideText = allText(result.getSlides().get(0));
-         assertTrue(titleSlideText.contains("Q39 Board"));
-         assertTrue(titleSlideText.contains("Premium drives revenue."));
+         String slide0Text = allText(result.getSlides().get(0));
+         assertTrue(slide0Text.contains("Q39 Board"), "board title present: " + slide0Text);
+         assertTrue(slide0Text.contains("Premium drives revenue."), "board recap present: " + slide0Text);
+         assertTrue(slide0Text.contains("First"), "caption title present: " + slide0Text);
+         assertTrue(slide0Text.contains("cap one"), "caption text present: " + slide0Text);
+         assertTrue(slide0Text.contains("CHART_ONE_MARKER"), "imported chart content present: " + slide0Text);
 
          String slide1Text = allText(result.getSlides().get(1));
-         assertTrue(slide1Text.contains("First"), "caption title present: " + slide1Text);
-         assertTrue(slide1Text.contains("cap one"), "caption text present: " + slide1Text);
-         assertTrue(slide1Text.contains("CHART_ONE_MARKER"), "imported chart content present: " + slide1Text);
+         assertTrue(slide1Text.contains("CHART_TWO_MARKER"));
+         assertFalse(slide1Text.contains("Q39 Board"), "board header must not repeat on later slides");
+      }
+   }
 
-         String slide2Text = allText(result.getSlides().get(2));
-         assertTrue(slide2Text.contains("CHART_TWO_MARKER"));
+   /**
+    * bug-76110 round 3: the shared board header (title + recap) must not overlap the chart's own
+    * caption band that now sits right below it on the same slide -- both boxes are read off their
+    * real XSLFTextBox anchors and checked for a non-overlapping, top-to-bottom stack, the same way
+    * {@link #aLongCaptionIsFittedToItsBandInsteadOfRunningOverTheChart} checks the caption band
+    * itself.
+    */
+   @Test
+   void boardHeaderDoesNotOverlapTheFirstChartsCaptionBand() throws Exception {
+      byte[] deck = merger.mergeSlides("Q39 Board", "Premium drives revenue in every region.", List.of(
+         new PptxDeckMerger.ChartSlide("First", "cap one", oneSlideDeckWithText("chart"), false)));
+
+      try(XMLSlideShow show = new XMLSlideShow(new ByteArrayInputStream(deck))) {
+         List<XSLFTextBox> boxes = show.getSlides().get(0).getShapes().stream()
+            .filter(sh -> sh instanceof XSLFTextBox)
+            .map(sh -> (XSLFTextBox) sh)
+            .toList();
+
+         XSLFTextBox titleBox = boxes.stream()
+            .filter(b -> "Q39 Board".equals(b.getText()))
+            .findFirst().orElseThrow(() -> new AssertionError("no board title box"));
+         XSLFTextBox recapBox = boxes.stream()
+            .filter(b -> b.getText() != null && b.getText().contains("Premium drives revenue"))
+            .findFirst().orElseThrow(() -> new AssertionError("no board recap box"));
+         XSLFTextBox captionBox = boxes.stream()
+            .filter(b -> b.getText() != null && b.getText().startsWith("First —"))
+            .findFirst().orElseThrow(() -> new AssertionError("no chart caption box"));
+
+         double titleBottom = titleBox.getAnchor().getY() + titleBox.getAnchor().getHeight();
+         double recapTop = recapBox.getAnchor().getY();
+         double recapBottom = recapTop + recapBox.getAnchor().getHeight();
+         double captionTop = captionBox.getAnchor().getY();
+
+         assertTrue(recapTop >= titleBottom, "recap must start at or below the title's own bottom edge");
+         assertTrue(captionTop >= recapBottom,
+            "the chart's own caption must start at or below the board header's bottom edge");
+      }
+   }
+
+   /**
+    * bug-76110 round 3: with only ~45pt of vertical room, a long recap must shrink/truncate
+    * instead of silently overflowing into the caption band below it (the same class of live bug
+    * {@link #aLongCaptionIsFittedToItsBandInsteadOfRunningOverTheChart} fixed for the caption).
+    *
+    * <p>Reviewer round 1 found the original 250-char fixture here never actually forced the
+    * shrink-then-truncate branch -- it already fit the 45pt band at the starting
+    * {@code BOARD_RECAP_FONT_PT}, so the assertion passed vacuously even if
+    * {@code truncateToFit()} were unreachable from {@code addBoardHeader()} entirely. The fixture
+    * below is long enough (well past 400 chars) to bottom out the shrink loop at
+    * {@code CAPTION_MIN_FONT_PT} and force a real call into {@code truncateToFit()}, and the
+    * assertions below confirm that happened (shrunk to the floor, text shorter than the input,
+    * ends with the elision marker) rather than only checking the box never overflows.
+    */
+   @Test
+   void aLongBoardRecapIsFittedToItsHeaderBandInsteadOfOverflowing() throws Exception {
+      String longRecap = "Premium units run the business, driving roughly two thirds of all " +
+         "revenue across every region we track, with the $1,500-and-up band alone accounting " +
+         "for the largest single share and every other band trailing well behind it in every " +
+         "quarter this year. Mid-tier units make up most of the remainder, while the entry-level " +
+         "band barely registers outside of a couple of seasonal promotions. None of this shifted " +
+         "meaningfully quarter over quarter, and the regional mix stayed just as lopsided as it " +
+         "was a year ago, with the same three regions accounting for the bulk of every category.";
+
+      byte[] deck = merger.mergeSlides("Board", longRecap, List.of(
+         new PptxDeckMerger.ChartSlide("First", "cap", oneSlideDeckWithText("chart"), false)));
+
+      try(XMLSlideShow show = new XMLSlideShow(new ByteArrayInputStream(deck))) {
+         XSLFTextBox recapBox = show.getSlides().get(0).getShapes().stream()
+            .filter(sh -> sh instanceof XSLFTextBox)
+            .map(sh -> (XSLFTextBox) sh)
+            .filter(b -> b.getText() != null && b.getText().startsWith("Premium units run"))
+            .findFirst().orElseThrow(() -> new AssertionError("no board recap box"));
+
+         double fontPt = recapBox.getTextParagraphs().get(0).getTextRuns().get(0).getFontSize();
+         double bandPt = recapBox.getAnchor().getHeight();
+         String renderedText = recapBox.getText();
+         double needed = PoiPptxDeckMerger.textHeightPt(renderedText, fontPt,
+                                                        recapBox.getAnchor().getWidth());
+
+         assertTrue(needed <= bandPt,
+            "the recap must fit its " + bandPt + "pt header band (needs " + needed + "pt at " +
+            fontPt + "pt) -- anything taller runs into the caption below it");
+         assertEquals(12.0, fontPt, 0.01,
+            "this fixture is long enough that the shrink loop must bottom out at the floor, "
+               + "otherwise this test isn't exercising truncation at all");
+         assertTrue(renderedText.length() < longRecap.length() && renderedText.endsWith("…"),
+            "at the floor font size this recap still doesn't fit -- it must be truncated, not "
+               + "just shrunk: " + renderedText);
       }
    }
 
@@ -248,8 +344,11 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(2, result.getSlides().size());
-         String slideText = allText(result.getSlides().get(1));
+         // bug-76110 round 3: the only (and therefore first) chart's placeholder slide also
+         // carries the board's own title header -- one slide total, not a separate title slide.
+         assertEquals(1, result.getSlides().size());
+         String slideText = allText(result.getSlides().get(0));
+         assertTrue(slideText.contains("Board"), "board title present: " + slideText);
          assertTrue(slideText.toLowerCase().contains("failed"), "placeholder text present: " + slideText);
          assertTrue(slideText.contains("Broken"), "chart title present in placeholder: " + slideText);
       }
@@ -275,7 +374,8 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(2, result.getSlides().size(), "title + chart slide only, matching today's behavior");
+         // bug-76110 round 3: the board title now shares the only (first) chart's own slide.
+         assertEquals(1, result.getSlides().size(), "chart-with-board-header slide only");
       }
    }
 
@@ -293,9 +393,10 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(2, result.getSlides().size(),
-            "title + one combined chart-and-insights slide, no separate insights slide");
-         String chartSlideText = allText(result.getSlides().get(1));
+         // bug-76110 round 3: the board title also shares this same (first, only) chart's slide.
+         assertEquals(1, result.getSlides().size(),
+            "one combined chart-and-insights-and-board-header slide, no separate slides");
+         String chartSlideText = allText(result.getSlides().get(0));
          assertTrue(chartSlideText.contains("CHART_MARKER"), "imported chart content present: " + chartSlideText);
          assertTrue(chartSlideText.contains("Premium pricing drives most of the category revenue."),
             "insights text present on the same slide: " + chartSlideText);
@@ -315,8 +416,9 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(2, result.getSlides().size(), "title + one combined chart-and-insights slide");
-         XSLFSlide chartSlide = result.getSlides().get(1);
+         // bug-76110 round 3: the board title also shares this same (first, only) chart's slide.
+         assertEquals(1, result.getSlides().size(), "one combined chart-and-insights-and-board-header slide");
+         XSLFSlide chartSlide = result.getSlides().get(0);
 
          boolean hasPicture = chartSlide.getShapes().stream()
             .anyMatch(sh -> sh instanceof XSLFPictureShape);
@@ -340,16 +442,17 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         // title slide + chart slide (carrying the first chunk) + N continuation insights slides
-         assertTrue(result.getSlides().size() > 2,
+         // bug-76110 round 3: chart slide (carrying the board header + the first chunk) + N
+         // continuation insights slides -- no separate title slide.
+         assertTrue(result.getSlides().size() > 1,
             "insights this long must still overflow into continuation slides, not fit or vanish");
 
          int totalWords = 0;
-         for(int i = 1; i < result.getSlides().size(); i++) {
+         for(int i = 0; i < result.getSlides().size(); i++) {
             String text = wordChunkText(result.getSlides().get(i)).trim();
 
             if(text.isEmpty()) {
-               continue; // slide 1's caption/imported-marker text isn't part of the WORD chunk
+               continue; // slide 0's board header/caption/imported-marker text isn't part of the WORD chunk
             }
 
             assertTrue(text.matches("(WORD ?)+"),
@@ -369,8 +472,11 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(3, result.getSlides().size(), "title + placeholder + insights slide");
-         assertTrue(allText(result.getSlides().get(2)).contains("Finding survives despite the render failure."));
+         // bug-76110 round 3: the board header now shares the placeholder slide (index 0) instead
+         // of getting its own slide -- placeholder-with-header + insights slide, not 3 slides.
+         assertEquals(2, result.getSlides().size(), "placeholder-with-board-header + insights slide");
+         assertTrue(allText(result.getSlides().get(0)).contains("Board"), "board title on the placeholder slide");
+         assertTrue(allText(result.getSlides().get(1)).contains("Finding survives despite the render failure."));
       }
    }
 
@@ -385,8 +491,9 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(2, result.getSlides().size(), "title + one combined chart-and-insights slide");
-         String insightsText = allText(result.getSlides().get(1));
+         // bug-76110 round 3: the board header also shares this same (first, only) chart's slide.
+         assertEquals(1, result.getSlides().size(), "one combined chart-and-insights-and-board-header slide");
+         String insightsText = allText(result.getSlides().get(0));
          assertTrue(insightsText.contains("Insights: Revenue by Region"),
             "insights heading titled with chart name, on the chart's own slide: " + insightsText);
          assertFalse(insightsText.contains("cont'd"),
@@ -404,7 +511,8 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         String insightsText = allText(result.getSlides().get(1));
+         // bug-76110 round 3: the board header shares this same (first, only) chart's slide.
+         String insightsText = allText(result.getSlides().get(0));
          assertTrue(insightsText.contains("Insights"), "bare Insights heading present: " + insightsText);
          assertFalse(insightsText.contains("Insights:"), "no dangling colon with no title: " + insightsText);
       }
@@ -433,7 +541,8 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Q39 Board", "Premium units run the business.", slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         // Title slide: exercises styleBox() (title box) and appendBlock()'s recap paragraph.
+         // bug-76110 round 3: the board title now shares the only (first) chart's own slide
+         // (index 0) instead of a standalone title slide. Exercises styleBox() (title box).
          XSLFTextBox titleBox = result.getSlides().get(0).getShapes().stream()
             .filter(sh -> sh instanceof XSLFTextBox tb && "Q39 Board".equals(tb.getText()))
             .map(sh -> (XSLFTextBox) sh)
@@ -443,10 +552,10 @@ class PoiPptxDeckMergerTest {
             "styleBox() must set an explicit family instead of leaving the title run to theme "
                + "inheritance");
 
-         // Insights, sharing the chart's own slide (bug-76110 round 2): exercises appendBlock()'s
-         // bullet-marker run and appendSpans()'s span run (the run that would actually carry the
-         // emoji-containing text).
-         XSLFSlide insightsSlide = result.getSlides().get(1);
+         // Insights, sharing the same chart's own slide (bug-76110 round 2, further combined with
+         // the board header in round 3): exercises appendBlock()'s bullet-marker run and
+         // appendSpans()'s span run (the run that would actually carry the emoji-containing text).
+         XSLFSlide insightsSlide = result.getSlides().get(0);
          boolean sawBulletMarkerFamily = false;
          boolean sawEmojiSpanFamily = false;
 
@@ -488,15 +597,17 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertTrue(result.getSlides().size() > 2, "must span at least one continuation slide");
+         // bug-76110 round 3: no separate title slide -- one fewer slide overall.
+         assertTrue(result.getSlides().size() > 1, "must span at least one continuation slide");
 
-         // The chart's own slide carries the first (unmarked) insights heading + chunk.
-         String firstInsightsText = allText(result.getSlides().get(1));
+         // The chart's own slide (also carrying the board header) has the first (unmarked)
+         // insights heading + chunk.
+         String firstInsightsText = allText(result.getSlides().get(0));
          assertTrue(firstInsightsText.contains("Insights: Revenue by Region"));
          assertFalse(firstInsightsText.contains("cont'd"),
             "the chart's own combined slide has no continuation marker");
 
-         for(int i = 2; i < result.getSlides().size(); i++) {
+         for(int i = 1; i < result.getSlides().size(); i++) {
             String text = allText(result.getSlides().get(i));
             assertTrue(text.contains("Insights: Revenue by Region (cont'd)"),
                "slide " + i + " must carry the continuation title: " + text);
@@ -523,18 +634,22 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(3, result.getSlides().size(),
-            "title + chart1-with-its-insights + chart2-with-its-insights, no separate insights slides");
+         // bug-76110 round 3: the board header shares chart1's own slide instead of a standalone
+         // title slide -- one fewer slide overall.
+         assertEquals(2, result.getSlides().size(),
+            "chart1-with-board-header-and-its-insights + chart2-with-its-insights, no separate " +
+            "insights slides");
+
+         String slide0Text = allText(result.getSlides().get(0));
+         assertTrue(slide0Text.contains("Board"), "board title present: " + slide0Text);
+         assertTrue(slide0Text.contains("CHART_ONE_MARKER"), "chart1 content: " + slide0Text);
+         assertTrue(slide0Text.contains("Finding about chart one."), "chart1 insights: " + slide0Text);
+         assertFalse(slide0Text.contains("chart two"), "chart2's insights must not leak onto chart1's slide");
 
          String slide1Text = allText(result.getSlides().get(1));
-         assertTrue(slide1Text.contains("CHART_ONE_MARKER"), "chart1 content: " + slide1Text);
-         assertTrue(slide1Text.contains("Finding about chart one."), "chart1 insights: " + slide1Text);
-         assertFalse(slide1Text.contains("chart two"), "chart2's insights must not leak onto chart1's slide");
-
-         String slide2Text = allText(result.getSlides().get(2));
-         assertTrue(slide2Text.contains("CHART_TWO_MARKER"), "chart2 content: " + slide2Text);
-         assertTrue(slide2Text.contains("Finding about chart two."), "chart2 insights: " + slide2Text);
-         assertFalse(slide2Text.contains("chart one"), "chart1's insights must not leak onto chart2's slide");
+         assertTrue(slide1Text.contains("CHART_TWO_MARKER"), "chart2 content: " + slide1Text);
+         assertTrue(slide1Text.contains("Finding about chart two."), "chart2 insights: " + slide1Text);
+         assertFalse(slide1Text.contains("chart one"), "chart1's insights must not leak onto chart2's slide");
       }
    }
 
@@ -555,17 +670,21 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
-         assertEquals(4, result.getSlides().size(), "title, Alpha, Beta-with-its-insights, Gamma");
+         // bug-76110 round 3: the board header shares Alpha's own slide instead of a standalone
+         // title slide -- one fewer slide overall.
+         assertEquals(3, result.getSlides().size(), "Alpha-with-board-header, Beta-with-its-insights, Gamma");
 
-         assertTrue(allText(result.getSlides().get(1)).contains("ALPHA_MARKER"));
+         String alphaText = allText(result.getSlides().get(0));
+         assertTrue(alphaText.contains("Board"), "board title present: " + alphaText);
+         assertTrue(alphaText.contains("ALPHA_MARKER"));
 
-         String betaText = allText(result.getSlides().get(2));
+         String betaText = allText(result.getSlides().get(1));
          assertTrue(betaText.contains("BETA_MARKER"));
          assertTrue(betaText.contains("Finding about Beta."));
          assertFalse(betaText.contains("GAMMA_MARKER"),
             "Gamma's marker must not leak onto Beta's own combined slide");
 
-         String gammaText = allText(result.getSlides().get(3));
+         String gammaText = allText(result.getSlides().get(2));
          assertTrue(gammaText.contains("GAMMA_MARKER"));
          assertFalse(gammaText.contains("Finding about Beta."),
             "Beta's insights must not leak onto Gamma's slide");
@@ -589,19 +708,21 @@ class PoiPptxDeckMergerTest {
       byte[] merged = merger.mergeSlides("Board", null, slides);
 
       try(XMLSlideShow result = new XMLSlideShow(new ByteArrayInputStream(merged))) {
+         // bug-76110 round 3: chart1's own slide (index 0) also carries the board header, no
+         // separate title slide -- indices all shift down by one from before this round.
          int lastIndex = result.getSlides().size() - 1;
-         assertTrue(lastIndex > 1, "first chart's long insights must add at least one continuation slide");
+         assertTrue(lastIndex > 0, "first chart's long insights must add at least one continuation slide");
 
          String lastSlideText = allText(result.getSlides().get(lastIndex));
          assertTrue(lastSlideText.contains("SECOND_MARKER"),
             "chart2's own slide must be the very last slide: " + lastSlideText);
 
-         for(int i = 1; i < lastIndex; i++) {
+         for(int i = 0; i < lastIndex; i++) {
             String text = allText(result.getSlides().get(i));
             assertFalse(text.contains("SECOND_MARKER"),
                "chart2 must not appear before its own slide (slide " + i + "): " + text);
 
-            if(i > 1) {
+            if(i > 0) {
                assertTrue(text.contains("Insights: First (cont'd)"),
                   "slide " + i + " must be one of chart1's own continuation slides: " + text);
             }

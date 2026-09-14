@@ -27,24 +27,35 @@ public interface PptxDeckMerger {
    }
 
    /**
-    * @param title the board name (rendered on a leading title/recap slide)
-    * @param recap optional findings-recap paragraph, rendered under the title on the same slide
+    * @param title the board name. Rendered as a compact header sharing the FIRST chart's own
+    *              slide (bug-76110 round 3) — mirroring the sibling PDF export's convention of
+    *              sharing page 1's header with the first chart — rather than a slide of its own.
+    *              Falls back to a standalone title/recap slide only when {@code slides} is empty
+    *              (no chart slide exists to share with).
+    * @param recap optional findings-recap paragraph, rendered under the title in that same
+    *              shared header. Unlike the empty-{@code slides} fallback's recap box, the shared
+    *              header's recap is stripped to plain text and shrunk/truncated to fit its small
+    *              fixed budget — a PPTX slide is a hard container with no PDF-style continuous-
+    *              flow overflow, so there isn't room for an open-ended rendered markdown block.
     * @param slides one entry per kept chart, in display order. A non-failed entry's
     *               singleSlideDeckBytes is a single-slide .pptx produced by exporting that
     *               chart's own saved visualization via VSExportService/PPTVSExporter
     *               (FileFormatInfo.EXPORT_TYPE_POWERPOINT), pre-sized to occupy only the top
-    *               portion of the slide so its own insights have room below it. A failed entry's
-    *               caption/title are still used (for the placeholder slide's text);
+    *               portion of the slide so its own insights have room below it (and, for the
+    *               first entry, room for the shared title/recap header above it too). A failed
+    *               entry's caption/title are still used (for the placeholder slide's text);
     *               singleSlideDeckBytes may be null/empty and must not be read. insightsMarkdown
     *               (either entry kind), if non-blank, is packed onto the chart's own slide first
     *               (below the imported picture) as far as it fits, then spills into additional
     *               "(cont'd)" insights-only slide(s) immediately after — a failed entry has no
     *               imported picture and so no reserved region, and its insights always start on
     *               their own dedicated slide.
-    * @return a merged multi-slide .pptx: one title/recap slide, then for each chart one slide
-    *         (imported content + caption, or a text-only "failed to render" placeholder) with
-    *         that chart's own insights sharing the same slide when they fit, optionally followed
-    *         by additional insights-only "(cont'd)" slide(s) for whatever does not fit
+    * @return a merged multi-slide .pptx: for each chart one slide (imported content + caption, or
+    *         a text-only "failed to render" placeholder — whichever slide the first chart lands
+    *         on also carries the board's title/recap header) with that chart's own insights
+    *         sharing the same slide when they fit, optionally followed by additional insights-only
+    *         "(cont'd)" slide(s) for whatever does not fit. If {@code slides} is empty, a single
+    *         standalone title/recap slide instead.
     */
    byte[] mergeSlides(String title, String recap, java.util.List<ChartSlide> slides) throws Exception;
 }
