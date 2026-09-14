@@ -90,9 +90,14 @@ package inetsoft.sree.security;
  *
  * copyDataSpace decision tree
  *  ├─ [A] replace=true                  → dataSpace.rename called for each scoped path
+ *          (after dropping paths that are descendants of another scoped path already in the
+ *          list -- DataSpace.rename() recurses through a directory's descendants on its own)
  *  ├─ [B] replace=false, not default org → dataSpace.copy called; copyFileSystem NOT triggered
- *  └─ [C] replace=false, fromOrg is default org → dataSpace.copy called AND
- *          copyFileSystemFileAndBlockSystemFile triggered (AbstractFileSystem.getOrgPaths called)
+ *  ├─ [C] replace=false, fromOrg is default org → dataSpace.copy called AND
+ *  │       copyFileSystemFileAndBlockSystemFile triggered (AbstractFileSystem.getOrgPaths called)
+ *  └─ [D] replace=true, dataspace.rename() returns false for some path → failure logged (ERROR)
+ *          and a RuntimeException thrown after the loop -- the caller must not proceed as if
+ *          the whole org had been relocated
  *
  * copyFileSystemFileAndBlockSystemFile decision tree
  *  ├─ [A] path exists in dataSpace → dataSpace.copy called
@@ -110,6 +115,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -808,6 +814,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          DataSpace mockDs = mock(DataSpace.class);
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
          when(mockDs.getOrgScopedPaths(fromOrg)).thenReturn(new String[]{"portal/fromOrg/file.css"});
+         when(mockDs.rename(any(), any())).thenReturn(true);
 
          provider.callCopyDataSpace(fromOrg, toOrg, true);
 
@@ -865,6 +872,67 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
 
          // Presence of this call proves copyFileSystemFileAndBlockSystemFile was reached
          afs.verify(() -> AbstractFileSystem.getOrgPaths(null));
+      }
+   }
+
+   // Regression test for Fix A (org-lifecycle rename race): a false return from
+   // dataspace.rename() (e.g. BlobStorage's 10s cluster.submit(...) timing out under CI load)
+   // must not be silently swallowed -- copyDataSpace() must surface the failure instead of
+   // letting copyOrganizationInternal() proceed as if the whole org had been relocated.
+   @Test
+   void copyDataSpace_replaceTrue_renameReturnsFalse_throwsAndDoesNotSwallowFailure() {
+      FSOrganization fromOrg = new FSOrganization("fromOrg");
+      FSOrganization toOrg   = new FSOrganization("toOrg");
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class)) {
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+         when(mockDs.getOrgScopedPaths(fromOrg)).thenReturn(
+            new String[]{"portal/fromOrg/dashboard-registry.xml", "portal/fromOrg/bob/dashboard-registry.xml"});
+         when(mockDs.rename("portal/fromOrg/dashboard-registry.xml", "portal/toOrg/dashboard-registry.xml"))
+            .thenReturn(true);
+         when(mockDs.rename("portal/fromOrg/bob/dashboard-registry.xml", "portal/toOrg/bob/dashboard-registry.xml"))
+            .thenReturn(false);
+
+         assertThrows(RuntimeException.class, () -> provider.callCopyDataSpace(fromOrg, toOrg, true),
+            "a false return from rename() must be surfaced, not silently treated as success");
+
+         verify(mockDs).rename("portal/fromOrg/dashboard-registry.xml", "portal/toOrg/dashboard-registry.xml");
+         verify(mockDs).rename("portal/fromOrg/bob/dashboard-registry.xml", "portal/toOrg/bob/dashboard-registry.xml");
+      }
+   }
+
+   // Regression test for Fix B (org-lifecycle rename race): getOrgScopedPaths() returns both a
+   // directory placeholder and every descendant file individually, but DataSpace.rename()
+   // already recurses through a directory's descendants -- so once the ancestor directory is
+   // renamed, renaming each already-relocated descendant again is redundant and burns budget on
+   // the contended rename executor. Each physical path must be renamed exactly once.
+   @Test
+   void copyDataSpace_replaceTrue_nestedPerUserRegistry_eachPathRenamedExactlyOnce() {
+      FSOrganization fromOrg = new FSOrganization("fromOrg");
+      FSOrganization toOrg   = new FSOrganization("toOrg");
+
+      try(MockedStatic<DataSpace> ds = mockStatic(DataSpace.class)) {
+         DataSpace mockDs = mock(DataSpace.class);
+         ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
+
+         // Mirrors the AdminDash/BobDash fixture shape: the org's own directory placeholder,
+         // the admin registry file, the per-user directory placeholder, and the per-user
+         // registry file -- all returned flat by getOrgScopedPaths().
+         when(mockDs.getOrgScopedPaths(fromOrg)).thenReturn(new String[]{
+            "portal/fromOrg",
+            "portal/fromOrg/dashboard-registry.xml",
+            "portal/fromOrg/bob",
+            "portal/fromOrg/bob/dashboard-registry.xml"
+         });
+         when(mockDs.rename(any(), any())).thenReturn(true);
+
+         provider.callCopyDataSpace(fromOrg, toOrg, true);
+
+         // Only the top-level ancestor is renamed -- DataSpace.rename() recurses through its
+         // descendants on its own, so the descendant paths must not be renamed again.
+         verify(mockDs, times(1)).rename(any(), any());
+         verify(mockDs).rename("portal/fromOrg", "portal/toOrg");
       }
    }
 
@@ -972,6 +1040,16 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
                "copyDataSpace", Organization.class, Organization.class, boolean.class);
             m.setAccessible(true);
             m.invoke(this, fromOrg, toOrg, replace);
+         }
+         catch(InvocationTargetException e) {
+            // Unwrap so tests asserting on copyDataSpace's own thrown exception (e.g. the
+            // rename-failure-propagation regression test) see the real exception, not a
+            // reflection wrapper.
+            if(e.getCause() instanceof RuntimeException) {
+               throw (RuntimeException) e.getCause();
+            }
+
+            throw new AssertionError("reflection failed: copyDataSpace", e);
          }
          catch(ReflectiveOperationException e) {
             throw new AssertionError("reflection failed: copyDataSpace", e);

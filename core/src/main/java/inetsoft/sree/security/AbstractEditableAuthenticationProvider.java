@@ -627,20 +627,63 @@ public abstract class AbstractEditableAuthenticationProvider
       String fromOrgId = fromOrg.getId();
       String toOrgId = toOrg.getId();
 
+      if(replace) {
+         // DataSpace.rename() already recurses through a directory's descendants, so if a
+         // returned path is a descendant of another returned path, it was already relocated
+         // as a side effect of renaming its ancestor -- renaming it again is redundant and
+         // just burns budget on the contended rename executor.
+         paths = removeRedundantDescendantPaths(paths);
+      }
+
+      List<String> failedRenames = new ArrayList<>();
+
       for(String path : paths) {
          String newPath = path.replace(fromOrgId, toOrgId);
 
          if(replace) {
-            dataspace.rename(path, newPath);
+            if(!dataspace.rename(path, newPath)) {
+               LOG.error("Failed to rename data space path '{}' to '{}' while migrating " +
+                         "organization '{}' to '{}'", path, newPath, fromOrgId, toOrgId);
+               failedRenames.add(path);
+            }
          }
          else {
             dataspace.copy(path, newPath);
          }
       }
 
+      if(replace && !failedRenames.isEmpty()) {
+         throw new RuntimeException(
+            "Failed to rename data space path(s) while migrating organization '" + fromOrgId +
+            "' to '" + toOrgId + "': " + failedRenames);
+      }
+
       if(!replace && Organization.getDefaultOrganizationID().equals(fromOrgId)) {
          copyFileSystemFileAndBlockSystemFile(fromOrgId, toOrgId);
       }
+   }
+
+   /**
+    * Drops any path that is a descendant of another path already present in the array (e.g.
+    * {@code portal/orgId/user} when {@code portal/orgId} is also present), since
+    * {@link DataSpace#rename(String, String)} already recurses through a directory's
+    * descendants when renaming it.
+    */
+   private String[] removeRedundantDescendantPaths(String[] paths) {
+      String[] sorted = paths.clone();
+      Arrays.sort(sorted, Comparator.comparingInt(String::length));
+
+      List<String> kept = new ArrayList<>();
+
+      for(String path : sorted) {
+         boolean isDescendant = kept.stream().anyMatch(ancestor -> path.startsWith(ancestor + "/"));
+
+         if(!isDescendant) {
+            kept.add(path);
+         }
+      }
+
+      return kept.toArray(new String[0]);
    }
 
    private void copyFileSystemFileAndBlockSystemFile(String fromOrgId, String toOrgId) {
