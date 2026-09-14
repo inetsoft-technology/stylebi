@@ -295,7 +295,8 @@ class SheetOpenServiceTest {
    void theOpenCommandGoesToTheComposerClientTopicNotTheSheetRuntimeTopic() throws Exception {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService realBroadcast = new SheetAgentBroadcastService(
-         dispatcher, mock(VSObjectModelFactoryService.class));
+         dispatcher, mock(VSObjectModelFactoryService.class),
+         mock(inetsoft.web.binding.service.VSBindingTreeService.class));
       SheetOpenService service =
          serviceWithBase(worksheetEntry(), true, null, "sock-1", realBroadcast);
 
