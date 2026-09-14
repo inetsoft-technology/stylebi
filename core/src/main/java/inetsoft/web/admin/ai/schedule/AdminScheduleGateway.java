@@ -592,7 +592,18 @@ public class AdminScheduleGateway {
             ? action.getBookmarkType().code() : ViewsheetAction.BookmarkType.PRIVATE.code()
       });
 
-      if(action.getBookmarkNames() != null) {
+      if(action.getBookmarkNames() != null && !action.getBookmarkNames().isEmpty()) {
+         if(action.getBookmarkUsers() == null ||
+            action.getBookmarkUsers().size() != action.getBookmarkNames().size())
+         {
+            throw new IllegalArgumentException(
+               "bookmarkUsers is required and must have one entry per bookmarkNames entry when " +
+               "bookmarkNames is set (bookmarkNames has " + action.getBookmarkNames().size() +
+               " entries, bookmarkUsers has " +
+               (action.getBookmarkUsers() == null ? "none" : action.getBookmarkUsers().size()) +
+               ")");
+         }
+
          output.setBookmarks(action.getBookmarkNames().toArray(new String[0]));
          output.setBookmarkUsers(action.getBookmarkUsers().toArray(new IdentityID[0]));
          output.setBookmarkTypes(action.getBookmarkTypes() != null

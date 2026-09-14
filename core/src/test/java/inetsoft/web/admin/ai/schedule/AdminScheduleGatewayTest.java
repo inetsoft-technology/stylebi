@@ -436,6 +436,89 @@ class AdminScheduleGatewayTest {
                    ((ViewsheetAction) roundTripped).getViewsheet());
    }
 
+   // -------------------------------------------------------------------------
+   // convertAction(ViewsheetAction) -- bookmarkNames/bookmarkUsers null/length guard
+   // (Redmine #76628, restoring #76610's ASC-004 guard for this gateway's own convertAction
+   // after it was silently lost to a submodule-sync commit -- with the empty-bookmarkNames
+   // short-circuit included from the start, unlike the original ASC-004 guard)
+   // -------------------------------------------------------------------------
+
+   @Test
+   void addScheduleTask_rejectsBookmarkNamesWithoutBookmarkUsers() throws Exception {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+      action.setBookmarkNames(List.of("(Home)"));
+
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      assertThrows(IllegalArgumentException.class, () -> gateway.addScheduleTask(
+         taskMetaData, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), List.of(action), null, "", user));
+
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+   }
+
+   @Test
+   void addScheduleTask_rejectsBookmarkNamesAndBookmarkUsersLengthMismatch() throws Exception {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+      action.setBookmarkNames(List.of("(Home)", "bk1"));
+      action.setBookmarkUsers(List.of(callerOwner));
+
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      assertThrows(IllegalArgumentException.class, () -> gateway.addScheduleTask(
+         taskMetaData, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), List.of(action), null, "", user));
+
+      verify(scheduleManager, never()).setScheduleTask(anyString(), any(), any());
+   }
+
+   @Test
+   void addScheduleTask_allowsBookmarkNamesAndBookmarkUsersOmittedTogether() throws Exception {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      gateway.addScheduleTask(
+         taskMetaData, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), List.of(action), null, "", user);
+
+      verify(scheduleManager).setScheduleTask(anyString(), any(), eq(user));
+   }
+
+   @Test
+   void addScheduleTask_allowsBookmarkNamesAndBookmarkUsersSameLength() throws Exception {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+      action.setBookmarkNames(List.of("(Home)", "bk1"));
+      action.setBookmarkUsers(List.of(callerOwner, otherOwner));
+
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      gateway.addScheduleTask(
+         taskMetaData, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), List.of(action), null, "", user);
+
+      verify(scheduleManager).setScheduleTask(anyString(), any(), eq(user));
+   }
+
+   @Test
+   void addScheduleTask_allowsEmptyBookmarkNamesWithoutBookmarkUsers() throws Exception {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^128^__NULL__^Examples/Census^host-org");
+      action.setBookmarkNames(List.of());
+
+      ScheduleTaskMetaData taskMetaData = new ScheduleTaskMetaData("task1", callerOwner.convertToKey());
+
+      gateway.addScheduleTask(
+         taskMetaData, true, false, -1, -1, null, null, null,
+         Collections.emptyList(), List.of(action), null, "", user);
+
+      verify(scheduleManager).setScheduleTask(anyString(), any(), eq(user));
+   }
+
    private static void mockSession(MockedStatic<XSessionService> sessionStatic) {
       // SRPrincipal's constructor calls XSessionService.getService().createSessionID(), which
       // requires a Spring context. Mock it to avoid that dependency.
