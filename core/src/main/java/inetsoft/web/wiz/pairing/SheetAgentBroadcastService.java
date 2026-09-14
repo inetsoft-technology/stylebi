@@ -33,6 +33,7 @@ import inetsoft.web.composer.ws.command.SetAgentActiveCommand;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
+import inetsoft.web.viewsheet.command.SetViewsheetInfoCommand;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
@@ -48,7 +49,9 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class SheetAgentBroadcastService {
@@ -163,9 +166,9 @@ public class SheetAgentBroadcastService {
    }
 
    /**
-    * Push a SetWorksheetInfoCommand (tab label) + SaveSheetCommand to the browser
-    * so the tab title, id, and save point update — mirrors the regular save flow
-    * in SaveWorksheetDialogService.
+    * Push a tab-label command (SetViewsheetInfoCommand or SetWorksheetInfoCommand, matching the
+    * runtime's own type) + SaveSheetCommand to the browser so the tab title, id, and save point
+    * update — mirrors the regular save flow in SaveWorksheetDialogService.
     */
    public void broadcastSave(RuntimeSheet rs, String runtimeId, Principal owner) {
       String sessionId = rs.getSocketSessionId();
@@ -180,12 +183,24 @@ public class SheetAgentBroadcastService {
          user = owner == null ? null : owner.getName();
       }
 
-      // 1. Send SetWorksheetInfoCommand to update the tab label
-      SetWorksheetInfoCommand labelCommand = SetWorksheetInfoCommand.builder()
-         .label(rs.getEntry().toView())
-         .build();
+      // 1. Send a tab-label command matching the runtime's own type -- the viewsheet tab
+      // (viewsheet-pane.component.ts) only listens for SetViewsheetInfoCommand.assemblyInfo.name,
+      // never SetWorksheetInfoCommand.label; sending the worksheet command here left every
+      // viewsheet save silently unable to update its own tab title.
+      if(rs instanceof RuntimeViewsheet) {
+         Map<String, Object> assemblyInfo = new HashMap<>();
+         assemblyInfo.put("name", rs.getEntry().toView());
+         SetViewsheetInfoCommand labelCommand = new SetViewsheetInfoCommand();
+         labelCommand.setAssemblyInfo(assemblyInfo);
+         sendCommand(user, sessionId, runtimeId, labelCommand);
+      }
+      else {
+         SetWorksheetInfoCommand labelCommand = SetWorksheetInfoCommand.builder()
+            .label(rs.getEntry().toView())
+            .build();
 
-      sendCommand(user, sessionId, runtimeId, labelCommand);
+         sendCommand(user, sessionId, runtimeId, labelCommand);
+      }
 
       // 2. Send SaveSheetCommand to update savePoint, id, and newSheet flag
       SaveSheetCommand saveCommand = SaveSheetCommand.builder()

@@ -288,4 +288,48 @@ class SheetAgentBroadcastServiceTest {
       assertEquals(2, command.getSavePoint());
       assertEquals("Worksheet/foo-7", command.getId());
    }
+
+   /**
+    * broadcastSave used to send SetWorksheetInfoCommand for every runtime type, viewsheet
+    * included -- but viewsheet-pane.component.ts only listens for
+    * SetViewsheetInfoCommand.assemblyInfo.name, never SetWorksheetInfoCommand.label, so a
+    * viewsheet save could never update its own tab title. Confirms the runtime-type-matched
+    * command is sent instead.
+    */
+   @Test
+   void broadcastSaveSendsSetViewsheetInfoCommandForAViewsheetRuntime() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory());
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("stomp-2");
+      when(rvs.getSocketUserName()).thenReturn("alice~;~host-org");
+      when(rvs.size()).thenReturn(1);
+      when(rvs.getCurrent()).thenReturn(0);
+      when(rvs.getSavePoint()).thenReturn(0);
+      inetsoft.uql.asset.AssetEntry entry = mock(inetsoft.uql.asset.AssetEntry.class);
+      when(entry.toView()).thenReturn("bugfix-test-vs");
+      when(entry.toIdentifier()).thenReturn("1^128^__NULL__^bugfix-test-vs");
+      when(rvs.getEntry()).thenReturn(entry);
+      Principal owner = TestPrincipals.user("alice", "host-org");
+
+      svc.broadcastSave(rvs, "Viewsheet/vs-1", owner);
+
+      ArgumentCaptor<Object> commandCap = ArgumentCaptor.forClass(Object.class);
+      verify(dispatcher, times(3)).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), commandCap.capture(), any());
+
+      assertTrue(commandCap.getAllValues().stream()
+            .noneMatch(c -> c instanceof inetsoft.web.composer.ws.command.SetWorksheetInfoCommand),
+         "must not send the worksheet-tab command for a viewsheet runtime");
+
+      Object labelCommand = commandCap.getAllValues().stream()
+         .filter(c -> c instanceof inetsoft.web.viewsheet.command.SetViewsheetInfoCommand)
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("No SetViewsheetInfoCommand was sent"));
+
+      inetsoft.web.viewsheet.command.SetViewsheetInfoCommand command =
+         (inetsoft.web.viewsheet.command.SetViewsheetInfoCommand) labelCommand;
+      assertEquals("bugfix-test-vs", command.getAssemblyInfo().get("name"));
+   }
 }
