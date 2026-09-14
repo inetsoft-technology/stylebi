@@ -261,8 +261,9 @@ class TableBindingServiceTest {
 
       TableVSAssembly assembly = mock(TableVSAssembly.class);
       when(assembly.getFormatInfo()).thenReturn(formatInfo);
-      when(assembly.getTableDataVSAssemblyInfo())
-         .thenReturn(mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class));
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo mockedTableDataVSAssemblyInfo =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getTableDataVSAssemblyInfo()).thenReturn(mockedTableDataVSAssemblyInfo);
       ArgumentCaptor<inetsoft.uql.viewsheet.FormatInfo> rekeyed =
          ArgumentCaptor.forClass(inetsoft.uql.viewsheet.FormatInfo.class);
 
@@ -280,11 +281,67 @@ class TableBindingServiceTest {
          "the pre-existing format must follow the rename to the new display name");
       assertNull(rekeyed.getValue().getFormat(oldPath),
          "the old display name's entry must not remain once rekeyed");
+      verify(mockedTableDataVSAssemblyInfo).updateColumnWidthNames("REGION", "Sales Region");
 
       TableBindingModel posted = (TableBindingModel) capture(bindings).getBinding();
       assertEquals("Sales Region",
          ((inetsoft.web.binding.drm.ColumnRefModel) posted.getDetails().get(0)).getAlias());
       assertEquals(List.of("REGION -> Sales Region"), applied);
+   }
+
+   /**
+    * The regression for the Java-review gap on VTB-011's own merged PR: {@code
+    * rekeyTableFormatAndWidth} (as originally named) ported {@code FormatInfo} and column-width
+    * but never the highlight map, so a pre-existing per-column {@code TableHighlightAttr} entry
+    * silently orphaned under the old display name on rename -- mirrors {@link
+    * #setColumnLabelsRenamesATableColumnAndRekeysItsFormat}'s {@code FormatInfo} coverage, for the
+    * one rekey category that was missing (ported from {@code
+    * ComposerVSTableService.syncHighlight}, which native {@code changeColumnTitle} calls
+    * alongside the same {@code FormatInfo}/column-width rekey).
+    */
+   @Test
+   void setColumnLabelsRenamesATableColumnAndRekeysItsHighlight() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableBindingMutator.setShelf(existing, "details", List.of(dim("REGION")));
+
+      inetsoft.report.internal.table.TableHighlightAttr hattr =
+         new inetsoft.report.internal.table.TableHighlightAttr();
+      inetsoft.report.TableDataPath oldPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "REGION" });
+      // The highlight rule must carry an actual value (a background color, here): both
+      // HighlightGroup.validate() (called by setHighlight, including the rekey's own re-insert
+      // at the new key) and Highlight.isEmpty() treat a rule with no format and no condition as
+      // equivalent to no rule at all and discard it -- an empty rule here would trivially "pass"
+      // by never actually being stored under either name.
+      inetsoft.report.filter.HighlightGroup group = new inetsoft.report.filter.HighlightGroup();
+      inetsoft.report.filter.TextHighlight highlight = new inetsoft.report.filter.TextHighlight();
+      // Highlight.isEmpty() checks its own name field, not the map key it's stored under --
+      // without this, validate() treats it as empty (no name, no condition) and drops it.
+      highlight.setName("h1");
+      highlight.setBackground(java.awt.Color.RED);
+      group.addHighlight("h1", highlight);
+      hattr.setHighlight(oldPath, group);
+
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getFormatInfo()).thenReturn(new inetsoft.uql.viewsheet.FormatInfo());
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo mockedTableDataVSAssemblyInfo =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(mockedTableDataVSAssemblyInfo.getHighlightAttr()).thenReturn(hattr);
+      when(assembly.getTableDataVSAssemblyInfo()).thenReturn(mockedTableDataVSAssemblyInfo);
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      serviceWith(sessionsFor(assembly), existing, bindings)
+         .setColumnLabels("tok", principal(), "Table1",
+                          Map.of("REGION", "Sales Region"), null);
+
+      inetsoft.report.TableDataPath newPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Sales Region" });
+      assertSame(group, hattr.getHighlight(newPath),
+         "the pre-existing highlight must follow the rename to the new display name");
+      assertNull(hattr.getHighlight(oldPath),
+         "the old display name's highlight entry must not remain once rekeyed");
    }
 
    /**
