@@ -41,7 +41,8 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope {
 
    @Override
    public boolean hasMember(String id) {
-      return valmap.containsKey(id) || base.hasMember(id);
+      return valmap.containsKey(id) || (basename != null && basename.equals(id)) ||
+         base.hasMember(id);
    }
 
    @Override

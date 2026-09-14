@@ -30,6 +30,30 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * A single deferred JAVASCRIPT condition value that references field[...]/field. and therefore
+ * cannot be resolved once per query like every other condition value -- it is instead
+ * re-evaluated against the current row on every call to {@link AssetConditionGroup#evaluate}
+ * (WBS-042).
+ */
+final class FieldExprBinding {
+   FieldExprBinding(AssetCondition cond, int index, ExpressionValue eval, String type,
+                    AssetQuerySandbox box)
+   {
+      this.cond = cond;
+      this.index = index;
+      this.eval = eval;
+      this.type = type;
+      this.box = box;
+   }
+
+   final AssetCondition cond;
+   final int index;
+   final ExpressionValue eval;
+   final String type;
+   final AssetQuerySandbox box;
+}
+
+/**
  * Asset condition group executes asset conditions.
  *
  * @version 8.0
@@ -141,6 +165,38 @@ public class AssetConditionGroup extends ConditionGroup {
    }
 
    /**
+    * Same as the base class, except a JAVASCRIPT-typed value referencing field[...]/field. is
+    * deferred (not resolved here) into {@link #fieldExprBindings}, to be re-evaluated against a
+    * real row on every call to {@link #evaluate} instead of being resolved once, like every other
+    * condition value, before any row is known (WBS-042). Overridden here rather than in the
+    * shared {@link ConditionGroup} base class deliberately -- see the "Scope decision" in
+    * bug-wbs042/DESIGN.md for why this stays narrowly opt-in to worksheet/asset conditions.
+    */
+   @Override
+   protected void execExpressionValues(AssetCondition acond, AssetQuerySandbox box,
+                                       DataRef attr, String type)
+   {
+      for(int i = 0; i < acond.getValueCount(); i++) {
+         Object raw = acond.getValue(i);
+
+         if(!(raw instanceof ExpressionValue)) {
+            continue;
+         }
+
+         ExpressionValue eval = (ExpressionValue) raw;
+
+         if(eval.referencesField()) {
+            fieldExprBindings.add(new FieldExprBinding(acond, i, eval, type, box));
+            continue;
+         }
+
+         boolean dateRange = acond.getOperation() == XCondition.DATE_IN;
+         Object val = getExpressionVal(eval, box, attr, type, dateRange);
+         acond.setDynamicValue(i, val, false);
+      }
+   }
+
+   /**
     * Evaluate the condition group with a specified table lens row.
     * @param lens the table lens used for evaluation.
     * @param row the row number of the table lens.
@@ -151,10 +207,17 @@ public class AssetConditionGroup extends ConditionGroup {
          sarr[i].setCurrentRow(row);
       }
 
+      for(FieldExprBinding binding : fieldExprBindings) {
+         Object val = evalFieldExpression(binding.eval, binding.box, binding.type, lens, row);
+         binding.cond.clearCache();
+         binding.cond.setValue(binding.index, val);
+      }
+
       return super.evaluate(lens, row);
    }
 
    protected AssetCondition[] sarr; // sub query asset conditions
+   private final List<FieldExprBinding> fieldExprBindings = new ArrayList<>();
    private transient ColumnIndexMap columnIndexMap = null;
    private static final Logger LOG = LoggerFactory.getLogger(AssetConditionGroup.class);
 }

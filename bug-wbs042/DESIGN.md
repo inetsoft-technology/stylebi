@@ -210,6 +210,30 @@ Per the task's explicit instruction, `community/web/projects/portal/src/app/comp
 — it already offers `field[...]` insertion, which becomes correct/intended now that this change
 lands, matching its own "fields should be accessible in JS" comment.
 
+## Bug discovered during implementation: `TableRowScope.hasMember` didn't special-case `basename`
+
+Not part of the original plan -- found empirically when the first end-to-end test run threw
+`ReferenceError: field is not defined` from inside `evalFieldExpression`, even though `getMember`
+correctly returns the wrapped `TableRow` for the basename identifier
+(`TableRowScope.java:52-54`). Root cause: GraalJS's `ScopeProxy.hasMember`
+(`core/src/main/java/inetsoft/util/script/graal/ScopeProxy.java:60-62`) delegates straight to
+`ScriptScope.hasMember`, and the engine consults `hasMember` first to decide whether an
+unqualified identifier resolves in a given scope at all before ever calling `getMember` --
+`TableRowScope.hasMember` (`:43-45`, pre-fix) only checked `valmap`/`base.hasMember(id)`, never the
+`basename` special case `getMember` already implements, so `field` was reported absent and the
+engine raised a `ReferenceError` instead of ever reaching `getMember`.
+
+Fix: `core/src/main/java/inetsoft/report/script/TableRowScope.java` -- `hasMember` now also checks
+`basename != null && basename.equals(id)`, bringing it in sync with `getMember`'s existing logic.
+This is shared code (also used by `FormulaTableLens`/`CalcTableLens` for worksheet expression
+columns and calc-table cells), so it was verified not to be a narrow, WBS-042-only patch --
+`getMember` already had this exact special case, so `hasMember` was the one out of sync, and fixing
+it can only make member-existence queries MORE accurate (report a member as present that
+`getMember` already knows how to return), never introduce a new incorrect positive. Added
+`core/src/test/java/inetsoft/report/script/TableRowScopeTest.java` covering: `hasMember` reports
+the basename as present (the fix); a real column name still resolves; an unrelated identifier stays
+absent (no false positive introduced).
+
 ## Regression tests planned
 
 New JUnit test(s) exercising:
