@@ -154,6 +154,52 @@ public class SheetSessionService {
       return s;
    }
 
+   /**
+    * Opens (or reuses) a directly-established, unattached session for {@code ownerIdentity} --
+    * the D10 login-triggered establish endpoint's own entry point (design doc section 8.5). Never
+    * called with a {@code runtimeId}: this is the "no pairing code, no runtime yet" session a
+    * verified SSO login mints directly, not a pairing-code join.
+    *
+    * <p>Idempotent: a caller invoking this a second time (e.g. a second {@code login_start}/
+    * {@code login_complete} with {@code establishPortalSession: true}) reuses the SAME live
+    * session -- looked up via {@link #findEstablishedDirectly} -- rather than minting a duplicate.
+    */
+   public JoinSession openEstablishedDirectly(String ownerIdentity) {
+      JoinSession existing = findEstablishedDirectly(ownerIdentity);
+
+      if(existing != null) {
+         return existing;
+      }
+
+      String token = newToken();
+      JoinSession s = new JoinSession(token, null, ownerIdentity, null, clock.getAsLong(),
+                                      UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+                                      null, null, null, false, true);
+      sessions.put(token, s);
+      return s;
+   }
+
+   /**
+    * Returns the unexpired, directly-established ({@link JoinSession#establishedDirectly()})
+    * session owned by {@code ownerIdentity}, or {@code null} if none is live -- the idempotency
+    * lookup {@link #openEstablishedDirectly} uses before minting a new one.
+    */
+   public JoinSession findEstablishedDirectly(String ownerIdentity) {
+      if(ownerIdentity == null) {
+         return null;
+      }
+
+      long now = clock.getAsLong();
+
+      for(JoinSession s : sessions.values()) {
+         if(!s.isExpired(now) && s.establishedDirectly() && ownerIdentity.equals(s.ownerIdentity())) {
+            return s;
+         }
+      }
+
+      return null;
+   }
+
    /** Returns the session (TTL refreshed) iff present, unexpired, and owned by agentIdentity; else null. */
    public JoinSession resolve(String token, String agentIdentity) {
       if (token == null) return null;
