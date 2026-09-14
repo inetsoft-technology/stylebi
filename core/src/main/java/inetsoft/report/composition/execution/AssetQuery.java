@@ -4445,6 +4445,26 @@ public abstract class AssetQuery extends PreAssetQuery {
                         }
 
                         ExpressionValue eval = (ExpressionValue) acond.getValue(j);
+
+                        // WBS-042: a field[...]/field.-referencing JAVASCRIPT value needs a real
+                        // per-row (or, here, per-group) binding to evaluate correctly. This
+                        // constructor resolves each value exactly once, before any group is known,
+                        // so field would silently be undefined/stale rather than bound to the
+                        // current group's row -- the same bug WBS-042 fixed for the
+                        // AssetConditionGroup (per-row) path. Unlike that path, this class
+                        // (postConditions applied during in-memory/Java-side grouping, i.e.
+                        // AssetQuery#getSummaryTableLens's non-mexecuted branch) evaluates against
+                        // a GroupNode's Object[] of already-aggregated values, not a TableLens row,
+                        // and has no reliable column-name mapping for that shape to bind field[...]
+                        // against -- so fail loud here instead of silently mis-evaluating.
+                        if(eval.referencesField()) {
+                           throw new ScriptException(
+                              "A HAVING condition's JAVASCRIPT value references field[...]/field." +
+                              ", but this query's grouping/aggregation is evaluated in-memory " +
+                              "rather than pushed to SQL, and field[...] is not supported in a " +
+                              "postCondition on that path: " + eval.getExpression());
+                        }
+
                         String exp = eval.getExpression();
                         ScriptEnv senv = box.getScriptEnv();
                         VariableTable vtable = box.getVariableTable();

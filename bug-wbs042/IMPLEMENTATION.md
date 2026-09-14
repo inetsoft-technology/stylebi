@@ -88,9 +88,11 @@ once at the start of this session).
   `*Condition*EndToEnd*` across the repo, 551 tests total): 550/551 passed. The one failure,
   `ConditionTest$RegressionTests.toSqlConditionSilentlyDefaultsOnAnUnmatchedName`, compares two
   `java.sql.Date` values each freshly constructed from `System.currentTimeMillis()` inside the test
-  method (`Condition.toNullSqlCondition`/`toSqlCondition`, code this change never touches) — a
-  pre-existing, time-boundary-sensitive flake, not a regression: re-running `ConditionTest` alone
-  (same code, no changes) passed clean on the very next invocation.
+  method (`Condition.toNullSqlCondition`/`toSqlCondition`, code this change never touches). **Corrected
+  in the fix-round below: this was initially mischaracterized here as "a pre-existing,
+  time-boundary-sensitive flake... passed clean on the very next invocation." That characterization
+  was wrong** — see "Fix-round: response to PR #5230 code review" for the actual, reproducible root
+  cause and why it is not this diff's problem to fix.
 - **Not run:** the full 555-file core suite (out of scope/time budget for this session; the targeted
   runs above cover every file this change touches plus its immediate siblings).
 
@@ -110,6 +112,99 @@ once at the start of this session).
   (`PreAssetQuery.java:743-747`) is untouched and not independently re-verified here.
 - **Performance:** re-execution is O(rows) instead of O(1) for a field-referencing condition — an
   intentional, necessary cost of correctness, not benchmarked in this pass.
+
+## Fix-round: response to PR #5230 code review
+
+`bug-wbs042/REVIEW.md` (adversarial review of the initial pass) verified the core per-row mechanism
+(`AssetConditionGroup`/`ConditionFilter`) and the `TableRowScope.hasMember` fix as correct, but found
+one blocking gap and two non-blocking issues. This section records what changed in response.
+
+### Finding #1 (blocking): `AssetConditionGroup2`/`SummaryFilter2` postCondition path
+
+**What the review found:** `AssetQuery.getSummaryTableLens`'s in-memory ("Java-side") grouping
+branch (`AssetQuery.java:2184-2188`, reached whenever grouping/aggregation isn't pushed to SQL — true
+for any `EmbeddedTableAssembly` with a GROUP BY, not an edge case) applies postConditions via
+`AssetConditionGroup2`, a private nested class that hand-inlined its own JavaScript-expression
+resolution rather than routing through `execExpressionValues`/`fieldExprBindings`, and whose
+`evaluate(Object[])` is never reached by `AssetConditionGroup`'s per-row `evaluate(TableLens, int)`
+override. A field-referencing JAVASCRIPT postCondition (HAVING) reaching this path still resolved
+`field[...]` exactly once, before any group was known — the original bug, architecturally unreached
+by the first pass's diff.
+
+**What was done — option (b), not option (a):** the review offered two remedies: (a) route
+`AssetConditionGroup2` through the same deferred-binding mechanism and give it a real per-row (here,
+per-group) `field['Col']` binding, or (b) fail loud instead. Option (a) was attempted first by
+inspection: `AssetConditionGroup2`/`SummaryFilter2` evaluate a postCondition against a `GroupNode`'s
+`Object[]` of already-aggregated values (group columns, then aggregate columns, per `glist`/`slist`
+position), not a `TableLens` row. Reusing `TableRow`/`TableRowScope` directly does not work — `TableRow`
+resolves a column name via a header row read from row 0 of its backing `XTable`
+(`TableRow.getColMap()`), but the existing `XArrayTable` this class already uses for its `mtable` has
+no header row at all (`getHeaderRowCount() == 0`, and its single row IS the data). Building a
+column-name-to-array-position map from scratch would require pairing each `glist`/`slist` position with
+the *same* display name the final summarized `TableLens`'s header carries (`mhdrs`/`getAggCalcHeader`
+for aggregate columns), which is computed several lines *after* `AssetConditionGroup2` is constructed
+in `getSummaryTableLens` today, and reordering that is itself a change to a hot, shared, order-sensitive
+summary code path. A mismatch there would silently bind `field['Col']` to the wrong array position —
+producing a plausible-but-wrong result, which is worse than today's loud `ReferenceError`, and there
+was no existing end-to-end test of postCondition `field[...]` semantics (even on the already-fixed
+per-row path — see IMPLEMENTATION.md's own "unconfirmed" list from the first pass) to validate the
+mapping against. Given that risk, this fix-round implements **option (b)**: `AssetConditionGroup2`'s
+constructor now detects a field-referencing `ExpressionValue` (via the same `ExpressionValue
+#referencesField()` the rest of this PR added) and throws a clear, field-named `ScriptException` at
+condition-group construction time, instead of silently resolving it once. This is a correctly-scoped,
+honest "not supported here yet, fails loud" — not a forced, unverified attempt at full support.
+
+**Files changed:** `core/src/main/java/inetsoft/report/composition/execution/AssetQuery.java` —
+`AssetConditionGroup2`'s constructor (around line 4442) now throws `ScriptException` for a
+field-referencing value instead of hand-resolving it once.
+
+**Regression test:** `ConditionFieldReferencingJavascriptValueTest
+#fieldReferencingJavascriptPostConditionOnInMemoryGroupingFailsLoud` — an `EmbeddedTableAssembly` with
+a `GroupRef`+`AggregateRef` (GROUP BY REGION, SUM(SALES_AMOUNT); no SQL backing, so grouping is always
+evaluated in-memory) and a `field['REGION']`-referencing JAVASCRIPT postCondition; asserts a
+`ScriptException` naming the actual problem (`field`) is thrown, not a silent wrong result.
+
+### Finding #2 (non-blocking, corrected): flaky-test mischaracterization
+
+The original pass's Test results section characterized
+`ConditionTest$RegressionTests.toSqlConditionSilentlyDefaultsOnAnUnmatchedName` as "a pre-existing,
+time-boundary-sensitive flake... passed clean on the very next invocation." **That characterization was
+wrong.** The review ran it twice in isolation and it failed both times with the same shape of mismatch
+(two `java.sql.Date` values with identical `toString()` but different underlying millis). Reading the
+code under test, `Condition.toNullSqlCondition` (`core/src/main/java/inetsoft/uql/Condition.java:1508-1518`,
+untouched by this diff): `cal.set(year, month, day)` never resets hour/minute/second/millisecond, so two
+independent `System.currentTimeMillis()`-seeded `Calendar` computations executed microseconds apart will
+essentially never land on bit-identical millis. This is a near-deterministic, reproducible bug in the
+test's own date construction — not a rare timing coincidence that clears on rerun (this fix-round's own
+full 555-test sweep below happened to pass it, which is consistent with "near-deterministic," not
+"always fails," but does not contradict the review's reproduction). This diff does not touch
+`Condition.toNullSqlCondition`/`toSqlCondition` and does not fix this test — it is corrected here as a
+worthwhile, separate follow-up bug report, not fixed in this PR.
+
+### Finding #3 (non-blocking nit): `evalFieldExpression` missing the `conditionGroupScope` guard
+
+`ConditionGroup.getExpressionVal` brackets its `senv.exec` call with
+`senv.put("conditionGroupScope", scope)` / `senv.remove("conditionGroupScope")` in a `finally` (a
+Rhino-reentrancy guard added for bug #60837). The new `evalFieldExpression` omitted this. Fixed for
+consistency (`core/src/main/java/inetsoft/report/filter/ConditionGroup.java`) — no observable behavior
+change today (grepped the repository; zero readers of `"conditionGroupScope"` currently exist), but if
+that guard is ever wired up, the field-expression path (the one most likely to recursively trigger
+nested table/script evaluation, since it runs once per row/group) should not be the one silently
+missing it.
+
+### Test results (this fix-round)
+
+- `ExpressionValueReferencesFieldTest` (8), `ConditionFieldReferencingJavascriptValueTest` (now 4,
+  including the new postCondition test), `TableRowScopeTest` (3) — 15/15 green
+  (`./mvnw -o -pl core test -Dtest=ExpressionValueReferencesFieldTest,ConditionFieldReferencingJavascriptValueTest,TableRowScopeTest -Dsurefire.failIfNoSpecifiedTests=false`).
+- Sibling regression check (`AssetQueryCacheNormalizerTest`, `AssetQueryTest`, `TableRowTest`,
+  `AssetQueryScopeTest`, `XConditionGroupTest`, `XTableRowTest`) — 45/45 green. (`AssetConditionTest`
+  does not exist as a test class under that exact name — `-Dsurefire.failIfNoSpecifiedTests=false`
+  silently skips it, same as the first pass; not investigated further, out of scope for this round.)
+- Broader Condition-domain regression sweep (`*Condition*Test`/`*Condition*EndToEnd*`) — 555 run,
+  0 failures, 0 errors, 9 skipped, including `ConditionTest$RegressionTests
+  #toSqlConditionSilentlyDefaultsOnAnUnmatchedName` passing this run (consistent with "near-deterministic
+  flake," not "always fails" — see Finding #2 above).
 
 ## PR
 

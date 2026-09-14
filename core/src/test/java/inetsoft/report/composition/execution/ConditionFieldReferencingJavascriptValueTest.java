@@ -28,14 +28,19 @@ import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XCondition;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateInfo;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.ExpressionValue;
+import inetsoft.uql.asset.GroupRef;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.util.script.ScriptException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +52,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * WBS-042 / Redmine #76627 regression: {@code field['ColumnName']} inside a worksheet
@@ -187,5 +194,72 @@ class ConditionFieldReferencingJavascriptValueTest {
          "an SQL-typed field['Col'] expression must be reported as not needing the new per-row " +
          "path, leaving parseFieldExpression's own textual substitution as the sole, unaffected " +
          "mechanism for it");
+   }
+
+   /**
+    * Fix-round regression (code review of PR #5230, finding #1): {@code AssetQuery
+    * #getSummaryTableLens}'s in-memory ("Java-side") grouping branch applies postConditions via
+    * {@code AssetConditionGroup2}/{@code SummaryFilter2} -- a completely different call path from
+    * the per-row {@code AssetConditionGroup}/{@code ConditionFilter} mechanism the original pass
+    * fixed, reached whenever grouping/aggregation itself isn't pushed to SQL (true for ANY
+    * {@link EmbeddedTableAssembly} with a GROUP BY, not an edge case). The original pass left this
+    * path unreached, so a field-referencing JAVASCRIPT postCondition (HAVING) here still resolved
+    * {@code field[...]} exactly once, before any group was known -- the original bug, just on a
+    * different table shape.
+    *
+    * <p>Per the review's option (b): {@code AssetConditionGroup2} evaluates a postCondition against
+    * a {@code GroupNode}'s {@code Object[]} of already-aggregated values, not a {@link TableLens}
+    * row, and there is no reliable column-name-to-array-position mapping for that shape to safely
+    * bind {@code field['Col']} against (unlike the per-row path, which reuses {@code TableRow}'s
+    * existing header-based column lookup on a real table). Rather than risk a silently-wrong
+    * per-row binding, this case now fails loud with a clear, field-named error at condition-group
+    * construction time -- asserted here.</p>
+    */
+   @Test
+   void fieldReferencingJavascriptPostConditionOnInMemoryGroupingFailsLoud() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "SALES");
+      ColumnSelection cs = new ColumnSelection();
+      ColumnRef regionCol = new ColumnRef(new AttributeRef("REGION"));
+      ColumnRef salesCol = new ColumnRef(new AttributeRef("SALES_AMOUNT"));
+      cs.addAttribute(regionCol);
+      cs.addAttribute(salesCol);
+      table.setColumnSelection(cs, false);
+      table.setEmbeddedData(new XEmbeddedTable(new String[]{ "string", "double" },
+         new Object[][]{
+            { "REGION", "SALES_AMOUNT" },
+            { "East", 100.0 },
+            { "East", 200.0 },
+            { "West", 50.0 },
+         }));
+      ws.addAssembly(table);
+
+      // GROUP BY REGION, SUM(SALES_AMOUNT) -- an EmbeddedTableAssembly has no SQL backing, so this
+      // aggregation is always evaluated in-memory (mexecuted == false), reaching AssetConditionGroup2
+      // (not the per-row AssetConditionGroup path this PR's other tests already cover).
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addGroup(new GroupRef(regionCol));
+      ainfo.addAggregate(new AggregateRef(salesCol, AggregateFormula.SUM));
+      table.setAggregateInfo(ainfo);
+      table.setAggregate(true);
+
+      AssetCondition cond = new AssetCondition(XSchema.STRING);
+      cond.setOperation(XCondition.EQUAL_TO);
+      ExpressionValue eval = new ExpressionValue();
+      eval.setType(ExpressionValue.JAVASCRIPT);
+      eval.setExpression("field['REGION']");
+      cond.addValue(eval);
+
+      ConditionList postConds = new ConditionList();
+      postConds.append(new ConditionItem(regionCol, cond, 0));
+      table.setPostConditionList(postConds);
+
+      ScriptException ex = assertThrows(ScriptException.class, () -> run(ws, table),
+         "a field-referencing JAVASCRIPT postCondition reaching the in-memory-grouping " +
+         "(AssetConditionGroup2/SummaryFilter2) path must fail loud instead of silently " +
+         "resolving field[...] once before any group is known");
+      assertTrue(ex.getMessage() != null && ex.getMessage().contains("field"),
+         "the failure should name the actual problem (a field[...]/field. reference), not a " +
+         "generic/unrelated error: " + ex.getMessage());
    }
 }

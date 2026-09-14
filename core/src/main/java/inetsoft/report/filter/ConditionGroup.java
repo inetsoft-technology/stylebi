@@ -729,6 +729,8 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
          TableRowScope fieldScope = new TableRowScope(new TableRow(lens, row), "field");
          fieldScope.setParentScope(base);
          scope = fieldScope;
+         // same Rhino-reentrancy guard as getExpressionVal (60837)
+         senv.put("conditionGroupScope", scope);
 
          val = senv.exec(script, scope, null, vs);
 
@@ -750,6 +752,9 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
          }
 
          throw new ScriptException(msg);
+      }
+      finally {
+         senv.remove("conditionGroupScope");
       }
 
       return getScriptValue(val, type);
