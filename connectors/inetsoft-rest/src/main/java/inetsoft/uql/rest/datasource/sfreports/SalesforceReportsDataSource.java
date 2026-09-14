@@ -33,7 +33,7 @@ import java.util.Objects;
    @View1("authType"),
    @View1(value = "user", visibleMethod = "useCredentialForPassword"),
    @View1(value = "password", visibleMethod = "useCredentialForPassword"),
-   @View1(value = "securityToken", visibleMethod = "useCredentialForPassword"),
+   @View1(value = "securityToken", visibleMethod = "showSecurityToken"),
    @View1(value = "clientId", visibleMethod = "useCredentialForOauth"),
    @View1(value = "clientSecret", visibleMethod = "useCredentialForOauth"),
    @View1(type = ViewType.LABEL, text = "redirect.uri.description", colspan = 2,
