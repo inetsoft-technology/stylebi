@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -26,6 +27,7 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.ConditionListWrapper;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -1321,6 +1323,71 @@ class WorksheetEditServiceMutatorsTest {
          "the refused add must not have duplicated the name the edit just produced");
       assertEquals(4, cs.getAttributeCount(),
          "and must not have added a column");
+   }
+
+   /**
+    * Redmine #76627 (WBS-047): {@code edit_date_range_column} renamed the column on its own
+    * table only, never cascading into a downstream mirror's {@link AggregateInfo} — unlike the
+    * Composer's own {@code rename_column} path, which cascades via
+    * {@code RenameColumnController.renameTableColumn}. Left uncascaded, the mirror's group still
+    * references the column's OLD encoded name; {@code AggregateInfo.validate} has no repair path
+    * for "same source column, different date option", so it falls through and silently DELETES
+    * the group entirely (confirmed empirically against unfixed code: group count goes from 1 to
+    * 0) rather than re-pointing it at the new option/name.
+    *
+    * <p>Needs a REAL (non-mocked) {@link AssetQuerySandbox} wired onto the mocked
+    * {@link RuntimeWorksheet}: the deletion happens inside {@code AbstractTableAssembly
+    * #setColumnSelection}'s {@code ginfo.validate(selection)} call, which only runs against the
+    * mirror's own rebuilt column selection once {@code WorksheetEditService#apply}'s post-mutation
+    * {@code refreshAssemblies} sweep resyncs it — and that sweep silently no-ops (catch-and-log)
+    * without a real sandbox, which would hide the bug entirely.</p>
+    */
+   @Test
+   void editDateRangeColumnCascadesIntoDownstreamMirrorAggregateInfo() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+
+      // A real (empty) embedded table has no header row, so a REAL AssetQuerySandbox's refresh
+      // (needed below) would otherwise reconcile "total" down to a positional placeholder name
+      // ("col1") instead of leaving it alone -- give it actual rows whose headers match the
+      // declared columns so that reconciliation is a no-op.
+      t.setEmbeddedData(new XEmbeddedTable(new String[]{ "date", "double" }, new Object[][]{
+         { "orderDate", "total" },
+         { java.sql.Date.valueOf("2024-01-15"), 100.0 },
+         { java.sql.Date.valueOf("2024-02-20"), 200.0 },
+      }));
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(new AssetQuerySandbox(ws, null, new VariableTable()));
+
+      WorksheetEditService svc = service(rws, "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M",
+            List.of(new WorksheetMutationSupport.GroupSpec("QuarterOfYear(orderDate)")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+      assertEquals(1, mirror.getAggregateInfo().getGroupCount(),
+         "sanity check: the mirror's group must exist before the rename");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR"));
+
+      assertEquals(1, mirror.getAggregateInfo().getGroupCount(),
+         "the mirror's group must survive the source date-range column's option change, not be " +
+         "silently dropped");
+      DataRef groupRef = mirror.getAggregateInfo().getGroup(0).getDataRef();
+      assertEquals("MonthOfYear(orderDate)", groupRef.getAttribute(),
+         "the surviving group must reflect the NEW option/name, not the stale old one");
    }
 
    @Test
