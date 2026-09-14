@@ -1875,6 +1875,39 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("Order Model", probedEntry.getProperty("source"));
    }
 
+   /**
+    * Regression test for bug #76606's {@code PairingException} guard: a bare model name with no
+    * {@code /} at all (one of the four repro variants in the original bug report) can never be
+    * split into a datasource/model pair, so it must be rejected immediately with a format-guidance
+    * message rather than silently falling through to the generic "no logical model named ..."
+    * not-found message.
+    */
+   @Test
+   void attachBaseWorksheetRefusesLogicalModelMissingSeparator() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(mock(AssetRepository.class));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               "Order Model", null, "logicalModel", null, null),
+            agent));
+      assertTrue(ex.getMessage().contains("'path' must be \"<datasource>/<model>\""));
+      assertFalse(ex.getMessage().contains("no logical model named"));
+   }
+
    /** Flat case: the datasource's own root getEntries() call returns the matching table directly. */
    @Test
    void attachBaseWorksheetAcceptsPhysicalTableTypeFlat() throws Exception {
