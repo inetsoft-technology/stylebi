@@ -1736,6 +1736,16 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
 - [seeded-value-reversibility-decisions.md](./seeded-value-reversibility-decisions.md) — the seed mark,
   the four seeded values and the mechanism inventory. **Supersedes the roadmap's seed-mark analysis
   below**, which still lists version-blindness as the open question
+- [2026-09-11-chart-palette-retune-design.md](./2026-09-11-chart-palette-retune-design.md) —
+  **implemented, in review.** The chart's categorical *series* palette, which nothing in this file
+  covers: re-tunes the eight head colours of `Modern` and `Modern Dark`, adds `Contrast`, and gates the
+  palette picker on the assembly's `VizMark` rather than the org property. Not to be confused with the
+  **Chart interior dark palette** row in Done, which was plot chrome. **Read its Corrections section
+  before applying anything from the external palette set** (`SBI Color and Type Pairings.dc.html` and
+  its `design_handoff_chart_palettes/` folder): that handoff is wrong against this branch in four ways,
+  two of which fail silently — its CSS block is 0-based where `ColorPalettes` drops any index below 1,
+  and the 8-slot `Default` it proposes is discarded by `VSChartPaletteDefaults.fromFrame()`, which
+  falls back to `spliceLegacy()` below 40 colours. It also predates `Modern`/`Modern Dark` existing
 - [chart-card-slice1-design.md](./chart-card-slice1-design.md) ·
   [chart-card-slice2-tables-design.md](./chart-card-slice2-tables-design.md) ·
   [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped slice

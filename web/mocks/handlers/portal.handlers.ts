@@ -127,7 +127,7 @@ export const portalHandlers = [
    // app components to warm the chart-series swatch grid
    http.get("*/api/portal/chart-color-palette", () => {
       return HttpResponse.json([
-         "#00d4e8", "#00b87a", "#f59e0b", "#f43f5e", "#8b5cf6", "#3b82f6", "#0d9488", "#64748b",
+         "#0490ff", "#ff5a35", "#241c4f", "#03d9b3", "#9a2ddc", "#ffb020", "#e5197e", "#8ed604",
          "#9368be", "#be90d4", "#95a5a6", "#dadfe1", "#19b5fe", "#c5eff7", "#869530", "#c8d96f",
          "#a88637", "#d2b267", "#019875", "#68c3a3", "#99ccff", "#999933", "#cc9933", "#006666",
          "#993300", "#666666", "#663366", "#cccccc", "#669999", "#cccc66", "#cc6600", "#9999ff",

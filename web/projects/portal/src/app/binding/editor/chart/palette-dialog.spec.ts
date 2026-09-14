@@ -25,10 +25,15 @@ import {
 } from "../../../widget/color-picker/palette-test-fixtures";
 import { PaletteDialog } from "./palette-dialog.component";
 
-function palette(name: string, head: string[]): CategoricalColorModel {
+const HEAT_HEAD: string[] = [
+   "#663300", "#914800", "#bd5e00", "#e97400", "#ff8a15", "#ffa041", "#ffb66d", "#ffcc99"
+];
+
+function palette(name: string, head: string[], hidden = false): CategoricalColorModel {
    const model = new CategoricalColorModel();
    model.name = name;
    model.colors = palette40(head);
+   model.hidden = hidden;
    return model;
 }
 
@@ -77,5 +82,65 @@ describe("PaletteDialog pre-selection", () => {
       custom[3] = "#123456";
       const dialog = dialogWith(custom.concat(LEGACY_TAIL));
       expect(dialog.displayPalette.name).toBe("Default");
+   });
+});
+
+describe("PaletteDialog hidden palettes", () => {
+   function dialogWithHidden(currentColors: string[]): PaletteDialog {
+      const dialog = new PaletteDialog();
+      dialog.colorPalettes = [
+         palette("Default", LEGACY_HEAD),
+         palette("Modern", MODERN_HEAD),
+         palette("Heat 8", HEAT_HEAD, true)
+      ];
+      const curr = new CategoricalColorModel();
+      curr.colors = currentColors;
+      dialog.currPalette = curr;
+      return dialog;
+   }
+
+   it("drops a hidden palette from the dropdown", () => {
+      const dialog = dialogWithHidden(palette40(MODERN_HEAD));
+      expect(dialog.paletteSelectOptions.map((o) => o.label)).toEqual(["Default", "Modern"]);
+   });
+
+   it("keeps a hidden palette in the dropdown when the chart is using it", () => {
+      const dialog = dialogWithHidden(palette40(HEAT_HEAD));
+      expect(dialog.displayPalette.name).toBe("Heat 8");
+      expect(dialog.paletteSelectOptions.map((o) => o.label))
+         .toEqual(["Default", "Modern", "Heat 8"]);
+   });
+
+   // hidden entry is non-terminal: a post-filter renumbering bug would still emit [0, 1]
+   it("keeps option values aligned with the unfiltered array", () => {
+      const dialog = new PaletteDialog();
+      dialog.colorPalettes = [
+         palette("Default", LEGACY_HEAD),
+         palette("Heat 8", HEAT_HEAD, true),
+         palette("Modern", MODERN_HEAD)
+      ];
+      const curr = new CategoricalColorModel();
+      curr.colors = palette40(MODERN_HEAD);
+      dialog.currPalette = curr;
+      expect(dialog.paletteSelectOptions.map((o) => o.value)).toEqual([0, 2]);
+   });
+
+   it("represents a chart's own hidden palette correctly in the dropdown", () => {
+      const dialog = dialogWithHidden(palette40(HEAT_HEAD));
+      expect(dialog.paletteSelectOptions).toContainEqual({ value: 2, label: "Heat 8" });
+   });
+
+   // a reversed match sets _selectedIndex the same way a forward one does, so the entry the
+   // chart is on survives the filter whichever direction it matched. displayPalette carries no
+   // name on the reversed branch - it builds a colours-only model - so the label is asserted
+   // through the options, which read the unfiltered array
+   it("keeps a hidden palette that matched reversed", () => {
+      const dialog = dialogWithHidden(palette40(HEAT_HEAD).slice().reverse());
+
+      // reading the options resolves the match; _reversed is still its initial false until then
+      expect(dialog.paletteSelectOptions.map((o) => o.label))
+         .toEqual(["Default", "Modern", "Heat 8"]);
+      expect(dialog._reversed).toBe(true);
+      expect(dialog._selectedIndex).toBe(2);
    });
 });

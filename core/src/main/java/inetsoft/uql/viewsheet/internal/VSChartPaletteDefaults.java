@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -87,6 +88,15 @@ public final class VSChartPaletteDefaults {
       if(frame != null && ctx.modern) {
          frame.setDefaultColors(activePalette(ctx));
       }
+   }
+
+   /**
+    * Palette names a picker should mark hidden for the given context. A modern chart is not
+    * offered the single-hue ramps; a classic chart keeps everything. Never removes a name from
+    * resolution - getPalette must still answer for every one of these.
+    */
+   public static Set<String> hiddenPaletteNames(VizContext ctx) {
+      return ctx.modern ? MODERN_HIDDEN : Set.of();
    }
 
    /**
@@ -174,16 +184,18 @@ public final class VSChartPaletteDefaults {
    private static final String MODERN_NAME = "Modern";
    private static final String DARK_NAME = "Modern Dark";
    private static final String DEFAULT_NAME = "Default";
+   private static final Set<String> MODERN_HIDDEN =
+      Set.of("Pastel", "Heat 8", "Heat 16", "Heat 24", "Blue", "Green", "Red", "Orange", "Gray");
    private static final Map<String, Memo> MEMO = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(VSChartPaletteDefaults.class);
 
    private static final Color[] MODERN_HEAD = {
-      new Color(0x00D4E8), new Color(0x00B87A), new Color(0xF59E0B), new Color(0xF43F5E),
-      new Color(0x8B5CF6), new Color(0x3B82F6), new Color(0x0D9488), new Color(0x64748B)
+      new Color(0x0490FF), new Color(0xFF5A35), new Color(0x241C4F), new Color(0x03D9B3),
+      new Color(0x9A2DDC), new Color(0xFFB020), new Color(0xE5197E), new Color(0x8ED604)
    };
 
    private static final Color[] DARK_HEAD = {
-      new Color(0x22D3EE), new Color(0x10B981), new Color(0xFBB724), new Color(0xFB6181),
-      new Color(0xA78BFA), new Color(0x60A5FA), new Color(0x2DD4BF), new Color(0x94A3B8)
+      new Color(0x4FA5FF), new Color(0xFF8367), new Color(0x49447D), new Color(0x2DEEC6),
+      new Color(0xAE41F5), new Color(0xFFCB82), new Color(0xFE3290), new Color(0x9FEB28)
    };
 }

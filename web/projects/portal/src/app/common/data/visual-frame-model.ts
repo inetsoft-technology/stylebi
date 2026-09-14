@@ -48,6 +48,7 @@ export class CategoricalColorModel extends ColorFrameModel {
    shareColors: boolean;
    dateFormat: number;
    colorValueFrame?: boolean;
+   hidden?: boolean;
 }
 
 export class GradientColorModel extends ColorFrameModel {

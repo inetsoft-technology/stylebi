@@ -30,6 +30,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizMark;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.*;
@@ -96,6 +97,26 @@ public class VSChartBindingService {
       }
 
       return model;
+   }
+
+   /**
+    * The chart's own provenance mark, read on the node that owns the runtime viewsheet. Null for
+    * an unmarked chart, a missing assembly, or an assembly that is not a chart.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public VizMark getChartVizMark(@ClusterProxyKey String vsId, String assemblyName,
+                                  Principal principal)
+      throws Exception
+   {
+      ViewsheetService engine = viewsheetService;
+      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+
+      if(viewsheet == null || !(viewsheet.getAssembly(assemblyName) instanceof ChartVSAssembly chart)) {
+         return null;
+      }
+
+      return chart.getVSAssemblyInfo().getVizMark();
    }
 
    /**

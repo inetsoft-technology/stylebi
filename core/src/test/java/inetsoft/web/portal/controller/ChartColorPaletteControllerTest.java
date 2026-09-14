@@ -57,8 +57,8 @@ class ChartColorPaletteControllerTest {
       String[] colors = new ChartColorPaletteController().getChartColorPalette();
 
       assertEquals(40, colors.length);
-      assertEquals("#00d4e8", colors[0]);
-      assertEquals("#64748b", colors[7]);
+      assertEquals("#0490ff", colors[0]);
+      assertEquals("#8ed604", colors[7]);
    }
 
    @Test
@@ -68,8 +68,8 @@ class ChartColorPaletteControllerTest {
 
       String[] colors = new ChartColorPaletteController().getChartColorPalette();
 
-      assertEquals("#22d3ee", colors[0]);
-      assertEquals("#94a3b8", colors[7]);
+      assertEquals("#4fa5ff", colors[0]);
+      assertEquals("#9feb28", colors[7]);
    }
 
    @Test
