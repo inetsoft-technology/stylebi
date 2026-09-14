@@ -81,11 +81,15 @@ import java.util.List;
  *                         that it is unknown; a crosstab whose label could not be resolved (no
  *                         rendered lens available at read time) also reports {@code null} rather
  *                         than a stale or guessed value.
+ * @param secondaryY       plot the measure on the secondary Y axis, measures only -- mutually
+ *                         exclusive with the (currently unexposed on this path) discrete flag.
+ *                         {@code null}/absent means "not specified", applied as {@code false} on
+ *                         write.
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
                        String namedGroup, Integer chartType, Integer runtimeChartType,
                        NamedGroupValues namedGroupValues, CalculateInfo calculateInfo,
-                       String label) {
+                       String label, Boolean secondaryY) {
    /**
     * Every caller but the chart read builds a ref with no chart type. Kept so that adding the
     * components did not touch forty-odd construction sites that have nothing to do with charts.
@@ -93,14 +97,14 @@ public record FieldRef(String column, String type, String aggregate, String date
    public FieldRef(String column, String type, String aggregate, String dateLevel,
                    String namedGroup)
    {
-      this(column, type, aggregate, dateLevel, namedGroup, null, null, null, null, null);
+      this(column, type, aggregate, dateLevel, namedGroup, null, null, null, null, null, null);
    }
 
    /** A chart ref whose design-time type is all the read has to report. */
    public FieldRef(String column, String type, String aggregate, String dateLevel,
                    String namedGroup, Integer chartType)
    {
-      this(column, type, aggregate, dateLevel, namedGroup, chartType, null, null, null, null);
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, null, null, null, null, null);
    }
 
    /**
@@ -111,7 +115,7 @@ public record FieldRef(String column, String type, String aggregate, String date
                    String namedGroup, Integer chartType, Integer runtimeChartType)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType, null, null,
-           null);
+           null, null);
    }
 
    /**
@@ -123,19 +127,45 @@ public record FieldRef(String column, String type, String aggregate, String date
                    NamedGroupValues namedGroupValues)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
-           namedGroupValues, null, null);
+           namedGroupValues, null, null, null);
    }
 
    /**
-    * The shape before {@code label} was added — kept so that addition did not touch every call
-    * site that already named {@code calculateInfo}.
+    * The shape before {@code label}/{@code secondaryY} were added — kept so those additions did
+    * not touch every call site that already named {@code calculateInfo}.
     */
    public FieldRef(String column, String type, String aggregate, String dateLevel,
                    String namedGroup, Integer chartType, Integer runtimeChartType,
                    NamedGroupValues namedGroupValues, CalculateInfo calculateInfo)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
-           namedGroupValues, calculateInfo, null);
+           namedGroupValues, calculateInfo, null, null);
+   }
+
+   /**
+    * The shape before {@code secondaryY} was added — kept so that addition did not touch every
+    * call site that already named {@code label}.
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup, Integer chartType, Integer runtimeChartType,
+                   NamedGroupValues namedGroupValues, CalculateInfo calculateInfo, String label)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
+           namedGroupValues, calculateInfo, label, null);
+   }
+
+   /**
+    * The shape before {@code label} was added — kept so that addition did not touch every call
+    * site that already named {@code secondaryY}. Distinguished from the {@code label} overload
+    * above by argument type ({@code Boolean} vs {@code String}), not just position.
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup, Integer chartType, Integer runtimeChartType,
+                   NamedGroupValues namedGroupValues, CalculateInfo calculateInfo,
+                   Boolean secondaryY)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
+           namedGroupValues, calculateInfo, null, secondaryY);
    }
 
    /**

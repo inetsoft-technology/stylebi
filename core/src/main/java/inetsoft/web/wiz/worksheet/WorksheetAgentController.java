@@ -74,6 +74,7 @@ import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.WSCollectVariablesCommand;
+import inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy;
 import inetsoft.web.composer.ws.event.WSLayoutGraphEvent;
 import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
@@ -137,7 +138,8 @@ public class WorksheetAgentController {
                                    SecurityEngine securityEngine,
                                    RenameTransformHandler renameTransformHandler,
                                    SheetOpenService openService,
-                                   AssetDataCache assetDataCache)
+                                   AssetDataCache assetDataCache,
+                                   AssemblyConditionDialogServiceProxy dialogServiceProxy)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -157,6 +159,7 @@ public class WorksheetAgentController {
       this.renameTransformHandler = renameTransformHandler;
       this.openService = openService;
       this.assetDataCache = assetDataCache;
+      this.dialogServiceProxy = dialogServiceProxy;
    }
 
    // ---------------------------------------------------------------------------
@@ -1215,6 +1218,27 @@ public class WorksheetAgentController {
       requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
       return previewService.preview(rws, table, offset, Math.min(limit, 200));
+   }
+
+   /**
+    * List the available date ranges (built-in {@link inetsoft.uql.util.DateCondition} names plus
+    * any visible {@link inetsoft.uql.erm.DateRangeAssembly} defined on this worksheet) for
+    * populating a worksheet-scoped condition editor's date-range dropdown.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param user         the authenticated agent principal
+    * @return a {@code BrowseDataModel}-shaped object with both built-in and custom date range names
+    * @throws PairingException if the session is invalid/expired or the runtime is not found
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/condition/date-ranges")
+   public Object conditionDateRanges(@PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+      WorksheetEditService.ResolvedSession resolved =
+         editService.resolveWithSession(sessionToken, user);
+      return dialogServiceProxy.getDateRanges(resolved.runtimeId(), user);
    }
 
    /**
@@ -4114,6 +4138,7 @@ public class WorksheetAgentController {
    private final RenameTransformHandler renameTransformHandler;
    private final SheetOpenService openService;
    private final AssetDataCache assetDataCache;
+   private final AssemblyConditionDialogServiceProxy dialogServiceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 
    // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same

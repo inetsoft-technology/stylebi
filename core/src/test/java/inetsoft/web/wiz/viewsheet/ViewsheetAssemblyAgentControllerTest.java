@@ -1825,6 +1825,89 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("MyDataSource/MyModel", entryCaptor.getValue().getPath());
    }
 
+   /**
+    * Regression test for bug #76606: mocking {@code AssetRepository} directly (as
+    * {@link #attachBaseWorksheetAcceptsLogicalModelType()} above does) proves nothing about
+    * whether the probe entry is actually resolvable by the real
+    * {@code AbstractAssetEngine.getQueryEntries}'s {@code isLogicModel()} branch, since that
+    * branch resolves the data model from {@code entry.getProperty("prefix")}/
+    * {@code entry.getProperty("source")}, not from the entry's path -- a stubbed
+    * {@code getEntries()} return value passes regardless of whether those properties were ever
+    * set. Assert directly on the entry argument captured at the {@code getEntries()} call site
+    * so a fix that stops short of populating those properties still fails this test even though
+    * the stubbed mock "succeeds".
+    */
+   @Test
+   void attachBaseWorksheetLogicalModelProbesEntryWithPrefixAndSourceProperties() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getEntries(any(), eq(agent), eq(ResourceAction.READ)))
+         .thenReturn(new AssetEntry[] {
+            new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.TABLE,
+                           "Examples/Orders/Order Model/Orders", null)
+         });
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-lm-props");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Examples/Orders/Order Model", null, "logicalModel", null, null),
+         agent);
+
+      ArgumentCaptor<AssetEntry> probeCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(rep).getEntries(probeCaptor.capture(), eq(agent), eq(ResourceAction.READ));
+
+      AssetEntry probedEntry = probeCaptor.getValue();
+      assertEquals("Examples/Orders", probedEntry.getProperty("prefix"));
+      assertEquals("Order Model", probedEntry.getProperty("source"));
+   }
+
+   /**
+    * Regression test for bug #76606's {@code PairingException} guard: a bare model name with no
+    * {@code /} at all (one of the four repro variants in the original bug report) can never be
+    * split into a datasource/model pair, so it must be rejected immediately with a format-guidance
+    * message rather than silently falling through to the generic "no logical model named ..."
+    * not-found message.
+    */
+   @Test
+   void attachBaseWorksheetRefusesLogicalModelMissingSeparator() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(mock(AssetRepository.class));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               "Order Model", null, "logicalModel", null, null),
+            agent));
+      assertTrue(ex.getMessage().contains("'path' must be \"<datasource>/<model>\""));
+      assertFalse(ex.getMessage().contains("no logical model named"));
+   }
+
    /** Flat case: the datasource's own root getEntries() call returns the matching table directly. */
    @Test
    void attachBaseWorksheetAcceptsPhysicalTableTypeFlat() throws Exception {
@@ -1862,6 +1945,15 @@ class ViewsheetAssemblyAgentControllerTest {
       verify(vs).setBaseEntry(entryCaptor.capture());
       assertSame(tableEntry, entryCaptor.getValue(),
          "must attach the REAL repository-returned entry, never a hand-constructed one");
+
+      ArgumentCaptor<AssetEntry> rootCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(rep).getEntries(rootCaptor.capture(), eq(agent),
+         eq(inetsoft.sree.security.ResourceAction.READ));
+      assertEquals("Examples", rootCaptor.getValue().getProperty("prefix"),
+         "the hand-built root DATA_SOURCE entry passed to getEntries() must carry the " +
+         "'prefix' property -- the real AbstractAssetEngine implementation (unlike this " +
+         "any()-matching mock) reads it to resolve the datasource and silently returns an " +
+         "empty result when it is null, regardless of whether the table actually exists");
    }
 
    /** Nested case: the root returns a folder first; the resolver must recurse into it. */
@@ -1912,6 +2004,20 @@ class ViewsheetAssemblyAgentControllerTest {
       ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
       verify(vs).setBaseEntry(entryCaptor.capture());
       assertSame(tableEntry, entryCaptor.getValue());
+
+      ArgumentCaptor<AssetEntry> foldersCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(rep, atLeastOnce()).getEntries(foldersCaptor.capture(), eq(agent),
+         eq(inetsoft.sree.security.ResourceAction.READ));
+      AssetEntry root = foldersCaptor.getAllValues().stream()
+         .filter(e -> "Examples".equals(e.getPath()))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("expected a getEntries() call for the root " +
+            "'Examples' folder"));
+      assertEquals("Examples", root.getProperty("prefix"),
+         "the hand-built root DATA_SOURCE entry passed to getEntries() must carry the " +
+         "'prefix' property -- the real AbstractAssetEngine implementation (unlike this " +
+         "any()-matching mock) reads it to resolve the datasource and silently returns an " +
+         "empty result when it is null, regardless of whether the table actually exists");
    }
 
    @Test

@@ -60,6 +60,7 @@ import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.composer.model.BrowseDataModel;
 import inetsoft.web.composer.ws.LayoutGraphService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -195,7 +196,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.sree.security.SecurityEngine.class),
                                           renameTransformHandler,
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
-                                          mock(inetsoft.report.composition.execution.AssetDataCache.class));
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class),
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code dependents} test control the
@@ -220,7 +222,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.sree.security.SecurityEngine.class),
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
-                                          mock(inetsoft.report.composition.execution.AssetDataCache.class));
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class),
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code refresh_data} test observe/stub the
@@ -246,7 +249,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.sree.security.SecurityEngine.class),
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
-                                          assetDataCache);
+                                          assetDataCache,
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code preview} test control the
@@ -271,7 +275,35 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.sree.security.SecurityEngine.class),
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
-                                          mock(inetsoft.report.composition.execution.AssetDataCache.class));
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class),
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+   }
+
+   /** Like the 6-arg {@code controller}, but lets a {@code condition/date-ranges} test control
+    *  the {@link inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy} instead of
+    *  getting an unstubbed mock. */
+   private static WorksheetAgentController controller(SheetAgentFeature feature,
+                                                       SheetJoinService join,
+                                                       SheetSessionService sessions,
+                                                       WorksheetReadService read,
+                                                       WorksheetEditService edit,
+                                                       WorksheetService ws,
+                                                       inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy dialogServiceProxy)
+   {
+      return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
+                                          mock(WorksheetPreviewService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(inetsoft.uql.XRepository.class),
+                                          mock(inetsoft.uql.asset.AssetRepository.class),
+                                          mock(inetsoft.web.wiz.service.MetadataApiService.class),
+                                          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+                                          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
+                                          mock(inetsoft.sree.security.SecurityEngine.class),
+                                          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class),
+                                          dialogServiceProxy);
    }
 
    private static SheetAgentFeature featureOn() {
@@ -307,7 +339,8 @@ class WorksheetAgentControllerTest {
          dataSourceService, securityEngine,
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
-         mock(inetsoft.report.composition.execution.AssetDataCache.class));
+         mock(inetsoft.report.composition.execution.AssetDataCache.class),
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
    }
 
    /**
@@ -904,6 +937,60 @@ class WorksheetAgentControllerTest {
       assertEquals("Sales Dashboard", dependents.get(0).get("path"));
       assertEquals("viewsheet", dependents.get(0).get("type"));
       assertTrue(result.get("summary").toString().contains("Sales Dashboard"));
+   }
+
+   // ---------------------------------------------------------------------------
+   // condition/date-ranges — bug #76571
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void conditionDateRangesRejectsFlagOff() {
+      WorksheetAgentController ctrl = controller(featureOff(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.conditionDateRanges("TOK-DR-OFF", TestPrincipals.user("alice", "host-org")));
+      assertEquals(403, ex.getStatusCode().value());
+   }
+
+   /**
+    * Bug #76571: a worksheet-only session must be able to list date ranges without being routed
+    * to the viewsheet-domain endpoint. Resolves the session to a runtimeId via
+    * {@link WorksheetEditService#resolveWithSession}, then forwards to
+    * {@link inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy#getDateRanges}
+    * -- the same service the interactive Composer condition dialog uses -- and returns its result
+    * verbatim, so both built-in {@code DateCondition} names and any custom
+    * {@code DateRangeAssembly} defined on the worksheet come through unchanged.
+    */
+   @Test
+   void conditionDateRangesResolvesSessionAndForwardsBuiltinAndCustomRanges() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolveWithSession(eq("TOK-DR"), eq(agent)))
+         .thenReturn(new WorksheetEditService.ResolvedSession(rws, "RUNTIME-DR-1"));
+
+      BrowseDataModel expected = BrowseDataModel.builder()
+         .values(new Object[] { "today", "MyCustomDateRange" })
+         .labels(new Object[] { "Today", "MyCustomDateRange" })
+         .build();
+
+      inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy dialogServiceProxy =
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class);
+      when(dialogServiceProxy.getDateRanges(eq("RUNTIME-DR-1"), eq(agent))).thenReturn(expected);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         dialogServiceProxy);
+
+      Object result = ctrl.conditionDateRanges("TOK-DR", agent);
+
+      assertSame(expected, result);
+      verify(dialogServiceProxy).getDateRanges("RUNTIME-DR-1", agent);
    }
 
    // ---------------------------------------------------------------------------
@@ -3495,7 +3582,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.sree.security.SecurityEngine.class),
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
-         mock(inetsoft.report.composition.execution.AssetDataCache.class));
+         mock(inetsoft.report.composition.execution.AssetDataCache.class),
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
 
       ctrl.detach("TOK-D", agent);
 
@@ -3533,7 +3621,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.sree.security.SecurityEngine.class),
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          openService,
-         mock(inetsoft.report.composition.execution.AssetDataCache.class));
+         mock(inetsoft.report.composition.execution.AssetDataCache.class),
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
    }
 
    @Test

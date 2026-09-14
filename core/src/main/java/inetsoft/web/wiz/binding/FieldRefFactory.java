@@ -106,6 +106,8 @@ public final class FieldRefFactory {
             ref.setCalculateInfo(field.calculateInfo());
          }
 
+         ref.setSecondaryY(Boolean.TRUE.equals(field.secondaryY()));
+
          return ref;
       }
 
@@ -280,8 +282,12 @@ public final class FieldRefFactory {
 
    public static FieldRef from(DataRefModel ref) {
       if(ref instanceof BAggregateRefModel aggregate) {
+         Boolean secondaryY = aggregate instanceof ChartAggregateRefModel chartAggregate
+            ? chartAggregate.isSecondaryY() : null;
+
          return new FieldRef(aggregate.getColumnValue(), MEASURE, aggregate.getFormula(),
-                             null, null, null, null, null, aggregate.getCalculateInfo());
+                             null, null, null, null, null, aggregate.getCalculateInfo(),
+                             secondaryY);
       }
 
       if(ref instanceof BDimensionRefModel dimension) {
