@@ -23,10 +23,12 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
+import inetsoft.uql.viewsheet.vslayout.VSEditableAssemblyLayout;
 import inetsoft.web.composer.vs.controller.VSLayoutControllerServiceProxy;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.DataTipInLayoutCheckResult;
@@ -288,6 +290,74 @@ class LayoutMutationServiceTest {
       assertEquals(2, tableLayout.getTableLayout());
    }
 
+   /**
+    * bug-VAR-003: {@code addObjects} must set the caller's {@code text} on the newly created
+    * layout-only {@code TextVSAssembly} instead of leaving {@link VSLayoutService
+    * #createVSAssembly}'s own hardcoded {@code "text"} literal.
+    */
+   @Test
+   void addWithTextSetsTheCallersTextOnTheCreatedTextAssembly() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "ConfidentialLabel", "type", "text", "x", 750, "y", 0,
+                         "text", "Confidential")), false);
+
+      TextVSAssemblyInfo textInfo = fx.readLayoutOnlyTextInfo("ConfidentialLabel");
+      assertEquals("Confidential", textInfo.getTextValue());
+      assertEquals("Confidential", textInfo.getValue());
+   }
+
+   @Test
+   void addWithTextRejectsANonTextType() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Logo", "type", "image", "x", 0, "y", 0,
+                            "text", "Confidential")), false));
+
+      assertTrue(thrown.getMessage().contains("Logo"), thrown.getMessage());
+      assertFalse(fx.printLayoutObjectNames().contains("Logo"),
+                  "a rejected add must not place the object in the layout");
+   }
+
+   /**
+    * bug-VAR-003: {@code moveResize} must be able to update an existing layout-only text
+    * object's content later, not just at creation, mirroring how it already updates position/
+    * size for the same {@link VSEditableAssemblyLayout} branch.
+    */
+   @Test
+   void moveResizeWithTextUpdatesAnExistingLayoutOnlyTextObject() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "add", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "ConfidentialLabel", "type", "text", "x", 750, "y", 0,
+                         "text", "Confidential")), false);
+
+      fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize", VSLayoutService.CONTENT,
+         List.of(Map.of("name", "ConfidentialLabel", "x", 750, "y", 10, "text", "Updated")), false);
+
+      TextVSAssemblyInfo textInfo = fx.readLayoutOnlyTextInfo("ConfidentialLabel");
+      assertEquals("Updated", textInfo.getTextValue());
+      assertEquals("Updated", textInfo.getValue());
+   }
+
+   @Test
+   void moveResizeWithTextRejectsANonTextObject() throws Exception {
+      Fixture fx = new Fixture();
+      fx.installPrintLayout();
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> fx.service.editObjects("tok1", AGENT, PRINT_LAYOUT, "move_resize",
+            VSLayoutService.CONTENT,
+            List.of(Map.of("name", "Table1", "x", 1, "y", 2, "text", "nope")), false));
+
+      assertTrue(thrown.getMessage().contains("Table1"), thrown.getMessage());
+   }
+
    // ── fixture ───────────────────────────────────────────────────────────────
 
    /**
@@ -403,6 +473,12 @@ class LayoutMutationServiceTest {
             .filter(l -> l.getName().equals(name))
             .findFirst()
             .orElseThrow();
+      }
+
+      /** The embedded {@code TextVSAssemblyInfo} of a layout-only text object added via "add". */
+      TextVSAssemblyInfo readLayoutOnlyTextInfo(String name) {
+         VSEditableAssemblyLayout editable = (VSEditableAssemblyLayout) printLayoutObject(name);
+         return (TextVSAssemblyInfo) editable.getInfo();
       }
 
       /** Reads "Table1"'s layout-space geometry straight off the master's LayoutInfo. */
