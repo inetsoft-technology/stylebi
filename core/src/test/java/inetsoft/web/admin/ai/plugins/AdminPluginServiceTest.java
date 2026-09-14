@@ -19,6 +19,9 @@ package inetsoft.web.admin.ai.plugins;
 
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.util.Tool;
+import inetsoft.util.audit.AdminChangeRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.plugins.PluginsService;
 import inetsoft.web.admin.content.plugins.model.*;
 import inetsoft.web.admin.upload.UploadService;
@@ -27,6 +30,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -237,6 +241,65 @@ class AdminPluginServiceTest {
       verify(pluginsService, never()).installPlugins(any(), any());
    }
 
+   @Test
+   void installWritesAnAdminChangeAuditRecordCarryingTaskAndReviewOutcome() throws Exception {
+      AdminInstallDriverOrPluginRequest request = new AdminInstallDriverOrPluginRequest();
+      request.setUploadId("upload-123");
+      request.setAcknowledgeServerCodeExecution(true);
+      request.setReviewOutcome("human approved");
+      request.setTask("install the new postgres driver");
+
+      PluginsModel refreshed = PluginsModel.builder().plugins(List.of()).build();
+      when(pluginsService.getModel(principal)).thenReturn(refreshed);
+      when(principal.getName()).thenReturn("admin");
+
+      Audit auditInstance = mock(Audit.class);
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class);
+          MockedStatic<Tool> tool = mockStatic(Tool.class))
+      {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         tool.when(Tool::getHost).thenReturn("test-host");
+         service.install(request, principal);
+      }
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(principal));
+      AdminChangeRecord record = captor.getValue();
+      assertEquals("install the new postgres driver", record.getTaskDescription());
+      assertEquals("human approved", record.getReviewOutcome());
+      assertEquals("upload-123", record.getTransactionId());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, record.getStatus());
+      assertEquals("admin", record.getUserName());
+   }
+
+   @Test
+   void installWritesAFailedAdminChangeAuditRecordWhenTheInstallItselfThrows() throws Exception {
+      AdminInstallDriverOrPluginRequest request = new AdminInstallDriverOrPluginRequest();
+      request.setUploadId("upload-123");
+      request.setAcknowledgeServerCodeExecution(true);
+      request.setReviewOutcome("human approved");
+      request.setTask("install the new postgres driver");
+
+      doThrow(new RuntimeException("boom"))
+         .when(pluginsService).installPlugins("upload-123", principal);
+
+      Audit auditInstance = mock(Audit.class);
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class);
+          MockedStatic<Tool> tool = mockStatic(Tool.class))
+      {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         tool.when(Tool::getHost).thenReturn("test-host");
+         assertThrows(RuntimeException.class, () -> service.install(request, principal));
+      }
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(principal));
+      assertEquals(AdminChangeRecord.STATUS_FAILED, captor.getValue().getStatus());
+      assertEquals("install the new postgres driver", captor.getValue().getTaskDescription());
+   }
+
    // -------------------------------------------------------------------------
    // remove
    // -------------------------------------------------------------------------
@@ -304,5 +367,71 @@ class AdminPluginServiceTest {
 
       assertTrue(ex.getMessage().contains("does.not.exist"), ex.getMessage());
       verify(pluginsService, never()).uninstallPlugins(any(), any());
+   }
+
+   @Test
+   void removeWritesAnAdminChangeAuditRecordCarryingTaskAndReviewOutcome() throws Exception {
+      AdminRemoveDriverOrPluginRequest request = new AdminRemoveDriverOrPluginRequest();
+      request.setPluginIds(List.of("some.plugin"));
+      request.setAcknowledgeIrreversibleRemove(true);
+      request.setReviewOutcome("human approved");
+      request.setTask("remove the unused mysql driver");
+
+      PluginModel installed = PluginModel.builder()
+         .id("some.plugin").name("Some Plugin").version("1.0.0").readOnly(false).build();
+      PluginsModel current = PluginsModel.builder().plugins(List.of(installed)).build();
+      PluginsModel refreshed = PluginsModel.builder().plugins(List.of()).build();
+      when(pluginsService.getModel(principal)).thenReturn(current, refreshed);
+      when(principal.getName()).thenReturn("admin");
+
+      Audit auditInstance = mock(Audit.class);
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class);
+          MockedStatic<Tool> tool = mockStatic(Tool.class))
+      {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         tool.when(Tool::getHost).thenReturn("test-host");
+         service.remove(request, principal);
+      }
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(principal));
+      AdminChangeRecord record = captor.getValue();
+      assertEquals("remove the unused mysql driver", record.getTaskDescription());
+      assertEquals("human approved", record.getReviewOutcome());
+      assertEquals("some.plugin", record.getProperty());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, record.getStatus());
+      assertEquals("admin", record.getUserName());
+   }
+
+   @Test
+   void removeWritesAFailedAdminChangeAuditRecordWhenUninstallItselfThrows() throws Exception {
+      AdminRemoveDriverOrPluginRequest request = new AdminRemoveDriverOrPluginRequest();
+      request.setPluginIds(List.of("some.plugin"));
+      request.setAcknowledgeIrreversibleRemove(true);
+      request.setReviewOutcome("human approved");
+      request.setTask("remove the unused mysql driver");
+
+      PluginModel installed = PluginModel.builder()
+         .id("some.plugin").name("Some Plugin").version("1.0.0").readOnly(false).build();
+      PluginsModel current = PluginsModel.builder().plugins(List.of(installed)).build();
+      when(pluginsService.getModel(principal)).thenReturn(current);
+      doThrow(new RuntimeException("boom"))
+         .when(pluginsService).uninstallPlugins(any(), eq(principal));
+
+      Audit auditInstance = mock(Audit.class);
+
+      try(MockedStatic<Audit> audit = mockStatic(Audit.class);
+          MockedStatic<Tool> tool = mockStatic(Tool.class))
+      {
+         audit.when(Audit::getInstance).thenReturn(auditInstance);
+         tool.when(Tool::getHost).thenReturn("test-host");
+         assertThrows(RuntimeException.class, () -> service.remove(request, principal));
+      }
+
+      ArgumentCaptor<AdminChangeRecord> captor = ArgumentCaptor.forClass(AdminChangeRecord.class);
+      verify(auditInstance).auditAdminChange(captor.capture(), eq(principal));
+      assertEquals(AdminChangeRecord.STATUS_FAILED, captor.getValue().getStatus());
+      assertEquals("remove the unused mysql driver", captor.getValue().getTaskDescription());
    }
 }

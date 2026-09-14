@@ -19,16 +19,24 @@ package inetsoft.web.admin.ai.plugins;
 
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.util.Tool;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.AdminChangeRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.plugins.PluginsService;
 import inetsoft.web.admin.content.plugins.model.*;
 import inetsoft.web.admin.upload.UploadService;
 import inetsoft.web.admin.upload.UploadedFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.security.Principal;
+import java.sql.Timestamp;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Backing service for the {@code driver_plugin_management} admin-chat tools (03-reconcile.md).
@@ -129,22 +137,66 @@ public class AdminPluginService {
       requireReviewOutcome(request.getReviewOutcome());
 
       AdminDriverPluginSpec spec = request.getAsDriverPlugin();
+      String objectName = spec != null ? spec.getPluginId() : request.getUploadId();
+      String status = AdminChangeRecord.STATUS_FAILED;
 
-      if(spec != null) {
-         CreateDriverPluginRequest createRequest = CreateDriverPluginRequest.builder()
-            .uploadId(request.getUploadId())
-            .pluginId(spec.getPluginId())
-            .pluginName(spec.getPluginName())
-            .pluginVersion(spec.getPluginVersion())
-            .drivers(spec.getDrivers() == null ? List.of() : spec.getDrivers())
-            .build();
-         pluginsService.createDriverPlugin(createRequest, principal);
-      }
-      else {
-         pluginsService.installPlugins(request.getUploadId(), principal);
-      }
+      try {
+         if(spec != null) {
+            CreateDriverPluginRequest createRequest = CreateDriverPluginRequest.builder()
+               .uploadId(request.getUploadId())
+               .pluginId(spec.getPluginId())
+               .pluginName(spec.getPluginName())
+               .pluginVersion(spec.getPluginVersion())
+               .drivers(spec.getDrivers() == null ? List.of() : spec.getDrivers())
+               .build();
+            pluginsService.createDriverPlugin(createRequest, principal);
+         }
+         else {
+            pluginsService.installPlugins(request.getUploadId(), principal);
+         }
 
-      return pluginsService.getModel(principal);
+         PluginsModel result = pluginsService.getModel(principal);
+         status = AdminChangeRecord.STATUS_VERIFIED;
+         return result;
+      }
+      finally {
+         writeInstallAudit(request, objectName, status, principal);
+      }
+   }
+
+   /**
+    * Installing a plugin/driver executes arbitrary code as the server -- unlike every other
+    * verb in this class, its wrapped {@link PluginsService} methods write no audit trail of
+    * their own, so this is the only place {@code task}/{@code reviewOutcome} (solicited and
+    * validated above) are actually recorded. Uses {@link AdminChangeRecord} rather than a bare
+    * {@link ActionRecord} because it has dedicated {@code taskDescription}/{@code reviewOutcome}
+    * fields, matching every other admin-chat apply service in this package (e.g.
+    * {@code ScheduleChangesetApplyService.writeAudit}).
+    */
+   private void writeInstallAudit(AdminInstallDriverOrPluginRequest request, String objectName,
+                                   String status, Principal principal)
+   {
+      try {
+         AdminChangeRecord record = new AdminChangeRecord();
+         record.setTransactionId(request.getUploadId());
+         record.setTaskDescription(request.getTask());
+         record.setProperty(objectName);
+         record.setObjectType(ActionRecord.OBJECT_TYPE_PLUG);
+         record.setAction(ActionRecord.ACTION_NAME_CREATE);
+         record.setStatus(status);
+         record.setRiskLevel(AdminChangeRecord.RISK_HIGH);
+         record.setReviewOutcome(request.getReviewOutcome());
+         record.setUserName(principal == null ? null : principal.getName());
+         record.setActionTimestamp(new Timestamp(System.currentTimeMillis()));
+         record.setServerHostName(Tool.getHost());
+         Audit.getInstance().auditAdminChange(record, principal);
+      }
+      catch(Exception auditFailure) {
+         // An audit write must never replace the real outcome -- same rule every changeset
+         // apply service in this package follows.
+         LOG.error("Failed to write plugin install admin change audit record for upload {}",
+                   request.getUploadId(), auditFailure);
+      }
    }
 
    public PluginsModel remove(AdminRemoveDriverOrPluginRequest request, Principal principal)
@@ -181,9 +233,50 @@ public class AdminPluginService {
          toRemove.add(plugin);
       }
 
-      pluginsService.uninstallPlugins(PluginsModel.builder().plugins(toRemove).build(), principal);
+      String status = AdminChangeRecord.STATUS_FAILED;
+
+      try {
+         pluginsService.uninstallPlugins(
+            PluginsModel.builder().plugins(toRemove).build(), principal);
+         status = AdminChangeRecord.STATUS_VERIFIED;
+      }
+      finally {
+         writeRemoveAudit(request, toRemove, status, principal);
+      }
 
       return pluginsService.getModel(principal);
+   }
+
+   /**
+    * {@link PluginsService#uninstallPlugins} already writes one {@link ActionRecord} per plugin
+    * removed -- this adds a second, additional record at this layer carrying {@code task}/
+    * {@code reviewOutcome} (which {@code uninstallPlugins}'s own {@code ActionRecord} has no
+    * field for), rather than widening {@code ActionRecord} itself or touching
+    * {@code PluginsService}'s existing, deliberately minimal diff.
+    */
+   private void writeRemoveAudit(AdminRemoveDriverOrPluginRequest request,
+                                  List<PluginModel> removed, String status, Principal principal)
+   {
+      try {
+         AdminChangeRecord record = new AdminChangeRecord();
+         record.setTransactionId(String.join(",", request.getPluginIds()));
+         record.setTaskDescription(request.getTask());
+         record.setProperty(
+            removed.stream().map(PluginModel::id).collect(Collectors.joining(",")));
+         record.setObjectType(ActionRecord.OBJECT_TYPE_PLUG);
+         record.setAction(ActionRecord.ACTION_NAME_DELETE);
+         record.setStatus(status);
+         record.setRiskLevel(AdminChangeRecord.RISK_HIGH);
+         record.setReviewOutcome(request.getReviewOutcome());
+         record.setUserName(principal == null ? null : principal.getName());
+         record.setActionTimestamp(new Timestamp(System.currentTimeMillis()));
+         record.setServerHostName(Tool.getHost());
+         Audit.getInstance().auditAdminChange(record, principal);
+      }
+      catch(Exception auditFailure) {
+         LOG.error("Failed to write plugin remove admin change audit record for {}",
+                   request.getPluginIds(), auditFailure);
+      }
    }
 
    private void requireReviewOutcome(String reviewOutcome) {
@@ -209,4 +302,6 @@ public class AdminPluginService {
    private final PluginsService pluginsService;
    private final UploadService uploadService;
    private final SecurityEngine securityEngine;
+
+   private static final Logger LOG = LoggerFactory.getLogger(AdminPluginService.class);
 }
