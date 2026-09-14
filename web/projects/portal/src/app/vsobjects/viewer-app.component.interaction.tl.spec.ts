@@ -910,3 +910,58 @@ describe("ViewerAppComponent — ngOnDestroy()", () => {
       expect(releaseSpy).toHaveBeenCalled();
    });
 });
+
+// ---------------------------------------------------------------------------
+// Group 27 — openViewsheet() waitResize [Bug #76510 regression]
+// ---------------------------------------------------------------------------
+
+describe("ViewerAppComponent — openViewsheet() waitResize (Bug #76510)", () => {
+   // 🔁 Regression-sensitive: waitResize must depend only on scaleToScreen/fitToWidth, NOT on
+   // inPortal. The embed/web-component path always has inPortal=false; if waitResize were
+   // gated on inPortal again, the initial OpenViewsheetEvent would race the host page's layout
+   // (offsetWidth/offsetHeight read before the custom element is sized), reproducing the
+   // overlapping/misplaced Scale-to-Screen layout from Bug #76510.
+   it("should delay sending the open-viewsheet event when scaleToScreen && !fitToWidth, even when inPortal=false", async () => {
+      const { comp } = await renderComponent();
+      comp.inPortal = false;
+      comp.scaleToScreen = true;
+      comp.fitToWidth = false;
+      VS_CLIENT_MOCK.sendEvent.mockClear();
+
+      vi.useFakeTimers();
+
+      try {
+         (comp as any).openViewsheet();
+
+         // must not fire immediately -- must wait a tick for the host layout to settle
+         expect(VS_CLIENT_MOCK.sendEvent).not.toHaveBeenCalledWith("/events/open", expect.anything());
+
+         vi.advanceTimersByTime(100);
+
+         expect(VS_CLIENT_MOCK.sendEvent).toHaveBeenCalledWith("/events/open", expect.anything());
+      }
+      finally {
+         vi.useRealTimers();
+      }
+   });
+
+   it("should send the open-viewsheet event immediately when fitToWidth=true, regardless of inPortal", async () => {
+      const { comp } = await renderComponent();
+      comp.inPortal = false;
+      comp.scaleToScreen = true;
+      comp.fitToWidth = true;
+      VS_CLIENT_MOCK.sendEvent.mockClear();
+
+      vi.useFakeTimers();
+
+      try {
+         (comp as any).openViewsheet();
+         vi.advanceTimersByTime(0);
+
+         expect(VS_CLIENT_MOCK.sendEvent).toHaveBeenCalledWith("/events/open", expect.anything());
+      }
+      finally {
+         vi.useRealTimers();
+      }
+   });
+});
