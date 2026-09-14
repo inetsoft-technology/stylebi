@@ -236,9 +236,12 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
        * @param timeSeries whether this group is treated as a time series (fills gaps in the
        *                   date range with empty rows), same as set_group_aggregate's
        *                   {@code timeSeries} flag on this group
+       * @param namedGroup name of the named group assembly governing this group-by field, same
+       *                   as set_group_aggregate's {@code namedGroup} option; {@code null} when
+       *                   no named group is applied
        */
       @JsonInclude(JsonInclude.Include.NON_NULL)
-      public record GroupModel(String field, String dateLevel, boolean timeSeries) {}
+      public record GroupModel(String field, String dateLevel, boolean timeSeries, String namedGroup) {}
 
       /**
        * A single aggregate measure.
