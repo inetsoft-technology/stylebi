@@ -1664,8 +1664,30 @@ public class ViewsheetAssemblyAgentController {
 
          WizUtil.requireNoCaret(path, "path");
 
+         String trimmedPath = path.trim();
+         int sepIdx = trimmedPath.lastIndexOf('/');
+
+         if(sepIdx <= 0 || sepIdx == trimmedPath.length() - 1) {
+            throw new PairingException(
+               "'path' must be \"<datasource>/<model>\" (e.g. \"MyDataSource/MyModel\"), " +
+               "got \"" + path + "\".");
+         }
+
+         // The bare AssetEntry constructor below never populates the entry's property map, but
+         // AbstractAssetEngine.getQueryEntries's isLogicModel() branch -- the code that
+         // rep.getEntries() dispatches into for a LOGIC_MODEL entry -- resolves the data model
+         // from entry.getProperty("prefix")/entry.getProperty("source"), not from the entry's
+         // path. Populate them the same way getQueryEntries's own isDataSource() branch does when
+         // it builds a LOGIC_MODEL entry by walking the tree, splitting on the LAST '/' (the
+         // datasource name may itself contain '/', e.g. "Examples/Orders"), so the probe below
+         // actually resolves instead of always seeing a null datasource and returning empty.
+         String datasourceName = trimmedPath.substring(0, sepIdx);
+         String modelName = trimmedPath.substring(sepIdx + 1);
+
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
-                                           path.trim(), null, uname.orgID);
+                                           trimmedPath, null, uname.orgID);
+         entry.setProperty("prefix", datasourceName);
+         entry.setProperty("source", modelName);
 
          // Unlike a worksheet/viewsheet, a logical model is not an AbstractSheet -- rep.getSheet()
          // does not apply. rep.getEntries(entry, user, ResourceAction.READ) IS the permission +
