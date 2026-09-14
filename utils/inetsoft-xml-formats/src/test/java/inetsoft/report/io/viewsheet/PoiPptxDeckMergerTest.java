@@ -234,13 +234,25 @@ class PoiPptxDeckMergerTest {
     * bug-76110 round 3: with only ~45pt of vertical room, a long recap must shrink/truncate
     * instead of silently overflowing into the caption band below it (the same class of live bug
     * {@link #aLongCaptionIsFittedToItsBandInsteadOfRunningOverTheChart} fixed for the caption).
+    *
+    * <p>Reviewer round 1 found the original 250-char fixture here never actually forced the
+    * shrink-then-truncate branch -- it already fit the 45pt band at the starting
+    * {@code BOARD_RECAP_FONT_PT}, so the assertion passed vacuously even if
+    * {@code truncateToFit()} were unreachable from {@code addBoardHeader()} entirely. The fixture
+    * below is long enough (well past 400 chars) to bottom out the shrink loop at
+    * {@code CAPTION_MIN_FONT_PT} and force a real call into {@code truncateToFit()}, and the
+    * assertions below confirm that happened (shrunk to the floor, text shorter than the input,
+    * ends with the elision marker) rather than only checking the box never overflows.
     */
    @Test
    void aLongBoardRecapIsFittedToItsHeaderBandInsteadOfOverflowing() throws Exception {
       String longRecap = "Premium units run the business, driving roughly two thirds of all " +
          "revenue across every region we track, with the $1,500-and-up band alone accounting " +
          "for the largest single share and every other band trailing well behind it in every " +
-         "quarter this year.";
+         "quarter this year. Mid-tier units make up most of the remainder, while the entry-level " +
+         "band barely registers outside of a couple of seasonal promotions. None of this shifted " +
+         "meaningfully quarter over quarter, and the regional mix stayed just as lopsided as it " +
+         "was a year ago, with the same three regions accounting for the bulk of every category.";
 
       byte[] deck = merger.mergeSlides("Board", longRecap, List.of(
          new PptxDeckMerger.ChartSlide("First", "cap", oneSlideDeckWithText("chart"), false)));
@@ -254,12 +266,19 @@ class PoiPptxDeckMergerTest {
 
          double fontPt = recapBox.getTextParagraphs().get(0).getTextRuns().get(0).getFontSize();
          double bandPt = recapBox.getAnchor().getHeight();
-         double needed = PoiPptxDeckMerger.textHeightPt(recapBox.getText(), fontPt,
+         String renderedText = recapBox.getText();
+         double needed = PoiPptxDeckMerger.textHeightPt(renderedText, fontPt,
                                                         recapBox.getAnchor().getWidth());
 
          assertTrue(needed <= bandPt,
             "the recap must fit its " + bandPt + "pt header band (needs " + needed + "pt at " +
             fontPt + "pt) -- anything taller runs into the caption below it");
+         assertEquals(12.0, fontPt, 0.01,
+            "this fixture is long enough that the shrink loop must bottom out at the floor, "
+               + "otherwise this test isn't exercising truncation at all");
+         assertTrue(renderedText.length() < longRecap.length() && renderedText.endsWith("…"),
+            "at the floor font size this recap still doesn't fit -- it must be truncated, not "
+               + "just shrunk: " + renderedText);
       }
    }
 
