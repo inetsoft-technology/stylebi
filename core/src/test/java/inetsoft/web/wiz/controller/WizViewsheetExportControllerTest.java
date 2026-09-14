@@ -512,8 +512,81 @@ class WizViewsheetExportControllerTest {
       ResponseEntity<?> resp = ctrl.exportReport(ev, principal, servletResponse);
 
       assertNull(resp);
-      verify(infoWithInsights).setPixelSize(new Dimension(1200, 300));
+      // "First" (order 0) is also the FIRST chart, so it additionally loses
+      // PPTX_FIRST_CHART_HEADER_OFFSET_PX (100px) to make room for the shared board header
+      // (bug-76110 round 3): 300 - 100 = 200. "Second" (order 1) is unaffected.
+      verify(infoWithInsights).setPixelSize(new Dimension(1200, 200));
       verify(infoNoInsights).setPixelSize(new Dimension(1200, 600));
+   }
+
+   /**
+    * bug-76110 round 3: the FIRST chart's own slide also carries the board's title/recap header
+    * (PoiPptxDeckMerger.addBoardHeader), so its own picture must be shifted down and shrunk by
+    * the same amount to leave room -- but only the first chart; a later chart is unaffected.
+    * Exercises the real enlargeChartForSlide() offset/size logic the way the sibling insights
+    * test above does.
+    */
+   @Test
+   void enlargeChartForSlideShiftsAndShrinksOnlyTheFirstChartToLeaveRoomForTheBoardHeader() throws Exception {
+      ViewsheetService vs = mock(ViewsheetService.class);
+      WizVsService wizVsService = mock(WizVsService.class);
+      WizPrintLayoutBuilder builder = mock(WizPrintLayoutBuilder.class);
+      VSExportService exportService = mock(VSExportService.class);
+      PptxDeckMerger merger = mock(PptxDeckMerger.class);
+      SecurityEngine sec = mock(SecurityEngine.class);
+      Principal principal = mock(Principal.class);
+      HttpServletResponse servletResponse = mock(HttpServletResponse.class);
+      when(servletResponse.getOutputStream()).thenReturn(capturingOutputStream(new ByteArrayOutputStream()));
+      when(sec.checkPermission(eq(principal), eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION),
+         eq("Export"), eq(ResourceAction.READ))).thenReturn(true);
+
+      String firstId = managedChartIdentifier("first");
+      String secondId = managedChartIdentifier("second");
+
+      Viewsheet vsFirst = mock(Viewsheet.class);
+      ChartVSAssembly chartFirst = mock(ChartVSAssembly.class);
+      VSAssemblyInfo infoFirst = mock(VSAssemblyInfo.class);
+      when(chartFirst.getVSAssemblyInfo()).thenReturn(infoFirst);
+      when(vsFirst.getAssemblies()).thenReturn(new Assembly[] { chartFirst });
+      RuntimeViewsheet rvsFirst = mock(RuntimeViewsheet.class);
+      when(rvsFirst.getViewsheet()).thenReturn(vsFirst);
+
+      Viewsheet vsSecond = mock(Viewsheet.class);
+      ChartVSAssembly chartSecond = mock(ChartVSAssembly.class);
+      VSAssemblyInfo infoSecond = mock(VSAssemblyInfo.class);
+      when(chartSecond.getVSAssemblyInfo()).thenReturn(infoSecond);
+      when(vsSecond.getAssemblies()).thenReturn(new Assembly[] { chartSecond });
+      RuntimeViewsheet rvsSecond = mock(RuntimeViewsheet.class);
+      when(rvsSecond.getViewsheet()).thenReturn(vsSecond);
+
+      when(vs.openViewsheet(argThat(e -> e != null && e.toIdentifier().equals(firstId)), eq(principal), eq(true)))
+         .thenReturn("rt-first");
+      when(vs.openViewsheet(argThat(e -> e != null && e.toIdentifier().equals(secondId)), eq(principal), eq(true)))
+         .thenReturn("rt-second");
+      when(vs.getViewsheet("rt-first", principal)).thenReturn(rvsFirst);
+      when(vs.getViewsheet("rt-second", principal)).thenReturn(rvsSecond);
+      when(merger.mergeSlides(any(), any(), any())).thenReturn("%PPTX-fake".getBytes());
+
+      WizViewsheetExportController ctrl = new WizViewsheetExportController(
+         vs, wizVsService, builder, exportService, sec, merger);
+
+      WizExportReportEvent ev = new WizExportReportEvent();
+      ev.setFormat("pptx");
+      ev.setTitle("Board");
+      ev.setCharts(List.of(
+         chartEntry(firstId, "First", "cap", 0),
+         chartEntry(secondId, "Second", "cap two", 1)));
+
+      ResponseEntity<?> resp = ctrl.exportReport(ev, principal, servletResponse);
+
+      assertNull(resp);
+      // Neither chart has insights here, so both start from PPTX_CHART_FULL_H_PX (600) — the
+      // first chart additionally loses 100px (and its offset shifts down by 100px) for the
+      // shared board header; the second chart's offset/size are untouched.
+      verify(infoFirst).setPixelOffset(new java.awt.Point(40, 196));
+      verify(infoFirst).setPixelSize(new Dimension(1200, 500));
+      verify(infoSecond).setPixelOffset(new java.awt.Point(40, 96));
+      verify(infoSecond).setPixelSize(new Dimension(1200, 600));
    }
 
    @Test

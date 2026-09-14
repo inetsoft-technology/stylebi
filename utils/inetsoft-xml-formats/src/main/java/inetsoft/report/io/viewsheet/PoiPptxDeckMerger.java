@@ -51,6 +51,19 @@ import java.util.List;
  * chart's insightsMarkdown as fits into the reserved region below it, spilling anything left
  * over into additional "(cont'd)" insights-only slides. A failed chart's placeholder slide
  * reserves no such region, so its insights always get their own dedicated slide(s).
+ *
+ * <p>The board's own title/recap shares the FIRST chart's slide as a compact header (bug-76110
+ * round 3), mirroring {@code WizPrintLayoutBuilder}'s PDF-export convention of sharing page 1's
+ * header with the first chart ({@code i == 0 ? headerBottom : pageTop}), rather than always
+ * getting its own standalone slide the way it did before this round. See {@link #addBoardHeader}
+ * for the shared budget this requires on that one slide. This applies whether the first chart
+ * succeeded or failed to render — a failed chart's placeholder has ample free room, and the
+ * board's title is worth keeping visible regardless of that one chart's own render outcome. Every
+ * later chart keeps its own slide(s) exactly as before. {@link #addTitleSlide} (a full standalone
+ * slide) survives only as the fallback for an empty {@code slides} list, where there is no chart
+ * slide to share a header with — unreachable from the production pptx export endpoint, which
+ * rejects an empty {@code charts[]} before ever calling {@link #mergeSlides}, but kept for
+ * {@code mergeSlides} itself as a well-defined general-purpose result.
  */
 public class PoiPptxDeckMerger implements PptxDeckMerger {
    @Override
@@ -58,9 +71,16 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       try(XMLSlideShow merged = new XMLSlideShow()) {
          merged.setPageSize(new Dimension(SLIDE_WIDTH_PT, SLIDE_HEIGHT_PT));
 
-         addTitleSlide(merged, title, recap);
+         if(slides.isEmpty()) {
+            addTitleSlide(merged, title, recap);
+         }
+
+         boolean isFirst = true;
 
          for(ChartSlide slide : slides) {
+            boolean sharesBoardHeader = isFirst;
+            isFirst = false;
+
             // Only a successfully-imported chart slide reserves a region for its own insights
             // (addFailurePlaceholder draws no picture and leaves nothing to reserve room below —
             // out of scope here, Redmine #76535). Left null for a failed chart so
@@ -69,8 +89,12 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
 
             if(slide.failed()) {
                XSLFSlide target = merged.createSlide();
-               addFailurePlaceholder(target, slide.title());
-               addCaption(target, slide.title(), slide.caption());
+               addFailurePlaceholder(target, slide.title(), sharesBoardHeader);
+               addCaption(target, slide.title(), slide.caption(), sharesBoardHeader);
+
+               if(sharesBoardHeader) {
+                  addBoardHeader(target, title, recap);
+               }
             }
             else {
                try(XMLSlideShow source =
@@ -83,7 +107,11 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
                   // task's report) that importContent REPLACES the target slide's shape tree
                   // wholesale — a caption added before importContent is wiped out. Adding it
                   // after is the only ordering under which it survives.
-                  addCaption(chartSlide, slide.title(), slide.caption());
+                  addCaption(chartSlide, slide.title(), slide.caption(), sharesBoardHeader);
+
+                  if(sharesBoardHeader) {
+                     addBoardHeader(chartSlide, title, recap);
+                  }
                }
             }
 
@@ -119,7 +147,73 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       }
    }
 
-   private void addCaption(XSLFSlide slide, String title, String caption) {
+   /** Places the board's own title/recap as a compact header at the top of the FIRST chart's
+    *  slide (bug-76110 round 3), sharing that slide with the chart's own caption/picture/insights
+    *  instead of getting a standalone slide the way {@link #addTitleSlide} does. The header's
+    *  budget ({@link #BOARD_HEADER_HEIGHT_PT}) is fixed and much smaller than the standalone
+    *  slide's, since it now competes with that chart's own caption band, picture, and (when
+    *  present) insights region on one fixed-height slide -- unlike a PDF page, a PPTX slide has no
+    *  continuous-flow overflow to fall back on. The title is a single shrink-then-truncated line
+    *  (mirroring {@link #addCaption}'s own approach). The recap is stripped to plain text rather
+    *  than rendered as rich markdown the way the standalone slide's recap is: with only
+    *  {@link #BOARD_RECAP_HEIGHT_PT} of room (a couple of lines), there isn't a safe budget to
+    *  render an open-ended number of markdown blocks the way the full-height standalone box
+    *  could, so it gets the same shrink-then-truncate treatment as the caption/title instead. */
+   private void addBoardHeader(XSLFSlide slide, String title, String recap) {
+      double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
+
+      String titleText = title == null || title.isBlank() ? "Analysis Report" : title;
+      double titleFontPt = BOARD_TITLE_FONT_PT;
+
+      while(titleFontPt > CAPTION_MIN_FONT_PT &&
+            textHeightPt(titleText, titleFontPt, boxWidthPt) > BOARD_TITLE_HEIGHT_PT)
+      {
+         titleFontPt -= 1.0;
+      }
+
+      if(textHeightPt(titleText, titleFontPt, boxWidthPt) > BOARD_TITLE_HEIGHT_PT) {
+         titleText = truncateToFit(titleText, titleFontPt, boxWidthPt, BOARD_TITLE_HEIGHT_PT);
+      }
+
+      XSLFTextBox titleBox = slide.createTextBox();
+      titleBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, BOARD_HEADER_TOP_PT, boxWidthPt,
+         BOARD_TITLE_HEIGHT_PT));
+      titleBox.setText(titleText);
+      styleBox(titleBox, true, titleFontPt, ACCENT);
+
+      if(recap != null && !recap.isBlank()) {
+         StringBuilder plain = new StringBuilder();
+
+         for(MarkdownModel.Block block : MarkdownModel.parse(recap)) {
+            if(plain.length() > 0) {
+               plain.append(' ');
+            }
+
+            plain.append(block.plainText());
+         }
+
+         String recapText = plain.toString();
+         double recapFontPt = BOARD_RECAP_FONT_PT;
+
+         while(recapFontPt > CAPTION_MIN_FONT_PT &&
+               textHeightPt(recapText, recapFontPt, boxWidthPt) > BOARD_RECAP_HEIGHT_PT)
+         {
+            recapFontPt -= 1.0;
+         }
+
+         if(textHeightPt(recapText, recapFontPt, boxWidthPt) > BOARD_RECAP_HEIGHT_PT) {
+            recapText = truncateToFit(recapText, recapFontPt, boxWidthPt, BOARD_RECAP_HEIGHT_PT);
+         }
+
+         XSLFTextBox recapBox = slide.createTextBox();
+         recapBox.setAnchor(new Rectangle2D.Double(MARGIN_PT,
+            BOARD_HEADER_TOP_PT + BOARD_TITLE_HEIGHT_PT, boxWidthPt, BOARD_RECAP_HEIGHT_PT));
+         recapBox.setText(recapText);
+         styleBox(recapBox, false, recapFontPt, BODY_COLOR);
+      }
+   }
+
+   private void addCaption(XSLFSlide slide, String title, String caption, boolean sharesBoardHeader) {
       String text = (title == null ? "" : title) +
          (caption != null && !caption.isBlank() ? " — " + caption : "");
       double boxWidthPt = SLIDE_WIDTH_PT - 2 * MARGIN_PT;
@@ -145,9 +239,13 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
          text = truncateToFit(text, fontPt, boxWidthPt, CAPTION_BOX_HEIGHT_PT);
       }
 
+      // On the first chart's slide the board header (bug-76110 round 3) already occupies the band
+      // this caption would otherwise sit in, so the caption moves below it instead.
+      double topPt = sharesBoardHeader
+         ? BOARD_HEADER_TOP_PT + BOARD_HEADER_HEIGHT_PT : MARGIN_PT / 2.0;
+
       XSLFTextBox captionBox = slide.createTextBox();
-      captionBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT / 2.0,
-         boxWidthPt, CAPTION_BOX_HEIGHT_PT));
+      captionBox.setAnchor(new Rectangle2D.Double(MARGIN_PT, topPt, boxWidthPt, CAPTION_BOX_HEIGHT_PT));
       captionBox.setText(text);
       styleBox(captionBox, true, fontPt, ACCENT);
    }
@@ -214,10 +312,16 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
       }
    }
 
-   private void addFailurePlaceholder(XSLFSlide slide, String title) {
+   private void addFailurePlaceholder(XSLFSlide slide, String title, boolean sharesBoardHeader) {
+      // On the first chart's slide, stack below the board header + the caption addCaption() just
+      // placed under it (8pt gap, matching the gap convention CHART_INSIGHTS_TOP_PT uses below an
+      // imported chart picture); otherwise keep the original fixed position.
+      double topPt = sharesBoardHeader
+         ? BOARD_HEADER_TOP_PT + BOARD_HEADER_HEIGHT_PT + CAPTION_BOX_HEIGHT_PT + 8.0
+         : MARGIN_PT + 90;
+
       XSLFTextBox box = slide.createTextBox();
-      box.setAnchor(new Rectangle2D.Double(MARGIN_PT, MARGIN_PT + 90,
-         SLIDE_WIDTH_PT - 2 * MARGIN_PT, 60));
+      box.setAnchor(new Rectangle2D.Double(MARGIN_PT, topPt, SLIDE_WIDTH_PT - 2 * MARGIN_PT, 60));
       box.setText("Failed to render: " + (title == null ? "" : title));
    }
 
@@ -485,4 +589,18 @@ public class PoiPptxDeckMerger implements PptxDeckMerger {
    /** Height left for insights body content once the title box's own height is subtracted. */
    private static final double CHART_INSIGHTS_CONTENT_HEIGHT_PT =
       CHART_INSIGHTS_HEIGHT_PT - INSIGHTS_TITLE_HEIGHT_PT;
+
+   /** Top of the board title/recap header shared with the first chart's slide (bug-76110 round
+    *  3) -- same Y the per-chart caption band used to start at on every slide before this round. */
+   private static final double BOARD_HEADER_TOP_PT = MARGIN_PT / 2.0;
+   private static final double BOARD_TITLE_FONT_PT = 24.0;
+   private static final double BOARD_TITLE_HEIGHT_PT = 30;
+   private static final double BOARD_RECAP_FONT_PT = 13.0;
+   private static final double BOARD_RECAP_HEIGHT_PT = 45;
+   /** Total header height (title + recap bands). Must stay in sync with
+    *  {@code WizViewsheetExportController.PPTX_FIRST_CHART_HEADER_OFFSET_PX}, which shifts the
+    *  first chart's own imported picture down by this same amount (and shrinks it by the same
+    *  amount) so its bottom edge lands at exactly the Y every other chart's picture already
+    *  does -- {@link #CHART_INSIGHTS_TOP_PT} needs no first-chart-specific variant as a result. */
+   private static final double BOARD_HEADER_HEIGHT_PT = BOARD_TITLE_HEIGHT_PT + BOARD_RECAP_HEIGHT_PT;
 }
