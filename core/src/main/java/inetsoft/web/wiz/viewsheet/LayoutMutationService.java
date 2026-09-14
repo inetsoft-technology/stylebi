@@ -19,8 +19,10 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AbstractSheet;
+import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
@@ -127,11 +129,12 @@ public class LayoutMutationService {
     * {@code edit_layout_objects}: {@code op} is one of {@link #OP_ADD}, {@link #OP_REMOVE},
     * {@link #OP_MOVE_RESIZE}. {@code objects} is a list of per-object patches:
     * <ul>
-    *   <li>{@code move_resize}: {@code name}, {@code x}, {@code y}, {@code width}, {@code height}.
-    *   </li>
+    *   <li>{@code move_resize}: {@code name}, {@code x}, {@code y}, {@code width}, {@code height},
+    *   optional {@code text} (only valid for an existing layout-only text object).</li>
     *   <li>{@code add}: {@code name}; {@code type} ({@code "text"}/{@code "image"}/
     *   {@code "pagebreak"}, omitted if {@code name} already names an existing assembly on this
-    *   viewsheet); {@code x}, {@code y}.</li>
+    *   viewsheet); {@code x}, {@code y}; optional {@code text} (only valid when {@code type} is
+    *   {@code "text"}).</li>
     *   <li>{@code remove}: {@code name}.</li>
     * </ul>
     *
@@ -238,6 +241,23 @@ public class LayoutMutationService {
                   VSAssemblyInfo info = editable.getInfo();
                   info.setLayoutPosition(position);
                   info.setLayoutSize(size);
+
+                  if(object.containsKey("text")) {
+                     if(!(info instanceof TextVSAssemblyInfo textInfo)) {
+                        throw new IllegalArgumentException(
+                           "edit_layout_objects move_resize: \"" + name + "\" is not a text " +
+                           "object -- \"text\" only applies to a layout-only text object.");
+                     }
+
+                     String text = String.valueOf(object.get("text"));
+                     textInfo.setValue(text);
+                     textInfo.setTextValue(text);
+                  }
+               }
+               else if(object.containsKey("text")) {
+                  throw new IllegalArgumentException(
+                     "edit_layout_objects move_resize: \"" + name + "\" is not a layout-only " +
+                     "text object -- \"text\" only applies there.");
                }
             }
          });
@@ -273,6 +293,24 @@ public class LayoutMutationService {
                if(!existAssembly) {
                   event.setType(parseAssetType(object.get("type"), name));
                   assembly = vsLayoutService.createVSAssembly(event, layout, masterVs, name);
+
+                  if(object.containsKey("text")) {
+                     if(!(assembly instanceof TextVSAssembly textAssembly)) {
+                        throw new IllegalArgumentException(
+                           "edit_layout_objects add: \"" + name + "\" is not a text object -- " +
+                           "\"text\" only applies to type \"text\".");
+                     }
+
+                     String text = String.valueOf(object.get("text"));
+                     textAssembly.setValue(text);
+                     textAssembly.setTextValue(text);
+                  }
+               }
+               else if(object.containsKey("text")) {
+                  throw new IllegalArgumentException(
+                     "edit_layout_objects add: \"" + name + "\" is an existing viewsheet " +
+                     "assembly -- \"text\" only applies when creating a new layout-only text " +
+                     "object.");
                }
 
                VSAssemblyLayout assemblyLayout = vsLayoutService
