@@ -484,6 +484,59 @@ class SheetOpenServiceTest {
          any(Principal.class));
    }
 
+   /**
+    * The acting session (a JoinSession, its own 30-minute-TTL store) can outlive its own
+    * underlying runtime, which has an independent cache lifecycle -- so getSheetForPairing can
+    * throw SESSION_EXPIRED even though nothing is wrong with the request itself. An explicit
+    * dataSource never depended on the acting runtime being alive before createViewsheet started
+    * fetching it (only for the browser principal); this must not newly fail the call.
+    */
+   @Test
+   void createViewsheetToleratesExpiredActingRuntimeWhenDataSourceIsExplicit() throws Exception {
+      AssetEntry lmEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+         "MyDataSource/MyModel", null);
+      SheetOpenService service = createViewsheetService(SheetType.VIEWSHEET, null, true);
+
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("acting-runtime-1"),
+                                            any(Principal.class)))
+         .thenThrow(new inetsoft.web.wiz.pairing.PairingException(
+            inetsoft.web.wiz.pairing.PairingException.Kind.SESSION_EXPIRED,
+            "Viewsheet runtime not found or expired: acting-runtime-1"));
+
+      // No browser principal is resolvable now -- falls back to the agent's own, the pre-fix
+      // behavior for this path.
+      Principal agent = principal();
+      when(viewsheetService.openTemporaryViewsheet(isNull(), eq(lmEntry), eq(agent), isNull()))
+         .thenReturn("vs-runtime-new");
+      RuntimeViewsheet newRvs = mock(RuntimeViewsheet.class);
+      when(newRvs.getEntry()).thenReturn(newVsTempEntry);
+      when(viewsheetService.getViewsheet(eq("vs-runtime-new"), eq(agent))).thenReturn(newRvs);
+
+      JoinSession created = service.createViewsheet("tok-acting", agent, lmEntry);
+
+      assertEquals(SheetType.VIEWSHEET, created.sheetType());
+      verify(viewsheetService).openTemporaryViewsheet(isNull(), eq(lmEntry), eq(agent), isNull());
+   }
+
+   /**
+    * The sibling of the above: defaulting to the acting worksheet's own entry genuinely needs
+    * the acting runtime, unlike an explicit dataSource, so an expired acting runtime must still
+    * fail loud here rather than silently falling back.
+    */
+   @Test
+   void createViewsheetStillFailsWhenDefaultingAndActingRuntimeIsExpired() throws Exception {
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, null, true);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                            any(Principal.class)))
+         .thenThrow(new inetsoft.web.wiz.pairing.PairingException(
+            inetsoft.web.wiz.pairing.PairingException.Kind.SESSION_EXPIRED,
+            "Worksheet runtime not found or expired: acting-runtime-1"));
+
+      assertThrows(inetsoft.web.wiz.pairing.PairingException.class,
+         () -> service.createViewsheet("tok-acting", principal(), null));
+   }
+
    @Test
    void createViewsheetRefusesWhenActingSessionIsUnresolvable() {
       SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, null, true);

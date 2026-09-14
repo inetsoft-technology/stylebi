@@ -30,6 +30,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
 import inetsoft.web.wiz.pairing.JoinSession;
+import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetRuntimeAccess;
 import inetsoft.web.wiz.pairing.SheetSessionService;
@@ -267,8 +268,26 @@ public class SheetOpenService {
       // runtime must be opened as the BROWSER's principal, not the agent's, or the browser's
       // own later attach to it dies on "Invalid user found" -- two principals for the same
       // user differing only by session.
-      RuntimeSheet actingSheet = runtimeAccess.getSheetForPairing(
-         actingSession.sheetType(), actingSession.runtimeId(), user);
+      RuntimeSheet actingSheet;
+
+      try {
+         actingSheet = runtimeAccess.getSheetForPairing(
+            actingSession.sheetType(), actingSession.runtimeId(), user);
+      }
+      catch(PairingException e) {
+         // actingSession (a JoinSession, its own 30-minute-TTL store) can outlive its own
+         // underlying runtime, which has an independent cache lifecycle -- so a still-valid
+         // paired session can hit SESSION_EXPIRED here even though nothing is actually wrong
+         // with the request. An explicit dataSource never depended on the acting runtime before
+         // this method started fetching it (only for the browser principal, above); don't newly
+         // require it to be alive just for that. Defaulting to the acting worksheet's own entry
+         // genuinely needs it, so let that case keep failing loud, exactly as it did before.
+         if(dataSource == null || e.getKind() != PairingException.Kind.SESSION_EXPIRED) {
+            throw e;
+         }
+
+         actingSheet = null;
+      }
 
       if(dataSource == null) {
          if(actingSession.sheetType() != SheetType.WORKSHEET) {
