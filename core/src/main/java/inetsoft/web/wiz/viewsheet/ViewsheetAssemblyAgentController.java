@@ -1728,6 +1728,8 @@ public class ViewsheetAssemblyAgentController {
    {
       AssetEntry root = new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE,
                                        datasource, null);
+      root.setProperty("prefix", datasource);
+      root.setProperty("source", datasource);
       AssetEntry found = findPhysicalTableEntry(root, table, xp, rep, 0);
 
       if(found == null) {

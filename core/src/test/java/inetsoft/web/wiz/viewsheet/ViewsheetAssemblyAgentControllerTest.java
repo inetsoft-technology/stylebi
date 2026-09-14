@@ -1862,6 +1862,15 @@ class ViewsheetAssemblyAgentControllerTest {
       verify(vs).setBaseEntry(entryCaptor.capture());
       assertSame(tableEntry, entryCaptor.getValue(),
          "must attach the REAL repository-returned entry, never a hand-constructed one");
+
+      ArgumentCaptor<AssetEntry> rootCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(rep).getEntries(rootCaptor.capture(), eq(agent),
+         eq(inetsoft.sree.security.ResourceAction.READ));
+      assertEquals("Examples", rootCaptor.getValue().getProperty("prefix"),
+         "the hand-built root DATA_SOURCE entry passed to getEntries() must carry the " +
+         "'prefix' property -- the real AbstractAssetEngine implementation (unlike this " +
+         "any()-matching mock) reads it to resolve the datasource and silently returns an " +
+         "empty result when it is null, regardless of whether the table actually exists");
    }
 
    /** Nested case: the root returns a folder first; the resolver must recurse into it. */
@@ -1912,6 +1921,20 @@ class ViewsheetAssemblyAgentControllerTest {
       ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
       verify(vs).setBaseEntry(entryCaptor.capture());
       assertSame(tableEntry, entryCaptor.getValue());
+
+      ArgumentCaptor<AssetEntry> foldersCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(rep, atLeastOnce()).getEntries(foldersCaptor.capture(), eq(agent),
+         eq(inetsoft.sree.security.ResourceAction.READ));
+      AssetEntry root = foldersCaptor.getAllValues().stream()
+         .filter(e -> "Examples".equals(e.getPath()))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("expected a getEntries() call for the root " +
+            "'Examples' folder"));
+      assertEquals("Examples", root.getProperty("prefix"),
+         "the hand-built root DATA_SOURCE entry passed to getEntries() must carry the " +
+         "'prefix' property -- the real AbstractAssetEngine implementation (unlike this " +
+         "any()-matching mock) reads it to resolve the datasource and silently returns an " +
+         "empty result when it is null, regardless of whether the table actually exists");
    }
 
    @Test
