@@ -227,6 +227,87 @@ class FieldRefFactoryTest {
       assertEquals(-1, readBack.getResetLevel());
    }
 
+   // ── secondaryY (bug #76608) ───────────────────────────────────────────────
+
+   @Test
+   void toChartRefAppliesSecondaryYOntoTheAggregate() {
+      FieldRef field = new FieldRef(
+         "Sales", "measure", "Sum", null, null, null, null, null, null, true);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field);
+
+      assertInstanceOf(ChartAggregateRefModel.class, ref);
+      assertTrue(((ChartAggregateRefModel) ref).isSecondaryY());
+   }
+
+   /** The unconditional-apply default (S4.7): absent/null resolves to false, not "unchanged". */
+   @Test
+   void toChartRefDefaultsSecondaryYToFalseWhenAbsent() {
+      FieldRef field = new FieldRef("Sales", "measure", "Sum", null, null);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field);
+
+      assertFalse(((ChartAggregateRefModel) ref).isSecondaryY());
+   }
+
+   /**
+    * No such setter is ever reachable on the dimension branch -- a structural guarantee, but
+    * worth a regression pin: a dimension carrying {@code secondaryY} must not blow up or be
+    * silently coerced into a measure.
+    */
+   @Test
+   void toChartRefIgnoresSecondaryYOnADimension() {
+      FieldRef field = new FieldRef(
+         "Region", "dimension", null, null, null, null, null, null, null, true);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field);
+
+      assertInstanceOf(ChartDimensionRefModel.class, ref);
+   }
+
+   @Test
+   void readsASecondaryYMeasureFromAChartAggregateRefModel() {
+      ChartAggregateRefModel model = new ChartAggregateRefModel();
+      model.setColumnValue("Sales");
+      model.setFormula("Sum");
+      model.setSecondaryY(true);
+
+      FieldRef ref = FieldRefFactory.from(model);
+
+      assertEquals(Boolean.TRUE, ref.secondaryY());
+   }
+
+   /** A chart aggregate always has an opinion -- {@code false}, not {@code null}. */
+   @Test
+   void readsANonSecondaryYMeasureFromAChartAggregateRefModelAsExplicitFalse() {
+      ChartAggregateRefModel model = new ChartAggregateRefModel();
+      model.setColumnValue("Sales");
+      model.setFormula("Sum");
+      model.setSecondaryY(false);
+
+      FieldRef ref = FieldRefFactory.from(model);
+
+      assertEquals(Boolean.FALSE, ref.secondaryY());
+   }
+
+   /**
+    * A crosstab/table aggregate has no such concept -- {@link BAggregateRefModel} alone (not a
+    * {@link ChartAggregateRefModel}) must report {@code null}, not default to {@code false}, so a
+    * caller can tell "not applicable" apart from "explicitly off". Also the read-side half of
+    * confirming {@code TableBindingMutator.java:583}'s existing call into this method stays
+    * unaffected by this change (bug #76608 S8).
+    */
+   @Test
+   void readsNoSecondaryYFromAPlainCrosstabAggregate() {
+      BAggregateRefModel model = new BAggregateRefModel();
+      model.setColumnValue("Sales");
+      model.setFormula("Sum");
+
+      FieldRef ref = FieldRefFactory.from(model);
+
+      assertNull(ref.secondaryY());
+   }
+
    @Test
    void requireTypeRejectsAMissingDiscriminatorNamingTheField() {
       FieldRef ref = new FieldRef("Sales", null, null, null, null);
