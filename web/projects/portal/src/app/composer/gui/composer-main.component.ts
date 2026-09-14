@@ -2962,7 +2962,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                }
 
                this.composerRecentService.addRecentlyViewed(createAssetEntry(command.assetId));
-               this.openViewsheet(command.assetId);
+               this.openViewsheet(command.assetId, false, command.runtimeId);
             }
             else if(command.wsWizard) {
                this.saveToFolderId = command.folderId;

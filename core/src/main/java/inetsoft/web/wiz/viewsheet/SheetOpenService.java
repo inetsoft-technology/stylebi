@@ -263,6 +263,13 @@ public class SheetOpenService {
             "ask the user to re-pair (run connect_sheet again) before calling create_viewsheet.");
       }
 
+      // Same reason as openBaseWorksheet's rvs.getUser() (see its own comment): the new
+      // runtime must be opened as the BROWSER's principal, not the agent's, or the browser's
+      // own later attach to it dies on "Invalid user found" -- two principals for the same
+      // user differing only by session.
+      RuntimeSheet actingSheet = runtimeAccess.getSheetForPairing(
+         actingSession.sheetType(), actingSession.runtimeId(), user);
+
       if(dataSource == null) {
          if(actingSession.sheetType() != SheetType.WORKSHEET) {
             throw new IllegalArgumentException(
@@ -271,9 +278,7 @@ public class SheetOpenService {
                "physical table) naming the source to build the new viewsheet from.");
          }
 
-         RuntimeSheet actingWs = runtimeAccess.getSheetForPairing(
-            SheetType.WORKSHEET, actingSession.runtimeId(), user);
-         dataSource = actingWs == null ? null : actingWs.getEntry();
+         dataSource = actingSheet == null ? null : actingSheet.getEntry();
 
          if(dataSource == null || dataSource.getPath() == null) {
             throw new IllegalArgumentException(
@@ -290,7 +295,16 @@ public class SheetOpenService {
             "You do not have permission to create a viewsheet in the Visual Composer.");
       }
 
-      String runtimeId = viewsheetService.openTemporaryViewsheet(null, dataSource, user, null);
+      Principal browserUser = actingSheet == null ? user : actingSheet.getUser();
+      String runtimeId = viewsheetService.openTemporaryViewsheet(null, dataSource, browserUser, null);
+
+      // openTemporaryViewsheet already assigned this runtime its own temporary AssetEntry
+      // (TEMPORARY_SCOPE, Type.VIEWSHEET, "Untitled-N") -- fetch it so the browser gets told
+      // to open THAT, not dataSource's own identifier below. dataSource is a LOGIC_MODEL/
+      // DATA_SOURCE/WORKSHEET entry, never Type.VIEWSHEET, so VSLifecycleService.openViewsheet's
+      // entry.isViewsheet() check would otherwise always reject the browser's own re-open of it.
+      RuntimeViewsheet newRvs = viewsheetService.getViewsheet(runtimeId, browserUser);
+      AssetEntry newVsEntry = newRvs == null ? dataSource : newRvs.getEntry();
 
       // The acting session's own socket/owner, exactly like openBaseWorksheet mints the reverse
       // direction -- no new pairing code, and the new session is opened whole-sheet (null
@@ -313,7 +327,7 @@ public class SheetOpenService {
       }
 
       OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
-         .assetId(dataSource.toIdentifier())
+         .assetId(newVsEntry.toIdentifier())
          .viewsheet(true)
          .runtimeId(runtimeId)
          .build();

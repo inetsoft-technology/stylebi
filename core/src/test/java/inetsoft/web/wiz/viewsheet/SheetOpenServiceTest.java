@@ -76,6 +76,13 @@ class SheetOpenServiceTest {
    private inetsoft.web.wiz.pairing.SheetRuntimeAccess runtimeAccess;
 
    /**
+    * Populated by {@code createViewsheetService} -- the freshly-minted runtime's own real,
+    * TEMPORARY_SCOPE entry, so tests can assert the browser gets told to open THIS, not
+    * dataSource's own identifier.
+    */
+   private AssetEntry newVsTempEntry;
+
+   /**
     * The principal that owns the paired viewsheet runtime — i.e. the user's browser session.
     * Deliberately a different object from {@link #principal()}, the agent: the two are the same
     * logical user but different sessions, and the ownership check compares sessions.
@@ -397,13 +404,26 @@ class SheetOpenServiceTest {
 
       assertEquals(SheetType.VIEWSHEET, created.sheetType());
       assertEquals("vs-runtime-new", created.runtimeId());
+      // Opens as the acting session's own BROWSER principal (stubbed distinct from the agent's
+      // own principal() in this fixture) -- not the agent's -- or the browser's own later
+      // attach to this runtime dies on "Invalid user found". See SheetOpenService's own
+      // comment on why.
+      ArgumentCaptor<Principal> openedAs = ArgumentCaptor.forClass(Principal.class);
       verify(viewsheetService).openTemporaryViewsheet(isNull(), eq(wsEntry),
-         any(Principal.class), isNull());
+         openedAs.capture(), isNull());
+      assertEquals("browser-" + PRINCIPAL_NAME, openedAs.getValue().getName());
       ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
       verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertTrue(sent.viewsheet());
       assertEquals("vs-runtime-new", sent.runtimeId());
+      // The browser is told to open the new runtime's OWN real (TEMPORARY_SCOPE, VIEWSHEET)
+      // entry, not dataSource's -- dataSource is a WORKSHEET/LOGIC_MODEL/DATA_SOURCE entry,
+      // never Type.VIEWSHEET, so VSLifecycleService.openViewsheet's entry.isViewsheet() check
+      // would otherwise always reject the browser's own re-open of it (the root cause this
+      // fixes). See SheetOpenService's own comment.
+      assertEquals(newVsTempEntry.toIdentifier(), sent.assetId());
+      assertNotEquals(wsEntry.toIdentifier(), sent.assetId());
    }
 
    /**
@@ -453,9 +473,15 @@ class SheetOpenServiceTest {
       JoinSession created = service.createViewsheet("tok-acting", principal(), lmEntry);
 
       assertEquals(SheetType.VIEWSHEET, created.sheetType());
+      // dataSource is passed through unchanged -- explicit dataSource is never defaulted.
       verify(viewsheetService).openTemporaryViewsheet(isNull(), eq(lmEntry),
          any(Principal.class), isNull());
-      verify(runtimeAccess, never()).getSheetForPairing(any(), any(), any());
+      // getSheetForPairing IS called now (unlike before) -- it's how createViewsheet gets the
+      // acting session's own browser principal to open the new runtime as, not the agent's own.
+      // See SheetOpenService's own comment on why this must happen for every acting session
+      // type, not just a WORKSHEET session defaulting its dataSource.
+      verify(runtimeAccess).getSheetForPairing(eq(SheetType.VIEWSHEET), eq("acting-runtime-1"),
+         any(Principal.class));
    }
 
    @Test
@@ -824,19 +850,42 @@ class SheetOpenServiceTest {
 
          runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
 
-         if(actingType == SheetType.WORKSHEET) {
-            inetsoft.report.composition.RuntimeSheet actingWs =
-               mock(inetsoft.report.composition.RuntimeSheet.class);
-            when(actingWs.getEntry()).thenReturn(actingWsEntry);
-            when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
-                                                  any(Principal.class)))
-               .thenReturn(actingWsEntry == null ? null : actingWs);
+         // createViewsheet now fetches the acting session's own RuntimeSheet unconditionally
+         // (not just for a WORKSHEET acting session defaulting dataSource) -- it needs
+         // actingSheet.getUser() for every call, to open the new runtime as the BROWSER's
+         // principal rather than the agent's (see SheetOpenService's own comment). Stub it for
+         // every actingType; getEntry() stays null except where a WORKSHEET test actually wants
+         // a defaulted dataSource.
+         Principal browserPrincipal = () -> "browser-" + PRINCIPAL_NAME;
+         inetsoft.report.composition.RuntimeSheet actingSheet =
+            actingType == SheetType.WORKSHEET && actingWsEntry == null ? null
+            : mock(inetsoft.report.composition.RuntimeSheet.class);
+
+         if(actingSheet != null) {
+            when(actingSheet.getUser()).thenReturn(browserPrincipal);
+            when(actingSheet.getEntry()).thenReturn(actingWsEntry);
          }
+
+         when(runtimeAccess.getSheetForPairing(eq(actingType), eq("acting-runtime-1"),
+                                               any(Principal.class)))
+            .thenReturn(actingSheet);
 
          viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
          when(viewsheetService.openTemporaryViewsheet(isNull(), any(AssetEntry.class),
-                                                       any(Principal.class), isNull()))
+                                                       eq(browserPrincipal), isNull()))
             .thenReturn("vs-runtime-new");
+
+         // createViewsheet also fetches the freshly-minted runtime's own (real, TEMPORARY_SCOPE)
+         // entry to tell the browser to open THAT, not dataSource's identifier -- see its own
+         // comment. Stub a distinct temporary entry so tests can tell it apart from dataSource.
+         newVsTempEntry = new AssetEntry(
+            inetsoft.uql.asset.AssetRepository.TEMPORARY_SCOPE, AssetEntry.Type.VIEWSHEET,
+            "Untitled-1", null);
+         inetsoft.report.composition.RuntimeViewsheet newRvs =
+            mock(inetsoft.report.composition.RuntimeViewsheet.class);
+         when(newRvs.getEntry()).thenReturn(newVsTempEntry);
+         when(viewsheetService.getViewsheet(eq("vs-runtime-new"), eq(browserPrincipal)))
+            .thenReturn(newRvs);
 
          SecurityProvider securityProvider = mock(SecurityProvider.class);
          when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.VIEWSHEET),
