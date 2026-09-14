@@ -125,6 +125,53 @@ class WorksheetReadServiceTest {
       assertTrue(group.timeSeries());
    }
 
+   // Bug #76627 WBS-045: set_group_aggregate's namedGroup option is genuinely applied to the
+   // GroupRef on write (WorksheetMutationSupport#applyAggregateInfo calls
+   // gr.setNamedGroupAssembly(...)) but readAggregates never called
+   // gr.getNamedGroupAssembly() and GroupModel had no slot to carry it, so a caller could never
+   // tell which (if any) named group governs a group-by field from the read model.
+   @Test
+   void readsNamedGroupOnGroupedColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+
+      ColumnRef stateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("state");
+      namedGroup(ws, "NortheastGroup", new SourceInfo(SourceInfo.ASSET, null, "T"), stateCol,
+         "Northeast", new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ")));
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("state", null, null, "NortheastGroup")),
+         List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.GroupModel group = m.tables().get(0).aggregates().groups().get(0);
+      assertEquals("state", group.field());
+      assertEquals("NortheastGroup", group.namedGroup());
+   }
+
+   @Test
+   void reportsNullNamedGroupWhenUnset() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.applyAggregateInfo(t,
+         List.of(new WorksheetMutationSupport.GroupSpec("state", null)),
+         List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)));
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetModel m = new WorksheetReadService().read(rws);
+      WorksheetModel.AggregateModel.GroupModel group = m.tables().get(0).aggregates().groups().get(0);
+      assertEquals("state", group.field());
+      assertNull(group.namedGroup());
+   }
+
    /**
     * PWA-004: read_worksheet_model must report the same post-aggregation column shape that
     * list_bindable_fields/preview_worksheet_data already do. A grouped table's public column
