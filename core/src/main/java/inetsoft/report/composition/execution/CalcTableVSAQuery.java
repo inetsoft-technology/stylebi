@@ -43,6 +43,7 @@ import java.awt.*;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * CalcTableVSAQuery, the formula table viewsheet assembly query.
@@ -91,19 +92,25 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          // createCrosstabAssemblies() needs to return the number of columns
          // in the "header" for the rejoin later.
          AtomicInteger headerCols = new AtomicInteger();
+         // Each getTableLens() invocation must use its own unique temp assembly names so that
+         // two concurrent invocations for the same calc table (e.g. racing Data Tip requests,
+         // see bug #76614) never collide on the same assembly name while the sandbox write lock
+         // is transiently dropped in VSAQuery.getDataWithoutSandboxLock().
+         long invocationId = nextInvocationId();
 
          if(!isDetail()) {
             try {
-               crosstabs = createCrosstabAssemblies(cassemblyCopy, cassemblys, headerCols);
+               crosstabs = createCrosstabAssemblies(cassemblyCopy, cassemblys, headerCols,
+                                                     invocationId);
                LOG.debug("getTableLens() crosstabs.size(): " +
                   (crosstabs == null ? 0 : crosstabs.size()) + " headerCols: " + headerCols.get());
 
                if(crosstabs == null) {
-                  removeTempAssembly(cassembly.getName());
+                  removeTempAssembly(cassembly.getName(), invocationId);
                }
             }
             catch(Exception ex) {
-               removeTempAssembly(cassembly.getName());
+               removeTempAssembly(cassembly.getName(), invocationId);
             }
          }
 
@@ -426,11 +433,14 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       return true;
    }
 
-   private void removeTempAssembly(String assemblyName) {
+   // sweeps only the temp crosstabs created by the invocation identified by invocationId, so it
+   // never touches another concurrent invocation's still-in-use temp crosstab for the same calc
+   // table (bug #76614).
+   private void removeTempAssembly(String assemblyName, long invocationId) {
       Viewsheet vs = getViewsheet();
 
       for(int ct = 0; true; ct++) {
-         String name = TEMP_ASSEMBLY_PREFIX + assemblyName + "_Crosstab_" + ct;
+         String name = getTempCrosstabName(assemblyName, invocationId, ct);
 
          if(vs.getAssembly(name) == null) {
             break;
@@ -439,6 +449,28 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             vs.removeAssembly(name, false);
          }
       }
+   }
+
+   /**
+    * Build the name of a temp crosstab assembly created for one invocation of
+    * {@link #getTableLens()}. The invocation id makes the name unique per invocation so that
+    * two concurrent invocations of {@link #getTableLens()} for the same calc table (e.g. two
+    * racing Data Tip requests) never produce or address the same assembly, even though the
+    * sandbox write lock is transiently dropped mid-invocation
+    * (see {@code VSAQuery#getDataWithoutSandboxLock}).
+    */
+   static String getTempCrosstabName(String assemblyName, long invocationId, int ct) {
+      return TEMP_ASSEMBLY_PREFIX + assemblyName + "_" + invocationId + "_Crosstab_" + ct;
+   }
+
+   /**
+    * Allocate a new invocation id, unique for the lifetime of this JVM, used to namespace one
+    * {@link #getTableLens()} invocation's temp crosstab assembly names from every other
+    * invocation's (bug #76614). Package-private so it can be exercised directly by a
+    * concurrency test without going through a full sandbox/viewsheet harness.
+    */
+   static long nextInvocationId() {
+      return TEMP_ASSEMBLY_COUNTER.incrementAndGet();
    }
 
    /**
@@ -586,9 +618,10 @@ public class CalcTableVSAQuery extends DataVSAQuery {
     */
    private List<CrosstabVSAssembly> createCrosstabAssemblies(
       CalcTableVSAssembly cassembly, List<CalcTableVSAssembly> cassemblys,
-      AtomicInteger headerCols) throws Exception
+      AtomicInteger headerCols, long invocationId) throws Exception
    {
-      List<CrosstabVSAssembly> list = createCrosstabAssemblies0(cassembly, cassemblys, headerCols);
+      List<CrosstabVSAssembly> list =
+         createCrosstabAssemblies0(cassembly, cassemblys, headerCols, invocationId);
 
       if(list != null && list.size() > 0) {
          CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) cassembly.getInfo();
@@ -636,7 +669,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
    private List<CrosstabVSAssembly> createCrosstabAssemblies0(
       CalcTableVSAssembly cassembly, List<CalcTableVSAssembly> cassemblys,
-      AtomicInteger headerCols) throws Exception
+      AtomicInteger headerCols, long invocationId) throws Exception
    {
       CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) cassembly.getInfo();
       TableLayout parentLayout = info.getTableLayout();
@@ -848,7 +881,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
          // always invisible crosstab
          CrosstabVSAssembly crosstab = new CrosstabVSAssembly(
-            getViewsheet(), TEMP_ASSEMBLY_PREFIX + cassembly.getName() + "_Crosstab_" + ct)
+            getViewsheet(), getTempCrosstabName(cassembly.getName(), invocationId, ct))
          {
             @Override
             protected VSAssemblyInfo createInfo() {
@@ -1955,6 +1988,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
    }
 
    public static final String TEMP_ASSEMBLY_PREFIX = "__Temp_CalcTableVSAQuery__";
+   // Per-JVM monotonic counter used to make each getTableLens() invocation's temp crosstab
+   // names unique (bug #76614).
+   private static final AtomicLong TEMP_ASSEMBLY_COUNTER = new AtomicLong(0);
    private static final Logger LOG =
       LoggerFactory.getLogger(CalcTableVSAQuery.class);
    private static final Logger LOGCALCCROSSTAB =

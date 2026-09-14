@@ -65,6 +65,8 @@ import java.util.*;
 @Service
 @ClusterProxy
 public class ModifyCalculateFieldService {
+   private static final Logger LOG = LoggerFactory.getLogger(ModifyCalculateFieldService.class);
+
    public ModifyCalculateFieldService(
       VSBindingService bindingFactory,
       VSBindingTreeControllerServiceProxy vsBindingTreeService,
@@ -413,6 +415,10 @@ public class ModifyCalculateFieldService {
       if(ass != null) {
          BindingModel binding = bindingFactory.createModel(ass);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
+         LOG.debug("BUG76488-76485-TRACE modifyCalculateField: sending " +
+            "SetVSBindingModelCommand (client will now set _loadingTree=true and send its " +
+            "OWN getBinding request) assembly={} thread={} id={}",
+            event.name(), Thread.currentThread().getName(), id);
          dispatcher.sendCommand(bcommand);
       }
 
