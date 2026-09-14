@@ -55,6 +55,8 @@ import inetsoft.web.vswizard.command.*;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardEditModes;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -63,6 +65,8 @@ import java.util.*;
 @Service
 @ClusterProxy
 public class ModifyCalculateFieldService {
+   private static final Logger LOG = LoggerFactory.getLogger(ModifyCalculateFieldService.class);
+
    public ModifyCalculateFieldService(
       VSBindingService bindingFactory,
       VSBindingTreeController bindingTreeController,
@@ -354,7 +358,12 @@ public class ModifyCalculateFieldService {
       else {
          RefreshBindingTreeEvent refreshBindingTreeEvent = new RefreshBindingTreeEvent();
          refreshBindingTreeEvent.setName(event.name());
+         LOG.debug("BUG76488-76485-TRACE modifyCalculateField: in-process getBinding CALL " +
+            "assembly={} create={} remove={} thread={} id={}",
+            event.name(), create, remove, Thread.currentThread().getName(), id);
          bindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher);
+         LOG.debug("BUG76488-76485-TRACE modifyCalculateField: in-process getBinding RETURNED " +
+            "assembly={} thread={} id={}", event.name(), Thread.currentThread().getName(), id);
       }
 
       boolean wizardNewVs =
@@ -363,6 +372,9 @@ public class ModifyCalculateFieldService {
       if((!event.wizard() || event.remove() && wizardNewVs) && (infoChanged || !create)) {
          WizardRecommenderUtil.setIgnoreRefreshTempAssembly(event.wizard());
          VSRefreshEvent refresh = VSRefreshEvent.builder().confirmed(false).build();
+         LOG.debug("BUG76488-76485-TRACE modifyCalculateField: dispatching async " +
+            "refreshViewsheet BEFORE SetVSBindingModelCommand assembly={} thread={} id={}",
+            event.name(), Thread.currentThread().getName(), id);
          refreshController.refreshViewsheet(refresh, principal, dispatcher, linkUri);
          WizardRecommenderUtil.setIgnoreRefreshTempAssembly(null);
       }
@@ -370,6 +382,10 @@ public class ModifyCalculateFieldService {
       if(ass != null) {
          BindingModel binding = bindingFactory.createModel(ass);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
+         LOG.debug("BUG76488-76485-TRACE modifyCalculateField: sending " +
+            "SetVSBindingModelCommand (client will now set _loadingTree=true and send its " +
+            "OWN getBinding request) assembly={} thread={} id={}",
+            event.name(), Thread.currentThread().getName(), id);
          dispatcher.sendCommand(bcommand);
       }
 

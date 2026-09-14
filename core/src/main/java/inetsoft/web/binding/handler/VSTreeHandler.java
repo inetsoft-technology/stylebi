@@ -41,6 +41,8 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.TreeNodeModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -50,6 +52,8 @@ import java.util.stream.Collectors;
 
 @Component
 public class VSTreeHandler {
+   private static final Logger LOG = LoggerFactory.getLogger(VSTreeHandler.class);
+
    @Autowired
    public VSTreeHandler(VSChartHandler chartHandler, SecurityEngine securityEngine) {
       this.chartHandler = chartHandler;
@@ -231,10 +235,16 @@ public class VSTreeHandler {
       Viewsheet vs0 = rvs.getViewsheet();
       String aname = cinfo.getAbsoluteName();
       VSAssembly cass = vs0 == null ? null : (VSAssembly) vs0.getAssembly(aname);
+      LOG.debug("BUG76488-76485-TRACE getTableTreeModel resolving assembly name={} " +
+         "vs0Null={} found={} thread={} rvsId={}",
+         aname, vs0 == null, cass != null, Thread.currentThread().getName(), rvs.getID());
 
       // viewsheet may have been disposed/reset concurrently (e.g. user interacts with the
       // binding tree before a heavy operation finishes), so cass can be null here.
       if(cass == null) {
+         LOG.debug("BUG76488-76485-TRACE getTableTreeModel: cass NULL for name={} " +
+            "thread={} rvsId={} — returning null (tree round trip will still complete)",
+            aname, Thread.currentThread().getName(), rvs.getID());
          return null;
       }
 
