@@ -123,7 +123,7 @@ public class PluginsService {
    /**
     * Installs plugins that user has uploaded
     */
-   void installPlugins(String uploadId, Principal principal) throws Exception {
+   public void installPlugins(String uploadId, Principal principal) throws Exception {
       checkPermission(principal);
       List<UploadedFile> pluginFiles = uploadService.get(uploadId)
          .orElseThrow(() -> new IllegalArgumentException("No uploaded files"));
@@ -172,7 +172,7 @@ public class PluginsService {
     *
     * @param model Structure for encapsulating plugin information for deletion
     */
-   void uninstallPlugins(PluginsModel model, Principal principal) throws Exception {
+   public void uninstallPlugins(PluginsModel model, Principal principal) throws Exception {
       checkPermission(principal);
       ArrayList<PluginModel> pluginsList = new ArrayList<>(model.plugins());
       String actionName = ActionRecord.ACTION_NAME_DELETE;
@@ -199,7 +199,7 @@ public class PluginsService {
       }
    }
 
-   List<String> scanDrivers(String uploadId, Principal principal) throws Exception {
+   public List<String> scanDrivers(String uploadId, Principal principal) throws Exception {
       checkPermission(principal);
       Set<String> drivers = new TreeSet<>();
       Optional<List<UploadedFile>> files = uploadService.get(uploadId);
@@ -215,7 +215,7 @@ public class PluginsService {
       return new ArrayList<>(drivers);
    }
 
-   void createDriverPlugin(CreateDriverPluginRequest request, Principal principal)
+   public void createDriverPlugin(CreateDriverPluginRequest request, Principal principal)
       throws Exception
    {
       checkPermission(principal);
