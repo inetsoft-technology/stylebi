@@ -43,6 +43,7 @@ import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import java.awt.Point;
 import java.util.Enumeration;
+import inetsoft.web.composer.ws.RenameColumnController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
@@ -1331,6 +1332,11 @@ public class WorksheetEditService {
             }
          }
 
+         // Snapshot the pre-rename column (entity/attribute as seen by anything downstream)
+         // before dateRef is mutated in place below, so it can be used as the "old" side of the
+         // mirror cascade a few lines down.
+         ColumnRef originalColumnRef = ref instanceof ColumnRef cr1 ? cr1.clone() : null;
+
          dateRef.setDateOption(option);
          dateRef.setName(newName);
 
@@ -1350,6 +1356,16 @@ public class WorksheetEditService {
          }
 
          t.setColumnSelection(cs, false);
+
+         // Cascade the rename into any downstream mirror's own column selection and
+         // AggregateInfo, the same way the Composer's rename_column path already does via
+         // RenameColumnController.renameTableColumn. Without this, a mirror's AggregateInfo group
+         // still references this column by its OLD encoded name; AggregateInfo.validate() has no
+         // repair path for that (only an exact-string match), so it silently DROPS the group
+         // instead of re-pointing it at the new name.
+         if(originalColumnRef != null && !newName.equals(currentName) && ref instanceof ColumnRef newColumnRef) {
+            RenameColumnController.renameTableColumn(ws, t, originalColumnRef, newColumnRef);
+         }
       }
 
       /**
