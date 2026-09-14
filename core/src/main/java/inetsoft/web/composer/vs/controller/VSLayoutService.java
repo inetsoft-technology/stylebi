@@ -818,7 +818,7 @@ public class VSLayoutService {
          return -1;
       }
 
-      return (int) Math.ceil(y / (float) pageHeight);
+      return y <= 0 ? 1 : (int) Math.ceil(y / (float) pageHeight);
    }
 
    /**
@@ -832,7 +832,7 @@ public class VSLayoutService {
       }
 
       Point pos = layout.getPosition();
-      return (int) Math.ceil(pos.y / (float) pageSize.height);
+      return pos.y <= 0 ? 1 : (int) Math.ceil(pos.y / (float) pageSize.height);
    }
 
    /**
