@@ -21,6 +21,8 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
@@ -410,8 +412,8 @@ public class TableBindingService {
     * TableBindingMutator.setColumnLabels}'s own javadoc for why the mutator itself stops short of
     * that). Table needs no lens — {@code ColumnRefModel.alias} already round-trips through the
     * existing write below — but does need the live {@code TableVSAssembly} to rekey a
-    * pre-existing per-column {@code FormatInfo}/column-width entry from the old display name to
-    * the new one, which {@code TableBindingMutator} (model-only) cannot reach either.
+    * pre-existing per-column {@code FormatInfo}/column-width/highlight entry from the old display
+    * name to the new one, which {@code TableBindingMutator} (model-only) cannot reach either.
     *
     * @return one line per label actually written, e.g. {@code "Region -> Sales Region"} — used to
     *         build an accurate summary instead of trusting the request's own label count, since a
@@ -430,7 +432,7 @@ public class TableBindingService {
             TableBindingMutator.setColumnLabels(model, labels, entries);
 
          if(!write.tableRenames().isEmpty() && assembly instanceof TableVSAssembly table) {
-            rekeyTableFormatAndWidth(table, write.tableRenames());
+            rekeyTableFormatWidthAndHighlight(table, write.tableRenames());
 
             for(TableBindingMutator.Rename rename : write.tableRenames()) {
                applied.add(rename.oldDisplayName() + " -> " + rename.newDisplayName());
@@ -456,11 +458,12 @@ public class TableBindingService {
 
    /**
     * Ports {@code ComposerVSTableService.changeColumnTitle}'s Table-branch rekey (lines 151-167
-    * at the time this was written) so a pre-existing per-column format/highlight/width entry
-    * follows a wiz rename instead of silently detaching under the old display name.
+    * at the time this was written, plus its private {@code syncHighlight} helper) so a
+    * pre-existing per-column format/highlight/width entry follows a wiz rename instead of
+    * silently detaching under the old display name.
     */
-   private static void rekeyTableFormatAndWidth(TableVSAssembly table,
-                                                List<TableBindingMutator.Rename> renames)
+   private static void rekeyTableFormatWidthAndHighlight(TableVSAssembly table,
+                                                         List<TableBindingMutator.Rename> renames)
    {
       FormatInfo finfo = table.getFormatInfo();
       FormatInfo nfinfo = new FormatInfo();
@@ -483,6 +486,43 @@ public class TableBindingService {
       for(TableBindingMutator.Rename rename : renames) {
          table.getTableDataVSAssemblyInfo()
             .updateColumnWidthNames(rename.oldDisplayName(), rename.newDisplayName());
+      }
+
+      syncHighlight(table, renames);
+   }
+
+   /**
+    * Ports {@code ComposerVSTableService.syncHighlight} (still a private, dead-for-this-purpose
+    * method on that class): rekeys a {@code TableHighlightAttr} entry keyed by a column's old
+    * display name to its new one, the same way {@link #rekeyTableFormatWidthAndHighlight}'s own
+    * {@code FormatInfo} rekey does, so a pre-existing per-column highlight does not silently
+    * orphan under a name nothing renders under anymore.
+    */
+   private static void syncHighlight(TableVSAssembly table, List<TableBindingMutator.Rename> renames) {
+      TableHighlightAttr hattr = table.getTableDataVSAssemblyInfo().getHighlightAttr();
+
+      if(hattr == null) {
+         return;
+      }
+
+      Map<TableDataPath, HighlightGroup> map = hattr.getHighlightMap();
+      List<TableDataPath> paths = new ArrayList<>(map.keySet());
+
+      for(TableDataPath path : paths) {
+         if(path == null) {
+            continue;
+         }
+
+         String[] pathArr = path.getPath();
+         String newName = pathArr == null || pathArr.length != 1 ? null :
+            renamedTo(renames, pathArr[0]);
+
+         if(newName != null) {
+            TableDataPath renamed = (TableDataPath) path.clone(new String[]{ newName });
+            HighlightGroup hg = hattr.getHighlight(path);
+            map.remove(path);
+            hattr.setHighlight(renamed, hg);
+         }
       }
    }
 
