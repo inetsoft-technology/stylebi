@@ -37,6 +37,16 @@ public class SheetSessionService {
    private static final Logger LOG = LoggerFactory.getLogger(SheetSessionService.class);
 
    public static final long TTL_MILLIS = 30 * 60_000L;
+
+   /**
+    * TTL for a session opened with no {@code runtimeId} yet (a portal-level session, established
+    * directly at login rather than by pairing to an already-open Composer pane) -- shorter than
+    * {@link #TTL_MILLIS} because an unattached session that is never subsequently used to open or
+    * attach to an asset represents idle, unused-but-standing access, not an editor a human is
+    * actively working in.
+    */
+   public static final long UNATTACHED_TTL_MILLIS = 10 * 60_000L;
+
    private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
    private final ConcurrentHashMap<String, JoinSession> sessions;
@@ -136,8 +146,9 @@ public class SheetSessionService {
                            EditorContext editorContext)
    {
       String token = newToken();
+      long ttl = runtimeId != null ? TTL_MILLIS : UNATTACHED_TTL_MILLIS;
       JoinSession s = new JoinSession(token, runtimeId, ownerIdentity, sheetType,
-                                      clock.getAsLong(), TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+                                      clock.getAsLong(), ttl, JoinSession.ConnectionMode.PAIRED,
                                       socketSessionId, socketUserName, editorContext);
       sessions.put(token, s);
       return s;
@@ -148,14 +159,15 @@ public class SheetSessionService {
       if (token == null) return null;
       JoinSession s = sessions.get(token);
       if (s == null || s.isExpired(clock.getAsLong()) || !s.ownerIdentity().equals(agentIdentity)) return null;
-      // Full 11-arg canonical constructor, NOT the 10-arg back-compat overload -- that overload
-      // defaults followFocusEnabled to false, which would silently un-opt-in every session on
-      // its very next refresh. Must carry s.followFocusEnabled() through explicitly.
+      // Full 12-arg canonical constructor, NOT either back-compat overload -- those default
+      // followFocusEnabled/establishedDirectly to false, which would silently un-opt-in every
+      // session (and forget it was directly established) on its very next refresh. Must carry
+      // s.followFocusEnabled()/s.establishedDirectly() through explicitly.
       JoinSession refreshed = new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(),
                                               s.sheetType(), clock.getAsLong(), s.ttlMillis(),
                                               s.connectionMode(), s.socketSessionId(),
                                               s.socketUserName(), s.editorContext(),
-                                              s.followFocusEnabled());
+                                              s.followFocusEnabled(), s.establishedDirectly());
       sessions.put(token, refreshed);
       return refreshed;
    }
@@ -427,13 +439,14 @@ public class SheetSessionService {
       return new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(), s.sheetType(),
                              s.lastAccess(), s.ttlMillis(), s.connectionMode(),
                              s.socketSessionId(), s.socketUserName(), editorContext,
-                             s.followFocusEnabled());
+                             s.followFocusEnabled(), s.establishedDirectly());
    }
 
    private static JoinSession withFollowFocusEnabled(JoinSession s, boolean enabled) {
       return new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(), s.sheetType(),
                              s.lastAccess(), s.ttlMillis(), s.connectionMode(),
-                             s.socketSessionId(), s.socketUserName(), s.editorContext(), enabled);
+                             s.socketSessionId(), s.socketUserName(), s.editorContext(), enabled,
+                             s.establishedDirectly());
    }
 
    /**

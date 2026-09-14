@@ -25,4 +25,14 @@ import org.springframework.stereotype.Component;
 public class SheetAgentFeature {
    public static final String FLAG = "wiz.agent.pairing.enabled";
    public boolean isEnabled() { return SreeEnv.getBooleanProperty(FLAG); }
+
+   /**
+    * Off-by-default gate for portal-session-scoped pairing (a session established directly at
+    * login, with no runtime yet, rather than by pairing to an already-open Composer pane) --
+    * a second, independent flag from {@link #FLAG}, since it grants a materially broader
+    * capability (open-or-create any Composer asset) that needs its own disclosure at consent
+    * time, not a reuse of the base pairing flag's existing copy.
+    */
+   public static final String PORTAL_PAIRING_FLAG = "wiz.agent.portal-pairing.enabled";
+   public boolean isPortalPairingEnabled() { return SreeEnv.getBooleanProperty(PORTAL_PAIRING_FLAG); }
 }

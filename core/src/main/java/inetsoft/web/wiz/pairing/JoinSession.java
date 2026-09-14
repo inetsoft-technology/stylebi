@@ -21,6 +21,12 @@ package inetsoft.web.wiz.pairing;
  * A reusable session opened after a successful pairing join.
  * Edits reuse this; the code stays single-use.
  *
+ * @param runtimeId the runtime this session is attached to, or {@code null} for a session opened
+ *                      with no runtime yet (a portal-level session, established directly at login
+ *                      rather than by pairing to an already-open Composer pane) -- see
+ *                      {@link #isAttached()}
+ * @param sheetType the attached runtime's sheet type, or {@code null} in lockstep with a
+ *                      {@code null} {@code runtimeId}
  * @param editorContext the script/formula location this session is scoped to -- carried over
  *                      from the {@link PairingGrant} that opened it at mint time, or moved by
  *                      {@code SheetSessionService.retarget}/{@code popFocus} (Follow Focus)
@@ -32,12 +38,37 @@ package inetsoft.web.wiz.pairing;
  *                      move a session's target while this is {@code false}, independent of
  *                      whatever the Angular UI shows. Never {@code true} at construction --
  *                      opting in is always a separate, later act.
+ * @param establishedDirectly whether this session was created via a login-triggered direct
+ *                      establish (no pairing code, no runtime yet) rather than by joining a
+ *                      {@link PairingGrant}. Recorded once at {@code open()} time and never
+ *                      changed thereafter; used to look up an existing directly-established
+ *                      session for an identity before minting a duplicate. {@code false} for
+ *                      every session opened via the ordinary pairing-code join path.
  */
 public record JoinSession(String sessionToken, String runtimeId, String ownerIdentity,
                           SheetType sheetType, long lastAccess, long ttlMillis,
                           ConnectionMode connectionMode, String socketSessionId,
                           String socketUserName, EditorContext editorContext,
-                          boolean followFocusEnabled) {
+                          boolean followFocusEnabled, boolean establishedDirectly) {
+
+   /**
+    * Back-compat constructor predating {@code establishedDirectly} -- defaults it to
+    * {@code false}, the same default {@code SheetSessionService.open} relies on for the ordinary
+    * pairing-code join path. Kept so the wide set of hand-built {@code new JoinSession(...)}
+    * fixtures across the worksheet/viewsheet/script/binding test packages -- none of which
+    * exercise direct establishment -- do not all need updating for one new field on a record none
+    * of them otherwise touch.
+    */
+   public JoinSession(String sessionToken, String runtimeId, String ownerIdentity,
+                      SheetType sheetType, long lastAccess, long ttlMillis,
+                      ConnectionMode connectionMode, String socketSessionId,
+                      String socketUserName, EditorContext editorContext,
+                      boolean followFocusEnabled)
+   {
+      this(sessionToken, runtimeId, ownerIdentity, sheetType, lastAccess, ttlMillis,
+           connectionMode, socketSessionId, socketUserName, editorContext, followFocusEnabled,
+           false);
+   }
 
    /**
     * Back-compat constructor predating {@code followFocusEnabled} (Follow Focus) -- defaults it
@@ -52,10 +83,14 @@ public record JoinSession(String sessionToken, String runtimeId, String ownerIde
                       String socketUserName, EditorContext editorContext)
    {
       this(sessionToken, runtimeId, ownerIdentity, sheetType, lastAccess, ttlMillis,
-           connectionMode, socketSessionId, socketUserName, editorContext, false);
+           connectionMode, socketSessionId, socketUserName, editorContext, false, false);
    }
 
    public boolean isExpired(long now) { return now - lastAccess > ttlMillis; }
+
+   /** {@code true} iff this session has a runtime attached -- {@code false} for an unattached,
+    * directly-established (portal) session with no {@code runtimeId} yet. */
+   public boolean isAttached() { return runtimeId != null; }
 
    /** Forward-compat slot: PAIRED = browser owns + agent joins; AGENT_OWNED reserved for future viz. */
    public enum ConnectionMode { PAIRED }

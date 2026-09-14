@@ -21,7 +21,9 @@ import inetsoft.web.wiz.script.PaneScopeService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -73,6 +75,25 @@ import static org.mockito.Mockito.verify;
  * [Exit criterion]                after a successful retarget, PaneScopeService.requireWholeSheetSession
  *                                 against a FRESH resolve() of the same token reflects the new
  *                                 pane-scoped target -- proving enforcement needed no code change
+ *
+ * Portal-session-pairing, Lane A (JoinSession nullable runtimeId/sheetType + isAttached(),
+ * establishedDirectly, SheetSessionService.open's TTL-by-attachment):
+ * [Attachment: TTL]           open() with a non-null runtimeId gets TTL_MILLIS; open() with a
+ *                             null runtimeId (a portal-level session, no runtime yet) gets the
+ *                             shorter UNATTACHED_TTL_MILLIS
+ * [Attachment: isAttached]    isAttached() is true iff runtimeId != null, for both a
+ *                             service-opened session and a directly-constructed one
+ * [Nullable construction]     JoinSession can be constructed with a null runtimeId/sheetType
+ *                             without throwing, and sheetType stays null alongside it
+ * [establishedDirectly: back-compat default] both pre-existing back-compat constructors (predating
+ *                             followFocusEnabled, and predating establishedDirectly) default
+ *                             establishedDirectly to false
+ * [establishedDirectly: survives refresh]  resolve()'s TTL-refresh reconstruct carries an
+ *                             established-directly session's marker through unchanged -- it must
+ *                             not silently flip back to false the way followFocusEnabled would
+ *                             have if resolve() used the wrong (back-compat) constructor overload
+ * [establishedDirectly: survives retarget/focus toggle] retarget() and setFollowFocus()'s
+ *                             reconstruct-and-replace also carry it through unchanged
  */
 @Tag("core")
 class SheetSessionServiceTest {
@@ -90,6 +111,119 @@ class SheetSessionServiceTest {
       assertNotNull(session);
       assertNotNull(session.sessionToken());
       assertFalse(session.sessionToken().isEmpty());
+   }
+
+   @Test
+   void openWithRuntimeIdGetsTheAttachedTtl() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open("rt-attached", "alice~;~org", SheetType.WORKSHEET, null, null, null);
+      assertEquals(SheetSessionService.TTL_MILLIS, session.ttlMillis());
+      assertTrue(session.isAttached());
+   }
+
+   @Test
+   void openWithNullRuntimeIdGetsTheShorterUnattachedTtl() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession session = svc.open(null, "alice~;~org", null, null, null, null);
+      assertEquals(SheetSessionService.UNATTACHED_TTL_MILLIS, session.ttlMillis());
+      assertTrue(SheetSessionService.UNATTACHED_TTL_MILLIS < SheetSessionService.TTL_MILLIS,
+                 "the unattached TTL must be the shorter of the two");
+      assertFalse(session.isAttached());
+      assertNull(session.sheetType());
+   }
+
+   /**
+    * {@code isAttached()} is a pure {@code runtimeId != null} check -- exercised directly on the
+    * record, not just through {@code open()}, since a future caller (Lane D's establish endpoint)
+    * constructs a {@code JoinSession} without going through {@code SheetSessionService.open}.
+    */
+   @Test
+   void isAttachedReflectsRuntimeIdOnADirectlyConstructedSession() {
+      JoinSession attached = new JoinSession("tok-a", "rt-1", "alice~;~org", SheetType.WORKSHEET,
+         FIXED_NOW, SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, null, null, null);
+      JoinSession unattached = new JoinSession("tok-b", null, "alice~;~org", null,
+         FIXED_NOW, SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, null, null, null);
+
+      assertTrue(attached.isAttached());
+      assertFalse(unattached.isAttached());
+   }
+
+   /**
+    * Both back-compat constructors (the one predating {@code followFocusEnabled}, and the one
+    * predating {@code establishedDirectly}) must default {@code establishedDirectly} to
+    * {@code false} -- the same default {@code SheetSessionService.open} relies on for the
+    * ordinary pairing-code join path.
+    */
+   @Test
+   void backCompatConstructorsDefaultEstablishedDirectlyToFalse() {
+      JoinSession viaOldestCtor = new JoinSession("tok-a", "rt-1", "alice~;~org", SheetType.WORKSHEET,
+         FIXED_NOW, SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, null, null, null);
+      JoinSession viaFollowFocusCtor = new JoinSession("tok-b", "rt-1", "alice~;~org", SheetType.WORKSHEET,
+         FIXED_NOW, SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, null, null, null, true);
+
+      assertFalse(viaOldestCtor.establishedDirectly());
+      assertFalse(viaFollowFocusCtor.establishedDirectly());
+      assertFalse(viaOldestCtor.followFocusEnabled());
+      assertTrue(viaFollowFocusCtor.followFocusEnabled());
+   }
+
+   /**
+    * Directly seeds the service's private session map with a session that has
+    * {@code establishedDirectly = true} -- there is no public path to create one yet
+    * ({@code open()} always defaults it to {@code false}; a future Lane D establish endpoint will
+    * be the first real caller), so this reaches in via reflection the same way other tests in
+    * this package do (see {@code WorksheetAgentControllerTest}). Guards exactly the bug class the
+    * existing {@code followFocusEnabled} comment in {@code resolve()} warns about: reconstructing
+    * via the WRONG (back-compat) constructor overload would silently reset the marker.
+    */
+   private static void seedSession(SheetSessionService svc, JoinSession session) {
+      try {
+         Field field = SheetSessionService.class.getDeclaredField("sessions");
+         field.setAccessible(true);
+         @SuppressWarnings("unchecked")
+         Map<String, JoinSession> sessions = (Map<String, JoinSession>) field.get(svc);
+         sessions.put(session.sessionToken(), session);
+      }
+      catch(ReflectiveOperationException e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   @Test
+   void resolveCarriesEstablishedDirectlyThroughItsTtlRefreshReconstruct() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession established = new JoinSession("tok-established", null, "alice~;~org", null,
+         FIXED_NOW, SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null, false, true);
+      seedSession(svc, established);
+
+      JoinSession resolved = svc.resolve("tok-established", "alice~;~org");
+
+      assertNotNull(resolved);
+      assertTrue(resolved.establishedDirectly(),
+                 "resolve() must not silently reset establishedDirectly back to false on refresh");
+   }
+
+   @Test
+   void retargetAndSetFollowFocusCarryEstablishedDirectlyThrough() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      // "viewsheetOnInit" (unlike an assembly-scoped kind such as "assemblyMain") needs no
+      // configured runtime for validateEditorContext to accept it -- same kind the existing
+      // happy-path retarget tests above use, for the same reason.
+      JoinSession established = new JoinSession("tok-established-2", "rt-est", "alice~;~org",
+         SheetType.VIEWSHEET, FIXED_NOW, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-est", "alice", null, false, true);
+      seedSession(svc, established);
+
+      JoinSession afterToggle = svc.setFollowFocus("sock-est", "rt-est", true);
+      assertNotNull(afterToggle);
+      assertTrue(afterToggle.establishedDirectly(),
+                 "setFollowFocus's reconstruct must not reset establishedDirectly");
+
+      JoinSession afterRetarget = svc.retarget(
+         "sock-est", "rt-est", new EditorContext("viewsheetOnInit", null, null, null));
+      assertTrue(afterRetarget.establishedDirectly(),
+                 "retarget's reconstruct must not reset establishedDirectly");
    }
 
    @Test
