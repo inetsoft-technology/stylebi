@@ -551,6 +551,59 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(1, t.getAggregateInfo().getAggregateCount());
    }
 
+   /**
+    * WBS-046 (Redmine #76627): the DISTINCT, still-open case from
+    * {@link #reAggregatingSameTableClearsStalePriorAlias} above. That fix only clears an alias
+    * that was actually SET by a prior call. When the first call's aggregate carries no explicit
+    * alias -- the ordinary case, e.g. {@code Sum(QUANTITY)} naturally keeps displaying as
+    * "QUANTITY" unless the caller bothers to alias it -- {@code applyAggregateInfo} used to never
+    * call {@code colRef.setAlias(...)}, leaving nothing for the alias-clearing mechanism to clear:
+    * the raw column kept its own un-renamed identity the whole time, so a second, un-mirrored call
+    * referencing that raw name (the caller's only name for it) silently resolved back to the raw
+    * column instead of failing loud.
+    *
+    * <p>The fix auto-generates and tracks an alias (the same {@code "_1"}/{@code "_2"} suffix
+    * convention the secondary-aggregate path already uses) even when the caller supplies none, so
+    * {@code clearAggregateAliases} always has something to clear: a caller who reads the updated
+    * model between calls (as intended) and references the aggregate by its now-displayed name
+    * ("amount_1") on a second, un-mirrored call now hits the SAME fail-loud path the explicitly-
+    * aliased case above already gets.</p>
+    */
+   @Test
+   void reAggregatingSameTableWithAutoAliasedOutputNowFailsLoudOnChaining() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "cust", "store", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // First pass: NO explicit alias -- before the fix, the output column would have kept
+      // displaying as "amount", indistinguishable from the raw column.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("cust", "store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      ColumnRef base = columnByAttribute(t, "amount");
+      assertEquals("amount_1", base.getAlias(),
+         "an un-aliased aggregate must now auto-generate an output alias instead of leaving " +
+         "the column indistinguishable from its raw, un-aggregated self");
+
+      // Second pass on the SAME table (no mirror), chaining on the auto-generated alias --
+      // exactly as a caller who re-read the model between calls would.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", groups("store"),
+               List.of(new WorksheetMutationSupport.AggregateSpec(
+                  "amount_1", "AVG", "avg_of_sums")))));
+      assertTrue(ex.getMessage().contains("amount_1"));
+
+      // The raw "amount" column must still be usable again under its own name.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("store"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "total"))));
+      assertEquals(1, t.getAggregateInfo().getAggregateCount());
+   }
+
    @Test
    void setGroupAggregateCrosstabTogglesAggregateInfo() throws Exception {
       Worksheet ws = new Worksheet();

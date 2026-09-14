@@ -869,6 +869,30 @@ public final class WorksheetMutationSupport {
                colRef.setAlias(spec.alias());
                appliedAliases.add(spec.alias());
             }
+            else if(colRef.getAlias() == null) {
+               // No explicit alias AND the column was never aliased before (e.g. via
+               // rename_column) -- without one, the aggregate's output column keeps the raw
+               // column's own name (e.g. Sum(QUANTITY) displays as "QUANTITY"), indistinguishable
+               // from the un-aggregated source. A later set_group_aggregate call referencing
+               // that name -- the caller's only name for it -- then resolves back to the raw
+               // column instead of the (no longer existing) aggregated output. Auto-generate and
+               // track an alias, the same "_1"/"_2" convention the secondary-aggregate path below
+               // uses, so clearAggregateAliases() always has something to clear: a later call
+               // that chains on this output name now fails loud (PairingException) instead of
+               // silently resolving to the raw column, matching the already-fixed explicit-alias
+               // case (see reAggregatingSameTableClearsStalePriorAlias). Skipped when the column
+               // already carries an alias (e.g. from rename_column) so a deliberate rename is
+               // never overwritten here.
+               String autoAlias = colRef.getAttribute() + "_1";
+               int suffix = 1;
+
+               while(containsColumnNamed(cs, autoAlias)) {
+                  autoAlias = colRef.getAttribute() + "_" + (++suffix);
+               }
+
+               colRef.setAlias(autoAlias);
+               appliedAliases.add(autoAlias);
+            }
 
             if(!ainfo.addAggregate(ar, false)) {
                // AggregateInfo.addAggregate returns false when the same column is already a
