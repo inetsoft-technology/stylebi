@@ -29,6 +29,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
@@ -310,7 +311,15 @@ public final class FieldRefFactory {
                              dimension.getDateLevel(), ngInfo == null ? null : ngInfo.getName());
       }
 
-      return new FieldRef(ref == null ? null : ref.getName(), null, null, null, null);
+      // A bare ColumnRefModel is a Table detail column, and its alias round-trips through this
+      // model field already (see TableBindingMutator.setColumnLabels' Table branch) -- no live
+      // assembly needed to report it, unlike Crosstab's FormatInfo-based label (see
+      // TableBindingService.read, which resolves that one against the live, rendered lens).
+      String label = ref instanceof ColumnRefModel column && column.getAlias() != null
+         && !column.getAlias().isBlank() ? column.getAlias() : null;
+
+      return new FieldRef(ref == null ? null : ref.getName(), null, null, null, null, null, null,
+                          null, null, label);
    }
 
    /**

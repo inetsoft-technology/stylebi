@@ -41,6 +41,7 @@ import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -927,30 +928,129 @@ class TableBindingMutatorTest {
    // ── column labels (2d Phase 2) ────────────────────────────────────────────
 
    /**
-    * The label never reached the header. {@code name2Labels} is read and written by
-    * {@code BaseTableBindingModel} and by nothing else in the product — a dead field — so the
-    * write landed nowhere, {@code columnLabels} read back empty, and the tool still reported
-    * "Relabelled 1 column(s)". Verified live on local-1200: the header stayed "Sum(PAID)".
-    *
-    * <p>The tests here asserted on {@code getName2Labels()}, so they passed while the feature did
-    * nothing — they checked that we wrote to the dead field, which is exactly what was wrong.
-    *
-    * <p>Renaming a header really means a {@code TableDataPath} cell override, which needs the
-    * rendered table lens to locate the header cell and differs between crosstab and table. That
-    * is a design job, not a patch. Until it exists the tool refuses, so an agent surfaces a
-    * missing capability instead of believing the header changed.
+    * VTB-011 (Redmine #76574): {@code set_column_labels} is now real rather than an
+    * unconditional 501 stub. Table needs no rendered lens at all — {@code ColumnRefModel.alias}
+    * already round-trips through the existing, unmodified {@code VSTableBindingFactory
+    * .updateTableAssembly} write path, so setting it here is a complete rename.
     */
    @Test
-   void refusesBecauseTheLabelWouldNeverReachTheHeader() {
+   void setsATableColumnsAliasDirectly() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details", List.of(dim("REGION")));
+
+      TableBindingMutator.ColumnLabelWrite write =
+         TableBindingMutator.setColumnLabels(model, Map.of("REGION", "Sales Region"));
+
+      ColumnRefModel column = (ColumnRefModel) model.getDetails().get(0);
+      assertEquals("Sales Region", column.getAlias());
+      assertEquals(1, write.tableRenames().size());
+      assertEquals("REGION", write.tableRenames().get(0).oldDisplayName());
+      assertEquals("Sales Region", write.tableRenames().get(0).newDisplayName());
+      assertTrue(write.crosstabTargets().isEmpty());
+   }
+
+   /** An empty string clears a Table column's alias rather than setting a blank one. */
+   @Test
+   void anEmptyLabelClearsATableColumnsAlias() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details", List.of(dim("REGION")));
+      TableBindingMutator.setColumnLabels(model, Map.of("REGION", "Sales Region"));
+
+      TableBindingMutator.ColumnLabelWrite write =
+         TableBindingMutator.setColumnLabels(model, Map.of("REGION", ""));
+
+      ColumnRefModel column = (ColumnRefModel) model.getDetails().get(0);
+      assertNull(column.getAlias());
+      assertEquals("REGION", write.tableRenames().get(0).newDisplayName(),
+         "the header reverts to the bare attribute name once the alias is cleared");
+   }
+
+   /**
+    * Native {@code ColumnRef.setAlias} treats an alias equal to the column's own attribute name
+    * as no alias at all ({@code ColumnRef.java:326-341}) -- matched explicitly in the mutator's
+    * own write (rather than left to the downstream {@code createDataRef()} call this model-level
+    * test cannot see), so renaming a column back to its own name is a harmless no-op, not an
+    * error or a literal self-referential alias.
+    */
+   @Test
+   void renamingAColumnToItsOwnNameIsTreatedAsNoAlias() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details", List.of(dim("REGION")));
+
+      TableBindingMutator.setColumnLabels(model, Map.of("REGION", "REGION"));
+
+      ColumnRefModel column = (ColumnRefModel) model.getDetails().get(0);
+      assertNull(column.getAlias());
+   }
+
+   /**
+    * Crosstab has no alias field to write directly -- a header rename there is a {@code
+    * TableDataPath} cell override that needs a rendered lens {@code TableBindingMutator} does not
+    * have, so this only resolves the label down to a shelf position and hands it back for {@code
+    * TableBindingService} (which does have the live assembly and lens) to turn into the actual
+    * write.
+    */
+   @Test
+   void resolvesACrosstabLabelToAShelfPositionWithoutWritingItItself() {
       CrosstabBindingModel model = new CrosstabBindingModel();
       TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
+
+      TableBindingMutator.ColumnLabelWrite write = TableBindingMutator.setColumnLabels(
+         model, Map.of("Region", "Sales Region", "Sum(Sales)", "Revenue"));
+
+      assertTrue(write.tableRenames().isEmpty());
+      assertEquals(2, write.crosstabTargets().size());
+
+      TableBindingMutator.CrosstabTarget rowTarget = write.crosstabTargets().stream()
+         .filter(t -> "rows".equals(t.shelf())).findFirst().orElseThrow();
+      assertEquals(0, rowTarget.index());
+      assertEquals("Sales Region", rowTarget.label());
+
+      TableBindingMutator.CrosstabTarget aggTarget = write.crosstabTargets().stream()
+         .filter(t -> "aggregates".equals(t.shelf())).findFirst().orElseThrow();
+      assertEquals(0, aggTarget.index());
+      assertEquals("Revenue", aggTarget.label());
+   }
+
+   /**
+    * A column bound twice (a Year/Quarter drill) cannot be labelled unambiguously by a bare
+    * {@code labels} key -- refused, directing the caller to {@code entries} instead of guessing
+    * which occurrence was meant.
+    */
+   @Test
+   void refusesAnAmbiguousLabelForADuplicateBoundColumn() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dim("Order Date"), dim("Order Date")));
 
       Exception thrown = assertThrows(
-         UnsupportedOperationException.class,
-         () -> TableBindingMutator.setColumnLabels(model, Map.of("Region", "Sales Region")));
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setColumnLabels(model, Map.of("Order Date", "Year")));
 
-      assertTrue(thrown.getMessage().toLowerCase().contains("not supported"),
-                 "the message must say the capability is missing, got: " + thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("ambiguous"));
+      assertTrue(thrown.getMessage().contains("entries"));
+   }
+
+   /** {@code entries}' explicit {@code index} disambiguates what a bare {@code labels} key cannot. */
+   @Test
+   void entriesDisambiguateADuplicateBoundColumnByIndex() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dim("Order Date"), dim("Order Date")));
+
+      TableBindingMutator.ColumnLabelWrite write = TableBindingMutator.setColumnLabels(
+         model, null,
+         List.of(new ColumnLabelEntry("rows", "Order Date", 0, "Year"),
+                 new ColumnLabelEntry("rows", "Order Date", 1, "Quarter")));
+
+      assertEquals(2, write.crosstabTargets().size());
+      TableBindingMutator.CrosstabTarget first = write.crosstabTargets().get(0);
+      TableBindingMutator.CrosstabTarget second = write.crosstabTargets().get(1);
+      assertEquals(0, first.index());
+      assertEquals("Year", first.label());
+      assertEquals(1, second.index());
+      assertEquals("Quarter", second.label());
    }
 
    /** The unbound-column check still runs first: a wrong name is a different mistake. */
@@ -972,6 +1072,13 @@ class TableBindingMutatorTest {
       assertThrows(IllegalArgumentException.class,
                    () -> TableBindingMutator.setColumnLabels(new CrosstabBindingModel(),
                                                              Map.of()));
+   }
+
+   @Test
+   void refusesWhenBothLabelsAndEntriesAreEmpty() {
+      assertThrows(IllegalArgumentException.class,
+                   () -> TableBindingMutator.setColumnLabels(new CrosstabBindingModel(),
+                                                             Map.of(), List.of()));
    }
 
    // ── options (2d Phase 3) ──────────────────────────────────────────────────

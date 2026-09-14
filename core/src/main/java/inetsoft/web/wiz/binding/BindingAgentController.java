@@ -22,6 +22,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.ChartTypeState;
 import inetsoft.web.wiz.binding.model.BindableTable;
+import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -585,7 +586,8 @@ public class BindingAgentController {
                                   List<String> manualOrder) {}
    public record TableRankingRequest(String assembly, String shelf, String column, Integer index,
                                      String mode, Integer n, String measure, Boolean others) {}
-   public record TableLabelRequest(String assembly, Map<String, String> labels) {}
+   public record TableLabelRequest(String assembly, Map<String, String> labels,
+                                   List<ColumnLabelEntry> entries) {}
    public record TableOptionRequest(String assembly, Map<String, Object> options) {}
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/options")
@@ -625,13 +627,18 @@ public class BindingAgentController {
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/labels")
-   public void setTableLabels(@PathVariable String sessionToken,
-                              @RequestBody TableLabelRequest request,
-                              Principal user)
+   public Map<String, Object> setTableLabels(@PathVariable String sessionToken,
+                                             @RequestBody TableLabelRequest request,
+                                             Principal user)
       throws Exception
    {
       requireEnabled();
-      tableService.setColumnLabels(sessionToken, user, request.assembly(), request.labels());
+      List<String> applied = tableService.setColumnLabels(
+         sessionToken, user, request.assembly(), request.labels(), request.entries());
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("applied", applied);
+
+      return out;
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/option")

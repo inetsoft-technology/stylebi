@@ -31,6 +31,7 @@ import inetsoft.web.binding.model.table.CrosstabOptionInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.*;
@@ -585,7 +586,8 @@ public final class TableBindingMutator {
       // A detail column is neither dimension nor measure on the wire, but the shared
       // vocabulary requires a type, so it reads back as the dimension it behaves like.
       if("details".equals(shelf) && field.type() == null) {
-         return new FieldRef(field.column(), FieldRefFactory.DIMENSION, null, null, null);
+         return new FieldRef(field.column(), FieldRefFactory.DIMENSION, null, null, null,
+                             null, null, null, null, field.label());
       }
 
       return field;
@@ -866,49 +868,208 @@ public final class TableBindingMutator {
 
    // ── column labels (2d Phase 2) ────────────────────────────────────────────
 
+   /** One resolved shelf position a {@code labels}/{@code entries} column key refers to. */
+   private record ShelfIndex(String shelf, int index) {}
+
    /**
-    * Header aliases. A label for a column that is not bound would sit in {@code name2Labels}
-    * doing nothing, so it is refused with the bound columns listed.
+    * What a Table-branch write leaves for the caller to rekey on the live assembly. {@code
+    * TableBindingMutator} only ever sees the wiz binding model, not the {@code FormatInfo}/
+    * column-width maps that live on the real {@code VSAssembly} — those are keyed by the
+    * column's <em>displayed</em> text (old alias-or-attribute -> new alias-or-attribute), the
+    * same pair {@code ComposerVSTableService.changeColumnTitle} rekeys with on every Table rename,
+    * so a pre-existing per-column format/highlight/width entry follows the rename instead of
+    * silently orphaning under the old name.
     */
-   public static void setColumnLabels(BaseTableBindingModel model, Map<String, String> labels) {
-      if(labels == null || labels.isEmpty()) {
+   public record Rename(String oldDisplayName, String newDisplayName) {}
+
+   /**
+    * A Crosstab-branch label, resolved down to a shelf position — {@code TableBindingMutator} has
+    * no rendered lens to turn this into a {@code TableDataPath}, so the actual {@code FormatInfo}
+    * write happens in {@code TableBindingService}, which resolves the live assembly and lens this
+    * needs.
+    */
+   public record CrosstabTarget(String shelf, int index, String label) {}
+
+   /** Everything {@link #setColumnLabels(BaseTableBindingModel, Map, List)} resolved and wrote. */
+   public record ColumnLabelWrite(List<Rename> tableRenames, List<CrosstabTarget> crosstabTargets) {}
+
+   /** The common, unambiguous case — no duplicate-bound-column disambiguation needed. */
+   public static ColumnLabelWrite setColumnLabels(BaseTableBindingModel model,
+                                                  Map<String, String> labels)
+   {
+      return setColumnLabels(model, labels, null);
+   }
+
+   /**
+    * Header aliases. A label for a column that is not bound would never be shown, so it is
+    * refused with the bound columns listed — the same refusal {@code name2Labels} should always
+    * have triggered, since a label written there landed nowhere the header reads.
+    *
+    * <p>Table writes {@code ColumnRefModel.alias} directly onto the model — already a wired,
+    * unmodified field {@code VSTableBindingFactory.updateTableAssembly} round-trips through
+    * {@code ColumnRefModel.createDataRef()} on every write, so nothing new to build there.
+    * Crosstab has no such field: a header rename is a {@code TableDataPath} cell override that
+    * needs a rendered table lens to locate, which this class does not have — so a Crosstab label
+    * is only resolved to a shelf position here, and the {@link CrosstabTarget} list is handed back
+    * for {@code TableBindingService} to turn into the actual {@code FormatInfo} write.
+    *
+    * @param entries optional disambiguated entries ({@code {shelf, column, index, label}}), for a
+    *                column bound more than once (e.g. a Year/Quarter drill) — a bare {@code
+    *                labels} key matching more than one occurrence is refused, directing the
+    *                caller here instead of guessing. Independent of {@code labels}: either or both
+    *                may carry something, but not neither.
+    */
+   public static ColumnLabelWrite setColumnLabels(BaseTableBindingModel model,
+                                                  Map<String, String> labels,
+                                                  List<ColumnLabelEntry> entries)
+   {
+      boolean hasLabels = labels != null && !labels.isEmpty();
+      boolean hasEntries = entries != null && !entries.isEmpty();
+
+      if(!hasLabels && !hasEntries) {
          throw new IllegalArgumentException(
-            "set_column_labels needs at least one label. To remove one, pass it with an empty " +
-            "string.");
+            "set_column_labels needs at least one label -- 'labels' or 'entries'. To remove one, " +
+            "pass it with an empty string.");
       }
 
-      Set<String> bound = new LinkedHashSet<>();
+      List<Rename> renames = new ArrayList<>();
+      List<CrosstabTarget> crosstabTargets = new ArrayList<>();
 
-      for(String shelf : shelvesOf(model)) {
-         for(FieldRef field : read(model, shelf)) {
-            if(field.column() != null) {
-               bound.add(field.column());
+      if(hasLabels) {
+         for(Map.Entry<String, String> label : labels.entrySet()) {
+            if(label.getValue() == null) {
+               throw new IllegalArgumentException(
+                  "'" + label.getKey() + "' needs a label -- pass an empty string to remove one.");
+            }
+
+            ShelfIndex target = resolveColumnLabelTarget(model, null, label.getKey(), null);
+            applyColumnLabel(model, target, label.getValue(), renames, crosstabTargets);
+         }
+      }
+
+      if(hasEntries) {
+         for(ColumnLabelEntry entry : entries) {
+            if(entry == null || entry.column() == null || entry.column().isBlank()) {
+               throw new IllegalArgumentException(
+                  "Each 'entries' item needs 'column' -- the bound column's name.");
+            }
+
+            if(entry.label() == null) {
+               throw new IllegalArgumentException(
+                  "'" + entry.column() + "' needs a label -- pass an empty string to remove one.");
+            }
+
+            ShelfIndex target =
+               resolveColumnLabelTarget(model, entry.shelf(), entry.column(), entry.index());
+            applyColumnLabel(model, target, entry.label(), renames, crosstabTargets);
+         }
+      }
+
+      return new ColumnLabelWrite(renames, crosstabTargets);
+   }
+
+   /**
+    * Resolves a column key to exactly one shelf position, the same duplicate-bind
+    * disambiguation {@link #requireDimension} already provides for sort/ranking, generalized to
+    * every shelf a label can land on (including {@code aggregates}, which {@code
+    * requireDimension} itself explicitly refuses). An aggregate accepts either its bare column
+    * name or its full {@code "formula(column)"} display (e.g. {@code "Sum(Sales)"}) -- the same
+    * two of {@link #requireKnownMeasure}'s three accepted shapes that name exactly one bound
+    * aggregate rather than a formula-invariant class of them.
+    */
+   private static ShelfIndex resolveColumnLabelTarget(BaseTableBindingModel model, String shelf,
+                                                      String column, Integer index)
+   {
+      List<String> shelves = shelf == null || shelf.isBlank()
+         ? shelvesOf(model) : List.of(requireShelf(model, shelf));
+
+      List<ShelfIndex> matches = new ArrayList<>();
+      List<String> present = new ArrayList<>();
+
+      for(String s : shelves) {
+         List<FieldRef> fields = read(model, s);
+
+         for(int i = 0; i < fields.size(); i++) {
+            FieldRef field = fields.get(i);
+
+            if(field.column() == null) {
+               continue;
+            }
+
+            String full = "aggregates".equals(s) && field.aggregate() != null
+               ? field.aggregate() + "(" + field.column() + ")" : null;
+            present.add(full == null ? field.column() : full);
+
+            if(field.column().equalsIgnoreCase(column) ||
+               (full != null && full.equalsIgnoreCase(column)))
+            {
+               matches.add(new ShelfIndex(s, i));
             }
          }
       }
 
-      for(Map.Entry<String, String> label : labels.entrySet()) {
-         if(bound.stream().noneMatch(column -> column.equalsIgnoreCase(label.getKey()))) {
-            throw new IllegalArgumentException(
-               "'" + label.getKey() + "' is not bound on this assembly, so a label for it would " +
-               "never be shown. Bound columns: " +
-               (bound.isEmpty() ? "(none)" : String.join(", ", bound)) + ".");
+      if(index != null) {
+         for(ShelfIndex match : matches) {
+            if(match.index() == index) {
+               return match;
+            }
          }
+
+         throw new IllegalArgumentException(
+            "index " + index + " is not a position of '" + column + "'" +
+            (shelf == null ? "" : " on the " + shelves.get(0) + " shelf") + ". It is bound at: " +
+            describeShelfIndexes(matches) + ".");
       }
 
-      // name2Labels is read and written by BaseTableBindingModel and by nothing else in the
-      // product. Writing here landed nowhere: the header kept its original text, columnLabels
-      // read back empty, and the tool still reported success -- the worst of the three possible
-      // outcomes, because the caller has no way to tell.
-      //
-      // A header rename is really a TableDataPath cell override, which needs the rendered table
-      // lens to find the header cell and differs between a crosstab and a table. Until that is
-      // built, refusing is the honest answer: an agent can then surface a missing capability
-      // rather than report a rename that did not happen.
-      throw new UnsupportedOperationException(
-         "Renaming column headers is not supported yet. The label would be stored somewhere " +
-         "nothing reads, so the header would keep its current text while this call reported " +
-         "success. Ask for it as a gap rather than working around it.");
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + column + "' is bound " + matches.size() + " times, so this call is " +
+            "ambiguous. Pass 'entries' with 'shelf' and 'index' to say which: " +
+            describeShelfIndexes(matches) + ".");
+      }
+
+      if(matches.size() == 1) {
+         return matches.get(0);
+      }
+
+      throw new IllegalArgumentException(
+         "'" + column + "' is not bound on this assembly, so a label for it would never be " +
+         "shown. Bound columns: " +
+         (present.isEmpty() ? "(none)" : String.join(", ", present)) + ".");
+   }
+
+   private static String describeShelfIndexes(List<ShelfIndex> matches) {
+      List<String> parts = new ArrayList<>();
+
+      for(ShelfIndex match : matches) {
+         parts.add(match.shelf() + "[" + match.index() + "]");
+      }
+
+      return String.join(", ", parts);
+   }
+
+   private static void applyColumnLabel(BaseTableBindingModel model, ShelfIndex target,
+                                        String label, List<Rename> renames,
+                                        List<CrosstabTarget> crosstabTargets)
+   {
+      if(model instanceof TableBindingModel table) {
+         ColumnRefModel column = (ColumnRefModel) table.getDetails().get(target.index());
+         String oldDisplay = column.getAlias() != null ? column.getAlias() : column.getAttribute();
+         String newAlias = label.isEmpty() ? null : label;
+
+         // Native ColumnRef.setAlias treats an alias equal to the column's own attribute name as
+         // no alias at all (ColumnRef.java:326-341) -- matched here explicitly rather than left to
+         // that downstream call, since this model-level write is what a unit test can see.
+         if(newAlias != null && newAlias.equals(column.getAttribute())) {
+            newAlias = null;
+         }
+
+         column.setAlias(newAlias);
+         renames.add(new Rename(oldDisplay, newAlias == null ? column.getAttribute() : newAlias));
+      }
+      else {
+         crosstabTargets.add(new CrosstabTarget(target.shelf(), target.index(), label));
+      }
    }
 
    // ── options (2d Phase 3) ──────────────────────────────────────────────────

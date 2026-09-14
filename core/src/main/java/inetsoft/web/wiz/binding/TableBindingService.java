@@ -17,10 +17,18 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.controller.VSBindingModelService;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
+import inetsoft.web.binding.handler.ClearTableHeaderAliasHandler;
+import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
 import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
@@ -29,6 +37,7 @@ import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -394,11 +403,186 @@ public class TableBindingService {
             model -> TableBindingMutator.setRanking(model, shelf, column, index, ranking));
    }
 
-   public void setColumnLabels(String sessionToken, Principal user, String assemblyName,
-                               Map<String, String> labels) throws Exception
+   /**
+    * Unlike every other mutator above, this does not go through {@link #apply}/{@link
+    * #applyWithContext}: a Crosstab label needs a rendered {@code VSTableLens} to resolve a
+    * column to its header cell, which neither of those helpers exposes (see {@code
+    * TableBindingMutator.setColumnLabels}'s own javadoc for why the mutator itself stops short of
+    * that). Table needs no lens — {@code ColumnRefModel.alias} already round-trips through the
+    * existing write below — but does need the live {@code TableVSAssembly} to rekey a
+    * pre-existing per-column {@code FormatInfo}/column-width entry from the old display name to
+    * the new one, which {@code TableBindingMutator} (model-only) cannot reach either.
+    *
+    * @return one line per label actually written, e.g. {@code "Region -> Sales Region"} — used to
+    *         build an accurate summary instead of trusting the request's own label count, since a
+    *         request can name more columns than a single assembly type actually has shelves for.
+    */
+   public List<String> setColumnLabels(String sessionToken, Principal user, String assemblyName,
+                                       Map<String, String> labels,
+                                       List<ColumnLabelEntry> entries) throws Exception
    {
-      apply(sessionToken, user, assemblyName,
-            model -> TableBindingMutator.setColumnLabels(model, labels));
+      List<String> applied = new ArrayList<>();
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+         TableBindingMutator.ColumnLabelWrite write =
+            TableBindingMutator.setColumnLabels(model, labels, entries);
+
+         if(!write.tableRenames().isEmpty() && assembly instanceof TableVSAssembly table) {
+            rekeyTableFormatAndWidth(table, write.tableRenames());
+
+            for(TableBindingMutator.Rename rename : write.tableRenames()) {
+               applied.add(rename.oldDisplayName() + " -> " + rename.newDisplayName());
+            }
+         }
+
+         if(!write.crosstabTargets().isEmpty() && assembly instanceof CrosstabVSAssembly crosstab) {
+            applyCrosstabLabels(rvs, crosstab, write.crosstabTargets());
+
+            for(TableBindingMutator.CrosstabTarget target : write.crosstabTargets()) {
+               applied.add(target.shelf() + "[" + target.index() + "] -> " + target.label());
+            }
+         }
+
+         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
+         event.setName(assemblyName);
+         event.setBinding(model);
+         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+      });
+
+      return applied;
+   }
+
+   /**
+    * Ports {@code ComposerVSTableService.changeColumnTitle}'s Table-branch rekey (lines 151-167
+    * at the time this was written) so a pre-existing per-column format/highlight/width entry
+    * follows a wiz rename instead of silently detaching under the old display name.
+    */
+   private static void rekeyTableFormatAndWidth(TableVSAssembly table,
+                                                List<TableBindingMutator.Rename> renames)
+   {
+      FormatInfo finfo = table.getFormatInfo();
+      FormatInfo nfinfo = new FormatInfo();
+
+      for(TableDataPath path : finfo.getPaths()) {
+         String[] pathArr = path.getPath();
+         String newName = pathArr == null || pathArr.length != 1 ? null : renamedTo(renames, pathArr[0]);
+
+         if(newName != null) {
+            TableDataPath renamed = (TableDataPath) path.clone(new String[]{ newName });
+            nfinfo.setFormat(renamed, finfo.getFormat(path));
+         }
+         else {
+            nfinfo.setFormat(path, finfo.getFormat(path));
+         }
+      }
+
+      table.setFormatInfo(nfinfo);
+
+      for(TableBindingMutator.Rename rename : renames) {
+         table.getTableDataVSAssemblyInfo()
+            .updateColumnWidthNames(rename.oldDisplayName(), rename.newDisplayName());
+      }
+   }
+
+   private static String renamedTo(List<TableBindingMutator.Rename> renames, String oldName) {
+      for(TableBindingMutator.Rename rename : renames) {
+         if(Objects.equals(rename.oldDisplayName(), oldName)) {
+            return rename.newDisplayName();
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * The Crosstab write {@code TableBindingMutator} could not do itself: resolves each target's
+    * live {@code DataRef} off the real assembly (not the wiz model — see {@code
+    * TableBindingMutator.CrosstabTarget}'s javadoc), renders the same {@code VSTableLens}
+    * {@code ComposerVSTableService.changeColumnTitle} renders for the native Composer's own
+    * header-rename gesture, and writes the {@code MESSAGE_FORMAT}/{@code TableDataPath} override
+    * that mechanism relies on to render a fixed header string.
+    */
+   private void applyCrosstabLabels(RuntimeViewsheet rvs, CrosstabVSAssembly crosstab,
+                                    List<TableBindingMutator.CrosstabTarget> targets)
+      throws Exception
+   {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         throw new IllegalStateException(
+            "'" + crosstab.getAbsoluteName() + "' has no active render sandbox right now, so " +
+            "its header cannot be resolved to a cell.");
+      }
+
+      String oname = crosstab.getAbsoluteName();
+      boolean detail = oname.startsWith(Assembly.DETAIL);
+
+      if(detail) {
+         oname = oname.substring(Assembly.DETAIL.length());
+      }
+
+      VSTableLens lens = box.get().getVSTableLens(oname, detail);
+      VSCrosstabInfo crossInfo = crosstab.getVSCrosstabInfo();
+      FormatInfo formatInfo = crosstab.getFormatInfo();
+
+      for(TableBindingMutator.CrosstabTarget target : targets) {
+         DataRef ref = liveCrosstabRef(crossInfo, target.shelf(), target.index());
+
+         if(ref == null) {
+            throw new IllegalArgumentException(
+               "'" + target.shelf() + "[" + target.index() + "]' no longer resolves on the " +
+               "live assembly -- the binding may have changed since this call was validated.");
+         }
+
+         if(target.label().isEmpty()) {
+            ClearTableHeaderAliasHandler.clearAlias(ref, formatInfo, target.index());
+            continue;
+         }
+
+         TableDataPath path = SetTableHeaderAliasHandler.findHeaderPath(lens, ref, target.index());
+
+         if(path == null) {
+            throw new IllegalArgumentException(
+               "Could not find '" + target.shelf() + "[" + target.index() + "]' on the " +
+               "rendered header of '" + crosstab.getAbsoluteName() + "' -- it may not currently " +
+               "render (suppressed, filtered out, or hidden by the crosstab's current shape).");
+         }
+
+         SetTableHeaderAliasHandler.setAliasWithHeaderDuality(path, formatInfo, target.label());
+      }
+
+      crosstab.setFormatInfo(formatInfo);
+   }
+
+   /**
+    * The live {@code DataRef} at a shelf position -- {@code rows}/{@code cols} map straight onto
+    * {@code VSCrosstabInfo}'s own arrays (a 1:1 build, confirmed against {@code
+    * VSCrosstabBindingFactory.createModel}), but {@code aggregates} does not: that factory skips
+    * {@code VSUtil.isFake} entries when building the wiz-facing model, so the live array can have
+    * more entries than the model's {@code aggregates} shelf. Filtering the same way here restores
+    * the position correspondence the model's {@code index} was resolved against.
+    */
+   private static DataRef liveCrosstabRef(VSCrosstabInfo crossInfo, String shelf, int index) {
+      switch(shelf) {
+         case "rows":
+            DataRef[] rows = crossInfo.getRowHeaders();
+            return index >= 0 && index < rows.length ? rows[index] : null;
+         case "cols":
+            DataRef[] cols = crossInfo.getColHeaders();
+            return index >= 0 && index < cols.length ? cols[index] : null;
+         default:
+            List<DataRef> aggregates = new ArrayList<>();
+
+            for(DataRef agg : crossInfo.getAggregates()) {
+               if(!VSUtil.isFake(agg)) {
+                  aggregates.add(agg);
+               }
+            }
+
+            return index >= 0 && index < aggregates.size() ? aggregates.get(index) : null;
+      }
    }
 
    public void setOptions(String sessionToken, Principal user, String assemblyName,
@@ -425,10 +609,18 @@ public class TableBindingService {
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
-      Map<String, Object> shelves = new LinkedHashMap<>();
+      Map<String, List<FieldRef>> shelfFields = new LinkedHashMap<>();
 
       for(String shelf : TableBindingMutator.shelvesOf(model)) {
-         shelves.put(shelf, TableBindingMutator.read(model, shelf));
+         shelfFields.put(shelf, new ArrayList<>(TableBindingMutator.read(model, shelf)));
+      }
+
+      if(model instanceof CrosstabBindingModel) {
+         VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(liveAssembly instanceof CrosstabVSAssembly crosstab) {
+            enrichCrosstabLabels(rvs, crosstab, shelfFields);
+         }
       }
 
       Map<String, Object> out = new LinkedHashMap<>();
@@ -446,8 +638,8 @@ public class TableBindingService {
                  "reports the names it accepts.");
       }
 
-      out.put("shelves", shelves);
-      out.put("columnLabels", model.getName2Labels());
+      out.put("shelves", new LinkedHashMap<>(shelfFields));
+      putColumnLabels(out, shelfFields);
       Map<String, Object> sorts = new LinkedHashMap<>();
 
       for(String shelf : TableBindingMutator.shelvesOf(model)) {
@@ -469,6 +661,134 @@ public class TableBindingService {
       }
 
       return out;
+   }
+
+   /**
+    * The backward-compatible {@code columnLabels: {column: label}} map {@code name2Labels} used
+    * to source (always empty — see the class javadoc history) — now real, but only for a column
+    * bound exactly once: a column bound more than once (a Year/Quarter drill) can carry a
+    * different label per occurrence, which a flat map keyed by bare column name cannot represent.
+    * Those are left out of {@code columnLabels} with a {@code columnLabelsNote} pointing at each
+    * shelf entry's own {@code label} instead, rather than silently reporting just one of the two
+    * (which one would depend on shelf iteration order, not on anything the caller chose).
+    */
+   private static void putColumnLabels(Map<String, Object> out,
+                                       Map<String, List<FieldRef>> shelfFields)
+   {
+      Map<String, Integer> occurrences = new LinkedHashMap<>();
+
+      for(List<FieldRef> fields : shelfFields.values()) {
+         for(FieldRef field : fields) {
+            if(field.column() != null) {
+               occurrences.merge(field.column(), 1, Integer::sum);
+            }
+         }
+      }
+
+      Map<String, String> columnLabels = new LinkedHashMap<>();
+      List<String> ambiguous = new ArrayList<>();
+
+      for(List<FieldRef> fields : shelfFields.values()) {
+         for(FieldRef field : fields) {
+            if(field.column() == null || field.label() == null) {
+               continue;
+            }
+
+            if(occurrences.getOrDefault(field.column(), 0) > 1) {
+               if(!ambiguous.contains(field.column())) {
+                  ambiguous.add(field.column());
+               }
+
+               continue;
+            }
+
+            columnLabels.put(field.column(), field.label());
+         }
+      }
+
+      out.put("columnLabels", columnLabels);
+
+      if(!ambiguous.isEmpty()) {
+         out.put("columnLabelsNote",
+                 "'" + String.join("', '", ambiguous) + "' " +
+                 (ambiguous.size() == 1 ? "is" : "are") + " bound more than once; see its label " +
+                 "on each shelf entry instead of columnLabels.");
+      }
+   }
+
+   /**
+    * Best-effort: a Crosstab label is a {@code MESSAGE_FORMAT} {@code FormatInfo} entry at the
+    * bound column's header {@code TableDataPath}, which only a rendered {@code VSTableLens} can
+    * resolve (see {@code TableBindingMutator.CrosstabTarget}'s javadoc — the same reason the
+    * write side needs one). Swallows any render failure and leaves every {@code label} at its
+    * default {@code null} rather than failing a read that would otherwise succeed — matching this
+    * codebase's established fail-open stance for anything that needs a live render just to
+    * disclose more, not to validate.
+    */
+   private static void enrichCrosstabLabels(RuntimeViewsheet rvs, CrosstabVSAssembly crosstab,
+                                            Map<String, List<FieldRef>> shelfFields)
+   {
+      try {
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isEmpty()) {
+            return;
+         }
+
+         String oname = crosstab.getAbsoluteName();
+         boolean detail = oname.startsWith(Assembly.DETAIL);
+
+         if(detail) {
+            oname = oname.substring(Assembly.DETAIL.length());
+         }
+
+         VSTableLens lens = box.get().getVSTableLens(oname, detail);
+         VSCrosstabInfo crossInfo = crosstab.getVSCrosstabInfo();
+         FormatInfo formatInfo = crosstab.getFormatInfo();
+
+         for(String shelf : List.of("rows", "cols", "aggregates")) {
+            List<FieldRef> fields = shelfFields.get(shelf);
+
+            if(fields == null) {
+               continue;
+            }
+
+            for(int i = 0; i < fields.size(); i++) {
+               DataRef ref = liveCrosstabRef(crossInfo, shelf, i);
+
+               if(ref == null) {
+                  continue;
+               }
+
+               TableDataPath path = SetTableHeaderAliasHandler.findHeaderPath(lens, ref, i);
+               String label = path == null ? null : readAlias(formatInfo, path);
+
+               if(label != null) {
+                  fields.set(i, withLabel(fields.get(i), label));
+               }
+            }
+         }
+      }
+      catch(Exception ignore) {
+         // Best-effort, see javadoc above.
+      }
+   }
+
+   private static String readAlias(FormatInfo formatInfo, TableDataPath path) {
+      VSCompositeFormat format = formatInfo.getFormat(path);
+      VSFormat ufmt = format == null ? null : format.getUserDefinedFormat();
+
+      if(ufmt == null || !VSFormat.MESSAGE_FORMAT.equals(ufmt.getFormatValue())) {
+         return null;
+      }
+
+      return ufmt.getFormatExtentValue();
+   }
+
+   private static FieldRef withLabel(FieldRef field, String label) {
+      return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
+                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
+                          field.namedGroupValues(), field.calculateInfo(), label);
    }
 
    private static Map<String, Object> describeOptions(BaseTableBindingModel model) {

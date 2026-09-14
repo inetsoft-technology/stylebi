@@ -216,6 +216,122 @@ class TableBindingServiceTest {
       assertTrue(thrown.getMessage().contains("cell layout"));
    }
 
+   // ── set_column_labels (VTB-011) ────────────────────────────────────────────
+
+   /**
+    * Table needs no rendered lens: the alias goes straight onto the model's own
+    * {@code ColumnRefModel}, and this also rekeys a pre-existing per-column {@code FormatInfo}
+    * entry from the old display name to the new one (ported from
+    * {@code ComposerVSTableService.changeColumnTitle}'s own Table-branch rekey).
+    */
+   @Test
+   void setColumnLabelsRenamesATableColumnAndRekeysItsFormat() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableBindingMutator.setShelf(existing, "details", List.of(dim("REGION")));
+
+      inetsoft.uql.viewsheet.FormatInfo formatInfo = new inetsoft.uql.viewsheet.FormatInfo();
+      inetsoft.report.TableDataPath oldPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "REGION" });
+      inetsoft.uql.viewsheet.VSCompositeFormat oldFormat =
+         new inetsoft.uql.viewsheet.VSCompositeFormat();
+      oldFormat.getUserDefinedFormat().setBackgroundValue("16711680");
+      formatInfo.setFormat(oldPath, oldFormat);
+
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getFormatInfo()).thenReturn(formatInfo);
+      when(assembly.getTableDataVSAssemblyInfo())
+         .thenReturn(mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class));
+      ArgumentCaptor<inetsoft.uql.viewsheet.FormatInfo> rekeyed =
+         ArgumentCaptor.forClass(inetsoft.uql.viewsheet.FormatInfo.class);
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessionsFor(assembly), existing, bindings)
+         .setColumnLabels("tok", principal(), "Table1",
+                          Map.of("REGION", "Sales Region"), null);
+
+      verify(assembly).setFormatInfo(rekeyed.capture());
+      inetsoft.report.TableDataPath newPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Sales Region" });
+      assertEquals("16711680",
+         rekeyed.getValue().getFormat(newPath).getUserDefinedFormat().getBackgroundValue(),
+         "the pre-existing format must follow the rename to the new display name");
+      assertNull(rekeyed.getValue().getFormat(oldPath),
+         "the old display name's entry must not remain once rekeyed");
+
+      TableBindingModel posted = (TableBindingModel) capture(bindings).getBinding();
+      assertEquals("Sales Region",
+         ((inetsoft.web.binding.drm.ColumnRefModel) posted.getDetails().get(0)).getAlias());
+      assertEquals(List.of("REGION -> Sales Region"), applied);
+   }
+
+   /**
+    * Structural only, per VTB-011's design doc S5: this proves the write landed in the right
+    * field ({@code FormatInfo} at the resolved header {@code TableDataPath}) with a mocked lens —
+    * it does not prove a real render shows it, which is what the manual {@code
+    * get_viewsheet_image} check is for.
+    */
+   @Test
+   void setColumnLabelsWritesAMessageFormatEntryForACrosstabColumn() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region")));
+
+      inetsoft.uql.viewsheet.VSDimensionRef liveRegion = new inetsoft.uql.viewsheet.VSDimensionRef();
+      liveRegion.setGroupColumnValue("Region");
+      inetsoft.uql.viewsheet.VSCrosstabInfo crossInfo = new inetsoft.uql.viewsheet.VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveRegion });
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getAbsoluteName()).thenReturn("Crosstab1");
+      inetsoft.uql.viewsheet.FormatInfo formatInfo = new inetsoft.uql.viewsheet.FormatInfo();
+      when(assembly.getFormatInfo()).thenReturn(formatInfo);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      inetsoft.report.TableDataPath headerPath = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" });
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath);
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessions, existing, bindings)
+         .setColumnLabels("tok", principal(), "Crosstab1",
+                          Map.of("Region", "Sales Region"), null);
+
+      inetsoft.uql.viewsheet.VSCompositeFormat written = formatInfo.getFormat(headerPath);
+      assertNotNull(written, "a format must land at the resolved header TableDataPath");
+      assertEquals(inetsoft.uql.viewsheet.VSFormat.MESSAGE_FORMAT,
+         written.getUserDefinedFormat().getFormatValue());
+      assertEquals("Sales Region", written.getUserDefinedFormat().getFormatExtentValue());
+      assertEquals(List.of("rows[0] -> Sales Region"), applied);
+
+      // The Crosstab branch has no ColumnRefModel.alias to write -- the model posted back must
+      // be otherwise untouched by this call.
+      CrosstabBindingModel posted = (CrosstabBindingModel) capture(bindings).getBinding();
+      assertEquals(1, posted.getRows().size());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    // ── set_table_source ──────────────────────────────────────────────────────

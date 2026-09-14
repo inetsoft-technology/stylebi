@@ -41,6 +41,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
+import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
@@ -194,22 +195,11 @@ public class ComposerVSTableService {
             String messageTxt = event.getText();
             FormatInfo formatInfo = assembly.getFormatInfo();
 
-            setAlias(dataPath, formatInfo, messageTxt);
-
             // in crosstab, summary header data path changes depending on whether there is
             // any group columns in binding. to end user they feel like the same cell.
             // since the header and group header data path won't exist on the same crosstab
             // at same time, we treat the two as the same for the purpose of renaming column
-            if(dataPath.getType() == TableDataPath.GROUP_HEADER) {
-               TableDataPath path2 = (TableDataPath) dataPath.clone();
-               path2.setType(TableDataPath.HEADER);
-               setAlias(path2, formatInfo, messageTxt);
-            }
-            else if(dataPath.getType() == TableDataPath.HEADER) {
-               TableDataPath path2 = (TableDataPath) dataPath.clone();
-               path2.setType(TableDataPath.GROUP_HEADER);
-               setAlias(path2, formatInfo, messageTxt);
-            }
+            SetTableHeaderAliasHandler.setAliasWithHeaderDuality(dataPath, formatInfo, messageTxt);
 
             info.setFormatInfo(formatInfo);
          }
@@ -1160,31 +1150,6 @@ public class ComposerVSTableService {
          }
       }
    }
-
-   // set alias for data path
-   private void setAlias(TableDataPath dataPath, FormatInfo formatInfo, String messageTxt) {
-      VSCompositeFormat format = formatInfo.getFormat(dataPath);
-
-      if(format == null) {
-         format = new VSCompositeFormat();
-      }
-      else {
-         format = format.clone();
-      }
-
-      VSFormat ufmt = format.getUserDefinedFormat();
-
-      if(ufmt == null) {
-         ufmt = new VSFormat();
-         format.setUserDefinedFormat(ufmt);
-      }
-
-      ufmt.setFormatValue(VSFormat.MESSAGE_FORMAT);
-      ufmt.setFormatExtentValue(messageTxt);
-
-      formatInfo.setFormat(dataPath, format);
-   }
-
 
    private final CoreLifecycleService coreLifecycleService;
    private final VSObjectTreeService vsObjectTreeService;
