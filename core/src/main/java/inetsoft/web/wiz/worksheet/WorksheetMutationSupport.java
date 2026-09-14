@@ -1761,6 +1761,78 @@ public final class WorksheetMutationSupport {
          return;
       }
 
+      ConditionList cl = buildConditionList(t, nodes, post);
+
+      if(post) {
+         t.setPostConditionList(cl);
+      }
+      else {
+         t.setPreConditionList(cl);
+      }
+   }
+
+   /**
+    * Sets a worksheet table's MV incremental-refresh condition fields — the agent-bridge
+    * counterpart to what the Composer's MV Condition pane
+    * ({@code inetsoft.web.composer.model.ws.MVConditionPaneModel}) writes for a human user,
+    * built directly against {@link TableAssembly} the same way {@link #setConditions} is, rather
+    * than through that dialog's own service.
+    *
+    * <p>Each condition-list parameter is independent: {@code null} leaves that
+    * {@code TableAssembly} field untouched (the field is not read, let alone modified); a
+    * non-null list (even empty) replaces it, same as a single {@link #setConditions} call would
+    * for the ordinary pre/post condition lists.</p>
+    *
+    * @param t                  the table assembly
+    * @param updatePre          pre-aggregate MV update (append) conditions; {@code null} = leave
+    *                           {@link TableAssembly#getMVUpdatePreConditionList()} untouched
+    * @param updatePost         post-aggregate MV update (append) conditions; {@code null} = leave
+    *                           {@link TableAssembly#getMVUpdatePostConditionList()} untouched
+    * @param deletePre          pre-aggregate MV delete conditions; {@code null} = leave
+    *                           {@link TableAssembly#getMVDeletePreConditionList()} untouched
+    * @param deletePost         post-aggregate MV delete conditions; {@code null} = leave
+    *                           {@link TableAssembly#getMVDeletePostConditionList()} untouched
+    * @param forceAppendUpdates {@code null} leaves
+    *                           {@link TableAssembly#isMVForceAppendUpdates()} unchanged;
+    *                           non-null sets it
+    */
+   public static void setMVConditions(TableAssembly t,
+                                      List<ConditionNode> updatePre,
+                                      List<ConditionNode> updatePost,
+                                      List<ConditionNode> deletePre,
+                                      List<ConditionNode> deletePost,
+                                      Boolean forceAppendUpdates)
+   {
+      if(updatePre != null) {
+         t.setMVUpdatePreConditionList(buildConditionList(t, updatePre, false));
+      }
+
+      if(updatePost != null) {
+         t.setMVUpdatePostConditionList(buildConditionList(t, updatePost, true));
+      }
+
+      if(deletePre != null) {
+         t.setMVDeletePreConditionList(buildConditionList(t, deletePre, false));
+      }
+
+      if(deletePost != null) {
+         t.setMVDeletePostConditionList(buildConditionList(t, deletePost, true));
+      }
+
+      if(forceAppendUpdates != null) {
+         t.setMVForceAppendUpdates(forceAppendUpdates);
+      }
+   }
+
+   /**
+    * Builds a {@link ConditionList} from a flat list of alternating condition and junction
+    * nodes (see {@link #setConditions}'s own doc for the node-alternation contract), without
+    * applying it to the table. Returns {@code null} for an empty result, matching
+    * {@code setConditions}' own empty-list convention.
+    */
+   private static ConditionList buildConditionList(TableAssembly t, List<ConditionNode> nodes,
+                                                    boolean post)
+   {
       ConditionList cl = new ConditionList();
 
       for(ConditionNode node : nodes) {
@@ -1828,12 +1900,7 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      if(post) {
-         t.setPostConditionList(cl.isEmpty() ? null : cl);
-      }
-      else {
-         t.setPreConditionList(cl.isEmpty() ? null : cl);
-      }
+      return cl.isEmpty() ? null : cl;
    }
 
    /**

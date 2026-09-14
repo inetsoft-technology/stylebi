@@ -1220,6 +1220,95 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #76626: no {@code mcp__composer-chat__*} tool (nor, until now, the agent-bridge
+    * itself) could read or write a worksheet table's MV incremental-refresh condition fields.
+    * Confirms {@code set_mv_conditions} reaches {@link WorksheetEditService.Editor#setMVConditions}
+    * through the controller's dispatch switch, and that all five MV fields land on the real
+    * {@link inetsoft.uql.asset.TableAssembly} getters/setters
+    * ({@code TableAssembly.java:181-232}) the human Composer's own MV Condition pane
+    * ({@code MVConditionPaneModel}/{@code AssemblyConditionDialogService}) already writes for a
+    * human user -- this op is the agent-bridge's own path to the same fields, built directly
+    * against {@code TableAssembly}, not through that dialog service.
+    */
+   @Test
+   void editDispatchesSetMVConditions() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-MV"), any())).thenReturn(session("TOK-MV"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      List<WorksheetMutationSupport.ConditionNode> updatePre = List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "=", List.of("1"), false, null), null, 0));
+      List<WorksheetMutationSupport.ConditionNode> updatePost = List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "=", List.of("2"), false, null), null, 0));
+      List<WorksheetMutationSupport.ConditionNode> deletePre = List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "=", List.of("3"), false, null), null, 0));
+      List<WorksheetMutationSupport.ConditionNode> deletePost = List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "=", List.of("4"), false, null), null, 0));
+
+      EditRequest req = new EditRequest(
+         "set_mv_conditions",   // op
+         "T",                   // table
+         null, null, null, null, null, null, null, null, // column..direction
+         null, null,             // groups, aggregates
+         null, false,            // expression, sql
+         null, null, null, null, null, // leftTable..joinType
+         null, null, null, null, // visible, tables, source, concatType
+         null, null,             // conditions, ranking
+         null, null, null,       // headerColumns, dateOption, boundaries
+         null, null, null, null, // datasource, schema, catalog, logicalModel
+         null, null,             // leftKeys, rightKeys
+         null, null, null, null, // row, col, value, index
+         null, null, null, null, // alias, description, maxRows, distinct
+         null, null, null,       // columnOrder, groupMappings, groupOthers
+         null, null, null,       // variableValues, x, y
+         null, null, null, null, null, // label, defaultValue, mode, insert, subtables
+         null, null, null, null, // sourceTable, attribute, endpoint, parameters
+         null, null, null, null, // lookup, lookupExpandArrays, lookupTopLevelOnly, suffix
+         null, null, null, null, null, // customLookups, crosstab, labels, choices, joinPaths
+         null, null, null, null, null, // mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct
+         null, null, null,       // rankings, queryParams, extraProperties
+         updatePre, updatePost, deletePre, deletePost, true // the five MV fields under test
+      );
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      ctrl.edit("TOK-MV", req, agent);
+
+      assertNotNull(t.getMVUpdatePreConditionList());
+      assertNotNull(t.getMVUpdatePostConditionList());
+      assertNotNull(t.getMVDeletePreConditionList());
+      assertNotNull(t.getMVDeletePostConditionList());
+      assertTrue(t.isMVForceAppendUpdates());
+      assertEquals(1, t.getMVUpdatePreConditionList().getConditionSize());
+      assertEquals(1, t.getMVUpdatePostConditionList().getConditionSize());
+      assertEquals(1, t.getMVDeletePreConditionList().getConditionSize());
+      assertEquals(1, t.getMVDeletePostConditionList().getConditionSize());
+   }
+
+   /**
     * The snapshot guard for {@code insert_column}, pinned here rather than in
     * {@code WorksheetEditServiceMutatorsTest} because this op is the one that does not live in
     * the {@code Editor}: it manipulates {@link inetsoft.uql.util.XEmbeddedTable} directly from

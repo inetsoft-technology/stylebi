@@ -67,6 +67,13 @@ import java.util.Map;
  *   <li>{@code set_rankings} — {@code table}, {@code rankings} (list; replaces the whole
  *       ranking list with these entries, in order — for more than one independent ranked
  *       field in a single call)</li>
+ *   <li>{@code set_mv_conditions} — {@code table}, plus any of {@code mvUpdatePreConditions},
+ *       {@code mvUpdatePostConditions}, {@code mvDeletePreConditions},
+ *       {@code mvDeletePostConditions} (condition trees, same shape as {@code conditions}) and
+ *       {@code mvForceAppendUpdates} (boolean) — the worksheet table's MV incremental-refresh
+ *       condition fields. Each condition-list field is independent: {@code null} leaves that
+ *       list untouched, matching {@code set_conditions}' own null handling; a non-null (even
+ *       empty) list replaces it. {@code mvForceAppendUpdates == null} leaves the flag as-is</li>
  *   <li>{@code add_rotate} — {@code name}, {@code source}</li>
  *   <li>{@code add_unpivot} — {@code name}, {@code source}, {@code headerColumns}</li>
  *   <li>{@code add_date_range_column} — {@code table}, {@code column}, {@code dateOption}</li>
@@ -441,8 +448,81 @@ public record EditRequest(
     * mutually exclusive with {@code queryParams}. Must not contain {@code endpoint} or
     * {@code suffix} as a key — that identity is already established by the dedicated field.
     */
-   Map<String, Object> extraProperties
+   Map<String, Object> extraProperties,
+   /**
+    * Pre-aggregate MV update (append) condition tree for set_mv_conditions — same shape as
+    * {@code conditions}. {@code null} leaves the table's existing
+    * {@link inetsoft.uql.asset.TableAssembly#getMVUpdatePreConditionList() MV update pre
+    * condition list} untouched; a non-null (even empty) list replaces it.
+    */
+   List<WorksheetMutationSupport.ConditionNode> mvUpdatePreConditions,
+   /**
+    * Post-aggregate MV update (append) condition tree for set_mv_conditions. {@code null}
+    * leaves the table's existing MV update post condition list untouched; a non-null (even
+    * empty) list replaces it.
+    */
+   List<WorksheetMutationSupport.ConditionNode> mvUpdatePostConditions,
+   /**
+    * Pre-aggregate MV delete condition tree for set_mv_conditions. {@code null} leaves the
+    * table's existing MV delete pre condition list untouched; a non-null (even empty) list
+    * replaces it.
+    */
+   List<WorksheetMutationSupport.ConditionNode> mvDeletePreConditions,
+   /**
+    * Post-aggregate MV delete condition tree for set_mv_conditions. {@code null} leaves the
+    * table's existing MV delete post condition list untouched; a non-null (even empty) list
+    * replaces it.
+    */
+   List<WorksheetMutationSupport.ConditionNode> mvDeletePostConditions,
+   /**
+    * Whether an MV update's results are always appended to existing data, for
+    * set_mv_conditions ({@link inetsoft.uql.asset.TableAssembly#setMVForceAppendUpdates}).
+    * {@code null} leaves it unchanged.
+    */
+   Boolean mvForceAppendUpdates
 ) {
+   /**
+    * Compatibility constructor for callers built before {@code mvUpdatePreConditions}/
+    * {@code mvUpdatePostConditions}/{@code mvDeletePreConditions}/
+    * {@code mvDeletePostConditions}/{@code mvForceAppendUpdates} were added — defaults all
+    * five to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct,
+      List<WorksheetMutationSupport.RankingSpec> rankings, Map<String, Object> queryParams,
+      Map<String, Object> extraProperties)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings,
+           queryParams, extraProperties, null, null, null, null, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code queryParams} was added, but after
     * {@code rankings} — defaults {@code queryParams} to {@code null}.

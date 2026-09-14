@@ -1000,6 +1000,34 @@ public class WorksheetEditService {
       }
 
       /**
+       * Sets a table's MV incremental-refresh condition fields (set_mv_conditions) --
+       * pre/post-aggregate MV update (append) and delete condition trees, plus the
+       * force-append-updates flag. Each condition-list parameter is independent: {@code null}
+       * leaves that field untouched (matching {@link WorksheetMutationSupport#setMVConditions}'s
+       * own null handling); {@code forceAppendUpdates == null} leaves the flag unchanged.
+       *
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          {@code table} is an embedded or snapshot-embedded table
+       */
+      public void setMVConditions(String table,
+                                  List<WorksheetMutationSupport.ConditionNode> updatePre,
+                                  List<WorksheetMutationSupport.ConditionNode> updatePost,
+                                  List<WorksheetMutationSupport.ConditionNode> deletePre,
+                                  List<WorksheetMutationSupport.ConditionNode> deletePost,
+                                  Boolean forceAppendUpdates)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         requireFilterable(t);
+         requireConditionFields(t, updatePre, false);
+         requireConditionFields(t, updatePost, true);
+         requireConditionFields(t, deletePre, false);
+         requireConditionFields(t, deletePost, true);
+         WorksheetMutationSupport.setMVConditions(
+            t, updatePre, updatePost, deletePre, deletePost, forceAppendUpdates);
+      }
+
+      /**
        * Sets a ranking condition (TOP N / BOTTOM N) on a table.
        */
       public void setRanking(String table, WorksheetMutationSupport.RankingSpec spec)
