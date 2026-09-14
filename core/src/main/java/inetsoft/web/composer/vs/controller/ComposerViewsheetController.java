@@ -99,6 +99,11 @@ public class ComposerViewsheetController {
                                 CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
+      if(runtimeViewsheetRef.getRuntimeId() == null) {
+         LOG.warn("Attempted to save viewsheet without runtime ID");
+         return false;
+      }
+
       if(!securityEngine.checkPermission(principal, ResourceType.VIEWSHEET,
                                                        "*", ResourceAction.ACCESS))
       {
