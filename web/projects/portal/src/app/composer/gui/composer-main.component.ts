@@ -148,6 +148,7 @@ import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
 import { WizService } from "./wiz/services/wiz.service";
+import { CrossSheetFollowService } from "./wiz/services/cross-sheet-follow.service";
 import { WizComponentsPane } from "./wiz/wiz-components-pane/wiz-components-pane.component";
 import {
    NewVisualizationDialog,
@@ -396,7 +397,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private aiAssistantService: AiAssistantService,
       private aiAssistantDialogService: AiAssistantDialogService,
       private dashboardTabService: DashboardTabService,
-      private wizService: WizService)
+      private wizService: WizService,
+      private crossSheetFollowService: CrossSheetFollowService)
    {
       this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
@@ -595,6 +597,23 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
       if(updateFocusedSheet) {
          this.updateFocusedTab(sheet);
+      }
+
+      // Lane C / D9 (cross-sheet-follow, design doc section 7.2): a no-op unless a directly-
+      // established portal session has opted in (CrossSheetFollowService.isEnabled()) -- this
+      // fires on every call this chokepoint already receives (opening a sheet, switching tabs,
+      // a tab closing and falling back to another), same as the pre-existing base-worksheet
+      // check above, rather than only on ftype != type, since switching between two open sheets
+      // of the SAME type (e.g. two viewsheets) is exactly the case this feature exists to track
+      // and ftype/type would be equal for that switch.
+      if(sheet && sheet.runtimeId) {
+         // sheet.type is "worksheet" | "viewsheet" | "wiz" -- "wiz" (WizDashboard) is a real
+         // viewsheet-backed runtime and is already treated as viewsheet-equivalent everywhere
+         // else in this component (e.g. the isSheet/isModified checks above), so it maps to
+         // VIEWSHEET here too, not a third wire value the server's SheetType enum doesn't have.
+         this.crossSheetFollowService.reportCurrentFocus(
+            sheet.runtimeId, sheet.type === "worksheet" ? "WORKSHEET" : "VIEWSHEET",
+            sheet.socketConnection);
       }
 
       this.refreshAiAssistantContext();
