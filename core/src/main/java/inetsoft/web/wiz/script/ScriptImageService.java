@@ -23,6 +23,9 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.RelationChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.SelectionListVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TitledVSAssemblyInfo;
@@ -152,6 +155,35 @@ public class ScriptImageService {
                "render and no wait will produce one. Point it at a table first — " +
                "set_chart_source, or the 'table' argument of the shelf and aesthetic writes — " +
                "and render it after that.");
+         }
+
+         // A relation chart (tree/network/circular) also needs 'source' and 'target' — the two
+         // shelves that identify each node/edge — bound before it can produce a graph at all.
+         // RelationChartInfo.getSourceField()/getTargetField() are plain nullable fields with no
+         // validation of their own (RelationVSChartInfo simply skips them, when null, in its own
+         // getBindingRefs/getFields), so nothing upstream of this refuses the combination — it
+         // falls into exactly the same "retryAfter=1 forever" trap the source-bound check above
+         // exists to catch: AssemblyImageService's ChartVSAssembly branch cannot distinguish
+         // "still computing" from "structurally can never complete" (bug 76647 / VCA-003).
+         VSChartInfo chartInfo = chart.getVSChartInfo();
+
+         if(chartInfo instanceof RelationChartInfo relationInfo &&
+            GraphTypes.isRelation(chartInfo.getChartType()))
+         {
+            boolean missingSource = relationInfo.getSourceField() == null;
+            boolean missingTarget = relationInfo.getTargetField() == null;
+
+            if(missingSource || missingTarget) {
+               String missing = missingSource && missingTarget ? "'source' and 'target'" :
+                  missingSource ? "'source'" : "'target'";
+
+               throw new PairingException(
+                  "\"" + assemblyName + "\" is missing " + missing + " — a tree/network/circular " +
+                  "chart needs both bound to identify each node/edge, so there is no graph to " +
+                  "render and no wait will produce one. Bind " +
+                  (missingSource && missingTarget ? "them" : "it") +
+                  " with set_chart_single_shelf, then render it after that.");
+            }
          }
       }
 
