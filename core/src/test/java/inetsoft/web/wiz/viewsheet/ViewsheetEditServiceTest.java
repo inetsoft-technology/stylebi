@@ -37,6 +37,7 @@ import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.ImageVSAssembly;
+import inetsoft.uql.viewsheet.LockableVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.ShapeVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
@@ -532,6 +533,122 @@ class ViewsheetEditServiceTest {
 
       verify(objects).moveFromContainer(eq("rt1"), any(), any(Principal.class), any(),
                                         anyString());
+   }
+
+   // ------------------------------------------------------------------------------------------
+   // Regression tests for VAR-001 (Redmine #76629): move/resize/resize_title/move_from_container
+   // never checked LockableVSAssembly.islocked(), unlike align/distribute (see
+   // alignExcludesALockedAssemblyFromBothTheMovedSetAndTheReferenceEdge below) -- a locked
+   // Image/Shape could still be dragged or resized through the agent path even though the
+   // Composer UI itself never offers drag handles for a locked object.
+   // ------------------------------------------------------------------------------------------
+
+   @Test
+   void moveOnALockedAssemblyFailsLoudRatherThanMovingIt() {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = lockedRuntimeWith("Rect1");
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Rect1", "Rectangle", 10, 10, 80, 40, 0, null, true)), objects);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), edit("move", "Rect1", 50, 60), ""));
+      assertTrue(thrown.getMessage().contains("Rect1"));
+      assertTrue(thrown.getMessage().contains("locked"), thrown.getMessage());
+      verifyNoInteractions(objects);
+   }
+
+   @Test
+   void resizeOnALockedAssemblyFailsLoudRatherThanResizingIt() {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = lockedRuntimeWith("Rect1");
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Rect1", "Rectangle", 10, 10, 80, 40, 0, null, true)), objects);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), sized("resize", "Rect1", 200, 100), ""));
+      assertTrue(thrown.getMessage().contains("Rect1"));
+      verifyNoInteractions(objects);
+   }
+
+   @Test
+   void moveFromContainerOnALockedAssemblyFailsLoudRatherThanMovingIt() {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = lockedRuntimeWith("Rect1");
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Rect1", "Rectangle", 10, 10, 80, 40, 0, "Group1", true)), objects);
+      EditRequest request = new EditRequest("move_from_container", "Rect1", 20, 30, null, null,
+                                            null, null, null, null, null, null, null, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("Rect1"));
+      verifyNoInteractions(objects);
+   }
+
+   /**
+    * resize_title's own requireTitled() already refuses every Lockable type (Image/Shape are
+    * never TitledVSAssembly -- see requireTitled's Javadoc), so no real assembly can be both
+    * titled and locked. This test forces that combination onto a mock purely to exercise the
+    * requireUnlocked() call resize_title() shares with the other three ops, per the fix
+    * proposal's instruction that all four sites get the same guard -- it documents
+    * defense-in-depth, not a case reachable through any current VSAssembly subtype.
+    */
+   @Test
+   void resizeTitleOnALockedAssemblyFailsLoud() {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ChartVSAssembly locked = mock(ChartVSAssembly.class,
+                                    withSettings().extraInterfaces(LockableVSAssembly.class));
+      when(((LockableVSAssembly) locked).islocked()).thenReturn(true);
+      RuntimeViewsheet rvs = runtimeWith("Chart1", locked);
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Chart1", "Chart", 240, 100, 400, 240, 0, null, true)), objects);
+      EditRequest request = new EditRequest("resize_title", "Chart1", null, null, null, 40, null,
+                                            null, null, null, null, null, null, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("Chart1"));
+      verifyNoInteractions(objects);
+   }
+
+   /** Locking is not permanent -- an unlocked Shape still goes through the drag-family ops. */
+   @ParameterizedTest
+   @ValueSource(strings = { "move", "resize", "move_from_container" })
+   void unlockingAnAssemblyAllowsDragFamilyOpsAgain(String op) throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      ShapeVSAssembly unlocked = mock(ShapeVSAssembly.class);
+      when(unlocked.islocked()).thenReturn(false);
+      RuntimeViewsheet rvs = runtimeWith("Rect1", unlocked);
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Rect1", "Rectangle", 10, 10, 80, 40, 0, null, true)), objects);
+
+      EditRequest request = "move".equals(op) ? edit("move", "Rect1", 50, 60)
+         : "resize".equals(op) ? sized("resize", "Rect1", 200, 100)
+         : new EditRequest("move_from_container", "Rect1", 20, 30, null, null, null, null, null,
+                           null, null, null, null, null);
+
+      assertDoesNotThrow(() -> service.apply("tok", principal(), request, ""));
+   }
+
+   /** A type with no lock concept at all (Text) is unaffected by the new guard. */
+   @Test
+   void moveOnANonLockableAssemblyStillWorksRegardlessOfLockChecks() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = runtimeWith("Text1", mock(TextVSAssembly.class));
+      ViewsheetEditService service = serviceWithRuntime(rvs, readerReturning(
+         new AssemblyNode("Text1", "Text", 140, 440, 100, 20, 0, null, true)), objects);
+
+      service.apply("tok", principal(), edit("move", "Text1", 50, 60), "");
+
+      verify(objects).moveObject(eq("rt1"), any(), any(Principal.class), any(), anyString());
+   }
+
+   private static RuntimeViewsheet lockedRuntimeWith(String name) {
+      ShapeVSAssembly locked = mock(ShapeVSAssembly.class);
+      when(locked.islocked()).thenReturn(true);
+      return runtimeWith(name, locked);
    }
 
    @Test

@@ -138,6 +138,7 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          requireExisting(rvs, request.assembly());
+         requireUnlocked(rvs, request);
 
          MoveVSObjectEvent move = new MoveVSObjectEvent();
          move.setName(request.assembly());
@@ -165,6 +166,7 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
+         requireUnlocked(rvs, request);
          ensureTableDataReady(rvs, request.assembly());
 
          ResizeVSObjectEvent event = new ResizeVSObjectEvent();
@@ -234,6 +236,7 @@ public class ViewsheetEditService {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
          requireTitled(rvs, request.assembly(), request.op());
+         requireUnlocked(rvs, request);
 
          ResizeVSObjectTitleEvent event = new ResizeVSObjectTitleEvent();
          event.setName(request.assembly());
@@ -646,6 +649,7 @@ public class ViewsheetEditService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          AssemblyNode current = requireExisting(rvs, request.assembly());
+         requireUnlocked(rvs, request);
 
          // 'container' was accepted and never read -- the Composer service infers the parent from
          // the assembly, so naming the wrong container, or one the assembly is not in, returned
@@ -916,6 +920,29 @@ public class ViewsheetEditService {
             "'" + name + "' is a " + assembly.getClass().getSimpleName() + ", so 'set_lock' " +
             "does not apply to it. Locking only applies to images and shapes (lines, " +
             "rectangles, ovals).");
+      }
+   }
+
+   /**
+    * Refuses a drag-family op (move/resize/resize_title/move_from_container) on a locked
+    * assembly. {@code LockableVSAssembly}'s own Javadoc says locking means "the object ...
+    * can not be drag", but only {@link #arrange} (align/distribute) ever enforced that
+    * server-side, mirroring {@code composer-toolbar.component.ts}'s own filtering — the human
+    * Composer UI otherwise enforces the lock purely by withholding the draggable/resizable
+    * handles client-side ({@code editable-object-container.component.ts}'s {@code isLocked()}),
+    * so these four ops (unlike align/distribute) had no server-side check at all and silently
+    * moved/resized a locked assembly while its {@code locked} flag stayed {@code true}.
+    */
+   private void requireUnlocked(RuntimeViewsheet rvs, EditRequest request) {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(request.assembly());
+
+      if(assembly instanceof LockableVSAssembly lockable &&
+         Boolean.TRUE.equals(lockable.islocked()))
+      {
+         throw new IllegalArgumentException(
+            "Edit op '" + request.op() + "' cannot be applied to '" + request.assembly() +
+            "' — it is locked. Use edit(op:'set_lock', locked:false) first.");
       }
    }
 
