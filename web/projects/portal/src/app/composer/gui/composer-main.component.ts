@@ -611,9 +611,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          // viewsheet-backed runtime and is already treated as viewsheet-equivalent everywhere
          // else in this component (e.g. the isSheet/isModified checks above), so it maps to
          // VIEWSHEET here too, not a third wire value the server's SheetType enum doesn't have.
+         // CrossSheetFollowService manages its own STOMP connection (see its own doc) -- no
+         // socketConnection to pass, unlike FollowFocusService.
          this.crossSheetFollowService.reportCurrentFocus(
-            sheet.runtimeId, sheet.type === "worksheet" ? "WORKSHEET" : "VIEWSHEET",
-            sheet.socketConnection);
+            sheet.runtimeId, sheet.type === "worksheet" ? "WORKSHEET" : "VIEWSHEET");
       }
 
       this.refreshAiAssistantContext();
