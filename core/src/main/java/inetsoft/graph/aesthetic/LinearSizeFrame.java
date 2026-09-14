@@ -19,6 +19,7 @@ package inetsoft.graph.aesthetic;
 
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.data.DataSet;
+import inetsoft.graph.scale.LinearScale;
 import inetsoft.graph.scale.Scale;
 
 import java.lang.reflect.Method;
@@ -63,6 +64,13 @@ public class LinearSizeFrame extends SizeFrame {
 
       if(Double.isNaN(v)) {
          return getSmallest();
+      }
+
+      // a degenerate (single-value) domain should collapse to a fixed neutral size
+      // instead of the axis-style zero-based "nice tick" widened ratio LinearScale
+      // otherwise produces for every consumer (76647/VCA-002)
+      if(scale instanceof LinearScale && ((LinearScale) scale).isDegenerateDomain()) {
+         return getSize(0.5);
       }
 
       double min = scale.getMin();
