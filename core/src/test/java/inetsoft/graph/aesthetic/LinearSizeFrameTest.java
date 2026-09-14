@@ -72,6 +72,39 @@ class LinearSizeFrameTest {
    }
 
    @Test
+   void degenerateDomainDoesNotCollapseSizeForSyntheticLegendTickValues() {
+      // SizeLegendItem.paintSymbol calls getSize(Object) directly with synthetic tick
+      // values spanning the scale's still axis-widened range (this fix only touches
+      // per-mark reads of the real bound value, not tick/value generation) -- those
+      // synthetic values must keep varying so the size legend still shows a meaningful
+      // range of swatch sizes, instead of every tick collapsing to the same size.
+      DefaultDataSet data = new DefaultDataSet(new Object[][]{
+         {"val"},
+         {35.0},
+         {35.0},
+         {35.0},
+      });
+
+      LinearSizeFrame frame = new LinearSizeFrame("val");
+      frame.init(data);
+
+      double neutral = (frame.getSmallest() + frame.getLargest()) / 2;
+
+      // the real bound value (35) still collapses to the neutral size
+      assertEquals(neutral, frame.getSize(35.0), DELTA);
+
+      // synthetic values distinct from the real bound value must not collapse, and must
+      // keep varying with the (axis-widened) scale, exactly like before this fix
+      double sizeLow = frame.getSize(0.0);
+      double sizeHigh = frame.getSize(40.0);
+
+      assertNotEquals(neutral, sizeLow, DELTA);
+      assertNotEquals(neutral, sizeHigh, DELTA);
+      assertTrue(sizeLow < sizeHigh,
+         "distinct synthetic tick values should still produce distinct, increasing sizes");
+   }
+
+   @Test
    void nonDegenerateDomainStillProducesRatioBasedVaryingSizes() {
       DefaultDataSet data = new DefaultDataSet(new Object[][]{
          {"val"},

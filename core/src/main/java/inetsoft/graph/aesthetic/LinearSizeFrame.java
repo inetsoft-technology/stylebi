@@ -66,11 +66,20 @@ public class LinearSizeFrame extends SizeFrame {
          return getSmallest();
       }
 
-      // a degenerate (single-value) domain should collapse to a fixed neutral size
-      // instead of the axis-style zero-based "nice tick" widened ratio LinearScale
-      // otherwise produces for every consumer (76647/VCA-002)
-      if(scale instanceof LinearScale && ((LinearScale) scale).isDegenerateDomain()) {
-         return getSize(0.5);
+      // a degenerate (single-value) domain should collapse the *actual bound* value to a
+      // fixed neutral size instead of the axis-style zero-based "nice tick" widened ratio
+      // LinearScale otherwise produces -- but only for that real value, not for a synthetic
+      // value (e.g. a size legend's tick items, which span the still axis-widened range and
+      // otherwise would all collapse to the same swatch size, losing the legend's own
+      // size-key meaning). (76647/VCA-002)
+      if(scale instanceof LinearScale) {
+         LinearScale lscale = (LinearScale) scale;
+
+         if(lscale.isDegenerateDomain() &&
+            Math.abs(v - lscale.getDegenerateValue()) < 0.000001)
+         {
+            return getSize(0.5);
+         }
       }
 
       double min = scale.getMin();
