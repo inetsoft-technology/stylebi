@@ -400,5 +400,13 @@
     "description": "auth0.openid.scope is the space-separated OAuth scope list a legacy Auth0 installation stored, and has no declared default.",
     "risk": "high",
     "snapshotScope": "value"
+  },
+  {
+    "name": "permission.andcondition",
+    "aliases": [],
+    "type": "boolean",
+    "description": "permission.andcondition (source spells it permission.andCondition; PropertiesEngine lowercases the name on every read/write, same as mail.smtp.clientSecret) is the \"Access requires BOTH User and Role permission\" (true) vs. \"EITHER\" (false) switch on Enterprise Manager's repository and Security Actions permission pages, org-scoped. Read fresh from this property on every permission check (ResourcePermissionService), so it takes effect immediately with no restart. Defaults to false (EITHER) when never explicitly set; that default is computed at each read, not persisted, so a deployment that has never touched this property will not show it as an existing stored value.",
+    "risk": "high",
+    "snapshotScope": "value"
   }
 ]

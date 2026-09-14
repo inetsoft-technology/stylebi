@@ -466,6 +466,20 @@ class AdminPropertyCatalogTest {
    }
 
    @Test
+   void permissionAndConditionIsCataloguedAndFoundRegardlessOfTheSourceSpellingCase() {
+      // bug 76600 Gap 2 -- the real SreeEnv key is "permission.andCondition" (capital C), but
+      // PropertiesEngine.computePropertyNameCase lowercases every property name that isn't one of
+      // its four case-preserving families, so the catalog stores "permission.andcondition" and a
+      // caller spelling it either way must resolve to the same entry.
+      CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse("permission.andCondition"));
+
+      assertNotNull(entry, "permission.andCondition should be catalogued");
+      assertEquals("boolean", entry.type());
+      assertEquals("permission.andcondition",
+                   catalog.getEntry(AdminPropertyName.parse("permission.andcondition")).name());
+   }
+
+   @Test
    void ssoProtocolTypeRejectsATypoThatWouldSilentlyDisableSso() {
       // SSOType.forName folds anything unrecognised to NONE, so "OpenId Connect" would turn SSO
       // off with no error. As an enum it is refused, and a recognised value is canonicalised to
