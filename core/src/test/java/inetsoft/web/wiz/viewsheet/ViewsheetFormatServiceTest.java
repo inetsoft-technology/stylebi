@@ -181,6 +181,28 @@ class ViewsheetFormatServiceTest {
    }
 
    /**
+    * {@code coerceAlign}/{@code coerceBorderStyles}/{@code toLineConstant}/
+    * {@code coerceBorderWidth} are shared between {@code FormatRequest} and
+    * {@code CellFormatRequest}, so a bad payload sent to {@code set_calc_cell_format} must name
+    * that tool, not the sibling {@code set_format} that first defined this parsing (a caller
+    * debugging via the reported name would otherwise be pointed at the wrong tool entirely).
+    */
+   @Test
+   void refusesABadAlignWordThroughCellFormatRequestNamingTheRightTool() {
+      ObjectMapper mapper = new ObjectMapper();
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> mapper.readValue(
+            "{\"assembly\":\"FreehandTable1\",\"row\":0,\"col\":0," +
+            "\"format\":{\"align\":\"sideways\"},\"reset\":false}",
+            ViewsheetFormatService.CellFormatRequest.class));
+
+      assertTrue(thrown.getMessage().contains("set_calc_cell_format"), thrown.getMessage());
+      assertFalse(thrown.getMessage().contains("set_format could not"), thrown.getMessage());
+   }
+
+   /**
     * The border style is asymmetric in the underlying model: reading emits CSS words
     * ({@code FormatInfoModel.getBorderStyle} returns "solid"/"dashed"/"dotted"/"double"), while
     * writing goes through {@code FormatPainterService}, which does

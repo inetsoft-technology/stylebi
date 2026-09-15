@@ -112,7 +112,8 @@ public class ViewsheetFormatService {
                                            @JsonProperty("target") String target,
                                            @JsonProperty("field") String field)
       {
-         return new FormatRequest(assemblies, parseFormat(format), reset, target, field);
+         return new FormatRequest(assemblies, parseFormat(format, "set_format"), reset, target,
+                                  field);
       }
    }
 
@@ -135,27 +136,34 @@ public class ViewsheetFormatService {
                                                @JsonProperty("format") JsonNode format,
                                                @JsonProperty("reset") boolean reset)
       {
-         return new CellFormatRequest(assembly, row, col, parseFormat(format), reset);
+         return new CellFormatRequest(assembly, row, col,
+                                      parseFormat(format, "set_calc_cell_format"), reset);
       }
    }
 
-   /** @see FormatRequest#fromJson for why this reads {@code format} as a raw {@code JsonNode}. */
-   static VSObjectFormatInfoModel parseFormat(JsonNode format) {
+   /**
+    * @param toolName the calling MCP tool's name (e.g. {@code "set_format"},
+    *                 {@code "set_calc_cell_format"}), named in any thrown message so it points
+    *                 at the tool the caller actually used, not whichever one first defined this
+    *                 shared parsing.
+    * @see FormatRequest#fromJson for why this reads {@code format} as a raw {@code JsonNode}.
+    */
+   static VSObjectFormatInfoModel parseFormat(JsonNode format, String toolName) {
       if(format == null || format.isNull()) {
          return null;
       }
 
       ObjectNode object = ((ObjectNode) format).deepCopy();
       object.put("type", VSObjectFormatInfoModel.class.getName());
-      coerceAlign(object);
-      coerceBorderStyles(object);
+      coerceAlign(object, toolName);
+      coerceBorderStyles(object, toolName);
 
       try {
          return MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
       }
       catch(JsonProcessingException e) {
          throw new IllegalArgumentException(
-            "set_format could not read 'format': " + e.getOriginalMessage(), e);
+            toolName + " could not read 'format': " + e.getOriginalMessage(), e);
       }
    }
 
@@ -173,7 +181,7 @@ public class ViewsheetFormatService {
     * the alternative is asking callers to learn an internal model this API exists to hide. Both
     * axes are accepted, together or separately, and the object form still works.
     */
-   private static void coerceAlign(ObjectNode object) {
+   private static void coerceAlign(ObjectNode object, String toolName) {
       JsonNode align = object.get("align");
 
       if(align == null || !align.isTextual()) {
@@ -195,7 +203,7 @@ public class ViewsheetFormatService {
          case "middle" -> alignment.put("valign", "Middle");
          case "bottom" -> alignment.put("valign", "Bottom");
          default -> throw new IllegalArgumentException(
-            "set_format could not read 'align': '" + word + "' is not an alignment. " +
+            toolName + " could not read 'align': '" + word + "' is not an alignment. " +
             "Horizontal: left, center, right. Vertical: top, middle, bottom. " +
             "Both may be given together, as \"center middle\".");
          }
@@ -215,7 +223,7 @@ public class ViewsheetFormatService {
     *
     * <p>A number still passes through untouched, for a caller that already has the constant.
     */
-   private static void coerceBorderStyles(ObjectNode object) {
+   private static void coerceBorderStyles(ObjectNode object, String toolName) {
       for(int i = 0; i < BORDER_STYLES.size(); i++) {
          String side = BORDER_STYLES.get(i);
          String widthField = BORDER_WIDTHS.get(i);
@@ -238,7 +246,7 @@ public class ViewsheetFormatService {
          if(word.chars().allMatch(Character::isDigit)) {
             if(width != null) {
                throw new IllegalArgumentException(
-                  "set_format got both '" + side + "' as a line constant (" + word + ") and '" +
+                  toolName + " got both '" + side + "' as a line constant (" + word + ") and '" +
                   widthField + "'. The constant already encodes the weight, so honouring both " +
                   "is ambiguous. Drop '" + widthField + "', or give '" + side + "' as a word.");
             }
@@ -246,7 +254,7 @@ public class ViewsheetFormatService {
             continue;
          }
 
-         object.put(side, String.valueOf(toLineConstant(word, width, side, widthField)));
+         object.put(side, String.valueOf(toLineConstant(word, width, side, widthField, toolName)));
       }
    }
 
@@ -264,9 +272,9 @@ public class ViewsheetFormatService {
     * fail loud rather than quietly rendering a thin one — the same failure in a new disguise.
     */
    private static int toLineConstant(String word, JsonNode width, String side,
-                                     String widthField)
+                                     String widthField, String toolName)
    {
-      Integer px = coerceBorderWidth(width, widthField);
+      Integer px = coerceBorderWidth(width, widthField, toolName);
 
       if(px != null && px == 0) {
          return StyleConstants.NO_BORDER;
@@ -283,7 +291,7 @@ public class ViewsheetFormatService {
          case "dotted", "double" -> {
             if(weighted) {
                throw new IllegalArgumentException(
-                  "set_format cannot apply '" + widthField + "' to a " + word + " border: " +
+                  toolName + " cannot apply '" + widthField + "' to a " + word + " border: " +
                   "StyleBI has no weighted " + word + " line. Use a solid or dashed border for " +
                   "a thicker line, or drop '" + widthField + "'.");
             }
@@ -295,7 +303,7 @@ public class ViewsheetFormatService {
          case "thin", "medium", "thick" -> {
             if(px != null) {
                throw new IllegalArgumentException(
-                  "set_format got '" + side + "' as '" + word + "', which already sets the " +
+                  toolName + " got '" + side + "' as '" + word + "', which already sets the " +
                   "weight, together with '" + widthField + "'. Drop one — use 'solid' with a " +
                   "width, or the weight word on its own.");
             }
@@ -304,14 +312,14 @@ public class ViewsheetFormatService {
                : "medium".equals(word) ? StyleConstants.MEDIUM_LINE : StyleConstants.THICK_LINE;
          }
          default -> throw new IllegalArgumentException(
-            "set_format could not read '" + side + "': '" + word + "' is not a border " +
+            toolName + " could not read '" + side + "': '" + word + "' is not a border " +
             "style. Accepted: none, solid, dashed, dotted, double, thin, medium, thick. " +
             "A StyleBI line constant is accepted as a number.");
       };
    }
 
    /** Accepts 3, "3" and "3px"; refuses anything else by name rather than dropping it. */
-   private static Integer coerceBorderWidth(JsonNode width, String widthField) {
+   private static Integer coerceBorderWidth(JsonNode width, String widthField, String toolName) {
       if(width == null || width.isNull()) {
          return null;
       }
@@ -331,7 +339,7 @@ public class ViewsheetFormatService {
       }
       catch(NumberFormatException e) {
          throw new IllegalArgumentException(
-            "set_format could not read '" + widthField + "': '" + width.asText() + "' is not a " +
+            toolName + " could not read '" + widthField + "': '" + width.asText() + "' is not a " +
             "width. Give a number of pixels, e.g. 1, 2 or 3 (\"2px\" is accepted).");
       }
    }
