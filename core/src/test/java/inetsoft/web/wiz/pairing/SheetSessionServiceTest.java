@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -926,5 +928,252 @@ class SheetSessionServiceTest {
       assertDoesNotThrow(() -> svc.detach("sock-1", ctx));
       assertNull(svc.resolve(pane.sessionToken(), "owner~;~org"),
                 "the session must still be removed even though notifying the tab bar failed");
+   }
+
+   // ===========================================================================================
+   // Lane C -- D9 cross-sheet-follow (crossSheetFollowEnabled, syncToCurrentFocus,
+   // setCrossSheetFollow). Charter assertions 11 (toggle refused off a non-establishedDirectly
+   // session), 13 (mismatched-owner focus report silently dropped), 17 (no regression to Lane
+   // A/B/D). See docs/teams/2026-09-14-portal-session-pairing/00-charter.md.
+   // ===========================================================================================
+
+   @Test
+   void crossSheetFollowEnabledDefaultsFalseOnBothBackCompatConstructors() {
+      // Predates crossSheetFollowEnabled (12-arg, was the canonical ctor before this lane).
+      JoinSession viaTwelveArg = new JoinSession("tok-a", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, null, null,
+         null, false, true);
+      assertFalse(viaTwelveArg.crossSheetFollowEnabled());
+
+      // Predates followFocusEnabled (11-arg).
+      JoinSession viaElevenArg = new JoinSession("tok-b", "rt-1", "alice~;~org", SheetType.WORKSHEET,
+         FIXED_NOW, SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED, null, null,
+         null);
+      assertFalse(viaElevenArg.crossSheetFollowEnabled());
+      assertFalse(viaElevenArg.followFocusEnabled());
+      assertFalse(viaElevenArg.establishedDirectly());
+   }
+
+   /**
+    * Same bug class Lane A already fixed once for {@code establishedDirectly}: resolve()'s
+    * TTL-refresh reconstruct must not silently reset crossSheetFollowEnabled back to false.
+    */
+   @Test
+   void resolveCarriesCrossSheetFollowEnabledThroughItsTtlRefreshReconstruct() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession following = new JoinSession("tok-follow", "rt-1", "alice~;~org",
+         SheetType.VIEWSHEET, FIXED_NOW, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-1", "alice", null, false, true, true);
+      seedSession(svc, following);
+
+      JoinSession resolved = svc.resolve("tok-follow", "alice~;~org");
+
+      assertNotNull(resolved);
+      assertTrue(resolved.crossSheetFollowEnabled(),
+                 "resolve() must not silently reset crossSheetFollowEnabled back to false");
+   }
+
+   /** withEditorContext/withFollowFocusEnabled (retarget/setFollowFocus) must carry it through too. */
+   @Test
+   void retargetAndSetFollowFocusCarryCrossSheetFollowEnabledThrough() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession following = new JoinSession("tok-follow-2", "rt-est", "alice~;~org",
+         SheetType.VIEWSHEET, FIXED_NOW, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-est", "alice", null, false, true, true);
+      seedSession(svc, following);
+
+      JoinSession afterToggle = svc.setFollowFocus("sock-est", "rt-est", true);
+      assertNotNull(afterToggle);
+      assertTrue(afterToggle.crossSheetFollowEnabled(),
+                 "setFollowFocus's reconstruct must not reset crossSheetFollowEnabled");
+
+      JoinSession afterRetarget = svc.retarget(
+         "sock-est", "rt-est", new EditorContext("viewsheetOnInit", null, null, null));
+      assertTrue(afterRetarget.crossSheetFollowEnabled(),
+                 "retarget's reconstruct must not reset crossSheetFollowEnabled");
+   }
+
+   // ---------------------------------------------------------------------------
+   // setCrossSheetFollow -- charter assertion 11
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void setCrossSheetFollowEnablesOnADirectlyEstablishedUnattachedSession() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession portal = new JoinSession("tok-portal", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-portal", "alice", null, false, true);
+      seedSession(svc, portal);
+
+      JoinSession updated = svc.setCrossSheetFollow("sock-portal", true);
+
+      assertTrue(updated.crossSheetFollowEnabled());
+      assertTrue(updated.establishedDirectly());
+      assertNull(updated.runtimeId(), "toggling on must not itself attach the session");
+   }
+
+   @Test
+   void setCrossSheetFollowAlsoWorksOnceASessionHasBeenSyncedToARuntime() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession following = new JoinSession("tok-portal-2", "rt-1", "alice~;~org",
+         SheetType.VIEWSHEET, FIXED_NOW, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-portal-2", "alice", null, false, true, true);
+      seedSession(svc, following);
+
+      JoinSession updated = svc.setCrossSheetFollow("sock-portal-2", false);
+
+      assertFalse(updated.crossSheetFollowEnabled());
+      assertEquals("rt-1", updated.runtimeId(), "disabling must not touch the current attachment");
+   }
+
+   /**
+    * Charter assertion 11's own load-bearing case: attempting the toggle-enable against a
+    * pane-scoped session's socketSessionId is refused, not a silent no-op or silent success.
+    * A pane-scoped session (establishedDirectly == false) never matches
+    * findEstablishedDirectlyBySocket, regardless of it sharing a socket.
+    */
+   @Test
+   void setCrossSheetFollowRefusesWhenOnlyAPaneScopedSessionIsOnThisSocket() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession paneScoped = svc.open("rt-pane", "alice~;~org", SheetType.VIEWSHEET,
+         "sock-pane", "alice", new EditorContext("assemblyMain", "Chart1", null, null));
+      assertFalse(paneScoped.establishedDirectly());
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.setCrossSheetFollow("sock-pane", true));
+      assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
+
+      // Not a silent no-op either: the pane-scoped session itself must be untouched.
+      JoinSession stillPane = svc.resolve(paneScoped.sessionToken(), "alice~;~org");
+      assertFalse(stillPane.crossSheetFollowEnabled());
+   }
+
+   @Test
+   void setCrossSheetFollowRefusesWhenNoSessionAtAllIsOnThisSocket() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      assertThrows(PairingException.class, () -> svc.setCrossSheetFollow("sock-unknown", true));
+   }
+
+   // ---------------------------------------------------------------------------
+   // syncToCurrentFocus -- charter assertions 12 (retarget), 13 (mismatched owner dropped)
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void syncToCurrentFocusRetargetsAnOptedInSessionInPlaceWithNoNewToken() {
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW,
+         mock(SheetAgentBroadcastService.class), runtimeAccess);
+      // This file's convention uses the literal ownerIdentity "alice~;~org" throughout (not a
+      // real IdentityID.convertToKey() value) -- org "org" here matches that literal exactly.
+      Principal alice = TestPrincipals.user("alice", "org");
+      when(runtimeAccess.getRuntimeOwner(SheetType.VIEWSHEET, "rt-new")).thenReturn(alice);
+
+      JoinSession following = new JoinSession("tok-sync", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-sync", "alice", null, false, true, true);
+      seedSession(svc, following);
+
+      JoinSession synced = svc.syncToCurrentFocus("sock-sync", "rt-new", SheetType.VIEWSHEET);
+
+      assertNotNull(synced);
+      assertEquals("tok-sync", synced.sessionToken(), "sessionToken must not change");
+      assertEquals("rt-new", synced.runtimeId());
+      assertEquals(SheetType.VIEWSHEET, synced.sheetType());
+      assertNull(synced.editorContext(), "a freshly-focused sheet has no pane-level detail yet");
+      assertTrue(synced.crossSheetFollowEnabled());
+      assertTrue(synced.establishedDirectly());
+   }
+
+   @Test
+   void syncToCurrentFocusIsANoOpWhenNoSessionOnThisSocketHasOptedIn() {
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW,
+         mock(SheetAgentBroadcastService.class), runtimeAccess);
+      // establishedDirectly but crossSheetFollowEnabled is false -- never opted in.
+      JoinSession notOptedIn = new JoinSession("tok-not-opted", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-x", "alice", null, false, true);
+      seedSession(svc, notOptedIn);
+
+      JoinSession result = svc.syncToCurrentFocus("sock-x", "rt-new", SheetType.VIEWSHEET);
+
+      assertNull(result);
+      verify(runtimeAccess, never()).getRuntimeOwner(any(), any());
+   }
+
+   /**
+    * Charter assertion 13 / counter-assertion: a focus report naming a runtime the identity
+    * doesn't actually own is silently dropped, not trusted -- the session's runtimeId must stay
+    * exactly where it was.
+    */
+   @Test
+   void syncToCurrentFocusDropsAMismatchedOwnerReportWithoutRetargeting() {
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW,
+         mock(SheetAgentBroadcastService.class), runtimeAccess);
+      Principal mallory = TestPrincipals.user("mallory", "org");
+      when(runtimeAccess.getRuntimeOwner(SheetType.VIEWSHEET, "rt-not-mine")).thenReturn(mallory);
+
+      JoinSession following = new JoinSession("tok-sync-2", "rt-old", "alice~;~org",
+         SheetType.VIEWSHEET, FIXED_NOW, SheetSessionService.TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, "sock-sync-2", "alice", null, false, true, true);
+      seedSession(svc, following);
+
+      JoinSession result = svc.syncToCurrentFocus("sock-sync-2", "rt-not-mine", SheetType.VIEWSHEET);
+
+      assertNull(result, "a mismatched-owner report must not be trusted");
+      JoinSession stillOld = svc.resolve("tok-sync-2", "alice~;~org");
+      assertEquals("rt-old", stillOld.runtimeId(), "the session must stay on its prior runtime");
+   }
+
+   /** Mirrors SheetJoinService.join's step 3b: a null runtime owner (not found on this node) is
+    *  tolerated, not treated as a mismatch. */
+   @Test
+   void syncToCurrentFocusToleratesANullRuntimeOwnerAsNotAMismatch() {
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW,
+         mock(SheetAgentBroadcastService.class), runtimeAccess);
+      when(runtimeAccess.getRuntimeOwner(SheetType.VIEWSHEET, "rt-unknown-node")).thenReturn(null);
+
+      JoinSession following = new JoinSession("tok-sync-3", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-sync-3", "alice", null, false, true, true);
+      seedSession(svc, following);
+
+      JoinSession synced = svc.syncToCurrentFocus("sock-sync-3", "rt-unknown-node", SheetType.VIEWSHEET);
+
+      assertNotNull(synced, "a null runtime owner must be tolerated, not treated as a mismatch");
+      assertEquals("rt-unknown-node", synced.runtimeId());
+   }
+
+   @Test
+   void syncToCurrentFocusIgnoresANullRuntimeIdOrSheetType() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession following = new JoinSession("tok-sync-4", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-sync-4", "alice", null, false, true, true);
+      seedSession(svc, following);
+
+      assertNull(svc.syncToCurrentFocus("sock-sync-4", null, SheetType.VIEWSHEET));
+      assertNull(svc.syncToCurrentFocus("sock-sync-4", "rt-x", null));
+   }
+
+   /**
+    * Charter assertion 14's data-layer half: a session with runtimeAccess == null (every
+    * back-compat/test constructor that doesn't wire one) tolerates a sync attempt exactly like a
+    * genuinely-not-found runtime -- proceeds rather than NPEs. The plugin-side half of assertion
+    * 14 (requireSession never even calling the probe for an ordinary session) is covered in the
+    * plugin/composer test suite.
+    */
+   @Test
+   void syncToCurrentFocusToleratesAMissingRuntimeAccessDependency() {
+      SheetSessionService svc = serviceAt(FIXED_NOW); // no runtimeAccess wired
+      JoinSession following = new JoinSession("tok-sync-5", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-sync-5", "alice", null, false, true, true);
+      seedSession(svc, following);
+
+      assertDoesNotThrow(() ->
+         assertNotNull(svc.syncToCurrentFocus("sock-sync-5", "rt-new", SheetType.VIEWSHEET)));
    }
 }

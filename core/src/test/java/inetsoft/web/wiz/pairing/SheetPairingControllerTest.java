@@ -24,7 +24,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.lang.reflect.Field;
 import java.security.Principal;
+import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -314,5 +317,131 @@ class SheetPairingControllerTest {
       c.popFocusViaSocket(new SheetPairingController.PopFocusRequest("Viewsheet/vs-1"), accessor);
 
       verifyNoInteractions(broadcast);
+   }
+
+   // ---- Lane C: current-focus / cross-sheet-follow STOMP endpoints ---------------------------
+
+   @Test
+   void currentFocusViaSocketRetargetsAnOptedInSessionAndBroadcastsAgentActive() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, broadcast, true);
+
+      // sessions.open(...) can never produce establishedDirectly == true -- that flag is only
+      // ever set by a login-triggered establish (Lane D, not present in this branch), so this
+      // seeds one directly, mirroring SheetSessionServiceTest's own seedSession reflection
+      // convention rather than laundering it through open().
+      JoinSession portal = seedEstablishedDirectlySession(
+         sessions, "alice~;~host-org", "stomp-portal", "alice");
+      c.crossSheetFollowViaSocket(new SheetPairingController.CrossSheetFollowRequest(true),
+         accessorFor("stomp-portal"));
+
+      c.currentFocusViaSocket(
+         new SheetPairingController.CurrentFocusRequest("Viewsheet/vs-1", SheetType.VIEWSHEET),
+         accessorFor("stomp-portal"));
+
+      JoinSession resolved = sessions.resolve(portal.sessionToken(), "alice~;~host-org");
+      assertEquals("Viewsheet/vs-1", resolved.runtimeId());
+      assertEquals(SheetType.VIEWSHEET, resolved.sheetType());
+      verify(broadcast).sendAgentActive(
+         org.mockito.ArgumentMatchers.argThat(s -> s.runtimeId().equals("Viewsheet/vs-1")));
+   }
+
+   @Test
+   void currentFocusViaSocketDoesNotBroadcastWhenNoSessionHasOptedIn() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, broadcast, true);
+
+      // Directly-established but never toggled on.
+      sessions.open(null, "alice~;~host-org", null, "stomp-portal", "alice", null);
+
+      c.currentFocusViaSocket(
+         new SheetPairingController.CurrentFocusRequest("Viewsheet/vs-1", SheetType.VIEWSHEET),
+         accessorFor("stomp-portal"));
+
+      verifyNoInteractions(broadcast);
+   }
+
+   @Test
+   void crossSheetFollowViaSocketEnablesOnADirectlyEstablishedSession() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, mock(SheetAgentBroadcastService.class), true);
+
+      JoinSession portal = seedEstablishedDirectlySession(
+         sessions, "alice~;~host-org", "stomp-portal", "alice");
+
+      SheetPairingController.CrossSheetFollowResponse resp = c.crossSheetFollowViaSocket(
+         new SheetPairingController.CrossSheetFollowRequest(true), accessorFor("stomp-portal"));
+
+      assertTrue(resp.ok());
+      assertNull(resp.error());
+      assertTrue(sessions.resolve(portal.sessionToken(), "alice~;~host-org").crossSheetFollowEnabled());
+   }
+
+   /**
+    * Charter assertion 11's own controller-level case: attempting the toggle-enable STOMP message
+    * against a pane-scoped session's socketSessionId is refused, not a silent no-op or silent
+    * success.
+    */
+   @Test
+   void crossSheetFollowViaSocketRefusesAPaneScopedSession() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, mock(SheetAgentBroadcastService.class), true);
+
+      JoinSession pane = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
+                                       "stomp-pane", "alice", null);
+
+      SheetPairingController.CrossSheetFollowResponse resp = c.crossSheetFollowViaSocket(
+         new SheetPairingController.CrossSheetFollowRequest(true), accessorFor("stomp-pane"));
+
+      assertFalse(resp.ok());
+      assertNotNull(resp.error());
+      assertFalse(sessions.resolve(pane.sessionToken(), "alice~;~host-org").crossSheetFollowEnabled());
+   }
+
+   private static SimpMessageHeaderAccessor accessorFor(String sessionId) {
+      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
+      accessor.setSessionId(sessionId);
+      return accessor;
+   }
+
+   /**
+    * Seeds an unattached, {@code establishedDirectly == true} session directly into {@code svc}'s
+    * internal session map, bypassing {@link SheetSessionService#open} -- {@code open()} always
+    * uses the pre-{@code establishedDirectly} back-compat {@link JoinSession} constructor (it
+    * defaults the flag to {@code false}), so it can never itself produce the directly-established
+    * shape a login-triggered establish (Lane D, not present in this branch) would. Mirrors
+    * {@code SheetSessionServiceTest}'s own {@code seedSession} reflection convention.
+    */
+   private static JoinSession seedEstablishedDirectlySession(SheetSessionService svc,
+                                                             String ownerIdentity,
+                                                             String socketSessionId,
+                                                             String socketUserName)
+   {
+      JoinSession session = new JoinSession(UUID.randomUUID().toString(), null, ownerIdentity,
+         null, System.currentTimeMillis(), SheetSessionService.UNATTACHED_TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, socketSessionId, socketUserName, null, false, true);
+
+      try {
+         Field field = SheetSessionService.class.getDeclaredField("sessions");
+         field.setAccessible(true);
+         @SuppressWarnings("unchecked")
+         Map<String, JoinSession> sessions = (Map<String, JoinSession>) field.get(svc);
+         sessions.put(session.sessionToken(), session);
+      }
+      catch(ReflectiveOperationException e) {
+         throw new RuntimeException(e);
+      }
+
+      return session;
    }
 }

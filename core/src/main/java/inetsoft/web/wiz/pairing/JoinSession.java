@@ -44,12 +44,43 @@ package inetsoft.web.wiz.pairing;
  *                      changed thereafter; used to look up an existing directly-established
  *                      session for an identity before minting a duplicate. {@code false} for
  *                      every session opened via the ordinary pairing-code join path.
+ * @param crossSheetFollowEnabled whether this session has opted in to cross-sheet-follow --
+ *                      see {@code SheetSessionService.syncToCurrentFocus}. {@code false} until a
+ *                      session explicitly turns it on, and only settable on a session with
+ *                      {@code establishedDirectly == true} -- {@code SheetSessionService}'s toggle
+ *                      handler refuses to enable this on a pane-scoped session. Never {@code true}
+ *                      at construction -- opting in is always a separate, later act, mirroring
+ *                      {@code followFocusEnabled}'s own precedent exactly. Distinct from
+ *                      {@code followFocusEnabled}: that flag retargets a session's
+ *                      {@code editorContext} within the one {@code runtimeId} it is already bound
+ *                      to; this flag retargets {@code runtimeId}/{@code sheetType} themselves,
+ *                      between entirely different runtimes/assets.
  */
 public record JoinSession(String sessionToken, String runtimeId, String ownerIdentity,
                           SheetType sheetType, long lastAccess, long ttlMillis,
                           ConnectionMode connectionMode, String socketSessionId,
                           String socketUserName, EditorContext editorContext,
-                          boolean followFocusEnabled, boolean establishedDirectly) {
+                          boolean followFocusEnabled, boolean establishedDirectly,
+                          boolean crossSheetFollowEnabled) {
+
+   /**
+    * Back-compat constructor predating {@code crossSheetFollowEnabled} -- defaults it to
+    * {@code false}, the same default {@code SheetSessionService.open} relies on for every session
+    * that has not explicitly opted in. Kept so the wide set of hand-built {@code new
+    * JoinSession(...)} fixtures across the worksheet/viewsheet/script/binding test packages --
+    * none of which exercise cross-sheet-follow -- do not all need updating for one new field on a
+    * record none of them otherwise touch.
+    */
+   public JoinSession(String sessionToken, String runtimeId, String ownerIdentity,
+                      SheetType sheetType, long lastAccess, long ttlMillis,
+                      ConnectionMode connectionMode, String socketSessionId,
+                      String socketUserName, EditorContext editorContext,
+                      boolean followFocusEnabled, boolean establishedDirectly)
+   {
+      this(sessionToken, runtimeId, ownerIdentity, sheetType, lastAccess, ttlMillis,
+           connectionMode, socketSessionId, socketUserName, editorContext, followFocusEnabled,
+           establishedDirectly, false);
+   }
 
    /**
     * Back-compat constructor predating {@code establishedDirectly} -- defaults it to
@@ -67,7 +98,7 @@ public record JoinSession(String sessionToken, String runtimeId, String ownerIde
    {
       this(sessionToken, runtimeId, ownerIdentity, sheetType, lastAccess, ttlMillis,
            connectionMode, socketSessionId, socketUserName, editorContext, followFocusEnabled,
-           false);
+           false, false);
    }
 
    /**

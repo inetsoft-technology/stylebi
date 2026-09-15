@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.security.Principal;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -91,12 +92,25 @@ public class SheetSessionService {
     */
    private final SheetAgentBroadcastService broadcast;
 
+   /**
+    * Used by {@link #syncToCurrentFocus} to re-verify runtime ownership before retargeting a
+    * cross-sheet-follow session -- the same check {@code SheetJoinService.join}'s step 3b already
+    * performs. {@code null} on every back-compat/test constructor below that doesn't take one
+    * explicitly (guarded at the one call site): those fixtures do not exercise cross-sheet-follow,
+    * so a {@code null} runtime owner is simply tolerated there, same as a genuinely-not-found
+    * runtime.
+    */
+   private final SheetRuntimeAccess runtimeAccess;
+
    /** Production constructor -- Spring injects the real, runtime-validating SheetPairingService. */
    @Autowired
-   public SheetSessionService(SheetPairingService pairing, SheetAgentBroadcastService broadcast) {
+   public SheetSessionService(SheetPairingService pairing, SheetAgentBroadcastService broadcast,
+                              SheetRuntimeAccess runtimeAccess)
+   {
       this.clock = System::currentTimeMillis;
       this.pairing = pairing;
       this.broadcast = broadcast;
+      this.runtimeAccess = runtimeAccess;
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
    }
@@ -117,6 +131,7 @@ public class SheetSessionService {
       this.clock = clock;
       this.pairing = pairing;
       this.broadcast = null;
+      this.runtimeAccess = null;
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
    }
@@ -127,6 +142,20 @@ public class SheetSessionService {
       this.clock = clock;
       this.pairing = new SheetPairingService();
       this.broadcast = broadcast;
+      this.runtimeAccess = null;
+      this.sessions = new ConcurrentHashMap<>();
+      this.focusStacks = new ConcurrentHashMap<>();
+   }
+
+   /** Test-only constructor: exercises {@link #syncToCurrentFocus}'s {@link #runtimeAccess} call
+    *  site without needing the full production constructor's {@link SheetPairingService} wiring. */
+   SheetSessionService(LongSupplier clock, SheetAgentBroadcastService broadcast,
+                       SheetRuntimeAccess runtimeAccess)
+   {
+      this.clock = clock;
+      this.pairing = new SheetPairingService();
+      this.broadcast = broadcast;
+      this.runtimeAccess = runtimeAccess;
       this.sessions = new ConcurrentHashMap<>();
       this.focusStacks = new ConcurrentHashMap<>();
    }
@@ -137,6 +166,7 @@ public class SheetSessionService {
       this.clock = clock;
       this.pairing = source.pairing;
       this.broadcast = source.broadcast;
+      this.runtimeAccess = source.runtimeAccess;
       this.sessions = source.sessions;
       this.focusStacks = source.focusStacks;
    }
@@ -205,15 +235,17 @@ public class SheetSessionService {
       if (token == null) return null;
       JoinSession s = sessions.get(token);
       if (s == null || s.isExpired(clock.getAsLong()) || !s.ownerIdentity().equals(agentIdentity)) return null;
-      // Full 12-arg canonical constructor, NOT either back-compat overload -- those default
-      // followFocusEnabled/establishedDirectly to false, which would silently un-opt-in every
-      // session (and forget it was directly established) on its very next refresh. Must carry
-      // s.followFocusEnabled()/s.establishedDirectly() through explicitly.
+      // Full 13-arg canonical constructor, NOT any back-compat overload -- those default
+      // followFocusEnabled/establishedDirectly/crossSheetFollowEnabled to false, which would
+      // silently un-opt-in every session (and forget it was directly established) on its very
+      // next refresh. Must carry s.followFocusEnabled()/s.establishedDirectly()/
+      // s.crossSheetFollowEnabled() through explicitly.
       JoinSession refreshed = new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(),
                                               s.sheetType(), clock.getAsLong(), s.ttlMillis(),
                                               s.connectionMode(), s.socketSessionId(),
                                               s.socketUserName(), s.editorContext(),
-                                              s.followFocusEnabled(), s.establishedDirectly());
+                                              s.followFocusEnabled(), s.establishedDirectly(),
+                                              s.crossSheetFollowEnabled());
       sessions.put(token, refreshed);
       return refreshed;
    }
@@ -366,6 +398,67 @@ public class SheetSessionService {
    }
 
    /**
+    * Returns the unexpired session bound to {@code socketSessionId} with
+    * {@link JoinSession#crossSheetFollowEnabled()} {@code true}, or {@code null} if none is held.
+    * Structurally like {@link #findBySocketAndRuntime}, but scanning by socket alone -- the whole
+    * point of cross-sheet-follow is that the session's {@code runtimeId} is changing, so it
+    * cannot be part of the lookup key (design doc section 7.2).
+    *
+    * <p>At most one such session is expected live per socket (mirroring section 2's own
+    * assumption that a second portal mint from the same socket replaces, not coexists with, the
+    * first) -- not explicitly re-confirmed for this specific case; the multi-tab/same-socket edge
+    * case is an accepted, documented limitation (design doc section 7.7 item 4), not silently
+    * solved here.
+    */
+   private JoinSession findCrossSheetFollowBySocket(String socketSessionId) {
+      if(socketSessionId == null) {
+         return null;
+      }
+
+      long now = clock.getAsLong();
+
+      for(JoinSession s : sessions.values()) {
+         if(!s.isExpired(now) && s.crossSheetFollowEnabled() &&
+            socketSessionId.equals(s.socketSessionId()))
+         {
+            return s;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Returns the unexpired, {@link JoinSession#establishedDirectly()} session bound to
+    * {@code socketSessionId}, or {@code null} if none is held. Used by
+    * {@link #setCrossSheetFollow} to find the session a toggle applies to: a cross-sheet-follow
+    * session may not yet have a {@code runtimeId} to key a lookup by (it starts life unattached,
+    * established directly at login -- see {@link JoinSession#establishedDirectly()} -- and is
+    * only ever attached by {@link #syncToCurrentFocus} itself), so
+    * {@link #findBySocketAndRuntime}'s {@code (socketSessionId, runtimeId)} key cannot be used
+    * here. A pane-scoped session ({@code establishedDirectly() == false}) never matches this
+    * lookup, regardless of whether it happens to share a socket with a directly-established one
+    * -- the load-bearing half of charter assertion 11.
+    */
+   public JoinSession findEstablishedDirectlyBySocket(String socketSessionId) {
+      if(socketSessionId == null) {
+         return null;
+      }
+
+      long now = clock.getAsLong();
+
+      for(JoinSession s : sessions.values()) {
+         if(!s.isExpired(now) && s.establishedDirectly() &&
+            socketSessionId.equals(s.socketSessionId()))
+         {
+            return s;
+         }
+      }
+
+      return null;
+   }
+
+   /**
     * Turns Follow Focus on or off for the session bound to {@code (socketSessionId, runtimeId)}.
     * This is the server-side half of "explicit" (see the design doc): {@link #retarget} refuses
     * to move a session's target while this is {@code false}, independent of whatever the
@@ -481,18 +574,117 @@ public class SheetSessionService {
       return restored;
    }
 
+   /**
+    * Cross-sheet-follow's own retarget: when the browser reports a newly-focused
+    * {@code runtimeId}/{@code sheetType} over {@code /wiz/pairing/current-focus}, this finds the
+    * caller's own cross-sheet-follow-enabled session (if any) and mutates it IN PLACE to the new
+    * runtime -- new {@code runtimeId}/{@code sheetType}, {@code editorContext} reset to
+    * {@code null} (a freshly-focused sheet has no pane-level detail yet), {@code lastAccess}
+    * refreshed -- rather than spawning a new session or token (design doc section 7.2). Unlike
+    * {@link #retarget} (Follow Focus), which moves {@code editorContext} within one
+    * {@code runtimeId}, this moves the {@code runtimeId} itself: the session's
+    * {@code sessionToken} never changes, so the agent's very next tool call against that same
+    * token simply resolves against the newly-focused sheet, with zero agent action.
+    *
+    * <p><b>No match</b> (no cross-sheet-follow-enabled session on this socket, or {@code
+    * runtimeId}/{@code sheetType} missing): silent no-op (returns {@code null}), mirroring
+    * {@link #detach}/{@link #popFocus}'s existing fire-and-forget, nothing-to-report shape -- this
+    * is a passive background sync the browser is not waiting on a reply for.
+    *
+    * <p><b>Ownership mismatch</b>: re-runs the exact ownership check
+    * {@code SheetJoinService.join}'s step 3b already performs -- {@link SheetRuntimeAccess
+    * #getRuntimeOwner(SheetType, String)} for the reported runtime, compared via
+    * {@link PairingUtil#sameLogicalUser(String, Principal)} against the session's own recorded
+    * {@code ownerIdentity} -- and drops the report silently (logged, session left unchanged) on a
+    * genuine mismatch. A {@code null} runtime owner (not found on this node) is tolerated, not
+    * treated as a mismatch, mirroring step 3b's own null-tolerant treatment: the focus report is
+    * socket-scoped and therefore unspoofable by the agent, but it is still just the browser's own
+    * assertion of what it has open, and this is the one place that re-verifies it against the
+    * runtime's real recorded owner before trusting it (counter-assertion: "a focus report naming
+    * a runtime the identity doesn't actually own is silently dropped, not trusted" -- charter
+    * assertion 13).
+    */
+   public JoinSession syncToCurrentFocus(String socketSessionId, String runtimeId, SheetType sheetType) {
+      JoinSession session = findCrossSheetFollowBySocket(socketSessionId);
+
+      if(session == null || runtimeId == null || sheetType == null) {
+         return null;
+      }
+
+      Principal runtimeOwner = runtimeAccess == null ? null
+         : runtimeAccess.getRuntimeOwner(sheetType, runtimeId);
+
+      if(runtimeOwner != null && !PairingUtil.sameLogicalUser(session.ownerIdentity(), runtimeOwner)) {
+         LOG.warn("Cross-sheet-follow sync rejected: runtime not owned by session's identity " +
+                  "(runtimeId={}, sessionOwner={})", runtimeId, session.ownerIdentity());
+         return null;
+      }
+
+      JoinSession synced = new JoinSession(session.sessionToken(), runtimeId, session.ownerIdentity(),
+                                           sheetType, clock.getAsLong(), session.ttlMillis(),
+                                           session.connectionMode(), session.socketSessionId(),
+                                           session.socketUserName(), null,
+                                           session.followFocusEnabled(), session.establishedDirectly(),
+                                           session.crossSheetFollowEnabled());
+      sessions.put(session.sessionToken(), synced);
+      return synced;
+   }
+
+   /**
+    * Turns cross-sheet-follow on or off for the caller's own directly-established session, found
+    * by socket alone via {@link #findEstablishedDirectlyBySocket} -- see that method's javadoc
+    * for why a cross-sheet-follow session cannot be looked up by
+    * {@code (socketSessionId, runtimeId)} the way {@link #setFollowFocus} looks up a Follow Focus
+    * session.
+    *
+    * <p>Throws, named, rather than silently no-opping or silently succeeding, when no
+    * directly-established session is found on this socket -- charter assertion 11's own
+    * load-bearing check: a pane-scoped session (one whose {@link PairingGrant} named a non-null
+    * {@code runtimeId} at mint time, i.e. {@link JoinSession#establishedDirectly()} {@code ==
+    * false}) can never be the one {@link #findEstablishedDirectlyBySocket} matches, since
+    * {@code establishedDirectly} is recorded once at {@code open()} time and never changed
+    * thereafter -- this is the load-bearing server-side check, not merely a UI restriction a
+    * direct STOMP message could bypass.
+    *
+    * @throws PairingException {@code INVALID_ARGUMENT} if no directly-established session is
+    *                          held on this socket
+    */
+   public JoinSession setCrossSheetFollow(String socketSessionId, boolean enabled)
+      throws PairingException
+   {
+      JoinSession session = findEstablishedDirectlyBySocket(socketSessionId);
+
+      if(session == null) {
+         throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+            "Cross-sheet-follow can only be enabled on a directly-established (portal) session " +
+            "-- no such session is held for this connection.");
+      }
+
+      JoinSession updated = withCrossSheetFollowEnabled(session, enabled);
+      sessions.put(session.sessionToken(), updated);
+      return updated;
+   }
+
    private static JoinSession withEditorContext(JoinSession s, EditorContext editorContext) {
       return new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(), s.sheetType(),
                              s.lastAccess(), s.ttlMillis(), s.connectionMode(),
                              s.socketSessionId(), s.socketUserName(), editorContext,
-                             s.followFocusEnabled(), s.establishedDirectly());
+                             s.followFocusEnabled(), s.establishedDirectly(),
+                             s.crossSheetFollowEnabled());
    }
 
    private static JoinSession withFollowFocusEnabled(JoinSession s, boolean enabled) {
       return new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(), s.sheetType(),
                              s.lastAccess(), s.ttlMillis(), s.connectionMode(),
                              s.socketSessionId(), s.socketUserName(), s.editorContext(), enabled,
-                             s.establishedDirectly());
+                             s.establishedDirectly(), s.crossSheetFollowEnabled());
+   }
+
+   private static JoinSession withCrossSheetFollowEnabled(JoinSession s, boolean enabled) {
+      return new JoinSession(s.sessionToken(), s.runtimeId(), s.ownerIdentity(), s.sheetType(),
+                             s.lastAccess(), s.ttlMillis(), s.connectionMode(),
+                             s.socketSessionId(), s.socketUserName(), s.editorContext(),
+                             s.followFocusEnabled(), s.establishedDirectly(), enabled);
    }
 
    /**

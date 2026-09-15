@@ -126,9 +126,16 @@ public class ViewsheetAgentController {
     *                      fresh from the live {@link JoinSession} on every call, never cached.
     * @param followFocusEnabled whether Follow Focus is opted in for this session (see
     *                      {@code SheetSessionService.setFollowFocus}).
+    * @param crossSheetFollowEnabled whether cross-sheet-follow is opted in for this session (see
+    *                      {@code SheetSessionService.setCrossSheetFollow}) -- added for Lane C.
+    *                      The plugin's {@code requireSession} (propertyTools.ts/worksheetTools.ts)
+    *                      reads this off its cached session to decide whether to pay the extra
+    *                      live-probe round trip at all: with no channel of its own to learn a
+    *                      toggle flipped in the browser, this field, refreshed here on every
+    *                      `status`/probe call, is the only way that cache is ever updated.
     */
    public record SessionInfo(String runtimeId, String sheetType, EditorContext editorContext,
-                             boolean followFocusEnabled) {}
+                             boolean followFocusEnabled, boolean crossSheetFollowEnabled) {}
 
    /**
     * Reports this session's OWN current scope, resolved fresh from the live {@link JoinSession}
@@ -159,7 +166,8 @@ public class ViewsheetAgentController {
       editService.resolve(sessionToken, user);
       JoinSession session = resolveSession(sessionToken, user);
       return new SessionInfo(session.runtimeId(), session.sheetType().name().toLowerCase(),
-                             session.editorContext(), session.followFocusEnabled());
+                             session.editorContext(), session.followFocusEnabled(),
+                             session.crossSheetFollowEnabled());
    }
 
    /**

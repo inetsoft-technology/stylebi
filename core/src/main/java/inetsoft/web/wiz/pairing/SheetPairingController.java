@@ -273,6 +273,89 @@ public class SheetPairingController {
       }
    }
 
+   /**
+    * Payload for the STOMP cross-sheet-follow current-focus push -- the browser's report of
+    * "the human just switched to/opened this sheet in Composer", sent from
+    * {@code composer-main.component.ts}'s {@code updateFocusedSheet} chokepoint whenever
+    * {@code CrossSheetFollowService} reports itself enabled (design doc section 7.2). No
+    * {@code editorContext} at this level -- pane-level detail stays Follow Focus's own,
+    * separate, composable concern.
+    *
+    * @param runtimeId the newly-focused sheet's runtime id
+    * @param sheetType the newly-focused sheet's type
+    */
+   public record CurrentFocusRequest(String runtimeId, SheetType sheetType) {}
+
+   /**
+    * STOMP current-focus push -- cross-sheet-follow's own retarget signal. Unlike
+    * {@link #retargetViaSocket}, this is fire-and-forget with no reply: there is no human waiting
+    * synchronously on this passive background sync, and a no-match/ownership-mismatch case is
+    * meant to be silently dropped (see {@link SheetSessionService#syncToCurrentFocus}'s own
+    * javadoc), not surfaced as an error the browser needs to show.
+    *
+    * <p>{@code socketSessionId} is derived from the accessor, never trusted from the client, same
+    * as every other STOMP endpoint in this controller.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/current-focus}
+    */
+   @MessageMapping("/wiz/pairing/current-focus")
+   public void currentFocusViaSocket(@Payload CurrentFocusRequest req, SimpMessageHeaderAccessor accessor) {
+      if(req == null || req.runtimeId() == null || req.sheetType() == null) {
+         return;
+      }
+
+      JoinSession synced =
+         sessions.syncToCurrentFocus(accessor.getSessionId(), req.runtimeId(), req.sheetType());
+
+      if(synced != null) {
+         broadcast.sendAgentActive(synced);
+      }
+   }
+
+   /**
+    * Payload for the STOMP cross-sheet-follow enable/disable toggle.
+    *
+    * @param enabled the new opt-in state
+    */
+   public record CrossSheetFollowRequest(boolean enabled) {}
+
+   /** Response DTO for the STOMP cross-sheet-follow toggle. {@code error} is non-null on failure. */
+   public record CrossSheetFollowResponse(boolean ok, String error) {
+      public static CrossSheetFollowResponse success()          { return new CrossSheetFollowResponse(true, null); }
+      public static CrossSheetFollowResponse failure(String msg) { return new CrossSheetFollowResponse(false, msg); }
+   }
+
+   /**
+    * STOMP cross-sheet-follow toggle -- turns the opt-in on or off for the caller's own
+    * directly-established (portal) session, found by socket alone (see
+    * {@link SheetSessionService#setCrossSheetFollow}). Unlike {@link #followFocusViaSocket}, this
+    * DOES reply: enabling can be refused (no directly-established session held for this
+    * connection -- e.g. attempted from a pane-scoped session) for a reason the browser needs to
+    * surface to a human, not just log (charter assertion 11).
+    *
+    * <p>{@code socketSessionId} is derived from the accessor, never trusted from the client.
+    *
+    * <p>Send to: {@code /app/wiz/pairing/cross-sheet-follow}<br>
+    * Reply arrives on: {@code /user/queue/wiz/pairing/cross-sheet-follow}
+    */
+   @MessageMapping("/wiz/pairing/cross-sheet-follow")
+   @SendToUser("/commands/wiz/pairing/cross-sheet-follow")
+   public CrossSheetFollowResponse crossSheetFollowViaSocket(@Payload CrossSheetFollowRequest req,
+                                                             SimpMessageHeaderAccessor accessor)
+   {
+      if(req == null) {
+         return CrossSheetFollowResponse.failure("enabled is required");
+      }
+
+      try {
+         sessions.setCrossSheetFollow(accessor.getSessionId(), req.enabled());
+         return CrossSheetFollowResponse.success();
+      }
+      catch(PairingException e) {
+         return CrossSheetFollowResponse.failure(e.getMessage());
+      }
+   }
+
    @ExceptionHandler(PairingException.class)
    public ResponseEntity<Map<String, String>> handlePairingException(PairingException e) {
       HttpStatus status = switch(e.getKind()) {
