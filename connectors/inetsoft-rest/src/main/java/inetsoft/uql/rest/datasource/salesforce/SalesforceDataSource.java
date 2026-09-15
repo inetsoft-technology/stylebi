@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.rest.datasource.salesforce;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.*;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
@@ -82,6 +83,15 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
 
    public boolean useCredentialForPassword() {
       return useCredential() && !isOauth();
+   }
+
+   /**
+    * Unlike user/password, the security token is never part of the cloud "Use Secret ID"
+    * credential (see the class-level comment on {@link #getSecurityToken()}), so it must stay
+    * visible/editable in Legacy Password mode regardless of {@link #useCredential()}.
+    */
+   public boolean showSecurityToken() {
+      return !isOauth();
    }
 
    /**
@@ -233,6 +243,39 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
       if(token != null) {
          securityToken = Tool.decryptPassword(token);
       }
+      else if(!isOauth() && getCredential() instanceof CloudCredential cloudCredential &&
+         !Tool.isEmptyString(cloudCredential.getId()))
+      {
+         // Data sources that used "Use Secret ID" before this class switched to
+         // PASSWORD_OAUTH2_WITH_FLAGS stored the security token inside the vault secret's own
+         // JSON, under the legacy CloudSecurityTokenCredential schema ("security_token"). The
+         // new credential type has no such field and never reads that key, so without this the
+         // token would be permanently orphaned in the vault. Read the raw secret directly
+         // instead of relying on the new credential class to deserialize it. Gated on Legacy
+         // Password mode (!isOauth()) since OAuth-mode data sources never had a security token
+         // to migrate, and this call reaches a live vault API (billed per call on services like
+         // AWS Secrets Manager).
+         try {
+            JsonNode node = loadCloudSecurityToken(cloudCredential.getId());
+
+            if(node != null && node.get("security_token") != null) {
+               securityToken = node.get("security_token").textValue();
+            }
+         }
+         catch(Exception ignore) {
+            // the vault secret may be transiently unreachable; leave the token unset rather
+            // than fail data source parsing, same as CloudCredential.fetchCredential() does.
+         }
+      }
+   }
+
+   /**
+    * Reads the raw vault secret JSON for a cloud credential id. Package-visible seam so tests
+    * can exercise the legacy security-token migration in {@link #parseContents(Element)}
+    * without a live secrets manager.
+    */
+   protected JsonNode loadCloudSecurityToken(String credentialId) {
+      return Tool.loadCredentials(credentialId);
    }
 
    @Override
