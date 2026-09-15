@@ -88,6 +88,10 @@ public class ProviderChangePlanService {
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenKeys = new HashSet<>();
       Map<ProviderChain, String> chainProjections = new EnumMap<>(ProviderChain.class);
+      // Bug 76655 (F7): per-chain set of duplicate target names already claimed earlier in THIS
+      // request -- resolveDuplicateName's own collision check only sees the live, unmutated chain,
+      // which can't catch two duplicate entries proposing the same newName within one preview.
+      Map<ProviderChain, Set<String>> reservedDuplicateNames = new EnumMap<>(ProviderChain.class);
       int index = 0;
 
       for(ProviderChangeRequest change : req.getChanges()) {
@@ -123,7 +127,9 @@ public class ProviderChangePlanService {
             }
 
             changes.add(resolveDuplicate(label, chain, name, change.getNewName(), currentList,
-                                         seenKeys));
+                                         seenKeys,
+                                         reservedDuplicateNames.computeIfAbsent(
+                                            chain, c -> new HashSet<>())));
             continue;
          }
 
@@ -259,17 +265,35 @@ public class ProviderChangePlanService {
 
    /**
     * Resolves a {@code duplicate} entry: the source must exist, {@code newName} (if given) must not
-    * collide, and the proposed value is the source's own projection with its name swapped to the
-    * copy's name -- reusing {@link ProviderProjection#projectAuthenticationProvider}/
+    * collide -- with the live chain OR with another duplicate entry's target name already resolved
+    * earlier in this same request (bug 76655, {@code reservedNames}; the live chain alone cannot
+    * see a sibling entry's not-yet-applied proposed name, since preview never mutates anything) --
+    * and the proposed value is the source's own projection with its name swapped to the copy's name
+    * -- reusing {@link ProviderProjection#projectAuthenticationProvider}/
     * {@link ProviderProjection#projectAuthorizationProvider} rather than a bespoke projection, since
     * a duplicate is otherwise byte-for-byte the source (bug 76602). Unlike {@code create}, no
     * provider-type restriction applies here (03-fix.md): the real EM "Duplicate" button is
-    * unconditional, not gated by type, and duplicating an already-existing, already-licensed
-    * provider does not reintroduce the risk {@link #resolveCreate}'s DATABASE/CUSTOM exclusion
-    * guards against (there is no fresh, unvetted instance being spun up).
+    * unconditional, not gated by type.
+    *
+    * <p><b>Correction (bug 76655):</b> this javadoc used to claim duplicate needs no type
+    * restriction because it "never spins up a fresh, unvetted instance" -- true of THIS method
+    * (preview only reads and projects, no mutation), but false of {@code apply}:
+    * {@code ProviderChangesetApplyService.applyDuplicateAuthentication} calls {@code
+    * AuthenticationProviderService.addAuthenticationProvider}, which reaches the exact same
+    * {@code getProviderFromModel} chain a fresh {@code create} would -- a real {@code
+    * Class.forName}/{@code newInstance} for CUSTOM, a real, live {@code testConnection()} for
+    * DATABASE. That risk is real, but narrower than {@code create}'s: a duplicate's connection
+    * parameters/class name are not caller-supplied, they come from an already-configured, existing
+    * provider, and {@code AuthenticationProviderService.checkProviderTypeLicensed} (bug 76359)
+    * already refuses any DATABASE/CUSTOM introduction -- duplicate included, since it calls the
+    * same {@code addAuthenticationProvider} entry point -- on a non-Enterprise-licensed deployment.
+    * So on Community, this path is already blocked; on Enterprise, duplicating a DATABASE/CUSTOM
+    * provider does re-run a live connection test / re-instantiate a class, the same as {@code
+    * create} would, just against parameters an EM admin (not this caller) already configured.
     */
    private PlanChange resolveDuplicate(String label, ProviderChain chain, String name, String newName,
-                                       List<SecurityProviderStatus> currentList, Set<String> seenKeys)
+                                       List<SecurityProviderStatus> currentList, Set<String> seenKeys,
+                                       Set<String> reservedNames)
       throws Exception
    {
       String key = key(chain, name);
@@ -277,6 +301,12 @@ public class ProviderChangePlanService {
       requireNameExists(label, currentList, name);
 
       String actualNewName = resolveDuplicateName(label, newName, name, currentList);
+
+      if(!reservedNames.add(actualNewName)) {
+         throw new IllegalArgumentException(
+            label + ".newName: \"" + actualNewName + "\" is already claimed by another duplicate " +
+            "entry earlier in this same request; choose a different name for one of them");
+      }
 
       if(chain == ProviderChain.AUTHENTICATION) {
          AuthenticationProviderModel source = authenticationProviderService.getAuthenticationProvider(name);
