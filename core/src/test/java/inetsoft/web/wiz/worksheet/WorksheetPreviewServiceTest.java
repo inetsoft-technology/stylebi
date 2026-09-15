@@ -21,6 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.util.CoreTool;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -46,6 +47,11 @@ class WorksheetPreviewServiceTest {
       // ThreadLocal (production field, not a test double), and JUnit within a class typically
       // reuses the same thread across tests.
       XNodeMetaTable.LAST_FAILED_QUERY_MESSAGE.remove();
+
+      // Same guard for CoreTool's pending-user-message queue: a test that calls
+      // CoreTool.addUserMessage directly (see the warnings tests below) must not leak into the
+      // next test sharing this thread.
+      CoreTool.clearUserMessage();
    }
 
    // ---------------------------------------------------------------------------
@@ -164,7 +170,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(emptyLens);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10).rows();
       assertTrue(rows.isEmpty());
    }
 
@@ -177,7 +183,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10).rows();
 
       assertEquals(2, rows.size());
       assertEquals("Alice", rows.get(0).get("name"));
@@ -194,7 +200,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 3);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 3).rows();
       assertEquals(3, rows.size());
    }
 
@@ -207,7 +213,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 2, 2);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 2, 2).rows();
       assertEquals(2, rows.size());
       assertEquals("r3", rows.get(0).get("x"));
       assertEquals("r4", rows.get(1).get("x"));
@@ -227,7 +233,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", -1, 10);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", -1, 10).rows();
       assertEquals(3, rows.size());
       assertEquals("r1", rows.get(0).get("x"),
                    "a negative offset must behave like offset=0, not expose the header row");
@@ -242,7 +248,7 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 100, 10);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 100, 10).rows();
       assertTrue(rows.isEmpty());
    }
 
@@ -351,8 +357,67 @@ class WorksheetPreviewServiceTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       when(box.getTableLens(anyString(), anyInt())).thenReturn(l);
 
-      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10);
+      List<Map<String, Object>> rows = service.preview(rws(box), "T", 0, 10).rows();
       assertEquals(1, rows.size());
       assertTrue(rows.get(0).containsKey("col0"), "should use fallback key 'col0'");
+   }
+
+   // ---------------------------------------------------------------------------
+   // WBT-002 (#76648): surfacing the column-limit warning
+   // ---------------------------------------------------------------------------
+
+   // WBT-002 (#76648): AssetQuerySandbox.getColumnLimitTableLens raises
+   // Tool.addUserMessage(Util.getColumnLimitMessage()) via the SAME thread-local queue
+   // CoreTool.addUserMessage/getUserMessage expose, whenever it wraps a too-wide live-data
+   // table's TableLens in a ColumnMapFilter and silently drops every column past the
+   // organization's column limit. This test does not re-exercise that cap firing (already
+   // confirmed live, see docs/teams/2026-09-14-bugs-76648-tabular/bug-wbt-002/04-live-recheck.md)
+   // -- WorksheetPreviewServiceTest mocks AssetQuerySandbox entirely and cannot reach the real
+   // cap logic, which lives upstream of that mock boundary (a limitation the refuter's own
+   // round-2 write-up already flagged for whoever wrote this test). It instead calls the same
+   // production CoreTool.addUserMessage the real cap invokes, directly, to prove preview()'s own
+   // new capture logic surfaces whatever is pending in that queue by the time it returns.
+   @Test
+   void surfacesPendingUserMessageAsWarning() throws Exception {
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}});
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(invocation -> {
+         // Simulates AssetQuerySandbox.getColumnLimitTableLens raising its warning as a side
+         // effect of the same getTableLens call preview() itself makes.
+         CoreTool.addUserMessage("Number of column limited to: 200");
+         return l;
+      });
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertEquals(1, result.rows().size());
+      assertEquals(List.of("Number of column limited to: 200"), result.warnings());
+   }
+
+   @Test
+   void warningsAreEmptyWhenNothingWasRaised() throws Exception {
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}});
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertTrue(result.warnings().isEmpty());
+   }
+
+   @Test
+   void doesNotLeakAnUnrelatedPriorMessageFromTheSamePooledThread() throws Exception {
+      // Simulates a message left behind by an earlier, unrelated request that reused this
+      // thread from a pool, never consumed by anything downstream of it.
+      CoreTool.addUserMessage("stale message from a previous request");
+
+      TableLens l = lens(new String[]{"x"}, new Object[][]{{"r1"}});
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertTrue(result.warnings().isEmpty(),
+                 "a message queued before this call started must not be attributed to it");
    }
 }

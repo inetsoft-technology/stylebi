@@ -1202,16 +1202,19 @@ public class WorksheetAgentController {
     * @param offset       number of leading data rows to skip; 0-based, defaults to 0
     * @param limit        maximum rows to return (capped at 200; defaults to 50)
     * @param user         the authenticated agent principal
-    * @return list of row maps, each keyed by column name
+    * @return the preview rows (each keyed by column name) plus any warning raised while
+    *         producing them — notably, the organization's column-count limit silently
+    *         dropping trailing columns from a wide result
     * @throws PairingException if the session is invalid/expired, the sandbox is absent,
     *                          or the query fails
     */
    @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/preview")
-   public List<Map<String, Object>> preview(@PathVariable String sessionToken,
-                                             @RequestParam String table,
-                                             @RequestParam(defaultValue = "0") int offset,
-                                             @RequestParam(defaultValue = "50") int limit,
-                                             Principal user)
+   public WorksheetPreviewService.PreviewResult preview(
+      @PathVariable String sessionToken,
+      @RequestParam String table,
+      @RequestParam(defaultValue = "0") int offset,
+      @RequestParam(defaultValue = "50") int limit,
+      Principal user)
       throws PairingException
    {
       requireEnabled();

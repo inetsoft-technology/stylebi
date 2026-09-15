@@ -21,6 +21,8 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.XNodeMetaTable;
+import inetsoft.util.CoreTool;
+import inetsoft.util.UserMessage;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.service.WizVsService;
 import org.springframework.stereotype.Service;
@@ -55,14 +57,16 @@ public class WorksheetPreviewService {
     *                  Negative values are clamped to 0 (mirrors how {@code limit} is
     *                  clamped, not rejected, by the caller).
     * @param limit     maximum number of data rows to return (header row excluded)
-    * @return list of row maps keyed by column name; never {@code null}
+    * @return the preview rows plus any warning raised while producing them (e.g. the
+    *         organization's column-count limit silently dropping trailing columns); never
+    *         {@code null}
     * @throws PairingException if the sandbox is absent, the table is not found,
     *                          or the query execution fails
     */
-   public List<Map<String, Object>> preview(RuntimeWorksheet rws,
-                                             String tableName,
-                                             int offset,
-                                             int limit)
+   public PreviewResult preview(RuntimeWorksheet rws,
+                                 String tableName,
+                                 int offset,
+                                 int limit)
       throws PairingException
    {
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
@@ -70,6 +74,13 @@ public class WorksheetPreviewService {
       if(box == null) {
          throw new PairingException(PairingException.Kind.INTERNAL, "Worksheet query sandbox is not available");
       }
+
+      // Discard any pending message left behind by an earlier, unrelated request on this
+      // pooled thread (nothing on this path reads/clears it otherwise) so the warning captured
+      // below can only be one this call's own execution actually raised. Mirrors
+      // WorksheetTableService.probeExecutable's identical guard before its own
+      // CoreTool.getUserMessage() read.
+      CoreTool.clearUserMessage();
 
       // RUNTIME_MODE execution calls TableAssembly.replaceVariables, which substitutes
       // variable values ($(name)) into condition lists IN PLACE. Bound tables are cloned
@@ -146,13 +157,40 @@ public class WorksheetPreviewService {
             rows.add(rowMap);
          }
 
-         return rows;
+         return new PreviewResult(rows, captureWarnings());
       }
       catch(RuntimeException e) {
          throw new PairingException("Failed to read result columns for '"
                                     + tableName + "': " + e.getMessage(), e);
       }
    }
+
+   /**
+    * Reads and clears any {@link CoreTool#addUserMessage} raised while producing this preview
+    * — chiefly {@link inetsoft.report.internal.Util#getColumnLimitMessage()}, which
+    * {@code AssetQuerySandbox.getColumnLimitTableLens} raises (via {@code Tool.addUserMessage})
+    * whenever the executed table's column count exceeds the organization's column limit and it
+    * silently drops every column past that limit from the lens this method just read. The
+    * interactive Designer UI has its own request/response cycle that surfaces that same message
+    * as a toast; this REST agent endpoint has no equivalent, so without this call the truncation
+    * was previously indistinguishable from a genuinely narrow table.
+    */
+   private static List<String> captureWarnings() {
+      UserMessage msg = CoreTool.getUserMessage();
+
+      if(msg == null || msg.getMessage() == null || msg.getMessage().isBlank()) {
+         return List.of();
+      }
+
+      return List.of(msg.getMessage());
+   }
+
+   /**
+    * The rows produced by a {@link #preview} call, plus any warning surfaced while producing
+    * them (e.g. the organization's column-count limit silently dropping trailing columns).
+    * {@code warnings} is empty, never {@code null}, when nothing was raised.
+    */
+   public record PreviewResult(List<Map<String, Object>> rows, List<String> warnings) {}
 
    /**
     * The structures {@link inetsoft.uql.asset.TableAssembly#replaceVariables} mutates:
