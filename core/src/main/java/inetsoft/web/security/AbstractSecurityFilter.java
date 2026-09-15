@@ -820,7 +820,7 @@ public abstract class AbstractSecurityFilter
          .anyMatch(dest -> dest.equalsIgnoreCase(fetchDest));
    }
 
-   protected boolean isAnonymousPrincipal(SRPrincipal principal) {
+   public static boolean isAnonymousPrincipal(SRPrincipal principal) {
       if(principal == null || principal.getName() == null) {
          return false;
       }
