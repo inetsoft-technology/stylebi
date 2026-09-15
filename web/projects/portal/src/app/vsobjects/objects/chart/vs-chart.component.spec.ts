@@ -26,6 +26,7 @@ import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { AssemblyAction } from "../../../common/action/assembly-action";
+import { Point } from "../../../common/data/point";
 import { Rectangle } from "../../../common/data/rectangle";
 import { DndService } from "../../../common/dnd/dnd.service";
 import { FullScreenService } from "../../../common/services/full-screen.service";
@@ -66,8 +67,6 @@ class TestApp {
    mockObject: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
 }
 
-// All tests in this suite are currently .skip; mark the describe .skip so
-// Vitest 4 doesn't fail with "No test found in suite".
 describe("VSChart Tests", () => {
    let chartService: any;
    let dialogService: any;
@@ -88,7 +87,8 @@ describe("VSChart Tests", () => {
          isDataTipVisible: vi.fn(),
          isDataTipSource: vi.fn(),
          isFrozen: vi.fn(),
-         hideDataTip: vi.fn()
+         hideDataTip: vi.fn(),
+         scrolled: observableOf(null)
       };
       let dropdownService = {};
       let downloadService = { download: vi.fn() };
@@ -155,6 +155,33 @@ describe("VSChart Tests", () => {
 
       TestBed.compileComponents();
    }));
+
+   // Bug #76631: the annotation overlay positions/hides chart data annotations using
+   // model.annotationScrollLeft/Top, which are only ever written by onScroll() and must
+   // survive the model setter replacing the whole model object on every server refresh.
+   it("should restore the scroll offset onto a newly assigned model", () => {
+      let fixture = TestBed.createComponent(VSChart);
+      let chartComponent = fixture.componentInstance;
+
+      // sheetMaxMode (with maxMode/dataTip both falsy) skips the CHART_AREAS_URI
+      // round-trip in the model setter, keeping this test focused on the scroll
+      // restoration logic instead of the full chart rendering pipeline.
+      let firstModel: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+      firstModel.sheetMaxMode = true;
+      chartComponent.model = firstModel;
+
+      chartComponent.onScroll(new Point(37, 52));
+
+      let newModel: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+      newModel.sheetMaxMode = true;
+      expect(newModel.annotationScrollLeft).toBeUndefined();
+      expect(newModel.annotationScrollTop).toBeUndefined();
+
+      chartComponent.model = newModel;
+
+      expect(newModel.annotationScrollLeft).toBe(37);
+      expect(newModel.annotationScrollTop).toBe(52);
+   });
 
    it.skip("should run callbacks for visible icons", () => {
       let fixture = TestBed.createComponent(TestApp);
