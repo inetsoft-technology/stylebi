@@ -48,6 +48,11 @@ import java.util.*;
  * a column name at all, and is resolved against a real value only at render time
  * ({@code VSUtil.isVariableValue}/{@code DynamicValue}) — checking it against the source's schema
  * here would refuse a legitimate binding as if it were a typo'd or wrong-table column (#76641).
+ * The same exception applies when the assembly has no source established yet: {@link
+ * #requireSource} decides which table to bind by inferring from the fields' names ({@code hasAll})
+ * or checking them against an explicitly named table ({@code requireHasAll}), and a dynamic
+ * reference is not evidence either way there either — it neither disqualifies a candidate table nor
+ * makes an otherwise-wrong one match, so it is skipped in both checks the same way.
  */
 public final class BindableColumns {
    private BindableColumns() {
@@ -245,6 +250,13 @@ public final class BindableColumns {
 
    private static boolean hasAll(Set<String> columns, List<FieldRef> fields) {
       for(FieldRef field : fields) {
+         if(isDynamicVariableReference(field.column())) {
+            // "$(ComponentName)" carries no information about which table is correct -- it is not
+            // a schema column of any table, so it must not veto a candidate table the other,
+            // literal fields do match (#76641).
+            continue;
+         }
+
          if(!columns.contains(field.column())) {
             return false;
          }
@@ -257,6 +269,12 @@ public final class BindableColumns {
                                      String assembly)
    {
       for(FieldRef field : fields) {
+         if(isDynamicVariableReference(field.column())) {
+            // "$(ComponentName)" -- not a real column name to check against the source's schema;
+            // resolved at render time instead (#76641).
+            continue;
+         }
+
          if(!columns.contains(field.column())) {
             throw new IllegalArgumentException(
                "'" + field.column() + "' is not a column of '" + table + "', so binding '" +
