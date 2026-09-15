@@ -838,7 +838,11 @@ public class VSLayoutTool extends LayoutTool {
       TableDataDescriptor tdeac = target.getDescriptor();
       boolean crosstabStyle = false;
 
-      if(crosstab && "Default Style".equals(cassembly.getTableStyleValue())) {
+      // the modern palette is overlaid onto the Default Style only, so a marked table keeps it and
+      // takes the explicit alignment branch below instead
+      boolean modern = VizContext.of(info).modern;
+
+      if(crosstab && !modern && "Default Style".equals(cassembly.getTableStyleValue())) {
          cassembly.setTableStyleValue("inetsoft.report.style.CrosstabStyle");
          crosstabStyle = true;
       }
