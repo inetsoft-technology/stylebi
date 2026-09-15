@@ -18,7 +18,9 @@
 package inetsoft.web.wiz.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.web.assistant.AIAssistantController;
+import inetsoft.web.security.AbstractSecurityFilter;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import inetsoft.web.wiz.security.SSOTokenService;
 import jakarta.servlet.http.Cookie;
@@ -73,8 +75,13 @@ public class SSOTokenController {
       Principal principal = request.getUserPrincipal();
 
       // If principal is null, the security filter should have redirected to login.
-      // This is a fallback in case it didn't.
-      if(principal == null) {
+      // This is a fallback in case it didn't. An anonymous principal is treated the same way:
+      // AnonymousUserFilter populates a non-null SRPrincipal for a not-really-logged-in visitor,
+      // so a plain null check alone would mint and render a normal-looking consent page for
+      // anonymous, with no way for the user to tell that page apart from a real one (PSP-022).
+      if(principal == null || (principal instanceof SRPrincipal &&
+         AbstractSecurityFilter.isAnonymousPrincipal((SRPrincipal) principal)))
+      {
          String currentUrl = LinkUriArgumentResolver.transformUri(request);
          String queryString = request.getQueryString();
 

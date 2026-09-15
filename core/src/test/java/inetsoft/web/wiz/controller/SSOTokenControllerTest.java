@@ -17,7 +17,10 @@
  */
 package inetsoft.web.wiz.controller;
 
+import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.web.assistant.AIAssistantController;
 import inetsoft.web.wiz.security.SSOTokenService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -127,6 +130,75 @@ class SSOTokenControllerTest {
       assertTrue(redirectCaptor.getValue()
          .startsWith("https://stylebi.example.com/login.html?requestedUrl="),
          "Unauthenticated requests must be redirected to login with the original URL preserved");
+   }
+
+   @Test
+   void authorize_anonymousPrincipal_redirectsToLogin_doesNotMintToken() throws Exception {
+      // Regression test for PSP-022: AnonymousUserFilter populates a non-null SRPrincipal for a
+      // not-really-logged-in visitor, so the plain `principal == null` check alone never catches
+      // it -- it would fall through and render a normal-looking consent page baked with an
+      // anonymous-identity token. An anonymous principal must be redirected to login exactly like
+      // a null one.
+      HttpServletRequest request = mockRequest();
+      SRPrincipal anonymous = anonymousPrincipal();
+      when(request.getUserPrincipal()).thenReturn(anonymous);
+      when(request.getServletPath()).thenReturn("/sso/authorize");
+      when(request.getPathInfo()).thenReturn(null);
+      when(request.getQueryString())
+         .thenReturn("callback=https://chat.example.com/api/wiz/auth/callback");
+
+      SSOTokenService tokenService = mock(SSOTokenService.class);
+      SSOTokenController c = new SSOTokenController(tokenService);
+      HttpServletResponse response = mock(HttpServletResponse.class);
+
+      c.authorize(
+         "https://chat.example.com/api/wiz/auth/callback", null, null, request, response);
+
+      ArgumentCaptor<String> redirectCaptor = ArgumentCaptor.forClass(String.class);
+      verify(response).sendRedirect(redirectCaptor.capture());
+      assertTrue(redirectCaptor.getValue()
+         .startsWith("https://stylebi.example.com/login.html?requestedUrl="),
+         "An anonymous principal must be redirected to login, not given a consent page");
+      verify(tokenService, never()).createSSOToken(any(), anyString());
+      verify(response, never()).getWriter();
+   }
+
+   @Test
+   void authorize_namedPrincipal_rendersConsentPageAndMintsToken() throws Exception {
+      // Companion to the anonymous-redirect regression test above: a genuinely authenticated
+      // (non-anonymous) SRPrincipal must still get the normal consent page, unaffected by the
+      // PSP-022 fix.
+      HttpServletRequest request = mockRequest();
+      SRPrincipal named = namedPrincipal();
+      when(request.getUserPrincipal()).thenReturn(named);
+      when(request.getCookies()).thenReturn(null);
+
+      SSOTokenService tokenService = mock(SSOTokenService.class);
+      when(tokenService.createSSOToken(any(), anyString())).thenReturn("signed-token");
+      SSOTokenController c = new SSOTokenController(tokenService);
+
+      HttpServletResponse response = mock(HttpServletResponse.class);
+      java.io.StringWriter sw = new java.io.StringWriter();
+      when(response.getWriter()).thenReturn(new java.io.PrintWriter(sw));
+
+      c.authorize("https://chat.example.com/api/wiz/auth/callback", null, null, request, response);
+
+      verify(response, never()).sendRedirect(anyString());
+      verify(tokenService).createSSOToken(any(), anyString());
+      assertTrue(sw.toString().contains("signed-token"),
+         "A real authenticated principal must still get the consent page with a minted token");
+   }
+
+   private static SRPrincipal anonymousPrincipal() {
+      SRPrincipal principal = mock(SRPrincipal.class);
+      when(principal.getName()).thenReturn(ClientInfo.ANONYMOUS + IdentityID.KEY_DELIMITER + "default");
+      return principal;
+   }
+
+   private static SRPrincipal namedPrincipal() {
+      SRPrincipal principal = mock(SRPrincipal.class);
+      when(principal.getName()).thenReturn("alice" + IdentityID.KEY_DELIMITER + "default");
+      return principal;
    }
 
    @Test
