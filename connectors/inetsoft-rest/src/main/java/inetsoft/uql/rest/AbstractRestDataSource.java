@@ -19,6 +19,7 @@ package inetsoft.uql.rest;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.ListedDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.rest.auth.*;
@@ -26,6 +27,7 @@ import inetsoft.uql.rest.datasource.zohocrm.ZohoCRMDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.*;
 import inetsoft.util.CoreTool;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.util.credential.*;
 import org.slf4j.Logger;
@@ -34,6 +36,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.PrintWriter;
+import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
 
@@ -217,6 +220,85 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
     */
    public boolean isImpersonateValue() {
       return impersonationType != KerberosImpersonationType.PRINCIPAL  && isKerberos();
+   }
+
+   /**
+    * Get the identity that is impersonated when authenticating to the endpoint with
+    * kerberos constrained delegation. For the PRINCIPAL and PROPERTY impersonation types
+    * this is derived from the principal of the calling thread, so the result of a query is
+    * user dependent.
+    *
+    * @return the identity to impersonate, or null if it cannot be resolved.
+    */
+   public String getImpersonatedIdentity() {
+      final KerberosImpersonationType type = getImpersonationType();
+
+      if(type != null) {
+         switch(type) {
+         case STATIC:
+            return getImpersonatePrincipal();
+         case PRINCIPAL: {
+            final Principal principal = ThreadContext.getContextPrincipal();
+            return principal == null ? null : principal.getName();
+         }
+         case PROPERTY: {
+            final Principal principal = ThreadContext.getContextPrincipal();
+            return principal instanceof SRPrincipal ?
+               ((SRPrincipal) principal).getProperty(getImpersonatePrincipal()) : null;
+         }
+         }
+      }
+
+      LOG.warn("Invalid kerberos impersonation type: {}", type);
+      return null;
+   }
+
+   /**
+    * The query result is user dependent only when constrained delegation impersonates an
+    * identity derived from the calling user. A STATIC identity is the same for every user,
+    * as is every other authentication type, so those results stay shared (Bug #76658).
+    *
+    * The identity is read from the thread context rather than from the user the cache key is
+    * being built for, because the thread context principal is what is actually impersonated:
+    * AbstractRestRuntime.runQuery captures it when it submits the request, on the thread that
+    * computed this key. The two are the same for the read and write of a cache entry. Should
+    * they differ on a cache eviction (where the calling thread's principal need not be the
+    * user the entry was stored for), the entry is not removed early and expires on its own,
+    * which is preferable to a key that does not match the result stored under it.
+    */
+   @Override
+   public String getCacheDiscriminator() {
+      if(!isConstrainedDelegation()) {
+         return null;
+      }
+
+      final KerberosImpersonationType type = getImpersonationType();
+
+      if(type != KerberosImpersonationType.PRINCIPAL &&
+         type != KerberosImpersonationType.PROPERTY)
+      {
+         return null;
+      }
+
+      final Principal principal = ThreadContext.getContextPrincipal();
+      final String name = principal == null ? null : principal.getName();
+
+      // the calling principal is included in addition to the resolved identity because the
+      // identity can be null (e.g. the principal does not have the property) and because,
+      // for the PROPERTY type, the property name is read here before the data source
+      // variables have been substituted, so a "$(var)" property name would not resolve.
+      // Including the principal keeps the key user distinct in both cases.
+      return encodeDiscriminator(type.name()) + encodeDiscriminator(name) +
+         encodeDiscriminator(getImpersonatedIdentity());
+   }
+
+   /**
+    * Length prefix a part of the cache discriminator so that the concatenated parts cannot
+    * be ambiguous, i.e. so that null, the empty string, and a value that happens to contain
+    * the separator all produce distinct discriminators.
+    */
+   private static String encodeDiscriminator(String value) {
+      return value == null ? "-1|" : value.length() + "|" + value;
    }
 
    @Property(label="User", required = true)

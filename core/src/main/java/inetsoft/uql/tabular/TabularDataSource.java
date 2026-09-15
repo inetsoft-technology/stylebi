@@ -106,6 +106,26 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
    }
 
    /**
+    * Get a discriminator to append to the query cache key when the result of a query
+    * executed against this data source depends on the user executing it. The query cache
+    * is process wide, so without a discriminator the first user to run a query populates
+    * the entry that every other user is then served (Bug #76658).
+    *
+    * This must only be non-null when the data source is actually configured in a way that
+    * makes the result user dependent; returning a per-user value unconditionally would
+    * disable all cross-user caching for the data source.
+    *
+    * Implementations must derive the value from the same state, on the same thread, as the
+    * mechanism that makes the result user dependent, so that the key cannot disagree with
+    * the result that is cached under it.
+    *
+    * @return the discriminator, or null if the result is not user dependent.
+    */
+   public String getCacheDiscriminator() {
+      return null;
+   }
+
+   /**
     * Check validity of the data source. May or may not test the connection.
     * Throws an exception if it fails.
     */
