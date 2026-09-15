@@ -708,12 +708,15 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
     * @param eval the field-referencing ExpressionValue.
     * @param box the asset query sandbox (used for the "parameter" chain, matching getExpressionVal).
     * @param type the data type of the value.
+    * @param dateRange true if this value belongs to a DATE_IN condition, matching
+    *                  {@code getExpressionVal}'s own {@code dateRange} parameter -- see the
+    *                  post-processing below for why this must be threaded through here too.
     * @param lens the table lens providing the current row's column values.
     * @param row the row index within {@code lens}.
     * @return the per-row script result.
     */
    protected Object evalFieldExpression(ExpressionValue eval, AssetQuerySandbox box, String type,
-                                        TableLens lens, int row)
+                                        boolean dateRange, TableLens lens, int row)
    {
       String exp = eval.getExpression();
       ScriptEnv senv = box.getScriptEnv();
@@ -757,7 +760,24 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
          senv.remove("conditionGroupScope");
       }
 
-      return getScriptValue(val, type);
+      // Mirrors getExpressionVal's own post-processing exactly (both cases below), so a
+      // field[...] result is never treated differently from an otherwise-identical value that
+      // happened to be resolved once instead of per row.
+      if(val instanceof Object[]) {
+         Object[] objs = (Object[]) val;
+
+         for(int j = 0; j < objs.length; j++) {
+            objs[j] = getScriptValue(objs[j], type);
+         }
+      }
+      else if(dateRange && val instanceof String) {
+         // don't convert, name of date range
+      }
+      else if(!(val instanceof ColumnRef)) {
+         val = getScriptValue(val, type);
+      }
+
+      return val;
    }
 
    @Override

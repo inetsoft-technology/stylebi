@@ -48,6 +48,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -318,5 +319,109 @@ class ConditionFieldReferencingJavascriptValueTest {
          "row 2 (A/B) must be re-evaluated against its own field['REGION_ID'] (\"B\") and " +
          "excluded, not match because row 1 (A/A) already cached lvalue=\"A\"/lresult=true for " +
          "the same tested CUSTOMER_ID value");
+   }
+
+   /**
+    * Fix-round regression (code review of PR #5230, finding #2's secondary observation):
+    * {@code ConditionGroup#evalFieldExpression} (the per-row path) returned {@code
+    * getScriptValue(val, type)} unconditionally, unlike {@code #getExpressionVal} (the once-per-
+    * query path), which special-cases an {@code Object[]} result by converting each element
+    * individually instead of stringifying the whole array. A ONE_OF condition whose field[...]
+    * expression evaluates to a JS array is exactly the case a plain {@code field['Col']} scalar
+    * binding doesn't cover -- without the fix, {@code getScriptValue} calls {@code
+    * Condition.getObject(type, array.toString())} on the array's default {@code Object#toString()}
+    * (e.g. {@code "[Ljava.lang.Object;@..."}), silently corrupting the whole value list into one
+    * unmatchable garbage string, so no row can ever match.
+    */
+   @Test
+   void fieldReferencingOneOfConditionConvertsAJsArrayResultElementByElement() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "CUSTOMERS");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef("CUSTOMER_ID")));
+      cs.addAttribute(new ColumnRef(new AttributeRef("TAG_A")));
+      cs.addAttribute(new ColumnRef(new AttributeRef("TAG_B")));
+      table.setColumnSelection(cs, false);
+      table.setEmbeddedData(new XEmbeddedTable(new String[]{ "string", "string", "string" },
+         new Object[][]{
+            { "CUSTOMER_ID", "TAG_A", "TAG_B" },
+            { "X", "X", "Y" }, // CUSTOMER_ID "X" is one of {TAG_A, TAG_B} = {"X", "Y"} -- matches
+            { "Z", "X", "Y" }, // CUSTOMER_ID "Z" is one of {"X", "Y"} -- does not match
+         }));
+      ws.addAssembly(table);
+      ColumnRef customerId = (ColumnRef) table.getColumnSelection(false).getAttribute("CUSTOMER_ID");
+
+      AssetCondition cond = new AssetCondition(XSchema.STRING);
+      cond.setOperation(XCondition.ONE_OF);
+      ExpressionValue eval = new ExpressionValue();
+      eval.setType(ExpressionValue.JAVASCRIPT);
+      eval.setExpression("[field['TAG_A'], field['TAG_B']]");
+      cond.addValue(eval);
+
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(customerId, cond, 0));
+      table.setPreConditionList(conds);
+
+      TableLens lens = run(ws, table);
+      Set<String> matched = new HashSet<>();
+
+      for(int r = 1; r < lens.getRowCount(); r++) {
+         matched.add((String) lens.getObject(r, 0));
+      }
+
+      assertEquals(Set.of("X"), matched,
+         "CUSTOMER_ID \"X\" must match ONE_OF [field['TAG_A'], field['TAG_B']] = [\"X\", \"Y\"] " +
+         "-- a corrupted (stringified) array value would make every row fail to match instead");
+   }
+
+   /**
+    * Fix-round regression (code review of PR #5230, finding #2's secondary observation, other
+    * half): {@code getExpressionVal} also special-cases a DATE_IN condition's value, leaving a
+    * String result (a builtin date-range name like "this year") unconverted, since {@code
+    * getScriptValue} would otherwise run it through {@code Condition.getObject(DATE, ...)} and
+    * silently replace the range name with today's date (see {@code AbstractCondition#getObject}'s
+    * DATE branch's unparseable-string fallback) -- a value {@link Condition#isInDateRange} then
+    * fails to recognize as any builtin range name at all. {@code evalFieldExpression} skipped this
+    * same guard entirely, so a DATE_IN condition using a field[...]-derived range name silently
+    * never matched.
+    */
+   @Test
+   void fieldReferencingDateInConditionPassesADateRangeNameThroughUnconverted() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "EVENTS");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef("EVENT_DATE")));
+      cs.addAttribute(new ColumnRef(new AttributeRef("RANGE_NAME")));
+      table.setColumnSelection(cs, false);
+
+      Calendar cal = Calendar.getInstance();
+      java.sql.Date today = new java.sql.Date(cal.getTimeInMillis());
+
+      table.setEmbeddedData(new XEmbeddedTable(new String[]{ "date", "string" },
+         new Object[][]{
+            { "EVENT_DATE", "RANGE_NAME" },
+            { today, "this year" },
+         }));
+      ws.addAssembly(table);
+      ColumnRef eventDate = (ColumnRef) table.getColumnSelection(false).getAttribute("EVENT_DATE");
+
+      AssetCondition cond = new AssetCondition(XSchema.DATE);
+      cond.setOperation(XCondition.DATE_IN);
+      ExpressionValue eval = new ExpressionValue();
+      eval.setType(ExpressionValue.JAVASCRIPT);
+      eval.setExpression("field['RANGE_NAME']");
+      cond.addValue(eval);
+
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(eventDate, cond, 0));
+      table.setPreConditionList(conds);
+
+      TableLens lens = run(ws, table);
+
+      assertEquals(1, lens.getRowCount() - 1,
+         "today's EVENT_DATE must match DATE_IN [field['RANGE_NAME']] = \"this year\" -- a range " +
+         "name mistakenly run through date conversion would silently become today's own date " +
+         "instead, which Condition#isInDateRange does not recognize as any builtin range name, " +
+         "excluding the row");
    }
 }

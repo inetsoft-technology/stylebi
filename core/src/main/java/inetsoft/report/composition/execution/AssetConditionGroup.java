@@ -208,7 +208,9 @@ public class AssetConditionGroup extends ConditionGroup {
       }
 
       for(FieldExprBinding binding : fieldExprBindings) {
-         Object val = evalFieldExpression(binding.eval, binding.box, binding.type, lens, row);
+         boolean dateRange = binding.cond.getOperation() == XCondition.DATE_IN;
+         Object val = evalFieldExpression(
+            binding.eval, binding.box, binding.type, dateRange, lens, row);
          binding.cond.clearCache();
 
          // AssetCondition.evaluate(Object) short-circuits a ONE_OF/CONTAINS condition through its
