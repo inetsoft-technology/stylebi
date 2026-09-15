@@ -31,6 +31,7 @@ import { PopComponentService } from "../../vsobjects/objects/data-tip/pop-compon
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { CheckFormDataService } from "../../vsobjects/util/check-form-data.service";
+import { GlobalSubmitService } from "../../vsobjects/util/global-submit.service";
 import { VSTabService } from "../../vsobjects/util/vs-tab.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { VSScaleService } from "../../widget/services/scale/vs-scale.service";
@@ -56,6 +57,7 @@ export const viewerEditRoutes: Routes = [
          VSTabService,
          RichTextService,
          FullScreenService,
+         GlobalSubmitService,
          {
             provide: ScaleService,
             useClass: VSScaleService
