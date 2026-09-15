@@ -146,6 +146,35 @@ class ProviderChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("newName"));
    }
 
+   // Bug 76655 (F7): two duplicate entries in the same request, different sources, both proposing
+   // the same explicit newName -- the live chain (read once, unmutated during preview) contains
+   // neither proposed copy yet, so the OLD collision check (against the live chain only) let both
+   // through, deferring the real collision to apply-time, where it fails the second entry and rolls
+   // back the whole changeset. Must now be refused at preview/resolve() time instead.
+   @Test void resolveDuplicateTwoEntriesSameExplicitNewNameThrowsAtPreview() throws Exception {
+      stubProviderList(authenticationProviderService, List.of("p1", "p2"));
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(fileModel("p1"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("dup", List.of(
+            duplicateAuth("p1", "clone"), duplicateAuth("p2", "clone"))), user));
+
+      assertTrue(ex.getMessage().contains("newName"));
+      assertTrue(ex.getMessage().contains("clone"));
+   }
+
+   // Two duplicates targeting DIFFERENT explicit newNames must not collide with each other.
+   @Test void resolveDuplicateTwoEntriesDifferentExplicitNewNamesBothSucceed() throws Exception {
+      stubProviderList(authenticationProviderService, List.of("p1", "p2"));
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(fileModel("p1"));
+      when(authenticationProviderService.getAuthenticationProvider("p2")).thenReturn(fileModel("p2"));
+
+      ResolvedPlan plan = service.resolve(request("dup", List.of(
+         duplicateAuth("p1", "clone1"), duplicateAuth("p2", "clone2"))), user);
+
+      assertEquals(2, plan.changes().size());
+   }
+
    @Test void resolveDuplicateAuthenticationSourceNotFoundThrows() {
       stubProviderList(authenticationProviderService, List.of());
 

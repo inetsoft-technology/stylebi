@@ -107,4 +107,44 @@ describe("Arrange Dashboard Dialog Unit Test", () => {
        expect(dashLines[1].querySelectorAll("td")[0].textContent.trim()).toBe("dash3");
        expect(dashLines[2].querySelectorAll("td")[0].textContent.trim()).toBe("dash1");
    });
+
+   //Bug #76593 disabling one dashboard should not leave an unrelated dashboard's
+   //checkbox showing a stale (unchecked) state after the reorder
+   it("should keep unrelated dashboards checked after toggling one dashboard off",
+      waitForAsync(() =>
+   {
+      arrangeDashboardDialog.model.dashboards =
+         [createDashModel("dash1"), createDashModel("dash2"), createDashModel("dash3")];
+      fixture.detectChanges();
+
+      fixture.whenStable().then(() => {
+         // settle the initial NgModel writeValue microtask before interacting,
+         // so the click below is measured against a fully steady-state UI
+         fixture.detectChanges();
+
+         let enableChk = fixture.nativeElement.querySelectorAll(
+            "div.resizable-table-body-container input[type=checkbox]");
+         enableChk[0].click();
+         fixture.detectChanges();
+
+         fixture.whenStable().then(() => {
+            fixture.detectChanges();
+
+            let dashLines = fixture.nativeElement.querySelectorAll(
+               "div.resizable-table-body-container tr");
+            let checkboxes = fixture.nativeElement.querySelectorAll(
+               "div.resizable-table-body-container input[type=checkbox]");
+
+            expect(dashLines[0].querySelectorAll("td")[0].textContent.trim()).toBe("dash2");
+            expect(dashLines[1].querySelectorAll("td")[0].textContent.trim()).toBe("dash3");
+            expect(dashLines[2].querySelectorAll("td")[0].textContent.trim()).toBe("dash1");
+
+            // dash2 and dash3 were never toggled and must still render checked;
+            // only dash1, which was actually disabled, should render unchecked.
+            expect(checkboxes[0].checked).toBe(true);
+            expect(checkboxes[1].checked).toBe(true);
+            expect(checkboxes[2].checked).toBe(false);
+         });
+      });
+   }));
 });

@@ -375,6 +375,63 @@ class WorksheetReadServiceTest {
    }
 
    // ---------------------------------------------------------------------------
+   // MV incremental-refresh conditions (Bug #76626 WBS-044)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Round-trips all five MV incremental-refresh fields through the real
+    * {@link WorksheetMutationSupport#setMVConditions} mutator, then reads them back through
+    * {@link WorksheetReadService} -- confirming the read side (previously entirely absent, per
+    * the bug's diagnosis) surfaces what the (also new) write side sets, matching this file's own
+    * convention of exercising the real mutation path rather than hand-building the condition.
+    */
+   @Test
+   void readsMVIncrementalRefreshConditions() {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setMVConditions(t,
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "=", List.of("1"), false, null), null, 0)),
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "=", List.of("2"), false, null), null, 0)),
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "=", List.of("3"), false, null), null, 0)),
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "=", List.of("4"), false, null), null, 0)),
+         true);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "T");
+
+      assertEquals(List.of("1"), tm.mvUpdatePreConditions().get(0).values());
+      assertEquals(List.of("2"), tm.mvUpdatePostConditions().get(0).values());
+      assertEquals(List.of("3"), tm.mvDeletePreConditions().get(0).values());
+      assertEquals(List.of("4"), tm.mvDeletePostConditions().get(0).values());
+      assertTrue(tm.mvForceAppendUpdates());
+   }
+
+   /** Absent MV conditions must read back as empty lists, not null, matching preConditions etc. */
+   @Test
+   void mvIncrementalRefreshConditionsAreEmptyWhenUnset() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "T");
+
+      assertTrue(tm.mvUpdatePreConditions().isEmpty());
+      assertTrue(tm.mvUpdatePostConditions().isEmpty());
+      assertTrue(tm.mvDeletePreConditions().isEmpty());
+      assertTrue(tm.mvDeletePostConditions().isEmpty());
+      assertFalse(tm.mvForceAppendUpdates());
+   }
+
+   // ---------------------------------------------------------------------------
    // referencedVariables (WSQ-001)
    // ---------------------------------------------------------------------------
 

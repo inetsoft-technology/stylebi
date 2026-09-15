@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.util.CoreTool;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.*;
@@ -1201,17 +1202,102 @@ class ChartAestheticMutatorTest {
       assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
    }
 
-   /** The other channels have no such cast, and keep working field-less. */
+   /**
+    * Shape has the identical unguarded cast line and texture had before this fix
+    * ({@code VSShapeFrameStrategy.createCombinedFrame:107}, same unconditional
+    * {@code (StaticShapeFrame) frames[i]}), reached the same way (shape is in
+    * {@code perMeasureFrameChannels} too). Extending the guard to it is a separate defect, out of
+    * scope for VCA-006 (line/texture only) — this pins that shape is still unprotected rather than
+    * silently asserting it is fine.
+    */
    @Test
-   void theStaticOnlyRuleIsColourOnly() {
+   void theStaticOnlyRuleDoesNotYetCoverShape() {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
 
       ChartAestheticMutator.setFrame(
-         model, "line", spec("type", "categorical", "lines", List.of(4097, 4113)));
+         model, "shape", spec("type", "categorical", "shapes", List.of("907", "908")));
 
       ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
-      assertInstanceOf(CategoricalLineModel.class, agg.getLineFrame());
+      assertInstanceOf(CategoricalShapeModel.class, agg.getShapeFrame());
+   }
+
+   // ── a field-less line/texture frame on the measures must be static ────────
+   //
+   // The line/texture counterpart of the colour-channel crash above: VSLineFrameStrategy and
+   // VSTextureFrameStrategy's createCombinedFrame have the byte-identical unconditional cast to
+   // StaticLineFrame/StaticTextureFrame. On a line chart with the shape channel unbound,
+   // set_visual_frame line {type: "categorical", ...} answered ok and every later render crashed
+   // with a ClassCastException at VSLineFrameStrategy.createCombinedFrame; reset_visual_frame did
+   // not recover it either, since resetted() only resets a categorical frame's values in place,
+   // never its family back to static.
+
+   @Test
+   void refusesACategoricalLineFrameOnMeasuresWithNoShapeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "line", spec("type", "categorical", "lines", List.of(4097, 4113))));
+
+      assertTrue(thrown.getMessage().contains("static"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_aesthetic_field"),
+                 "the refusal has to name the way forward, not just the rule");
+      assertTrue(thrown.getMessage().contains("shape"),
+                 "line has no field of its own -- the refusal has to point at shape, not line");
+   }
+
+   @Test
+   void refusesACategoricalTextureFrameOnMeasuresWithNoShapeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "texture", spec("type", "categorical", "textures", List.of(19, 12))));
+
+      assertTrue(thrown.getMessage().contains("static"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_aesthetic_field"),
+                 "the refusal has to name the way forward, not just the rule");
+   }
+
+   /** The one frame the measures can actually carry, for both channels. */
+   @Test
+   void acceptsAStaticLineOrTextureFrameOnMeasuresWithNoShapeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "line", spec("type", "static", "line", 4241));
+      ChartAestheticMutator.setFrame(model, "texture", spec("type", "static", "texture", 5));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertInstanceOf(StaticLineModel.class, agg.getLineFrame());
+      assertInstanceOf(StaticTextureModel.class, agg.getTextureFrame());
+   }
+
+   /**
+    * With a dimension bound to shape and its frame already a LineFrameModel, the write lands on
+    * the shape field ({@link #frameField}) and returns before ever reaching the per-measure branch
+    * this fix guards -- confirmed safe against this fix by construction, not merely by not throwing
+    * here. Sibling of {@link #aLineFrameLandsOnTheShapeFieldWhenThatFieldCarriesALineFrame} and
+    * {@link #aTextureFrameLandsOnTheShapeFieldWhenThatFieldCarriesATextureFrame} below, which already
+    * assert a categorical line/texture frame is accepted once shape is bound; this test exists
+    * alongside them only to name that guarantee explicitly for this fix's regression suite.
+    */
+   @Test
+   void aCategoricalLineFrameIsFineOnceShapeIsBoundToALineFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Year(ORDER_DATE)"));
+      model.getShapeField().setFrame(new CategoricalLineModel());
+
+      ChartAestheticMutator.setFrame(
+         model, "line", spec("type", "categorical", "lines", List.of(4241, 4097)));
+
+      assertInstanceOf(CategoricalLineModel.class, model.getShapeField().getFrame());
    }
 
    // ── Share Colors needs the field name and the viewsheet's existing pins ───
@@ -1355,6 +1441,50 @@ class ChartAestheticMutatorTest {
          assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
       assertEquals(1, frame.getGlobalColorMaps().length);
       assertEquals("#000000", frame.getGlobalColorMaps()[0].getColor());
+   }
+
+   /**
+    * VCA-005: the fix for "a shared pin can never be removed" rides the CoreTool.NULL sentinel
+    * through this exact merge, not around it. Note what this class can and cannot prove:
+    * ChartAestheticMutator.setFrame/carryShareColorState/mergePins operate purely on the
+    * in-memory ChartBindingModel/CategoricalColorModel -- there is no real Viewsheet in this test
+    * class, so the actual delete (Viewsheet.setDimensionColors' null-filter, already covered by
+    * ViewsheetTest.setDimensionColorsGenuinelyDropsANullSentinelEntry) never runs here. What this
+    * merge layer must get right instead is: the sentinel-valued pin survives the merge unchanged
+    * -- not silently dropped, not corrupted into a different color -- alongside a coexisting pin
+    * on the same column that the merge is carrying forward untouched (mirroring what
+    * aSharedMappingAddsToTheColumnsPinsInsteadOfReplacingThem already proves for an ordinary
+    * colour). mergePins has no null-awareness of its own (it keys purely on
+    * ColorMapModel.getOption(), never inspects getColor()), so it must neither special-case nor
+    * mangle the sentinel -- it should reach VSChartBindingFactory exactly as written.
+    */
+   @Test
+   void aSharedMappingsNullSentinelSurvivesTheMergeAlongsideACoexistingPin() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartAestheticMutator.setField(model, "color", dimension("Region"));
+      ChartAestheticMutator.setFrame(
+         model, "color", spec("type", "categorical", "colors", List.of("#111111")));
+
+      CategoricalColorModel existing = (CategoricalColorModel) model.getColorField().getFrame();
+      existing.setGlobalColorMaps(new ColorMapModel[]{
+         new ColorMapModel("East", "#D64541"), new ColorMapModel("West", "#F28E2C") });
+
+      ChartAestheticMutator.setFrame(
+         model, "color",
+         spec("type", "categorical", "shareColors", true, "mapping", Map.of("East", CoreTool.NULL)));
+
+      CategoricalColorModel frame =
+         assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
+      Map<String, String> pins = new LinkedHashMap<>();
+
+      for(ColorMapModel pin : frame.getGlobalColorMaps()) {
+         pins.put(pin.getOption(), pin.getColor());
+      }
+
+      assertEquals(Map.of("East", CoreTool.NULL, "West", "#F28E2C"), pins,
+                   "the merge must carry the sentinel through unchanged for East and leave West " +
+                   "untouched -- the actual delete happens downstream in " +
+                   "Viewsheet.setDimensionColors, not in this merge");
    }
 
    /**

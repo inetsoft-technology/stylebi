@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -26,6 +27,7 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.ConditionListWrapper;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -1321,6 +1323,71 @@ class WorksheetEditServiceMutatorsTest {
          "the refused add must not have duplicated the name the edit just produced");
       assertEquals(4, cs.getAttributeCount(),
          "and must not have added a column");
+   }
+
+   /**
+    * Redmine #76627 (WBS-047): {@code edit_date_range_column} renamed the column on its own
+    * table only, never cascading into a downstream mirror's {@link AggregateInfo} — unlike the
+    * Composer's own {@code rename_column} path, which cascades via
+    * {@code RenameColumnController.renameTableColumn}. Left uncascaded, the mirror's group still
+    * references the column's OLD encoded name; {@code AggregateInfo.validate} has no repair path
+    * for "same source column, different date option", so it falls through and silently DELETES
+    * the group entirely (confirmed empirically against unfixed code: group count goes from 1 to
+    * 0) rather than re-pointing it at the new option/name.
+    *
+    * <p>Needs a REAL (non-mocked) {@link AssetQuerySandbox} wired onto the mocked
+    * {@link RuntimeWorksheet}: the deletion happens inside {@code AbstractTableAssembly
+    * #setColumnSelection}'s {@code ginfo.validate(selection)} call, which only runs against the
+    * mirror's own rebuilt column selection once {@code WorksheetEditService#apply}'s post-mutation
+    * {@code refreshAssemblies} sweep resyncs it — and that sweep silently no-ops (catch-and-log)
+    * without a real sandbox, which would hide the bug entirely.</p>
+    */
+   @Test
+   void editDateRangeColumnCascadesIntoDownstreamMirrorAggregateInfo() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "orderDate", "total");
+      ws.addAssembly(t);
+      ColumnRef dateCol = (ColumnRef) t.getColumnSelection(false).getAttribute("orderDate");
+      dateCol.setDataType(XSchema.DATE);
+
+      // A real (empty) embedded table has no header row, so a REAL AssetQuerySandbox's refresh
+      // (needed below) would otherwise reconcile "total" down to a positional placeholder name
+      // ("col1") instead of leaving it alone -- give it actual rows whose headers match the
+      // declared columns so that reconciliation is a no-op.
+      t.setEmbeddedData(new XEmbeddedTable(new String[]{ "date", "double" }, new Object[][]{
+         { "orderDate", "total" },
+         { java.sql.Date.valueOf("2024-01-15"), 100.0 },
+         { java.sql.Date.valueOf("2024-02-20"), 200.0 },
+      }));
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(new AssetQuerySandbox(ws, null, new VariableTable()));
+
+      WorksheetEditService svc = service(rws, "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addDateRangeColumn("T", "orderDate", "QUARTER_OF_YEAR"));
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M",
+            List.of(new WorksheetMutationSupport.GroupSpec("QuarterOfYear(orderDate)")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("total", "SUM", null))));
+
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+      assertEquals(1, mirror.getAggregateInfo().getGroupCount(),
+         "sanity check: the mirror's group must exist before the rename");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editDateRangeColumn("T", "QuarterOfYear(orderDate)", "MONTH_OF_YEAR"));
+
+      assertEquals(1, mirror.getAggregateInfo().getGroupCount(),
+         "the mirror's group must survive the source date-range column's option change, not be " +
+         "silently dropped");
+      DataRef groupRef = mirror.getAggregateInfo().getGroup(0).getDataRef();
+      assertEquals("MonthOfYear(orderDate)", groupRef.getAttribute(),
+         "the surviving group must reflect the NEW option/name, not the stale old one");
    }
 
    @Test
@@ -2786,6 +2853,109 @@ class WorksheetEditServiceMutatorsTest {
          () -> svc.apply("TOK", agent, ed -> ed.setPostConditions("T", List.of())));
 
       assertTrue(t.getPostConditionList() == null || t.getPostConditionList().isEmpty());
+   }
+
+   // =========================================================================
+   // set_mv_conditions (Bug #76626 WBS-044)
+   // =========================================================================
+
+   @Test
+   void setMVConditionsRejectsEmbeddedTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.setMVConditions(
+            "T", List.of(), null, null, null, true)));
+
+      assertTrue(t.getMVUpdatePreConditionList() == null
+                 || t.getMVUpdatePreConditionList().isEmpty());
+      assertFalse(t.isMVForceAppendUpdates());
+   }
+
+   /**
+    * Round-trips all five MV fields ({@code set_mv_conditions}) through the real
+    * {@link WorksheetMutationSupport#setMVConditions} mutator onto the real
+    * {@link TableAssembly} MV accessor/mutator pairs
+    * ({@code TableAssembly.java:181-232}) -- the same fields the Composer's own MV Condition
+    * pane (out of scope here) writes for a human user, but reached here through the
+    * agent-bridge's own direct-TableAssembly path.
+    */
+   @Test
+   void setMVConditionsWritesAllFiveFieldsOntoTheTableAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("a", "=", "1")),
+         List.of(conditionNode("a", "=", "2")),
+         List.of(conditionNode("a", "=", "3")),
+         List.of(conditionNode("a", "=", "4")),
+         true));
+
+      assertEquals(1, t.getMVUpdatePreConditionList().getConditionSize());
+      assertEquals(1, t.getMVUpdatePostConditionList().getConditionSize());
+      assertEquals(1, t.getMVDeletePreConditionList().getConditionSize());
+      assertEquals(1, t.getMVDeletePostConditionList().getConditionSize());
+      assertTrue(t.isMVForceAppendUpdates());
+   }
+
+   /**
+    * {@code null} on any one of the four MV condition-list fields must leave that
+    * {@link TableAssembly} field untouched -- not clear it -- matching
+    * {@link WorksheetMutationSupport#setConditions}'s own null-vs-empty-list convention for the
+    * ordinary pre/post lists (an explicit empty list clears; {@code null} is "don't touch").
+    * Likewise {@code mvForceAppendUpdates == null} must leave the flag as it was.
+    */
+   @Test
+   void setMVConditionsNullLeavesThatFieldUntouched() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("a", "=", "1")),
+         List.of(conditionNode("a", "=", "2")),
+         List.of(conditionNode("a", "=", "3")),
+         List.of(conditionNode("a", "=", "4")),
+         true));
+
+      // Second call touches only mvUpdatePreConditions and the flag; the other three lists and
+      // an explicit re-set of the flag to false must leave/replace only what was passed.
+      svc.apply("TOK", agent, ed -> ed.setMVConditions("T",
+         List.of(conditionNode("a", "=", "9")), null, null, null, null));
+
+      assertEquals(1, t.getMVUpdatePreConditionList().getConditionSize());
+      assertEquals("9", firstConditionValue(t.getMVUpdatePreConditionList()));
+      assertEquals(1, t.getMVUpdatePostConditionList().getConditionSize(),
+         "null mvUpdatePostConditions must leave the previously-set list untouched");
+      assertEquals(1, t.getMVDeletePreConditionList().getConditionSize(),
+         "null mvDeletePreConditions must leave the previously-set list untouched");
+      assertEquals(1, t.getMVDeletePostConditionList().getConditionSize(),
+         "null mvDeletePostConditions must leave the previously-set list untouched");
+      assertTrue(t.isMVForceAppendUpdates(),
+         "null mvForceAppendUpdates must leave the previously-set flag untouched");
+   }
+
+   private static WorksheetMutationSupport.ConditionNode conditionNode(
+      String field, String operation, String value)
+   {
+      return new WorksheetMutationSupport.ConditionNode(
+         new WorksheetMutationSupport.ConditionSpec(field, operation, List.of(value), false, null),
+         null, 0);
+   }
+
+   private static String firstConditionValue(ConditionListWrapper wrapper) {
+      ConditionItem item = (ConditionItem) wrapper.getConditionItem(0);
+      return String.valueOf(((Condition) item.getXCondition()).getValue(0));
    }
 
    @Test

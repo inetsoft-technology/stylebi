@@ -1888,6 +1888,11 @@ public class ViewsheetAssemblyAgentController {
       }
 
       broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
+
+      // broadcastRefresh only repaints visible assembly canvases; the Data panel/asset tree that
+      // shows the newly attached base worksheet is only reachable through this separate push -- see
+      // SheetAgentBroadcastService#broadcastBindingTreeRefresh's own javadoc for why.
+      broadcast.broadcastBindingTreeRefresh(rvs, rvs.getID(), user);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/undo")

@@ -26,6 +26,8 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.util.XSourceInfo;
+import inetsoft.util.CoreTool;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,9 +35,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Color;
 import java.security.Principal;
+import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -130,5 +137,39 @@ class ViewsheetTest {
       assertNotNull(resultWs, "a physical-table base entry must populate a synthesized worksheet");
       assertNotNull(resultWs.getAssembly("Orders"),
          "the synthesized worksheet should carry one table assembly named after the table");
+   }
+
+   /**
+    * Regression for VCA-005: a categorical-colour pin, once made with {@code shareColors:true},
+    * could not be removed through any documented tool -- every write path merges the viewsheet's
+    * existing pins forward and can only add/overwrite, never shrink. The fix (in
+    * {@code VisualFrameAliases.categoricalColor}) lets the {@code CoreTool.NULL} ("null") sentinel
+    * reach {@link Tool#getColorFromHexString}, which already returns a real Java {@code null} for
+    * it. This proves the other half of that mechanism, already in place and untouched by the fix:
+    * {@link Viewsheet#setDimensionColors} genuinely drops a {@code null}-valued entry when
+    * rebuilding a column's pins, rather than throwing or re-adding it, while every other key in the
+    * same write survives.
+    */
+   @Test
+   void setDimensionColorsGenuinelyDropsANullSentinelEntry() {
+      AssetEntry wentry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET, "ws1", null);
+      Viewsheet vs = new Viewsheet(wentry);
+
+      vs.setDimensionColors("Category", Map.of("Furniture", Color.RED, "Office", Color.BLUE));
+      assertEquals(2, vs.getDimensionColors("Category").size());
+
+      // Map.of() rejects null values outright, but the sentinel's whole point is to carry one --
+      // a mutable map is required to hold it at all.
+      Map<String, Color> update = new java.util.HashMap<>();
+      update.put("Furniture", Tool.getColorFromHexString(CoreTool.NULL));
+      update.put("Office", Color.BLUE);
+      vs.setDimensionColors("Category", update);
+
+      Map<String, Color> after = vs.getDimensionColors("Category");
+      assertEquals(1, after.size(),
+                   "the null-sentinel-mapped key must be dropped, not re-added");
+      assertFalse(after.containsKey("Furniture"));
+      assertTrue(after.containsKey("Office"));
    }
 }

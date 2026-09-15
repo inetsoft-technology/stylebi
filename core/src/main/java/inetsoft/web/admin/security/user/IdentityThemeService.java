@@ -101,16 +101,35 @@ public class IdentityThemeService {
    }
 
    public void updateUserTheme(String oldId, String id, String ntheme) {
+      assignTheme(oldId, id, ntheme, CustomTheme::getUsers);
+   }
+
+   /**
+    * Moves an identity's reverse-index membership from {@code oldId} to {@code id} in whichever
+    * theme currently lists it (same rename behavior as {@link #updateTheme}), and additionally
+    * ensures the identity is a member of the theme named {@code ntheme}, if any. Generalizes
+    * {@link #updateUserTheme} across users/groups/roles via {@code fn}.
+    *
+    * @param ntheme the id of the theme the identity should be assigned to, or {@code null} if
+    *               no theme should be newly assigned.
+    */
+   public void assignTheme(String oldId, String id, String ntheme, Function<CustomTheme, List<String>> fn) {
       Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
 
       themes.stream().map(theme -> {
-         if(theme.getUsers().contains(oldId)) {
-            theme.getUsers().remove(oldId);
-            theme.getUsers().add(id);
+         if(fn.apply(theme).contains(oldId)) {
+            fn.apply(theme).remove(oldId);
+
+            // only keep the identity in this theme if it's the one being (re)assigned to,
+            // or no reassignment was requested (pure rename) -- otherwise reassigning to a
+            // different theme would silently leave a stale membership behind here.
+            if(ntheme == null || Tool.equals(theme.getId(), ntheme)) {
+               fn.apply(theme).add(id);
+            }
          }
 
-         if(Tool.equals(theme.getId(), ntheme) && !theme.getUsers().contains(oldId)) {
-            theme.getUsers().add(id);
+         if(ntheme != null && Tool.equals(theme.getId(), ntheme) && !fn.apply(theme).contains(id)) {
+            fn.apply(theme).add(id);
          }
 
          return theme;

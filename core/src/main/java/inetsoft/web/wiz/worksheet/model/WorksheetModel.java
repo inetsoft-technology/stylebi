@@ -86,6 +86,12 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     * @param preConditions      pre-aggregate filter conditions
     * @param postConditions     post-aggregate filter conditions
     * @param rankingConditions  ranking / top-N conditions
+    * @param mvUpdatePreConditions  pre-aggregate MV update (append) conditions; empty when none
+    * @param mvUpdatePostConditions post-aggregate MV update (append) conditions; empty when none
+    * @param mvDeletePreConditions  pre-aggregate MV delete conditions; empty when none
+    * @param mvDeletePostConditions post-aggregate MV delete conditions; empty when none
+    * @param mvForceAppendUpdates   whether an MV update's results are always appended to
+    *                               existing data
     * @param aggregates         group-by / aggregate info; {@code null} when none is set
     * @param sorts              sort directives; empty when none
     * @param primary            {@code true} if this is the worksheet's primary assembly
@@ -145,7 +151,12 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       String mode,
       Integer x,
       Integer y,
-      List<String> referencedVariables
+      List<String> referencedVariables,
+      List<FilterModel> mvUpdatePreConditions,
+      List<FilterModel> mvUpdatePostConditions,
+      List<FilterModel> mvDeletePreConditions,
+      List<FilterModel> mvDeletePostConditions,
+      boolean mvForceAppendUpdates
    ) {}
 
    /**

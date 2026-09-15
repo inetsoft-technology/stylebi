@@ -57,7 +57,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -129,6 +128,29 @@ class AdminProviderControllerTest {
       verify(authenticationProviderService, never()).testConnection(any());
    }
 
+   // Bug 76655 (F1): a FILE provider has no failure mode getProviderFromModel's FILE branch could
+   // ever surface, so AuthenticationProviderService.testConnection always returns the same generic
+   // "Connection is OK" text for FILE -- indistinguishable from a real, verified-good connection.
+   // The controller must special-case FILE before ever calling testConnection, rather than reusing
+   // that generic text.
+   @Test void testConnection_fileProvider_returnsDistinctNoOpStatusRatherThanFalseSuccess()
+      throws Exception
+   {
+      stubProviderList("p1");
+      AuthenticationProviderModel fileModel = AuthenticationProviderModel.builder()
+         .providerName("p1").oldName("p1").providerType(SecurityProviderType.FILE).build();
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(fileModel);
+
+      ConnectionStatus result = controller.testAuthenticationProviderConnection("p1", user);
+
+      assertTrue(result.getStatus().contains("FILE"));
+      assertTrue(result.getStatus().toLowerCase().contains("no live connection to test") ||
+                 result.getStatus().toLowerCase().contains("nothing was checked"));
+      // Must never reuse the shared testConnection() path (and its generic "Connection is OK"
+      // text) for a type that has no connection concept to test.
+      verify(authenticationProviderService, never()).testConnection(any());
+   }
+
    // -------------------------------------------------------------------------
    // getAuthenticationProviderDirectory() -- kind dispatch (bug 76602)
    // -------------------------------------------------------------------------
@@ -188,16 +210,9 @@ class AdminProviderControllerTest {
    // -------------------------------------------------------------------------
 
    @Test void clearAuthenticationCache_cacheableProvider_clearsByResolvedIndex() throws Exception {
-      stubProviderList("keep", "p1");
-      AuthenticationChain chain = mock(AuthenticationChain.class);
-      AuthenticationProvider keepProvider = mock(AuthenticationProvider.class);
-      // AuthenticationProvider extends CachableProvider directly (confirmed by refute) -- a plain
-      // mock with isCacheEnabled() stubbed true stands in for LdapAuthenticationProvider's own
-      // hardcoded-true override, no need for a hand-written fake implementing the whole interface.
-      AuthenticationProvider ldapProvider = mock(AuthenticationProvider.class);
-      lenient().when(ldapProvider.isCacheEnabled()).thenReturn(true);
-      when(chain.getProviders()).thenReturn(List.of(keepProvider, ldapProvider));
-      when(authenticationProviderService.getAuthenticationChain()).thenReturn(Optional.of(chain));
+      // Bug 76655 (F6): cacheEnabled is read straight off the SecurityProviderStatus already
+      // fetched to resolve name->index -- no second, independent getAuthenticationChain() read.
+      stubProviderListWithCache(Map.of("keep", false, "p1", true), "keep", "p1");
       SecurityProviderStatus expected = SecurityProviderStatus.builder()
          .name("p1").label("p1").cacheEnabled(true).cacheAge(0).loading(false).build();
       when(authenticationProviderService.clearAuthenticationProviderCache(1)).thenReturn(expected);
@@ -206,19 +221,17 @@ class AdminProviderControllerTest {
 
       assertSame(expected, result);
       verify(authenticationProviderService).clearAuthenticationProviderCache(1);
+      verify(authenticationProviderService, never()).getAuthenticationChain();
    }
 
    @Test void clearAuthenticationCache_fileProvider_refusesLoudRatherThanNoOp() throws Exception {
-      stubProviderList("p1");
-      AuthenticationChain chain = mock(AuthenticationChain.class);
-      AuthenticationProvider fileProvider = mock(AuthenticationProvider.class); // not CachableProvider
-      when(chain.getProviders()).thenReturn(List.of(fileProvider));
-      when(authenticationProviderService.getAuthenticationChain()).thenReturn(Optional.of(chain));
+      stubProviderListWithCache(Map.of("p1", false), "p1");
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> controller.clearAuthenticationProviderCacheByName("p1", user));
       assertTrue(ex.getMessage().contains("no cache to clear"));
       verify(authenticationProviderService, never()).clearAuthenticationProviderCache(anyInt());
+      verify(authenticationProviderService, never()).getAuthenticationChain();
    }
 
    @Test void clearAuthenticationCache_unknownName_throwsStructuredNotFound() {
@@ -233,15 +246,14 @@ class AdminProviderControllerTest {
    // -------------------------------------------------------------------------
 
    @Test void clearAuthorizationCache_fileProvider_refusesLoud() throws Exception {
+      // stubAuthzProviderList defaults every entry to cacheEnabled(false) -- exactly the FILE-like
+      // shape this test needs (bug 76655, F6: no second getAuthorizationChain() read needed).
       stubAuthzProviderList("z1");
-      AuthorizationChain chain = mock(AuthorizationChain.class);
-      AuthorizationProvider fileProvider = mock(AuthorizationProvider.class); // not CachableProvider
-      when(chain.getProviders()).thenReturn(List.of(fileProvider));
-      when(authorizationProviderService.getAuthorizationChain()).thenReturn(Optional.of(chain));
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> controller.clearAuthorizationProviderCacheByName("z1", user));
       assertTrue(ex.getMessage().contains("no cache to clear"));
+      verify(authorizationProviderService, never()).getAuthorizationChain();
    }
 
    // -------------------------------------------------------------------------
@@ -254,6 +266,22 @@ class AdminProviderControllerTest {
       for(String name : names) {
          builder.addProviders(SecurityProviderStatus.builder()
             .name(name).label(name).cacheEnabled(false).cacheAge(0).loading(false).build());
+      }
+
+      lenient().when(authenticationProviderService.getProviderListModel()).thenReturn(builder.build());
+   }
+
+   /** Same as {@link #stubProviderList} but with a per-name {@code cacheEnabled} flag -- lets a
+    * clear-cache test stub cacheability without a second, independent
+    * {@code getAuthenticationChain()} mock (bug 76655, F6: the controller no longer reads the
+    * chain a second time just to check this). */
+   private void stubProviderListWithCache(Map<String, Boolean> cacheEnabledByName, String... names) {
+      SecurityProviderStatusList.Builder builder = SecurityProviderStatusList.builder();
+
+      for(String name : names) {
+         builder.addProviders(SecurityProviderStatus.builder()
+            .name(name).label(name).cacheEnabled(cacheEnabledByName.get(name))
+            .cacheAge(0).loading(false).build());
       }
 
       lenient().when(authenticationProviderService.getProviderListModel()).thenReturn(builder.build());

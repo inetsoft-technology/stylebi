@@ -184,6 +184,8 @@ public class VSRefreshService {
 
       box.get().lockWrite();
       pending.put(id, true);
+      LOG.debug("BUG76488-76485-TRACE VSRefreshService.refreshViewsheet write-lock ACQUIRED " +
+         "id={} thread={} userRefresh={}", id, Thread.currentThread().getName(), userRefresh);
 
       if(event.embedAssemblySize() != null) {
          // This event carries no assembly name (it's a whole-viewsheet refresh, not a
@@ -242,6 +244,8 @@ public class VSRefreshService {
       finally {
          pending.remove(id);
          box.get().unlockWrite();
+         LOG.debug("BUG76488-76485-TRACE VSRefreshService.refreshViewsheet write-lock " +
+            "RELEASED id={} thread={}", id, Thread.currentThread().getName());
 
          if(entry != null && executionRecord != null) {
             Audit.getInstance().auditExecution(executionRecord, principal);
@@ -339,6 +343,8 @@ public class VSRefreshService {
          // if just reizing, don't force the data cache to be cleared. (55009)
          else if(!tableMetaData) {
             rvs.resetRuntime();
+            LOG.debug("BUG76488-76485-TRACE VSRefreshService: rvs.resetRuntime() called " +
+               "id={} thread={}", rvs.getID(), Thread.currentThread().getName());
             rvs.setTouchTimestamp(System.currentTimeMillis());
             box.get().setTouchTimestamp(rvs.getTouchTimestamp());
          }

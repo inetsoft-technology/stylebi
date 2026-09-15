@@ -26,6 +26,9 @@ import inetsoft.uql.asset.WSAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.command.RefreshBindingTreeCommand;
+import inetsoft.web.binding.service.VSBindingTreeService;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModel;
 import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
@@ -70,10 +73,12 @@ public class SheetAgentBroadcastService {
 
    @Autowired
    public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
-                                     VSObjectModelFactoryService vsObjectModelFactoryService)
+                                     VSObjectModelFactoryService vsObjectModelFactoryService,
+                                     VSBindingTreeService vsBindingTreeService)
    {
       this.commandDispatcherService = commandDispatcherService;
       this.vsObjectModelFactoryService = vsObjectModelFactoryService;
+      this.vsBindingTreeService = vsBindingTreeService;
    }
 
    /**
@@ -163,6 +168,55 @@ public class SheetAgentBroadcastService {
 
       LOG.info("Pairing broadcast viewsheet refresh sent (runtimeId={}, sessionId={}, assemblies={})",
                runtimeId, sessionId, sent);
+   }
+
+   /**
+    * Push a live refresh of the persistent Data panel/asset tree (the Toolbox's
+    * {@code ComposerBindingTree}) to the browser holding this runtime's paired session.
+    *
+    * <p>{@link #broadcastViewsheetRefresh} only repaints visible top-level assembly canvases — it
+    * has no path to the binding/asset tree, which the browser otherwise only repopulates on a
+    * client-initiated pull ({@code RefreshBindingTreeEvent}). This mirrors that pull's own tree
+    * construction ({@code VSBindingTreeControllerService.getBinding}, with no assembly selected —
+    * the same no-assembly-context {@code ComposerBindingTree} itself uses) and pushes the result
+    * as a {@code RefreshBindingTreeCommand} via the same unsolicited, runtime-id-keyed addressing
+    * {@link #broadcastViewsheetRefresh} already uses. Reaches
+    * {@code VSPane.processRefreshBindingTreeCommand} on the client, which only applies it while
+    * that viewsheet's tab is focused — a caller-accepted limitation, not a defect of this method.
+    *
+    * <p>Callers must not let a failure here fail the mutation that already succeeded — a stale
+    * tree is a paper cut, not lost data — so build/dispatch errors are logged and swallowed.
+    *
+    * @param principal the principal to resolve the runtime's binding tree with (must own/be
+    *                  authorized for {@code runtimeId} — ordinarily the same one the caller just
+    *                  used to make the mutation being broadcast)
+    */
+   public void broadcastBindingTreeRefresh(RuntimeSheet rs, String runtimeId, Principal principal) {
+      String sessionId = rs.getSocketSessionId();
+
+      if(sessionId == null) {
+         return;
+      }
+
+      String user = rs.getSocketUserName();
+
+      if(user == null) {
+         user = principal == null ? null : principal.getName();
+      }
+
+      try {
+         TreeNodeModel tree = vsBindingTreeService.getBinding(runtimeId, null, false, principal);
+
+         if(tree == null) {
+            return;
+         }
+
+         RefreshBindingTreeCommand command = new RefreshBindingTreeCommand(tree);
+         sendCommand(user, sessionId, runtimeId, command);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to build/send binding tree refresh (runtimeId={})", runtimeId, e);
+      }
    }
 
    /**
@@ -439,4 +493,5 @@ public class SheetAgentBroadcastService {
 
    private final CommandDispatcherService commandDispatcherService;
    private final VSObjectModelFactoryService vsObjectModelFactoryService;
+   private final VSBindingTreeService vsBindingTreeService;
 }

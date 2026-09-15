@@ -43,6 +43,7 @@ import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import java.awt.Point;
 import java.util.Enumeration;
+import inetsoft.web.composer.ws.RenameColumnController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
@@ -1000,6 +1001,34 @@ public class WorksheetEditService {
       }
 
       /**
+       * Sets a table's MV incremental-refresh condition fields (set_mv_conditions) --
+       * pre/post-aggregate MV update (append) and delete condition trees, plus the
+       * force-append-updates flag. Each condition-list parameter is independent: {@code null}
+       * leaves that field untouched (matching {@link WorksheetMutationSupport#setMVConditions}'s
+       * own null handling); {@code forceAppendUpdates == null} leaves the flag unchanged.
+       *
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists, or if
+       *                          {@code table} is an embedded or snapshot-embedded table
+       */
+      public void setMVConditions(String table,
+                                  List<WorksheetMutationSupport.ConditionNode> updatePre,
+                                  List<WorksheetMutationSupport.ConditionNode> updatePost,
+                                  List<WorksheetMutationSupport.ConditionNode> deletePre,
+                                  List<WorksheetMutationSupport.ConditionNode> deletePost,
+                                  Boolean forceAppendUpdates)
+         throws PairingException
+      {
+         TableAssembly t = requireTable(table);
+         requireFilterable(t);
+         requireConditionFields(t, updatePre, false);
+         requireConditionFields(t, updatePost, true);
+         requireConditionFields(t, deletePre, false);
+         requireConditionFields(t, deletePost, true);
+         WorksheetMutationSupport.setMVConditions(
+            t, updatePre, updatePost, deletePre, deletePost, forceAppendUpdates);
+      }
+
+      /**
        * Sets a ranking condition (TOP N / BOTTOM N) on a table.
        */
       public void setRanking(String table, WorksheetMutationSupport.RankingSpec spec)
@@ -1303,6 +1332,11 @@ public class WorksheetEditService {
             }
          }
 
+         // Snapshot the pre-rename column (entity/attribute as seen by anything downstream)
+         // before dateRef is mutated in place below, so it can be used as the "old" side of the
+         // mirror cascade a few lines down.
+         ColumnRef originalColumnRef = ref instanceof ColumnRef cr1 ? cr1.clone() : null;
+
          dateRef.setDateOption(option);
          dateRef.setName(newName);
 
@@ -1322,6 +1356,16 @@ public class WorksheetEditService {
          }
 
          t.setColumnSelection(cs, false);
+
+         // Cascade the rename into any downstream mirror's own column selection and
+         // AggregateInfo, the same way the Composer's rename_column path already does via
+         // RenameColumnController.renameTableColumn. Without this, a mirror's AggregateInfo group
+         // still references this column by its OLD encoded name; AggregateInfo.validate() has no
+         // repair path for that (only an exact-string match), so it silently DROPS the group
+         // instead of re-pointing it at the new name.
+         if(originalColumnRef != null && !newName.equals(currentName) && ref instanceof ColumnRef newColumnRef) {
+            RenameColumnController.renameTableColumn(ws, t, originalColumnRef, newColumnRef);
+         }
       }
 
       /**

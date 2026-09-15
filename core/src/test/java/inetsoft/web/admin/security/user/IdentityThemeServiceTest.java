@@ -92,4 +92,77 @@ class IdentityThemeServiceTest {
       assertTrue(saved.getOrganizations().contains("otherOrg"),
          "an unrelated organization's own membership must survive the cleanup");
    }
+
+   // Bug #76638: `theme` was accepted and echoed at preview for user/group/role create and
+   // update, but never actually persisted as CustomTheme membership -- SecurityApiService's
+   // createUser/createGroup/createRole never read request.getTheme() at all, and
+   // updateUser/updateGroup/updateRole captured it into an Edit*PaneModel that was never read
+   // back out. assignTheme() generalizes updateUserTheme's add-to-theme logic across
+   // getUsers/getGroups/getRoles so all three unit types can be assigned, not just renamed.
+   @Test
+   void assignTheme_newIdentity_addsToMatchingTheme() {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme-1");
+
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+      service.assignTheme("newgroup1", "newgroup1", "theme-1", CustomTheme::getGroups);
+
+      assertTrue(theme.getGroups().contains("newgroup1"),
+         "a brand-new identity with no prior membership must be added to the theme named by "
+         + "ntheme");
+   }
+
+   @Test
+   void assignTheme_renamedIdentity_migratesMembershipAndKeepsThemeAssignment() {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme-1");
+      theme.setRoles(new ArrayList<>(List.of("oldRoleName")));
+
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+      service.assignTheme("oldRoleName", "newRoleName", "theme-1", CustomTheme::getRoles);
+
+      assertFalse(theme.getRoles().contains("oldRoleName"));
+      assertTrue(theme.getRoles().contains("newRoleName"),
+         "renaming an identity already assigned to a theme must migrate its membership entry, "
+         + "not drop it");
+   }
+
+   @Test
+   void assignTheme_nullNtheme_onlyRenamesDoesNotAssign() {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme-1");
+
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
+
+      service.assignTheme("newuser1", "newuser1", null, CustomTheme::getUsers);
+
+      assertFalse(theme.getUsers().contains("newuser1"),
+         "a null ntheme (no theme requested) must not add the identity to an unrelated theme");
+   }
+
+   // Round-2 review finding (05-review-r1.md): reassigning an identity to a DIFFERENT theme
+   // without a rename (oldId == id) previously only ever added it to the new theme -- the
+   // remove(oldId)+add(id) in the same theme netted to a no-op whenever oldId == id, so the
+   // identity was left a member of BOTH its previous theme and the new one.
+   @Test
+   void assignTheme_reassignWithoutRename_removesFromPreviousThemeAndAddsToNewOne() {
+      CustomTheme themeA = new CustomTheme();
+      themeA.setId("theme-a");
+      themeA.setUsers(new ArrayList<>(List.of("user1")));
+
+      CustomTheme themeB = new CustomTheme();
+      themeB.setId("theme-b");
+
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(themeA, themeB)));
+
+      service.assignTheme("user1", "user1", "theme-b", CustomTheme::getUsers);
+
+      assertFalse(themeA.getUsers().contains("user1"),
+         "reassigning to a different theme (no rename) must remove the identity from its "
+         + "previous theme, not leave it a member of both");
+      assertTrue(themeB.getUsers().contains("user1"),
+         "reassigning to a different theme (no rename) must add the identity to the new theme");
+   }
 }

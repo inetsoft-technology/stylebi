@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.util.CoreTool;
 import inetsoft.web.binding.model.ColorMapModel;
 import inetsoft.web.binding.model.graph.aesthetic.*;
 
@@ -827,7 +828,13 @@ public final class VisualFrameAliases {
          for(Map.Entry<String, Object> entry : mapping.entrySet()) {
             ColorMapModel map = new ColorMapModel();
             map.setOption(entry.getKey());
-            map.setColor(normalizeColor(String.valueOf(entry.getValue())));
+            String value = String.valueOf(entry.getValue());
+
+            // CoreTool.NULL is a deliberate per-key delete sentinel, not a colour -- it must
+            // reach Tool.getColorFromHexString unchanged so Viewsheet.setDimensionColors' own
+            // null-filter can drop the pin. Hex-validating it here is what made the sentinel
+            // unreachable even though the rest of the pipeline already supported it.
+            map.setColor(CoreTool.NULL.equals(value) ? CoreTool.NULL : normalizeColor(value));
             maps.add(map);
          }
 
