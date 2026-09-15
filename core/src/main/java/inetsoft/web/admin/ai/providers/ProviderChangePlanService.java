@@ -470,14 +470,30 @@ public class ProviderChangePlanService {
     * the named provider, in the copy, with the provider built from the merged/proposed model" --
     * {@code providerHasSysAdmins}/{@code callerRetainsSysAdmin} both already operate on a plain
     * {@code List<AuthenticationProvider>} and do not care whether the list changed via removal or
-    * replacement. Unlike delete's preflight, this DOES construct a real provider instance (via
-    * {@link AuthenticationProviderService#buildProviderForPreflightSimulation}, the same
-    * {@code getProviderFromModel} path create/duplicate already accept the cost of at apply time --
-    * here it runs at PREVIEW time instead, since the simulation needs a real instance to evaluate
-    * {@code getRoles()}/{@code getRoleMembers()} against) -- torn down immediately after the checks,
-    * never added to the live chain. No new authorization-chain preflight is needed (confirmed by
-    * tracing {@code AuthorizationChain.getPermission}'s resolution, which has no length-dependent
-    * branch, and edit never changes chain length -- 01-diagnosis.md Revision round 1 item 2).
+    * replacement. No new authorization-chain preflight is needed (confirmed by tracing {@code
+    * AuthorizationChain.getPermission}'s resolution, which has no length-dependent branch, and edit
+    * never changes chain length -- 01-diagnosis.md Revision round 1 item 2).
+    * <p><b>This preflight performs a real, live LDAP connection test at PREVIEW time.</b> Building
+    * the "proposed" provider instance (via {@link
+    * AuthenticationProviderService#buildProviderForPreflightSimulation}, the same {@code
+    * getProviderFromModel} path {@code create}/{@code duplicate} use) calls, for LDAP, {@code
+    * LdapAuthenticationProvider.checkParameters()} -- which does {@code createContext()}/
+    * {@code testContext()}, an actual bind against the real directory server using the proposed
+    * (possibly just-rotated) credentials, not a local field-shape check. This is genuinely new
+    * behavior for {@code preview_provider_changes}, not an equivalent, already-accepted cost: {@code
+    * resolveCreate} never calls {@code getProviderFromModel} at all -- {@code create}'s own live bind
+    * happens only at {@code apply} time, inside {@code addAuthenticationProvider}. (An earlier draft
+    * of the design behind this preflight claimed the opposite -- "checkParameters() only, not a live
+    * bind... already-accepted risk, not new risk" -- corrected here per review; see
+    * 01-diagnosis.md's own "Important finding" callout for the full trace.) The instance is torn down
+    * in a {@code finally} block immediately after the checks and never added to the live chain, but a
+    * transient LDAP outage or slow network can still cause an {@code update} entry's own {@code
+    * preview_provider_changes} call to fail or hang -- a materially different failure mode than every
+    * other verb in this area, which only validates field shape at preview and defers any live
+    * connection test to {@code apply}. This is treated as an intentional, accepted trade-off (it
+    * catches a bad rotated password/host before commit, arguably better than {@code create}'s
+    * fail-only-at-apply behavior), not a defect -- but it is not free, and callers/operators should
+    * know a hung LDAP server can make an {@code update} preview hang with it.
     * <p>Package-visible for the same apply-time re-run reason as
     * {@link #requireAuthenticationDeletePreflight}.
     */
