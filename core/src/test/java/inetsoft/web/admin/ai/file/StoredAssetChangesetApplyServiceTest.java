@@ -373,6 +373,40 @@ class StoredAssetChangesetApplyServiceTest {
       assertFalse(files.containsKey("renamed.js"));
    }
 
+   /**
+    * The rename's destination ("target-folder") is not tracked by {@code
+    * StoredAssetChangePlanService.resolveEntries}'s own {@code seenPaths} guard (it only tracks
+    * each entry's own source path, never a rename's {@code newName}), so this batch resolves
+    * cleanly even though entry 1's rename creates "target-folder" and entry 2's create then throws
+    * from its own pre-mutation existence guard against state entry 1 itself just created. Entry 1's
+    * own rename genuinely succeeded and is genuinely, verifiably rolled back -- this must report
+    * {@code STATUS_ROLLED_BACK}, not {@code STATUS_ROLLBACK_FAILED}, since entry 2's own mutating
+    * call ({@code dataSpace.makeDirectory}) never ran.
+    */
+   @Test void appliesRollsBackCleanlyWhenALaterCreateThrowsFromItsOwnPreMutationGuard() throws Exception {
+      folders.add("old-folder");
+      StoredAssetChangeRequest rename =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_RENAME, "old-folder");
+      rename.setNewName("target-folder");
+      StoredAssetChangeRequest create =
+         change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "target-folder");
+      String hash = planService.resolve(request(rename, create), user).planHash();
+      StoredAssetApplyRequest req = applyRequest("task", hash, "looks good", null, rename, create);
+
+      StoredAssetApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      // The rename was genuinely, verifiably undone: original folder back, nothing at the
+      // destination.
+      assertTrue(folders.contains("old-folder"));
+      assertFalse(folders.contains("target-folder"));
+   }
+
    @Test void reportsRollbackFailedWhenAnUndoItselfFails() throws Exception {
       StoredAssetChangeRequest create =
          change(StoredAssetChangeRequest.UNIT_FOLDER, StoredAssetChangeRequest.VERB_CREATE, "new-folder");
