@@ -21,6 +21,8 @@
          [class.max-mode-view-filter]="isFilterInMaxModeView(vsObject)"
          [style.z-index]="isFilterInMaxModeView(vsObject) ? getContainerZIndex(vsObject) : null">
       <div class="focus-assembly {{getAssemblyAsClass(vsObject)}}"
+        [class.viz-modern]="vsObject.vizModern"
+        [class.viz-dark]="vsObject.vizDark"
         [id]="getAssemblyDivId(vsObject)"
         VSDataTip [dataTipName]="vsObject.absoluteName"
         VSPopComponent [popComponentName]="vsObject.absoluteName"

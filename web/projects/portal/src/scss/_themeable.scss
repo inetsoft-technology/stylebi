@@ -114,7 +114,9 @@ body {
 }
 
 .bd-selected-assembly {
-  border: 1px dotted var(--inet-primary-color) !important;
+  // active, not selected: the class binds to isFocused(). --inet-viz-active-border is the
+  // outline-no-fill token that names this state; --inet-viz-selected-border is the teal family.
+  border: 1px dotted var(--inet-viz-active-border) !important;
 }
 
 .bd-highlight-med-filler {
@@ -1442,6 +1444,19 @@ wizard-binding-tree .bg-node-selected {
 .viz-modern .chart-object-canvas {
   color: var(--inet-focus-ring-color);
   border-color: var(--inet-primary-color);
+}
+
+// Dark only. The accent above is the light #E58A2A in both modes, so a dark card drew a light
+// orange over its own marks. Dark moves to the selected family, agreeing with a selected title,
+// and to that family's ink rather than its border: the stroke lands on the marks, and
+// --inet-viz-selected-border sits dE 0.072 from Modern Dark's own teal, under the 0.106 line, so a
+// selection stroked with it would not read apart from the data. The ink clears at 0.114. Light
+// keeps the accent deliberately -- the family's light border is 1.43:1 on a white plot.
+// Must stay after the .viz-modern rule above: the two tie on specificity, and a dark assembly
+// carries both classes, so only source order keeps dark from resolving to the light accent.
+.viz-dark .chart-object-canvas {
+  color: var(--inet-viz-selected-fill-dark);
+  border-color: var(--inet-viz-selected-text);
 }
 
 .collapse-pane-button {
