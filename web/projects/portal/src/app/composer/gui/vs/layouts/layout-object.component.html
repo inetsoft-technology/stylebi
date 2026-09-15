@@ -22,7 +22,7 @@
   [class.horizontal-line]="isHLine()"
   [class.vertical-line]="isVLine()"
   [class.shape-shadow]="hasShapeShadow()"
-  [ngClass]="{'txt-primary active': selected}"
+  [class.active]="selected"
   [style.left.px]="model.left - 2"
   [style.top.px]="model.top - 2"
   [style.z-index]="model.objectModel ? model.objectModel.objectFormat.zIndex : null"
