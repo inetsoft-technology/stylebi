@@ -872,7 +872,6 @@ public class WorksheetAgentController {
          info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, dsName, dsName));
 
          positionBelowExisting(ws, assembly);
-         ws.addAssembly(assembly);
 
          // The live HTTP call -- same call TabularQueryDialogService.setUpTable and
          // WorksheetTableService.buildTabularTable both make; a tabular query has no columns
@@ -882,9 +881,9 @@ public class WorksheetAgentController {
          ColumnSelection columns = assembly.getColumnSelection(false);
 
          if(columns == null || columns.getAttributeCount() == 0) {
-            // Mirrors WorksheetTableService.buildTabularTable's empty-column check -- without this
-            // the assembly persists with zero columns and the agent is told "success" for a table
-            // nothing can bind to.
+            // Mirrors WorksheetTableService.buildTabularTable's empty-column check -- checked
+            // BEFORE ws.addAssembly so a failed probe never leaves a zero-column assembly in the
+            // live worksheet.
             Object loadError = query.getProperty("wizLoadColumnsError");
             throw new PairingException("The request to '" + target + "' of '" + dsName +
                "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
@@ -894,6 +893,8 @@ public class WorksheetAgentController {
                ". Check the parameter " +
                "values and datasource credentials -- see the server log for the cause.");
          }
+
+         ws.addAssembly(assembly);
 
          return null;
       });
@@ -967,7 +968,6 @@ public class WorksheetAgentController {
          info.setSourceInfo(new SourceInfo(SourceInfo.DATASOURCE, dsName, dsName));
 
          positionBelowExisting(ws, assembly);
-         ws.addAssembly(assembly);
 
          // The live call -- same one WorksheetTableService.buildTabularTable and
          // addTabularTable above both make; a tabular query has no columns until one response
@@ -977,12 +977,16 @@ public class WorksheetAgentController {
          ColumnSelection columns = assembly.getColumnSelection(false);
 
          if(columns == null || columns.getAttributeCount() == 0) {
+            // Checked BEFORE ws.addAssembly so a failed probe never leaves a zero-column
+            // assembly in the live worksheet -- mirrors WorksheetTableService.buildTabularTable.
             Object loadError = query.getProperty("wizLoadColumnsError");
             throw new PairingException("The request to '" + dsName + "' returned no columns" +
                (loadError == null ? "" : " (" + loadError + ")") + ". Properties sent: " +
                applied + ". Check the parameter values and datasource credentials -- see the " +
                "server log for the cause.");
          }
+
+         ws.addAssembly(assembly);
 
          return null;
       });
