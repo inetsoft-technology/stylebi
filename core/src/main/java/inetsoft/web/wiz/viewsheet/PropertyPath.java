@@ -500,6 +500,17 @@ public final class PropertyPath {
          return text;
       }
 
+      // visible is backed by a DynamicValue (VSAssemblyInfo.getVisibleValue()) and StyleBI's own
+      // Composer UI offers a "Variable" button on it, so a "$(ComponentName)" reference is a real,
+      // supported value that this closed-value gate must let through unresolved rather than
+      // reject -- ViewsheetSandbox.executeDynamicValue resolves it at render time, never here.
+      // trendLineType/position are deliberately NOT in this set: neither is DynamicValue-backed,
+      // so a "$(...)" string there would be stored and never resolved by anything -- silently
+      // wrong, the exact failure this whole gate exists to prevent.
+      if(DYNAMIC_CAPABLE_CONSTRAINED_STRINGS.contains(leafName(path)) && isDynamicVariableReference(text)) {
+         return text;
+      }
+
       // Returns the domain's own spelling rather than the caller's. Matching case-insensitively
       // and then storing what the caller typed is the worst of both: the value looks accepted and
       // StyleBI, which compares these tokens exactly, keeps the default.
@@ -512,11 +523,37 @@ public final class PropertyPath {
             "would have reported success without changing anything."));
    }
 
+   /**
+    * Mirrors {@code inetsoft.uql.viewsheet.internal.VSUtil.isVariableValue(String)} exactly
+    * ({@code "$(" ... ")"} test) rather than calling it. {@code VSUtil} is a huge class whose
+    * static initializer builds a {@code DataCache} that reaches for a live Spring
+    * {@code ApplicationContext} ({@code ConfigurationContext.getSpringBean}) — fine inside a
+    * running server, but the first static call into {@code VSUtil} from this file's plain
+    * {@code PropertyPathTest} (no Spring context bootstrapped, unlike e.g.
+    * {@code AssemblyPropertyServiceTest}) throws {@code ShutdownException} wrapped in a
+    * {@code NoClassDefFoundError} on class init, for a one-line, stable string predicate that
+    * has nothing to do with Spring. Duplicating it here avoids forcing every other test in this
+    * file onto a Spring-backed test harness.
+    */
+   private static boolean isDynamicVariableReference(String text) {
+      return text != null && text.startsWith("$(") && text.endsWith(")");
+   }
+
    /** The last segment of a dotted path — the property's own name. */
    private static String leafName(String path) {
       int dot = path.lastIndexOf('.');
       return dot < 0 ? path : path.substring(dot + 1);
    }
+
+   /**
+    * Leaf names whose closed-value domain does not apply to a {@code $(ComponentName)} dynamic
+    * reference, because the underlying field is a {@code DynamicValue} and StyleBI's own UI
+    * offers a "Variable" button on it -- {@code visible} only. {@code trendLineType} and
+    * {@code position} are deliberately excluded: they resolve once, design-time, into an index
+    * with no {@code executeDynamicValue} path ever touching them, so bypassing their domain
+    * check would store a value nothing ever resolves.
+    */
+   private static final Set<String> DYNAMIC_CAPABLE_CONSTRAINED_STRINGS = Set.of("visible");
 
    /**
     * String-typed properties whose value domain is closed.
