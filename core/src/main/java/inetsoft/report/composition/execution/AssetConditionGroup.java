@@ -210,6 +210,17 @@ public class AssetConditionGroup extends ConditionGroup {
       for(FieldExprBinding binding : fieldExprBindings) {
          Object val = evalFieldExpression(binding.eval, binding.box, binding.type, lens, row);
          binding.cond.clearCache();
+
+         // AssetCondition.evaluate(Object) short-circuits a ONE_OF/CONTAINS condition through its
+         // own one-value cache (lvalue/lresult) whenever isOptimized() is true, bypassing
+         // clearCache() above entirely (that only resets Condition's sortedValues). A field[...]
+         // value is an ExpressionValue, not a DataRef, so ConditionGroup#addCondition's hasField
+         // detection -- the mechanism that already disables this same cache for the pre-existing
+         // "field-as-value" case -- never sees it and never turns optimization off. Do so here,
+         // every row, so two consecutive rows that happen to share the same tested column value
+         // can never wrongly reuse each other's cached result merely because this condition's own
+         // field[...]-bound value differed between them.
+         binding.cond.setOptimized(false);
          binding.cond.setValue(binding.index, val);
       }
 

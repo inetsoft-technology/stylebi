@@ -262,4 +262,61 @@ class ConditionFieldReferencingJavascriptValueTest {
          "the failure should name the actual problem (a field[...]/field. reference), not a " +
          "generic/unrelated error: " + ex.getMessage());
    }
+
+   /**
+    * Fix-round regression (code review of PR #5230, finding #2): {@link AssetCondition#evaluate}
+    * short-circuits a ONE_OF/CONTAINS condition with its own one-value cache ({@code lvalue}/
+    * {@code lresult}) whenever {@link AssetCondition#isOptimized()} is true -- a fast path this
+    * class never disables for a field[...] binding, because {@code ConditionGroup#addCondition}
+    * only ever flips a condition's {@code optimized} flag off when one of its VALUES is a
+    * {@link inetsoft.uql.erm.DataRef} (the pre-existing "field-as-value" mechanism); a field[...]
+    * JAVASCRIPT expression is an {@link ExpressionValue}, which that check never sees. So a
+    * ONE_OF/CONTAINS condition built from field[...] stays optimized, and {@code
+    * AssetConditionGroup#evaluate}'s {@code clearCache()} call (which only resets {@link
+    * inetsoft.uql.Condition}'s {@code sortedValues}) never touches that cache -- two consecutive
+    * rows whose tested column happens to repeat the same value, but whose field[...]-referenced
+    * column differs, wrongly reuse the first row's cached boolean instead of being re-evaluated.
+    *
+    * <p>Table: CUSTOMER_ID repeats "A" across rows 1-2 while REGION_ID differs (row 1: A/A, row 2:
+    * A/B); condition is {@code CUSTOMER_ID ONE_OF [field['REGION_ID']]}. Row 1 must match (A is
+    * one of {A}); row 2 must NOT match (A is not one of {B}) -- the pre-fix symptom is row 2
+    * wrongly matching too, because AssetCondition's cache still holds row 1's (lvalue="A",
+    * lresult=true).</p>
+    */
+   @Test
+   void fieldReferencingOneOfConditionDoesNotReuseAPriorRowsCachedResult() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly table = new EmbeddedTableAssembly(ws, "CUSTOMERS");
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef("CUSTOMER_ID")));
+      cs.addAttribute(new ColumnRef(new AttributeRef("REGION_ID")));
+      table.setColumnSelection(cs, false);
+      table.setEmbeddedData(new XEmbeddedTable(new String[]{ "string", "string" },
+         new Object[][]{
+            { "CUSTOMER_ID", "REGION_ID" },
+            { "A", "A" },
+            { "A", "B" },
+            { "C", "C" },
+         }));
+      ws.addAssembly(table);
+      ColumnRef customerId = (ColumnRef) table.getColumnSelection(false).getAttribute("CUSTOMER_ID");
+
+      AssetCondition cond = new AssetCondition(XSchema.STRING);
+      cond.setOperation(XCondition.ONE_OF);
+      ExpressionValue eval = new ExpressionValue();
+      eval.setType(ExpressionValue.JAVASCRIPT);
+      eval.setExpression("field['REGION_ID']");
+      cond.addValue(eval);
+
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(customerId, cond, 0));
+      table.setPreConditionList(conds);
+
+      TableLens lens = run(ws, table);
+
+      assertEquals(Set.of("A/A", "C/C"), rowPairs(lens),
+         "row 2 (A/B) must be re-evaluated against its own field['REGION_ID'] (\"B\") and " +
+         "excluded, not match because row 1 (A/A) already cached lvalue=\"A\"/lresult=true for " +
+         "the same tested CUSTOMER_ID value");
+   }
 }
