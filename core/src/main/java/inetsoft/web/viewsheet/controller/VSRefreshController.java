@@ -55,7 +55,28 @@ public class VSRefreshController {
                                 CommandDispatcher commandDispatcher,
                                 @LinkUri String linkUri) throws Exception
    {
-      String runtimeId = this.runtimeViewsheetRef.getRuntimeId();
+      refreshViewsheet(this.runtimeViewsheetRef.getRuntimeId(), event, principal,
+                       commandDispatcher, linkUri);
+   }
+
+   /**
+    * Refresh a viewsheet using an explicit runtime id, instead of re-deriving one from
+    * {@link RuntimeViewsheetRef} -- a WebSocket-session-scoped bean that is only ever populated
+    * from a native STOMP header sent by a real browser session. A caller with no live STOMP
+    * session (e.g. the wiz agent's plain-HTTP-driven mutations, which invoke this as an ordinary
+    * Java method call) gets null back from {@code runtimeViewsheetRef.getRuntimeId()}, which used
+    * to reach {@code RuntimeSheetCache.getAffinityKey} unguarded and throw
+    * {@code NullPointerException("Ouch! Argument cannot be null: key")} (bug #76666). Mirrors
+    * {@link #refreshVsAssembly} / {@link #refreshVsAssemblyView} below, which already take their
+    * runtime id explicitly from the event payload rather than this session-scoped bean -- any
+    * session-less caller that already knows its own runtime id (e.g. a
+    * {@code @ClusterProxyKey}-routed service method) should call this overload directly instead
+    * of the STOMP-mapped one above.
+    */
+   public void refreshViewsheet(String runtimeId, VSRefreshEvent event, Principal principal,
+                                CommandDispatcher commandDispatcher, String linkUri)
+      throws Exception
+   {
       vsRefreshServiceProxy.refreshViewsheetAsync(runtimeId, event, principal,
                                                   commandDispatcher, linkUri);
    }
