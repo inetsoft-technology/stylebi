@@ -27,6 +27,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import java.security.Principal;
+import java.util.Objects;
 
 @Controller
 public class VSRefreshController {
@@ -72,11 +73,15 @@ public class VSRefreshController {
     * session-less caller that already knows its own runtime id (e.g. a
     * {@code @ClusterProxyKey}-routed service method) should call this overload directly instead
     * of the STOMP-mapped one above.
+    *
+    * @param runtimeId the runtime viewsheet id; must not be {@code null}.
     */
    public void refreshViewsheet(String runtimeId, VSRefreshEvent event, Principal principal,
                                 CommandDispatcher commandDispatcher, String linkUri)
       throws Exception
    {
+      Objects.requireNonNull(runtimeId,
+         "runtimeId (no live session and no explicit id supplied)");
       vsRefreshServiceProxy.refreshViewsheetAsync(runtimeId, event, principal,
                                                   commandDispatcher, linkUri);
    }
