@@ -370,6 +370,79 @@ class LayoutToolTest {
          ex.getCause().getMessage());
    }
 
+   /**
+    * Critical regression guard for a bug in this PR's own first fix commit, flagged by
+    * GitHub's automated review of #5257 (inline comment on LayoutTool.java:2404): every
+    * drag-and-dropped composer/wizard cell is created by
+    * TableLayoutHandler.createDefalutCellBinding() with mergeRowGroup/mergeColGroup set to
+    * the TableCellBinding.DEFAULT_GROUP sentinel, never left null. applyDefaultGroups()
+    * resolves that sentinel to the cell's own runtime name before truncateAtMergeGroup ever
+    * runs, so the original null/DEFAULT_GROUP-only early-return in truncateAtMergeGroup
+    * missed this case entirely: it would search the cell's own ancestor chain for the
+    * cell's own name, never find it, and throw MessageException for essentially any
+    * ordinary SUMMARY cell with an ancestor group. This must behave identically to a
+    * SUMMARY cell that never set mergeRowGroup/mergeColGroup at all.
+    */
+   @Test
+   void mergeGroupExplicitlySetToDefaultGroupSentinelBehavesAsUnsetWithAncestor() throws Exception {
+      TableLayout layout = new TableLayout();
+      DefaultTableLens base = groupedBase();
+      layout.setColCount(2);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(2);
+      layout.addRegion(base.getDescriptor().getRowDataPath(0), region);
+
+      TableCellBinding regionGroup = TableCellBinding.getGroupBinding("Region");
+      regionGroup.setCellName("RegionGrp");
+      layout.setCellBinding(0, 0, regionGroup);
+
+      TableCellBinding stateGroup = TableCellBinding.getGroupBinding("State");
+      stateGroup.setCellName("StateGrp");
+      stateGroup.setRowGroup("RegionGrp");
+      layout.setCellBinding(1, 0, stateGroup);
+
+      TableCellBinding summary = TableCellBinding.getSummaryBinding("Total");
+      summary.setFormula("Sum");
+      summary.setRowGroup("StateGrp");
+      // as TableLayoutHandler.createDefalutCellBinding() actually sets it -- not left null,
+      // and not set to an explicit ancestor/sibling name.
+      summary.setMergeRowGroup(TableCellBinding.DEFAULT_GROUP);
+      summary.setMergeColGroup(TableCellBinding.DEFAULT_GROUP);
+      layout.setCellBinding(1, 1, summary);
+
+      String exp = fillCalcTableLens(layout, base, false).getFormula(1, 1);
+      assertTrue(exp.contains("StateGrp"),
+         "expected expression to scope to the cell's own nearest group StateGrp, same as " +
+         "if mergeRowGroup had never been set, was: " + exp);
+   }
+
+   /**
+    * Same DEFAULT_GROUP-sentinel case as above, but on a flat summary cell with no
+    * row/col group ancestor at all -- confirms the fix doesn't throw even when there is no
+    * ancestor chain to fall back to.
+    */
+   @Test
+   void mergeGroupExplicitlySetToDefaultGroupSentinelBehavesAsUnsetWithNoAncestor() throws Exception {
+      TableLayout layout = new TableLayout();
+      DefaultTableLens base = groupedBase();
+      layout.setColCount(1);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(1);
+      layout.addRegion(base.getDescriptor().getRowDataPath(0), region);
+
+      TableCellBinding summary = TableCellBinding.getSummaryBinding("Total");
+      summary.setFormula("Sum");
+      // as TableLayoutHandler.createDefalutCellBinding() actually sets it, with no
+      // rowGroup/colGroup ancestor present at all.
+      summary.setMergeRowGroup(TableCellBinding.DEFAULT_GROUP);
+      summary.setMergeColGroup(TableCellBinding.DEFAULT_GROUP);
+      layout.setCellBinding(0, 0, summary);
+
+      String exp = fillCalcTableLens(layout, base, false).getFormula(0, 0);
+      assertTrue(exp != null && !exp.isEmpty(),
+         "expected an aggregation expression to be generated without throwing, was: " + exp);
+   }
+
    private static DefaultTableLens groupedBase() {
       return new DefaultTableLens(new Object[][] {
          { "Region", "State", "Total" },

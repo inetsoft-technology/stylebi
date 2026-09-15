@@ -2391,17 +2391,23 @@ public class LayoutTool {
     * <p>
     * validateLayout() already runs (via applyDefaultGroups) before this method is ever
     * reached, and downgrades a mergeRowGroup/mergeColGroup that names no cell anywhere in the
-    * layout to DEFAULT_GROUP with a log warning. So a non-null, non-default name that is not
-    * found within [rangeStart, rangeEnd) here is guaranteed to name a real cell elsewhere in
-    * the layout that just isn't this cell's own ancestor -- that is a user/caller error, not a
-    * layout hygiene issue, so it fails loud here rather than silently falling back to the
-    * native chain.
+    * layout to DEFAULT_GROUP with a log warning. applyDefaultGroups also resolves a
+    * still-DEFAULT_GROUP mergeRowGroup/mergeColGroup (the value every drag-and-dropped
+    * composer/wizard cell starts with) to the cell's own runtime name, so that case is
+    * treated as a no-op here too, same as an explicit DEFAULT_GROUP or null. So a name that is
+    * neither null/DEFAULT_GROUP/the cell's own name, and is not found within
+    * [rangeStart, rangeEnd) here, is guaranteed to name a real cell elsewhere in the layout
+    * that just isn't this cell's own ancestor -- that is a user/caller error, not a layout
+    * hygiene issue, so it fails loud here rather than silently falling back to the native
+    * chain.
     */
    private static void truncateAtMergeGroup(TableLayout layout, List<CellHolder> holders,
       List<Point> locs, int rangeStart, int rangeEnd, String mergeGroupName,
       TableCellBinding cell, String propertyName)
    {
-      if(mergeGroupName == null || TableCellBinding.DEFAULT_GROUP.equals(mergeGroupName)) {
+      if(mergeGroupName == null || TableCellBinding.DEFAULT_GROUP.equals(mergeGroupName) ||
+         mergeGroupName.equals(layout.getRuntimeCellName(cell)))
+      {
          return;
       }
 
