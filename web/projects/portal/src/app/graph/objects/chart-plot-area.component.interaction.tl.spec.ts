@@ -77,49 +77,61 @@ function setupCanvasWithContext(comp: any) {
 // Group 1: ngOnChanges [Risk 2]
 // ---------------------------------------------------------------------------
 
+// Bug #76702: the scroll-triggered selection-highlight redraw used to go through
+// DebounceService's "plot.scrolled" key (shared app-wide, not scoped per instance --
+// colliding with another ChartPlotArea's scroll could silently drop this one's redraw).
+// It's now coalesced to at most one requestAnimationFrame-scheduled redraw per instance.
 describe("ChartPlotArea — ngOnChanges", () => {
    const scrollChange = { currentValue: 5, previousValue: 0, firstChange: false, isFirstChange: () => false };
+   let rafSpy: any;
+   let cafSpy: any;
 
-   it("should clear the canvas and debounce updateChartObject when scrollTop changes and a context exists", () => {
-      const { comp, chartService, debounceService } = createComponent();
-      const ctx = setupCanvasWithContext(comp);
+   beforeEach(() => {
+      rafSpy = vi.spyOn(window, "requestAnimationFrame").mockReturnValue(1 as any);
+      cafSpy = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+   });
+
+   it("should schedule a redraw via requestAnimationFrame when scrollTop changes", () => {
+      const { comp } = createComponent();
       const updateSpy = vi.spyOn(comp, "updateChartObject").mockImplementation(() => {});
 
       comp.ngOnChanges({ scrollTop: scrollChange });
 
-      expect(chartService.clearCanvas).toHaveBeenCalledWith(ctx);
-      expect(debounceService.debounce).toHaveBeenCalledWith(
-         "plot.scrolled", expect.any(Function), 500, []
-      );
+      expect(rafSpy).toHaveBeenCalledTimes(1);
+      expect(updateSpy).not.toHaveBeenCalled();
+
+      // run the scheduled frame callback and confirm it performs the redraw
+      rafSpy.mock.calls[0][0]();
       expect(updateSpy).toHaveBeenCalled();
    });
 
    it("should also react to scrollLeft changes", () => {
-      const { comp, chartService } = createComponent();
-      const ctx = setupCanvasWithContext(comp);
+      const { comp } = createComponent();
       vi.spyOn(comp, "updateChartObject").mockImplementation(() => {});
 
       comp.ngOnChanges({ scrollLeft: scrollChange });
 
-      expect(chartService.clearCanvas).toHaveBeenCalledWith(ctx);
+      expect(rafSpy).toHaveBeenCalledTimes(1);
    });
 
-   it("should NOT touch the canvas when there is no context", () => {
-      const { comp, chartService, debounceService } = createComponent();
+   it("should cancel a previously scheduled frame instead of stacking redraws", () => {
+      const { comp } = createComponent();
+      vi.spyOn(comp, "updateChartObject").mockImplementation(() => {});
+      rafSpy.mockReturnValueOnce(42 as any);
 
       comp.ngOnChanges({ scrollTop: scrollChange });
+      comp.ngOnChanges({ scrollTop: scrollChange });
 
-      expect(chartService.clearCanvas).not.toHaveBeenCalled();
-      expect(debounceService.debounce).not.toHaveBeenCalled();
+      expect(cafSpy).toHaveBeenCalledWith(42);
+      expect(rafSpy).toHaveBeenCalledTimes(2);
    });
 
    it("should ignore unrelated changes", () => {
-      const { comp, chartService } = createComponent();
-      setupCanvasWithContext(comp);
+      const { comp } = createComponent();
 
       comp.ngOnChanges({ dataTip: scrollChange });
 
-      expect(chartService.clearCanvas).not.toHaveBeenCalled();
+      expect(rafSpy).not.toHaveBeenCalled();
    });
 });
 
