@@ -31,15 +31,35 @@ public class DistributedLockProxy implements Lock {
       this.realLock = realLock;
    }
 
+   /**
+    * {@inheritDoc}
+    *
+    * <p>Waits indefinitely while the lock is simply held elsewhere, as {@link Lock#lock()}
+    * requires — callers use the standard {@code lock(); try { … } finally { unlock(); }} idiom and
+    * are not written to handle a failure to acquire. Only repeated <em>errors</em> from the
+    * underlying distributed lock are bounded, at {@link #MAX_TRY_COUNT} attempts.
+    *
+    * <p>A long wait is logged rather than aborted, so a lock held far longer than expected is
+    * visible in the log instead of silent. {@code IgniteCluster} also runs a watchdog that warns
+    * about locks held beyond {@code MIN_LOCK_DURATION_MILLIS}.
+    */
    @Override
    public void lock() {
       Exception exception = null;
       int attempts = 0;
+      int timeouts = 0;
 
       while(true) {
          try {
             if(realLock.tryLock(LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                return;
+            }
+
+            // Held by someone else. Keep waiting: aborting here would break the Lock contract.
+            // Log periodically so a lock that is never released is diagnosable.
+            if(++timeouts % TIMEOUT_LOG_INTERVAL == 0) {
+               LOG.warn("Still waiting for the {} lock after {} seconds", lockName,
+                        (long) timeouts * LOCK_TIMEOUT_SECONDS);
             }
          }
          catch(InterruptedException e) {
@@ -96,6 +116,8 @@ public class DistributedLockProxy implements Lock {
    private final Lock realLock;
    private final String lockName;
    private static final int MAX_TRY_COUNT = 10;
+   // warn roughly once a minute while waiting (20 x 3s)
+   private static final int TIMEOUT_LOG_INTERVAL = 20;
    private static final int LOCK_TIMEOUT_SECONDS = 3;
    private static final int RETRY_DELAY_MS = 3_000;
    private static final Logger LOG = LoggerFactory.getLogger(DistributedLockProxy.class);
