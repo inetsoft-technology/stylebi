@@ -130,29 +130,118 @@ final class ProviderProjection {
       return sb.toString();
    }
 
-   /** {@code currentValue} for a delete, either chain (section 5/6/8) -- {@code null} if the model
-    * itself is {@code null} (never expected once existence has been confirmed via the chain list,
-    * but defensive rather than NPE-prone, section 2). Only FILE/LDAP are ever passed here --
-    * DATABASE/CUSTOM targets are refused before this is reached (section 1, this area's own
-    * delete-target restriction, see 04-build-java.md). */
+   /** {@code currentValue}/{@code proposedValue} for either chain (section 5/6/8) -- {@code null}
+    * if the model itself is {@code null} (never expected once existence has been confirmed via the
+    * chain list, but defensive rather than NPE-prone, section 2). Used two ways with two different
+    * type populations: delete's {@code currentValue} only ever sees FILE/LDAP (this area's own
+    * delete-target restriction refuses DATABASE/CUSTOM before this is reached, section 1, see
+    * 04-build-java.md), but duplicate's {@code proposedValue}/apply-time {@code afterProjection}
+    * (bug 76602) keeps the SOURCE provider's own type, which can be any of the four -- {@code
+    * resolveDuplicate} deliberately applies no type restriction (see its own javadoc). Every type
+    * gets its own field-by-field branch (bug 76655 -- DATABASE/CUSTOM used to fall through to
+    * {@link #projectFileProvider}, silently mislabeling the type and discarding every
+    * DATABASE/CUSTOM-specific field on the audit/plan record for a real, accepted call); a
+    * type-specific model that is unexpectedly {@code null} (should not happen once providerType is
+    * set, but not assumed) still gets its OWN type in the projection, via
+    * {@link #projectMissingSpec}, rather than silently defaulting to FILE. */
    static String projectAuthenticationProvider(AuthenticationProviderModel model) {
       if(model == null) {
          return null;
       }
 
-      if(model.providerType() == SecurityProviderType.LDAP && model.ldapProviderModel() != null) {
-         return projectLdapModel(model.providerName(), model.ldapProviderModel());
+      switch(model.providerType()) {
+      case LDAP:
+         return model.ldapProviderModel() != null
+            ? projectLdapModel(model.providerName(), model.ldapProviderModel())
+            : projectMissingSpec(model.providerName(), SecurityProviderType.LDAP);
+      case DATABASE:
+         return model.dbProviderModel() != null
+            ? projectDatabaseModel(model.providerName(), model.dbProviderModel())
+            : projectMissingSpec(model.providerName(), SecurityProviderType.DATABASE);
+      case CUSTOM:
+         return model.customProviderModel() != null
+            ? projectCustomModel(model.providerName(), model.customProviderModel())
+            : projectMissingSpec(model.providerName(), SecurityProviderType.CUSTOM);
+      default:
+         return projectFileProvider(model.providerName());
       }
-
-      return projectFileProvider(model.providerName());
    }
 
-   /** {@code currentValue} for a delete, authorization chain -- only FILE is ever passed here (this
-    * area's own delete-target restriction excludes CUSTOM the same as DATABASE/CUSTOM on the
-    * authentication side). */
+   /** {@code currentValue}/{@code proposedValue} for a DATABASE provider (bug 76655) -- field-by-
+    * field, mirroring {@link #projectLdapModel}'s convention; password is a {@code pw:set}/
+    * {@code pw:unset} presence token, never literal (section 9). */
+   static String projectDatabaseModel(String name, DatabaseAuthenticationProviderModel m) {
+      StringBuilder sb = new StringBuilder();
+      append(sb, "name", name);
+      append(sb, "type", "DATABASE");
+      append(sb, "driver", m.driver());
+      append(sb, "url", m.url());
+      append(sb, "requiresLogin", String.valueOf(m.requiresLogin()));
+      append(sb, "useCredential", String.valueOf(m.useCredential()));
+      append(sb, "secretId", m.secretId());
+      append(sb, "user", m.user());
+      append(sb, "password", isBlank(m.password()) ? "pw:unset" : "pw:set");
+      append(sb, "hashAlgorithm", m.hashAlgorithm());
+      append(sb, "userQuery", m.userQuery());
+      append(sb, "userListQuery", m.userListQuery());
+      append(sb, "groupListQuery", m.groupListQuery());
+      append(sb, "groupUsersQuery", m.groupUsersQuery());
+      append(sb, "roleListQuery", m.roleListQuery());
+      append(sb, "userRolesQuery", m.userRolesQuery());
+      append(sb, "userRoleListQuery", m.userRoleListQuery());
+      append(sb, "organizationListQuery", m.organizationListQuery());
+      append(sb, "organizationNameQuery", m.organizationNameQuery());
+      append(sb, "organizationMembersQuery", m.organizationMembersQuery());
+      append(sb, "organizationRolesQuery", m.organizationRolesQuery());
+      append(sb, "appendSalt", String.valueOf(m.appendSalt()));
+      append(sb, "userEmailsQuery", m.userEmailsQuery());
+      append(sb, "sysAdminRoles", m.sysAdminRoles());
+      append(sb, "orgAdminRoles", m.orgAdminRoles());
+      return sb.toString();
+   }
+
+   /** {@code currentValue}/{@code proposedValue} for a CUSTOM provider (bug 76655). */
+   static String projectCustomModel(String name, CustomProviderModel m) {
+      StringBuilder sb = new StringBuilder();
+      append(sb, "name", name);
+      append(sb, "type", "CUSTOM");
+      append(sb, "className", m.className());
+      append(sb, "jsonConfiguration", m.jsonConfiguration());
+      return sb.toString();
+   }
+
+   /** Projects a model whose {@code providerType} discriminator names a type-specific spec
+    * ({@code ldapProviderModel}/{@code dbProviderModel}/{@code customProviderModel}) that is
+    * unexpectedly {@code null} -- should not happen once a provider actually exists, but defensive
+    * rather than NPE-prone (section 2), and deliberately NOT the FILE catch-all: the type is still
+    * reported accurately, just flagged as missing its configuration, so this never again reads as
+    * "this is a FILE provider" (bug 76655). */
+   private static String projectMissingSpec(String name, SecurityProviderType type) {
+      StringBuilder sb = new StringBuilder();
+      append(sb, "name", name);
+      append(sb, "type", type.name());
+      append(sb, "error", "missing " + type + " provider model");
+      return sb.toString();
+   }
+
+   /** {@code currentValue}/{@code proposedValue}, authorization chain -- same two-caller split as
+    * {@link #projectAuthenticationProvider}: delete's {@code currentValue} only ever sees FILE
+    * (this area's own delete-target restriction excludes CUSTOM), but duplicate's {@code
+    * proposedValue}/apply-time {@code afterProjection} keeps the source's own type, which can be
+    * CUSTOM ({@link AuthorizationProviderModel} has no LDAP/DATABASE, only FILE/CUSTOM) -- fixed
+    * alongside {@link #projectAuthenticationProvider} (bug 76655, same root cause: this used to
+    * fall through to {@link #projectFileProvider} unconditionally, mislabeling a duplicated CUSTOM
+    * authorization provider's type in its audit/plan record exactly like the authentication side
+    * did for DATABASE/CUSTOM). */
    static String projectAuthorizationProvider(AuthorizationProviderModel model) {
       if(model == null) {
          return null;
+      }
+
+      if(model.providerType() == SecurityProviderType.CUSTOM) {
+         return model.customProviderModel() != null
+            ? projectCustomModel(model.providerName(), model.customProviderModel())
+            : projectMissingSpec(model.providerName(), SecurityProviderType.CUSTOM);
       }
 
       return projectFileProvider(model.providerName());
