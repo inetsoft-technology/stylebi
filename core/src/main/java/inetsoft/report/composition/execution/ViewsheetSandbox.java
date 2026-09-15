@@ -65,7 +65,6 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -6633,8 +6632,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    void beginTempAssembly(String name) {
       if(name != null) {
-         activeTempAssemblies.computeIfAbsent(name, k -> new AtomicInteger()).incrementAndGet();
+         activeTempAssemblies.merge(name, 1, Integer::sum);
       }
+   }
+
+   /** Whether {@code name} currently has an outstanding registration. */
+   boolean isTempAssemblyActive(String name) {
+      return name != null && activeTempAssemblies.containsKey(name);
    }
 
    /** Undo {@link #beginTempAssembly(String)}, making the name prunable again. */
@@ -6645,8 +6649,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       // a count, not a flag: if two invocations ever register the same name, the first to finish
       // must not drop the guard while the second is still running
-      activeTempAssemblies.computeIfPresent(name, (k, count) ->
-         count.decrementAndGet() <= 0 ? null : count);
+      activeTempAssemblies.computeIfPresent(name, (k, count) -> count <= 1 ? null : count - 1);
    }
 
    /**
@@ -8322,7 +8325,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private Viewsheet vs; // current viewsheet
    // assembly names an in-flight query is using that exist only in its own private
    // viewsheet; shared with every temporary box, see createTemporaryBox()
-   private final Map<String, AtomicInteger> activeTempAssemblies = new ConcurrentHashMap<>();
+   // a count rather than a flag, so overlapping registrations of one name each hold the
+   // guard. Every mutation is a single atomic map operation (merge / computeIfPresent):
+   // a mutable value read out of the map and updated afterwards would leave a window in
+   // which the entry is removed and the increment orphaned.
+   private final Map<String, Integer> activeTempAssemblies = new ConcurrentHashMap<>();
    private final TableMetaDataRepository metarep; // table metadata repository
    private AssetQuerySandbox wbox; // worksheet sandbox
    private final ViewsheetSandbox root; // root viewsheet sandbox

@@ -33,8 +33,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.awt.event.ActionListener;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -285,6 +287,55 @@ class ViewsheetSandboxTemporaryBoxTest {
 
       assertNotEquals(a, b,
                       "two invocations for the same selection assembly must not share a name");
+   }
+
+   /**
+    * A registration must be visible in the guard the instant beginTempAssembly() returns. The
+    * earlier implementation did get-or-create and increment as two steps, so when one thread's
+    * release drove the count to zero in between, the entry was removed and the other thread's
+    * increment orphaned -- leaving it believing it was registered while shrink() was free to
+    * prune and cancel its query. Probabilistic, so it runs many short begin/observe/end cycles
+    * with no long-lived registration to mask the window.
+    */
+   @Test
+   void registrationIsVisibleAsSoonAsItIsTaken() throws Exception {
+      String name = CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + "Churn_Crosstab";
+      int threads = 8;
+      int iterations = 20000;
+      ExecutorService pool = Executors.newFixedThreadPool(threads);
+      AtomicBoolean orphaned = new AtomicBoolean(false);
+
+      try {
+         List<Future<?>> futures = new ArrayList<>();
+
+         for(int i = 0; i < threads; i++) {
+            futures.add(pool.submit(() -> {
+               for(int j = 0; j < iterations && !orphaned.get(); j++) {
+                  sandbox.beginTempAssembly(name);
+
+                  if(!sandbox.isTempAssemblyActive(name)) {
+                     orphaned.set(true);
+                  }
+
+                  sandbox.endTempAssembly(name);
+               }
+
+               return null;
+            }));
+         }
+
+         for(Future<?> f : futures) {
+            f.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+         }
+      }
+      finally {
+         pool.shutdownNow();
+      }
+
+      assertFalse(orphaned.get(),
+                  "a registration was dropped from the guard while it was still held");
+      assertFalse(sandbox.isTempAssemblyActive(name),
+                  "balanced begin/end should leave nothing registered");
    }
 
    /** Releasing a null box is a no-op, so the caller's finally never needs a guard. */
