@@ -43,6 +43,11 @@ import java.util.*;
  * falls back to matching the name across every table. That leniency is load-bearing there rather
  * than lax: without a known source there is nothing to narrow to, and refusing on a guess would
  * block legitimate columns.
+ *
+ * <p>A {@code "$(ComponentName)"} shelf field is the one exception: it is a dynamic reference, not
+ * a column name at all, and is resolved against a real value only at render time
+ * ({@code VSUtil.isVariableValue}/{@code DynamicValue}) — checking it against the source's schema
+ * here would refuse a legitimate binding as if it were a typo'd or wrong-table column (#76641).
  */
 public final class BindableColumns {
    private BindableColumns() {
@@ -81,6 +86,12 @@ public final class BindableColumns {
 
       for(FieldRef field : fields) {
          if(field == null || field.column() == null || field.column().isBlank()) {
+            continue;
+         }
+
+         if(isDynamicVariableReference(field.column())) {
+            // "$(ComponentName)" -- not a real column name to check against the source's schema;
+            // resolved at render time instead (#76641).
             continue;
          }
 
@@ -263,6 +274,19 @@ public final class BindableColumns {
       }
 
       return columns.size() == 1 ? columns.get(0) : String.join(" + ", columns);
+   }
+
+   /**
+    * Mirrors {@code inetsoft.uql.viewsheet.internal.VSUtil.isVariableValue(String)} exactly
+    * ({@code "$(" ... ")"} test) rather than calling it, for the same reason
+    * {@code PropertyPath.isDynamicVariableReference} does: {@code VSUtil}'s static initializer
+    * reaches for a live Spring {@code ApplicationContext} ({@code ConfigurationContext.getSpringBean}
+    * via a {@code DataCache} field), which throws on the first static call into the class from this
+    * file's plain {@code BindableColumnsTest} (no Spring context bootstrapped). Duplicating this
+    * one-line, stable predicate avoids forcing this whole test file onto a Spring-backed harness.
+    */
+   private static boolean isDynamicVariableReference(String text) {
+      return text != null && text.startsWith("$(") && text.endsWith(")");
    }
 
    /** The table the assembly is bound to, or {@code null} when the listing does not say. */

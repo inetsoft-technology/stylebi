@@ -364,4 +364,62 @@ class BindableColumnsTest {
 
       assertTrue(thrown.getMessage().contains("MADE_UP"));
    }
+
+   // ── "$(ComponentName)" dynamic references (#76641) ─────────────────────────
+   //
+   // A shelf field's column can be a dynamic reference to a form component instead of a real
+   // column name -- e.g. set_chart_shelf(Chart1, y, "$(RadioButton2)"). It is resolved against a
+   // real value only at render time (VSUtil.isVariableValue/DynamicValue), so checking it here
+   // against the source's schema refused a legitimate binding as if it were a typo'd or
+   // wrong-table column. This must not weaken the existence check for anything that ISN'T
+   // "$(...)"-shaped: a genuine typo or wrong-table column must still refuse exactly as before.
+
+   @Test
+   void acceptsADynamicReferenceRegardlessOfWhetherItIsAnAvailableColumn() {
+      assertDoesNotThrow(
+         () -> BindableColumns.require(TABLES, "Crosstab1", dim("$(RadioButton2)")));
+      assertDoesNotThrow(
+         () -> BindableColumns.require(BOUND_TO_QUERY1, "Chart1", dim("$(RadioButton2)")),
+         "must bypass even when a table is marked current and narrows the check");
+   }
+
+   @Test
+   void acceptsADynamicReferenceEvenWhenNothingIsListedAtAll() {
+      assertDoesNotThrow(
+         () -> BindableColumns.require(List.of(), "Crosstab1", dim("$(RadioButton2)")));
+      assertDoesNotThrow(
+         () -> BindableColumns.require(null, "Crosstab1", dim("$(RadioButton2)")));
+   }
+
+   @Test
+   void stillRefusesANonExistentLiteralColumnAlongsideADynamicReference() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(TABLES, "Crosstab1", dim("$(RadioButton2)"),
+                                       dim("NO_SUCH_COLUMN_XYZ")));
+
+      assertTrue(thrown.getMessage().contains("NO_SUCH_COLUMN_XYZ"),
+                 "the dynamic reference must not blanket-bypass every other field in the same call");
+   }
+
+   @Test
+   void stillRefusesAColumnFromATableTheAssemblyIsNotBoundToAlongsideADynamicReference() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(BOUND_TO_QUERY1, "Chart1", dim("$(RadioButton2)"),
+                                       dim("PRODUCT_NAME")));
+
+      assertTrue(thrown.getMessage().contains("PRODUCT_NAME"));
+      assertTrue(thrown.getMessage().contains("Query1"));
+   }
+
+   @Test
+   void doesNotTreatAPlainStringStartingWithDollarAsADynamicReference() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(TABLES, "Crosstab1", dim("$PRICE")));
+
+      assertTrue(thrown.getMessage().contains("$PRICE"),
+                 "only the \"$(...)\" shape is a dynamic reference, not any string starting with $");
+   }
 }
