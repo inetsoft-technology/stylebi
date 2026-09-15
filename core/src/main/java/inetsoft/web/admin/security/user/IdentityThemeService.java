@@ -88,7 +88,7 @@ public class IdentityThemeService {
             fn.apply(theme).add(id);
          }
 
-         if(Tool.equals(theme.getOrgID(), oldId)) {
+         if(oldId != null && Tool.equals(theme.getOrgID(), oldId)) {
             theme.setOrgID(id);
             theme.setJarPath(theme.getJarPath().replace(oldId, id));
          }
