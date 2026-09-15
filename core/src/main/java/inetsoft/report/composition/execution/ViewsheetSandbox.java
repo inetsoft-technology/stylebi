@@ -437,6 +437,87 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Create a lightweight sandbox that reports {@code temp} as its viewsheet, for running one
+    * query against a throwaway clone of the sheet.
+    *
+    * <p>The alternative -- {@link #setViewsheet(Viewsheet, boolean)} -- publishes the clone into
+    * this sandbox's single shared {@code vs} field, where every other thread sees it. Two
+    * overlapping requests then swap each other's clone, and because each captures the other's
+    * clone as the "original" to restore, the sandbox can be left pointing at a throwaway clone for
+    * the rest of the session with the real viewsheet stripped of its action listeners. Nothing
+    * serializes those requests: the selection path holds only a shared read lock, and the nested
+    * query drops the sandbox lock outright in {@code VSAQuery#getDataWithoutSandboxLock}. The same
+    * idiom in the export paths produced null table lenses and apparent hangs (bug #76576).
+    *
+    * <p>A lock cannot fix it: a thread parked in {@code restoreLocks()} while holding a swap lock
+    * would deadlock against a thread holding the sandbox write lock and waiting for that lock.
+    *
+    * <p>This is a shallow copy, the same idiom as {@link #getMVDisabledBox(VSAssembly)}: the
+    * returned sandbox points at the same id, mode, user, asset entry, variable table, MV state,
+    * lock, metadata repository, {@code wbox} and caches, and differs only in which viewsheet it
+    * reports. Sharing the lock matters -- the nested query still locks and unlocks the real
+    * sandbox. Sharing {@code wbox} matters too: the query still executes through the original
+    * {@code AssetQuerySandbox} over the original worksheet, exactly as it did under the swap,
+    * which never rebuilt {@code wbox} either ({@code setViewsheet(vs, false)} does not reach
+    * {@code createAssetQuerySandbox()}). Because the state is shared, the result must
+    * <b>not</b> be disposed; call {@link #releaseTemporaryBox(ViewsheetSandbox)} instead.
+    *
+    * <p><b>Three limits a caller must respect</b>, all from the fact that a shallow copy shares
+    * object <i>references</i> while non-final fields are snapshots, and that this sandbox's
+    * collaborators are bound to <i>this</i> object rather than to the copy:
+    *
+    * <ol>
+    * <li><b>Scriptables for assemblies that exist only in {@code temp} will not resolve.</b>
+    * {@code getScope()} returns the {@link inetsoft.report.script.viewsheet.ViewsheetScope} built
+    * for <i>this</i> sandbox, and its fallback lookup tests
+    * {@code box.getViewsheet().containsAssembly(name)} against the real sheet. So
+    * {@code executeDynamicValue()} on a temp-only assembly gets a null scriptable. That is
+    * harmless only while such an assembly's dynamic values are already-resolved literals -- which
+    * is true of the calc-field measure crosstab, whose column, formula and group values are all
+    * plain strings. A caller that needs {@code =script} or {@code $variable} values on a
+    * temp-only assembly cannot use this.</li>
+    * <li><b>{@code disposed} is a snapshot.</b> If the real sandbox is disposed while the copy is
+    * in use, the copy's {@code disposed} guards will not fire. Keep the copy short-lived.</li>
+    * <li><b>Events fired by {@code temp} are handled against the real sheet.</b>
+    * {@link #actionPerformed} resolves names against {@code this.vs}, so a name present in both
+    * sheets would reset or cancel the <i>real</i> assembly. The calc-field measure path is safe
+    * because it adds and removes its crosstab with {@code fireEvent=false}.</li>
+    * </ol>
+    */
+   ViewsheetSandbox createTemporaryBox(Viewsheet temp) {
+      try {
+         ViewsheetSandbox tempBox = (ViewsheetSandbox) this.clone();
+         tempBox.vs = temp;
+         // registered on the clone for the duration, mirroring what setViewsheet() did, so edits
+         // to it still reach this sandbox and the metadata repository. The real viewsheet keeps
+         // its own registration; the old swap de-registered it and, on restore, re-added metarep
+         // only to the *clone's* worksheet (getWorksheet() resolved against the clone by then),
+         // permanently dropping the real worksheet's metarep listener.
+         temp.addActionListener(this);
+         temp.addActionListener(metarep);
+
+         return tempBox;
+      }
+      catch(CloneNotSupportedException ex) {
+         throw new IllegalStateException("ViewsheetSandbox is Cloneable", ex);
+      }
+   }
+
+   /** Undo the listener registration done by {@link #createTemporaryBox(Viewsheet)}. */
+   void releaseTemporaryBox(ViewsheetSandbox tempBox) {
+      if(tempBox == null) {
+         return;
+      }
+
+      Viewsheet temp = tempBox.vs;
+
+      if(temp != null) {
+         temp.removeActionListener(this);
+         temp.removeActionListener(metarep);
+      }
+   }
+
+   /**
     * Get the base worksheet.
     */
    public Worksheet getWorksheet() {
@@ -6543,6 +6624,35 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Mark {@code name} as an assembly a query is currently using that lives only in that query's
+    * private viewsheet (see {@link #createTemporaryBox(Viewsheet)}). Such a name is legitimately
+    * absent from this sandbox's {@code vs} while the query runs, so {@link #shrink()} must not
+    * prune and cancel its {@code QueryManager}. Always pair with
+    * {@link #endTempAssembly(String)} in a finally -- a name left registered is never pruned.
+    */
+   void beginTempAssembly(String name) {
+      if(name != null) {
+         activeTempAssemblies.merge(name, 1, Integer::sum);
+      }
+   }
+
+   /** Whether {@code name} currently has an outstanding registration. */
+   boolean isTempAssemblyActive(String name) {
+      return name != null && activeTempAssemblies.containsKey(name);
+   }
+
+   /** Undo {@link #beginTempAssembly(String)}, making the name prunable again. */
+   void endTempAssembly(String name) {
+      if(name == null) {
+         return;
+      }
+
+      // a count, not a flag: if two invocations ever register the same name, the first to finish
+      // must not drop the guard while the second is still running
+      activeTempAssemblies.computeIfPresent(name, (k, count) -> count <= 1 ? null : count - 1);
+   }
+
+   /**
     * Remove cached data that is no longer needed by the sheet.
     */
    public void shrink() {
@@ -6557,6 +6667,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       List<String> list = new ArrayList<>(qmgrs.keySet());
 
       for(String name : list) {
+         // an assembly that lives only in an in-flight query's private viewsheet is legitimately
+         // absent from this sandbox's vs; pruning would cancel that query mid-flight
+         if(activeTempAssemblies.containsKey(name)) {
+            continue;
+         }
+
          if(!vs.containsAssembly(name)) {
             QueryManager qmgr = qmgrs.remove(name);
 
@@ -8207,6 +8323,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private boolean refreshing = false;
    private final AssetEntry entry; // asset entry
    private Viewsheet vs; // current viewsheet
+   // assembly names an in-flight query is using that exist only in its own private
+   // viewsheet; shared with every temporary box, see createTemporaryBox()
+   // a count rather than a flag, so overlapping registrations of one name each hold the
+   // guard. Every mutation is a single atomic map operation (merge / computeIfPresent):
+   // a mutable value read out of the map and updated afterwards would leave a window in
+   // which the entry is removed and the increment orphaned.
+   private final Map<String, Integer> activeTempAssemblies = new ConcurrentHashMap<>();
    private final TableMetaDataRepository metarep; // table metadata repository
    private AssetQuerySandbox wbox; // worksheet sandbox
    private final ViewsheetSandbox root; // root viewsheet sandbox
