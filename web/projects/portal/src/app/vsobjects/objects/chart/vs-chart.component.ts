@@ -1142,14 +1142,20 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       this.clearChartSnapshot();
 
-      // cloneNode() copies structure/attributes but not live scroll state, so every
-      // scrollable descendant (plot area, per-axis scroll-sync containers) would render
-      // at scrollLeft/Top 0 in the clone even when the real chart is scrolled -- making
-      // the whole plot appear to jump to the unscrolled position while this snapshot is
-      // shown, then jump back once it's cleared. Copy each container's live scroll
-      // position onto its clone below. (Bug #76703)
-      const scrollSelector = ".chart-plot-area-scroll-container, .chart-axis-area-scroll-container, "
-         + ".horizontal-scroll-wrapper, .vertical-scroll-wrapper";
+      // cloneNode() copies structure/attributes but not live scroll state, so the plot's
+      // scroll container would render at scrollLeft/Top 0 in the clone even when the real
+      // chart is scrolled -- making the whole plot appear to jump to the unscrolled
+      // position while this snapshot is shown, then jump back once it's cleared. Copy its
+      // live scroll position onto its clone below. (Bug #76703)
+      //
+      // The axis area's own scroll container (.chart-axis-area-scroll-container) doesn't
+      // need this: it's positioned via [style.left.px]/[style.top.px] bindings (already
+      // preserved by cloneNode) rather than native scroll, and is styled overflow:visible
+      // so a scrollLeft/Top assignment on it is a no-op anyway. The proxy scrollbar
+      // wrappers (.horizontal-scroll-wrapper/.vertical-scroll-wrapper) only become
+      // visible/scrollable on :hover, which the clone (pointer-events:none) can never
+      // match, so they stay hidden regardless.
+      const scrollSelector = ".chart-plot-area-scroll-container";
       const originalScrollEls = chartAreaEl.querySelectorAll(scrollSelector);
 
       const clone = chartAreaEl.cloneNode(true) as HTMLElement;
