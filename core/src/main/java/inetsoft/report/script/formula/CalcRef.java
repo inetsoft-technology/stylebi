@@ -19,6 +19,7 @@ package inetsoft.report.script.formula;
 
 import inetsoft.report.internal.table.*;
 import inetsoft.util.script.FormulaContext;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import inetsoft.util.script.graal.ScriptValueConverter;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
@@ -43,6 +44,15 @@ public class CalcRef implements ScriptArrayScope {
 
    public String getClassName() {
       return "CalcRef";
+   }
+
+   /**
+    * The name in $name, not the current cell. Used by callers that unwrap()
+    * a CalcRef outside this class (e.g. CalcTableLens.unwrapCalcRefs) and
+    * need the referenced cell's name to build an error message.
+    */
+   public String getCellName() {
+      return cellname;
    }
 
    /**
@@ -113,24 +123,34 @@ public class CalcRef implements ScriptArrayScope {
          // uncaught PolyglotException that aborts the whole formula.
          else if("valueOf".equals(id)) {
             return (ProxyExecutable) args -> {
+               Object result;
+
                try {
-                  return ScriptValueConverter.toGuest(unwrap());
+                  result = unwrap();
                }
                catch(Exception ex) {
                   LOG.warn("Failed to get reference property: " + id, ex);
                   return null;
                }
+
+               checkNotAmbiguousArray(result);
+               return ScriptValueConverter.toGuest(result);
             };
          }
          else if("toString".equals(id)) {
             return (ProxyExecutable) args -> {
+               Object result;
+
                try {
-                  return String.valueOf(unwrap());
+                  result = unwrap();
                }
                catch(Exception ex) {
                   LOG.warn("Failed to get reference property: " + id, ex);
                   return null;
                }
+
+               checkNotAmbiguousArray(result);
+               return String.valueOf(result);
             };
          }
          // check positional reference
@@ -362,6 +382,29 @@ public class CalcRef implements ScriptArrayScope {
       }
 
       return getMember("");
+   }
+
+   /**
+    * unwrap() returns an ambiguous multi-element array when $name repeats
+    * across an expand region the current cell's context doesn't match (e.g.
+    * a cell in one expand:"vertical" region referencing a named cell that
+    * repeats under a different, independent expand:"vertical" cursor). That
+    * is the correct result for whole-vector aggregate consumption
+    * (sum($name), nthLargest($name), via ScriptUtil.unwrap()'s own,
+    * unaffected call path, #75738), but is meaningless as a scalar value --
+    * without this check it silently converts to a raw array's toString() or
+    * NaN instead of surfacing the ambiguity.
+    */
+   private void checkNotAmbiguousArray(Object result) {
+      if(result instanceof Object[] && ((Object[]) result).length > 1) {
+         throw new ScriptException(
+            "Cannot use repeating named cell reference \"$" + cellname +
+            "\" as a scalar value here: \"" + cellname + "\" repeats across " +
+            "an expand region unrelated to the current cell's own expand " +
+            "cursor. Reference it from a cell in the same expand region as " +
+            "its defining group, or aggregate it explicitly (e.g. sum($" +
+            cellname + ")).");
+      }
    }
 
    private RuntimeCalcTableLens table;
