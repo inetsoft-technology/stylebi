@@ -154,7 +154,6 @@ class ProviderChangePlanServiceTest {
    @Test void resolveDuplicateTwoEntriesSameExplicitNewNameThrowsAtPreview() throws Exception {
       stubProviderList(authenticationProviderService, List.of("p1", "p2"));
       when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(fileModel("p1"));
-      when(authenticationProviderService.getAuthenticationProvider("p2")).thenReturn(fileModel("p2"));
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("dup", List.of(
