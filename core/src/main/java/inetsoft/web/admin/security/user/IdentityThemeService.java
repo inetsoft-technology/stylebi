@@ -46,10 +46,19 @@ public class IdentityThemeService {
    }
 
    public String getTheme(IdentityID name, Function<CustomTheme, List<String>> fn) {
+      return getTheme(name.name, fn);
+   }
+
+   /**
+    * Same as {@link #getTheme(IdentityID, Function)}, but keyed by a raw membership key
+    * rather than an identity's display name -- e.g. organizations are looked up by id
+    * ({@code CustomTheme::getOrganizations} entries are org ids, not org display names).
+    */
+   public String getTheme(String key, Function<CustomTheme, List<String>> fn) {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       return customThemesManager.getCustomThemes().stream()
-         .filter(t -> fn.apply(t).contains(name.name))
+         .filter(t -> fn.apply(t).contains(key))
          .filter(theme -> theme.getOrgID() == null || theme.getOrgID().equals(orgID))
          .map(CustomTheme::getId)
          .findFirst()
@@ -88,7 +97,7 @@ public class IdentityThemeService {
             fn.apply(theme).add(id);
          }
 
-         if(Tool.equals(theme.getOrgID(), oldId)) {
+         if(oldId != null && Tool.equals(theme.getOrgID(), oldId)) {
             theme.setOrgID(id);
             theme.setJarPath(theme.getJarPath().replace(oldId, id));
          }
