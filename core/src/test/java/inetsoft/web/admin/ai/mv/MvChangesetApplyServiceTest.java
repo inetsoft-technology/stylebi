@@ -202,6 +202,13 @@ class MvChangesetApplyServiceTest {
       return c;
    }
 
+   private static MvChangeRequest deleteChange(String mvName) {
+      MvChangeRequest c = new MvChangeRequest();
+      c.setVerb(MvChangeRequest.VERB_DELETE);
+      c.setMvNames(List.of(mvName));
+      return c;
+   }
+
    private static MvChangePlanRequest request(MvChangeRequest... changes) {
       MvChangePlanRequest req = new MvChangePlanRequest();
       req.setTask("test task");
@@ -336,5 +343,43 @@ class MvChangesetApplyServiceTest {
       // MV1's own rollback (dispose) succeeded cleanly even though the overall status is
       // rollback-failed.
       assertFalse(existingMvs.contains("MV1"));
+   }
+
+   // -------------------------------------------------------------------------
+   // applyDelete: a throw must ALWAYS still force rollback-failed (fix-round 2 -- unlike
+   // create/set_cycle, delete has no pre-mutation freshness re-check to distinguish; dispose() IS
+   // the mutation and is documented irreversible, so a throw here must never be silently excluded
+   // from unknownStateFailures the way a genuinely pre-mutation throw is for the other two verbs)
+   // -------------------------------------------------------------------------
+
+   @Test void deleteThrowStillForcesRollbackFailedEvenThoughRollbackIsClean() throws Throwable {
+      AtomicInteger a1Calls = new AtomicInteger();
+      lenient().when(mvGateway.getAnalysisResult("A1"))
+         .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
+      existingMvs.add("MV2");
+      wireCreateAndDispose();
+      // dispose() throws for MV2 specifically -- MV1's own dispose (both this entry's create and
+      // its later rollback) still goes through the general wireCreateAndDispose() stub.
+      doThrow(new IllegalStateException("boom during dispose"))
+         .when(mvGateway).dispose(eq(List.of("MV2")));
+
+      MvChangeRequest c1 = createChange("A1", "MV1");
+      MvChangeRequest c2 = deleteChange("MV2");
+      String hash = planService.resolve(request(c1, c2), user).planHash();
+      MvApplyRequest req = applyRequest("task", hash, "looks good", true, c1, c2);
+
+      ApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertTrue(result.rollbackFailures().stream().anyMatch(f -> "MV2".equals(f.property())));
+      // MV1's own rollback (dispose of the create) succeeded cleanly even though the overall
+      // status is rollback-failed, and MV2 (never undoable -- delete has no inverse) is still there.
+      assertFalse(existingMvs.contains("MV1"));
+      assertTrue(existingMvs.contains("MV2"));
    }
 }

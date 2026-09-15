@@ -139,7 +139,7 @@ public class MvChangesetApplyService {
                }
                else {
                   applyDelete(txId, reviewedTask, fc, orgId, backupRef, req.getReviewOutcome(), user,
-                             results);
+                             results, mutationEntered);
                }
             }
             catch(Throwable e) {
@@ -269,8 +269,14 @@ public class MvChangesetApplyService {
 
    private void applyDelete(String txId, String task, MvChangePlanService.FlatChange fc,
                             String orgId, String backupRef, String reviewOutcome, Principal user,
-                            List<ApplyOutcome> results)
+                            List<ApplyOutcome> results, AtomicBoolean mutationEntered)
    {
+      // dispose() is the method's first statement and IS the mutation itself -- unlike
+      // create/set_cycle, delete has no pre-mutation freshness re-check to gate on, and no
+      // legitimate "never touched storage" case. A throw from here (or from existsInOrg/writeAudit
+      // right after) must always be treated as unknown, unrecoverable state, since dispose is
+      // documented irreversible (class javadoc above).
+      mutationEntered.set(true);
       mvGateway.dispose(List.of(fc.mvName));
       boolean verified = !mvGateway.existsInOrg(fc.mvName, orgId);
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
