@@ -623,6 +623,15 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
             return;
          }
 
+         // Namespace this invocation's temp crosstabs. The name used to derive only from the
+         // selection assembly, so two overlapping requests for the same selection list produced
+         // the same name -- which meant they shared one QueryManager (qmgrs is keyed by name, so
+         // either request's cancel killed both) and one activeTempAssemblies guard (whichever
+         // finished first unregistered it while the other was still running). Same reasoning as
+         // CalcTableVSAQuery for bug #76614.
+         long invocationId = CalcTableVSAQuery.nextInvocationId();
+         int tempCrosstabCount = 0;
+
          for(String btable : assembly.getTableNames()) {
             CalculateRef calc = vs.getCalcField(btable, assembly.getMeasure());
 
@@ -662,7 +671,9 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
                // always invisible crosstab
                CrosstabVSAssembly crosstab = new CrosstabVSAssembly(
-                  vs, CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + assembly.getName() + "_Crosstab") {
+                  vs,
+                  CalcTableVSAQuery.getTempCrosstabName(assembly.getName(), invocationId,
+                                                        tempCrosstabCount++)) {
                   @Override
                   protected VSAssemblyInfo createInfo() {
                      return new CrosstabVSAssemblyInfo() {

@@ -65,6 +65,7 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -6632,15 +6633,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    void beginTempAssembly(String name) {
       if(name != null) {
-         activeTempAssemblies.add(name);
+         activeTempAssemblies.computeIfAbsent(name, k -> new AtomicInteger()).incrementAndGet();
       }
    }
 
    /** Undo {@link #beginTempAssembly(String)}, making the name prunable again. */
    void endTempAssembly(String name) {
-      if(name != null) {
-         activeTempAssemblies.remove(name);
+      if(name == null) {
+         return;
       }
+
+      // a count, not a flag: if two invocations ever register the same name, the first to finish
+      // must not drop the guard while the second is still running
+      activeTempAssemblies.computeIfPresent(name, (k, count) ->
+         count.decrementAndGet() <= 0 ? null : count);
    }
 
    /**
@@ -6660,7 +6666,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       for(String name : list) {
          // an assembly that lives only in an in-flight query's private viewsheet is legitimately
          // absent from this sandbox's vs; pruning would cancel that query mid-flight
-         if(activeTempAssemblies.contains(name)) {
+         if(activeTempAssemblies.containsKey(name)) {
             continue;
          }
 
@@ -8316,7 +8322,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private Viewsheet vs; // current viewsheet
    // assembly names an in-flight query is using that exist only in its own private
    // viewsheet; shared with every temporary box, see createTemporaryBox()
-   private final Set<String> activeTempAssemblies = ConcurrentHashMap.newKeySet();
+   private final Map<String, AtomicInteger> activeTempAssemblies = new ConcurrentHashMap<>();
    private final TableMetaDataRepository metarep; // table metadata repository
    private AssetQuerySandbox wbox; // worksheet sandbox
    private final ViewsheetSandbox root; // root viewsheet sandbox

@@ -246,6 +246,47 @@ class ViewsheetSandboxTemporaryBoxTest {
                     "a finished temp assembly's QueryManager should be pruned by shrink()");
    }
 
+   /**
+    * The guard is a reference count, not a flag. If two overlapping invocations ever register the
+    * same name, the first to finish must not drop the guard while the second is still running --
+    * otherwise shrink() cancels the second one's query, which is the very class of bug this work
+    * exists to remove.
+    */
+   @Test
+   void guardSurvivesUntilTheLastRegistrationIsReleased() throws Exception {
+      String tempName = CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + "Shared_Crosstab";
+      QueryManager qmgr = sandbox.getQueryManager(tempName);
+
+      sandbox.beginTempAssembly(tempName);
+      sandbox.beginTempAssembly(tempName);
+      sandbox.endTempAssembly(tempName);
+
+      sandbox.shrink();
+      assertSame(qmgr, sandbox.getQueryManager(tempName),
+                 "guard was dropped while a second registration was still in flight");
+
+      sandbox.endTempAssembly(tempName);
+      sandbox.shrink();
+      assertNotSame(qmgr, sandbox.getQueryManager(tempName),
+                    "guard should lift once the last registration is released");
+   }
+
+   /**
+    * Belt and braces for the same hazard: the temp crosstab name is namespaced per invocation, so
+    * two concurrent invocations for the *same* selection assembly cannot collide on a name at all
+    * -- which also stops them sharing one QueryManager, where either one's cancel would kill both.
+    */
+   @Test
+   void tempCrosstabNamesAreUniquePerInvocation() {
+      String a = CalcTableVSAQuery.getTempCrosstabName(
+         "SelectionList1", CalcTableVSAQuery.nextInvocationId(), 0);
+      String b = CalcTableVSAQuery.getTempCrosstabName(
+         "SelectionList1", CalcTableVSAQuery.nextInvocationId(), 0);
+
+      assertNotEquals(a, b,
+                      "two invocations for the same selection assembly must not share a name");
+   }
+
    /** Releasing a null box is a no-op, so the caller's finally never needs a guard. */
    @Test
    void releasingNullIsANoOp() {
