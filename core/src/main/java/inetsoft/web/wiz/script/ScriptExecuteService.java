@@ -333,58 +333,82 @@ public class ScriptExecuteService {
          return null;
       }
 
-      Matcher m = WS_RUNQUERY_LITERAL.matcher(scriptText);
+      // Defense in depth: every fallible sub-step below already has its own try/catch, but this
+      // outer one is the actual guarantor of "never throws" -- a gap in any one of those must
+      // still resolve to "no diagnostic" here, not an exception that reaches execute()'s own
+      // outer try/catch and flips an already-successful script run to a reported failure.
+      try {
+         Matcher m = WS_RUNQUERY_LITERAL.matcher(scriptText);
 
-      while(m.find()) {
-         String literal = m.group(1);
-         AssetEntry requested;
+         while(m.find()) {
+            String literal = m.group(1);
+            AssetEntry requested;
 
-         try {
-            requested = AssetEntry.createAssetEntry(literal, ((XPrincipal) user).getOrgId());
-         }
-         catch(Exception ex) {
-            continue;
-         }
-
-         if(requested == null ||
-            (requested.getScope() != AssetRepository.GLOBAL_SCOPE &&
-             requested.getScope() != AssetRepository.USER_SCOPE))
-         {
-            continue;
-         }
-
-         AssetEntry sibling = requested.getScope() == AssetRepository.USER_SCOPE
-            ? new AssetEntry(AssetRepository.GLOBAL_SCOPE, requested.getType(),
-                             requested.getPath(), null, requested.getOrgID())
-            : new AssetEntry(AssetRepository.USER_SCOPE, requested.getType(), requested.getPath(),
-                             IdentityID.getIdentityIDFromKey(user.getName()), requested.getOrgID());
-
-         try {
-            AssetRepository repo = AssetUtil.getAssetRepository(false);
-
-            if(repo == null || repo.containsEntry(requested) || !repo.containsEntry(sibling)) {
+            try {
+               requested = AssetEntry.createAssetEntry(literal, ((XPrincipal) user).getOrgId());
+            }
+            catch(Exception ex) {
                continue;
             }
-         }
-         catch(Exception ex) {
-            continue;
+
+            if(requested == null ||
+               (requested.getScope() != AssetRepository.GLOBAL_SCOPE &&
+                requested.getScope() != AssetRepository.USER_SCOPE))
+            {
+               continue;
+            }
+
+            // Only needed (and only resolved) for a GLOBAL_SCOPE-requested literal's USER_SCOPE
+            // sibling -- null here (an identity that doesn't resolve to a name/org key) means no
+            // sibling can be built, not that the check should crash.
+            IdentityID callerId = requested.getScope() == AssetRepository.GLOBAL_SCOPE
+               ? ((XPrincipal) user).getIdentityID() : null;
+
+            if(requested.getScope() == AssetRepository.GLOBAL_SCOPE && callerId == null) {
+               continue;
+            }
+
+            AssetEntry sibling = requested.getScope() == AssetRepository.USER_SCOPE
+               ? new AssetEntry(AssetRepository.GLOBAL_SCOPE, requested.getType(),
+                                requested.getPath(), null, requested.getOrgID())
+               : new AssetEntry(AssetRepository.USER_SCOPE, requested.getType(),
+                                requested.getPath(), callerId, requested.getOrgID());
+
+            try {
+               AssetRepository repo = AssetUtil.getAssetRepository(false);
+
+               if(repo == null || repo.containsEntry(requested) || !repo.containsEntry(sibling)) {
+                  continue;
+               }
+            }
+            catch(Exception ex) {
+               continue;
+            }
+
+            String requestedScope = requested.getScope() == AssetRepository.GLOBAL_SCOPE ? "global" : "user";
+            String siblingScope = requested.getScope() == AssetRepository.GLOBAL_SCOPE ? "user" : "global";
+            // getPath() excludes the optional 4th ":table" segment (stored as a property, not
+            // part of the path) -- a corrected literal built from it drops that segment if the
+            // original had one. Rare enough in practice not to special-case; noted, not guarded.
+            String path = requested.getPath();
+            // Both branches phrase this the same way -- the sibling asset already EXISTS (just
+            // confirmed above via containsEntry), so this is "use the right address," never
+            // "go save/create it there."
+            String fix = "global".equals(siblingScope)
+               ? "Use \"ws:global:" + path + "\" to reach it."
+               : "Use \"ws:" + callerId.getName() + ":" + path + "\" to reach it.";
+
+            return "runQuery('" + literal + "') addresses worksheet \"" + path + "\" at " +
+               requestedScope + " scope, but nothing exists there -- a worksheet with the same " +
+               "name exists at " + siblingScope + " scope instead, so this call returns an empty " +
+               "result with no error. " + fix;
          }
 
-         String requestedScope = requested.getScope() == AssetRepository.GLOBAL_SCOPE ? "global" : "user";
-         String siblingScope = requested.getScope() == AssetRepository.GLOBAL_SCOPE ? "user" : "global";
-         String path = requested.getPath();
-         String fix = "global".equals(siblingScope)
-            ? "Use \"ws:global:" + path + "\" to reach it."
-            : "Save the worksheet at user scope to reach it as \"ws:" +
-              IdentityID.getIdentityIDFromKey(user.getName()).getName() + ":" + path + "\".";
-
-         return "runQuery('" + literal + "') addresses worksheet \"" + path + "\" at " +
-            requestedScope + " scope, but nothing exists there -- a worksheet with the same " +
-            "name exists at " + siblingScope + " scope instead, so this call returns an empty " +
-            "result with no error. " + fix;
+         return null;
       }
-
-      return null;
+      catch(Exception ex) {
+         return null;
+      }
    }
 
    private static String firstDestructiveGlobal(String scriptText) {

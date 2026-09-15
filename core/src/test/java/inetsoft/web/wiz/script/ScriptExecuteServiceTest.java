@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -440,6 +441,7 @@ class ScriptExecuteServiceTest {
       XPrincipal user = mock(XPrincipal.class);
       when(user.getOrgId()).thenReturn(org);
       when(user.getName()).thenReturn(name + "~;~" + org);
+      when(user.getIdentityID()).thenReturn(new IdentityID(name, org));
       return user;
    }
 
@@ -484,6 +486,50 @@ class ScriptExecuteServiceTest {
          assertTrue(result.summary().contains("user scope"), result.summary());
          assertTrue(result.summary().contains("global scope"), result.summary());
          assertTrue(result.summary().contains("ws:global:ws"), result.summary());
+      }
+   }
+
+   /**
+    * The reverse direction of the test above: a literal "global" token requested, but the asset
+    * actually exists only at the CURRENT calling user's own USER_SCOPE. Exercises the other half
+    * of the sibling-lookup branch, and specifically that the fix wording says "use ws:<user>:X"
+    * (the asset already exists there), not "save the worksheet ..." (which would wrongly imply
+    * it still needs to be created/moved) -- a wording bug a prior version of this fix had here,
+    * caught by review because this direction had no test asserting the exact message.
+    */
+   @Test
+   void runLiveAppendsWsScopeMismatchNoteForTheReverseDirectionWithCorrectFixWording()
+      throws Exception
+   {
+      String script = "runQuery('ws:global:ws')";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(0.0);
+
+      RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
+      XPrincipal user = callerPrincipal("admin", "host-org");
+      when(rvs.getUser()).thenReturn(user);
+
+      AssetEntry requested = AssetEntry.createAssetEntry("ws:global:ws", "host-org");
+      AssetEntry sibling = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.WORKSHEET,
+                                          "ws", new IdentityID("admin", "host-org"), "host-org");
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(requested)).thenReturn(false);
+      when(repo.containsEntry(sibling)).thenReturn(true);
+
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repo);
+
+         ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+         assertTrue(result.ok());
+         assertEquals(0.0, result.value());
+         assertTrue(result.summary().contains("ws:global:ws"), result.summary());
+         assertTrue(result.summary().contains("global scope"), result.summary());
+         assertTrue(result.summary().contains("user scope"), result.summary());
+         assertTrue(result.summary().contains("Use \"ws:admin:ws\" to reach it."), result.summary());
+         assertFalse(result.summary().contains("Save the worksheet"), result.summary());
       }
    }
 
