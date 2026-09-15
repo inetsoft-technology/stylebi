@@ -21,6 +21,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SubmitVSAssemblyInfo;
@@ -29,6 +33,7 @@ import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import inetsoft.web.wiz.script.model.ScriptExecResult;
 import inetsoft.web.wiz.script.model.ScriptInfo;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -429,5 +434,111 @@ class ScriptExecuteServiceTest {
          () -> svc.runLive(rvs, target, true));
       assertTrue(ex.getMessage().contains("not a runnable script"),
                  "must explain WHY, not just refuse: " + ex.getMessage());
+   }
+
+   private static XPrincipal callerPrincipal(String name, String org) {
+      XPrincipal user = mock(XPrincipal.class);
+      when(user.getOrgId()).thenReturn(org);
+      when(user.getName()).thenReturn(name + "~;~" + org);
+      return user;
+   }
+
+   /**
+    * Bug #76661: runQuery('ws:<token>:<path>') is scope-sensitive -- a literal "global" token
+    * addresses GLOBAL_SCOPE, any other token (here, a username) addresses only that user's
+    * USER_SCOPE. Getting this wrong used to resolve to an AssetEntry that legitimately has
+    * nothing at it, so the shared runtime returned an empty result with no error and no
+    * UI-visible warning. This confirms the wiz-agent-only diagnostic added to execute() catches
+    * exactly that case -- requested (USER_SCOPE) entry absent, GLOBAL_SCOPE sibling present --
+    * and folds an actionable explanation into the result summary without touching value/ok.
+    */
+   @Test
+   void runLiveAppendsWsScopeMismatchNoteWhenTheAddressedScopeIsEmptyButTheOtherScopeHasTheAsset()
+      throws Exception
+   {
+      String script = "runQuery('ws:admin:ws')";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(0.0);
+
+      RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
+      XPrincipal user = callerPrincipal("admin", "host-org");
+      when(rvs.getUser()).thenReturn(user);
+
+      AssetEntry requested = AssetEntry.createAssetEntry("ws:admin:ws", "host-org");
+      AssetEntry sibling = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                          "ws", null, "host-org");
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(requested)).thenReturn(false);
+      when(repo.containsEntry(sibling)).thenReturn(true);
+
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repo);
+
+         ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+         assertTrue(result.ok());
+         assertEquals(0.0, result.value());
+         assertTrue(result.summary().contains("ws:admin:ws"), result.summary());
+         assertTrue(result.summary().contains("user scope"), result.summary());
+         assertTrue(result.summary().contains("global scope"), result.summary());
+         assertTrue(result.summary().contains("ws:global:ws"), result.summary());
+      }
+   }
+
+   /** Control for the test above: the token matches where the asset actually is -- no note. */
+   @Test
+   void runLiveAddsNoWsScopeMismatchNoteWhenTheAddressedScopeActuallyHasTheAsset() throws Exception {
+      String script = "runQuery('ws:global:ws')";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(36.0);
+
+      RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
+      XPrincipal user = callerPrincipal("admin", "host-org");
+      when(rvs.getUser()).thenReturn(user);
+
+      AssetEntry requested = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                            "ws", null, "host-org");
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(requested)).thenReturn(true);
+
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repo);
+
+         ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+         assertTrue(result.ok());
+         assertEquals(36.0, result.value());
+         assertFalse(result.summary().contains("scope, but nothing exists there"), result.summary());
+      }
+   }
+
+   /** Genuinely missing on both sides is NOT a scope mismatch -- no false positive. */
+   @Test
+   void runLiveAddsNoWsScopeMismatchNoteWhenTheAssetDoesNotExistAtEitherScope() throws Exception {
+      String script = "runQuery('ws:admin:doesNotExist')";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(null);
+
+      RuntimeViewsheet rvs = viewsheetWithScript(script, scope);
+      XPrincipal user = callerPrincipal("admin", "host-org");
+      when(rvs.getUser()).thenReturn(user);
+
+      AssetRepository repo = mock(AssetRepository.class);
+      when(repo.containsEntry(any(AssetEntry.class))).thenReturn(false);
+
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(repo);
+
+         ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), true);
+
+         assertTrue(result.ok());
+         assertFalse(result.summary().contains("scope, but nothing exists there"), result.summary());
+      }
    }
 }

@@ -21,7 +21,12 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.web.wiz.pairing.PairingException;
 import inetsoft.web.wiz.script.model.ScriptError;
@@ -29,6 +34,7 @@ import inetsoft.web.wiz.script.model.ScriptExecResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,6 +64,20 @@ public class ScriptExecuteService {
       "saveWorksheet", "runQuery", "setCellValue", "refreshData",
       "createConnection", "appendRow", "addImage"
    );
+
+   // Bug #76661: runQuery('ws:<token>:<path>') is scope-sensitive syntax -- a literal "global"
+   // second segment addresses AssetRepository.GLOBAL_SCOPE, anything else is treated as a
+   // username and addresses that user's AssetRepository.USER_SCOPE (see
+   // AssetEntry.createAssetEntry). Getting this wrong resolves to an AssetEntry that legitimately
+   // has nothing at it, so the shared runtime (XUtil.runQuery / ReportWorksheetProcessor) returns
+   // an empty result with no exception and no UI-visible warning -- indistinguishable from a
+   // query that legitimately has no rows. Detecting that here, in the wiz-agent-only execute
+   // path, lets the agent (and, transitively, the human reading its tool call) find out why
+   // instead of silently treating an empty result as "no data". Deliberately NOT fixed in the
+   // shared runtime: that would also change behavior for real Viewer/Composer/Schedule sessions
+   // this service never touches.
+   private static final Pattern WS_RUNQUERY_LITERAL =
+      Pattern.compile("runQuery\\s*\\(\\s*[\"'](ws:[^\"']+)[\"']");
 
    @Autowired
    public ScriptExecuteService(ScriptReadService readService) {
@@ -214,6 +234,12 @@ public class ScriptExecuteService {
                "you meant a different, non-scripted property.";
          }
 
+         String wsScopeMismatch = firstWsScopeMismatch(text, rvs.getUser());
+
+         if(wsScopeMismatch != null) {
+            summary = summary + " " + wsScopeMismatch;
+         }
+
          return new ScriptExecResult(true, stringify(value), null, changed, false, null, summary,
             notApplied.isEmpty() ? null : notApplied);
       }
@@ -287,6 +313,74 @@ public class ScriptExecuteService {
    private static String assemblyTypeName(RuntimeViewsheet rvs, String assemblyName) {
       VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
       return assembly != null ? assembly.getClass().getSimpleName() : assemblyName;
+   }
+
+   /**
+    * See the {@link #WS_RUNQUERY_LITERAL} javadoc above. Returns a human-readable explanation of
+    * the first literal {@code ws:} addressing mismatch found in {@code scriptText}, or
+    * {@code null} if none of the literal {@code runQuery('ws:...')} calls in it are wrong, none
+    * could be parsed (a malformed literal is runQuery's own problem to report at execution time,
+    * not this diagnostic's), or the asset repository/user identity needed to check aren't
+    * available. Never throws -- this is a best-effort diagnostic layered on top of execution, not
+    * a gate, so a failure here must never prevent {@link #execute} from running the script.
+    */
+   private static String firstWsScopeMismatch(String scriptText, Principal user) {
+      if(scriptText == null || scriptText.isEmpty() || !(user instanceof XPrincipal)) {
+         return null;
+      }
+
+      Matcher m = WS_RUNQUERY_LITERAL.matcher(scriptText);
+
+      while(m.find()) {
+         String literal = m.group(1);
+         AssetEntry requested;
+
+         try {
+            requested = AssetEntry.createAssetEntry(literal, ((XPrincipal) user).getOrgId());
+         }
+         catch(Exception ex) {
+            continue;
+         }
+
+         if(requested == null ||
+            (requested.getScope() != AssetRepository.GLOBAL_SCOPE &&
+             requested.getScope() != AssetRepository.USER_SCOPE))
+         {
+            continue;
+         }
+
+         AssetEntry sibling = requested.getScope() == AssetRepository.USER_SCOPE
+            ? new AssetEntry(AssetRepository.GLOBAL_SCOPE, requested.getType(),
+                             requested.getPath(), null, requested.getOrgID())
+            : new AssetEntry(AssetRepository.USER_SCOPE, requested.getType(), requested.getPath(),
+                             IdentityID.getIdentityIDFromKey(user.getName()), requested.getOrgID());
+
+         try {
+            AssetRepository repo = AssetUtil.getAssetRepository(false);
+
+            if(repo == null || repo.containsEntry(requested) || !repo.containsEntry(sibling)) {
+               continue;
+            }
+         }
+         catch(Exception ex) {
+            continue;
+         }
+
+         String requestedScope = requested.getScope() == AssetRepository.GLOBAL_SCOPE ? "global" : "user";
+         String siblingScope = requested.getScope() == AssetRepository.GLOBAL_SCOPE ? "user" : "global";
+         String path = requested.getPath();
+         String fix = "global".equals(siblingScope)
+            ? "Use \"ws:global:" + path + "\" to reach it."
+            : "Save the worksheet at user scope to reach it as \"ws:" +
+              IdentityID.getIdentityIDFromKey(user.getName()).getName() + ":" + path + "\".";
+
+         return "runQuery('" + literal + "') addresses worksheet \"" + path + "\" at " +
+            requestedScope + " scope, but nothing exists there -- a worksheet with the same " +
+            "name exists at " + siblingScope + " scope instead, so this call returns an empty " +
+            "result with no error. " + fix;
+      }
+
+      return null;
    }
 
    private static String firstDestructiveGlobal(String scriptText) {
