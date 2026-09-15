@@ -611,7 +611,17 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       ViewsheetSandbox tempBox = box.createTemporaryBox(vs);
 
       try {
-         AbstractSelectionVSAssembly assembly = (AbstractSelectionVSAssembly) getAssembly();
+         // resolve from the clone, not via getAssembly(), which goes through box and so returns
+         // the live assembly. Everything else here -- the crosstab, dimRefs, cinfo -- is built
+         // from the clone, and getDataRefs() is re-read on every iteration while the nested query
+         // drops the sandbox lock, so reading the live one could mix a mutated ref array into a
+         // snapshot-built crosstab. The old swap got this for free: box.getViewsheet() *was* the
+         // clone by this point.
+         AbstractSelectionVSAssembly assembly = (AbstractSelectionVSAssembly) vs.getAssembly(vname);
+
+         if(assembly == null) {
+            return;
+         }
 
          for(String btable : assembly.getTableNames()) {
             CalculateRef calc = vs.getCalcField(btable, assembly.getMeasure());
@@ -695,6 +705,9 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
                try {
                   vs.removeAssembly(crosstab.getName(), false);
                   vs.addAssembly(crosstab, false, false);
+                  // the crosstab exists only in this query's clone, so tell the shared sandbox
+                  // not to prune (and cancel) its QueryManager while the query is running
+                  tempBox.beginTempAssembly(crosstab.getName());
 
                   // clear the selections of selection assemblies with the same data ref including
                   // this assembly so that we get the measures for all the values
@@ -761,6 +774,7 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
                   }
                }
                finally {
+                  tempBox.endTempAssembly(crosstab.getName());
                   vs.removeAssembly(crosstab.getName(), false);
                }
             }

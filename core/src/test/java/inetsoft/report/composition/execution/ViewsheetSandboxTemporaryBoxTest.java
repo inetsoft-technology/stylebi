@@ -20,6 +20,7 @@ package inetsoft.report.composition.execution;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -200,6 +201,49 @@ class ViewsheetSandboxTemporaryBoxTest {
 
       assertEquals(tempBaseline, listenerCount(temp), "clone's listeners were not removed");
       assertEquals(realBefore, listenerCount(vs), "real viewsheet lost listeners");
+   }
+
+   /**
+    * shrink() prunes qmgrs entries whose assembly is absent from the sandbox's viewsheet, and
+    * cancels them. A temp crosstab lives only in the private clone, so without the in-flight
+    * registry shrink() -- reachable from resetRuntime(), which only needs the write lock the
+    * nested query drops -- would cancel the measure query mid-flight.
+    */
+   @Test
+   void shrinkDoesNotCancelAnInFlightTempAssembly() throws Exception {
+      String tempName = CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + "SelectionList1_Crosstab";
+      QueryManager qmgr = sandbox.getQueryManager(tempName);
+      assertNotNull(qmgr);
+
+      sandbox.beginTempAssembly(tempName);
+
+      try {
+         sandbox.shrink();
+         assertSame(qmgr, sandbox.getQueryManager(tempName),
+                    "shrink() cancelled/removed an in-flight temp assembly's QueryManager");
+      }
+      finally {
+         sandbox.endTempAssembly(tempName);
+      }
+   }
+
+   /**
+    * Once the query is done the name must become prunable again, or qmgrs grows without bound --
+    * CalcTableVSAQuery's temp names carry a per-invocation id, so a blanket name-based exemption
+    * would leak an entry per invocation.
+    */
+   @Test
+   void shrinkPrunesATempAssemblyOnceItIsNoLongerInFlight() throws Exception {
+      String tempName = CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + "SelectionList1_Crosstab";
+      QueryManager qmgr = sandbox.getQueryManager(tempName);
+      assertNotNull(qmgr);
+
+      sandbox.beginTempAssembly(tempName);
+      sandbox.endTempAssembly(tempName);
+      sandbox.shrink();
+
+      assertNotSame(qmgr, sandbox.getQueryManager(tempName),
+                    "a finished temp assembly's QueryManager should be pruned by shrink()");
    }
 
    /** Releasing a null box is a no-op, so the caller's finally never needs a guard. */

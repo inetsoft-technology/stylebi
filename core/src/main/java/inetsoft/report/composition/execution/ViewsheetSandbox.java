@@ -6624,6 +6624,26 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Mark {@code name} as an assembly a query is currently using that lives only in that query's
+    * private viewsheet (see {@link #createTemporaryBox(Viewsheet)}). Such a name is legitimately
+    * absent from this sandbox's {@code vs} while the query runs, so {@link #shrink()} must not
+    * prune and cancel its {@code QueryManager}. Always pair with
+    * {@link #endTempAssembly(String)} in a finally -- a name left registered is never pruned.
+    */
+   void beginTempAssembly(String name) {
+      if(name != null) {
+         activeTempAssemblies.add(name);
+      }
+   }
+
+   /** Undo {@link #beginTempAssembly(String)}, making the name prunable again. */
+   void endTempAssembly(String name) {
+      if(name != null) {
+         activeTempAssemblies.remove(name);
+      }
+   }
+
+   /**
     * Remove cached data that is no longer needed by the sheet.
     */
    public void shrink() {
@@ -6638,6 +6658,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       List<String> list = new ArrayList<>(qmgrs.keySet());
 
       for(String name : list) {
+         // an assembly that lives only in an in-flight query's private viewsheet is legitimately
+         // absent from this sandbox's vs; pruning would cancel that query mid-flight
+         if(activeTempAssemblies.contains(name)) {
+            continue;
+         }
+
          if(!vs.containsAssembly(name)) {
             QueryManager qmgr = qmgrs.remove(name);
 
@@ -8288,6 +8314,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private boolean refreshing = false;
    private final AssetEntry entry; // asset entry
    private Viewsheet vs; // current viewsheet
+   // assembly names an in-flight query is using that exist only in its own private
+   // viewsheet; shared with every temporary box, see createTemporaryBox()
+   private final Set<String> activeTempAssemblies = ConcurrentHashMap.newKeySet();
    private final TableMetaDataRepository metarep; // table metadata repository
    private AssetQuerySandbox wbox; // worksheet sandbox
    private final ViewsheetSandbox root; // root viewsheet sandbox
