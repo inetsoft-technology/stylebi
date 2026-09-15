@@ -129,6 +129,14 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
                     }
                 }
             }
+            else if(transformedJson != null) {
+                throw new IllegalStateException(
+                   "customLookups[" + query.getLookupDepth() + "].jsonPath \"" +
+                   endpoint.jsonPath() + "\" resolved to a scalar value, not an object or " +
+                   "array -- jsonPath must select the row(s) to look up, not a single field; " +
+                   "use \"$\" (or an array-of-rows path) and let \"key\" select the id field " +
+                   "instead.");
+            }
         }
     }
 
