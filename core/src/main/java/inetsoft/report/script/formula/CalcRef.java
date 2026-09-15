@@ -104,7 +104,9 @@ public class CalcRef implements ScriptArrayScope {
          // reference is not null, but $name['.'] == null would be true if the
          // value of the reference is null
          else if(".".equals(id)) {
-            return unwrap();
+            Object result = unwrap();
+            checkNotAmbiguousArray(result);
+            return result;
          }
          // GraalJS's ToPrimitive coercion (used by ==, string concatenation,
          // template literals, etc.) probes for callable toString/valueOf
@@ -171,6 +173,12 @@ public class CalcRef implements ScriptArrayScope {
          }
 
          return getBySpec(id);
+      }
+      // checkNotAmbiguousArray (the "." branch above) throws this deliberately
+      // to surface the ambiguity to the caller; don't let the catch-all below
+      // swallow it into a silent null like a genuine, unexpected failure.
+      catch(ScriptException ex) {
+         throw ex;
       }
       catch(Exception ex) {
          LOG.warn("Failed to get reference property: " + id, ex);
