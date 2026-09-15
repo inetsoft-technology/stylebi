@@ -284,7 +284,7 @@ public class ExpandedJsonTable extends BaseJsonTable {
 
       for(int i = 0; i < maps.size(); i++) {
          final Map<?, ?> map = maps.get(i);
-         int lvl = level;
+         int lvl = level == DOCUMENT_ROOT_LEVEL ? 0 : level;
          int expLvls = expandLevels;
 
          if(map instanceof LookupData) {
