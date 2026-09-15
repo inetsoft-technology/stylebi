@@ -251,7 +251,9 @@ final class ServerFileCatalog {
 
          String absolutePath = child.getAbsolutePath();
 
-         if(!ServerFileUtil.isText(absolutePath) && !ServerFileUtil.isExcel(absolutePath)) {
+         if(ServerFileUtil.isOfficeLockFile(absolutePath) ||
+            (!ServerFileUtil.isText(absolutePath) && !ServerFileUtil.isExcel(absolutePath)))
+         {
             continue;   // outside the whitelist runQuery would also skip -- see class javadoc
          }
 
