@@ -1142,6 +1142,16 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       this.clearChartSnapshot();
 
+      // cloneNode() copies structure/attributes but not live scroll state, so every
+      // scrollable descendant (plot area, per-axis scroll-sync containers) would render
+      // at scrollLeft/Top 0 in the clone even when the real chart is scrolled -- making
+      // the whole plot appear to jump to the unscrolled position while this snapshot is
+      // shown, then jump back once it's cleared. Copy each container's live scroll
+      // position onto its clone below. (Bug #76703)
+      const scrollSelector = ".chart-plot-area-scroll-container, .chart-axis-area-scroll-container, "
+         + ".horizontal-scroll-wrapper, .vertical-scroll-wrapper";
+      const originalScrollEls = chartAreaEl.querySelectorAll(scrollSelector);
+
       const clone = chartAreaEl.cloneNode(true) as HTMLElement;
       const containerRect = container.getBoundingClientRect();
       clone.style.position = "absolute";
@@ -1198,6 +1208,19 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       }
 
       container.appendChild(clone);
+
+      const cloneScrollEls = clone.querySelectorAll(scrollSelector);
+
+      for(let i = 0; i < originalScrollEls.length; i++) {
+         const cloneScrollEl = cloneScrollEls[i] as HTMLElement;
+         // Force a synchronous layout pass so the clone's scrollWidth/clientWidth are
+         // known; otherwise the assignments below get silently clamped to 0 (the same
+         // issue documented in ChartArea.ngOnChanges for the live chart's own scrollbars).
+         void cloneScrollEl.offsetWidth;
+         cloneScrollEl.scrollLeft = (originalScrollEls[i] as HTMLElement).scrollLeft;
+         cloneScrollEl.scrollTop = (originalScrollEls[i] as HTMLElement).scrollTop;
+      }
+
       this.chartSnapshot = clone;
    }
 
