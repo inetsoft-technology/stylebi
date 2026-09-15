@@ -114,6 +114,7 @@ public class CalcTableService {
       CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
       TableLayout layout = layoutOf(assembly);
       AggregateRef[] aggregates = aggregatesOf(rvs, assembly);
+      Map<String, MergeAnchor> mergedInto = mergedIntoMap(layout);
       List<Map<String, Object>> cells = new ArrayList<>();
 
       for(int row = 0; row < layout.getRowCount(); row++) {
@@ -121,16 +122,25 @@ public class CalcTableService {
             Map<String, Object> cell = new LinkedHashMap<>();
             cell.put("row", row);
             cell.put("col", col);
-            Dimension span = layout.getSpan(row, col);
+            MergeAnchor anchor = mergedInto.get(row + "," + col);
 
-            if(span != null) {
-               cell.put("spanRows", span.height);
-               cell.put("spanCols", span.width);
+            if(anchor != null) {
+               cell.put("mergedInto", anchor.toMap());
+               cell.put("binding", null);
+            }
+            else {
+               Dimension span = layout.getSpan(row, col);
+
+               if(span != null) {
+                  cell.put("spanRows", span.height);
+                  cell.put("spanCols", span.width);
+               }
+
+               cell.put("binding",
+                        CalcCellVocabulary.describe(
+                           layoutService.getCellBindingInfo(assembly, row, col), aggregates));
             }
 
-            cell.put("binding",
-                     CalcCellVocabulary.describe(
-                        layoutService.getCellBindingInfo(assembly, row, col), aggregates));
             cells.add(cell);
          }
       }
@@ -150,15 +160,74 @@ public class CalcTableService {
    {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
-      requireInGrid(layoutOf(assembly), row, col);
+      TableLayout layout = layoutOf(assembly);
+      requireInGrid(layout, row, col);
 
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("row", row);
       out.put("col", col);
-      out.put("binding",
-              CalcCellVocabulary.describe(layoutService.getCellBindingInfo(assembly, row, col),
-                                          aggregatesOf(rvs, assembly)));
+      MergeAnchor anchor = mergedIntoMap(layout).get(row + "," + col);
+
+      if(anchor != null) {
+         out.put("mergedInto", anchor.toMap());
+         out.put("binding", null);
+      }
+      else {
+         out.put("binding",
+                 CalcCellVocabulary.describe(layoutService.getCellBindingInfo(assembly, row, col),
+                                             aggregatesOf(rvs, assembly)));
+      }
+
       return out;
+   }
+
+   /**
+    * Every non-anchor coordinate inside an active merge, mapped to its anchor's own (row, col).
+    *
+    * <p>A merge's {@code Dimension} is recorded only at the anchor cell
+    * ({@link TableLayout#getSpan}); {@code TableLayoutHandler.mergeCells} then clones the
+    * anchor's binding onto every other cell in the span while deliberately restoring each one's
+    * own pre-merge {@code cellName} (see {@code CellInfoHandler.spreadValue}) -- so describing
+    * a non-anchor cell here would report the anchor's data under that cell's stale name, not
+    * this cell's own binding (Redmine #76663). The Composer's own design-time table model
+    * already treats these cells this way -- see {@code CalcTableLayout.buildBaseInfo}, which
+    * blanks their display text and points them at the anchor via {@code baseInfo} so a human
+    * editing the sheet never sees or selects one directly. This mirrors that for {@code
+    * get_calc_layout}/{@code get_cell_binding}'s external, cell-addressed view.
+    */
+   private static Map<String, MergeAnchor> mergedIntoMap(TableLayout layout) {
+      Map<String, MergeAnchor> merged = new HashMap<>();
+
+      for(int r = 0; r < layout.getRowCount(); r++) {
+         for(int c = 0; c < layout.getColCount(); c++) {
+            Dimension span = layout.getSpan(r, c);
+
+            if(span == null || (span.width <= 1 && span.height <= 1)) {
+               continue;
+            }
+
+            for(int i = 0; i < span.height; i++) {
+               for(int j = 0; j < span.width; j++) {
+                  if(i == 0 && j == 0) {
+                     continue;
+                  }
+
+                  merged.put((r + i) + "," + (c + j), new MergeAnchor(r, c));
+               }
+            }
+         }
+      }
+
+      return merged;
+   }
+
+   private record MergeAnchor(int row, int col) {
+      Map<String, Object> toMap() {
+         Map<String, Object> map = new LinkedHashMap<>();
+         map.put("row", row);
+         map.put("col", col);
+         return map;
+      }
    }
 
    /**
