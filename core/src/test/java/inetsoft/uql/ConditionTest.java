@@ -1481,5 +1481,29 @@ class ConditionTest {
          assertEquals(expected.getValue(0), actual.getValue(0));
          assertEquals(expected.getValue(1), actual.getValue(1));
       }
+
+      // toNullSqlCondition(int) built its Jan-1/Dec-31 bounds by overwriting only the
+      // year/month/day Calendar fields on top of "now", leaving the hour/minute/second/
+      // millisecond carried over from whatever instant the call happened to run at. Two
+      // independent invocations -- as in toSqlConditionSilentlyDefaultsOnAnUnmatchedName above --
+      // land at two different real-world instants and so, occasionally, two different
+      // milliseconds, making that test's java.sql.Date#equals (full-millisecond) comparison
+      // intermittently fail even though both dates print the same yyyy-mm-dd. This test pins the
+      // invariant directly -- the returned bounds must be truncated to midnight -- independent of
+      // wall-clock timing.
+      @Test
+      void toNullSqlConditionTruncatesBoundsToMidnight() {
+         Condition condition = new Condition(XSchema.DATE).toNullSqlCondition(1);
+
+         for(int i = 0; i < 2; i++) {
+            Calendar cal = Calendar.getInstance();
+            cal.setTime((Date) condition.getValue(i));
+
+            assertEquals(0, cal.get(Calendar.HOUR_OF_DAY));
+            assertEquals(0, cal.get(Calendar.MINUTE));
+            assertEquals(0, cal.get(Calendar.SECOND));
+            assertEquals(0, cal.get(Calendar.MILLISECOND));
+         }
+      }
    }
 }
