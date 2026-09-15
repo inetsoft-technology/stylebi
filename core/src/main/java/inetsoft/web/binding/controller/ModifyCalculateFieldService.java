@@ -65,8 +65,6 @@ import java.util.*;
 @Service
 @ClusterProxy
 public class ModifyCalculateFieldService {
-   private static final Logger LOG = LoggerFactory.getLogger(ModifyCalculateFieldService.class);
-
    public ModifyCalculateFieldService(
       VSBindingService bindingFactory,
       VSBindingTreeControllerServiceProxy vsBindingTreeService,
