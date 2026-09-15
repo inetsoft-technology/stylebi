@@ -227,6 +227,22 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       }
    }
 
+   /**
+    * bug 76686: builds a throwaway {@link AuthenticationProvider} instance from a model -- the same
+    * construction path (including, for LDAP, the live {@code checkParameters()} bind and
+    * {@link #replacePlaceholderWithPassword}'s substitution when {@code model.oldName()} is set) that
+    * {@link #addAuthenticationProvider}/{@link #editAuthenticationProvider} already use, exposed here
+    * so a caller can evaluate the proposed provider's {@code getRoles()}/{@code getRoleMembers()}
+    * (e.g. for a self-lockout preflight simulation) WITHOUT adding it to the live chain. Never
+    * mutates the chain. The caller owns the returned instance and MUST {@code tearDown()} it after
+    * use -- this method never adds it to any chain or otherwise retains it.
+    */
+   public Optional<AuthenticationProvider> buildProviderForPreflightSimulation(
+      AuthenticationProviderModel model) throws Exception
+   {
+      return getProviderFromModel(model);
+   }
+
    public SecurityProviderStatusList getProviderListModel() {
       Optional<AuthenticationChain> chain = getAuthenticationChain();
       SecurityProviderStatusList.Builder builder = SecurityProviderStatusList.builder();

@@ -133,6 +133,24 @@ public class ProviderChangePlanService {
             continue;
          }
 
+         if(ProviderChangeRequest.VERB_UPDATE.equals(verb)) {
+            if(change.getProviderType() != null) {
+               throw new IllegalArgumentException(
+                  label + ".providerType: not used for verb=update; an update cannot change a " +
+                  "provider's type -- delete and create a new one instead (bug 76686)");
+            }
+
+            if(change.getNewName() != null) {
+               throw new IllegalArgumentException(
+                  label + ".newName: not used for verb=update; renaming a provider is not " +
+                  "supported in this cut, only duplicate accepts newName (bug 76686)");
+            }
+
+            changes.add(resolveUpdate(label, chain, name, change.getSpec(), currentList, seenKeys,
+                                      user));
+            continue;
+         }
+
          if(change.getProviderType() != null) {
             throw new IllegalArgumentException(
                label + ".providerType: not used for verb=delete; remove it or use verb=create");
@@ -259,6 +277,281 @@ public class ProviderChangePlanService {
             "which AuthenticationProviderService.getProviderFromModel itself does not enforce -- " +
             "this area's own service does, 03-reconcile.md Addition 2)");
       }
+   }
+
+   // ---------------------------------------------------------------- update (bug 76686)
+
+   /**
+    * Resolves an {@code update} entry: a partial-field edit of an existing provider, preserving its
+    * chain index (unlike delete+create, which always lands the recreated provider at the END of the
+    * chain -- bug 76686's own symptom). Authentication-chain LDAP providers only in this cut:
+    * <ul>
+    *   <li>{@code chain="authorization"} is refused outright -- the only authorization provider type
+    *       this area creates (FILE) has no editable configuration fields, and {@link ProviderLdapSpec}
+    *       is authentication-chain LDAP configuration only, so there is nothing an update through
+    *       this DTO could meaningfully change on that chain.</li>
+    *   <li>A FILE-typed authentication provider is refused for the same reason (no editable fields);
+    *       DATABASE/CUSTOM are excluded from this area entirely, symmetric with create/delete.</li>
+    * </ul>
+    * Merges the caller's partial {@code spec} onto the current provider's LDAP configuration
+    * ({@link #mergePartialLdapSpec}), cross-validates the merged {@code useCredential} mode against
+    * the raw fields the caller actually sent ({@link #requireLdapCredentialCrossValidation}), then
+    * runs the new self-lockout preflight ({@link #requireAuthenticationEditPreflight}) before
+    * building the {@code before}/{@code proposed} projection pair.
+    */
+   private PlanChange resolveUpdate(String label, ProviderChain chain, String name, ProviderLdapSpec spec,
+                                    List<SecurityProviderStatus> currentList, Set<String> seenKeys,
+                                    Principal user)
+      throws Exception
+   {
+      String key = key(chain, name);
+      requireUnseen(label, key, seenKeys);
+      requireNameExists(label, currentList, name);
+
+      if(chain == ProviderChain.AUTHORIZATION) {
+         throw new IllegalArgumentException(
+            label + ".chain: verb=update is not supported for chain=\"authorization\" in this cut " +
+            "-- the only authorization provider type this area creates (FILE) has no editable " +
+            "configuration fields, and spec's fields are authentication-chain LDAP configuration " +
+            "only (01-spec.md section 11's create-side type restriction applied symmetrically); " +
+            "delete and create a new one if a different provider is needed");
+      }
+
+      if(spec == null) {
+         throw new IllegalArgumentException(
+            label + ".spec: required for verb=update (at least one field to change)");
+      }
+
+      AuthenticationProviderModel current = authenticationProviderService.getAuthenticationProvider(name);
+      requireUpdatableAuthenticationType(label, current.providerType());
+
+      LdapAuthenticationProviderModel mergedLdap =
+         mergePartialLdapSpec(label, current.ldapProviderModel(), spec);
+      requireLdapCredentialCrossValidation(label, spec, mergedLdap);
+
+      AuthenticationProviderModel proposed = AuthenticationProviderModel.builder()
+         .providerName(name)
+         .oldName(name)
+         .providerType(SecurityProviderType.LDAP)
+         .ldapProviderModel(mergedLdap)
+         .build();
+
+      requireAuthenticationEditPreflight(label, name, proposed, user);
+
+      String before = ProviderProjection.projectAuthenticationProvider(current);
+      String proposedProjection = ProviderProjection.projectAuthenticationProvider(proposed);
+      return new PlanChange(key, NOT_ORG_SCOPED, before, proposedProjection, AdminChangeRecord.RISK_HIGH,
+                            AdminChangeRecord.SCOPE_STORAGE, true,
+                            "update authentication provider " + name);
+   }
+
+   /** Package-visible so {@link ProviderChangesetApplyService} can re-run this exact type gate at
+    * apply time. */
+   static void requireUpdatableAuthenticationType(String label, SecurityProviderType type) {
+      if(type != SecurityProviderType.LDAP) {
+         throw new IllegalArgumentException(
+            label + ": provider is type " + type + ", not LDAP -- this area's update verb only " +
+            "edits LDAP configuration (a FILE provider has no editable fields, and DATABASE/CUSTOM " +
+            "providers are excluded from this area, 01-spec.md section 1's create-side exclusion " +
+            "applied symmetrically to update, bug 76686)");
+      }
+   }
+
+   /**
+    * Overlays whatever fields the caller's partial {@code spec} actually sent (non-null) onto
+    * {@code current}'s own LDAP configuration -- every field {@code spec} leaves {@code null} is
+    * carried over from {@code current} unchanged. {@code ldapServer}, when sent, is validated the
+    * same way {@link #requireLdapSpec} validates it for create. Package-visible so
+    * {@link ProviderChangesetApplyService} can build the SAME merged value fresh at apply time
+    * (never re-deriving the merge independently, mirroring {@code DataSourceChangePlanService
+    * .buildProposedJdbc}'s own precedent).
+    */
+   static LdapAuthenticationProviderModel mergePartialLdapSpec(String label,
+                                                                LdapAuthenticationProviderModel current,
+                                                                ProviderLdapSpec spec)
+   {
+      LdapAuthenticationProviderModel.Builder builder = LdapAuthenticationProviderModel.builder();
+
+      if(spec.getLdapServer() != null) {
+         if(!"ACTIVE_DIRECTORY".equalsIgnoreCase(spec.getLdapServer()) &&
+            !"GENERIC".equalsIgnoreCase(spec.getLdapServer()))
+         {
+            throw new IllegalArgumentException(
+               label + ".spec.ldapServer: must be \"ACTIVE_DIRECTORY\" or \"GENERIC\", got " +
+               spec.getLdapServer());
+         }
+
+         builder.ldapServer(SecurityProviderType.valueOf(spec.getLdapServer().toUpperCase()));
+      }
+      else {
+         builder.ldapServer(current.ldapServer());
+      }
+
+      builder.protocol(spec.getProtocol() != null ? spec.getProtocol() : current.protocol());
+      builder.hostName(spec.getHostName() != null ? spec.getHostName() : current.hostName());
+      builder.hostPort(spec.getHostPort() != null ? spec.getHostPort() : current.hostPort());
+      builder.rootDN(spec.getRootDN() != null ? spec.getRootDN() : current.rootDN());
+      builder.useCredential(spec.getUseCredential() != null ? spec.getUseCredential() :
+                            current.useCredential());
+      builder.adminID(spec.getAdminID() != null ? spec.getAdminID() : current.adminID());
+      builder.secretId(spec.getSecretId() != null ? spec.getSecretId() : current.secretId());
+      builder.password(spec.getPassword() != null ? spec.getPassword() : current.password());
+      builder.userFilter(spec.getUserFilter() != null ? spec.getUserFilter() : current.userFilter());
+      builder.userBase(spec.getUserBase() != null ? spec.getUserBase() : current.userBase());
+      builder.userAttr(spec.getUserAttr() != null ? spec.getUserAttr() : current.userAttr());
+      builder.mailAttr(spec.getMailAttr() != null ? spec.getMailAttr() : current.mailAttr());
+      builder.groupFilter(spec.getGroupFilter() != null ? spec.getGroupFilter() : current.groupFilter());
+      builder.groupBase(spec.getGroupBase() != null ? spec.getGroupBase() : current.groupBase());
+      builder.groupAttr(spec.getGroupAttr() != null ? spec.getGroupAttr() : current.groupAttr());
+      builder.roleFilter(spec.getRoleFilter() != null ? spec.getRoleFilter() : current.roleFilter());
+      builder.roleBase(spec.getRoleBase() != null ? spec.getRoleBase() : current.roleBase());
+      builder.roleAttr(spec.getRoleAttr() != null ? spec.getRoleAttr() : current.roleAttr());
+      builder.userRoleFilter(spec.getUserRoleFilter() != null ? spec.getUserRoleFilter() :
+                             current.userRoleFilter());
+      builder.roleRoleFilter(spec.getRoleRoleFilter() != null ? spec.getRoleRoleFilter() :
+                             current.roleRoleFilter());
+      builder.groupRoleFilter(spec.getGroupRoleFilter() != null ? spec.getGroupRoleFilter() :
+                              current.groupRoleFilter());
+      builder.startTls(spec.getStartTls() != null ? spec.getStartTls() : current.startTls());
+      builder.searchTree(spec.getSearchTree() != null ? spec.getSearchTree() : current.searchTree());
+      builder.sysAdminRoles(spec.getSysAdminRoles() != null ?
+                            spec.getSysAdminRoles().toArray(new String[0]) : current.sysAdminRoles());
+      return builder.build();
+   }
+
+   /**
+    * Cross-field {@code useCredential} validation, run against the MERGED/proposed model (not the
+    * raw partial spec) -- a caller rotating only {@code password} on a provider currently in
+    * {@code useCredential=true}/{@code secretId} mode would pass a naive per-field-if-present check
+    * cleanly (neither the omitted {@code secretId} nor the newly-sent {@code password} violates
+    * anything in isolation) while producing a merged model that is internally contradictory.
+    * Mirrors {@code DataSourceChangePlanService.requireCredentialCrossValidation}'s exact shape:
+    * check which raw {@code spec} fields the caller actually sent against the RESOLVED state of the
+    * proposed object. Package-visible for the same apply-time reuse reason as
+    * {@link #mergePartialLdapSpec}.
+    */
+   static void requireLdapCredentialCrossValidation(String label, ProviderLdapSpec spec,
+                                                     LdapAuthenticationProviderModel proposed)
+   {
+      if(proposed.useCredential()) {
+         if(spec.getAdminID() != null || spec.getPassword() != null) {
+            throw new IllegalArgumentException(
+               label + ".spec: useCredential=true requires secretId, not adminID/password (a field " +
+               "belonging to the other mode is refused loud, not silently dropped)");
+         }
+
+         if(proposed.secretId() == null || proposed.secretId().isBlank()) {
+            throw new IllegalArgumentException(
+               label + ".spec.secretId: required when the resolved useCredential is true");
+         }
+      }
+      else {
+         if(spec.getSecretId() != null) {
+            throw new IllegalArgumentException(
+               label + ".spec: useCredential=false (or unset) does not accept secretId; set " +
+               "useCredential=true to use a stored credential instead");
+         }
+
+         if(proposed.adminID() == null || proposed.adminID().isBlank()) {
+            throw new IllegalArgumentException(
+               label + ".spec.adminID: required when the resolved useCredential is false");
+         }
+
+         if(proposed.password() == null || proposed.password().isBlank()) {
+            throw new IllegalArgumentException(
+               label + ".spec.password: required when the resolved useCredential is false");
+         }
+      }
+   }
+
+   /**
+    * bug 76686's one genuinely new preflight: generalizes {@link #requireAuthenticationDeletePreflight}'s
+    * simulate-and-check pattern from "remove the named provider from a copy of the chain" to "replace
+    * the named provider, in the copy, with the provider built from the merged/proposed model" --
+    * {@code providerHasSysAdmins}/{@code callerRetainsSysAdmin} both already operate on a plain
+    * {@code List<AuthenticationProvider>} and do not care whether the list changed via removal or
+    * replacement. No new authorization-chain preflight is needed (confirmed by tracing {@code
+    * AuthorizationChain.getPermission}'s resolution, which has no length-dependent branch, and edit
+    * never changes chain length -- 01-diagnosis.md Revision round 1 item 2).
+    * <p><b>This preflight performs a real, live LDAP connection test at PREVIEW time.</b> Building
+    * the "proposed" provider instance (via {@link
+    * AuthenticationProviderService#buildProviderForPreflightSimulation}, the same {@code
+    * getProviderFromModel} path {@code create}/{@code duplicate} use) calls, for LDAP, {@code
+    * LdapAuthenticationProvider.checkParameters()} -- which does {@code createContext()}/
+    * {@code testContext()}, an actual bind against the real directory server using the proposed
+    * (possibly just-rotated) credentials, not a local field-shape check. This is genuinely new
+    * behavior for {@code preview_provider_changes}, not an equivalent, already-accepted cost: {@code
+    * resolveCreate} never calls {@code getProviderFromModel} at all -- {@code create}'s own live bind
+    * happens only at {@code apply} time, inside {@code addAuthenticationProvider}. (An earlier draft
+    * of the design behind this preflight claimed the opposite -- "checkParameters() only, not a live
+    * bind... already-accepted risk, not new risk" -- corrected here per review; see
+    * 01-diagnosis.md's own "Important finding" callout for the full trace.) The instance is torn down
+    * in a {@code finally} block immediately after the checks and never added to the live chain, but a
+    * transient LDAP outage or slow network can still cause an {@code update} entry's own {@code
+    * preview_provider_changes} call to fail or hang -- a materially different failure mode than every
+    * other verb in this area, which only validates field shape at preview and defers any live
+    * connection test to {@code apply}. This is treated as an intentional, accepted trade-off (it
+    * catches a bad rotated password/host before commit, arguably better than {@code create}'s
+    * fail-only-at-apply behavior), not a defect -- but it is not free, and callers/operators should
+    * know a hung LDAP server can make an {@code update} preview hang with it.
+    * <p>Package-visible for the same apply-time re-run reason as
+    * {@link #requireAuthenticationDeletePreflight}.
+    */
+   void requireAuthenticationEditPreflight(String label, String name,
+                                           AuthenticationProviderModel mergedModel, Principal user)
+      throws Exception
+   {
+      AuthenticationProvider proposedProvider = authenticationProviderService
+         .buildProviderForPreflightSimulation(mergedModel)
+         .orElseThrow(() -> new IllegalArgumentException(
+            label + ".spec: failed to construct the proposed provider configuration for preflight " +
+            "simulation"));
+
+      try {
+         List<AuthenticationProvider> simulated = simulatedAuthenticationProvidersAfterEdit(name,
+            proposedProvider);
+
+         if(simulated.stream().noneMatch(ProviderChangePlanService::providerHasSysAdmins)) {
+            throw new IllegalArgumentException(
+               label + ": updating authentication provider \"" + name + "\" would leave the " +
+               "authentication chain with no remaining provider defining a system administrator " +
+               "role with a real member -- refused (bug 76686, reproducing " +
+               "AuthenticationProviderService.providerHasSysAdmins against the simulated post-edit " +
+               "chain)");
+         }
+
+         IdentityID[] callerRoles = callerRoles(user);
+
+         if(!callerRetainsSysAdmin(simulated, callerRoles)) {
+            throw new IllegalArgumentException(
+               label + ": updating authentication provider \"" + name + "\" would resolve none of " +
+               "the calling session's own roles to system-administrator against the edited chain -- " +
+               "applying this plan would lock the calling session out of every admin-chat area, not " +
+               "just this one (bug 76686). The deployment as a whole may retain system-administrator " +
+               "capability through a different provider/role/account even though this specific " +
+               "caller would not.");
+         }
+      }
+      finally {
+         proposedProvider.tearDown();
+      }
+   }
+
+   private List<AuthenticationProvider> simulatedAuthenticationProvidersAfterEdit(String name,
+      AuthenticationProvider proposedProvider)
+   {
+      List<AuthenticationProvider> current = securityEngine.getAuthenticationChain()
+         .map(AuthenticationChain::getProviders).orElseGet(List::of);
+      List<AuthenticationProvider> simulated = new ArrayList<>(current);
+
+      for(int i = 0; i < simulated.size(); i++) {
+         if(simulated.get(i).getProviderName().equals(name)) {
+            simulated.set(i, proposedProvider);
+            break;
+         }
+      }
+
+      return simulated;
    }
 
    // ---------------------------------------------------------------- duplicate
@@ -545,7 +838,8 @@ public class ProviderChangePlanService {
       if(existsInList(list, name)) {
          throw new IllegalArgumentException(
             label + ".name: \"" + name + "\" already exists in this chain; use a different name, " +
-            "or delete it first if you intend to replace it (update is not supported yet)");
+            "verb=update to edit it in place, or delete it first if you intend to replace it with a " +
+            "different provider type");
       }
    }
 
@@ -575,15 +869,15 @@ public class ProviderChangePlanService {
 
    static String requireVerb(String label, String verb) {
       if(ProviderChangeRequest.VERB_CREATE.equals(verb) || ProviderChangeRequest.VERB_DELETE.equals(verb) ||
-         ProviderChangeRequest.VERB_DUPLICATE.equals(verb))
+         ProviderChangeRequest.VERB_DUPLICATE.equals(verb) || ProviderChangeRequest.VERB_UPDATE.equals(verb))
       {
          return verb;
       }
 
       throw new IllegalArgumentException(
          label + ".verb: must be \"" + ProviderChangeRequest.VERB_CREATE + "\", \"" +
-         ProviderChangeRequest.VERB_DELETE + "\", or \"" + ProviderChangeRequest.VERB_DUPLICATE +
-         "\", got " + String.valueOf(verb));
+         ProviderChangeRequest.VERB_DELETE + "\", \"" + ProviderChangeRequest.VERB_DUPLICATE +
+         "\", or \"" + ProviderChangeRequest.VERB_UPDATE + "\", got " + String.valueOf(verb));
    }
 
    /** Deliberately case-insensitive/trimmed exact-label match, no abbreviation aliasing -- "auth" is
