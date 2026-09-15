@@ -323,6 +323,10 @@ public class ScriptExecuteService {
     * not this diagnostic's), or the asset repository/user identity needed to check aren't
     * available. Never throws -- this is a best-effort diagnostic layered on top of execution, not
     * a gate, so a failure here must never prevent {@link #execute} from running the script.
+    *
+    * <p>Reports only the first mismatch found even if a script contains several distinct
+    * {@code ws:} calls -- deliberate, since this is a one-shot pointer at "something about this
+    * script's ws: addressing is wrong," not an exhaustive lint pass.</p>
     */
    private static String firstWsScopeMismatch(String scriptText, Principal user) {
       if(scriptText == null || scriptText.isEmpty() || !(user instanceof XPrincipal)) {
