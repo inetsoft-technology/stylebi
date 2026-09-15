@@ -549,16 +549,19 @@ class SheetOpenServiceTest {
    }
 
    /**
-    * Portal-session-pairing Lane B / D10 (section 8.5): a session established directly at login
-    * (no Composer pane ever paired) has {@code socketSessionId() == null} from the moment it is
-    * created, and there is no expectation it ever gets one. The old hard refusal here
-    * ("has no active browser connection...") is softened to a skip-the-broadcast-only branch --
-    * the runtime is still opened and the session still minted, only the best-effort
-    * "tell the browser" steps have nothing to tell. Charter assertion 6 / counter-assertion: must
-    * degrade cleanly, never throw.
+    * PSP-027: a session established directly at login (no Composer pane ever paired) has
+    * {@code socketSessionId() == null} from the moment it is created, and there is no expectation
+    * it ever gets one -- but {@code PortalAgentNoticeService}'s {@code /user/composer-client}
+    * subscription is exactly what this case needs to reach: an identity-addressed broadcast, not a
+    * socket-addressed one. The tab-bar "agent attached" indicator genuinely has no meaning without
+    * a specific browser tab to highlight, so {@code sendAgentActive} alone stays skipped; the
+    * {@code OpenComposerAssetCommand} must still go out, via
+    * {@code sendToComposerByIdentity(ownerIdentity, ...)}, not be silently dropped.
     */
    @Test
-   void createViewsheetToleratesActingSessionWithNoSocketAndSkipsBroadcast() throws Exception {
+   void createViewsheetFallsBackToIdentityAddressedBroadcastWhenActingSessionHasNoSocket()
+      throws Exception
+   {
       AssetEntry wsEntry = new AssetEntry(
          inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
          "Sample Queries/customers", null);
@@ -570,6 +573,12 @@ class SheetOpenServiceTest {
       assertNull(created.socketSessionId());
       verify(broadcast, never()).sendAgentActive(any());
       verify(broadcast, never()).sendToComposer(anyString(), any());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposerByIdentity(eq(OWNER), command.capture());
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertEquals("vs-runtime-new", sent.runtimeId());
+      assertTrue(sent.viewsheet());
    }
 
    /**
@@ -638,6 +647,9 @@ class SheetOpenServiceTest {
       verify(viewsheetService).openTemporaryViewsheet(isNull(), eq(lmEntry), eq(agent), isNull());
       verify(broadcast, never()).sendAgentActive(any());
       verify(broadcast, never()).sendToComposer(anyString(), any());
+      // PSP-027: still notified, just via the identity-addressed fallback -- see
+      // createViewsheetFallsBackToIdentityAddressedBroadcastWhenActingSessionHasNoSocket.
+      verify(broadcast).sendToComposerByIdentity(eq(OWNER), any());
    }
 
    /**
@@ -853,13 +865,15 @@ class SheetOpenServiceTest {
    }
 
    /**
-    * Portal-session-pairing Lane B / D10 (section 8.5) -- mirrors
-    * createViewsheetToleratesActingSessionWithNoSocketAndSkipsBroadcast. Charter assertion 6 /
-    * counter-assertion: a socketless acting session must degrade to skip-the-broadcast, never
-    * throw.
+    * PSP-027 -- mirrors
+    * createViewsheetFallsBackToIdentityAddressedBroadcastWhenActingSessionHasNoSocket: a
+    * socketless acting session must still notify {@code PortalAgentNoticeService}, via the
+    * identity-addressed fallback, rather than silently dropping the notice.
     */
    @Test
-   void createWorksheetToleratesActingSessionWithNoSocketAndSkipsBroadcast() throws Exception {
+   void createWorksheetFallsBackToIdentityAddressedBroadcastWhenActingSessionHasNoSocket()
+      throws Exception
+   {
       SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true, null, null);
 
       JoinSession created = service.createWorksheet("tok-acting", principal());
@@ -868,6 +882,12 @@ class SheetOpenServiceTest {
       assertNull(created.socketSessionId());
       verify(broadcast, never()).sendAgentActive(any());
       verify(broadcast, never()).sendToComposer(anyString(), any());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposerByIdentity(eq(OWNER), command.capture());
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertEquals("ws-runtime-new", sent.runtimeId());
+      assertFalse(sent.viewsheet());
    }
 
    /**
