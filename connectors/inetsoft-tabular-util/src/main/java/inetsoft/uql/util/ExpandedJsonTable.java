@@ -76,7 +76,18 @@ public class ExpandedJsonTable extends BaseJsonTable {
       }
 
       Object jsonObject = prepareData(json);
-      processJson(size(), new Object2ObjectLinkedOpenHashMap<>(), null, jsonObject, expandLevels, 0);
+
+      // A bare JSON array at the document root is a paginated envelope that
+      // spends the query's one expansion level entering it, so a record's own
+      // array fields are examined one level in. A single JSON object at the
+      // root has no such envelope to spend a level on, so flag it with
+      // DOCUMENT_ROOT_LEVEL: expandMap uses that to treat the root object's
+      // own scalar-array fields (e.g. GitHub Repository.topics) as an
+      // attribute of that one record rather than a collection to explode,
+      // while still allowing a top-level array-of-objects field (e.g. a
+      // "values"-wrapped paginated list) to explode into rows as before.
+      int level = jsonObject instanceof List ? 0 : DOCUMENT_ROOT_LEVEL;
+      processJson(size(), new Object2ObjectLinkedOpenHashMap<>(), null, jsonObject, expandLevels, level);
    }
 
    @Override
@@ -273,7 +284,7 @@ public class ExpandedJsonTable extends BaseJsonTable {
 
       for(int i = 0; i < maps.size(); i++) {
          final Map<?, ?> map = maps.get(i);
-         int lvl = level;
+         int lvl = level == DOCUMENT_ROOT_LEVEL ? 0 : level;
          int expLvls = expandLevels;
 
          if(map instanceof LookupData) {
@@ -292,13 +303,23 @@ public class ExpandedJsonTable extends BaseJsonTable {
          final List<?> list = lists.get(i);
          int lvl = level;
          int expLvls = expandLevels;
+         boolean atDocumentRoot = lvl == DOCUMENT_ROOT_LEVEL;
+
+         if(atDocumentRoot) {
+            lvl = 0;
+         }
 
          if(list instanceof LookupData) {
             expLvls = ((LookupData) list).getExpandLevels();
             lvl = 0;
+            // an explicit lookup expansion is always a genuine collection to
+            // expand, even when it replaces a scalar-valued field
+            atDocumentRoot = false;
          }
 
-         if(!emptyListRow && (expLvls <= 0 || lvl < expLvls)) {
+         if(!emptyListRow && (!atDocumentRoot || containsRecord(list)) &&
+            (expLvls <= 0 || lvl < expLvls))
+         {
             cnt = Math.max(cnt, expandList(ridx, row, listnames.get(i), list, expLvls,  lvl + 1));
          }
          else {
@@ -311,6 +332,20 @@ public class ExpandedJsonTable extends BaseJsonTable {
       }
 
       return cnt;
+   }
+
+   /**
+    * Check if a list contains at least one record (object), as opposed to
+    * being purely a list of scalar values.
+    */
+   private boolean containsRecord(List<?> list) {
+      for(Object obj : list) {
+         if(obj instanceof Map) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -413,6 +448,10 @@ public class ExpandedJsonTable extends BaseJsonTable {
    public void setAllowEmptyLists(boolean allowEmptyLists) {
       this.allowEmptyLists = allowEmptyLists;
    }
+
+   // sentinel "level" marking the JSON document's own root object (as opposed
+   // to level 0 reached via an explicit LookupData reset, which always expands)
+   private static final int DOCUMENT_ROOT_LEVEL = -1;
 
    private final XSwappableObjectList<Map<String, Object>> rows = new XSwappableObjectList<>(null);
    private final List<String> headers = new ArrayList<>();
