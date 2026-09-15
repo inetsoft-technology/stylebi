@@ -240,6 +240,59 @@ class LayoutToolTest {
    }
 
    /**
+    * Regression guard for the col-axis range arithmetic bug found in review of #76676: when a
+    * SUMMARY cell has *both* a row group and a col group (the realistic row+column
+    * crosstab-style shape #76675 targets), the mergeColGroup truncation must search/truncate
+    * only the just-appended col-axis portion of the shared holders/locs list -- not a
+    * same-sized slice of the row-axis portion that happens to sit at the front of the list.
+    * With the old `[0, holders.size() - rowGroupCount)` range, this cell's mergeColGroup would
+    * be searched for among RegionGrp/StateGrp (the row axis) instead of QuarterGrp/MonthGrp
+    * (the col axis), and -- since QuarterGrp is not one of the cell's row-axis ancestors --
+    * incorrectly throw MessageException instead of scoping to it. The row-axis chain
+    * (RegionGrp, StateGrp) must also come through untouched, since no mergeRowGroup was set.
+    */
+   @Test
+   void mergeColGroupTruncationIsScopedToColAxisWhenCellAlsoHasARowGroup() throws Exception {
+      TableLayout layout = new TableLayout();
+      DefaultTableLens base = groupedBase();
+      layout.setColCount(3);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(3);
+      layout.addRegion(base.getDescriptor().getRowDataPath(0), region);
+
+      TableCellBinding regionGroup = TableCellBinding.getGroupBinding("Region");
+      regionGroup.setCellName("RegionGrp");
+      layout.setCellBinding(1, 0, regionGroup);
+
+      TableCellBinding stateGroup = TableCellBinding.getGroupBinding("State");
+      stateGroup.setCellName("StateGrp");
+      stateGroup.setRowGroup("RegionGrp");
+      layout.setCellBinding(2, 0, stateGroup);
+
+      TableCellBinding quarterGroup = TableCellBinding.getGroupBinding("Region");
+      quarterGroup.setCellName("QuarterGrp");
+      layout.setCellBinding(0, 1, quarterGroup);
+
+      TableCellBinding monthGroup = TableCellBinding.getGroupBinding("State");
+      monthGroup.setCellName("MonthGrp");
+      monthGroup.setColGroup("QuarterGrp");
+      layout.setCellBinding(0, 2, monthGroup);
+
+      TableCellBinding summary = TableCellBinding.getSummaryBinding("Total");
+      summary.setFormula("Sum");
+      summary.setRowGroup("StateGrp");
+      summary.setColGroup("MonthGrp");
+      summary.setMergeColGroup("QuarterGrp");
+      layout.setCellBinding(2, 2, summary);
+
+      String exp = fillCalcTableLens(layout, base, false).getFormula(2, 2);
+      assertTrue(exp.contains("QuarterGrp"), "expected expression to scope to QuarterGrp, was: " + exp);
+      assertFalse(exp.contains("MonthGrp"), "expected MonthGrp qualifier to be dropped, was: " + exp);
+      assertTrue(exp.contains("RegionGrp"), "expected row-axis RegionGrp to be untouched, was: " + exp);
+      assertTrue(exp.contains("StateGrp"), "expected row-axis StateGrp to be untouched, was: " + exp);
+   }
+
+   /**
     * Same truncation must be visible to the crossTabSupported branch (createCrosstabCalcExpression),
     * since it consumes the same groups/gnames arrays built upstream of the crossTabSupported check --
     * confirms the fix isn't limited to the plain-SUMMARY expression path.
