@@ -32,6 +32,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -125,15 +126,16 @@ public class MvChangesetApplyService {
          for(int i = 0; i < plan.changes().size(); i++) {
             PlanChange change = plan.changes().get(i);
             MvChangePlanService.FlatChange fc = flat.get(i);
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                if(MvChangeRequest.VERB_CREATE.equals(fc.verb)) {
                   applyCreate(txId, reviewedTask, change, fc, orgId, backupRef,
-                             req.getReviewOutcome(), user, results, undoable);
+                             req.getReviewOutcome(), user, results, undoable, mutationEntered);
                }
                else if(MvChangeRequest.VERB_SET_CYCLE.equals(fc.verb)) {
                   applySetCycle(txId, reviewedTask, change, fc, orgId, backupRef,
-                               req.getReviewOutcome(), user, results, undoable);
+                               req.getReviewOutcome(), user, results, undoable, mutationEntered);
                }
                else {
                   applyDelete(txId, reviewedTask, fc, orgId, backupRef, req.getReviewOutcome(), user,
@@ -147,8 +149,18 @@ public class MvChangesetApplyService {
                // Exception): MVSupportService.createMV itself declares `throws Throwable`.
                results.add(new ApplyOutcome(fc.mvName, null, null, AdminChangeRecord.STATUS_FAILED,
                                             messageOf(e)));
-               unknownStateFailures.add(new RollbackFailure(fc.mvName,
-                  "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+
+               // Only unknown-state (and thus only forcing STATUS_ROLLBACK_FAILED) when this
+               // entry's own mutating call was actually entered -- a throw strictly before that
+               // (e.g. the analysis-freshness re-check both applyCreate/applySetCycle perform) never
+               // touched anything, so it must not block a clean STATUS_ROLLED_BACK for the rest of
+               // the batch. Bug #76672.
+               if(mutationEntered.get()) {
+                  unknownStateFailures.add(new RollbackFailure(fc.mvName,
+                     "state unknown: apply did not return a verifiable outcome (" + messageOf(e) +
+                     ")"));
+               }
+
                failed = true;
                break;
             }
@@ -187,12 +199,15 @@ public class MvChangesetApplyService {
    private void applyCreate(String txId, String task, PlanChange change,
                             MvChangePlanService.FlatChange fc, String orgId, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
-                            List<Undo> undoable)
+                            List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Throwable
    {
       MVSupportService.AnalysisResult analysisResult =
          mvGateway.getAnalysisResult(fc.source.getAnalysisId());
       List<MVSupportService.MVStatus> mvStatusList = analysisResult.getStatus();
+      // Bug #76672: past this point, this entry's own mutating call(s) below are the only
+      // remaining risk -- a throw caught by the loop from here on genuinely leaves unknown state.
+      mutationEntered.set(true);
 
       // Folds the server's own step 5 (set-cycle) and step 6 (create) back to back, so the
       // intermediate "cycle set, mv not yet created" durable-but-incomplete state the raw EM
@@ -221,11 +236,18 @@ public class MvChangesetApplyService {
    private void applySetCycle(String txId, String task, PlanChange change,
                               MvChangePlanService.FlatChange fc, String orgId, String backupRef,
                               String reviewOutcome, Principal user, List<ApplyOutcome> results,
-                              List<Undo> undoable)
+                              List<Undo> undoable, AtomicBoolean mutationEntered)
    {
       MVSupportService.AnalysisResult analysisResult =
          mvGateway.getAnalysisResult(fc.source.getAnalysisId());
+      // Bug #76672: unlike applyCreate, this method has no other explicit freshness re-check of its
+      // own -- without this call, the live analysis-freshness lookup only happens one call deeper,
+      // inside MVSupportService.setDataCycle itself, by which point mutationEntered would already be
+      // true. Calling it here surfaces that same live check at a point this class owns and can gate
+      // on.
+      analysisResult.getStatus();
       String before = change.currentValue();
+      mutationEntered.set(true);
       mvGateway.setDataCycle(List.of(fc.mvName), analysisResult, fc.source.getCycle(), orgId);
 
       String after = analysisResult.getStatus().stream()
