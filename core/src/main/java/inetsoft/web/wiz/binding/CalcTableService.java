@@ -190,7 +190,7 @@ public class CalcTableService {
     * own pre-merge {@code cellName} (see {@code CellInfoHandler.spreadValue}) -- so describing
     * a non-anchor cell here would report the anchor's data under that cell's stale name, not
     * this cell's own binding (Redmine #76663). The Composer's own design-time table model
-    * already treats these cells this way -- see {@code CalcTableLayout.buildBaseInfo}, which
+    * already treats these cells this way -- see {@code CalcTableLayout.initBaseInfo}, which
     * blanks their display text and points them at the anchor via {@code baseInfo} so a human
     * editing the sheet never sees or selects one directly. This mirrors that for {@code
     * get_calc_layout}/{@code get_cell_binding}'s external, cell-addressed view.
