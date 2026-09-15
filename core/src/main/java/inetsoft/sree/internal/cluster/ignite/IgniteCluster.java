@@ -19,6 +19,7 @@ package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.uql.asset.ConfirmException;
@@ -79,7 +80,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       ignite.message().localListen(MESSAGE_TOPIC, new MessageDispatcher());
       ignite.message().localListen(AFFINITY_TOPIC, new AffinityCallProcessor());
       ignite.message().localListen(ServiceTaskExecutorImpl.RESULT_TOPIC, new ServiceTaskResultListener());
-      ignite.events().localListen(new MembershipDispatcher(), EventType.EVT_NODE_JOINED, EventType.EVT_NODE_LEFT);
+      ignite.events().localListen(new MembershipDispatcher(), EventType.EVT_NODE_JOINED,
+                                  EventType.EVT_NODE_LEFT, EventType.EVT_NODE_FAILED);
       String localIp = ignite.cluster().localNode().attribute("local.ip.addr");
       InetAddress fileTransferAddress;
 
@@ -96,9 +98,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       messageExecutor = Executors.newFixedThreadPool(
          Runtime.getRuntime().availableProcessors(),
          r -> new GroupedThread(r, "IgniteMessages"));
-      affinityExecutor = Executors.newFixedThreadPool(
-         Runtime.getRuntime().availableProcessors(),
-         r -> new GroupedThread(r, "IgniteMessages"));
+      // Affinity requests run arbitrary service code (opening a viewsheet, loading table data,
+      // executing a chart), which is dominated by locks and I/O rather than CPU, and which can
+      // itself issue a nested affinity call. Sizing this pool to the CPU count meant a couple of
+      // concurrent remote sheet operations could consume every thread, so a nested call blocked
+      // on a response that only work queued behind it could produce. Allow the pool to grow well
+      // past the CPU count and let idle threads retire.
+      //
+      // This pool also gets its own thread name. It previously shared "IgniteMessages" with the
+      // message dispatch pool above, which made thread dumps ambiguous about which of the two
+      // was actually stuck.
+      affinityExecutor = new ThreadPoolExecutor(
+         Runtime.getRuntime().availableProcessors(), getAffinityPoolMaxSize(),
+         60L, TimeUnit.SECONDS, new SynchronousQueue<>(),
+         r -> new GroupedThread(r, "IgniteAffinity"));
       listenerExecutor = Executors.newSingleThreadExecutor(
          r -> new GroupedThread(r, "IgniteMapEvents"));
 
@@ -206,7 +219,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             EventType.EVT_CACHE_ENTRY_EVICTED,
             EventType.EVT_CACHE_REBALANCE_STOPPED,
             EventType.EVT_NODE_JOINED,
-            EventType.EVT_NODE_LEFT
+            EventType.EVT_NODE_LEFT,
+            // Ignite fires EVT_NODE_LEFT only for a graceful stop. A pod that is OOMKilled,
+            // killed with SIGKILL, segmented, or partitioned away fires EVT_NODE_FAILED instead,
+            // which is the common case during an AKS rolling update or a crash.
+            EventType.EVT_NODE_FAILED
          };
 
          config.setIncludeEventTypes(includedEvents);
@@ -1072,6 +1089,188 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       return localNode.isClient() || Boolean.TRUE.equals(localNode.attribute("scheduler"));
    }
 
+   /**
+    * A remote affinity call that has been sent but not yet answered. The recipient is tracked so
+    * that the call can be failed immediately if that node leaves the cluster, instead of blocking
+    * the caller until the affinity call timeout expires.
+    */
+   private record PendingAffinityCall(String recipient, CompletableFuture<?> future) {
+   }
+
+   /**
+    * Registers a pending remote affinity call so it can be completed by the response listener or
+    * failed if the target node leaves.
+    */
+   private void registerAffinityFuture(String id, String recipient, CompletableFuture<?> future) {
+      affinityFutures.put(id, new PendingAffinityCall(recipient, future));
+   }
+
+   /**
+    * Fails every affinity call still waiting on the given node. Called when a node leaves the
+    * cluster: without this, an in-flight call to a node that is shutting down (a rolling update,
+    * for example) blocks the calling request thread for the full affinity call timeout, since the
+    * response that would complete the future can never arrive.
+    */
+   private void failAffinityCallsTo(String nodeName) {
+      if(nodeName == null) {
+         return;
+      }
+
+      for(Map.Entry<String, PendingAffinityCall> entry : affinityFutures.entrySet()) {
+         PendingAffinityCall pending = entry.getValue();
+
+         if(pending != null && nodeName.equals(pending.recipient()) &&
+            affinityFutures.remove(entry.getKey(), pending))
+         {
+            LOG.warn("Failing affinity call {} because node {} left the cluster", entry.getKey(),
+                     nodeName);
+            pending.future().completeExceptionally(new AffinityCallException(
+               "The node handling this request (" + nodeName + ") left the cluster. " +
+               "Retry the operation."));
+         }
+      }
+   }
+
+   /**
+    * Hands an inbound affinity request to the affinity pool for execution.
+    *
+    * <p>If the Spring application context is not up yet (a race between the Ignite cluster join
+    * and Spring startup on a newly scaled pod), the request waits for it <i>without</i> occupying
+    * an affinity pool thread. Doing that wait inside the pooled task used to consume one of the
+    * few available threads for up to two minutes per request.
+    */
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private void submitAffinityRequest(AffinityCallRequest request) {
+      CompletableFuture<Void> ready = ConfigurationContext.getContext().getSpringContextReady();
+
+      if(ready.isDone()) {
+         executeAffinityRequest(request);
+         return;
+      }
+
+      LOG.warn("Affinity request waiting for Spring context to initialize: {}", request);
+      // copy() first: orTimeout() completes the future it is called on, and springContextReady is
+      // shared, so applying the timeout to it directly would fail it for every other waiter.
+      ready.copy()
+         .orTimeout(SPRING_CONTEXT_WAIT_MILLIS, TimeUnit.MILLISECONDS)
+         .whenComplete((v, ex) -> {
+            if(ex != null) {
+               LOG.warn("Spring context did not initialize in time for affinity request: {}",
+                        request, ex);
+               sendAffinityFailure(request, new AffinityCallException(
+                  "Node " + getNodeName(ignite.cluster().localNode()) + " is still starting up " +
+                  "and could not handle the request. Retry the operation.", ex));
+            }
+            else {
+               executeAffinityRequest(request);
+            }
+         });
+   }
+
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private void executeAffinityRequest(AffinityCallRequest request) {
+      try {
+         affinityExecutor.submit(new AffinityCallRequestTask(request));
+         LOG.debug("SUBMITTED AFFINITY REQUEST: {}", request);
+      }
+      catch(RejectedExecutionException e) {
+         // The pool is saturated. Tell the caller now so it can retry or report a real error,
+         // rather than leaving it to block until the affinity call timeout.
+         LOG.warn("Rejected affinity request, the affinity pool is saturated: {}", request);
+         sendAffinityFailure(request, new AffinityCallException(
+            "Node " + getNodeName(ignite.cluster().localNode()) + " is at capacity and could " +
+            "not accept the request. Retry the operation."));
+      }
+   }
+
+   @SuppressWarnings({ "rawtypes", "unchecked" })
+   private void sendAffinityFailure(AffinityCallRequest request, Throwable error) {
+      try {
+         AffinityCallResponse response = new AffinityCallResponse<>(
+            request.getId(), request.getSender(), null, error);
+         ignite.message().sendOrdered(AFFINITY_TOPIC, response, 0);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to send affinity failure response: {}", request, e);
+      }
+   }
+
+   /**
+    * Gets the maximum number of affinity requests this node will execute concurrently.
+    *
+    * <p>Read from a system property rather than from {@code SreeEnv}: this runs in the
+    * {@code IgniteCluster} constructor, and the {@code SreeEnv} property store is itself backed by
+    * the cluster, so reading it here would be circular.
+    */
+   private static int getAffinityPoolMaxSize() {
+      String property = System.getProperty("inetsoft.cluster.affinity.pool.maxSize");
+      int size = DEFAULT_AFFINITY_POOL_MAX_SIZE;
+
+      if(property != null) {
+         try {
+            int configured = Integer.parseInt(property.trim());
+
+            if(configured > 0) {
+               size = configured;
+            }
+            else {
+               LOG.warn("Ignoring non-positive inetsoft.cluster.affinity.pool.maxSize: {}",
+                        property);
+            }
+         }
+         catch(NumberFormatException e) {
+            LOG.warn("Ignoring invalid inetsoft.cluster.affinity.pool.maxSize: {}", property);
+         }
+      }
+
+      return Math.max(size, Runtime.getRuntime().availableProcessors());
+   }
+
+   /**
+    * Translates the failure of a remote affinity call into the exception the caller should see.
+    *
+    * <p>The remote failure is rethrown with its own type so that a caller handling a specific
+    * exception still matches it. Wrapping every cause in a {@code RuntimeException} made a
+    * failure raised on another node look different from the identical failure raised locally,
+    * which is what let a remote {@code SecurityException} reach request handlers as an opaque
+    * {@code RuntimeException(ExecutionException(SecurityException))}.
+    *
+    * <p>Declared to return {@code RuntimeException} so callers can write {@code throw
+    * rethrowAffinityCause(ex)} and have the compiler see that control does not continue; this
+    * method always throws.
+    */
+   static RuntimeException rethrowAffinityCause(ExecutionException ex) {
+      Throwable cause = ex.getCause();
+
+      switch(cause) {
+      case null -> throw new RuntimeException(ex);
+      case ExpiredSheetException ese -> throw ese;
+      case MessageException me -> throw me;
+      case ConfirmException ce -> throw ce;
+      case RuntimeException re -> throw re;
+      case Error err -> throw err;
+      default -> throw new RuntimeException(cause);
+      }
+   }
+
+   /**
+    * Gets the maximum time to wait for a remote affinity call to respond.
+    */
+   private static long getAffinityCallTimeoutMillis() {
+      String property = SreeEnv.getProperty("cluster.affinity.call.timeout");
+
+      if(property != null) {
+         try {
+            return Long.parseLong(property.trim());
+         }
+         catch(NumberFormatException e) {
+            LOG.warn("Invalid value for cluster.affinity.call.timeout: {}", property);
+         }
+      }
+
+      return DEFAULT_AFFINITY_CALL_TIMEOUT_MILLIS;
+   }
+
    @Override
    public <T> T affinityCall(String cache, Object key, AffinityCallable<T> job) {
       String id = UUID.randomUUID().toString();
@@ -1092,21 +1291,30 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       }
 
+      String recipient = getNodeName(node);
       AffinityCallRequest<T> request = new AffinityCallRequest<>(
-         id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+         id, getNodeName(ignite.cluster().localNode()), recipient, job);
       CompletableFuture<T> future = new CompletableFuture<>();
-      affinityFutures.put(id, future);
+      registerAffinityFuture(id, recipient, future);
 
       try {
          LOG.debug("AFFINITY CALL SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
          ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
       }
       catch(Exception e) {
-         LOG.error("Failed to send affinity call request: cache={}, key={}, node={}, id={}, exception={}", cache, key, node, id, e);
+         // The request never left this node, so no response can ever arrive. Fail now instead of
+         // waiting out the full affinity call timeout.
+         LOG.error("Failed to send affinity call request: cache={}, key={}, node={}, id={}", cache, key, node, id, e);
+         affinityFutures.remove(id);
+         throw new AffinityCallException(
+            "Failed to send the request to node " + recipient + " for key " + key +
+            " in cache " + cache + ". Retry the operation.", e);
       }
 
+      long timeout = getAffinityCallTimeoutMillis();
+
       try {
-         return future.get(5L, TimeUnit.MINUTES);
+         return future.get(timeout, TimeUnit.MILLISECONDS);
       }
       catch(RuntimeException ex) {
          affinityFutures.remove(id);
@@ -1114,13 +1322,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
       catch(ExecutionException ex) {
          affinityFutures.remove(id);
-
-         switch(ex.getCause()) {
-         case ExpiredSheetException ese -> throw ese;
-         case MessageException me -> throw me;
-         case ConfirmException ce -> throw ce;
-         default -> throw new RuntimeException(ex);
-         }
+         throw rethrowAffinityCause(ex);
+      }
+      catch(TimeoutException e) {
+         affinityFutures.remove(id);
+         throw new AffinityCallException(
+            "Timed out after " + timeout + "ms waiting for node " +
+            recipient + " to handle key " + key + " in cache " + cache +
+            ". Retry the operation.", e);
       }
       catch(Exception e) {
          affinityFutures.remove(id);
@@ -1140,30 +1349,49 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       if(Objects.equals(node, ignite.cluster().localNode())) {
          LOG.debug("AFFINITY CALL ASYNC DIRECT: cache={}, key={}, node={}, id={}", cache, key, node, id);
 
-         return CompletableFuture.supplyAsync(() -> {
-            try {
-               return job.call();
-            }
-            catch(RuntimeException ex) {
-               throw ex;
-            }
-            catch(Exception ex) {
-               throw new RuntimeException(ex);
-            }
-         }, affinityExecutor);
+         try {
+            return CompletableFuture.supplyAsync(() -> {
+               try {
+                  return job.call();
+               }
+               catch(RuntimeException ex) {
+                  throw ex;
+               }
+               catch(Exception ex) {
+                  throw new RuntimeException(ex);
+               }
+            }, affinityExecutor);
+         }
+         catch(RejectedExecutionException e) {
+            // The affinity pool grows to a bound and then rejects. supplyAsync submits inline, so
+            // without this the rejection escapes as a bare RejectedExecutionException instead of
+            // the retriable failure every other affinity path produces.
+            LOG.warn("Rejected local affinity call, the affinity pool is saturated: " +
+                     "cache={}, key={}", cache, key);
+            return CompletableFuture.failedFuture(new AffinityCallException(
+               "This node is at capacity and could not accept the request. " +
+               "Retry the operation.", e));
+         }
       }
 
+      String recipient = getNodeName(node);
       AffinityCallRequest<T> request = new AffinityCallRequest<>(
-         id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+         id, getNodeName(ignite.cluster().localNode()), recipient, job);
       CompletableFuture<T> future = new CompletableFuture<>();
-      affinityFutures.put(id, future);
+      registerAffinityFuture(id, recipient, future);
 
       try {
          LOG.debug("AFFINITY CALL ASYNC SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
          ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
       }
       catch(Exception e) {
-         LOG.error("Failed to send affinity call async request: cache={}, key={}, node={}, id={}, exception={}", cache, key, node, id, e);
+         // The request never left this node, so no response can ever arrive. Fail the returned
+         // future instead of handing back one that can only ever time out.
+         LOG.error("Failed to send affinity call async request: cache={}, key={}, node={}, id={}", cache, key, node, id, e);
+         affinityFutures.remove(id);
+         future.completeExceptionally(new AffinityCallException(
+            "Failed to send the request to node " + recipient + " for key " + key +
+            " in cache " + cache + ". Retry the operation.", e));
       }
 
       LOG.debug("AFFINITY CALL ASYNC COMPLETED: cache={}, key={}, node={}, id={}", cache, key, node, id);
@@ -1190,10 +1418,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             }
             else if(!node.isClient()) {
                String id = UUID.randomUUID().toString();
+               String recipient = getNodeName(node);
                AffinityCallRequest<T> request = new AffinityCallRequest<>(
-                  id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+                  id, getNodeName(ignite.cluster().localNode()), recipient, job);
                CompletableFuture<T> future = new CompletableFuture<>();
-               affinityFutures.put(id, future);
+               registerAffinityFuture(id, recipient, future);
                futures.add(future);
                futureIds.add(id);
                ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
@@ -1206,10 +1435,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       // Wait for all remote futures under a single shared timeout so that N failed
-      // nodes cost at most 5 minutes total rather than N × 5 minutes.
+      // nodes cost at most one timeout total rather than N × the timeout.
       try {
          CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-            .get(5L, TimeUnit.MINUTES);
+            .get(getAffinityCallTimeoutMillis(), TimeUnit.MILLISECONDS);
       }
       catch(RuntimeException ex) {
          futureIds.forEach(affinityFutures::remove);
@@ -1716,6 +1945,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       pendingServiceTasks.clear();
+
+      // Ignite is already closed above, so no affinity response can still arrive. Fail anything
+      // waiting rather than leaving those callers blocked until the affinity call timeout, which
+      // matters when this node is being drained during a rolling update.
+      for(PendingAffinityCall pending : affinityFutures.values()) {
+         if(pending != null) {
+            pending.future().completeExceptionally(
+               new AffinityCallException("This node is shutting down. Retry the operation."));
+         }
+      }
+
+      affinityFutures.clear();
       messageExecutor.shutdownNow();
       affinityExecutor.shutdownNow();
       listenerExecutor.shutdownNow();
@@ -1927,7 +2168,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final Set<ClusterLifecycleListener> lifecycleListeners =
       new CopyOnWriteArraySet<>();
    private final Map<String, LockInfo> lockInfos = new ConcurrentHashMap<>();
-   private final Map<String, CompletableFuture<?>> affinityFutures = new ConcurrentHashMap<>();
+   private final Map<String, PendingAffinityCall> affinityFutures = new ConcurrentHashMap<>();
    private final Timer timer = new Timer();
    private final ClusterFileTransfer clusterFileTransfer;
    private final Map<Integer, ExecutorService> executorServiceMap = new ConcurrentHashMap<>();
@@ -1937,6 +2178,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final ExecutorService listenerExecutor;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
+   private static final int DEFAULT_AFFINITY_POOL_MAX_SIZE = 64;
+   private static final long SPRING_CONTEXT_WAIT_MILLIS = Duration.ofMinutes(2).toMillis();
+   private static final long DEFAULT_AFFINITY_CALL_TIMEOUT_MILLIS =
+      Duration.ofMinutes(5).toMillis();
    private static final long MIN_LOCK_DURATION_MILLIS = Duration.ofMinutes(10).toMillis();
    private static final String MESSAGE_TOPIC = IgniteCluster.class.getName() + ".messageTopic";
    private static final String AFFINITY_TOPIC = IgniteCluster.class.getName() + ".affinityTopic";
@@ -1969,17 +2214,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          if(message instanceof AffinityCallRequest request) {
             LOG.debug("RECEIVED AFFINITY REQUEST: {}", request);
             if(getNodeName(ignite.cluster().localNode()).equals(request.getRecipient())) {
-               LOG.debug("SUBMITTED AFFINITY REQUEST: {}", request);
-               affinityExecutor.submit(new AffinityCallRequestTask(request));
+               submitAffinityRequest(request);
             }
          }
          else if(message instanceof AffinityCallResponse response) {
             LOG.debug("RECEIVED AFFINITY RESPONSE: {}", response);
             if(getNodeName(ignite.cluster().localNode()).equals(response.getRecipient())) {
-               CompletableFuture future = affinityFutures.remove(response.getId());
-               LOG.debug("COMPLETING AFFINITY FUTURE: response={}, future={}", response, future);
+               PendingAffinityCall pending = affinityFutures.remove(response.getId());
+               LOG.debug("COMPLETING AFFINITY FUTURE: response={}, pending={}", response, pending);
 
-               if(future != null) {
+               if(pending != null) {
+                  CompletableFuture future = pending.future();
+
                   if(response.getError() != null) {
                      future.completeExceptionally(response.getError());
                   }
@@ -2086,18 +2332,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          Throwable error = null;
 
          try {
-            // If the Spring application context has not been initialized yet (race between
-            // Ignite cluster join and Spring startup on a newly scaled pod), wait for it
-            // before executing the callable.  The affinity caller's own timeout (5 min) bounds
-            // the end-to-end wait, so 2 minutes here gives Spring plenty of time to start
-            // without risking an indefinite hang.
-            CompletableFuture<Void> ready = ConfigurationContext.getContext().getSpringContextReady();
-
-            if(!ready.isDone()) {
-               LOG.warn("Affinity request waiting for Spring context to initialize: {}", request);
-               ready.get(2L, TimeUnit.MINUTES);
-            }
-
+            // The wait for the Spring application context (race between Ignite cluster join and
+            // Spring startup on a newly scaled pod) happens in submitAffinityRequest, before a
+            // pool thread is claimed, so this task only ever runs against a ready context.
             result = request.getCallable().call();
          }
          catch(InterruptedException e) {
@@ -2208,17 +2445,43 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                }
             });
          }
-         else if(event.type() == EventType.EVT_NODE_LEFT) {
+         else if(event.type() == EventType.EVT_NODE_LEFT ||
+                 event.type() == EventType.EVT_NODE_FAILED)
+         {
             String node;
             boolean client;
+            ClusterNode leftNode;
 
             if(event instanceof DiscoveryEvent discoveryEvent) {
-               node = discoveryEvent.eventNode().addresses().iterator().next();
-               client = discoveryEvent.eventNode().isClient();
+               leftNode = discoveryEvent.eventNode();
+               node = leftNode.addresses().iterator().next();
+               client = leftNode.isClient();
             }
             else {
-               node = getNodeName(event.node());
-               client = event.node().isClient();
+               leftNode = event.node();
+               node = getNodeName(leftNode);
+               client = leftNode.isClient();
+            }
+
+            // Fail anything still waiting on this node. The node is gone, so the affinity
+            // response that would complete those futures can never arrive and the callers would
+            // otherwise block for the full affinity call timeout.
+            //
+            // This runs for EVT_NODE_FAILED as well as EVT_NODE_LEFT. Ignite only fires
+            // EVT_NODE_LEFT for a graceful stop; a pod that is OOMKilled, SIGKILLed, segmented or
+            // partitioned away fires EVT_NODE_FAILED, which is the case that actually matters
+            // during a rolling update or a crash.
+            //
+            // Note this deliberately uses getNodeName(), which is how affinity recipients are
+            // addressed, rather than the bare address used for the MembershipEvent below.
+            failAffinityCallsTo(getNodeName(leftNode));
+
+            // memberRemoved is deliberately still fired only for a graceful EVT_NODE_LEFT, to
+            // keep this change to the affinity cleanup. That the MembershipListeners are never
+            // notified when a node crashes looks like a separate pre-existing gap; widening it
+            // here would change behaviour for every listener at once.
+            if(event.type() != EventType.EVT_NODE_LEFT) {
+               return true;
             }
 
             executor.submit(() -> {
