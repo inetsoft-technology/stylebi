@@ -77,7 +77,10 @@ public class CompositeSecurityProvider extends AbstractSecurityProvider {
       // StyleBI is a backend engine for wiz only (no direct/mixed usage is supported); wrapping
       // here -- rather than only inside SecurityEngine.checkPermission -- is what makes the
       // delegation reach every direct SecurityProvider.checkPermission(...) caller too, not just
-      // the ones that happen to go through SecurityEngine. See WizDelegatingCheckPermissionStrategy.
+      // the ones that happen to go through SecurityEngine. This unconditional wrap is a
+      // deliberate, accepted trust boundary, not a defect (Redmine bug #76630, decided
+      // "intended architecture"). See WizDelegatingCheckPermissionStrategy's javadoc for the
+      // full explanation and the assumption it depends on.
       return new WizDelegatingCheckPermissionStrategy(strategy);
    }
 
