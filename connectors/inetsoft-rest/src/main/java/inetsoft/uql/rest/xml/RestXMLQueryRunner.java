@@ -61,6 +61,20 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
         catch(Exception ex) {
             if(!(ex instanceof InterruptedException) || !isCancelled()) {
                 logException(ex);
+
+                // Not rethrown - runStream()'s contract is to return whatever table it managed
+                // to load, even a partial/empty one. But a silent swallow here previously left
+                // wizLoadColumnsError null for this failure: the empty/zero-size table this
+                // returns collapses through QueryRunner.run()'s zero-size-to-null conversion and
+                // TabularHandler.execute()'s null-table branch, both normal (non-exceptional)
+                // returns, before TabularTableAssembly.loadColumnSelection()'s catch - the only
+                // other writer of this property - ever gets a chance to see this exception (it
+                // never throws). Set it directly here so the actual cause (e.g. an unresolvable
+                // XSLT namespace prefix) survives to the add_table rejection message instead of
+                // being reported as an unattributed "no columns" failure.
+                final String detail = ex.getMessage();
+                query.setProperty("wizLoadColumnsError",
+                    detail == null || detail.isBlank() ? ex.getClass().getSimpleName() : detail);
             }
         }
 

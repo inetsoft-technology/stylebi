@@ -17,7 +17,9 @@
   -->
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
                 xmlns:xalan="http://xml.apache.org/xalan"
-                xmlns:is="xalan://inetsoft.uql.rest.xml.xslt.TransformFunctions">
+                xmlns:is="xalan://inetsoft.uql.rest.xml.xslt.TransformFunctions"
+                $namespaces>
+  <!-- $namespaces above is replaced with the response document's own xmlns:prefix bindings -->
 
   <xsl:output method="text"/>
   <xsl:strip-space elements="*" />
