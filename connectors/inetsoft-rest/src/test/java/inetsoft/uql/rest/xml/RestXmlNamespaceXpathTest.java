@@ -77,6 +77,18 @@ public class RestXmlNamespaceXpathTest {
    }
 
    @Test
+   void namespaceUriWithAmpersandIsCorrectlyEscapedWhenInjected() throws Exception {
+      // A real-world query-string-shaped namespace URI (containing a literal & - XML-escaped as
+      // &amp; on the wire, per the xmlns:ex declaration below, exactly as a real server would
+      // send it) previously broke stylesheet generation if copied through unescaped: only the
+      // `"` character was being re-escaped, not `&` or `<`.
+      final XTableNode table = runQuery("/ex:items/ex:item", QUERY_STRING_NAMESPACE_FIXTURE);
+
+      assertNotNull(table, "a namespace URI containing & must not break stylesheet generation");
+      assertEquals(2, rowCount(table));
+   }
+
+   @Test
    void unresolvablePrefixSurfacesAsWizLoadColumnsError() throws Exception {
       // "typo" is not a prefix the response document declares (only "wb" is), so injecting the
       // document's real namespace bindings does not resolve it - the stylesheet still fails to
@@ -98,8 +110,12 @@ public class RestXmlNamespaceXpathTest {
    }
 
    private XTableNode runQuery(String xpath) throws Exception {
+      return runQuery(xpath, WORLD_BANK_FIXTURE);
+   }
+
+   private XTableNode runQuery(String xpath, String fixture) throws Exception {
       final RestXMLQuery query = createQuery(xpath);
-      return createRunner(query).run();
+      return createRunner(query, fixture).run();
    }
 
    private RestXMLQuery createQuery(String xpath) {
@@ -112,9 +128,13 @@ public class RestXmlNamespaceXpathTest {
    }
 
    private RestXMLQueryRunner createRunner(RestXMLQuery query) throws Exception {
+      return createRunner(query, WORLD_BANK_FIXTURE);
+   }
+
+   private RestXMLQueryRunner createRunner(RestXMLQuery query, String fixture) throws Exception {
       final List<RequestResponse> requestResponses = new ArrayList<>();
       requestResponses.add(new RequestResponse(RestRequest.fromQuery(query),
-         new TestHttpResponse(WORLD_BANK_FIXTURE)));
+         new TestHttpResponse(fixture)));
 
       final TestHttpHandler httpHandler = new TestHttpHandler(requestResponses);
       final XMLRestDataIteratorStrategyFactory factory =
@@ -128,4 +148,11 @@ public class RestXmlNamespaceXpathTest {
          "<wb:country id=\"ABW\"><wb:name>Aruba</wb:name></wb:country>" +
          "<wb:country id=\"AFG\"><wb:name>Afghanistan</wb:name></wb:country>" +
       "</wb:countries>";
+
+   // The xmlns:ex value below is XML-escaped (&amp;) on the wire, exactly as a real server
+   // would send a namespace URI containing a literal & (e.g. a query-string-shaped URI).
+   private static final String QUERY_STRING_NAMESPACE_FIXTURE =
+      "<ex:items xmlns:ex=\"http://example.org/ns?a=1&amp;b=2\">" +
+         "<ex:item><ex:name>widget</ex:name></ex:item>" +
+      "</ex:items>";
 }

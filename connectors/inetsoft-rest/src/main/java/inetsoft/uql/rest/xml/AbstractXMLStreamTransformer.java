@@ -155,11 +155,22 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
       throws IOException
    {
       final String declarations = namespaces.entrySet().stream()
-         .map(e -> "xmlns:" + e.getKey() + "=\"" + e.getValue().replace("\"", "&quot;") + "\"")
+         .map(e -> "xmlns:" + e.getKey() + "=\"" + escapeAttributeValue(e.getValue()) + "\"")
          .collect(Collectors.joining(" "));
       final String xslt = new String(xsltInput.readAllBytes(), StandardCharsets.UTF_8)
          .replace("$namespaces", declarations);
       return new ByteArrayInputStream(xslt.getBytes(StandardCharsets.UTF_8));
+   }
+
+   /**
+    * XML attribute-value escaping, in the order that matters: {@code &} first (otherwise the
+    * entities produced by the other two replacements would themselves get escaped), then
+    * {@code "} (the value is always embedded in a double-quoted attribute here), then
+    * {@code <} (illegal unescaped inside any attribute value, and would otherwise let a
+    * response-controlled namespace URI splice markup into the generated stylesheet).
+    */
+   private static String escapeAttributeValue(String value) {
+      return value.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;");
    }
 
    /**
@@ -170,6 +181,14 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
     * (only xsl/is bound). A bare default ("xmlns=...", no prefix) namespace is deliberately not
     * collected: an unprefixed xpath step still resolves to no-namespace-URI regardless (XPath/
     * XSLT 1.0 node-test rule), so injecting it would not change matching behavior.
+    *
+    * <p>A namespace URI that isn't {@code http(s):} is also skipped - defense in depth, since
+    * these bindings get spliced onto the same stylesheet root that declares {@code xmlns:is=
+    * "xalan://..."} (a Java-extension binding). There's no legitimate reason a response
+    * document's own namespace URI needs to resolve as an extension scheme like {@code xalan:},
+    * and Xalan only consults such a binding when a name is used in a function-call position, not
+    * as a plain node-test namespace - but excluding non-http(s) schemes here costs nothing and
+    * removes the question entirely.
     */
    private static Map<String, String> peekRootNamespaces(byte[] responseBytes) {
       final Map<String, String> namespaces = new LinkedHashMap<>();
@@ -185,9 +204,10 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
             if(reader.next() == XMLStreamConstants.START_ELEMENT) {
                for(int i = 0; i < reader.getNamespaceCount(); i++) {
                   final String prefix = reader.getNamespacePrefix(i);
+                  final String uri = reader.getNamespaceURI(i);
 
-                  if(prefix != null && !prefix.isEmpty()) {
-                     namespaces.put(prefix, reader.getNamespaceURI(i));
+                  if(prefix != null && !prefix.isEmpty() && isHttpUri(uri)) {
+                     namespaces.put(prefix, uri);
                   }
                }
 
@@ -203,6 +223,15 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
       }
 
       return namespaces;
+   }
+
+   private static boolean isHttpUri(String uri) {
+      if(uri == null) {
+         return false;
+      }
+
+      final String lower = uri.toLowerCase(Locale.ROOT);
+      return lower.startsWith("http://") || lower.startsWith("https://");
    }
 
    protected void addXSLTStringParams(Map<String, String> params) {
