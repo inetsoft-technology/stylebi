@@ -370,6 +370,9 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          secureId
       );
 
+      // Tagging this principal "wiz" makes it bypass all permission checks downstream (see
+      // inetsoft.sree.security.WizDelegatingCheckPermissionStrategy's javadoc) -- deliberate,
+      // accepted trust boundary per Redmine bug #76630, not a defect.
       principal.setProperty("wiz", "true");
 
       if(clientLocale != null) {
