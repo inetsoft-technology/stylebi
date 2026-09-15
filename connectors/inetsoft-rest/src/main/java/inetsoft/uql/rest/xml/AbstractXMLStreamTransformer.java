@@ -27,13 +27,16 @@ import org.slf4j.*;
 import org.xml.sax.InputSource;
 
 import javax.xml.XMLConstants;
+import javax.xml.stream.*;
 import javax.xml.transform.*;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.lang.invoke.MethodHandles;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
 /**
  * Handles transforming an XML stream into a java object.
@@ -56,14 +59,19 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
 
    @Override
    public ParsedNode transform(InputStream input) throws Exception {
-      if(transformer == null || query instanceof EndpointQuery &&
+      final byte[] responseBytes = input.readAllBytes();
+      final Map<String, String> namespaces = peekRootNamespaces(responseBytes);
+
+      if(transformer == null || !namespaces.equals(transformerNamespaces) ||
+                                query instanceof EndpointQuery &&
                                 ((EndpointQuery) query).getLookupEndpoint0() != null)
       {
-         transformer = createXSLTTransformer();
+         transformerNamespaces = namespaces;
+         transformer = createXSLTTransformer(namespaces);
       }
 
       parser.resetRoot();
-      runXSLTTransformer(input);
+      runXSLTTransformer(new ByteArrayInputStream(responseBytes));
       return parser.getRoot();
    }
 
@@ -95,8 +103,8 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
       }
    }
 
-   private Transformer createXSLTTransformer() throws Exception {
-      final StringStreamSource source = createXSLTSource();
+   private Transformer createXSLTTransformer(Map<String, String> namespaces) throws Exception {
+      final StringStreamSource source = createXSLTSource(namespaces);
 
       return runWithPluginContextClassLoader(() -> {
          final TransformerFactory xsltTransformerFactory = TransformerFactory.newInstance();
@@ -122,14 +130,79 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
       // no-op, to be optionally overwritten by implementing class
    }
 
-   private StringStreamSource createXSLTSource() throws IOException {
+   private StringStreamSource createXSLTSource(Map<String, String> namespaces) throws IOException {
       final Map<String, String> xsltParams = new HashMap<>();
       xsltParams.put("$xpath", getXpath(query));
       addXSLTStringParams(xsltParams);
 
-      final InputStream xsltInput = getXSLTInputStream();
+      final InputStream xsltInput = injectNamespaceDeclarations(getXSLTInputStream(), namespaces);
       final XSLTParamTransformer inputTransformer = new XSLTParamTransformer();
       return inputTransformer.transform(xsltInput, xsltParams);
+   }
+
+   /**
+    * Declares the response document's own namespace prefixes on the generated stylesheet's
+    * root (its {@code $namespaces} placeholder - see basic-xpath.xslt/iteration-xpath.xslt/
+    * paginated-xpath.xslt), so a caller xpath using the document's real prefixes (e.g.
+    * "/wb:countries/wb:country") resolves against the document instead of the stylesheet's
+    * previously-empty namespace scope (which only ever bound xsl/is). Done as a raw text
+    * substitution, not via XSLTParamTransformer's own param map, because that map HTML-attribute-
+    * encodes values (correct for a match-pattern string, wrong here since these need to remain
+    * literal xmlns:prefix="uri" XML syntax).
+    */
+   private static InputStream injectNamespaceDeclarations(InputStream xsltInput,
+                                                           Map<String, String> namespaces)
+      throws IOException
+   {
+      final String declarations = namespaces.entrySet().stream()
+         .map(e -> "xmlns:" + e.getKey() + "=\"" + e.getValue().replace("\"", "&quot;") + "\"")
+         .collect(Collectors.joining(" "));
+      final String xslt = new String(xsltInput.readAllBytes(), StandardCharsets.UTF_8)
+         .replace("$namespaces", declarations);
+      return new ByteArrayInputStream(xslt.getBytes(StandardCharsets.UTF_8));
+   }
+
+   /**
+    * Peeks only the response document's root start-element for its declared xmlns:prefix
+    * bindings (a cheap StAX scan that stops at the first START_ELEMENT), rather than parsing
+    * the whole document twice. A document with no declared prefixes, or one that fails to parse
+    * here, yields an empty map - xpath resolution then behaves exactly as it did before this fix
+    * (only xsl/is bound). A bare default ("xmlns=...", no prefix) namespace is deliberately not
+    * collected: an unprefixed xpath step still resolves to no-namespace-URI regardless (XPath/
+    * XSLT 1.0 node-test rule), so injecting it would not change matching behavior.
+    */
+   private static Map<String, String> peekRootNamespaces(byte[] responseBytes) {
+      final Map<String, String> namespaces = new LinkedHashMap<>();
+
+      try {
+         final XMLInputFactory factory = XMLInputFactory.newInstance();
+         factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+         factory.setProperty("javax.xml.stream.isSupportingExternalEntities", false);
+         final XMLStreamReader reader =
+            factory.createXMLStreamReader(new ByteArrayInputStream(responseBytes));
+
+         while(reader.hasNext()) {
+            if(reader.next() == XMLStreamConstants.START_ELEMENT) {
+               for(int i = 0; i < reader.getNamespaceCount(); i++) {
+                  final String prefix = reader.getNamespacePrefix(i);
+
+                  if(prefix != null && !prefix.isEmpty()) {
+                     namespaces.put(prefix, reader.getNamespaceURI(i));
+                  }
+               }
+
+               break;
+            }
+         }
+
+         reader.close();
+      }
+      catch(Exception ignored) {
+         // response isn't parseable as XML (or has no root element) - fall back to no injected
+         // namespaces, same behavior as before this fix.
+      }
+
+      return namespaces;
    }
 
    protected void addXSLTStringParams(Map<String, String> params) {
@@ -170,6 +243,7 @@ public abstract class AbstractXMLStreamTransformer implements InputTransformer {
    }
 
    private Transformer transformer;
+   private Map<String, String> transformerNamespaces;
 
    private final DocumentParser parser;
    protected final RestXMLQuery query;
