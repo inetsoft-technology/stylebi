@@ -24,6 +24,7 @@ import inetsoft.test.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.web.adhoc.model.property.*;
 import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactoryService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -125,17 +126,56 @@ class ChartPropertyServiceCompanionSeedTest {
 
    @Test
    void anExistingTargetIsNeverReseeded() {
-      // the regression guard for the rule that an author's stored band fill is theirs: seeding
-      // happens only on the dialog's new-target template, never on a target already in the chart
+      // the regression guard for the rule that an author's stored band fill is theirs:
+      // updateAllTargets seeds only the targets it creates, so editing one already in the
+      // descriptor leaves every slot as the author left it
       GraphTarget existing = new GraphTarget();
-      Color authorPicked = new Color(0x123456);
-      existing.getBandFill().setColor(0, authorPicked);
+      existing.setIndex(0);
+
+      for(int i = 0; i < AUTHOR_PICKED.length; i++) {
+         existing.getBandFill().setColor(i, AUTHOR_PICKED[i]);
+      }
 
       ChartDescriptor descriptor = new ChartDescriptor();
       descriptor.addTarget(existing);
 
-      assertEquals(authorPicked, descriptor.getTarget(0).getBandFill().getColor(0),
-                   "nothing in the descriptor path may overwrite a stored band fill");
+      service().updateAllTargets(descriptor, new TargetInfo[]{ bandEditOf(0) }, measureChart(AZURE),
+                                 modern(), false);
+
+      for(int i = 0; i < AUTHOR_PICKED.length; i++) {
+         assertEquals(AUTHOR_PICKED[i], descriptor.getTarget(0).getBandFill().getColor(i),
+                      "band slot " + i + " belongs to its author");
+      }
+   }
+
+   @Test
+   void aTargetBeingCreatedIsSeeded() {
+      // the other half of the same guard: index -1 is the Add path, where the companion belongs
+      ChartDescriptor descriptor = new ChartDescriptor();
+      service().updateAllTargets(descriptor, new TargetInfo[]{ bandEditOf(-1) },
+                                 measureChart(AZURE), modern(), false);
+
+      assertEquals(1, descriptor.getTargetCount());
+      assertEquals(AZURE_COMPANION, descriptor.getTarget(0).getBandFill().getColor(0));
+   }
+
+   /**
+    * A band target the dialog reopened and saved without touching its colours - every ColorInfo is
+    * left unset so nothing in the update path writes a colour of its own, and any change to the
+    * stored band fill can only have come from seeding.
+    */
+   private static TargetInfo bandEditOf(int index) {
+      TargetInfo info = new TargetInfo();
+      info.setIndex(index);
+      info.setChanged(true);
+      info.setTabFlag(TargetInfo.BAND_TARGET);
+      info.setMeasure(new MeasureInfo("Total", "Total", false));
+      info.setLineColor(new ColorInfo());
+      info.setFillAboveColor(new ColorInfo());
+      info.setFillBelowColor(new ColorInfo());
+      info.setFillBandColor(new ColorInfo());
+
+      return info;
    }
 
    private static VSChartInfo measureChart(Color measureColor) {
@@ -176,4 +216,7 @@ class ChartPropertyServiceCompanionSeedTest {
    private static final Color AZURE = new Color(0x0490FF);
    private static final Color AZURE_COMPANION = new Color(0x97BEEB);
    private static final Color CLASSIC_FIRST_BAND = new Color(0xe4f2e9);
+   private static final Color[] AUTHOR_PICKED = {
+      new Color(0x123456), new Color(0x234567), new Color(0x345678), new Color(0x456789)
+   };
 }

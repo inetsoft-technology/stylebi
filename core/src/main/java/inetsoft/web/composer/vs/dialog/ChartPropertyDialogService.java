@@ -499,9 +499,13 @@ public class ChartPropertyDialogService {
 
       advancePane.updateChartAdvancedPaneModel(assemblyInfo);
 
+      // same rt the dialog resolved its measure list with, so a target's stored field name looks
+      // up the same ref on the way back in
+      boolean targetRt =
+         DateComparisonUtil.appliedDateComparison(assemblyInfo) || hasDynamic(vsChartInfo);
       this.chartPropertyService.updateAllTargets(
          chartDescriptor, advancePane.getChartTargetLinesPaneModel().getChartTargets(), vsChartInfo,
-         VizContext.of(assemblyInfo), hasDynamic(vsChartInfo));
+         VizContext.of(assemblyInfo), targetRt);
       this.chartPropertyService.removeDeletedTargets(chartDescriptor,
                                                      advancePane.getChartTargetLinesPaneModel().getDeletedIndexList());
 
