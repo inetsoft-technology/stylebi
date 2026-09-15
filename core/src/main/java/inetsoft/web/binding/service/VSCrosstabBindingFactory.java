@@ -413,7 +413,16 @@ public class VSCrosstabBindingFactory
       // value; wrapping it in another formula (Sum, Count, ...) would aggregate it
       // twice. Mirrors the equivalent branch in the shared
       // AssetUtil#getDefaultFormula(DataRef).
-      if(refType == DataRef.AGG_CALC || refType == DataRef.AGG_EXPR) {
+      //
+      // refType is a bit-flag field, not an enum -- a cube-sourced aggregate calc
+      // field carries the composite CUBE_MEASURE | AGG_CALC (see
+      // CubeTreeModelBuilder), so this must be a bitwise test, not equality. Matches
+      // the equivalent, already-correct check in the sibling
+      // VSCrosstabBindingHandler#createAgg(), which independently picks the same
+      // "None" default for both flags.
+      if((refType & DataRef.AGG_CALC) == DataRef.AGG_CALC ||
+         (refType & DataRef.AGG_EXPR) == DataRef.AGG_EXPR)
+      {
          return SummaryAttr.NONE_FORMULA;
       }
 
@@ -423,6 +432,13 @@ public class VSCrosstabBindingFactory
          "aggregate calc field or expression");
 
       // measure?
+      //
+      // NOTE: this is a bit-exact equality check on the same bit-flag field, so a
+      // CUBE_MEASURE (MEASURE | CUBE) ref falls through it to the data-type fallback
+      // below instead of being treated as a measure. That is pre-existing behavior on
+      // a path bug #76650 never touched; left as-is rather than folded into the
+      // bitwise idiom above, since changing it would change how cube measures default
+      // and that is outside this fix's reviewed scope.
       if(refType == AbstractDataRef.MEASURE) {
          String defFormula = ref.getDefaultFormula();
 
