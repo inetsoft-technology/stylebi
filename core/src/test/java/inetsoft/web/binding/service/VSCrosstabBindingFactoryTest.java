@@ -20,13 +20,19 @@ package inetsoft.web.binding.service;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -77,5 +83,68 @@ class VSCrosstabBindingFactoryTest {
                  "the design value -- the one that survives resetRuntimeValues() and is what " +
                  "every render/export path actually reads -- must be set, not just the " +
                  "transient runtime value");
+   }
+
+   /**
+    * Bug #76650: binding a viewsheet-scoped aggregate-mode calc field (ref type {@code
+    * DataRef.AGG_CALC}) onto a crosstab's aggregates shelf with no explicit aggregate
+    * formula threw {@code NullPointerException: Cannot invoke
+    * "inetsoft.uql.erm.DataRef.getRefType()" because "ref" is null} in {@code
+    * VSCrosstabBindingFactory.getDefaultFormula}.
+    *
+    * <p>The wrapped column ref ({@code VSAggregateRef#getDataRef()}) is legitimately
+    * {@code null} for such a field -- it has no separate underlying column -- and the
+    * old code derived the ref type from that null ref instead of from the aggregate
+    * ref itself. This test binds exactly that shape (no formula and no wrapped column
+    * ref) and asserts the bind both succeeds and picks {@code AggregateFormula.NONE} as
+    * the default, since an aggregate calc field/expression is already an aggregated
+    * value.
+    *
+    * <p>Covers three ref-type shapes because {@code refType} is a bit-flag field, not
+    * an enum:
+    * <ul>
+    *   <li>{@code AGG_CALC} alone -- the bit-exact case the first version of this fix
+    *       covered.
+    *   <li>{@code AGG_EXPR} alone -- the other half of the {@code ||} condition; a
+    *       fix that dropped it would still pass a bit-exact-{@code AGG_CALC}-only
+    *       test.
+    *   <li>{@code CUBE_MEASURE | AGG_CALC} -- the composite {@code
+    *       CubeTreeModelBuilder} actually constructs for a cube-sourced aggregate calc
+    *       field. A bit-exact {@code refType == AGG_CALC} check (round 1 of this fix)
+    *       passes the first two cases but still NPEs/throws on this one; only a
+    *       bitwise {@code (refType & AGG_CALC) == AGG_CALC} test, matching the sibling
+    *       {@code VSCrosstabBindingHandler#createAgg()}, handles all three.
+    * </ul>
+    */
+   @ParameterizedTest
+   @ValueSource(ints = {
+      DataRef.AGG_CALC,
+      DataRef.AGG_EXPR,
+      DataRef.CUBE_MEASURE | DataRef.AGG_CALC
+   })
+   void updateAssemblyDefaultsAnAggregateCalcFieldWithNoFormulaToNone(int refType) {
+      VSCrosstabBindingFactory factory =
+         new VSCrosstabBindingFactory(mock(DataRefModelFactoryService.class));
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setOption(new CrosstabOptionInfo());
+
+      BAggregateRefModel calcField = new BAggregateRefModel();
+      calcField.setColumnValue("calcField1");
+      calcField.setRefType(refType);
+      // No formula and no dataRefModel set -- this is exactly what the client sends
+      // for an aggregate-mode calc field with no explicit aggregate formula.
+      model.addAggregate(calcField);
+
+      assertDoesNotThrow(() -> factory.updateAssembly(model, assembly));
+
+      VSCrosstabInfo crossInfo = assembly.getVSCrosstabInfo();
+      DataRef[] aggregates = crossInfo.getDesignAggregates();
+      assertEquals(1, aggregates.length);
+      VSAggregateRef aggr = (VSAggregateRef) aggregates[0];
+      assertEquals(AggregateFormula.NONE, aggr.getFormula(),
+                   "an aggregate calc field/expression is already an aggregated " +
+                   "value, so its default formula must be None rather than an " +
+                   "arbitrary Sum/Count that would double-aggregate it");
    }
 }
