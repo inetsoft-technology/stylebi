@@ -172,7 +172,12 @@ public class ThreadPool {
    // dispose threads over the soft limit if there is no job waiting
    private void cleanUp() {
       if(claimedLicenseListener != null) {
-         LicenseManager.getInstance().removeClaimedLicenseListener(claimedLicenseListener);
+         try {
+            LicenseManager.getInstance().removeClaimedLicenseListener(claimedLicenseListener);
+         }
+         catch(ShutdownException ignore) {
+            // server is shutting down, ignore -- nothing left to unregister from.
+         }
       }
 
       if(queue.size() > 0 || busy.get() > 0) {
