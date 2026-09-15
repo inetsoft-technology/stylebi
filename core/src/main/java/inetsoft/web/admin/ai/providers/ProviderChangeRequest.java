@@ -20,11 +20,11 @@ package inetsoft.web.admin.ai.providers;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * One requested provider change: create or delete one named entry in one chain (01-spec.md section
- * 1/11). {@link ProviderChangePlanService#resolve} re-validates every field independently rather
- * than trusting the caller, per this repo's CLAUDE.md tool-robustness rule -- verb/chain aliasing
- * (if any) is the plugin (TypeScript) tool layer's job, matching
- * {@code IdentityChangePlanService.requireVerb}/{@code requireUnitType}'s own precedent of
+ * One requested provider change: create, delete, duplicate, or update one named entry in one chain
+ * (01-spec.md section 1/11; {@code update}, bug 76686). {@link ProviderChangePlanService#resolve}
+ * re-validates every field independently rather than trusting the caller, per this repo's CLAUDE.md
+ * tool-robustness rule -- verb/chain aliasing (if any) is the plugin (TypeScript) tool layer's job,
+ * matching {@code IdentityChangePlanService.requireVerb}/{@code requireUnitType}'s own precedent of
  * exact-label-only validation in Java.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -32,6 +32,10 @@ public class ProviderChangeRequest {
    public static final String VERB_CREATE = "create";
    public static final String VERB_DELETE = "delete";
    public static final String VERB_DUPLICATE = "duplicate";
+   /** bug 76686: partial-field edit of an existing provider, preserving its chain index --
+    * authentication-chain LDAP providers only in this cut (see
+    * {@link ProviderChangePlanService#resolveUpdate}). */
+   public static final String VERB_UPDATE = "update";
 
    public String getVerb() { return verb; }
    public void setVerb(String v) { this.verb = v; }
@@ -39,26 +43,31 @@ public class ProviderChangeRequest {
    public String getChain() { return chain; }
    public void setChain(String v) { this.chain = v; }
 
-   /** Required for all three verbs: for {@code create}/{@code duplicate}, the id the new provider
+   /** Required for all four verbs: for {@code create}/{@code duplicate}, the id the new provider
     * will have (for {@code duplicate}, it is the id of the SOURCE being copied, not the copy --
-    * see {@link #getNewName()}); for {@code delete}, the existing provider's id. */
+    * see {@link #getNewName()}); for {@code delete}/{@code update}, the existing provider's id. */
    public String getName() { return name; }
    public void setName(String v) { this.name = v; }
 
    /** Required for {@code create} ({@code "FILE"} or, authentication-chain only, {@code "LDAP"});
-    * rejected for {@code delete}/{@code duplicate} (01-spec.md section 11 -- a duplicate always
-    * keeps the source provider's own type, matching the real EM "Duplicate" action). */
+    * rejected for {@code delete}/{@code duplicate}/{@code update} (01-spec.md section 11 -- a
+    * duplicate always keeps the source provider's own type, matching the real EM "Duplicate"
+    * action; an update cannot change a provider's type either, bug 76686 -- delete and create a
+    * new one instead). */
    public String getProviderType() { return providerType; }
    public void setProviderType(String v) { this.providerType = v; }
 
-   /** Required for {@code providerType: "LDAP"}; rejected otherwise, including for {@code delete}/
-    * {@code duplicate}. */
+   /** Required for {@code providerType: "LDAP"} on {@code create} (every field); required, partial
+    * (at least one field), for {@code update} (bug 76686 -- only the fields actually present are
+    * changed, every other field is carried over from the existing provider unchanged); rejected
+    * otherwise, including for {@code delete}/{@code duplicate}. */
    public ProviderLdapSpec getSpec() { return spec; }
    public void setSpec(ProviderLdapSpec v) { this.spec = v; }
 
    /** Optional, {@code duplicate} only: the copy's name. When omitted, the copy's name is
     * auto-generated the same way the real EM "Duplicate" action does ({@code Util.getCopyName}/
-    * {@code getNextCopyName}, bug 76602). Rejected for every other verb. */
+    * {@code getNextCopyName}, bug 76602). Rejected for every other verb, including {@code update}
+    * (bug 76686 -- renaming via update is not supported in this cut). */
    public String getNewName() { return newName; }
    public void setNewName(String v) { this.newName = v; }
 

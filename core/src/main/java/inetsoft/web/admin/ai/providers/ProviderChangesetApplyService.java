@@ -193,6 +193,15 @@ public class ProviderChangesetApplyService {
          return;
       }
 
+      if(ProviderChangeRequest.VERB_UPDATE.equals(original.getVerb())) {
+         // ProviderChangePlanService.resolveUpdate already refused chain=authorization outright, so
+         // plan.resolve() (called at the top of apply(), before this loop is ever reached) would
+         // have thrown for that case -- verb=update only ever reaches here for chain=authentication.
+         applyUpdateAuthentication(txId, task, key, name, original, backupRef, reviewOutcome, user,
+                                  results, undoable);
+         return;
+      }
+
       if(chain == ProviderChain.AUTHENTICATION) {
          applyDeleteAuthentication(txId, task, key, name, backupRef, reviewOutcome, user, results,
                                   undoable);
@@ -470,6 +479,95 @@ public class ProviderChangesetApplyService {
          .build();
    }
 
+   // ---------------------------------------------------------------- update (bug 76686)
+
+   /**
+    * Re-derives the merge/cross-validation/preflight fresh against the live state read right now --
+    * never trusts anything captured at preview time (same "resolved fresh" discipline every other
+    * verb in this apply service follows). {@code editAuthenticationProvider}'s own
+    * {@code getProviderFromModel} call happens BEFORE its {@code providerList.set(i, ...)} mutation
+    * (confirmed by reading the method directly), so a throw from it is provably pre-mutation, same
+    * reasoning as {@link #applyCreateAuthentication}'s own catch.
+    */
+   private void applyUpdateAuthentication(String txId, String task, String key, String name,
+                                          ProviderChangeRequest original, String backupRef,
+                                          String reviewOutcome, Principal user,
+                                          List<ProviderApplyOutcome> results, List<Undo> undoable)
+      throws Exception
+   {
+      AuthenticationProviderModel before;
+
+      try {
+         before = authenticationProviderService.getAuthenticationProvider(name);
+      }
+      catch(Exception e) {
+         results.add(new ProviderApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+            "provider not found at apply time (concurrent change): " + messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      String beforeProjection = ProviderProjection.projectAuthenticationProvider(before);
+      AuthenticationProviderModel proposed;
+
+      try {
+         ProviderChangePlanService.requireUpdatableAuthenticationType("apply." + key,
+                                                                       before.providerType());
+         LdapAuthenticationProviderModel mergedLdap = ProviderChangePlanService.mergePartialLdapSpec(
+            "apply." + key, before.ldapProviderModel(), original.getSpec());
+         ProviderChangePlanService.requireLdapCredentialCrossValidation("apply." + key,
+                                                                        original.getSpec(), mergedLdap);
+         proposed = AuthenticationProviderModel.builder()
+            .providerName(name)
+            .oldName(name)
+            .providerType(SecurityProviderType.LDAP)
+            .ldapProviderModel(mergedLdap)
+            .build();
+         planService.requireAuthenticationEditPreflight("apply." + key, name, proposed, user);
+      }
+      catch(IllegalArgumentException e) {
+         // Merge/cross-validation/preflight are pure read-only checks, structurally prior to the
+         // actual editAuthenticationProvider mutation below -- a refusal here is a clean per-entry
+         // failure, never an unknown-state rollback-failed.
+         results.add(new ProviderApplyOutcome(key, beforeProjection, null,
+                                              AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                   beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
+                   user);
+         return;
+      }
+
+      try {
+         authenticationProviderService.editAuthenticationProvider(name, proposed, user);
+      }
+      catch(Exception e) {
+         // Same pre-mutation reasoning as applyCreateAuthentication's catch above.
+         results.add(new ProviderApplyOutcome(key, beforeProjection, null,
+                                              AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+         writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                   beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
+                   user);
+         return;
+      }
+
+      AuthenticationProviderModel after =
+         tryGet(() -> authenticationProviderService.getAuthenticationProvider(name),
+               list -> indexOfName(list, name) >= 0,
+               authenticationProviderService.getProviderListModel().providers());
+      boolean verified = after != null;
+      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+      String afterProjection = verified ? ProviderProjection.projectAuthenticationProvider(after) : null;
+      results.add(new ProviderApplyOutcome(key, beforeProjection, afterProjection, status,
+                                           verified ? null : "provider not found after update", null));
+      writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                beforeProjection, afterProjection, status, backupRef, reviewOutcome, user);
+
+      if(verified) {
+         undoable.add(Undo.updatedAuthentication(key, name, before));
+      }
+   }
+
    // ---------------------------------------------------------------- delete
 
    /**
@@ -610,6 +708,10 @@ public class ProviderChangesetApplyService {
             case DELETED_AUTHORIZATION:
                rollbackDeletedAuthorization(txId, task, undo, backupRef, reviewOutcome, user,
                                            failures, advisories);
+               break;
+            case UPDATED_AUTHENTICATION:
+               rollbackUpdatedAuthentication(txId, task, undo, backupRef, reviewOutcome, user,
+                                            failures);
                break;
             }
          }
@@ -765,6 +867,50 @@ public class ProviderChangesetApplyService {
       }
    }
 
+   /**
+    * bug 76686: unlike a rolled-back delete/create (which can only append at the END of the chain --
+    * {@code addAuthenticationProvider} has no insert-at-index form), a rolled-back update calls
+    * {@code editAuthenticationProvider} again, which is index-preserving ({@code
+    * providerList.set(i, ...)}) -- so this restores the provider at its ORIGINAL position, with no
+    * "chain reordered" advisory needed at all.
+    *
+    * <p><b>Correctness note:</b> {@code undo.beforeAuthentication} was captured via {@code
+    * getAuthenticationProvider}, which always sets {@code oldName(name)} on the returned model. If
+    * that model were passed to {@code editAuthenticationProvider} as-is, {@code
+    * replacePlaceholderWithPassword} would see a non-null {@code oldName} and -- since the provider
+    * being edited is STILL live in the chain at this point (unlike delete's rollback, where the
+    * provider is already gone) -- would silently substitute the CURRENT (post-update, just-rotated)
+    * password into the "restored" model instead of leaving the placeholder alone. {@code oldName} is
+    * cleared before this call specifically to prevent that silent wrong-password substitution: for a
+    * literal (non-{@code useCredential}) bind password, this makes rollback fail loudly on the
+    * placeholder credential (the SAME "expected to fail, needs manual intervention" contract {@link
+    * #rollbackDeletedAuthentication}'s own javadoc already documents for its literal-password
+    * recreate case) rather than silently restoring the wrong password. A {@code useCredential: true}
+    * (secretId-referenced) provider is unaffected either way, since secretId is not secret-classified
+    * and round-trips verbatim.
+    */
+   private void rollbackUpdatedAuthentication(String txId, String task, Undo undo, String backupRef,
+                                              String reviewOutcome, Principal user,
+                                              List<RollbackFailure> failures)
+      throws Exception
+   {
+      AuthenticationProviderModel beforeForRollback =
+         ((ImmutableAuthenticationProviderModel) undo.beforeAuthentication).withOldName((String) null);
+      authenticationProviderService.editAuthenticationProvider(undo.name, beforeForRollback, user);
+
+      AuthenticationProviderModel after = authenticationProviderService.getAuthenticationProvider(undo.name);
+      boolean verified = ProviderProjection.projectAuthenticationProvider(after)
+         .equals(ProviderProjection.projectAuthenticationProvider(undo.beforeAuthentication));
+      writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_ROLLBACK,
+                null, null, verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
+                backupRef, reviewOutcome, user);
+
+      if(!verified) {
+         failures.add(new RollbackFailure(undo.key,
+            "rollback of update reported the provider configuration as not restored"));
+      }
+   }
+
    // ---------------------------------------------------------------- shared helpers
 
    @FunctionalInterface
@@ -844,7 +990,7 @@ public class ProviderChangesetApplyService {
    /** One undo descriptor built during apply, replayed in reverse by {@link #rollback}. */
    private static final class Undo {
       enum Kind { CREATED_AUTHENTICATION, CREATED_AUTHORIZATION, DELETED_AUTHENTICATION,
-                  DELETED_AUTHORIZATION }
+                  DELETED_AUTHORIZATION, UPDATED_AUTHENTICATION }
 
       static Undo createdAuthentication(String key, String name) {
          return new Undo(Kind.CREATED_AUTHENTICATION, key, name, null, null);
@@ -860,6 +1006,10 @@ public class ProviderChangesetApplyService {
 
       static Undo deletedAuthorization(String key, String name, AuthorizationProviderModel before) {
          return new Undo(Kind.DELETED_AUTHORIZATION, key, name, null, before);
+      }
+
+      static Undo updatedAuthentication(String key, String name, AuthenticationProviderModel before) {
+         return new Undo(Kind.UPDATED_AUTHENTICATION, key, name, before, null);
       }
 
       private Undo(Kind kind, String key, String name, AuthenticationProviderModel beforeAuthentication,

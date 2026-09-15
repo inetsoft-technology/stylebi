@@ -215,6 +215,61 @@ class ProviderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // update verb (bug 76686)
+   // -------------------------------------------------------------------------
+
+   @Test void appliesAnUpdateAuthenticationProviderChangingOnlyOneFieldAndPreservesChainIndex()
+      throws Exception
+   {
+      seedLdapAuthentication("x", "victim", "y"); // victim at index 1, not the end
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+
+      var result = service.apply(applyRequest("update victim", updateAuth("victim", patch)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(List.of("x", "victim", "y"), authChainNames); // same index, not moved to the end
+      LdapAuthenticationProviderModel after = authModels.get("victim").ldapProviderModel();
+      assertEquals("rotated-host.example.com", after.hostName());
+      assertEquals("dc=example,dc=com", after.rootDN()); // untouched field carried over unchanged
+      assertEquals("cn=admin", after.adminID()); // untouched field carried over unchanged
+   }
+
+   @Test void rollbackOfAnUpdateRestoresTheOriginalConfigurationAtTheSameChainIndex() throws Exception {
+      seedLdapAuthentication("keep", "victim");
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+      // Force a rollback the same genuine-unknown-state way the other rollback tests in this file do.
+      doThrow(new RuntimeException("boom"))
+         .when(authenticationProviderService).getAuthenticationProvider(eq("boom"));
+
+      var result = service.apply(applyRequest("update victim then create boom",
+         updateAuth("victim", patch), createFile(ProviderChain.AUTHENTICATION, "boom")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      // "boom" itself is a genuine unknown-state leftover (its own add mutated the fake list before
+      // its post-add verification threw, and an unknown-state entry is never itself rolled back --
+      // same convention throwMidApplyRollsBackEarlierChangeButReportsRollbackFailedForTheUnknownState
+      // already relies on). The regression proof here is narrower: "victim" is back at index 1, its
+      // ORIGINAL position (index 0 is "keep") -- not appended, the way a rolled-back delete would be.
+      assertEquals(1, authChainNames.indexOf("victim"));
+      assertEquals("ldap.example.com", authModels.get("victim").ldapProviderModel().hostName());
+   }
+
+   @Test void applyUpdateReRunsThePreflightFreshNotTrustedFromPreview() throws Exception {
+      seedLdapAuthentication("victim");
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+
+      service.apply(applyRequest("update victim", updateAuth("victim", patch)), user);
+
+      // Once for the preview resolve() inside applyRequest(), at least once more for apply()'s own
+      // internal re-resolve and applyUpdateAuthentication's own independent re-run -- never trusted
+      // from a single earlier check (same discipline delete's own apply-time preflight re-run has).
+      verify(authenticationProviderService, atLeast(2)).buildProviderForPreflightSimulation(any());
+   }
+
+   // -------------------------------------------------------------------------
    // throw mid-apply -> rollback / rollback-failed (section 6, "fails by throwing")
    // -------------------------------------------------------------------------
 
@@ -554,6 +609,19 @@ class ProviderChangesetApplyServiceTest {
       }
    }
 
+   private void seedLdapAuthentication(String... names) {
+      for(String name : names) {
+         authChainNames.add(name);
+         authModels.put(name, AuthenticationProviderModel.builder()
+            .providerName(name).providerType(SecurityProviderType.LDAP)
+            .ldapProviderModel(LdapAuthenticationProviderModel.builder()
+               .ldapServer(SecurityProviderType.GENERIC).protocol("ldap")
+               .hostName("ldap.example.com").hostPort(389).rootDN("dc=example,dc=com")
+               .adminID("cn=admin").password("initial-password").build())
+            .build());
+      }
+   }
+
    private AuthenticationProvider sysAdminProvider(String name) {
       AuthenticationProvider p = mock(AuthenticationProvider.class);
       lenient().when(p.getProviderName()).thenReturn(name);
@@ -601,6 +669,22 @@ class ProviderChangesetApplyServiceTest {
          authModels.remove(name);
          return null;
       }).when(authenticationProviderService).removeAuthenticationProvider(anyInt(), anyString(), any());
+      // bug 76686: index-preserving -- overwrites the map entry in place, never touches
+      // authChainNames' order, mirroring editAuthenticationProvider's own providerList.set(i, ...).
+      lenient().doAnswer(inv -> {
+         String name = inv.getArgument(0);
+         AuthenticationProviderModel model = inv.getArgument(1);
+         authModels.put(name, model);
+         return null;
+      }).when(authenticationProviderService).editAuthenticationProvider(anyString(), any(), any());
+      // Default: the proposed provider always resolves CALLER_ROLE as sys-admin, so an update's own
+      // preflight passes by default (same "healthy by default" convention seedHealthyAuthentication's
+      // chain fake already follows) -- individual tests override this to force a refusal.
+      lenient().when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenAnswer(inv -> {
+            AuthenticationProviderModel model = inv.getArgument(0);
+            return Optional.of(sysAdminProvider(model.providerName()));
+         });
 
       AuthenticationChain chain = mock(AuthenticationChain.class);
       lenient().when(chain.getProviders()).thenAnswer(inv ->
@@ -680,6 +764,15 @@ class ProviderChangesetApplyServiceTest {
       change.setChain("authorization");
       change.setName(name);
       change.setNewName(newName);
+      return change;
+   }
+
+   private static ProviderChangeRequest updateAuth(String name, ProviderLdapSpec spec) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("update");
+      change.setChain("authentication");
+      change.setName(name);
+      change.setSpec(spec);
       return change;
    }
 

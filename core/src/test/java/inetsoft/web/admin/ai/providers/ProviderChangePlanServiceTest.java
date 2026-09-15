@@ -500,6 +500,118 @@ class ProviderChangePlanServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // update verb (bug 76686)
+   // -------------------------------------------------------------------------
+
+   @Test void resolveUpdateMergesPartialSpecPreservingOtherFieldsAndSucceeds() throws Exception {
+      stubHealthyAuthenticationChainOf("p1");
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(ldapModel("p1"));
+      AuthenticationProvider proposedProvider = sysAdminProvider("p1");
+      when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenReturn(Optional.of(proposedProvider));
+
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+
+      ResolvedPlan plan = service.resolve(request("update", List.of(updateAuth("p1", patch))), user);
+
+      String proposed = plan.changes().get(0).proposedValue();
+      assertTrue(proposed.contains("hostName=rotated-host.example.com;"));
+      assertTrue(proposed.contains("rootDN=dc=example,dc=com;")); // untouched field carried over
+      assertTrue(proposed.contains("adminID=cn=admin;")); // untouched field carried over
+      verify(proposedProvider).tearDown();
+   }
+
+   @Test void resolveUpdateRejectsChainAuthorization() {
+      stubProviderList(authorizationProviderService, List.of("z1"));
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("update");
+      change.setChain("authorization");
+      change.setName("z1");
+      change.setSpec(ldapSpec());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("authorization"));
+   }
+
+   @Test void resolveUpdateRejectsProviderType() {
+      stubHealthyAuthenticationChainOf("p1");
+      ProviderChangeRequest change = updateAuth("p1", ldapSpec());
+      change.setProviderType("LDAP");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("providerType"));
+   }
+
+   @Test void resolveUpdateRejectsNewName() {
+      stubHealthyAuthenticationChainOf("p1");
+      ProviderChangeRequest change = updateAuth("p1", ldapSpec());
+      change.setNewName("p1-renamed");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("newName"));
+   }
+
+   @Test void resolveUpdateRejectsEmptySpec() {
+      stubHealthyAuthenticationChainOf("p1");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateAuth("p1", null))), user));
+      assertTrue(ex.getMessage().contains("spec"));
+   }
+
+   @Test void resolveUpdateRejectsNonLdapCurrentType() throws Exception {
+      stubHealthyAuthenticationChainOf("p1");
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(fileModel("p1"));
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("new-host");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateAuth("p1", patch))), user));
+      assertTrue(ex.getMessage().contains("LDAP"));
+   }
+
+   @Test void resolveUpdateRejectsPasswordOnlyChangeWhenCurrentUsesCredential() throws Exception {
+      stubHealthyAuthenticationChainOf("p1");
+      AuthenticationProviderModel current = AuthenticationProviderModel.builder()
+         .providerName("p1").providerType(SecurityProviderType.LDAP)
+         .ldapProviderModel(LdapAuthenticationProviderModel.builder()
+            .ldapServer(SecurityProviderType.GENERIC).protocol("ldap").hostName("ldap.example.com")
+            .hostPort(389).rootDN("dc=example,dc=com").useCredential(true).secretId("vault:1")
+            .build())
+         .build();
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(current);
+
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setPassword("rotated-password"); // belongs to the other (non-credential) mode
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateAuth("p1", patch))), user));
+      assertTrue(ex.getMessage().contains("useCredential"));
+   }
+
+   @Test void resolveUpdateRefusesWhenEditWouldStripCallersOwnSysAdminRole() throws Exception {
+      // Single-provider chain -- editing "victim" into a config that resolves no sys-admin at all
+      // must be refused by the new preflight (deployment-wide check fires first here).
+      stubHealthyAuthenticationChainOf("victim");
+      when(authenticationProviderService.getAuthenticationProvider("victim")).thenReturn(ldapModel("victim"));
+      AuthenticationProvider proposedProvider = plainProvider("victim");
+      when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenReturn(Optional.of(proposedProvider));
+
+      ProviderLdapSpec patch = new ProviderLdapSpec();
+      patch.setHostName("rotated-host.example.com");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateAuth("victim", patch))), user));
+      assertTrue(ex.getMessage().contains("no remaining provider"));
+      verify(proposedProvider).tearDown();
+   }
+
+   // -------------------------------------------------------------------------
    // section 5 -- the whole-chain, order-sensitive hash
    // -------------------------------------------------------------------------
 
@@ -649,6 +761,16 @@ class ProviderChangePlanServiceTest {
          .providerName(name).providerType(SecurityProviderType.FILE).build();
    }
 
+   private static AuthenticationProviderModel ldapModel(String name) {
+      return AuthenticationProviderModel.builder()
+         .providerName(name).providerType(SecurityProviderType.LDAP)
+         .ldapProviderModel(LdapAuthenticationProviderModel.builder()
+            .ldapServer(SecurityProviderType.GENERIC).protocol("ldap").hostName("ldap.example.com")
+            .hostPort(389).rootDN("dc=example,dc=com").adminID("cn=admin")
+            .password("initial-password").build())
+         .build();
+   }
+
    private static AuthorizationProviderModel authzFileModel(String name) {
       return AuthorizationProviderModel.builder()
          .providerName(name).providerType(SecurityProviderType.FILE).build();
@@ -681,6 +803,15 @@ class ProviderChangePlanServiceTest {
       change.setChain("authentication");
       change.setName(name);
       change.setNewName(newName);
+      return change;
+   }
+
+   private static ProviderChangeRequest updateAuth(String name, ProviderLdapSpec spec) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("update");
+      change.setChain("authentication");
+      change.setName(name);
+      change.setSpec(spec);
       return change;
    }
 
