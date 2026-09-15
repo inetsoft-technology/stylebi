@@ -166,18 +166,8 @@ public class LinearScale extends Scale {
          }
       }
 
-      // record whether the raw data domain is degenerate before it's mutated below, so
-      // consumers that need the true domain shape (e.g. a size frame's own scale, which
-      // should collapse to a fixed neutral size instead of an axis-style widened ratio)
-      // can tell the difference from a genuine non-degenerate range (76647/VCA-002). Also
-      // record the single raw value itself, so such a consumer can tell an actual bound
-      // value (which will equal this) apart from a synthetic value (e.g. a legend tick
-      // generated from the axis-widened range below, which normally won't).
-      degenerateDomain = Math.abs(pair[0] - pair[1]) < 0.000001;
-      degenerateValue = pair[0];
-
       // if max and min is the same, set the min value is 0
-      if(degenerateDomain && pair[0] != 0) {
+      if(Math.abs(pair[0] - pair[1]) < 0.000001 && pair[0] != 0) {
          if(pair[0] > 0) {
             pair[0] = 0;
          }
@@ -351,24 +341,6 @@ public class LinearScale extends Scale {
    public double getMax() {
       getTicks();
       return reversed ? getMin0() : getMax0();
-   }
-
-   /**
-    * Check whether the raw data domain seen by the most recent init() call was
-    * degenerate (min == max), before the axis-style zero-based collapse/widening in
-    * init() mutated the range. This reflects the true value domain, not the (possibly
-    * widened) getMin()/getMax() range.
-    */
-   public boolean isDegenerateDomain() {
-      return degenerateDomain;
-   }
-
-   /**
-    * Get the raw single value of the degenerate domain seen by the most recent init() call.
-    * Only meaningful when {@link #isDegenerateDomain()} is true.
-    */
-   public double getDegenerateValue() {
-      return degenerateValue;
    }
 
    /**
@@ -1046,12 +1018,6 @@ public class LinearScale extends Scale {
    private AtomicBoolean alignZero = new AtomicBoolean(false);
    // smallest interval between values
    private transient NumContainer intervalc = new MinContainer();
-   // whether the data domain seen by the most recent init() call was degenerate
-   // (min == max) before the axis-style zero-based collapse/widening below mutated it
-   private boolean degenerateDomain = false;
-   // the raw single value of that degenerate domain, meaningful only when degenerateDomain
-   // is true
-   private double degenerateValue = 0;
 
    private static final Logger LOG = LoggerFactory.getLogger(LinearScale.class);
 }
