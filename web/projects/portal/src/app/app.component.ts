@@ -27,6 +27,7 @@ import { LogoutService } from "../../../shared/util/logout.service";
 import { SessionExpirationModel } from "../../../shared/util/model/session-expiration-model";
 import { CloudLicenseState } from "../../../shared/util/security/cloud-license-state";
 import { ComponentTool } from "./common/util/component-tool";
+import { PortalAgentNoticeComponent } from "./common/notice/portal-agent-notice.component";
 import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
 import { NotificationsComponent } from "./widget/notifications/notifications.component";
 
@@ -40,7 +41,7 @@ interface NotificationMessage {
     selector: "app-root",
     templateUrl: "./app.component.html",
     styleUrls: ["./app.component.scss"],
-    imports: [RouterOutlet, NotificationsComponent]
+    imports: [RouterOutlet, NotificationsComponent, PortalAgentNoticeComponent]
 })
 export class AppComponent implements OnInit, OnDestroy {
    @ViewChild("notifications") notifications: NotificationsComponent;

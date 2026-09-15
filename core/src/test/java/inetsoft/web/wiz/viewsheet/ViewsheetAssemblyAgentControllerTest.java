@@ -2072,6 +2072,161 @@ class ViewsheetAssemblyAgentControllerTest {
       assertTrue(ex.getMessage().contains("worksheet"));
    }
 
+   /**
+    * Portal-session-pairing Lane B: {@code resolveDataSourceEntry}'s new "viewsheet" branch
+    * (create_viewsheet's own attach-by-path case, opening an existing saved viewsheet AS-IS) is
+    * shared with this method, but makes no sense here -- a viewsheet's base worksheet can never
+    * itself be a viewsheet. Refused explicitly, before resolveDataSourceEntry (and therefore any
+    * AssetRepository access) ever runs -- verifyNoInteractions on the repository-fetching
+    * RuntimeViewsheet proves this, not just the thrown message.
+    */
+   @Test
+   void attachBaseWorksheetRefusesViewsheetType() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               "Sample Reports/sales", null, "viewsheet", null, null),
+            agent));
+      assertTrue(ex.getMessage().contains("type:\"viewsheet\""), ex.getMessage());
+      assertTrue(ex.getMessage().contains("cannot itself"), ex.getMessage());
+      verify(rvs, never()).getAssetRepository();
+      verify(vs, never()).setBaseEntry(any());
+   }
+
+   // ── resolveDataSourceEntry "viewsheet" branch (attach-by-path) ───────────────
+   // Field-presence validation is exercised through create_viewsheet directly (below), same as
+   // the physicalTable/worksheet branches. The actual repository resolution (found/not-found)
+   // has no mockable-AssetRepository test host through either public endpoint any more:
+   // attach_base_worksheet now explicitly refuses type:"viewsheet" (see the guard test just
+   // above), and create_viewsheet's own supplier is a real, unmockable static
+   // AssetUtil.getAssetRepository(false) call (the same limitation the logicalModel/
+   // physicalTable comment above already documents for that path). Invoked directly via
+   // reflection instead -- mirrors this test package's existing reflection-based convention for
+   // exercising private state/logic no public seam reaches (see SheetSessionServiceTest's
+   // private-field session seeding).
+
+   @Test
+   void createViewsheetRefusesViewsheetTypeMissingPathBeforeCallingSheetOpenService() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SheetOpenService openService = mock(SheetOpenService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(openService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.createViewsheet(
+            new ViewsheetAssemblyAgentController.CreateViewsheetRequest(
+               "tok-acting", null, null, "viewsheet", null, null),
+            agent));
+      assertTrue(ex.getMessage().contains("path"), ex.getMessage());
+      verifyNoInteractions(openService);
+   }
+
+   @Test
+   void resolveDataSourceEntryViewsheetBranchResolvesAPermittedExistingAsset() throws Throwable {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(mock(SheetOpenService.class));
+
+      AssetEntry entry = invokeResolveDataSourceEntry(controller, "viewsheet",
+         "Sample Reports/sales", null, null, null, (inetsoft.uql.XPrincipal) agent, () -> rep);
+
+      assertEquals(AssetEntry.Type.VIEWSHEET, entry.getType());
+      assertEquals("Sample Reports/sales", entry.getPath());
+      assertEquals(AssetRepository.GLOBAL_SCOPE, entry.getScope());
+   }
+
+   @Test
+   void resolveDataSourceEntryViewsheetBranchUsesUserScopeWhenRequested() throws Throwable {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(mock(SheetOpenService.class));
+
+      AssetEntry entry = invokeResolveDataSourceEntry(controller, "viewsheet",
+         "My Private Report", "user", null, null, (inetsoft.uql.XPrincipal) agent, () -> rep);
+
+      assertEquals(AssetRepository.USER_SCOPE, entry.getScope());
+      assertEquals(IdentityID.getIdentityIDFromKey(agent.getName()), entry.getUser());
+   }
+
+   @Test
+   void resolveDataSourceEntryViewsheetBranchRefusesWhenNotFoundOrNoPermission() throws Throwable {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(null);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(mock(SheetOpenService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         invokeResolveDataSourceEntry(controller, "viewsheet", "Sample Reports/sales", null, null,
+            null, (inetsoft.uql.XPrincipal) agent, () -> rep));
+      assertTrue(ex.getMessage().contains("no viewsheet named"), ex.getMessage());
+   }
+
+   @Test
+   void resolveDataSourceEntryViewsheetBranchRequiresPath() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetAssemblyAgentController controller = controllerWith(mock(SheetOpenService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         invokeResolveDataSourceEntry(controller, "viewsheet", null, null, null, null,
+            (inetsoft.uql.XPrincipal) agent,
+            () -> { throw new AssertionError("repository must not be touched for a missing path"); }));
+      assertTrue(ex.getMessage().contains("path"), ex.getMessage());
+   }
+
+   @Test
+   void resolveDataSourceEntryViewsheetBranchRefusesCaretInPath() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      ViewsheetAssemblyAgentController controller = controllerWith(mock(SheetOpenService.class));
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         invokeResolveDataSourceEntry(controller, "viewsheet", "Sample^Reports", null, null, null,
+            (inetsoft.uql.XPrincipal) agent,
+            () -> { throw new AssertionError("repository must not be touched for an invalid path"); }));
+      assertTrue(ex.getMessage().contains("path"), ex.getMessage());
+   }
+
+   /** Invokes the private {@code resolveDataSourceEntry} reflectively, unwrapping the reflection
+    *  wrapper so callers can assert on the real thrown exception type directly. */
+   private static AssetEntry invokeResolveDataSourceEntry(
+      ViewsheetAssemblyAgentController controller, String type, String path, String scope,
+      String datasource, String table, inetsoft.uql.XPrincipal xp,
+      java.util.function.Supplier<AssetRepository> repSupplier) throws Throwable
+   {
+      try {
+         java.lang.reflect.Method m = ViewsheetAssemblyAgentController.class.getDeclaredMethod(
+            "resolveDataSourceEntry", String.class, String.class, String.class, String.class,
+            String.class, inetsoft.uql.XPrincipal.class, java.util.function.Supplier.class);
+         m.setAccessible(true);
+         return (AssetEntry) m.invoke(controller, type, path, scope, datasource, table, xp,
+                                      repSupplier);
+      }
+      catch(java.lang.reflect.InvocationTargetException e) {
+         throw e.getCause();
+      }
+   }
+
    // ---------------------------------------------------------------------------
    // Task 6 (layout implementation plan) -- wiring assertions for the eight new
    // layout endpoints. Each test only checks that the right service is called with the

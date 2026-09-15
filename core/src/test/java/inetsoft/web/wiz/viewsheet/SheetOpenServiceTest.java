@@ -548,18 +548,137 @@ class SheetOpenServiceTest {
                 thrown.getMessage());
    }
 
+   /**
+    * Portal-session-pairing Lane B / D10 (section 8.5): a session established directly at login
+    * (no Composer pane ever paired) has {@code socketSessionId() == null} from the moment it is
+    * created, and there is no expectation it ever gets one. The old hard refusal here
+    * ("has no active browser connection...") is softened to a skip-the-broadcast-only branch --
+    * the runtime is still opened and the session still minted, only the best-effort
+    * "tell the browser" steps have nothing to tell. Charter assertion 6 / counter-assertion: must
+    * degrade cleanly, never throw.
+    */
    @Test
-   void createViewsheetRefusesWhenActingSessionHasNoSocket() {
+   void createViewsheetToleratesActingSessionWithNoSocketAndSkipsBroadcast() throws Exception {
       AssetEntry wsEntry = new AssetEntry(
          inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
          "Sample Queries/customers", null);
       SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, wsEntry, true, null);
 
-      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-         () -> service.createViewsheet("tok-acting", principal(), null));
+      JoinSession created = service.createViewsheet("tok-acting", principal(), null);
 
-      assertTrue(thrown.getMessage().toLowerCase().contains("browser connection"),
-                thrown.getMessage());
+      assertEquals("vs-runtime-new", created.runtimeId());
+      assertNull(created.socketSessionId());
+      verify(broadcast, never()).sendAgentActive(any());
+      verify(broadcast, never()).sendToComposer(anyString(), any());
+   }
+
+   /**
+    * Portal-session-pairing Lane B / D10: the acting session itself may be the still-unattached
+    * (runtimeId == null, sheetType == null) session a directly-established login produces, not
+    * just an attached-but-socketless one. {@code SheetRuntimeAccess.getSheetForPairing}'s
+    * {@code switch(sheetType)} has no default arm and NPEs on a null selector -- createViewsheet
+    * must recognize "no runtimeId yet" and skip that call entirely (falling back to the
+    * agent-owned-principal path, exactly like an expired attached runtime already does), not rely
+    * on catching a PairingException a null selector never throws. Counter-assertion: must not
+    * throw an unrelated NullPointerException.
+    */
+   @Test
+   void createViewsheetToleratesAnUnattachedActingSessionWithNoNpe() throws Exception {
+      JoinSession unattached = new JoinSession(
+         "tok-portal", null, OWNER, null, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null);
+
+      SheetSessionService sheetSessions = mock(SheetSessionService.class);
+      this.sheetSessions = sheetSessions;
+      when(sheetSessions.resolve(eq("tok-portal"), eq(OWNER))).thenReturn(unattached);
+
+      AssetEntry lmEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+         "MyDataSource/MyModel", null);
+
+      Principal agent = () -> OWNER;
+      viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.openTemporaryViewsheet(isNull(), eq(lmEntry), eq(agent), isNull()))
+         .thenReturn("vs-runtime-new");
+      inetsoft.report.composition.RuntimeViewsheet newRvs =
+         mock(inetsoft.report.composition.RuntimeViewsheet.class);
+      AssetEntry tempEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.TEMPORARY_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "Untitled-1", null);
+      when(newRvs.getEntry()).thenReturn(tempEntry);
+      when(viewsheetService.getViewsheet(eq("vs-runtime-new"), eq(agent))).thenReturn(newRvs);
+
+      JoinSession newVsSession = new JoinSession(
+         "tok-vs-new", "vs-runtime-new", OWNER, SheetType.VIEWSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null);
+      when(sheetSessions.open(eq("vs-runtime-new"), eq(OWNER), eq(SheetType.VIEWSHEET),
+                              isNull(), isNull(), isNull()))
+         .thenReturn(newVsSession);
+
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.VIEWSHEET),
+                                            eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
+      broadcast = mock(SheetAgentBroadcastService.class);
+      worksheetService = mock(WorksheetService.class);
+
+      SheetOpenService service = new SheetOpenService(
+         mock(ViewsheetSessionService.class), sheetSessions, worksheetService, securityProvider,
+         broadcast, viewsheetService, runtimeAccess);
+
+      JoinSession created = service.createViewsheet("tok-portal", agent, lmEntry);
+
+      assertEquals("vs-runtime-new", created.runtimeId());
+      assertNull(created.socketSessionId());
+      verify(runtimeAccess, never()).getSheetForPairing(any(), any(), any());
+      verify(viewsheetService).openTemporaryViewsheet(isNull(), eq(lmEntry), eq(agent), isNull());
+      verify(broadcast, never()).sendAgentActive(any());
+      verify(broadcast, never()).sendToComposer(anyString(), any());
+   }
+
+   /**
+    * Attach-by-path (section 2.5): when {@code dataSource} is itself a {@code Type.VIEWSHEET}
+    * entry (resolved by {@code ViewsheetAssemblyAgentController#resolveDataSourceEntry}'s new
+    * "viewsheet" branch), createViewsheet must open THAT saved asset directly via
+    * {@code viewsheetService.openViewsheet}, never build a new, blank one from it via
+    * {@code openTemporaryViewsheet} -- and tell the browser to open the SAME existing asset id,
+    * not a freshly-minted temporary entry.
+    */
+   @Test
+   void createViewsheetOpensAnExistingViewsheetDirectlyWhenDataSourceIsAlreadyAViewsheet()
+      throws Exception
+   {
+      AssetEntry vsEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "Sample Reports/sales", null);
+      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, null, true);
+
+      when(viewsheetService.openViewsheet(eq(vsEntry), any(Principal.class), eq(true)))
+         .thenReturn("vs-runtime-existing");
+      JoinSession newVsSession = new JoinSession(
+         "tok-vs-existing", "vs-runtime-existing", OWNER, SheetType.VIEWSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-1", SOCKET_USER, null);
+      when(sheetSessions.open(eq("vs-runtime-existing"), eq(OWNER), eq(SheetType.VIEWSHEET),
+                              eq("sock-1"), eq(SOCKET_USER), isNull()))
+         .thenReturn(newVsSession);
+
+      JoinSession created = service.createViewsheet("tok-acting", principal(), vsEntry);
+
+      assertEquals("vs-runtime-existing", created.runtimeId());
+      verify(viewsheetService).openViewsheet(eq(vsEntry), any(Principal.class), eq(true));
+      verify(viewsheetService, never())
+         .openTemporaryViewsheet(any(), any(AssetEntry.class), any(Principal.class), any());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertEquals(vsEntry.toIdentifier(), sent.assetId(),
+         "the browser must be told to open THIS existing asset, not a freshly-minted temp entry");
    }
 
    @Test
@@ -733,15 +852,71 @@ class SheetOpenServiceTest {
                 thrown.getMessage());
    }
 
+   /**
+    * Portal-session-pairing Lane B / D10 (section 8.5) -- mirrors
+    * createViewsheetToleratesActingSessionWithNoSocketAndSkipsBroadcast. Charter assertion 6 /
+    * counter-assertion: a socketless acting session must degrade to skip-the-broadcast, never
+    * throw.
+    */
    @Test
-   void createWorksheetRefusesWhenActingSessionHasNoSocket() {
+   void createWorksheetToleratesActingSessionWithNoSocketAndSkipsBroadcast() throws Exception {
       SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true, null, null);
 
-      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-         () -> service.createWorksheet("tok-acting", principal()));
+      JoinSession created = service.createWorksheet("tok-acting", principal());
 
-      assertTrue(thrown.getMessage().toLowerCase().contains("browser connection"),
-                thrown.getMessage());
+      assertEquals("ws-runtime-new", created.runtimeId());
+      assertNull(created.socketSessionId());
+      verify(broadcast, never()).sendAgentActive(any());
+      verify(broadcast, never()).sendToComposer(anyString(), any());
+   }
+
+   /**
+    * Attach-by-path (section 2.5): when {@code existingEntry} is given, createWorksheet must open
+    * THAT saved asset directly via {@code worksheetService.openWorksheet}, never mint a new,
+    * blank one via {@code openTemporaryWorksheet} -- and tell the browser to open the SAME
+    * existing asset id.
+    */
+   @Test
+   void createWorksheetOpensAnExistingWorksheetDirectlyWhenGivenAnExistingEntry() throws Exception {
+      AssetEntry wsEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+         "Sample Queries/customers", null);
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+
+      when(worksheetService.openWorksheet(eq(wsEntry), any(Principal.class)))
+         .thenReturn("ws-runtime-existing");
+      JoinSession newWsSession = new JoinSession(
+         "tok-ws-existing", "ws-runtime-existing", OWNER, SheetType.WORKSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-1", SOCKET_USER, null);
+      when(sheetSessions.open(eq("ws-runtime-existing"), eq(OWNER), eq(SheetType.WORKSHEET),
+                              eq("sock-1"), eq(SOCKET_USER), isNull()))
+         .thenReturn(newWsSession);
+
+      JoinSession created = service.createWorksheet("tok-acting", principal(), wsEntry);
+
+      assertEquals("ws-runtime-existing", created.runtimeId());
+      verify(worksheetService).openWorksheet(eq(wsEntry), any(Principal.class));
+      verify(viewsheetService, never()).openTemporaryWorksheet(any(Principal.class), any());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertEquals(wsEntry.toIdentifier(), sent.assetId());
+   }
+
+   /** The existing 2-arg overload must still produce byte-for-byte the same blank-worksheet
+    *  behavior as before this lane's change -- it delegates to the 3-arg overload with a null
+    *  existingEntry, never accidentally attaching by path. */
+   @Test
+   void twoArgOverloadStillMintsABlankWorksheetNotAttachedByPath() throws Exception {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+
+      JoinSession created = service.createWorksheet("tok-acting", principal());
+
+      assertEquals("ws-runtime-new", created.runtimeId());
+      verify(viewsheetService).openTemporaryWorksheet(any(Principal.class), isNull());
+      verify(worksheetService, never()).openWorksheet(any(AssetEntry.class), any(Principal.class));
    }
 
    /**

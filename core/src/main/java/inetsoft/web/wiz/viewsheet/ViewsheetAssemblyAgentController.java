@@ -215,10 +215,14 @@ public class ViewsheetAssemblyAgentController {
     *                         connection the new session reuses
     * @param path             see {@link AttachBaseWorksheetRequest#path}
     * @param scope            see {@link AttachBaseWorksheetRequest#scope}
-    * @param type             see {@link AttachBaseWorksheetRequest#type}; when this and
-    *                         {@code path}/{@code datasource}/{@code table} are all {@code null},
-    *                         defaults to the acting session's own worksheet (requires the acting
-    *                         session to be a worksheet session)
+    * @param type             see {@link AttachBaseWorksheetRequest#type}, plus one legal value
+    *                         {@code AttachBaseWorksheetRequest#type} does not accept:
+    *                         {@code "viewsheet"}, meaning open the existing, saved viewsheet
+    *                         named by {@code path} AS-IS rather than as a source to build a new
+    *                         one from (attach-by-path; see {@link SheetOpenService#createViewsheet}).
+    *                         When {@code type} and {@code path}/{@code datasource}/{@code table}
+    *                         are all {@code null}, defaults to the acting session's own worksheet
+    *                         (requires the acting session to be a worksheet session)
     * @param datasource       see {@link AttachBaseWorksheetRequest#datasource}
     * @param table            see {@link AttachBaseWorksheetRequest#table}
     */
@@ -232,7 +236,8 @@ public class ViewsheetAssemblyAgentController {
     * ALREADY-PAIRED session named by {@code fromSessionToken} (worksheet or viewsheet, either is
     * accepted). If none of type/path/datasource/table are given, defaults to the acting session's
     * own worksheet (only valid when that session is a worksheet session that has already been
-    * saved).
+    * saved). {@code type:"viewsheet"} instead opens an existing, saved viewsheet named by
+    * {@code path} directly (attach-by-path), rather than building a new one from it.
     *
     * <p>Closes the create half of PVA-007/bug 76332 that {@code attach_base_worksheet} (#4900)
     * explicitly deferred.</p>
@@ -1588,11 +1593,17 @@ public class ViewsheetAssemblyAgentController {
 
    /**
     * Resolves a caller-named data source into a permission-checked {@link AssetEntry}, for
-    * whichever of the three source types the agent surface supports: {@code worksheet} (the
-    * default), {@code logicalModel}, or {@code physicalTable}. {@code query}
+    * whichever of the four source types the agent surface supports: {@code worksheet} (the
+    * default), {@code logicalModel}, {@code physicalTable}, or {@code viewsheet}. {@code query}
     * ({@code AssetEntry.Type.QUERY}) is deliberately not supported — it is a deprecated source
     * type. Shared by {@link #attachBaseWorksheet} and {@code create_viewsheet} — do not duplicate
     * this resolution logic elsewhere.
+    *
+    * <p>Unlike the other three branches, {@code viewsheet} does not name a SOURCE to build a new
+    * viewsheet from -- it names an existing, saved viewsheet asset the caller wants opened AS-IS.
+    * {@link SheetOpenService#createViewsheet} tells the two apart by the resolved entry's own
+    * {@link AssetEntry#getType()} ({@code Type.VIEWSHEET} vs. everything else), not by threading
+    * {@code type} through separately -- see its own comment at that branch.
     *
     * <p>A caller-supplied {@code path} (the {@code worksheet}/{@code logicalModel} branches) is
     * refused if it contains a caret, right after that branch's own null/empty check — see
@@ -1716,6 +1727,41 @@ public class ViewsheetAssemblyAgentController {
 
          return entry;
       }
+      else if("viewsheet".equals(effectiveType)) {
+         if(path == null || path.isBlank()) {
+            throw new PairingException(
+               "Provide a 'path' naming the viewsheet asset to open " +
+               "(e.g. \"Sample Reports/sales\").");
+         }
+
+         WizUtil.requireNoCaret(path, "path");
+
+         int assetScope = "user".equalsIgnoreCase(scope)
+            ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+         IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+         AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.VIEWSHEET, path.trim(),
+                                           owner, uname.orgID);
+
+         // permission=true, existence+read check -- same rationale as the worksheet branch above:
+         // this is a caller-supplied path naming an arbitrary asset, not a freshness probe.
+         AssetRepository rep = repSupplier.get();
+         Object resolved;
+
+         try {
+            resolved = rep.getSheet(entry, xp, true, AssetContent.ALL, false);
+         }
+         catch(Exception e) {
+            throw new PairingException(
+               "no viewsheet named '" + path + "' was found, or you lack permission to read it", e);
+         }
+
+         if(resolved == null) {
+            throw new PairingException(
+               "no viewsheet named '" + path + "' was found, or you lack permission to read it");
+         }
+
+         return entry;
+      }
       else if("physicalTable".equals(effectiveType)) {
          if(datasource == null || datasource.isBlank()) {
             throw new PairingException(
@@ -1731,8 +1777,9 @@ public class ViewsheetAssemblyAgentController {
       }
       else {
          throw new PairingException(
-            "Unknown type \"" + type + "\" -- must be \"worksheet\", \"logicalModel\", or " +
-            "\"physicalTable\" (\"query\" is a deprecated source type and is not supported here).");
+            "Unknown type \"" + type + "\" -- must be \"worksheet\", \"logicalModel\", " +
+            "\"physicalTable\", or \"viewsheet\" (\"query\" is a deprecated source type and is " +
+            "not supported here).");
       }
    }
 
@@ -1846,6 +1893,16 @@ public class ViewsheetAssemblyAgentController {
       if(!(user instanceof XPrincipal xp)) {
          throw new PairingException("Cannot attach base worksheet: agent principal is not an " +
                                     "XPrincipal (" + user.getClass().getName() + ")");
+      }
+
+      // resolveDataSourceEntry's "viewsheet" branch is create_viewsheet's own attach-by-path
+      // case (open an existing viewsheet AS-IS); it makes no sense here -- a viewsheet's base
+      // worksheet can never itself be a viewsheet. Refused explicitly rather than letting
+      // setBaseEntry silently accept a Type.VIEWSHEET entry below.
+      if(body != null && "viewsheet".equals(body.type())) {
+         throw new PairingException(
+            "type:\"viewsheet\" is not valid here -- a viewsheet's base worksheet cannot itself " +
+            "be a viewsheet. Omit 'type' (or use \"worksheet\") to name the worksheet to attach.");
       }
 
       // The caret check on 'path' lives in resolveDataSourceEntry itself (shared with
