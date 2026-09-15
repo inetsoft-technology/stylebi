@@ -24,6 +24,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.schedule.model.TaskListModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -160,6 +161,51 @@ class AdminScheduleControllerTest {
       ApplyResult result = controller.apply(req, principal);
 
       assertSame(applied, result);
+   }
+
+   // -------------------------------------------------------------------------
+   // runTasks / stopTasks (bug 76687) -- delegates per-task-name to the gateway and collects
+   // each ScheduleActionOutcome, same forbidden gate as every other route on this controller.
+   // -------------------------------------------------------------------------
+
+   @Test void runTasksThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.runTasks(TaskListModel.builder().taskNames(List.of("t1")).build(), principal));
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(scheduleGateway);
+   }
+
+   @Test void runTasksDelegatesToGatewayPerTaskName() throws Exception {
+      ScheduleActionOutcome outcome1 = new ScheduleActionOutcome("t1", ScheduleActionOutcome.STARTED, null);
+      ScheduleActionOutcome outcome2 = new ScheduleActionOutcome("t2", ScheduleActionOutcome.TASK_DISABLED, null);
+      when(scheduleGateway.runTask("t1", principal)).thenReturn(outcome1);
+      when(scheduleGateway.runTask("t2", principal)).thenReturn(outcome2);
+
+      ScheduleActionResult result = controller.runTasks(
+         TaskListModel.builder().taskNames(List.of("t1", "t2")).build(), principal);
+
+      assertEquals(List.of(outcome1, outcome2), result.results());
+   }
+
+   @Test void stopTasksThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.stopTasks(TaskListModel.builder().taskNames(List.of("t1")).build(), principal));
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(scheduleGateway);
+   }
+
+   @Test void stopTasksDelegatesToGatewayPerTaskName() throws Exception {
+      ScheduleActionOutcome outcome = new ScheduleActionOutcome("t1", ScheduleActionOutcome.STOPPED, null);
+      when(scheduleGateway.stopTask("t1", principal)).thenReturn(outcome);
+
+      ScheduleActionResult result = controller.stopTasks(
+         TaskListModel.builder().taskNames(List.of("t1")).build(), principal);
+
+      assertEquals(List.of(outcome), result.results());
    }
 
    @Test void handleIllegalArgumentReturnsFailedStatus() {
