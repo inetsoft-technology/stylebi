@@ -226,6 +226,93 @@ class SheetSessionServiceTest {
                  "retarget's reconstruct must not reset establishedDirectly");
    }
 
+   /**
+    * Lane D's own establish entry point (design doc section 8.5) -- unlike {@code open()}, this
+    * always mints a session with no {@code runtimeId}/{@code sheetType}, the unattached TTL, and
+    * {@code establishedDirectly = true}.
+    */
+   @Test
+   void openEstablishedDirectlyMintsAnUnattachedEstablishedDirectlySession() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+
+      JoinSession session = svc.openEstablishedDirectly("alice~;~org");
+
+      assertNotNull(session);
+      assertNotNull(session.sessionToken());
+      assertNull(session.runtimeId());
+      assertNull(session.sheetType());
+      assertFalse(session.isAttached());
+      assertTrue(session.establishedDirectly());
+      assertEquals("alice~;~org", session.ownerIdentity());
+      assertEquals(SheetSessionService.UNATTACHED_TTL_MILLIS, session.ttlMillis());
+   }
+
+   /**
+    * The idempotency guarantee design doc section 8.5 calls for: a second
+    * {@code openEstablishedDirectly} for the SAME identity must reuse the live session, not mint
+    * a duplicate.
+    */
+   @Test
+   void openEstablishedDirectlyIsIdempotentForTheSameLiveOwner() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+
+      JoinSession first = svc.openEstablishedDirectly("alice~;~org");
+      JoinSession second = svc.openEstablishedDirectly("alice~;~org");
+
+      assertEquals(first.sessionToken(), second.sessionToken(),
+                   "a second establish for the same identity must reuse the first session's token");
+   }
+
+   /** A different owner must never collide with -- or reuse -- another owner's established session. */
+   @Test
+   void openEstablishedDirectlyMintsIndependentSessionsForDifferentOwners() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+
+      JoinSession alice = svc.openEstablishedDirectly("alice~;~org");
+      JoinSession bob = svc.openEstablishedDirectly("bob~;~org");
+
+      assertNotEquals(alice.sessionToken(), bob.sessionToken());
+   }
+
+   /**
+    * An EXPIRED directly-established session must not be reused -- {@code openEstablishedDirectly}
+    * must mint a fresh one instead of handing back a session that is no longer live.
+    */
+   @Test
+   void openEstablishedDirectlyMintsAFreshSessionOnceThePriorOneExpired() {
+      SheetSessionService svcEarly = serviceAt(FIXED_NOW);
+      JoinSession first = svcEarly.openEstablishedDirectly("alice~;~org");
+
+      SheetSessionService svcLater = new SheetSessionService(
+         () -> FIXED_NOW + SheetSessionService.UNATTACHED_TTL_MILLIS + 1, svcEarly);
+      JoinSession second = svcLater.openEstablishedDirectly("alice~;~org");
+
+      assertNotEquals(first.sessionToken(), second.sessionToken(),
+                       "an expired directly-established session must not be reused");
+   }
+
+   @Test
+   void findEstablishedDirectlyIgnoresPaneScopedSessionsAndWrongOwnerAndExpired() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      // A pane-scoped (ordinary open()) session for the same owner must never satisfy the
+      // establishedDirectly lookup, even though it is live and owned by the same identity.
+      svc.open("rt-1", "alice~;~org", SheetType.WORKSHEET, null, null, null);
+
+      assertNull(svc.findEstablishedDirectly("alice~;~org"),
+                 "a pane-scoped session must not be mistaken for a directly-established one");
+      assertNull(svc.findEstablishedDirectly("nobody~;~org"));
+      assertNull(svc.findEstablishedDirectly(null));
+
+      JoinSession established = svc.openEstablishedDirectly("carol~;~org");
+      assertEquals(established.sessionToken(),
+                   svc.findEstablishedDirectly("carol~;~org").sessionToken());
+
+      SheetSessionService svcLater = new SheetSessionService(
+         () -> FIXED_NOW + SheetSessionService.UNATTACHED_TTL_MILLIS + 1, svc);
+      assertNull(svcLater.findEstablishedDirectly("carol~;~org"),
+                 "an expired session must not be returned");
+   }
+
    @Test
    void resolveReturnsSessionMultipleTimes() {
       SheetSessionService svc = serviceAt(FIXED_NOW);

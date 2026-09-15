@@ -120,7 +120,7 @@ class SSOTokenControllerTest {
       HttpServletResponse response = mock(HttpServletResponse.class);
 
       controller.authorize(
-         "https://chat.example.com/api/wiz/auth/callback", null, request, response);
+         "https://chat.example.com/api/wiz/auth/callback", null, null, request, response);
 
       ArgumentCaptor<String> redirectCaptor = ArgumentCaptor.forClass(String.class);
       verify(response).sendRedirect(redirectCaptor.capture());
@@ -135,10 +135,75 @@ class SSOTokenControllerTest {
          "https://chat.example.com/cb\"><script>alert(1)</script>",
          "token\"><script>alert(2)</script>",
          "https://example.com/redirect\"><script>alert(3)</script>",
-         "csrf\"><script>alert(4)</script>");
+         "csrf\"><script>alert(4)</script>", null);
 
       assertNotNull(html);
       assertFalse(html.contains("<script>"), "Raw <script> must never appear unescaped");
       assertTrue(html.contains("&lt;script&gt;"), "Interpolated values must be HTML-escaped");
+   }
+
+   // -------------------------------------------------------------------------
+   // grant=portal consent-copy branch (Lane D / design doc section 8.3, charter assertion 3)
+   // -------------------------------------------------------------------------
+
+   private static final String DEFAULT_COPY =
+      "An AI agent is requesting access to your StyleBI session.";
+   private static final String PORTAL_COPY_FRAGMENT =
+      "and to open or create worksheets and viewsheets in Visual Composer on your behalf";
+
+   private String buildForm(String grant) {
+      return ReflectionTestUtils.invokeMethod(controller, "buildAutoSubmitForm",
+         "https://chat.example.com/cb", "tok", null, null, grant);
+   }
+
+   @Test
+   void buildAutoSubmitForm_noGrant_copyIsByteForByteUnchanged() {
+      String html = buildForm(null);
+
+      assertTrue(html.contains(DEFAULT_COPY));
+      assertFalse(html.contains(PORTAL_COPY_FRAGMENT));
+      assertFalse(html.contains("name=\"grant\""),
+                  "no grant hidden field must be rendered when grant is absent");
+   }
+
+   @Test
+   void buildAutoSubmitForm_grantPortal_addsDisclosureAndHiddenField() {
+      String html = buildForm("portal");
+
+      assertTrue(html.contains(PORTAL_COPY_FRAGMENT),
+                 "grant=portal must add the Visual Composer disclosure sentence");
+      assertTrue(html.contains("name=\"grant\" value=\"portal\""),
+                 "grant=portal must be threaded through as a hidden form field");
+   }
+
+   @Test
+   void buildAutoSubmitForm_anyOtherGrantValue_treatedIdenticallyToAbsent() {
+      String html = buildForm("bogus");
+
+      assertTrue(html.contains(DEFAULT_COPY));
+      assertFalse(html.contains(PORTAL_COPY_FRAGMENT),
+                  "an unrecognized grant value must not trigger the portal consent copy");
+      assertFalse(html.contains("name=\"grant\""),
+                  "an unrecognized grant value must not be threaded through as a hidden field");
+   }
+
+   @Test
+   void authorize_grantQueryParam_isPassedThroughToTheRenderedForm() throws Exception {
+      HttpServletRequest request = mockRequest();
+      when(request.getUserPrincipal()).thenReturn(mock(java.security.Principal.class));
+      when(request.getCookies()).thenReturn(null);
+
+      SSOTokenService tokenService = mock(SSOTokenService.class);
+      when(tokenService.createSSOToken(any(), anyString())).thenReturn("signed-token");
+      SSOTokenController c = new SSOTokenController(tokenService);
+
+      HttpServletResponse response = mock(HttpServletResponse.class);
+      java.io.StringWriter sw = new java.io.StringWriter();
+      when(response.getWriter()).thenReturn(new java.io.PrintWriter(sw));
+
+      c.authorize("https://chat.example.com/api/wiz/auth/callback", null, "portal", request, response);
+
+      assertTrue(sw.toString().contains(PORTAL_COPY_FRAGMENT),
+                 "the grant query parameter on /sso/authorize must reach the rendered page");
    }
 }

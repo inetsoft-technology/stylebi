@@ -22,9 +22,11 @@ import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import inetsoft.util.PasswordEncryption;
+import inetsoft.web.wiz.pairing.SessionEstablishController;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -52,16 +54,29 @@ import java.util.concurrent.*;
 @RequestMapping("/api/wiz")
 public class WizAuthCallbackController {
 
+   @Autowired
+   public WizAuthCallbackController(SessionEstablishController sessionEstablish) {
+      this.sessionEstablish = sessionEstablish;
+   }
+
    /**
     * POST /api/wiz/auth/callback?nonce=...
     * Called by StyleBI's /sso/authorize via an auto-submitting form POST.
     * Verifies the JWT signature, stores it by nonce for one-time pickup,
     * then renders a "you can close this tab" page.
+    *
+    * @param grant when exactly {@code "portal"} (the hidden field {@code SSOTokenController}
+    *              threads through only when the authorize request itself carried
+    *              {@code grant=portal}), also establishes a D10 portal session for this identity
+    *              and stashes it alongside the access token for {@code login_complete} to surface.
+    *              Any other value (including absent, the ordinary case for every other login) has
+    *              zero effect -- see {@link #establishPortalSession}.
     */
    @PostMapping(value = "/auth/callback")
    public void callback(
       @RequestParam("nonce") String nonce,
       @RequestParam("token") String token,
+      @RequestParam(value = "grant", required = false) String grant,
       HttpServletResponse response) throws IOException
    {
       if(nonce.isBlank() || token.isBlank()) {
@@ -77,10 +92,31 @@ public class WizAuthCallbackController {
       }
 
       long expiresAt = extractExpiration(token);
-      pendingTokens.put(nonce, new PendingToken(token, expiresAt));
+      SessionEstablishController.JoinResponse portalSession =
+         "portal".equals(grant) ? establishPortalSession(token) : null;
+      pendingTokens.put(nonce, new PendingToken(token, expiresAt, portalSession));
       LOG.debug("Stored SSO callback token for nonce (length={})", nonce.length());
 
       writeHtml(response, CLOSE_TAB_HTML);
+   }
+
+   /**
+    * Establishes a D10 portal session for the identity carried by {@code token}, in-process
+    * (same JVM), reusing {@link SessionEstablishController#establishForOwner} rather than
+    * duplicating its flag-check/open-or-reuse logic here (design doc section 8.2). Never throws
+    * and never fails the callback itself: any failure (flag off, or an unexpected error) simply
+    * means no {@code portalSession} is stashed -- the login proceeds exactly as it does today.
+    */
+   private SessionEstablishController.JoinResponse establishPortalSession(String token) {
+      try {
+         String ownerIdentity = SignedJWT.parse(token).getJWTClaimsSet().getSubject();
+         return sessionEstablish.establishForOwner(ownerIdentity);
+      }
+      catch(Exception e) {
+         LOG.warn("Portal-session establish failed after SSO callback -- login proceeds without it",
+                  e);
+         return null;
+      }
    }
 
    /**
@@ -115,6 +151,13 @@ public class WizAuthCallbackController {
       body.put("accessToken", entry.token());
       body.put("expiresAt", entry.expiresAtMs());
       body.put("user", extractUser(entry.token()));
+
+      // Absent, not null, when no portal session was established (the ordinary case for every
+      // login) -- login_complete's result must be byte-for-byte identical to today's shape then.
+      if(entry.portalSession() != null) {
+         body.put("portalSession", entry.portalSession());
+      }
+
       return ResponseEntity.ok(body);
    }
 
@@ -269,9 +312,11 @@ public class WizAuthCallbackController {
       </html>
       """;
 
-   private record PendingToken(String token, long expiresAtMs) {}
+   private record PendingToken(String token, long expiresAtMs,
+                               SessionEstablishController.JoinResponse portalSession) {}
 
    private final Map<String, PendingToken> pendingTokens = new ConcurrentHashMap<>();
+   private final SessionEstablishController sessionEstablish;
 
    private static final Logger LOG = LoggerFactory.getLogger(WizAuthCallbackController.class);
 }

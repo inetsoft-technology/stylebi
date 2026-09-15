@@ -66,6 +66,7 @@ public class SSOTokenController {
    public void authorize(
       @RequestParam("callback") String callback,
       @RequestParam(value = "redirect_url", required = false) String redirectUrl,
+      @RequestParam(value = "grant", required = false) String grant,
       HttpServletRequest request,
       HttpServletResponse response) throws IOException
    {
@@ -125,7 +126,7 @@ public class SSOTokenController {
          }
       }
 
-      String html = buildAutoSubmitForm(callback, token, redirectUrl, csrfToken);
+      String html = buildAutoSubmitForm(callback, token, redirectUrl, csrfToken, grant);
 
       response.setStatus(HttpServletResponse.SC_OK);
       response.setContentType(MediaType.TEXT_HTML_VALUE);
@@ -232,9 +233,15 @@ public class SSOTokenController {
 
    /**
     * Builds an HTML page with an auto-submitting form that POSTs the JWT to the callback URL.
+    *
+    * @param grant when exactly {@code "portal"}, renders the additional Visual Composer
+    *              disclosure branch (design doc section 8.3) and threads {@code grant} through as
+    *              a hidden field so the POST to the callback handler carries it forward; any other
+    *              value (including {@code null}, the ordinary case for every other caller of this
+    *              page) leaves the copy byte-for-byte unchanged from before this parameter existed.
     */
    private String buildAutoSubmitForm(String callback, String token, String redirectUrl,
-                                      String csrfToken)
+                                      String csrfToken, String grant)
    {
       String escapedCallback = HtmlUtils.htmlEscape(callback);
       String escapedToken = HtmlUtils.htmlEscape(token);
@@ -250,6 +257,15 @@ public class SSOTokenController {
       if(csrfToken != null && !csrfToken.isEmpty()) {
          csrfInput = "<input type=\"hidden\" name=\"_csrf\" value=\"" + HtmlUtils.htmlEscape(csrfToken) + "\" />";
       }
+
+      boolean portalGrant = PORTAL_GRANT.equals(grant);
+      String grantInput = portalGrant
+         ? "<input type=\"hidden\" name=\"grant\" value=\"" + PORTAL_GRANT + "\" />" : "";
+      String consentCopy = portalGrant
+         ? "An AI agent is requesting access to your StyleBI session, and to open or create " +
+           "worksheets and viewsheets in Visual Composer on your behalf &mdash; not just to know " +
+           "who you are."
+         : "An AI agent is requesting access to your StyleBI session.";
 
       return """
          <!DOCTYPE html>
@@ -300,10 +316,11 @@ public class SSOTokenController {
             <div class="card">
                <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ed711c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
                <h1>Authorize StyleBI Access</h1>
-               <p>An AI agent is requesting access to your StyleBI session.<br>
+               <p>%s<br>
                   Click <strong>Authorize</strong> to connect, or close this tab to cancel.</p>
                <form method="POST" action="%s">
                   <input type="hidden" name="token" value="%s" />
+                  %s
                   %s
                   %s
                   <button type="submit" class="btn">Authorize</button>
@@ -312,9 +329,14 @@ public class SSOTokenController {
             </div>
          </body>
          </html>
-         """.formatted(escapedCallback, escapedToken, redirectUrlInput, csrfInput);
+         """.formatted(consentCopy, escapedCallback, escapedToken, redirectUrlInput, csrfInput,
+                       grantInput);
    }
 
    private final SSOTokenService ssoTokenService;
    private static final String SSO_CALLBACK_PATH = "/api/wiz/auth/callback";
+
+   /** The only recognized {@code grant} value -- anything else (including {@code null}, the
+    *  ordinary case) is treated identically to absent, per design doc section 8.3. */
+   private static final String PORTAL_GRANT = "portal";
 }
