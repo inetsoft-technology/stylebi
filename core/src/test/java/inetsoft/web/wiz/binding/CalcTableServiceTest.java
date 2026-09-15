@@ -63,6 +63,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.awt.Dimension;
 import java.security.Principal;
 import java.util.*;
 
@@ -119,6 +120,61 @@ class CalcTableServiceTest {
       assertEquals("group", binding.get("grouping"));
       assertEquals("vertical", binding.get("expand"));
       assertEquals("SomeName", binding.get("runtimeName"));
+   }
+
+   /**
+    * Regression test for Redmine #76663: {@code TableLayoutHandler.mergeCells} clones the
+    * anchor's binding onto every non-anchor cell in a merged span (restoring only that cell's
+    * own pre-merge {@code cellName}), so describing a non-anchor cell the same way as any other
+    * cell reported the anchor's data under a stale name -- a caller reading {@code
+    * get_calc_layout} right after a merge could not tell the two apart. The anchor's own {@code
+    * spanRows}/{@code spanCols} are the only merge-membership signal StyleBI records at all
+    * (recorded solely at the anchor coordinate), so a non-anchor cell must be identified by
+    * scanning every anchor's span, not by anything on the cell's own entry.
+    */
+   @Test
+   void mergedAwayCellReportsMergedIntoInsteadOfTheAnchorsClonedBinding() throws Exception {
+      Harness h = harness(1, 2);
+      when(h.assemblyInfo.getTableLayout().getSpan(0, 0)).thenReturn(new Dimension(2, 1));
+      CellBindingInfo anchorInfo = new CellBindingInfo();
+      anchorInfo.setType(CellBinding.BIND_COLUMN);
+      when(h.layoutService.getCellBindingInfo(any(), eq(0), eq(0))).thenReturn(anchorInfo);
+
+      Map<String, Object> layout = h.service.readLayout("tok", principal(), "Calc1");
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> cells = (List<Map<String, Object>>) layout.get("cells");
+      Map<String, Object> anchorCell = cells.get(0);
+      Map<String, Object> mergedAwayCell = cells.get(1);
+
+      assertEquals(1, anchorCell.get("spanRows"));
+      assertEquals(2, anchorCell.get("spanCols"));
+      assertNotNull(anchorCell.get("binding"));
+
+      assertNull(mergedAwayCell.get("binding"),
+                 "a non-anchor cell inside a merge must not describe the anchor's cloned " +
+                 "binding as its own");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> mergedInto = (Map<String, Object>) mergedAwayCell.get("mergedInto");
+      assertEquals(0, mergedInto.get("row"));
+      assertEquals(0, mergedInto.get("col"));
+      verify(h.layoutService, never()).getCellBindingInfo(any(), eq(0), eq(1));
+   }
+
+   /** Same fix, through the single-cell read {@code get_cell_binding} drives. */
+   @Test
+   void readCellOfAMergedAwayCellReportsMergedIntoTooNotJustReadLayout() throws Exception {
+      Harness h = harness(1, 2);
+      when(h.assemblyInfo.getTableLayout().getSpan(0, 0)).thenReturn(new Dimension(2, 1));
+
+      Map<String, Object> read = h.service.readCell("tok", principal(), "Calc1", 0, 1);
+
+      assertNull(read.get("binding"));
+      @SuppressWarnings("unchecked")
+      Map<String, Object> mergedInto = (Map<String, Object>) read.get("mergedInto");
+      assertEquals(0, mergedInto.get("row"));
+      assertEquals(0, mergedInto.get("col"));
+      verify(h.layoutService, never()).getCellBindingInfo(any(), eq(0), eq(1));
    }
 
    /**

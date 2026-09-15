@@ -124,6 +124,16 @@ public class AdminProviderController {
     * resolved server-side via {@code replacePlaceholderWithPassword}, never a literal placeholder
     * string (bug 76602's load-bearing fix; a caller cannot even construct the failure mode, since
     * there is no model parameter to smuggle a stale/masked password through).
+    *
+    * <p>FILE providers are special-cased (bug 76655): {@code AuthenticationProviderService
+    * .testConnection}'s FILE branch has no failure mode to surface at all (construction can't
+    * fail), so calling straight through would always report the same generic "Connection is OK"
+    * text a genuinely-tested LDAP/DATABASE provider gets -- indistinguishable to a caller from a
+    * real, verified-good connection even though nothing was actually tested. Returned here as a
+    * distinct, explicit "nothing to test" status instead, matching {@link #requireCacheable}'s
+    * discipline for the identical shape of problem (a capability that does not exist for FILE) one
+    * endpoint over -- except this one is read-only, so it returns a distinguishable answer rather
+    * than refusing outright.
     */
    @Secured(@RequiredPermission(
       resourceType = ResourceType.EM_COMPONENT, resource = "settings/security/provider",
@@ -136,6 +146,13 @@ public class AdminProviderController {
       requireSiteAdmin(user);
       requireExists(name, authenticationProviderService.getProviderListModel().providers());
       AuthenticationProviderModel model = authenticationProviderService.getAuthenticationProvider(name);
+
+      if(model.providerType() == SecurityProviderType.FILE) {
+         return new ConnectionStatus(
+            "provider \"" + name + "\" is type FILE -- FILE providers have no live connection to " +
+            "test, so nothing was checked; this is not a failure, there is simply nothing to test");
+      }
+
       return new ConnectionStatus(authenticationProviderService.testConnection(model));
    }
 
@@ -179,6 +196,13 @@ public class AdminProviderController {
     * it, rather than silently succeeding as a no-op -- {@code CachableProvider.clearCache()}'s own
     * default implementation is an unconditional no-op, so calling through unconditionally would
     * report success for a call that changed nothing (03-fix.md's FILE-provider decision).
+    *
+    * <p>The {@code requireCacheable} check reads {@code cacheEnabled()} straight off the very same
+    * {@link SecurityProviderStatus} the name-to-index resolution above already read (bug 76655 --
+    * this used to be a separate, independent re-fetch of the live chain purely to ask it the same
+    * question, a TOCTOU window between the two reads with no lock spanning them). Not fully
+    * race-free -- {@link AuthenticationProviderService#clearAuthenticationProviderCache} still does
+    * its own independent, unguarded index lookup -- but this removes the one avoidable read.
     */
    @Secured(@RequiredPermission(
       resourceType = ResourceType.EM_COMPONENT, resource = "settings/security/provider",
@@ -192,10 +216,7 @@ public class AdminProviderController {
       List<SecurityProviderStatus> list = authenticationProviderService.getProviderListModel().providers();
       requireExists(name, list);
       int index = ProviderChangesetApplyService.indexOfName(list, name);
-      AuthenticationProvider provider = authenticationProviderService.getAuthenticationChain()
-         .orElseThrow(() -> new Exception("The authentication chain has not been initialized."))
-         .getProviders().get(index);
-      requireCacheable(name, provider);
+      requireCacheable(name, list.get(index).cacheEnabled());
       return authenticationProviderService.clearAuthenticationProviderCache(index);
    }
 
@@ -213,10 +234,7 @@ public class AdminProviderController {
       List<SecurityProviderStatus> list = authorizationProviderService.getProviderListModel().providers();
       requireExists(name, list);
       int index = ProviderChangesetApplyService.indexOfName(list, name);
-      AuthorizationProvider provider = authorizationProviderService.getAuthorizationChain()
-         .orElseThrow(() -> new Exception("The authorization chain has not been initialized."))
-         .getProviders().get(index);
-      requireCacheable(name, provider);
+      requireCacheable(name, list.get(index).cacheEnabled());
       return authorizationProviderService.clearAuthorizationProviderCache(index);
    }
 
@@ -275,13 +293,16 @@ public class AdminProviderController {
    }
 
    /** Both {@code AuthenticationProvider} and {@code AuthorizationProvider} extend
-    * {@code CachableProvider} directly, so {@code isCacheEnabled()} is the generic capability check
-    * for either chain -- confirmed by refute: {@code LdapAuthenticationProvider} hardcodes
-    * {@code true}, {@code FileAuthenticationProvider} does not override it (inherits the interface's
-    * {@code false} default). Refuses loud rather than letting {@code clearCache()}'s own no-op
+    * {@code CachableProvider} directly, and {@link SecurityProviderStatus#cacheEnabled()} already
+    * mirrors {@code CachableProvider.isCacheEnabled()} (confirmed by refute: {@code
+    * LdapAuthenticationProvider} hardcodes {@code true}, {@code FileAuthenticationProvider} does not
+    * override it, inheriting the interface's {@code false} default) -- so the already-resolved
+    * {@link SecurityProviderStatus} from the name-to-index lookup is the generic capability check
+    * for either chain, with no need for a second, independent chain read just to ask the same
+    * question (bug 76655). Refuses loud rather than letting {@code clearCache()}'s own no-op
     * default silently report success for a provider with nothing to clear. */
-   private static void requireCacheable(String name, CachableProvider provider) {
-      if(!provider.isCacheEnabled()) {
+   private static void requireCacheable(String name, boolean cacheEnabled) {
+      if(!cacheEnabled) {
          throw new IllegalArgumentException(
             "name: provider \"" + name + "\" has no cache to clear -- this provider's type does " +
             "not enable caching, refused rather than silently reporting success for a call that " +

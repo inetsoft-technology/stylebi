@@ -248,6 +248,8 @@ public final class ChartAestheticMutator {
 
       if(!aggregates.isEmpty()) {
          requireStaticColorOnMeasures(name, frame);
+         requireStaticLineOrTextureOnMeasures(name, frame);
+         requireStaticShapeOrSizeOnMeasures(name, frame);
 
          if(measure != null) {
             assignAggregateFrame(requireTargetMeasure(aggregates, name, measure), name, frame);
@@ -898,6 +900,108 @@ public final class ChartAestheticMutator {
          "then set this frame. (Storing it here does not merely go unrendered — it stops the chart " +
          "rendering at all.) The Composer draws the same line: with nothing on the color shelf its " +
          "swatch opens the static colour picker, never the categorical or gradient pane.");
+   }
+
+   /**
+    * Refuses a non-static line or texture frame about to be broadcast to the measures — i.e. a
+    * line/texture frame on a channel with no field bound, on a chart that renders that channel per
+    * measure. The line/texture counterpart of {@link #requireStaticColorOnMeasures}.
+    *
+    * <p>In exactly that configuration {@code VSFrameVisitor.createFrame} takes its
+    * {@code supportsFieldFrame()} branch and calls {@code VSLineFrameStrategy}/
+    * {@code VSTextureFrameStrategy}'s {@code createCombinedFrame}, which cast every aggregate's
+    * frame straight to {@code StaticLineFrame}/{@code StaticTextureFrame} with no {@code instanceof}
+    * in front of it — the identical shape {@code GraphUtil.fixDuplicateColor} has for colour, in a
+    * sibling strategy class. Anything else there is a {@code ClassCastException} at paint time on
+    * any chart type {@code GraphTypeUtil.supportsFrame} does not filter the frame out for first
+    * (every line/area/relation/radar chart, for line; the write is not itself chart-type-gated, so
+    * the corrupted frame is still stored even where the render side happens to skip it, e.g. texture
+    * on a line chart) — not a wrong line style or texture, the whole chart stops rendering, and it
+    * stays that way because the bad frame is now stored on the measures: {@code set_visual_frame}
+    * still answers ok, and {@code reset_visual_frame} does not recover it either, since {@code
+    * resetted()} only resets a categorical frame's values in place, never its family back to static.
+    *
+    * <p>The cast is safe for the Composer because the Composer cannot produce the state: shape,
+    * line and texture are one control there (see {@link #frameField}) — a categorical line or
+    * texture frame only ever arrives via a dimension bound to shape, never through this field-less
+    * slot. This is that same rule, enforced on the path that could otherwise reach the cast directly
+    * through the line/texture channel.
+    *
+    * <p>A parallel check rather than folded into {@link #requireStaticColorOnMeasures}: the refusal
+    * names a different recovery step (bind {@code shape}, not the channel itself — line and texture
+    * cannot take a field of their own at all) and a different reason the value must be fixed (shape/
+    * line/texture share one frame family; colour does not).
+    */
+   private static void requireStaticLineOrTextureOnMeasures(String channel, VisualFrameModel frame) {
+      boolean isLine = "line".equals(channel);
+      boolean isTexture = "texture".equals(channel);
+
+      if(!isLine && !isTexture) {
+         return;
+      }
+
+      if(isLine ? frame instanceof StaticLineModel : frame instanceof StaticTextureModel) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "The " + channel + " channel has no field bound, so its frame is the one fixed " + channel +
+         " value every measure is drawn in — only {type: \"static\", " + channel + ": ...} can go " +
+         "there. A '" + VisualFrameAliases.typeName(frame) + "' frame varies " + channel +
+         " across categories, which needs something to vary over — but " + channel + " cannot take " +
+         "a field of its own: bind a dimension to the shape channel first via set_aesthetic_field, " +
+         "which drives shape, line and texture together, then set this frame. (Storing it here does " +
+         "not merely go unrendered — on a chart that renders " + channel + " per measure this stops " +
+         "the chart rendering at all.)");
+   }
+
+   /**
+    * Refuses a non-static shape or size frame about to be broadcast to the measures — i.e. a
+    * shape/size frame on a channel with no field bound, on a chart that renders that channel per
+    * measure. The shape/size counterpart of {@link #requireStaticLineOrTextureOnMeasures}.
+    *
+    * <p>In exactly that configuration {@code VSFrameVisitor.createFrame} takes its
+    * {@code supportsFieldFrame()} branch and calls {@code VSShapeFrameStrategy}/
+    * {@code VSSizeFrameStrategy}'s {@code createCombinedFrame}, which cast every aggregate's
+    * frame straight to {@code StaticShapeFrame}/{@code StaticSizeFrame} with no {@code instanceof}
+    * in front of it — the identical shape {@code requireStaticLineOrTextureOnMeasures} guards
+    * against in the sibling strategy classes. Anything else there is a {@code ClassCastException}
+    * at paint time — for shape, on a point (or point-line radar) chart specifically, since
+    * {@code GraphTypeUtil.supportsFrame} only lets a {@code ShapeFrame} through to the combiner
+    * there; for size, on essentially any chart type except stock and Map+Polygon. The write is
+    * not itself chart-type-gated, so the corrupted frame is still stored even where the render
+    * side happens to skip it today — not a wrong shape or size, the whole chart stops rendering,
+    * and it stays that way because the bad frame is now stored on the measures:
+    * {@code set_visual_frame} still answers ok, and {@code reset_visual_frame} does not recover
+    * it either, since {@code resetted()} only resets a categorical frame's values in place, never
+    * its family back to static.
+    *
+    * <p>Unlike line/texture, shape and size each have a field channel of their own
+    * ({@link AestheticChannels#FIELD_CHANNELS}) — a categorical frame on either only reaches this
+    * per-measure branch when that channel's own field is unbound, so the refusal points the
+    * caller at binding that channel's own field, not at shape the way the line/texture refusal
+    * does.
+    */
+   private static void requireStaticShapeOrSizeOnMeasures(String channel, VisualFrameModel frame) {
+      boolean isShape = "shape".equals(channel);
+      boolean isSize = "size".equals(channel);
+
+      if(!isShape && !isSize) {
+         return;
+      }
+
+      if(isShape ? frame instanceof StaticShapeModel : frame instanceof StaticSizeModel) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         "The " + channel + " channel has no field bound, so its frame is the one fixed " +
+         channel + " value every measure is drawn in — only {type: \"static\", " + channel +
+         ": ...} can go there. A '" + VisualFrameAliases.typeName(frame) + "' frame varies " +
+         channel + " across categories or a value range, which needs something to vary over: " +
+         "bind a field to the " + channel + " channel with set_aesthetic_field first, then set " +
+         "this frame. (Storing it here does not merely go unrendered — it stops the chart " +
+         "rendering at all.)");
    }
 
    /**

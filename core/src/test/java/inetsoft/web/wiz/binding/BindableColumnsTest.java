@@ -364,4 +364,132 @@ class BindableColumnsTest {
 
       assertTrue(thrown.getMessage().contains("MADE_UP"));
    }
+
+   // ── "$(ComponentName)" dynamic references (#76641) ─────────────────────────
+   //
+   // A shelf field's column can be a dynamic reference to a form component instead of a real
+   // column name -- e.g. set_chart_shelf(Chart1, y, "$(RadioButton2)"). It is resolved against a
+   // real value only at render time (VSUtil.isVariableValue/DynamicValue), so checking it here
+   // against the source's schema refused a legitimate binding as if it were a typo'd or
+   // wrong-table column. This must not weaken the existence check for anything that ISN'T
+   // "$(...)"-shaped: a genuine typo or wrong-table column must still refuse exactly as before.
+
+   @Test
+   void acceptsADynamicReferenceRegardlessOfWhetherItIsAnAvailableColumn() {
+      assertDoesNotThrow(
+         () -> BindableColumns.require(TABLES, "Crosstab1", dim("$(RadioButton2)")));
+      assertDoesNotThrow(
+         () -> BindableColumns.require(BOUND_TO_QUERY1, "Chart1", dim("$(RadioButton2)")),
+         "must bypass even when a table is marked current and narrows the check");
+   }
+
+   @Test
+   void acceptsADynamicReferenceEvenWhenNothingIsListedAtAll() {
+      assertDoesNotThrow(
+         () -> BindableColumns.require(List.of(), "Crosstab1", dim("$(RadioButton2)")));
+      assertDoesNotThrow(
+         () -> BindableColumns.require(null, "Crosstab1", dim("$(RadioButton2)")));
+   }
+
+   @Test
+   void stillRefusesANonExistentLiteralColumnAlongsideADynamicReference() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(TABLES, "Crosstab1", dim("$(RadioButton2)"),
+                                       dim("NO_SUCH_COLUMN_XYZ")));
+
+      assertTrue(thrown.getMessage().contains("NO_SUCH_COLUMN_XYZ"),
+                 "the dynamic reference must not blanket-bypass every other field in the same call");
+   }
+
+   @Test
+   void stillRefusesAColumnFromATableTheAssemblyIsNotBoundToAlongsideADynamicReference() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(BOUND_TO_QUERY1, "Chart1", dim("$(RadioButton2)"),
+                                       dim("PRODUCT_NAME")));
+
+      assertTrue(thrown.getMessage().contains("PRODUCT_NAME"));
+      assertTrue(thrown.getMessage().contains("Query1"));
+   }
+
+   @Test
+   void doesNotTreatAPlainStringStartingWithDollarAsADynamicReference() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.require(TABLES, "Crosstab1", dim("$PRICE")));
+
+      assertTrue(thrown.getMessage().contains("$PRICE"),
+                 "only the \"$(...)\" shape is a dynamic reference, not any string starting with $");
+   }
+
+   // ── "$(ComponentName)" dynamic references when establishing a NEW source (#76641) ─────────
+   //
+   // require()'s bypass above only helps once an assembly already has a source: it narrows the
+   // check to the current table, and a dynamic reference skips that narrowed check. A brand-new
+   // assembly with nothing bound yet never reaches require() at all -- it goes through
+   // requireSource(), which decides the table itself via hasAll (inference) or requireHasAll
+   // (an explicitly named table), and neither of those knew about the same exception. So
+   // set_table_fields on a fresh Crosstab with a "$(ComboBox1)" field failed exactly the way
+   // set_chart_shelf used to before require() was fixed, just one call path over.
+
+   @Test
+   void establishesAnExplicitlyNamedTableWhenAFieldIsADynamicReference() {
+      assertEquals("Query1",
+                   BindableColumns.requireSource(NO_SOURCE, "Crosstab1", "Query1",
+                                                 List.of(field("PRICE"), dim("$(ComboBox1)"))),
+                   "the dynamic field must not be checked against Query1's columns");
+   }
+
+   @Test
+   void infersTheTableWhenAFieldIsADynamicReference() {
+      assertEquals("Products",
+                   BindableColumns.requireSource(NO_SOURCE, "Crosstab1", null,
+                                                 List.of(field("PRODUCT_NAME"), dim("$(ComboBox1)"))),
+                   "the dynamic field carries no table information, so the literal field alone " +
+                   "must decide the match");
+   }
+
+   /**
+    * A dynamic reference must not turn into a wildcard that makes every table "match": with no
+    * literal field to decide, {@code hasAll} trivially passes for every candidate, so more than one
+    * table still qualifies and the ambiguity refusal fires — it just does not, by itself, prove the
+    * bypass is wired in (a real regression could look identical). The literal-plus-dynamic tests
+    * above are what actually exercise the fix; this one only confirms the bypass has not gone so far
+    * as to manufacture a single winner out of nothing.
+    */
+   @Test
+   void aSoloDynamicReferenceDoesNotSilentlyPickATable() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(NO_SOURCE, "Crosstab1", null,
+                                             List.of(dim("$(ComboBox1)"))));
+
+      assertTrue(thrown.getMessage().contains("more than one table"));
+   }
+
+   @Test
+   void stillRefusesAGenuinelyWrongLiteralColumnWhenEstablishingANewSourceWithAnExplicitTable() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(NO_SOURCE, "Crosstab1", "Products",
+                                             List.of(dim("$(ComboBox1)"), field("PRICE"))));
+
+      assertTrue(thrown.getMessage().contains("PRICE"),
+                 "the dynamic field ahead of it must not swallow the real refusal");
+      assertTrue(thrown.getMessage().contains("Products"));
+   }
+
+   @Test
+   void stillRefusesWhenNoSingleTableHasTheLiteralFieldsAlongsideADynamicReference() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> BindableColumns.requireSource(NO_SOURCE, "Crosstab1", null,
+                                             List.of(dim("$(ComboBox1)"), field("PRICE"),
+                                                    field("PRODUCT_NAME"))));
+
+      assertTrue(thrown.getMessage().contains("one source"),
+                 "PRICE and PRODUCT_NAME still do not share a table; the dynamic field must not " +
+                 "manufacture a match that is not there");
+   }
 }

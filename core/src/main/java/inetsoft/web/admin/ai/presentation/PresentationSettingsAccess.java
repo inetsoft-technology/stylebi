@@ -137,7 +137,7 @@ public class PresentationSettingsAccess {
                             global)));
 
       adapters.put(PresentationSubModel.AI, new Adapter(
-         (principal, global) -> ai.getModel(),
+         (principal, global) -> global ? ai.getModel() : null,
          (model, principal, global) -> ai.setModel((PresentationAISettingsModel) model)));
    }
 

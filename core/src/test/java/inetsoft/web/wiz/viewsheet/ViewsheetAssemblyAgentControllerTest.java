@@ -1523,6 +1523,41 @@ class ViewsheetAssemblyAgentControllerTest {
       verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET), eq("rt-vs-3"), eq(agent));
    }
 
+   /**
+    * Bug #76637: broadcastRefresh alone only repaints visible assembly canvases, which never
+    * includes the Data panel/asset tree that would show the newly attached worksheet -- a second,
+    * separate broadcast is required so the browser's tree refreshes without a manual reload.
+    */
+   @Test
+   void attachBaseWorksheetAlsoBroadcastsABindingTreeRefresh() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-3");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class), broadcast);
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Sample Queries/customers", null),
+         agent);
+
+      verify(broadcast).broadcastBindingTreeRefresh(eq(rvs), eq("rt-vs-3"), eq(agent));
+   }
+
    /** Permission is actually enforced (getSheet's permission arg is true), not skipped. */
    @Test
    void attachBaseWorksheetProbesWithPermissionCheckingEnabled() throws Exception {

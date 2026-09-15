@@ -67,6 +67,7 @@ public class BindableFieldsService {
       throws Exception
    {
       String source = null;
+      String modelName = null;
 
       if(assembly != null) {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, user);
@@ -81,13 +82,30 @@ public class BindableFieldsService {
          }
 
          source = sourceNameOf(target);
+
+         // Bug #76607: a viewsheet-scoped calc field on a Logical Model is stored keyed by the
+         // model's own name (Viewsheet.calcmap), not any one entity -- so it has no single entity
+         // to belong to. BaseTreeModelBuilder's own home for exactly that shape (a Dimensions/
+         // Measures folder with no per-entity TABLE ancestor, directly under the tree root --
+         // addLMEntryLevel/addAggregateNode's addLMEntryLevel=true branch) already puts it there
+         // correctly keyed by the model's name. Passing modelName down lets collect() recognize
+         // that untagged folder as belonging to the model as a whole, instead of falling into the
+         // generic "no table ancestor" fallback and reading as a separate, unbindable pseudo-table
+         // literally named "Dimensions". Only meaningful for a scoped call -- an unscoped one
+         // already folds every entity via modelOf()/fold() and reads this same untagged folder
+         // correctly for a different reason (VSEventUtil.appendColumnNodes, not this class).
+         AssetEntry baseEntry = vs == null ? null : vs.getBaseEntry();
+
+         if(baseEntry != null && baseEntry.isLogicModel()) {
+            modelName = baseEntry.getName();
+         }
       }
 
       TreeNodeModel root = tree.getBinding(runtimeId, assembly, false, user);
       List<BindableTable> tables = new ArrayList<>();
 
       if(root != null) {
-         collect(root, tables, null);
+         collect(root, tables, null, modelName);
       }
 
       return assembly == null ? tables : marked(tables, source);
@@ -190,8 +208,16 @@ public class BindableFieldsService {
     *
     * <p>{@code sourceName} is the nearest enclosing table, carried down for the shapes that have no
     * table ancestor at all.
+    *
+    * @param modelName non-null only for a scoped call whose viewsheet base is a Logical Model --
+    *                  see the matching comment in {@link #list}. Lets the no-table-ancestor
+    *                  fallback below recognize an untagged Dimensions/Measures folder as the
+    *                  model's own (a model-level calc field's actual home), instead of reporting
+    *                  it as a separate, unbindable pseudo-table.
     */
-   private void collect(TreeNodeModel node, List<BindableTable> tables, String sourceName) {
+   private void collect(TreeNodeModel node, List<BindableTable> tables, String sourceName,
+                        String modelName)
+   {
       if(isTable(node)) {
          List<BindableField> fields = new ArrayList<>();
          gather(node, fields, isLogicalModel(node), null);
@@ -222,17 +248,32 @@ public class BindableFieldsService {
             direct.add(fieldOf(child, null));
          }
          else {
-            collect(child, tables, sourceName);
+            collect(child, tables, sourceName, modelName);
          }
       }
 
-      // No table ancestor: name the group after the node that holds the columns. That is the
-      // pre-fix behaviour, and for the Composer's own tree it is the *bug* being fixed here -- a
-      // group called "Dimensions". It survives only as a floor for tree shapes this does not
-      // anticipate, where a wrong-but-present name beats a blank one.
-      if(!direct.isEmpty()) {
-         tables.add(new BindableTable(sourceName != null ? sourceName : node.label(), null, direct));
+      if(direct.isEmpty()) {
+         return;
       }
+
+      // Bug #76607: an untagged Dimensions/Measures folder directly under root, for a scoped call
+      // whose viewsheet base is a Logical Model, is exactly where a model-level calc field lives
+      // (it belongs to no single entity, so BaseTreeModelBuilder gives it no per-entity TABLE
+      // ancestor either). Fold it into the model's own group, the same way a real entity's TABLE
+      // node already does via modelOf()/fold() above -- rather than reporting a fabricated
+      // per-entity ancestor (there isn't one) or falling into the generic no-table-ancestor
+      // fallback below, which reads as a separate, unbindable pseudo-table literally named
+      // "Dimensions".
+      if(modelName != null) {
+         fold(tables, modelName, direct);
+         return;
+      }
+
+      // No table ancestor, and not a Logical Model calc field: name the group after the node that
+      // holds the columns. That is the pre-fix behaviour, and for the Composer's own tree it is
+      // the *bug* being fixed here -- a group called "Dimensions". It survives only as a floor for
+      // tree shapes this does not anticipate, where a wrong-but-present name beats a blank one.
+      tables.add(new BindableTable(sourceName != null ? sourceName : node.label(), null, direct));
    }
 
    /**
