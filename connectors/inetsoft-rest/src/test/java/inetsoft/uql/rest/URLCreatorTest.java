@@ -122,6 +122,78 @@ class URLCreatorTest {
       assertEquals(expectedUrl, actualUrl);
    }
 
+   @Test
+   void createUrlWithSuffixWhenBaseUrlAlreadyHasQueryString() throws MalformedURLException, URISyntaxException {
+      final RestJsonDataSource dataSource = new RestJsonDataSource();
+      dataSource.setURL("https://api.worldbank.org/v2/country?format=xml");
+
+      final RestJsonQuery query = new RestJsonQuery();
+      query.setDataSource(dataSource);
+      query.setSuffix("");
+
+      final RestRequest request = RestRequest.builder()
+         .query(query)
+         .build();
+
+      final URL actualUrl = URLCreator.fromRestRequest(request);
+      final URL expectedUrl = new URL("https://api.worldbank.org/v2/country?format=xml");
+      assertEquals(expectedUrl, actualUrl);
+   }
+
+   @Test
+   void createUrlWithAmpSuffixWhenBaseUrlAlreadyHasQueryString() throws MalformedURLException, URISyntaxException {
+      final RestJsonDataSource dataSource = new RestJsonDataSource();
+      dataSource.setURL("https://api.worldbank.org/v2/country?format=xml");
+
+      final RestJsonQuery query = new RestJsonQuery();
+      query.setDataSource(dataSource);
+      query.setSuffix("&per_page=5");
+
+      final RestRequest request = RestRequest.builder()
+         .query(query)
+         .build();
+
+      final URL actualUrl = URLCreator.fromRestRequest(request);
+      final URL expectedUrl = new URL("https://api.worldbank.org/v2/country?format=xml&per_page=5");
+      assertEquals(expectedUrl, actualUrl);
+   }
+
+   @Test
+   void createUrlWithQuestionSuffixWhenBaseUrlAlreadyHasQueryString() throws MalformedURLException, URISyntaxException {
+      final RestJsonDataSource dataSource = new RestJsonDataSource();
+      dataSource.setURL("https://api.worldbank.org/v2/country?format=xml");
+
+      final RestJsonQuery query = new RestJsonQuery();
+      query.setDataSource(dataSource);
+      query.setSuffix("?format=xml&per_page=5");
+
+      final RestRequest request = RestRequest.builder()
+         .query(query)
+         .build();
+
+      final URL actualUrl = URLCreator.fromRestRequest(request);
+      final URL expectedUrl = new URL("https://api.worldbank.org/v2/country?format=xml&format=xml&per_page=5");
+      assertEquals(expectedUrl, actualUrl);
+   }
+
+   @Test
+   void createUrlWithSuffixWhenBaseUrlHasNoQueryString() throws MalformedURLException, URISyntaxException {
+      final RestJsonDataSource dataSource = new RestJsonDataSource();
+      dataSource.setURL("https://api.worldbank.org/v2/country");
+
+      final RestJsonQuery query = new RestJsonQuery();
+      query.setDataSource(dataSource);
+      query.setSuffix("foo=bar");
+
+      final RestRequest request = RestRequest.builder()
+         .query(query)
+         .build();
+
+      final URL actualUrl = URLCreator.fromRestRequest(request);
+      final URL expectedUrl = new URL("https://api.worldbank.org/v2/country/foo=bar");
+      assertEquals(expectedUrl, actualUrl);
+   }
+
    private AbstractRestQuery createBaseQuery() {
       final RestJsonDataSource dataSource = new RestJsonDataSource();
       dataSource.setURL("https://restcountries.eu/rest/v2");
