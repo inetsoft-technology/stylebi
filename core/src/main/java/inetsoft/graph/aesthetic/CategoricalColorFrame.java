@@ -20,6 +20,7 @@ package inetsoft.graph.aesthetic;
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.internal.GTool;
+import inetsoft.graph.internal.OKLab;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.util.CoreTool;
@@ -486,6 +487,65 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    }
 
    /**
+    * The soft companion of the base at this index: the same hue, receding toward the surface.
+    * Light lifts toward the canvas; dark deepens instead, and holds chroma because low chroma and
+    * low lightness disappear together on a dark surface. The darkest member of a set (the anchor)
+    * is the exception in both modes - it has nowhere to deepen to, so it is sent to a fixed
+    * lightness. Returns null when the index carries no base colour.
+    */
+   public Color getCompanionColor(int index, boolean dark) {
+      if(index < 0 || defaultColors == null || index >= defaultColors.size()) {
+         return null;
+      }
+
+      Color base = defaultColors.get(index);
+
+      if(base == null) {
+         return null;
+      }
+
+      double[] lch = OKLab.toLCH(OKLab.fromColor(base));
+      double l = lch[0];
+      double c = lch[1];
+      double h = lch[2];
+      // the anchor sits at a different lightness in each mode, so the threshold does too
+      boolean anchor = dark ? l < DARK_ANCHOR_MAX_L : l < LIGHT_ANCHOR_MAX_L;
+
+      if(dark) {
+         return anchor ? OKLab.toColorInGamut(0.64, c * 0.55, h)
+            : OKLab.toColorInGamut(l - 0.26, c * 1.03, h);
+      }
+
+      return anchor ? OKLab.toColorInGamut(0.855, c * 0.45, h)
+         : OKLab.toColorInGamut(l + 0.14, c * 0.40, h);
+   }
+
+   /**
+    * A band fill frame stepping from a resolved companion toward its base. Band 0 is the companion
+    * itself; further bands walk lightness toward the base without reaching it, so depth reads as
+    * depth and no band collides with the series colour. The companion is resolved by the caller
+    * (VSChartPaletteDefaults.companionColor) so an authored override wins over the rule.
+    */
+   public static CategoricalColorFrame companionBands(Color base, Color companion, int bands) {
+      if(base == null || companion == null) {
+         return null;
+      }
+
+      double[] companionLCH = OKLab.toLCH(OKLab.fromColor(companion));
+      double baseL = OKLab.toLCH(OKLab.fromColor(base))[0];
+      double span = companionLCH[0] - baseL;
+      int count = Math.max(1, bands);
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+
+      for(int i = 0; i < count; i++) {
+         double l = companionLCH[0] - i * span / count;
+         frame.setDefaultColor(i, OKLab.toColorInGamut(l, companionLCH[1], companionLCH[2]));
+      }
+
+      return frame;
+   }
+
+   /**
     * @hidden
     */
    public Map<Integer, Color> getUserColors() {
@@ -704,4 +764,6 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    private ReentrantLock unusedLock = new ReentrantLock();
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(CategoricalColorFrame.class);
+   private static final double LIGHT_ANCHOR_MAX_L = 0.40;
+   private static final double DARK_ANCHOR_MAX_L = 0.50;
 }
