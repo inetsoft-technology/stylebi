@@ -42,6 +42,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -127,16 +128,26 @@ public class StoredAssetChangesetApplyService {
          boolean failed = false;
 
          for(StoredAssetChangePlanService.ResolvedChange entry : resolved) {
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
+
             try {
-               applyOne(txId, reviewedTask, entry, user, backupRef, reviewOutcome, results, undoable);
+               applyOne(txId, reviewedTask, entry, user, backupRef, reviewOutcome, results, undoable,
+                       mutationEntered);
             }
             catch(Exception e) {
                // A throw carries no verifiable before/after evidence for THIS change -- must never
                // be treated as rolled back, same rule every prior area's apply service follows.
                results.add(new StoredAssetApplyOutcome(entry.path(), entry.planChange().currentValue(),
                   null, AdminChangeRecord.STATUS_FAILED, messageOf(e)));
-               unknownStateFailures.add(new RollbackFailure(entry.path(),
-                  "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+
+               // Only genuinely ambiguous when this entry's own mutating call actually started --
+               // a throw from a pre-mutation guard (e.g. applyCreate's existence re-check) never
+               // touched storage, so it must not force STATUS_ROLLBACK_FAILED.
+               if(mutationEntered.get()) {
+                  unknownStateFailures.add(new RollbackFailure(entry.path(),
+                     "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               }
+
                failed = true;
                break;
             }
@@ -176,27 +187,33 @@ public class StoredAssetChangesetApplyService {
 
    private void applyOne(String txId, String task, StoredAssetChangePlanService.ResolvedChange entry,
                          Principal user, String backupRef, String reviewOutcome,
-                         List<StoredAssetApplyOutcome> results, List<Undo> undoable)
+                         List<StoredAssetApplyOutcome> results, List<Undo> undoable,
+                         AtomicBoolean mutationEntered)
       throws Exception
    {
       switch(entry.verb()) {
          case StoredAssetChangeRequest.VERB_CREATE:
-            applyCreate(txId, task, entry, user, backupRef, reviewOutcome, results, undoable);
+            applyCreate(txId, task, entry, user, backupRef, reviewOutcome, results, undoable,
+                       mutationEntered);
             break;
          case StoredAssetChangeRequest.VERB_WRITE:
-            applyWrite(txId, task, entry, user, backupRef, reviewOutcome, results, undoable);
+            applyWrite(txId, task, entry, user, backupRef, reviewOutcome, results, undoable,
+                      mutationEntered);
             break;
          case StoredAssetChangeRequest.VERB_RENAME:
-            applyRename(txId, task, entry, user, backupRef, reviewOutcome, results, undoable);
+            applyRename(txId, task, entry, user, backupRef, reviewOutcome, results, undoable,
+                       mutationEntered);
             break;
          default:
-            applyDelete(txId, task, entry, user, backupRef, reviewOutcome, results, undoable);
+            applyDelete(txId, task, entry, user, backupRef, reviewOutcome, results, undoable,
+                       mutationEntered);
       }
    }
 
    private void applyCreate(String txId, String task, StoredAssetChangePlanService.ResolvedChange entry,
                             Principal user, String backupRef, String reviewOutcome,
-                            List<StoredAssetApplyOutcome> results, List<Undo> undoable)
+                            List<StoredAssetApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
    {
       String before = entry.planChange().currentValue();
 
@@ -204,6 +221,7 @@ public class StoredAssetChangesetApplyService {
          throw new IllegalArgumentException("\"" + entry.path() + "\" already exists");
       }
 
+      mutationEntered.set(true);
       dataSpace.makeDirectory(entry.path());
       boolean verified = dataSpace.exists(null, entry.path()) && dataSpace.isDirectory(entry.path());
       String after = verified ? "exists=true (folder)" : null;
@@ -220,11 +238,13 @@ public class StoredAssetChangesetApplyService {
 
    private void applyWrite(String txId, String task, StoredAssetChangePlanService.ResolvedChange entry,
                            Principal user, String backupRef, String reviewOutcome,
-                           List<StoredAssetApplyOutcome> results, List<Undo> undoable)
+                           List<StoredAssetApplyOutcome> results, List<Undo> undoable,
+                           AtomicBoolean mutationEntered)
       throws Exception
    {
       String before = entry.planChange().currentValue();
       byte[] bytes = entry.content().getBytes(StandardCharsets.UTF_8);
+      mutationEntered.set(true);
       dataSpace.withOutputStream(null, entry.path(),
          out -> Tool.fileCopy(new ByteArrayInputStream(bytes), out));
       contentSettingsService.updateFolder(entry.path());
@@ -245,9 +265,11 @@ public class StoredAssetChangesetApplyService {
 
    private void applyRename(String txId, String task, StoredAssetChangePlanService.ResolvedChange entry,
                             Principal user, String backupRef, String reviewOutcome,
-                            List<StoredAssetApplyOutcome> results, List<Undo> undoable)
+                            List<StoredAssetApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
    {
       String before = entry.planChange().currentValue();
+      mutationEntered.set(true);
       boolean success = dataSpace.rename(entry.path(), entry.newPath());
       String after = success ? entry.newPath() : null;
       String status = success ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
@@ -266,10 +288,12 @@ public class StoredAssetChangesetApplyService {
 
    private void applyDelete(String txId, String task, StoredAssetChangePlanService.ResolvedChange entry,
                             Principal user, String backupRef, String reviewOutcome,
-                            List<StoredAssetApplyOutcome> results, List<Undo> undoable)
+                            List<StoredAssetApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
    {
       String before = entry.planChange().currentValue();
       boolean folder = StoredAssetChangeRequest.UNIT_FOLDER.equals(entry.unitType());
+      mutationEntered.set(true);
       contentSettingsService.deleteDataSpaceNode(entry.path(), folder);
       boolean verified = !dataSpace.exists(null, entry.path());
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
