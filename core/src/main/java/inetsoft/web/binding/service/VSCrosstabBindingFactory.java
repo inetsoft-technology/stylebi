@@ -407,7 +407,12 @@ public class VSCrosstabBindingFactory
     * checked first.
     */
    private String getDefaultFormula(VSAggregateRef aggr) {
-      int refType = aggr.getRefType();
+      // aggr's own ref type: authoritative only for deciding whether this is an
+      // aggregate calc field/expression, which is exactly the case where the wrapped
+      // ref below may be null (see VSAggregateRef#getRefType()). Once a non-null
+      // wrapped ref is established below, it is re-read from that ref directly rather
+      // than reused from this variable -- see the comment there for why.
+      int aggrRefType = aggr.getRefType();
 
       // An aggregate calc field or aggregate expression is already an aggregated
       // value; wrapping it in another formula (Sum, Count, ...) would aggregate it
@@ -420,16 +425,28 @@ public class VSCrosstabBindingFactory
       // the equivalent, already-correct check in the sibling
       // VSCrosstabBindingHandler#createAgg(), which independently picks the same
       // "None" default for both flags.
-      if((refType & DataRef.AGG_CALC) == DataRef.AGG_CALC ||
-         (refType & DataRef.AGG_EXPR) == DataRef.AGG_EXPR)
+      if((aggrRefType & DataRef.AGG_CALC) == DataRef.AGG_CALC ||
+         (aggrRefType & DataRef.AGG_EXPR) == DataRef.AGG_EXPR)
       {
          return SummaryAttr.NONE_FORMULA;
       }
 
       DataRef ref = Objects.requireNonNull(aggr.getDataRef(), () ->
          "Cannot determine a default aggregate formula for '" + aggr.getName() +
-         "': it has no underlying column ref and ref type " + refType + " is not an " +
-         "aggregate calc field or expression");
+         "': it has no underlying column ref and its ref type " + aggrRefType +
+         " is not an aggregate calc field or expression");
+
+      // The wrapped ref exists past this point, so the branches below read its own
+      // type -- as they did before bug #76650's fix -- rather than aggrRefType.
+      // VSAggregateRef#getRefType() falls back to aggr's own tracked type (set
+      // independently, from the outer model, rather than the nested model that builds
+      // this wrapped ref -- see BAggregateRefModel#createDataRef()) whenever the
+      // wrapped ref isn't a ColumnRef, so reusing aggrRefType here would silently
+      // change the formula picked below whenever a client's two ref types disagree on
+      // a wrapped AttributeRef/AliasDataRef/AggregateRef/CalculateRef. For a
+      // ColumnRef-wrapped ref this is a no-op, since aggr.getRefType() already
+      // delegates to it.
+      int refType = ref.getRefType();
 
       // measure?
       //
