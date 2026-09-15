@@ -365,10 +365,9 @@ public class VSCrosstabBindingFactory
 
    private VSAggregateRef createAggregateRef(BAggregateRefModel field) {
       VSAggregateRef aggr = (VSAggregateRef) field.createDataRef();
-      DataRef ref = aggr.getDataRef();
 
       if(field.getFormula() == null) {
-         aggr.setFormula(AggregateFormula.getFormula(getDefaultFormula(ref)));
+         aggr.setFormula(AggregateFormula.getFormula(getDefaultFormula(aggr)));
       }
 
       Calculator calc = aggr.getCalculator();
@@ -396,8 +395,32 @@ public class VSCrosstabBindingFactory
       return aggr;
    }
 
-   private String getDefaultFormula(DataRef ref) {
-      int refType =  ref.getRefType();
+   /**
+    * Get the default formula for a newly-bound aggregate that has no explicit formula.
+    *
+    * <p>Bug #76650: an aggregate-mode calc field (or an aggregate expression) has no
+    * separate underlying column ref of its own -- {@code aggr.getDataRef()} is
+    * legitimately {@code null} for it, which used to NPE here. {@link
+    * VSAggregateRef#getRefType()} already falls back to the aggregate ref's own
+    * tracked ref type whenever the wrapped ref isn't a plain column ref (including
+    * when it is {@code null}), so it -- not the wrapped ref's type -- is what must be
+    * checked first.
+    */
+   private String getDefaultFormula(VSAggregateRef aggr) {
+      int refType = aggr.getRefType();
+
+      // An aggregate calc field or aggregate expression is already an aggregated
+      // value; wrapping it in another formula (Sum, Count, ...) would aggregate it
+      // twice. Mirrors the equivalent branch in the shared
+      // AssetUtil#getDefaultFormula(DataRef).
+      if(refType == DataRef.AGG_CALC || refType == DataRef.AGG_EXPR) {
+         return SummaryAttr.NONE_FORMULA;
+      }
+
+      DataRef ref = Objects.requireNonNull(aggr.getDataRef(), () ->
+         "Cannot determine a default aggregate formula for '" + aggr.getName() +
+         "': it has no underlying column ref and ref type " + refType + " is not an " +
+         "aggregate calc field or expression");
 
       // measure?
       if(refType == AbstractDataRef.MEASURE) {
