@@ -788,7 +788,8 @@ class WorksheetAgentControllerTest {
       when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
 
       WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
-      List<Map<String, Object>> expected = List.of(Map.of("x", "r1"));
+      WorksheetPreviewService.PreviewResult expected =
+         new WorksheetPreviewService.PreviewResult(List.of(Map.of("x", "r1")), List.of());
       when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(expected);
 
       WorksheetAgentController ctrl = controller(featureOn(),
@@ -796,9 +797,9 @@ class WorksheetAgentControllerTest {
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
          previewSvc);
 
-      List<Map<String, Object>> rows = ctrl.preview("TOK", "T", 0, 50, agent);
+      WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 0, 50, agent);
 
-      assertEquals(expected, rows);
+      assertEquals(expected, result);
       verify(previewSvc).preview(rws, "T", 0, 50);
    }
 
@@ -812,7 +813,8 @@ class WorksheetAgentControllerTest {
       when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
 
       WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
-      List<Map<String, Object>> expected = List.of(Map.of("x", "r201"));
+      WorksheetPreviewService.PreviewResult expected =
+         new WorksheetPreviewService.PreviewResult(List.of(Map.of("x", "r201")), List.of());
       when(previewSvc.preview(eq(rws), eq("T"), eq(200), eq(50))).thenReturn(expected);
 
       WorksheetAgentController ctrl = controller(featureOn(),
@@ -820,9 +822,9 @@ class WorksheetAgentControllerTest {
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
          previewSvc);
 
-      List<Map<String, Object>> rows = ctrl.preview("TOK", "T", 200, 50, agent);
+      WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 200, 50, agent);
 
-      assertEquals(expected, rows);
+      assertEquals(expected, result);
       verify(previewSvc).preview(rws, "T", 200, 50);
    }
 
