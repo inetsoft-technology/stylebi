@@ -100,6 +100,71 @@ public final class VSChartPaletteDefaults {
    }
 
    /**
+    * The companion of a slot: the authored palette when one declares this index, otherwise the
+    * rule applied to the base. A null or absent authored entry falls through to derivation - the
+    * loader sizes a palette to its highest declared index, so a partial override leaves holes
+    * that must not read as absent. paletteName may be null for a frame with no registered name.
+    */
+   public static Color companionColor(CategoricalColorFrame base, String paletteName, int index,
+                                      boolean dark)
+   {
+      if(base == null || index < 0) {
+         return null;
+      }
+
+      if(paletteName != null) {
+         Color[] authored = companionPalette(paletteName);
+
+         if(index < authored.length && authored[index] != null) {
+            return authored[index];
+         }
+      }
+
+      return base.getCompanionColor(index, dark);
+   }
+
+   /**
+    * Authored companion colors by index, memoized per org until the CSS changes - empty when the
+    * set declares no companion. Shares resolve()'s memo for the same two reasons: getPalette locks
+    * on its own class, and a broken format.css must not fail the render.
+    */
+   private static Color[] companionPalette(String name) {
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      long ts = CSSDictionary.getOrgScopedCSSLastModified(CSSDictionary.getDictionary());
+      String memoKey = orgID + "|companion|" + name;
+      String stamp = memoKey + "|" + ts;
+      Memo memo = MEMO.get(memoKey);
+
+      if(memo != null && memo.stamp().equals(stamp)) {
+         return memo.colors();
+      }
+
+      Color[] resolved = companionColors(name);
+      MEMO.put(memoKey, new Memo(stamp, resolved));
+      return resolved;
+   }
+
+   /**
+    * Never handed out - companionColor reads one immutable Color out of it - so it is memoized
+    * without a defensive copy, unlike resolve()'s palette.
+    */
+   private static Color[] companionColors(String name) {
+      CategoricalColorFrame authored = getCompanionPaletteSafely(name);
+
+      if(authored == null) {
+         return NO_COMPANIONS;
+      }
+
+      Color[] colors = new Color[authored.getColorCount()];
+
+      for(int i = 0; i < colors.length; i++) {
+         colors[i] = authored.getDefaultColor(i);
+      }
+
+      return colors;
+   }
+
+   /**
     * Head colors followed by the legacy tail, so high-cardinality charts keep 40 distinct
     * colors and do not wrap early.
     */
@@ -174,6 +239,20 @@ public final class VSChartPaletteDefaults {
       }
    }
 
+   /**
+    * The same guard, routed through the companion accessor so the reserved suffix stays enforced
+    * in ColorPalettes rather than being spelled out here.
+    */
+   private static CategoricalColorFrame getCompanionPaletteSafely(String name) {
+      try {
+         return ColorPalettes.getCompanionPalette(name);
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to resolve companion palette " + name, ex);
+         return null;
+      }
+   }
+
    static void clearMemo() {
       MEMO.clear();
    }
@@ -187,6 +266,7 @@ public final class VSChartPaletteDefaults {
    private static final Set<String> MODERN_HIDDEN =
       Set.of("Pastel", "Heat 8", "Heat 16", "Heat 24", "Blue", "Green", "Red", "Orange", "Gray");
    private static final Map<String, Memo> MEMO = new ConcurrentHashMap<>();
+   private static final Color[] NO_COMPANIONS = new Color[0];
    private static final Logger LOG = LoggerFactory.getLogger(VSChartPaletteDefaults.class);
 
    private static final Color[] MODERN_HEAD = {

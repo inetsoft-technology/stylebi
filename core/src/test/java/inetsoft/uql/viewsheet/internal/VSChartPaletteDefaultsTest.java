@@ -349,4 +349,51 @@ class VSChartPaletteDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       assertEquals(9, VSChartPaletteDefaults.hiddenPaletteNames(VizContext.ofGate()).size());
    }
+
+   @Test
+   void authoredCompanionWinsOverDerivation() {
+      CategoricalColorFrame modern = ColorPalettes.getPalette("Modern");
+      // slot 6 is the one authored value the rule does not reproduce - a deliberate hand-tune,
+      // so it proves the authored layer is consulted first
+      assertEquals(new Color(0xFFE7C7),
+                   VSChartPaletteDefaults.companionColor(modern, "Modern", 5, false));
+   }
+
+   @Test
+   void anUnnamedFrameStillGetsDerivedCompanions() {
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      frame.setDefaultColor(0, new Color(0x0490FF));
+      assertEquals(new Color(0x97BEEB),
+                   VSChartPaletteDefaults.companionColor(frame, null, 0, false));
+   }
+
+   @Test
+   void anIndexBeyondTheAuthoredPaletteFallsThroughToDerivation() {
+      CategoricalColorFrame modern = ColorPalettes.getPalette("Modern");
+      // Modern-soft declares 8; Modern declares 40, so slot 9 must derive
+      assertNotNull(VSChartPaletteDefaults.companionColor(modern, "Modern", 8, false));
+   }
+
+   @Test
+   void authoredCompanionsAgreeWithTheRuleExceptTheHandTunedSlot() {
+      // the drift guard: authored hexes ARE the rule's output, so the two cannot silently
+      // diverge. Light slot 6 (Amber) is exempt - its rule target is outside sRGB and the
+      // designer lowered lightness as well as chroma. An exemption list of one is the point.
+      assertCompanionsAgree("Modern", false, 5);
+      assertCompanionsAgree("Modern Dark", true, -1);
+   }
+
+   private void assertCompanionsAgree(String name, boolean dark, int exemptIndex) {
+      CategoricalColorFrame base = ColorPalettes.getPalette(name);
+      CategoricalColorFrame authored = ColorPalettes.getCompanionPalette(name);
+
+      for(int i = 0; i < authored.getColorCount(); i++) {
+         if(i == exemptIndex) {
+            continue;
+         }
+
+         assertEquals(base.getCompanionColor(i, dark), authored.getDefaultColor(i),
+                      name + " index " + (i + 1) + " must equal the rule's output");
+      }
+   }
 }
