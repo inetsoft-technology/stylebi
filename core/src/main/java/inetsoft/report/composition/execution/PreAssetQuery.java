@@ -481,6 +481,14 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          }
       }
 
+      // A JAVASCRIPT-typed condition value referencing field['Col'] needs a genuine per-row
+      // `field` binding (see AssetConditionGroup's per-row field-expression evaluation), which
+      // only the in-memory evaluation path provides -- force it non-mergeable so it is never
+      // pushed into SQL as a single pre-resolved scalar (WBS-042).
+      if(referencesFieldInJavascript(cond0)) {
+         return false;
+      }
+
       if(!(xcond instanceof AssetCondition)) {
          return true;
       }
@@ -545,9 +553,32 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          {
             return false;
          }
+
+         XCondition xcond = item.getXCondition();
+
+         // see isConditionItemMergeable's identical check for the rationale (WBS-042)
+         if(xcond instanceof Condition && referencesFieldInJavascript((Condition) xcond)) {
+            return false;
+         }
       }
 
       return true;
+   }
+
+   /**
+    * True if any of the condition's values is a JAVASCRIPT-typed {@link ExpressionValue}
+    * referencing the per-row {@code field} binding ({@code field['Col']}/{@code field.Col}).
+    * Such a condition cannot be pushed into SQL as a single pre-resolved scalar -- see
+    * {@link AssetConditionGroup}'s per-row field-expression re-evaluation (WBS-042).
+    */
+   private static boolean referencesFieldInJavascript(Condition cond) {
+      for(Object val : cond.getValues()) {
+         if(val instanceof ExpressionValue && ((ExpressionValue) val).referencesField()) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

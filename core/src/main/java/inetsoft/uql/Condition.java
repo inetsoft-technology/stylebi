@@ -1510,6 +1510,10 @@ public class Condition extends AbstractCondition {
       cal.setTimeInMillis(System.currentTimeMillis());
       int year = cal.get(Calendar.YEAR);
       cal.set(year + yn, 0, 1); // Jan 1st yn years earlier
+      cal.set(Calendar.HOUR_OF_DAY, 0);
+      cal.set(Calendar.MINUTE, 0);
+      cal.set(Calendar.SECOND, 0);
+      cal.set(Calendar.MILLISECOND, 0);
       java.sql.Date date1 = new java.sql.Date(cal.getTimeInMillis());
       cal.set(year + yn, 11, 31); // Sep 31th yn years earlier
       java.sql.Date date2 = new java.sql.Date(cal.getTimeInMillis());
