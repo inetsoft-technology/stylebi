@@ -495,6 +495,72 @@ ChartPalette[name='Modern Dark'][index='40'] {
    color: #CCCC33;
 }
 
+/* Companions of the Modern bases. Not user-selectable: reached only through
+   ColorPalettes.getCompanionPalette() and filtered out of getPaletteNames(). */
+ChartPalette[name='Modern-soft'][index='1'] {
+   color: #97beeb;
+}
+
+ChartPalette[name='Modern-soft'][index='2'] {
+   color: #f6b2a2;
+}
+
+ChartPalette[name='Modern-soft'][index='3'] {
+   color: #cccce9;
+}
+
+ChartPalette[name='Modern-soft'][index='4'] {
+   color: #bff6e5;
+}
+
+ChartPalette[name='Modern-soft'][index='5'] {
+   color: #ad8bcb;
+}
+
+ChartPalette[name='Modern-soft'][index='6'] {
+   color: #ffe7c7;
+}
+
+ChartPalette[name='Modern-soft'][index='7'] {
+   color: #de93ab;
+}
+
+ChartPalette[name='Modern-soft'][index='8'] {
+   color: #d8f7ba;
+}
+
+ChartPalette[name='Modern Dark-soft'][index='1'] {
+   color: #00569c;
+}
+
+ChartPalette[name='Modern Dark-soft'][index='2'] {
+   color: #a62e11;
+}
+
+ChartPalette[name='Modern Dark-soft'][index='3'] {
+   color: #8988ab;
+}
+
+ChartPalette[name='Modern Dark-soft'][index='4'] {
+   color: #009378;
+}
+
+ChartPalette[name='Modern Dark-soft'][index='5'] {
+   color: #550080;
+}
+
+ChartPalette[name='Modern Dark-soft'][index='6'] {
+   color: #ab792a;
+}
+
+ChartPalette[name='Modern Dark-soft'][index='7'] {
+   color: #870047;
+}
+
+ChartPalette[name='Modern Dark-soft'][index='8'] {
+   color: #5f9100;
+}
+
 ChartPalette[name='Soft'][index='1'] {
   color: #5a9bd4;
 }

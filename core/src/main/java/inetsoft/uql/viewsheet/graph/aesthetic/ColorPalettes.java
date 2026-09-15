@@ -30,6 +30,7 @@ import java.awt.*;
 import java.io.*;
 import java.util.List;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * This class tracks configurable color palettes.
@@ -44,7 +45,8 @@ public class ColorPalettes {
    public static Collection<String> getPaletteNames() {
       synchronized(ColorPalettes.class) {
          singleton.loadPalettes();
-         return singleton.paletteMap.get(OrganizationManager.getInstance().getCurrentOrgID()).keySet();
+         return selectable(singleton.paletteMap
+            .get(OrganizationManager.getInstance().getCurrentOrgID()).keySet());
       }
    }
 
@@ -54,7 +56,8 @@ public class ColorPalettes {
    public static Collection<String> getPaletteNames(String cssLocation) {
       synchronized(ColorPalettes.class) {
          singleton.loadPalettes(cssLocation, true);
-         return singleton.paletteMap.get(OrganizationManager.getInstance().getCurrentOrgID()).keySet();
+         return selectable(singleton.paletteMap
+            .get(OrganizationManager.getInstance().getCurrentOrgID()).keySet());
       }
    }
 
@@ -77,6 +80,26 @@ public class ColorPalettes {
          return singleton.paletteMap.get(OrganizationManager.getInstance().getCurrentOrgID()).get(name);
       }
    }
+
+   /**
+    * The companion palette of a named set, or null when none is declared. Companions are reached
+    * only through here - they are filtered out of getPaletteNames() so they cannot be picked as
+    * a palette in their own right.
+    */
+   public static CategoricalColorFrame getCompanionPalette(String name) {
+      return name == null || name.endsWith(COMPANION_SUFFIX)
+         ? null : getPalette(name + COMPANION_SUFFIX);
+   }
+
+   // names carrying the reserved suffix are companions, not selectable palettes. Enforced here
+   // rather than at each caller so the reservation lives in one place.
+   private static Collection<String> selectable(Collection<String> names) {
+      return names.stream()
+         .filter(name -> !name.endsWith(COMPANION_SUFFIX))
+         .collect(Collectors.toCollection(LinkedHashSet::new));
+   }
+
+   public static final String COMPANION_SUFFIX = "-soft";
 
    private void loadPalettes() {
       loadPalettes(null, false);
