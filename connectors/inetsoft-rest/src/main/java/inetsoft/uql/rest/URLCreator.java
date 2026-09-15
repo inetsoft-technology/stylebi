@@ -71,6 +71,13 @@ public class URLCreator {
          {
             url = suffix;
          }
+         else if(url.contains("?") && !url.endsWith("?")) {
+            // url already has a complete query string (not just a bare trailing "?"),
+            // so suffix must be joined as additional query content, not path-appended
+            if(!suffix.isBlank()) {
+               url += "&" + suffix.replaceFirst("^[?&]+", "");
+            }
+         }
          else if(url.endsWith("/") && suffix.startsWith("/")) {
             url += suffix.substring(1);
          }
