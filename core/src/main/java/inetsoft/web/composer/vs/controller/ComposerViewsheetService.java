@@ -544,7 +544,7 @@ public class ComposerViewsheetService {
       VSRefreshEvent refresh = VSRefreshEvent.builder().confirmed(false).initing(false).build();
 
       if(event.isRefreshDirectly()) {
-         this.refreshController.refreshViewsheet(refresh, principal, dispatcher, linkUri);
+         this.refreshController.refreshViewsheet(runtimeId, refresh, principal, dispatcher, linkUri);
          return null;
       }
 
@@ -554,7 +554,7 @@ public class ComposerViewsheetService {
          vs.getBaseEntry().setProperty("mv_background", "true");
          // refresh the viewsheet so that any assemblies that have not been added are added with
          // metadata
-         this.refreshController.refreshViewsheet(refresh, principal, dispatcher, linkUri);
+         this.refreshController.refreshViewsheet(runtimeId, refresh, principal, dispatcher, linkUri);
       }
       // wait for is not confirmed
       else if(event.isConfirmed()) {
@@ -614,7 +614,7 @@ public class ComposerViewsheetService {
          else {
             try {
                // refresh viewsheet after mv data is created.
-               this.refreshController.refreshViewsheet(refresh, principal,
+               this.refreshController.refreshViewsheet(runtimeId, refresh, principal,
                                                        dispatcher, linkUri);
             }
             // when click cancel button in mv message dialog(have Run In Backgound
