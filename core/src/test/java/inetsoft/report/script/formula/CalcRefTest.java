@@ -141,19 +141,32 @@ public class CalcRefTest {
 
       //check group == null and location length is 1
       when(mockContext.getGroup("cell1")).thenReturn(null);
-      CalcCellMap mockCalcCellMap = provideMockCalcCellMap("cell1", new Point[] {point0});
+      provideMockCalcCellMap("cell1", new Point[] {point0});
       when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(1);
 
       calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
       Object result1 = calcRef.getMember(".");
       assertEquals(1, result1);
+   }
 
-      //check group == null and location length > 1
-      when(mockCalcCellMap.getLocations("cell1", mockContext)).thenReturn(new Point[] {point0, point1});
+   /**
+    * Bug #76665: the "." accessor ($name['.'], used for explicit null-checks
+    * like $name['.'] == null) must throw rather than silently return the raw
+    * ambiguous array, same as valueOf/toString below -- a repeating named
+    * cell reference read from a row driven by a different, independent
+    * expand cursor is meaningless as a scalar/value here.
+    */
+   @Test
+   void testGetWithDotThrowsOnAmbiguousArray() {
+      FormulaContext.pushCellLocation(point0);
+      when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+      when(mockContext.getGroup("cell1")).thenReturn(null);
+      provideMockCalcCellMap("cell1", new Point[] {point0, point1});
       when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(1);
 
-      Object result2 = calcRef.getMember(".");
-      assertArrayEquals(new Object[] {1, null}, (Object[])result2);
+      calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+      assertThrows(inetsoft.util.script.ScriptException.class,
+                   () -> calcRef.getMember("."));
    }
 
    /**
@@ -279,6 +292,64 @@ public class CalcRefTest {
                            inetsoft.util.script.JSObject.split(calcRef));
          assertArrayEquals(new double[] { 100.0, 200.0 },
                            inetsoft.util.script.JSObject.splitN(calcRef));
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
+
+   /**
+    * Bug #76665: a $name reference read as a scalar (valueOf, GraalJS
+    * arithmetic/numeric coercion) must throw instead of silently converting
+    * an ambiguous multi-location unwrap() result (a repeating named cell
+    * referenced from a row driven by a different, independent expand
+    * cursor) to a guest array -- which coerced to NaN and rendered blank.
+    */
+   @Test
+   void testGetWithValueOfThrowsOnAmbiguousArray() {
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+         when(mockContext.getGroup("cell1")).thenReturn(null);
+         provideMockCalcCellMap("cell1", new Point[] { point0, point1 });
+         when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(100.0);
+         when(mockRuntimeCalcTableLens.getObject(1, 0)).thenReturn(200.0);
+
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+         Object member = calcRef.getMember("valueOf");
+         assertInstanceOf(ProxyExecutable.class, member);
+
+         ProxyExecutable executable = (ProxyExecutable) member;
+         assertThrows(inetsoft.util.script.ScriptException.class, executable::execute);
+      }
+      finally {
+         FormulaContext.popCellLocation();
+      }
+   }
+
+   /**
+    * Bug #76665: same as above, for the toString coercion (bare $name
+    * display), which previously leaked the raw Object[]'s default
+    * toString() (e.g. "[Ljava.lang.Object;@<hash>").
+    */
+   @Test
+   void testGetWithToStringThrowsOnAmbiguousArray() {
+      FormulaContext.pushCellLocation(point0);
+
+      try {
+         when(mockRuntimeCalcTableLens.getCellContext(0, 0)).thenReturn(mockContext);
+         when(mockContext.getGroup("cell1")).thenReturn(null);
+         provideMockCalcCellMap("cell1", new Point[] { point0, point1 });
+         when(mockRuntimeCalcTableLens.getObject(0, 0)).thenReturn(100.0);
+         when(mockRuntimeCalcTableLens.getObject(1, 0)).thenReturn(200.0);
+
+         calcRef = new CalcRef(mockRuntimeCalcTableLens, "cell1");
+         Object member = calcRef.getMember("toString");
+         assertInstanceOf(ProxyExecutable.class, member);
+
+         ProxyExecutable executable = (ProxyExecutable) member;
+         assertThrows(inetsoft.util.script.ScriptException.class, executable::execute);
       }
       finally {
          FormulaContext.popCellLocation();

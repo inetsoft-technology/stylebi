@@ -23,6 +23,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.script.ArrayObject;
+import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.ScriptArrayScope;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -321,6 +322,21 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
             else {
                // put it here so we don't go through the search next time
                colmap.put(id, "not found");
+
+               // id doesn't resolve to a column on the bound source table
+               // (header/identifier map) or on any ancestor TableFilter --
+               // fail loud instead of silently degrading to null, which
+               // downstream aggregate formulas (e.g. Sum(field[id]) with
+               // "fill blank with zero" on) can turn into a silent 0. Only
+               // do this if id was never explicitly assigned as a local
+               // member (e.g. field.name2 = "test"), which is a legitimate,
+               // unrelated use of this same fallthrough (see members.get(id)
+               // below) and must keep returning that value, not throw.
+               if(!members.containsKey(id)) {
+                  throw new ScriptException("Field \"" + id +
+                     "\" not found in table " + table.getClass().getName() +
+                     " or any ancestor table");
+               }
             }
          }
 
