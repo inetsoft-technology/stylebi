@@ -130,6 +130,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    panY: number = 0;
    hideTile: boolean = false;
    destroyed: boolean = false;
+   private scrollRedrawFrame: number = null;
 
    private readonly debounceKey: string = "chart_dataTipEvent";
 
@@ -157,18 +158,40 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    }
 
    ngOnChanges(changes: SimpleChanges) {
+      // Redraw the selection-highlight overlay so it tracks the plot in real time. This
+      // used to be debounced 500ms through DebounceService's "plot.scrolled" key, but that
+      // key isn't scoped per ChartPlotArea instance -- with more than one chart on a page,
+      // one chart's scroll (or even just a same-chart model refresh nudging a
+      // previously-scrolled chart's scrollLeft/Top) could silently replace and discard
+      // another chart's pending redraw, leaving its highlight stuck at the pre-scroll
+      // position. Coalescing to one redraw per animation frame (rather than once per raw
+      // scroll event, which can fire faster than the screen repaints) keeps the redraw --
+      // a forced-reflow canvas resize plus region draw -- off the hot path while still
+      // looking instantaneous. (Bug #76702)
       if(changes.scrollLeft || changes.scrollTop) {
-         const context = this.getContext();
-
-         if(context) {
-            this.chartService.clearCanvas(context);
-            this.debounceService.debounce("plot.scrolled", () => this.updateChartObject(), 500, []);
+         if(this.scrollRedrawFrame != null) {
+            cancelAnimationFrame(this.scrollRedrawFrame);
          }
+
+         // Scheduled outside the zone so the redraw itself (a canvas operation, not an
+         // Angular binding) doesn't trigger an app-wide change-detection tick on every
+         // animation frame during a scroll gesture.
+         this.zone.runOutsideAngular(() => {
+            this.scrollRedrawFrame = requestAnimationFrame(() => {
+               this.scrollRedrawFrame = null;
+               this.updateChartObject();
+            });
+         });
       }
    }
 
    protected cleanup(): void {
       this.destroyed = true;
+
+      if(this.scrollRedrawFrame != null) {
+         cancelAnimationFrame(this.scrollRedrawFrame);
+         this.scrollRedrawFrame = null;
+      }
    }
 
    private emitFlyover(chartSelection: ChartSelection): void {
