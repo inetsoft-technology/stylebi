@@ -36,6 +36,7 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -2286,12 +2287,29 @@ public class LayoutTool {
       Set<String> processed = new HashSet<>();
       buildGroupList(layout, cell.getRowGroup(), holders, n2c, c2p, locs, processed, true, table);
 
+      // a SUMMARY cell's mergeRowGroup/mergeColGroup escapes the aggregation scope up to a
+      // coarser ancestor than the cell's own native rowGroup/colGroup chain would give it.
+      // Truncate the chain here (before crossTabSupported/createAggExpression consume it
+      // below) so both branches see the escaped scope instead of always aggregating at the
+      // cell's own nearest enclosing group. (76676/76675)
+      if(cell.getBType() == TableCellBinding.SUMMARY) {
+         truncateAtMergeGroup(layout, holders, locs, 0, holders.size(), cell.getMergeRowGroup(),
+            cell, "mergeRowGroup");
+      }
+
       if(cell.getBType() == TableCellBinding.SUMMARY) {
          position = holders.size();
       }
 
+      int rowGroupCount = holders.size();
       processed = new HashSet<>();
       buildGroupList(layout, cell.getColGroup(), holders, n2c, c2p, locs, processed, false, table);
+
+      if(cell.getBType() == TableCellBinding.SUMMARY) {
+         truncateAtMergeGroup(layout, holders, locs, 0, holders.size() - rowGroupCount,
+            cell.getMergeColGroup(), cell, "mergeColGroup");
+      }
+
       position = holders.size() - position;
       List<TableCellBinding> list = new ArrayList<>();
 
@@ -2361,6 +2379,51 @@ public class LayoutTool {
       }
 
       return exp;
+   }
+
+   /**
+    * Truncate a native rowGroup/colGroup ancestor chain (as built by buildGroupList) at a
+    * mergeRowGroup/mergeColGroup name, so aggregation escapes up to that named ancestor
+    * instead of the cell's own nearest one. [rangeStart, rangeEnd) bounds the search/removal
+    * to just the row-axis or col-axis portion of the shared holders/locs lists, ordered
+    * farthest ancestor first. Entries nested finer than the named group (i.e. between it and
+    * the cell) are dropped; entries at or above it are kept.
+    * <p>
+    * validateLayout() already runs (via applyDefaultGroups) before this method is ever
+    * reached, and downgrades a mergeRowGroup/mergeColGroup that names no cell anywhere in the
+    * layout to DEFAULT_GROUP with a log warning. So a non-null, non-default name that is not
+    * found within [rangeStart, rangeEnd) here is guaranteed to name a real cell elsewhere in
+    * the layout that just isn't this cell's own ancestor -- that is a user/caller error, not a
+    * layout hygiene issue, so it fails loud here rather than silently falling back to the
+    * native chain.
+    */
+   private static void truncateAtMergeGroup(TableLayout layout, List<CellHolder> holders,
+      List<Point> locs, int rangeStart, int rangeEnd, String mergeGroupName,
+      TableCellBinding cell, String propertyName)
+   {
+      if(mergeGroupName == null || TableCellBinding.DEFAULT_GROUP.equals(mergeGroupName)) {
+         return;
+      }
+
+      int idx = -1;
+
+      for(int i = rangeStart; i < rangeEnd; i++) {
+         if(Tool.equals(layout.getRuntimeCellName(holders.get(i).cell), mergeGroupName)) {
+            idx = i;
+            break;
+         }
+      }
+
+      if(idx < 0) {
+         throw new MessageException(
+            propertyName + " \"" + mergeGroupName + "\" on cell \"" +
+            layout.getRuntimeCellName(cell) + "\" is not an ancestor group of this cell.");
+      }
+
+      for(int i = rangeEnd - 1; i > idx; i--) {
+         holders.remove(i);
+         locs.remove(i);
+      }
    }
 
    private static String escapeColName(String name) {

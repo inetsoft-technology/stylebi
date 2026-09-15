@@ -23,6 +23,7 @@ import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.MessageException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,9 +31,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -163,5 +167,176 @@ class LayoutToolTest {
       String exp = clens.getFormula(0, 0);
       assertTrue(exp != null && exp.startsWith("none("),
          "expected expression to be wrapped in none(...), was: " + exp);
+   }
+
+   /**
+    * Regression guard for #76676 (VCT-012): a SUMMARY calc cell's mergeRowGroup was
+    * silently ignored by the aggregate-expression builder -- only the cell's own nearest
+    * native rowGroup ancestor (here StateGrp) was ever consulted, so a cell placed inside
+    * StateGrp's row could not escape its scope up to a named coarser ancestor (RegionGrp)
+    * the way the bug report's RegionAmtForState cell needed to. The generated expression
+    * must now qualify on RegionGrp only, not on StateGrp.
+    */
+   @Test
+   void mergeRowGroupTruncatesAggregationScopeToNamedAncestor() throws Exception {
+      TableLayout layout = new TableLayout();
+      DefaultTableLens base = groupedBase();
+      layout.setColCount(2);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(2);
+      layout.addRegion(base.getDescriptor().getRowDataPath(0), region);
+
+      TableCellBinding regionGroup = TableCellBinding.getGroupBinding("Region");
+      regionGroup.setCellName("RegionGrp");
+      layout.setCellBinding(0, 0, regionGroup);
+
+      TableCellBinding stateGroup = TableCellBinding.getGroupBinding("State");
+      stateGroup.setCellName("StateGrp");
+      stateGroup.setRowGroup("RegionGrp");
+      layout.setCellBinding(1, 0, stateGroup);
+
+      TableCellBinding summary = TableCellBinding.getSummaryBinding("Total");
+      summary.setFormula("Sum");
+      summary.setRowGroup("StateGrp");
+      summary.setMergeRowGroup("RegionGrp");
+      layout.setCellBinding(1, 1, summary);
+
+      String exp = fillCalcTableLens(layout, base, false).getFormula(1, 1);
+      assertTrue(exp.contains("RegionGrp"), "expected expression to scope to RegionGrp, was: " + exp);
+      assertFalse(exp.contains("StateGrp"), "expected StateGrp qualifier to be dropped, was: " + exp);
+   }
+
+   /**
+    * Column-axis mirror of the above, covering sibling bug #76675 (VCT-013) in the same
+    * fix: mergeColGroup must equally truncate the native colGroup ancestor chain.
+    */
+   @Test
+   void mergeColGroupTruncatesAggregationScopeToNamedAncestor() throws Exception {
+      TableLayout layout = new TableLayout();
+      DefaultTableLens base = groupedBase();
+      layout.setColCount(2);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(2);
+      layout.addRegion(base.getDescriptor().getRowDataPath(0), region);
+
+      TableCellBinding quarterGroup = TableCellBinding.getGroupBinding("Region");
+      quarterGroup.setCellName("QuarterGrp");
+      layout.setCellBinding(0, 0, quarterGroup);
+
+      TableCellBinding monthGroup = TableCellBinding.getGroupBinding("State");
+      monthGroup.setCellName("MonthGrp");
+      monthGroup.setColGroup("QuarterGrp");
+      layout.setCellBinding(0, 1, monthGroup);
+
+      TableCellBinding summary = TableCellBinding.getSummaryBinding("Total");
+      summary.setFormula("Sum");
+      summary.setColGroup("MonthGrp");
+      summary.setMergeColGroup("QuarterGrp");
+      layout.setCellBinding(1, 1, summary);
+
+      String exp = fillCalcTableLens(layout, base, false).getFormula(1, 1);
+      assertTrue(exp.contains("QuarterGrp"), "expected expression to scope to QuarterGrp, was: " + exp);
+      assertFalse(exp.contains("MonthGrp"), "expected MonthGrp qualifier to be dropped, was: " + exp);
+   }
+
+   /**
+    * Same truncation must be visible to the crossTabSupported branch (createCrosstabCalcExpression),
+    * since it consumes the same groups/gnames arrays built upstream of the crossTabSupported check --
+    * confirms the fix isn't limited to the plain-SUMMARY expression path.
+    */
+   @Test
+   void mergeRowGroupTruncationAppliesToCrosstabSupportedBranchToo() throws Exception {
+      TableLayout layout = new TableLayout();
+      DefaultTableLens base = groupedBase();
+      layout.setColCount(2);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(2);
+      layout.addRegion(base.getDescriptor().getRowDataPath(0), region);
+
+      TableCellBinding regionGroup = TableCellBinding.getGroupBinding("Region");
+      regionGroup.setCellName("RegionGrp");
+      layout.setCellBinding(0, 0, regionGroup);
+
+      TableCellBinding stateGroup = TableCellBinding.getGroupBinding("State");
+      stateGroup.setCellName("StateGrp");
+      stateGroup.setRowGroup("RegionGrp");
+      layout.setCellBinding(1, 0, stateGroup);
+
+      TableCellBinding summary = TableCellBinding.getSummaryBinding("Total");
+      summary.setFormula("Sum");
+      summary.setRowGroup("StateGrp");
+      summary.setMergeRowGroup("RegionGrp");
+      layout.setCellBinding(1, 1, summary);
+
+      String exp = fillCalcTableLens(layout, base, true).getFormula(1, 1);
+      assertTrue(exp.contains("RegionGrp"), "expected expression to scope to RegionGrp, was: " + exp);
+      assertFalse(exp.contains("StateGrp"), "expected StateGrp qualifier to be dropped, was: " + exp);
+   }
+
+   /**
+    * If mergeRowGroup names a cell that exists somewhere else in the layout (so
+    * validateLayout's own nonexistent-name downgrade to DEFAULT_GROUP does not intercept
+    * it first) but is not actually an ancestor of this cell's own native rowGroup chain,
+    * the fix must fail loud instead of silently resolving to the cell's own nearest group.
+    */
+   @Test
+   void mergeRowGroupNamingNonAncestorCellFailsLoud() throws Exception {
+      TableLayout layout = new TableLayout();
+      DefaultTableLens base = groupedBase();
+      layout.setColCount(2);
+      BaseLayout.Region region = layout.new Region();
+      region.setRowCount(2);
+      layout.addRegion(base.getDescriptor().getRowDataPath(0), region);
+
+      TableCellBinding regionGroup = TableCellBinding.getGroupBinding("Region");
+      regionGroup.setCellName("RegionGrp");
+      layout.setCellBinding(0, 0, regionGroup);
+
+      // a real cell name elsewhere in the layout, unrelated to the summary cell's own chain
+      TableCellBinding siblingGroup = TableCellBinding.getGroupBinding("Total");
+      siblingGroup.setCellName("SiblingGrp");
+      layout.setCellBinding(0, 1, siblingGroup);
+
+      TableCellBinding stateGroup = TableCellBinding.getGroupBinding("State");
+      stateGroup.setCellName("StateGrp");
+      stateGroup.setRowGroup("RegionGrp");
+      layout.setCellBinding(1, 0, stateGroup);
+
+      TableCellBinding summary = TableCellBinding.getSummaryBinding("Total");
+      summary.setFormula("Sum");
+      summary.setRowGroup("StateGrp");
+      summary.setMergeRowGroup("SiblingGrp");
+      layout.setCellBinding(1, 1, summary);
+
+      InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+         () -> fillCalcTableLens(layout, base, false));
+      assertTrue(ex.getCause() instanceof MessageException,
+         "expected a MessageException, was: " + ex.getCause());
+      assertTrue(ex.getCause().getMessage().contains("SiblingGrp"),
+         "expected the error to name the invalid mergeRowGroup value, was: " +
+         ex.getCause().getMessage());
+   }
+
+   private static DefaultTableLens groupedBase() {
+      return new DefaultTableLens(new Object[][] {
+         { "Region", "State", "Total" },
+         { "East", "NY", 10.0 }
+      });
+   }
+
+   private static CalcTableLens fillCalcTableLens(TableLayout layout, TableLens base,
+      boolean crossTabSupported) throws Exception
+   {
+      Viewsheet viewsheet = new Viewsheet();
+      CalcTableVSAssembly assembly = new CalcTableVSAssembly(viewsheet, "CalcTable1");
+      assembly.setTableLayout(layout);
+      viewsheet.addAssembly(assembly);
+
+      Method method = LayoutTool.class.getDeclaredMethod("fillCalcTableLens",
+         FormulaTable.class, TableLens.class, VariableTable.class, boolean.class);
+      method.setAccessible(true);
+      method.invoke(null, assembly, base, new VariableTable(), crossTabSupported);
+
+      return (CalcTableLens) assembly.getBaseTable();
    }
 }
