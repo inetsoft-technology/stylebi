@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.CellBinding;
 import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
@@ -1238,7 +1239,20 @@ public class CalcTableService {
       return layout;
    }
 
-   private static void requireInGrid(TableLayout layout, int row, int col) {
+   /**
+    * The canonical per-cell format address for {@code set_calc_cell_format}/
+    * {@code get_calc_cell_format} -- the same key {@code VSFormatTableLens} and
+    * {@code CalcTableLayout} already read a design cell's format back with (see
+    * {@code CalcTableVSAssemblyInfo#getCellDataPath}).
+    */
+   public TableDataPath cellFormatPath(RuntimeViewsheet rvs, String assemblyName, int row, int col) {
+      CalcTableVSAssembly assembly = requireCalcTable(rvs, assemblyName);
+      requireInGrid(layoutOf(assembly), row, col);
+      CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      return info.getCellDataPath(row, col);
+   }
+
+   static void requireInGrid(TableLayout layout, int row, int col) {
       if(row < 0 || col < 0 || row >= layout.getRowCount() || col >= layout.getColCount()) {
          throw new IllegalArgumentException(
             "Cell [" + row + "," + col + "] is outside the grid, which is " +
@@ -1264,7 +1278,7 @@ public class CalcTableService {
       return data;
    }
 
-   private static CalcTableVSAssembly requireCalcTable(RuntimeViewsheet rvs,
+   static CalcTableVSAssembly requireCalcTable(RuntimeViewsheet rvs,
                                                        String assemblyName)
    {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();

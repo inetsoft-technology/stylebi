@@ -23,7 +23,11 @@ import inetsoft.report.TableDataPath;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
+import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
+import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
+import inetsoft.web.wiz.binding.CalcTableService;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -31,6 +35,7 @@ import org.mockito.ArgumentCaptor;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -485,7 +490,161 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
    }
 
+   // ── set_calc_cell_format / get_calc_cell_format (bug 76679) ────────────────────────────
+
+   /**
+    * The write side routes through {@code event.getData()} with the cell's own
+    * {@code TableDataPath} -- the same per-path mechanism {@code target: "title"} already uses,
+    * just with a computed cell path ({@code CalcTableService.cellFormatPath}) instead of
+    * {@code VSAssemblyInfo.TITLEPATH}.
+    */
+   @Test
+   void setCellFormatAppliesAtTheCellsOwnDataPath() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = mock(CalcTableService.class);
+      TableDataPath cellPath = new TableDataPath(-1, TableDataPath.DETAIL,
+         inetsoft.uql.schema.XSchema.STRING, new String[]{ "Cell [1,0]" });
+      when(calcService.cellFormatPath(any(), eq("FreehandTable1"), eq(1), eq(0)))
+         .thenReturn(cellPath);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("PercentFormat");
+
+      serviceWith(painter, calcService).setCellFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.CellFormatRequest("FreehandTable1", 1, 0, format, false), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      assertArrayEquals(new String[]{ "FreehandTable1" }, captor.getValue().getObjects());
+      ArrayList<TableDataPath[]> data = captor.getValue().getData();
+      assertNotNull(data, "the cell's own path must be set, not a whole-object write");
+      assertEquals(1, data.size());
+      assertArrayEquals(new TableDataPath[]{ cellPath }, data.get(0));
+      assertEquals("PercentFormat", captor.getValue().getFormat().getFormat());
+   }
+
+   @Test
+   void setCellFormatRequiresAssembly() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setCellFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.CellFormatRequest(
+               null, 0, 0, new VSObjectFormatInfoModel(), false), ""));
+      assertTrue(thrown.getMessage().contains("assembly"), thrown.getMessage());
+   }
+
+   @Test
+   void setCellFormatRequiresRowAndCol() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setCellFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.CellFormatRequest(
+               "FreehandTable1", null, 0, new VSObjectFormatInfoModel(), false), ""));
+      assertTrue(thrown.getMessage().contains("row"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("col"), thrown.getMessage());
+   }
+
+   @Test
+   void setCellFormatRequiresAFormatUnlessResetting() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).setCellFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.CellFormatRequest(
+               "FreehandTable1", 0, 0, null, false), ""));
+      assertTrue(thrown.getMessage().contains("format"), thrown.getMessage());
+   }
+
+   @Test
+   void setCellFormatResetNeedsNoFormat() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = mock(CalcTableService.class);
+      when(calcService.cellFormatPath(any(), anyString(), anyInt(), anyInt()))
+         .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+
+      serviceWith(painter, calcService).setCellFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.CellFormatRequest("FreehandTable1", 0, 0, null, true), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      assertTrue(captor.getValue().isReset());
+   }
+
+   /**
+    * The read side of {@link ViewsheetFormatService#setCellFormat} -- resolves the identical
+    * cell path and reads it back through {@code FormatPainterService.getFormat}, which answers
+    * by dispatching a {@code SetCurrentFormatCommand} rather than returning a value (the same
+    * shape {@code get_calc_cell_script} already reads {@code GetCellScriptCommand} out of).
+    */
+   @Test
+   void getCellFormatReadsBackTheModelAtTheCellsDataPath() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = mock(CalcTableService.class);
+      TableDataPath cellPath = new TableDataPath(-1, TableDataPath.DETAIL,
+         inetsoft.uql.schema.XSchema.STRING, new String[]{ "Cell [0,0]" });
+      when(calcService.cellFormatPath(any(), eq("FreehandTable1"), eq(0), eq(0)))
+         .thenReturn(cellPath);
+
+      VSObjectFormatInfoModel model = new VSObjectFormatInfoModel();
+      model.setFormat("PercentFormat");
+      model.setColor("#333333");
+
+      doAnswer(invocation -> {
+         CapturingCommandDispatcher dispatcher = invocation.getArgument(3);
+         dispatcher.sendCommand("FreehandTable1", new SetCurrentFormatCommand(model));
+         return null;
+      }).when(painter).getFormat(eq("rt1"), any(GetVSObjectFormatEvent.class),
+                                 any(Principal.class), any());
+
+      Map<String, Object> read =
+         serviceWith(painter, calcService).getCellFormat("tok", principal(), "FreehandTable1", 0, 0);
+
+      assertEquals("FreehandTable1", read.get("assembly"));
+      assertEquals(0, read.get("row"));
+      assertEquals(0, read.get("col"));
+      @SuppressWarnings("unchecked")
+      Map<String, Object> format = (Map<String, Object>) read.get("format");
+      assertEquals("PercentFormat", format.get("format"));
+      assertEquals("#333333", format.get("color"));
+   }
+
+   /** A6/A3's "no override" baseline: no format captured means the cell has none of its own. */
+   @Test
+   void getCellFormatReturnsNullFormatWhenTheCellHasNoOverride() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      CalcTableService calcService = mock(CalcTableService.class);
+      when(calcService.cellFormatPath(any(), anyString(), anyInt(), anyInt()))
+         .thenReturn(new TableDataPath(-1, TableDataPath.DETAIL));
+
+      Map<String, Object> read =
+         serviceWith(painter, calcService).getCellFormat("tok", principal(), "FreehandTable1", 1, 0);
+
+      assertNull(read.get("format"));
+   }
+
+   @Test
+   void getCellFormatRequiresAssembly() {
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class)).getCellFormat(
+            "tok", principal(), null, 0, 0));
+      assertTrue(thrown.getMessage().contains("assembly"), thrown.getMessage());
+   }
+
    private static ViewsheetFormatService serviceWith(FormatPainterService painter) {
+      return serviceWith(painter, mock(CalcTableService.class));
+   }
+
+   private static ViewsheetFormatService serviceWith(FormatPainterService painter,
+                                                      CalcTableService calcService)
+   {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
@@ -494,12 +653,22 @@ class ViewsheetFormatServiceTest {
             mutation.run(null, "rt1", null);
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+         // A real CapturingCommandDispatcher, not a bare null: getCellFormat answers by
+         // dispatching a SetCurrentFormatCommand (see FormatPainterService.getFormat), which
+         // needs somewhere real to land, the same reason CalcTableService.cellScript's own tests
+         // use one for GetCellScriptCommand.
+         doAnswer(invocation -> {
+            ViewsheetSessionService.Read<?> read = invocation.getArgument(2);
+            return CapturingCommandDispatcher.withCapturingDispatcher(
+               principal(), dispatcher -> read.run(null, "rt1", dispatcher));
+         }).when(sessions).read(anyString(), any(Principal.class), any());
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
       }
 
-      return new ViewsheetFormatService(sessions, painter);
+      return new ViewsheetFormatService(sessions, painter, calcService);
    }
 
    private static Principal principal() {
