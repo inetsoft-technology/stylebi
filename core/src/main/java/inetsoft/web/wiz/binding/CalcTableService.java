@@ -962,19 +962,28 @@ public class CalcTableService {
          info.setMergeCells(merge);
       }
 
-      // rowGroup/colGroup aren't part of this seam's cell vocabulary, so they're always
-      // null here. null is the deliberate "no ancestor, grand total" sentinel elsewhere in
-      // StyleBI (TableCellBinding), which is wrong for a cell created through this seam --
-      // it must instead inherit its nearest enclosing expand ancestor by default, the same
-      // as a freshly drag-and-dropped cell (see TableLayoutHandler.createDefalutCellBinding).
+      // rowGroup/colGroup are the fields that actually control a cell's aggregation scope --
+      // which group cell it nests under for its Sum/Count/etc. (TableCellBinding: "Setting the
+      // row/column group of a cell makes it a nested group/cell of the parent group.") A caller
+      // who never mentions the key means "leave the default ancestor" (the same
+      // TableLayoutHandler.createDefalutCellBinding-style inheritance a freshly drag-and-dropped
+      // cell gets), not "clear it" -- so the sentinel, not null, is what an omitted key produces.
+      // An explicit null is the deliberate, meaningful "no ancestor, true grand total" sentinel
+      // (TableCellBinding) and must be set as-is, not coalesced away -- containsKey (not a
+      // str(...) != null check) is what distinguishes "the caller sent null" from "the caller
+      // didn't mention this key" the same way it already does for mergeRowGroup/mergeColGroup
+      // below.
       String rowGroup = str(binding, "rowGroup");
-      info.setRowGroup(rowGroup != null ? rowGroup : TableCellBinding.DEFAULT_GROUP);
+      info.setRowGroup(binding.containsKey("rowGroup") ? rowGroup : TableCellBinding.DEFAULT_GROUP);
       String colGroup = str(binding, "colGroup");
-      info.setColGroup(colGroup != null ? colGroup : TableCellBinding.DEFAULT_GROUP);
+      info.setColGroup(binding.containsKey("colGroup") ? colGroup : TableCellBinding.DEFAULT_GROUP);
 
-      // Same "inherit by default" reasoning as rowGroup/colGroup above, extended to the merge-
-      // specific pair: a caller who never mentions these means "leave the default ancestor",
-      // not "clear it" -- so the sentinel, not null, is what an omitted key produces.
+      // mergeRowGroup/mergeColGroup are a separate, purely visual concern -- which group cell's
+      // boundary this cell's own dynamically-expanded instances get merged/collapsed into a
+      // single spanned cell within (RuntimeCalcTableLens, gated by mergeCells) -- not aggregation
+      // scope. Same "inherit by default" reasoning as rowGroup/colGroup above: a caller who never
+      // mentions these means "leave the default ancestor", not "clear it" -- so the sentinel, not
+      // null, is what an omitted key produces.
       String mergeRowGroup = str(binding, "mergeRowGroup");
       info.setMergeRowGroup(binding.containsKey("mergeRowGroup") ?
                              mergeRowGroup : TableCellBinding.DEFAULT_GROUP);

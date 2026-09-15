@@ -545,6 +545,60 @@ class CalcTableServiceTest {
       assertTrue(bound.isTimeSeries());
    }
 
+   // ── rowGroup / colGroup wiring (bug #76675) ────────────────────────────────
+   // rowGroup/colGroup, not mergeRowGroup/mergeColGroup, are what LayoutTool.applyDefaultGroups
+   // / CalcTableLens.RowGroupTree/ColGroupTree actually read to resolve a cell's aggregation
+   // scope. Before this fix, this method unconditionally forced both to DEFAULT_GROUP on every
+   // call, so a caller had no way to ever set a cell's real scope, or to pin it to a true grand
+   // total that survives a future sibling group cell being added elsewhere in the layout.
+
+   /**
+    * An explicit named rowGroup/colGroup must reach the binding as-is, the same way
+    * mergeRowGroup/mergeColGroup already do -- not be forced to DEFAULT_GROUP.
+    */
+   @Test
+   void wiresAnExplicitRowGroupAndColGroupOntoTheBinding() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 1, 2,
+         spec("content", "column", "grouping", "summary", "expand", "none", "formula", "Sum",
+              "field", spec("column", "PAID", "type", "measure"),
+              "rowGroup", "RegionSubGrp", "colGroup", "YearGrp"));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      CellBindingInfo bound = captor.getValue().getBinding();
+      assertEquals("RegionSubGrp", bound.getRowGroup());
+      assertEquals("YearGrp", bound.getColGroup());
+   }
+
+   /**
+    * An explicit null rowGroup/colGroup -- the documented "true grand total" sentinel -- must be
+    * set as a literal null, not coalesced to DEFAULT_GROUP. This is the exact repro from bug
+    * #76675: before the fix, {@code str(binding, "rowGroup") != null ? ... : DEFAULT_GROUP}
+    * could never even receive an explicit null through the wire (rowGroup/colGroup weren't
+    * exposed at all), and after exposing them naively, a {@code != null} check (rather than
+    * {@code containsKey}) would have silently coalesced the caller's explicit null back to
+    * DEFAULT_GROUP -- the same class of bug mergeRowGroup/mergeColGroup were already fixed for.
+    */
+   @Test
+   void wiresAnExplicitNullRowGroupAndColGroupAsALiteralNullNotTheDefaultSentinel()
+      throws Exception
+   {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 1, 2,
+         spec("content", "column", "grouping", "summary", "expand", "none", "formula", "Sum",
+              "field", spec("column", "PAID", "type", "measure"),
+              "rowGroup", null, "colGroup", null));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      CellBindingInfo bound = captor.getValue().getBinding();
+      assertNull(bound.getRowGroup());
+      assertNull(bound.getColGroup());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(CalcTableService service, ViewsheetSessionService sessions,
