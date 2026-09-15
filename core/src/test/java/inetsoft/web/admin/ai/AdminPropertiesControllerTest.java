@@ -268,12 +268,14 @@ class AdminPropertiesControllerTest {
       // as "OIDC settings are not stored in server properties" and abandoned the task.
       //
       // That property is catalogued now, so it reports confirmed and no longer demonstrates the
-      // case. permission.andcondition stands in: real, community, still uncatalogued, unset by
-      // default. If cataloguing ever reaches it this test will fail, and that failure is a prompt
-      // to move the example on - not a defect.
-      sreeEnv.when(() -> SreeEnv.getProperty("permission.andcondition", false, false))
+      // case. permission.andcondition was the second stand-in, and Redmine #5209 catalogued it too
+      // (exactly the fate this comment warned about) - annotations.disabled is the replacement:
+      // real, community (VSAssemblyInfo reads it directly), still uncatalogued, unset by default.
+      // If cataloguing ever reaches it this test will fail, and that failure is a prompt to move
+      // the example on again - not a defect.
+      sreeEnv.when(() -> SreeEnv.getProperty("annotations.disabled", false, false))
          .thenReturn(null);
-      PropertyView view = controller.get("permission.andcondition", principal);
+      PropertyView view = controller.get("annotations.disabled", principal);
       assertFalse(view.recognized());
       assertNull(view.currentValue());
       assertEquals(PropertyView.EXISTS_UNKNOWN, view.exists());
@@ -301,13 +303,13 @@ class AdminPropertiesControllerTest {
    void distinguishesARealUnsetPropertyFromAnInventedOneOnlyByGuidance() {
       // Both are unknown - the server genuinely cannot tell them apart, and the fix is to say so
       // rather than to guess. This pins that the ambiguity is reported, not silently resolved.
-      sreeEnv.when(() -> SreeEnv.getProperty("permission.andcondition", false, false))
+      sreeEnv.when(() -> SreeEnv.getProperty("annotations.disabled", false, false))
          .thenReturn(null);
-      sreeEnv.when(() -> SreeEnv.getProperty("permission.notarealproperty", false, false))
+      sreeEnv.when(() -> SreeEnv.getProperty("annotations.notarealproperty", false, false))
          .thenReturn(null);
 
-      PropertyView real = controller.get("permission.andcondition", principal);
-      PropertyView invented = controller.get("permission.notarealproperty", principal);
+      PropertyView real = controller.get("annotations.disabled", principal);
+      PropertyView invented = controller.get("annotations.notarealproperty", principal);
 
       assertEquals(PropertyView.EXISTS_UNKNOWN, real.exists());
       assertEquals(PropertyView.EXISTS_UNKNOWN, invented.exists());
