@@ -107,6 +107,33 @@ class FipsPasswordEncryptionTest {
       ((java.util.Properties) method.invoke(engine)).setProperty(name, value);
    }
 
+   // Reads a property straight from the backing store, skipping the test rather than failing it
+   // if the store cannot be read at all. getPropertyFromStorage() fails closed by design, so a
+   // plain call here would turn an unusable environment into a spurious failure.
+   private static String readStoredProperty(String name) {
+      try {
+         return SreeEnv.getPropertyFromStorage(name);
+      }
+      catch(RuntimeException e) {
+         return Assumptions.abort("the backing store is not readable in this test environment");
+      }
+   }
+
+   // Puts a property back exactly as it was found -- the original value if there was one, no
+   // property at all if there was not -- in the backing store as well as the in-memory snapshot.
+   // The whole core suite shares one JVM and one sree.home, so a key left behind here is read by
+   // every test that follows.
+   private static void restoreStoredProperty(String name, String value) throws Exception {
+      if(value == null) {
+         SreeEnv.remove(name);
+      }
+      else {
+         SreeEnv.setProperty(name, value);
+      }
+
+      SreeEnv.save();
+   }
+
    @BeforeEach
    void setUp() {
       encryption = new FipsPasswordEncryption();
@@ -233,19 +260,32 @@ class FipsPasswordEncryptionTest {
       // Setup: persist a key, then plant a different one in the in-memory properties only.
       @Test
       void getSecretKey_staleInMemoryValue_readsStorageInsteadOfSnapshot() throws Exception {
-         SecretKey persistedKey = encryption.getSecretKey(encryption.getMasterKey());
-         String persisted = SreeEnv.getPropertyFromStorage("password.encryption.key");
-         Assumptions.assumeTrue(
-            persisted != null, "the backing store is not readable in this test environment");
-
-         SecretKey otherKey = encryption.createSecretKey();
-         Assumptions.assumeTrue(
-            !Arrays.equals(persistedKey.getEncoded(), otherKey.getEncoded()),
-            "the generated keys collided");
-         String stale = Base64.getEncoder().encodeToString(
-            encryption.encryptSecretKey(otherKey, encryption.getMasterKey()));
+         // password.encryption.key is one property shared by every PasswordEncryption in the
+         // JVM, and the core suite runs as a single fork against a single sree.home with
+         // secrets.fipsComplianceMode false -- so whichever test touches password encryption
+         // first mints that key through the non-FIPS JcePasswordEncryption. This instance can
+         // never read such a value: the two derive the master key with a different PBKDF2 PRF
+         // (PBKDF2WithHmacSHA1 vs PBKDF2WITHHMACSHA256) and wrap with a different algorithm
+         // (AES-GCM vs AES-KW), so inheriting it fails the unwrap checksum on the very first
+         // call below, before any assumption here is reached. Start from no key so this
+         // instance mints its own, and put the original back afterwards so the JCE-side tests
+         // that run later are not handed a FIPS-wrapped key they cannot read either.
+         String ambient = readStoredProperty("password.encryption.key");
+         restoreStoredProperty("password.encryption.key", null);
 
          try {
+            SecretKey persistedKey = encryption.getSecretKey(encryption.getMasterKey());
+            String persisted = readStoredProperty("password.encryption.key");
+            Assumptions.assumeTrue(
+               persisted != null, "the backing store is not readable in this test environment");
+
+            SecretKey otherKey = encryption.createSecretKey();
+            Assumptions.assumeTrue(
+               !Arrays.equals(persistedKey.getEncoded(), otherKey.getEncoded()),
+               "the generated keys collided");
+            String stale = Base64.getEncoder().encodeToString(
+               encryption.encryptSecretKey(otherKey, encryption.getMasterKey()));
+
             setInMemoryPropertyOnly("password.encryption.key", stale);
             Assumptions.assumeTrue(stale.equals(SreeEnv.getProperty("password.encryption.key")),
                "could not simulate a stale in-memory property snapshot");
@@ -256,7 +296,7 @@ class FipsPasswordEncryptionTest {
                "the persisted key must win over a stale in-memory snapshot value");
          }
          finally {
-            setInMemoryPropertyOnly("password.encryption.key", persisted);
+            restoreStoredProperty("password.encryption.key", ambient);
          }
       }
 
@@ -308,15 +348,22 @@ class FipsPasswordEncryptionTest {
       // node whose snapshot has not caught up yet.
       @Test
       void getJwtSigningKey_staleInMemoryCache_readsStorageInsteadOfRegenerating() throws Exception {
-         SecretKey original = encryption.getJwtSigningKey();
-         String persisted = SreeEnv.getProperty("jwt.signing.key");
-         assertNotNull(persisted, "precondition: a key must have been persisted");
+         // Same shared-property hazard as getSecretKey_staleInMemoryValue_...: jwt.signing.key
+         // is read by every PasswordEncryption in this JVM, and a value minted by the non-FIPS
+         // default cannot be unwrapped here. Start from no key, and restore whatever was there
+         // -- in the backing store, not just the snapshot -- for the tests that follow.
+         String ambient = readStoredProperty("jwt.signing.key");
+         restoreStoredProperty("jwt.signing.key", null);
 
          try {
+            SecretKey original = encryption.getJwtSigningKey();
+            String persisted = SreeEnv.getProperty("jwt.signing.key");
+            assertNotNull(persisted, "precondition: a key must have been persisted");
+
             evictFromInMemoryProperties("jwt.signing.key");
             Assumptions.assumeTrue(SreeEnv.getProperty("jwt.signing.key") == null,
                "could not simulate a stale in-memory property snapshot");
-            Assumptions.assumeTrue(SreeEnv.getPropertyFromStorage("jwt.signing.key") != null,
+            Assumptions.assumeTrue(readStoredProperty("jwt.signing.key") != null,
                "the backing store is not readable in this test environment");
 
             SecretKey reread = encryption.getJwtSigningKey();
@@ -325,10 +372,7 @@ class FipsPasswordEncryptionTest {
                "a stale in-memory null must not cause a second signing key to be generated");
          }
          finally {
-            // Undo the in-memory eviction first so the property is in a known state, then clear
-            // it the same way the sibling test does.
-            SreeEnv.setProperty("jwt.signing.key", persisted);
-            SreeEnv.remove("jwt.signing.key");
+            restoreStoredProperty("jwt.signing.key", ambient);
          }
       }
 
@@ -336,6 +380,10 @@ class FipsPasswordEncryptionTest {
       // key must have getJwtSigningKey() regenerate and re-persist a 512-bit (64-byte) key.
       @Test
       void getJwtSigningKey_undersizedLegacyKey_regeneratesAndPersists() throws Exception {
+         // This test plants its own key, so it does not inherit a foreign one -- but it must
+         // still hand jwt.signing.key back as it found it, in the backing store and not only in
+         // the snapshot, since the whole suite shares one sree.home.
+         String ambient = readStoredProperty("jwt.signing.key");
          SecretKey legacyKey = new SecretKeySpec(new byte[16], "HmacSHA512");
          byte[] encrypted = encryption.encryptJwtSigningKey(legacyKey, encryption.getMasterKey());
          SreeEnv.setProperty("jwt.signing.key", Base64.getEncoder().encodeToString(encrypted));
@@ -355,7 +403,7 @@ class FipsPasswordEncryptionTest {
             assertEquals(64, reloaded.getEncoded().length);
          }
          finally {
-            SreeEnv.remove("jwt.signing.key");
+            restoreStoredProperty("jwt.signing.key", ambient);
          }
       }
 
