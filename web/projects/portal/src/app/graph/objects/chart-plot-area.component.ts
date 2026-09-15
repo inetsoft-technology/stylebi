@@ -173,9 +173,14 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             cancelAnimationFrame(this.scrollRedrawFrame);
          }
 
-         this.scrollRedrawFrame = requestAnimationFrame(() => {
-            this.scrollRedrawFrame = null;
-            this.updateChartObject();
+         // Scheduled outside the zone so the redraw itself (a canvas operation, not an
+         // Angular binding) doesn't trigger an app-wide change-detection tick on every
+         // animation frame during a scroll gesture.
+         this.zone.runOutsideAngular(() => {
+            this.scrollRedrawFrame = requestAnimationFrame(() => {
+               this.scrollRedrawFrame = null;
+               this.updateChartObject();
+            });
          });
       }
    }
