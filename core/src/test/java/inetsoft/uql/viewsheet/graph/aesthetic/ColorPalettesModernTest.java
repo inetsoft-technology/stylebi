@@ -112,4 +112,47 @@ class ColorPalettesModernTest {
    void defaultIsStillDeclaredFirst() {
       assertEquals("Default", ColorPalettes.getPaletteNames().iterator().next());
    }
+
+   @Test
+   void companionPalettesAreDeclaredWithEightColors() {
+      for(String name : new String[] { "Modern-soft", "Modern Dark-soft" }) {
+         CategoricalColorFrame frame = ColorPalettes.getPalette(name);
+         assertNotNull(frame, name + " must be declared in defaults.css");
+         assertEquals(8, frame.getColorCount(), name + " slot count");
+
+         for(int i = 0; i < 8; i++) {
+            assertNotNull(frame.getDefaultColor(i), name + " index " + (i + 1));
+         }
+      }
+   }
+
+   @Test
+   void companionHeadsMatchTheSpec() {
+      CategoricalColorFrame light = ColorPalettes.getPalette("Modern-soft");
+      assertEquals(new Color(0x97BEEB), light.getDefaultColor(0));
+      assertEquals(new Color(0xD8F7BA), light.getDefaultColor(7));
+
+      CategoricalColorFrame dark = ColorPalettes.getPalette("Modern Dark-soft");
+      assertEquals(new Color(0x00569C), dark.getDefaultColor(0));
+      assertEquals(new Color(0x5F9100), dark.getDefaultColor(7));
+   }
+
+   @Test
+   void companionNamesAreNotOfferedInThePicker() {
+      assertFalse(ColorPalettes.getPaletteNames().contains("Modern-soft"));
+      assertFalse(ColorPalettes.getPaletteNames().contains("Modern Dark-soft"));
+      // the sets a picker must still offer
+      assertTrue(ColorPalettes.getPaletteNames().contains("Modern"));
+      assertTrue(ColorPalettes.getPaletteNames().contains("Modern Dark"));
+      assertTrue(ColorPalettes.getPaletteNames().contains("Default"));
+   }
+
+   @Test
+   void companionsAreStillResolvableByName() {
+      // filtering the picker list must never filter resolution
+      assertNotNull(ColorPalettes.getPalette("Modern-soft"));
+      assertNotNull(ColorPalettes.getCompanionPalette("Modern"));
+      assertNotNull(ColorPalettes.getCompanionPalette("Modern Dark"));
+      assertNull(ColorPalettes.getCompanionPalette("Default"));
+   }
 }

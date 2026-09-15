@@ -17,9 +17,14 @@
  */
 package inetsoft.web.viewsheet.service;
 
+import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.ColorFrame;
+import inetsoft.graph.aesthetic.StaticColorFrame;
 import inetsoft.report.composition.graph.*;
 import inetsoft.report.filter.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.XDimensionRef;
@@ -308,6 +313,111 @@ public class ChartPropertyService {
       }
 
       return targetList.toArray(new TargetInfo[targetList.size()]);
+   }
+
+   /**
+    * Seed a target's band fill with the companion of the chart's first measure, so the Edit Target
+    * dialog shows the colour the chart will draw. Only for a target being created - an existing
+    * target's band fill belongs to its author and is never reseeded. Leaves the classic fill alone
+    * when the chart is not modern, or when the first measure carries no single colour to companion
+    * (colour bound to a dimension, where one band spans many series colours).
+    */
+   public void seedCompanionBandFill(ChartInfo info, GraphTarget target, VizContext ctx, boolean rt) {
+      seedCompanionBandFill(info, target, ctx, rt, null);
+   }
+
+   /**
+    * As above, for a named measure. A null field falls back to the chart's first measure, which is
+    * what the dialog's Field dropdown defaults to.
+    */
+   public void seedCompanionBandFill(ChartInfo info, GraphTarget target, VizContext ctx, boolean rt,
+                                     String field)
+   {
+      if(info == null || target == null || ctx == null || !ctx.modern) {
+         return;
+      }
+
+      if(field == null) {
+         List<String> names = GraphUtil.getMeasuresName(info, rt);
+
+         if(names == null || names.isEmpty()) {
+            return;
+         }
+
+         field = names.get(0);
+      }
+
+      ChartRef ref = info.getFieldByName(field, rt);
+
+      if(!(ref instanceof ChartAggregateRef)) {
+         return;
+      }
+
+      // colour bound to a dimension paints the marks in many colours and one band spans all of
+      // them, so no single measure colour exists to companion - the classic fill stays
+      if(isDimensionColored(info, (ChartAggregateRef) ref)) {
+         return;
+      }
+
+      ColorFrame frame = ((ChartAggregateRef) ref).getColorFrame();
+
+      if(!(frame instanceof StaticColorFrame)) {
+         return;
+      }
+
+      Color base = ((StaticColorFrame) frame).getColor();
+
+      if(base == null) {
+         return;
+      }
+
+      CategoricalColorFrame bands =
+         CategoricalColorFrame.companionBands(base, resolveCompanion(base, ctx), BAND_SEED_COUNT);
+
+      if(bands == null) {
+         return;
+      }
+
+      for(int i = 0; i < BAND_SEED_COUNT; i++) {
+         target.getBandFill().setColor(i, bands.getDefaultColor(i));
+      }
+   }
+
+   /**
+    * Whether the marks this target sits on are coloured by a dimension rather than by measure.
+    * Checks the aggregate's own colour binding as well as the chart-level one: under multi-aesthetic
+    * binding the chart-level ref is empty and the real binding lives on the aggregate.
+    */
+   private boolean isDimensionColored(ChartInfo info, ChartAggregateRef ref) {
+      return isDimensionRef(info.getColorField()) || isDimensionRef(ref.getColorField());
+   }
+
+   private boolean isDimensionRef(AestheticRef aref) {
+      // getDataRef, deliberately not getRTDataRef or isEmpty: this runs at design time, where the
+      // runtime ref is unresolved and isEmpty reads the aesthetic ref's own attribute rather than
+      // the wrapped one - both report "unbound" on a chart that is plainly dimension-coloured
+      return aref != null && aref.getDataRef() != null && !aref.isMeasure();
+   }
+
+   /**
+    * The companion of a series colour, through VSChartPaletteDefaults so an authored Modern-soft
+    * entry wins over the derivation rule. Falls back to derivation for a colour that is not a slot
+    * of the active palette (a user-pinned or static colour).
+    */
+   private Color resolveCompanion(Color base, VizContext ctx) {
+      CategoricalColorFrame active = new CategoricalColorFrame();
+      active.setDefaultColors(VSChartPaletteDefaults.activePalette(ctx));
+
+      for(int i = 0; i < active.getColorCount(); i++) {
+         if(base.equals(active.getDefaultColor(i))) {
+            return VSChartPaletteDefaults.companionColor(
+               active, ctx.dark ? DARK_PALETTE : MODERN_PALETTE, i, ctx.dark);
+         }
+      }
+
+      CategoricalColorFrame holder = new CategoricalColorFrame();
+      holder.setDefaultColor(0, base);
+      return VSChartPaletteDefaults.companionColor(holder, null, 0, ctx.dark);
    }
 
    /**
@@ -603,6 +713,18 @@ public class ChartPropertyService {
     * Updates all the targets in chart(included new added).
     */
    public void updateAllTargets(ChartDescriptor cDescp, TargetInfo[] targetList) {
+      updateAllTargets(cDescp, targetList, null, null, false);
+   }
+
+   /**
+    * As above, seeding a newly created target's band fill with its measure's companion. The dialog
+    * round-trips only the band colours it displays, so a target created without this keeps the
+    * classic greens in the slots the dialog did not carry - which renders a multi-band target in
+    * two different hues.
+    */
+   public void updateAllTargets(ChartDescriptor cDescp, TargetInfo[] targetList, ChartInfo info,
+                                VizContext ctx, boolean rt)
+   {
       for(TargetInfo targetInfo : targetList) {
          GraphTarget target;
          //target is not changed, so no need to update it.
@@ -615,6 +737,10 @@ public class ChartPropertyService {
          if(targetInfo.getIndex() == -1 || cDescp.getTargetCount() == 0) {
             target = new GraphTarget();
             target.setIndex(cDescp.getTargetCount());
+            // seed before updateTarget, so whatever the dialog displayed still wins on the slots
+            // it carries and the rest hold the companion rather than the classic green
+            seedCompanionBandFill(info, target, ctx, rt,
+                                  targetInfo.getMeasure() == null ? null : targetInfo.getMeasure().getName());
          }
          else if(targetInfo.getIndex() >= cDescp.getTargetCount()) {
             continue;
@@ -975,6 +1101,10 @@ public class ChartPropertyService {
       GraphTypes.CHART_CIRCULAR, GraphTypes.CHART_FUNNEL, GraphTypes.CHART_GANTT,
       GraphTypes.CHART_SCATTER_CONTOUR, GraphTypes.CHART_MAP_CONTOUR
    };
+   // matches the four band colours GraphTarget's initialiser seeds
+   private static final int BAND_SEED_COUNT = 4;
+   private static final String MODERN_PALETTE = "Modern";
+   private static final String DARK_PALETTE = "Modern Dark";
    private static final String[] FORMULA_TYPES = {"Average","Min","Max",
                                                   "Median","Sum"};
    private static Pattern escapedCommaPattern = Pattern.compile("\\\\,");
