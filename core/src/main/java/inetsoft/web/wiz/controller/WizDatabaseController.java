@@ -24,6 +24,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.DataSourceFolder;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.DependencyException;
@@ -772,7 +773,7 @@ public class WizDatabaseController {
                                            Principal principal)
       throws Exception
    {
-      String name = requireFolderName(request);
+      String name = requireFolderName(request == null ? null : request.name());
       String parentPath = normalizePath(request.parentPath());
 
       boolean userScope = requireCreatePermission(parentPath, principal);
@@ -788,6 +789,59 @@ public class WizDatabaseController {
       dataSourceBrowserService.addDatasourceFolder(path, auditPath, principal, userScope);
 
       return WizFolderSaveResult.ok(path);
+   }
+
+   /**
+    * Renames a folder in the data source repository.
+    *
+    * <p>Gated on WRITE on the folder itself, matching the native
+    * {@code DataSourceController.renameDatasourceFolder}'s {@code @Secured} annotation. This gate is
+    * this endpoint's own responsibility, not {@code dataSourceBrowserService.renameFolder}'s: that
+    * method's own internal permission check evaluates {@code securityEngine.checkPermission(...)} but
+    * never inspects the boolean it returns, and the deeper {@code XEngine.updateDataSourceFolder} call
+    * it leads to has its own {@code checkPermission} hardcoded to always return {@code true} ("NO-OP,
+    * just for remote") — so nothing downstream of this endpoint enforces anything, and a denial here
+    * is the only gate that exists.</p>
+    *
+    * <p>Needs its own duplicate-name check first, for the same reason {@link #createFolder} does:
+    * {@code renameFolder} does not check whether the new path collides with a sibling. Skipped when
+    * the computed new path is unchanged from the old one — a same-name "rename" is a no-op, not a
+    * collision with itself.</p>
+    *
+    * @param request   the folder's current path and its new name.
+    * @param principal the current user.
+    *
+    * @return the folder's new path, or {@code DUPLICATE_NAME} when a folder or data source of that
+    *         name already exists in the parent.
+    */
+   @PostMapping(value = "/datasources/folders/rename", produces = MediaType.APPLICATION_JSON_VALUE)
+   public WizFolderSaveResult renameFolder(@RequestBody WizFolderRenameRequest request,
+                                           Principal principal)
+      throws Exception
+   {
+      String path = requirePath(request == null ? null : request.path());
+      String name = requireFolderName(request == null ? null : request.name());
+
+      requireFolderPermission(path, ResourceAction.WRITE, principal);
+
+      String parent = DataSourceFolder.getParentName(path);
+      String newPath = parent == null ? name : parent + "/" + name;
+
+      if(!newPath.equals(path)) {
+         CheckDuplicateResponse duplicate = dataSourceBrowserService.checkFolderDuplicate(newPath);
+
+         if(duplicate != null && duplicate.isDuplicate()) {
+            return WizFolderSaveResult.failed(WizFolderSaveResult.DUPLICATE_NAME);
+         }
+      }
+
+      String auditPath = Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, path, principal);
+      String targetEntityPath =
+         Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE_FOLDER, newPath, principal);
+      String savedPath = dataSourceBrowserService.renameFolder(
+         path, name, auditPath, targetEntityPath, principal);
+
+      return WizFolderSaveResult.ok(savedPath);
    }
 
    /**
@@ -1069,6 +1123,20 @@ public class WizDatabaseController {
       if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE, path, action)) {
          throw new SecurityException(
             "Unauthorized access to data source \"" + path + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Fails unless the caller holds the action on a data source folder. See
+    * {@link #requireDataSourcePermission} — same reasoning, {@code ResourceType.DATA_SOURCE_FOLDER}
+    * instead of {@code DATA_SOURCE}.
+    */
+   private void requireFolderPermission(String path, ResourceAction action, Principal principal)
+      throws Exception
+   {
+      if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER, path, action)) {
+         throw new SecurityException(
+            "Unauthorized access to data source folder \"" + path + "\" by user " + principal);
       }
    }
 
@@ -1648,12 +1716,8 @@ public class WizDatabaseController {
       return name;
    }
 
-   private static String requireFolderName(WizFolderCreateRequest request) {
-      if(request == null) {
-         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "request is required");
-      }
-
-      String name = request.name() == null ? null : request.name().trim();
+   private static String requireFolderName(String rawName) {
+      String name = rawName == null ? null : rawName.trim();
 
       if(name == null || name.isEmpty()) {
          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name is required");

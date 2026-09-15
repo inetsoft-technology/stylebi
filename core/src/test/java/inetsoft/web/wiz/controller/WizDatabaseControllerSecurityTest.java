@@ -42,6 +42,7 @@ import inetsoft.web.wiz.request.WizDatabaseTestRequest;
 import inetsoft.web.wiz.request.WizDatasourceStatusRequest;
 import inetsoft.web.wiz.request.WizEndpointCatalogRequest;
 import inetsoft.web.wiz.request.WizFolderCreateRequest;
+import inetsoft.web.wiz.request.WizFolderRenameRequest;
 import inetsoft.web.wiz.service.EndpointCatalogReader;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -112,6 +113,7 @@ class WizDatabaseControllerSecurityTest {
                 "/api/wiz/databases/create",
                 "/api/wiz/databases/update",
                 "/api/wiz/datasources/folders/create",
+                "/api/wiz/datasources/folders/rename",
                 "/api/wiz/datasources/delete",
                 "/api/wiz/datasources/move/checkDuplicate",
                 "/api/wiz/datasources/move",
@@ -388,6 +390,100 @@ class WizDatabaseControllerSecurityTest {
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> fixture.controller.createFolder(request, fixture.principal));
+      assertEquals(400, ex.getStatusCode().value());
+      verifyNoInteractions(fixture.dataSourceBrowserService);
+   }
+
+   @Test
+   void renameFolder_succeedsWhenCallerHoldsWriteAndNameIsFree() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples/Sales"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(true);
+      when(fixture.dataSourceBrowserService.checkFolderDuplicate("Examples/SalesEMEA"))
+         .thenReturn(new CheckDuplicateResponse(false));
+      when(fixture.dataSourceBrowserService.renameFolder(
+         eq("Examples/Sales"), eq("SalesEMEA"), any(), any(), eq(fixture.principal)))
+         .thenReturn("Examples/SalesEMEA");
+
+      WizFolderSaveResult result = fixture.controller.renameFolder(
+         new WizFolderRenameRequest("Examples/Sales", "SalesEMEA"), fixture.principal);
+
+      assertTrue(result.ok());
+      assertEquals("Examples/SalesEMEA", result.path());
+      assertNull(result.reason());
+   }
+
+   /**
+    * The permission gate is this endpoint's own responsibility: {@code
+    * DataSourceBrowserService.renameFolder}'s internal {@code checkPermission} call never inspects
+    * the boolean it returns, so nothing downstream would otherwise refuse an unauthorized rename.
+    */
+   @Test
+   void renameFolder_deniesWithoutWriteOnTheFolder() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples/Sales"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(false);
+
+      WizFolderRenameRequest request = new WizFolderRenameRequest("Examples/Sales", "SalesEMEA");
+
+      assertThrows(SecurityException.class,
+                   () -> fixture.controller.renameFolder(request, fixture.principal));
+      verifyNoInteractions(fixture.dataSourceBrowserService);
+   }
+
+   @Test
+   void renameFolder_reportsDuplicateNameWithoutRenaming() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples/Sales"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(true);
+      when(fixture.dataSourceBrowserService.checkFolderDuplicate("Examples/Marketing"))
+         .thenReturn(new CheckDuplicateResponse(true));
+
+      WizFolderSaveResult result = fixture.controller.renameFolder(
+         new WizFolderRenameRequest("Examples/Sales", "Marketing"), fixture.principal);
+
+      assertFalse(result.ok());
+      assertEquals(WizFolderSaveResult.DUPLICATE_NAME, result.reason());
+      verify(fixture.dataSourceBrowserService, never())
+         .renameFolder(any(), any(), any(), any(), any());
+   }
+
+   /**
+    * Renaming a folder to its own current name must not be reported as a name collision with
+    * itself — {@code checkFolderDuplicate} would otherwise find the folder being renamed under its
+    * own (unchanged) path and refuse a no-op rename.
+    */
+   @Test
+   void renameFolder_skipsTheDuplicateCheckWhenTheNameIsUnchanged() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.securityEngine.checkPermission(
+         eq(fixture.principal), eq(ResourceType.DATA_SOURCE_FOLDER), eq("Examples/Sales"),
+         eq(ResourceAction.WRITE)))
+         .thenReturn(true);
+      when(fixture.dataSourceBrowserService.renameFolder(
+         eq("Examples/Sales"), eq("Sales"), any(), any(), eq(fixture.principal)))
+         .thenReturn("Examples/Sales");
+
+      WizFolderSaveResult result = fixture.controller.renameFolder(
+         new WizFolderRenameRequest("Examples/Sales", "Sales"), fixture.principal);
+
+      assertTrue(result.ok());
+      verify(fixture.dataSourceBrowserService, never()).checkFolderDuplicate(any());
+   }
+
+   @Test
+   void renameFolder_rejectsANameThatIsNotASinglePathSegment() {
+      Fixture fixture = new Fixture();
+      WizFolderRenameRequest request = new WizFolderRenameRequest("Examples/Sales", "Sales/2026");
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> fixture.controller.renameFolder(request, fixture.principal));
       assertEquals(400, ex.getStatusCode().value());
       verifyNoInteractions(fixture.dataSourceBrowserService);
    }
