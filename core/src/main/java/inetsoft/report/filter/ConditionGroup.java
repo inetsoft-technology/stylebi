@@ -22,6 +22,8 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.Util;
+import inetsoft.report.script.TableRow;
+import inetsoft.report.script.TableRowScope;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
@@ -562,7 +564,7 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
     * @param type the data type of the value.
     * @return the expression value.
     */
-   private Object getExpressionVal(ExpressionValue eval,
+   protected Object getExpressionVal(ExpressionValue eval,
       AssetQuerySandbox box, DataRef attr, String type, boolean dateRange)
    {
       String exp = eval.getExpression();
@@ -689,6 +691,90 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
       }
       else if(val != null) {
          val = Condition.getObject(type, val.toString());
+      }
+
+      return val;
+   }
+
+   /**
+    * Re-evaluate a JAVASCRIPT-typed condition value against a specific row, binding {@code field}
+    * to that row's own column values -- mirroring the per-row {@code field} binding a worksheet
+    * expression column already gets from {@link inetsoft.report.script.TableRow}/
+    * {@link inetsoft.report.script.TableRowScope} (WBS-042). Unlike {@link #getExpressionVal},
+    * which resolves a value once per query, this is meant to be called again for every row; it is
+    * opt-in -- inert unless a subclass identifies a value (via
+    * {@link ExpressionValue#referencesField()}) as needing a real row and calls this instead of
+    * {@code getExpressionVal}.
+    * @param eval the field-referencing ExpressionValue.
+    * @param box the asset query sandbox (used for the "parameter" chain, matching getExpressionVal).
+    * @param type the data type of the value.
+    * @param dateRange true if this value belongs to a DATE_IN condition, matching
+    *                  {@code getExpressionVal}'s own {@code dateRange} parameter -- see the
+    *                  post-processing below for why this must be threaded through here too.
+    * @param lens the table lens providing the current row's column values.
+    * @param row the row index within {@code lens}.
+    * @return the per-row script result.
+    */
+   protected Object evalFieldExpression(ExpressionValue eval, AssetQuerySandbox box, String type,
+                                        boolean dateRange, TableLens lens, int row)
+   {
+      String exp = eval.getExpression();
+      ScriptEnv senv = box.getScriptEnv();
+      ScriptScope scope = null;
+      Object val;
+
+      try {
+         ViewsheetSandbox vbox = box.getViewsheetSandbox();
+         Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
+         final Exception[] ex = { null };
+         Object script = scriptCache.get(exp, senv, e -> ex[0] = e);
+         ScriptScope base = box.createAssetQueryScope();
+         TableRowScope fieldScope = new TableRowScope(new TableRow(lens, row), "field");
+         fieldScope.setParentScope(base);
+         scope = fieldScope;
+         // same Rhino-reentrancy guard as getExpressionVal (60837)
+         senv.put("conditionGroupScope", scope);
+
+         val = senv.exec(script, scope, null, vs);
+
+         if(ex[0] != null) {
+            throw ex[0];
+         }
+      }
+      catch(Exception ex) {
+         String suggestion = senv.getSuggestion(ex, "field", scope);
+         String msg = "Script error: " + ex.getMessage() +
+            (suggestion != null ? "\nTo fix: " + suggestion : "") +
+            "\nScript failed:\n" + XUtil.numbering(exp);
+
+         if(LOG.isDebugEnabled()) {
+            LOG.debug(msg, ex);
+         }
+         else {
+            LOG.warn(msg);
+         }
+
+         throw new ScriptException(msg);
+      }
+      finally {
+         senv.remove("conditionGroupScope");
+      }
+
+      // Mirrors getExpressionVal's own post-processing exactly (both cases below), so a
+      // field[...] result is never treated differently from an otherwise-identical value that
+      // happened to be resolved once instead of per row.
+      if(val instanceof Object[]) {
+         Object[] objs = (Object[]) val;
+
+         for(int j = 0; j < objs.length; j++) {
+            objs[j] = getScriptValue(objs[j], type);
+         }
+      }
+      else if(dateRange && val instanceof String) {
+         // don't convert, name of date range
+      }
+      else if(!(val instanceof ColumnRef)) {
+         val = getScriptValue(val, type);
       }
 
       return val;

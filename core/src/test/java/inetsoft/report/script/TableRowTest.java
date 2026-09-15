@@ -20,6 +20,7 @@ package inetsoft.report.script;
 
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.util.script.ScriptException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.Tag;
@@ -75,6 +76,32 @@ public class TableRowTest {
 
       TableRow.TableCol tableCol = new TableRow.TableCol();
       assertEquals("null[0]", tableCol.toString());
+   }
+
+   /**
+    * Bug #76665: an id that resolves via neither the bound-source column map
+    * (header/identifier) nor any ancestor TableFilter must fail loud instead
+    * of silently returning null -- a caller such as Sum(field["typo"]) can
+    * turn that silent null into a silent 0 with "fill blank with zero" on.
+    */
+   @Test
+   void testGetMemberThrowsForUnresolvableId() {
+      tableRow = new TableRow(defaultTableLens, 1, "LineWrap", boolean.class);
+
+      assertThrows(ScriptException.class, () -> tableRow.getMember("nonexistent"));
+   }
+
+   /**
+    * Bug #76665: the throw above must not break an id that was explicitly
+    * assigned as a local member (e.g. field.name2 = "test" in script) -- an
+    * unrelated, legitimate use of this same "not a table column" fallthrough.
+    */
+   @Test
+   void testGetMemberStillReturnsExplicitlyAssignedMember() {
+      tableRow = new TableRow(defaultTableLens, 1, "LineWrap", boolean.class);
+
+      tableRow.putMember("name2", "test");
+      assertEquals("test", tableRow.getMember("name2"));
    }
 
    Object[][] objData = new Object[][]{

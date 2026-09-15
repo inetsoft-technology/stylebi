@@ -312,6 +312,50 @@ class ExpandedJsonTableTest {
    }
 
    @Test
+   public void testSingleObjectRootWithScalarArrayDoesNotExplode() {
+      // mirrors GitHub's "Repository" endpoint response shape (bug WBT-001 /
+      // Redmine #76648): a single JSON object at the root, not wrapped in a
+      // list envelope, with a top-level scalar-string array field.
+      String json = "{\n" +
+         "  \"name\": \"StyleBI-GitHub-Test\",\n" +
+         "  \"owner\": {\n" +
+         "    \"login\": \"YingWise\"\n" +
+         "  },\n" +
+         "  \"topics\": [ \"stylebi-test\", \"tabular-connector-test\" ]\n" +
+         "}";
+
+      XNodeTable actual = new XNodeTable(new ExpandedJsonTable(json, 1));
+      DefaultTable expected = new DefaultTable(new Object[][] {
+         { "name", "owner.login", "topics" },
+         { "StyleBI-GitHub-Test", "YingWise", "[\"stylebi-test\",\"tabular-connector-test\"]" },
+      });
+      //inetsoft.report.internal.Util.printTable(actual);
+      assertTableEquals(expected, actual);
+   }
+
+   @Test
+   public void testSingleObjectRootWithNestedMapScalarArrayDoesNotExplode() {
+      // sibling of the above: the scalar array is one hop deeper, inside a
+      // non-list nested map (root.owner.aliases) rather than directly on the
+      // document root (root.topics). Must still not explode at expandLevels = 1.
+      String json = "{\n" +
+         "  \"name\": \"Repo\",\n" +
+         "  \"owner\": {\n" +
+         "    \"login\": \"YingWise\",\n" +
+         "    \"aliases\": [ \"a\", \"b\" ]\n" +
+         "  }\n" +
+         "}";
+
+      XNodeTable actual = new XNodeTable(new ExpandedJsonTable(json, 1));
+      DefaultTable expected = new DefaultTable(new Object[][] {
+         { "name", "owner.login", "owner.aliases" },
+         { "Repo", "YingWise", "[\"a\",\"b\"]" },
+      });
+      //inetsoft.report.internal.Util.printTable(actual);
+      assertTableEquals(expected, actual);
+   }
+
+   @Test
    public void lookupDataIsExpanded() {
       final LinkedHashMap<String, Object> rootObj = new LinkedHashMap<>();
       final List<Object> arr = new ArrayList<>();

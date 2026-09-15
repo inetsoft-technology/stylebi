@@ -40,6 +40,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.XRepository;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.VSRefreshController;
+import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import org.junit.jupiter.api.Tag;
@@ -210,14 +211,16 @@ class ModifyCalculateFieldServiceTest {
    }
 
    /**
-    * VBS-003 / PCB-006 04-reverify-after-redeploy: even after PR #4971 fixed the non-wizard
-    * binding-tree-refresh branch, edit_calc_field/remove_calc_field still hit an unguarded
-    * NullPointerException from RuntimeSheetCache.getAffinityKey via
-    * refreshController.refreshViewsheet(...), because a session-less caller (the wiz agent) has
-    * no WebSocket-session-scoped runtime id for that call's cluster-affinity routing to key on.
-    * This fires whenever infoChanged || !create -- i.e. on essentially every edit/remove. This
-    * test simulates that exact call throwing and proves the calc field edit still completes (the
-    * write already committed) with a warning instead of the generic 500.
+    * Bug #76666: {@code refreshController.refreshViewsheet(...)} at this call site (fired
+    * whenever {@code infoChanged || !create}, i.e. on essentially every edit/remove) is a
+    * best-effort step -- if it fails for any reason, the calc field mutation above should still
+    * be reported as a success rather than propagating a generic 500, exactly like the other
+    * best-effort refresh steps in this method (crosstab/chart aggregate-info rebuild above). This
+    * test simulates that call throwing for an unrelated reason and proves the write still
+    * completes with a warning instead of the failure propagating. (Prior to the #76666 fix, this
+    * exact call always threw NullPointerException("Ouch! Argument cannot be null: key") for a
+    * session-less caller -- see {@link #refreshesViewsheetWithTheCallsOwnRuntimeIdNotANullSessionScopedOne()}
+    * below for the regression test that the null id itself is no longer reached.)
     */
    @Test
    void containsRefreshViewsheetFailureOnEditInsteadOfPropagatingIt() throws Exception {
@@ -264,7 +267,8 @@ class ModifyCalculateFieldServiceTest {
 
       VSRefreshController refreshController = mock(VSRefreshController.class);
       doThrow(new NullPointerException("Ouch! Argument cannot be null: key"))
-         .when(refreshController).refreshViewsheet(any(), eq(principal), eq(dispatcher), anyString());
+         .when(refreshController)
+         .refreshViewsheet(eq(id), any(), eq(principal), eq(dispatcher), anyString());
 
       ModifyCalculateFieldService service = new ModifyCalculateFieldService(
          mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
@@ -284,5 +288,102 @@ class ModifyCalculateFieldServiceTest {
             c.getMessage() != null && c.getMessage().contains("viewsheet"));
       assertTrue(sawRefreshWarning,
          "expected a WARNING MessageCommand about the refreshViewsheet failure");
+   }
+
+   /**
+    * Bug #76666 regression test. Before the fix, this call site asked
+    * {@code VSRefreshController}'s STOMP-mapped {@code refreshViewsheet(event, principal,
+    * dispatcher, linkUri)} to refresh the viewsheet, which re-derives the runtime id from
+    * {@code RuntimeViewsheetRef} -- a WebSocket-session-scoped bean that is only ever populated
+    * from a native STOMP header a real browser session sends. A session-less caller (the wiz
+    * agent's {@code CalcFieldAgentService}, reached via plain HTTP with no STOMP session at all)
+    * always got null back, which reached {@code RuntimeSheetCache.getAffinityKey} unguarded and
+    * threw {@code NullPointerException("Ouch! Argument cannot be null: key")}.
+    *
+    * This test binds no {@code RuntimeViewsheetRef} / session state whatsoever (the mocked
+    * {@code VSRefreshController} has none), simulating exactly that session-less caller, and
+    * asserts that the refresh is actually invoked with the CORRECT, already-known runtime id --
+    * via the explicit-id overload {@code refreshViewsheet(id, event, principal, dispatcher,
+    * linkUri)} -- not merely that nothing throws. A test that only asserted "no exception" would
+    * still pass against the pre-fix code once wrapped in the surrounding try/catch (see
+    * {@link #containsRefreshViewsheetFailureOnEditInsteadOfPropagatingIt()} above), so it would
+    * prove nothing about whether the null id was actually eliminated.
+    */
+   @Test
+   void refreshesViewsheetWithTheCallsOwnRuntimeIdNotANullSessionScopedOne() throws Exception {
+      String id = "rt-calcfield-4";
+      Principal principal = mock(Principal.class);
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+
+      ExpressionRef exprRef = new ExpressionRef();
+      exprRef.setName("DoubleQty");
+      exprRef.setExpression("field['QUANTITY'] * 4");
+      CalculateRef cref = new CalculateRef(true);
+      cref.setDataRef(exprRef);
+      cref.setSQL(false);
+
+      CalculateRef oldCalcRef = (CalculateRef) cref.clone();
+
+      CalculateRefModel calcModel = mock(CalculateRefModel.class);
+      when(calcModel.createDataRef()).thenReturn(cref);
+
+      ModifyCalculateFieldEvent event = mock(ModifyCalculateFieldEvent.class);
+      when(event.calculateRef()).thenReturn(calcModel);
+      when(event.tableName()).thenReturn("OrderDetails");
+      when(event.refName()).thenReturn("DoubleQty");
+      when(event.create()).thenReturn(false);
+      when(event.remove()).thenReturn(false);
+      when(event.name()).thenReturn(null);
+      when(event.wizard()).thenReturn(false);
+      when(event.wizardOriginalMode()).thenReturn(null);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssemblies()).thenReturn(new Assembly[0]);
+      // 1st call resolves the pre-edit ref; the 2nd ("any real change?") call must come back
+      // null so the pre-existing "no-op edit" short-circuit doesn't return before the
+      // refreshViewsheet call under test is ever reached.
+      when(vs.getCalcField(eq("OrderDetails"), eq("DoubleQty")))
+         .thenReturn(oldCalcRef, (CalculateRef) null);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
+
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      when(viewsheetService.getViewsheet(eq(id), eq(principal))).thenReturn(rvs);
+
+      // No RuntimeViewsheetRef / session state bound anywhere -- simulates the wiz agent's
+      // session-less HTTP caller exactly. If the fix regressed and this call site went back to
+      // asking VSRefreshController to re-derive the id itself, this mock has no way to supply
+      // one, and the verify() below (which requires the explicit id) would fail to match.
+      VSRefreshController refreshController = mock(VSRefreshController.class);
+
+      ModifyCalculateFieldService service = new ModifyCalculateFieldService(
+         mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
+         mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
+         refreshController, viewsheetService, mock(VSAssemblyInfoHandler.class),
+         mock(DataSourceRegistry.class));
+
+      assertDoesNotThrow(
+         () -> service.modifyCalculateField(id, event, principal, dispatcher, ""));
+
+      verify(vs).addCalcField(eq("OrderDetails"), eq(cref));
+
+      // The actual fix: the refresh is invoked via the explicit-id overload, using this
+      // method's own already-live id -- not the STOMP-mapped overload that would have to
+      // re-derive one from a session-scoped bean this caller never populates.
+      verify(refreshController)
+         .refreshViewsheet(eq(id), any(VSRefreshEvent.class), eq(principal), eq(dispatcher), anyString());
+      verify(refreshController, never())
+         .refreshViewsheet(any(VSRefreshEvent.class), eq(principal), eq(dispatcher), anyString());
+
+      // No warning should have been raised -- the refresh actually ran, it didn't fail.
+      ArgumentCaptor<MessageCommand> captor = ArgumentCaptor.forClass(MessageCommand.class);
+      verify(dispatcher, atLeast(0)).sendCommand(captor.capture());
+      boolean sawRefreshWarning = captor.getAllValues().stream().anyMatch(
+         c -> c.getType() == MessageCommand.Type.WARNING &&
+            c.getMessage() != null && c.getMessage().contains("viewsheet"));
+      assertFalse(sawRefreshWarning,
+         "refreshViewsheet should have succeeded with the correct id -- no warning expected");
    }
 }

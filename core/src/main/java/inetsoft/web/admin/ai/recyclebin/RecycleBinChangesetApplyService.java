@@ -35,6 +35,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -123,15 +124,21 @@ public class RecycleBinChangesetApplyService {
             RecycleBinChangeRequest original = originals.get(i);
             String key = change.property();
 
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
+
             try {
                applyOne(txId, plan.task(), key, original, user, backupRef, reviewOutcome, results,
-                       undoable);
+                       undoable, mutationEntered);
             }
             catch(Exception e) {
                results.add(new RecycleBinApplyOutcome(key, null, null,
                   AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
-               unknownStateFailures.add(new RollbackFailure(key,
-                  "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+
+               if(mutationEntered.get()) {
+                  unknownStateFailures.add(new RollbackFailure(key,
+                     "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               }
+
                failed = true;
                break;
             }
@@ -168,16 +175,19 @@ public class RecycleBinChangesetApplyService {
 
    private void applyOne(String txId, String task, String key, RecycleBinChangeRequest original,
                          Principal user, String backupRef, String reviewOutcome,
-                         List<RecycleBinApplyOutcome> results, List<Undo> undoable)
+                         List<RecycleBinApplyOutcome> results, List<Undo> undoable,
+                         AtomicBoolean mutationEntered)
       throws Exception
    {
       String verb = RecycleBinChangePlanService.requireVerb("change", original.getVerb());
 
       if(RecycleBinChangeRequest.VERB_RESTORE.equals(verb)) {
-         applyRestore(txId, task, key, original, user, backupRef, reviewOutcome, results, undoable);
+         applyRestore(txId, task, key, original, user, backupRef, reviewOutcome, results, undoable,
+                     mutationEntered);
       }
       else {
-         applyPurge(txId, task, key, original, user, backupRef, reviewOutcome, results);
+         applyPurge(txId, task, key, original, user, backupRef, reviewOutcome, results,
+                   mutationEntered);
       }
    }
 
@@ -186,7 +196,7 @@ public class RecycleBinChangesetApplyService {
    private void applyRestore(String txId, String task, String key,
                              RecycleBinChangeRequest original, Principal user, String backupRef,
                              String reviewOutcome, List<RecycleBinApplyOutcome> results,
-                             List<Undo> undoable)
+                             List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       String path = original.getPath();
@@ -206,6 +216,7 @@ public class RecycleBinChangesetApplyService {
 
       String beforeProjection = RecycleBinChangePlanService.project(entry, type);
       String advisory = null;
+      mutationEntered.set(true);
 
       if(entry.isSheet()) {
          RecycleUtils.restoreSheet(entry, overwrite, user, recycleBin);
@@ -245,7 +256,7 @@ public class RecycleBinChangesetApplyService {
 
    private void applyPurge(String txId, String task, String key, RecycleBinChangeRequest original,
                            Principal user, String backupRef, String reviewOutcome,
-                           List<RecycleBinApplyOutcome> results)
+                           List<RecycleBinApplyOutcome> results, AtomicBoolean mutationEntered)
       throws Exception
    {
       String path = original.getPath();
@@ -259,15 +270,18 @@ public class RecycleBinChangesetApplyService {
                AssetEntry.Type.VIEWSHEET;
          AssetEntry live = new AssetEntry(entry.getOriginalScope(), assetType, entry.getPath(),
                                           entry.getOriginalUser());
+         mutationEntered.set(true);
          assetRepository.removeSheet(live, user, true);
       }
       else if(entry.isWSFolder()) {
          AssetEntry live = new AssetEntry(entry.getOriginalScope(), AssetEntry.Type.FOLDER,
                                           entry.getPath(), entry.getOriginalUser());
+         mutationEntered.set(true);
          assetRepository.removeFolder(live, user, true);
       }
       else {
          RepletRegistry registry = RecycleUtils.getRegistry(entry.getPath(), entry.getOriginalUser());
+         mutationEntered.set(true);
          registry.removeFolder(entry.getPath());
          registry.save();
       }

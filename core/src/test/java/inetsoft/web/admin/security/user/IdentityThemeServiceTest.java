@@ -165,4 +165,28 @@ class IdentityThemeServiceTest {
       assertTrue(themeB.getUsers().contains("user1"),
          "reassigning to a different theme (no rename) must add the identity to the new theme");
    }
+
+   // Bug #76671, finding 2b: updateTheme(oldId=null, ...) used to treat a null oldId as
+   // matching every global (orgID == null) theme via Tool.equals(null, null) == true, silently
+   // re-scoping that global theme to the new identity's id and then NPEing on
+   // getJarPath().replace(oldId, id). oldId == null is a create-time call (no prior identity to
+   // rename from) and must never be treated as a rename match against a global theme's null orgID.
+   @Test
+   void updateTheme_oldIdNull_doesNotMutateGlobalThemeOrgId() {
+      CustomTheme globalTheme = new CustomTheme();
+      globalTheme.setId("global-1");
+      globalTheme.setOrgID(null);
+      globalTheme.setJarPath("/orig/path.jar");
+      globalTheme.setUsers(new ArrayList<>());
+
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+
+      assertDoesNotThrow(() -> service.updateTheme(null, "newOrg", CustomTheme::getUsers),
+         "a null oldId (create, not rename) must not be treated as matching a global theme's "
+         + "null orgID");
+
+      assertNull(globalTheme.getOrgID(),
+         "a global theme's orgID must not be silently re-scoped by a create-time call");
+      assertEquals("/orig/path.jar", globalTheme.getJarPath());
+   }
 }

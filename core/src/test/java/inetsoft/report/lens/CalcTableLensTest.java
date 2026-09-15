@@ -108,6 +108,24 @@ public class CalcTableLensTest {
    }
 
    /**
+    * Bug #76665: a $name reference that repeats across an expand region
+    * unrelated to the current cell's own expand cursor unwraps to an
+    * ambiguous, multi-element Object[] (the whole, unfiltered set of
+    * instances). Returning that raw array as a bare cell value previously
+    * leaked it into the cached cell data (rendering as the array's default
+    * toString(), e.g. "[Ljava.lang.Object;@<hash>"); it must throw instead.
+    */
+   @Test
+   public void testUnwrapTopLevelCalcRefThrowsOnAmbiguousArray() {
+      CalcRef ref = mock(CalcRef.class);
+      when(ref.unwrap()).thenReturn(new Object[]{ 100.0, 200.0 });
+      when(ref.getCellName()).thenReturn("AmtDetail");
+
+      Assertions.assertThrows(inetsoft.util.script.ScriptException.class,
+                              () -> CalcTableLens.unwrapCalcRefs(ref));
+   }
+
+   /**
     * A hand-typed formula cell (content:"formula") referencing a bare, unqualified
     * column name (e.g. Sum(PAID) instead of Sum(field['PAID'])) is invalid syntax in
     * the calc-table script scope and always throws a ReferenceError, regardless of

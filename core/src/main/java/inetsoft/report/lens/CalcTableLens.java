@@ -1163,7 +1163,27 @@ public class CalcTableLens extends DefaultTableLens {
    // package-private for testing
    static Object unwrapCalcRefs(Object value) {
       if(value instanceof CalcRef) {
-         return ((CalcRef) value).unwrap();
+         Object result = ((CalcRef) value).unwrap();
+
+         // ambiguous: $name repeats across an expand region unrelated to the
+         // current cell's own expand cursor, so unwrap() returned the whole,
+         // unfiltered set of instances instead of a single value. Correct for
+         // whole-vector aggregate consumption (sum($name), via
+         // ScriptUtil.unwrap()'s own, unaffected call path, #75738), but
+         // meaningless as a bare cell value -- surface it instead of leaking
+         // the raw array into the cached cell data.
+         if(result instanceof Object[] && ((Object[]) result).length > 1) {
+            String cellname = ((CalcRef) value).getCellName();
+            throw new ScriptException(
+               "Cannot use repeating named cell reference \"$" + cellname +
+               "\" as a scalar value here: \"" + cellname + "\" repeats " +
+               "across an expand region unrelated to the current cell's " +
+               "own expand cursor. Reference it from a cell in the same " +
+               "expand region as its defining group, or aggregate it " +
+               "explicitly (e.g. sum($" + cellname + ")).");
+         }
+
+         return result;
       }
 
       if(value instanceof Object[]) {

@@ -395,14 +395,18 @@ public class ModifyCalculateFieldService {
          try {
             WizardRecommenderUtil.setIgnoreRefreshTempAssembly(event.wizard());
             VSRefreshEvent refresh = VSRefreshEvent.builder().confirmed(false).build();
-            refreshController.refreshViewsheet(refresh, principal, dispatcher, linkUri);
+            // Use this method's own already-live @ClusterProxyKey id instead of asking
+            // VSRefreshController's STOMP-mapped overload to re-derive one from
+            // RuntimeViewsheetRef -- a WebSocket-session-scoped bean a session-less caller
+            // (e.g. the wiz agent) never populates, which used to reach
+            // RuntimeSheetCache.getAffinityKey as null and throw NullPointerException
+            // (bug #76666). This is the same fix shape as the non-wizard binding-tree refresh
+            // a few lines above (PR #4971/PCB-006).
+            refreshController.refreshViewsheet(id, refresh, principal, dispatcher, linkUri);
          }
          catch(Exception e) {
-            // A session-less caller (e.g. the wiz agent) has no WebSocket-session-scoped
-            // runtime id for VSRefreshController's own cluster-affinity routing to key on,
-            // so this best-effort post-write refresh can NPE (RuntimeSheetCache.getAffinityKey)
-            // even though the calc field mutation above already committed -- see PCB-006
-            // 04-reverify-after-redeploy.md.
+            // Best-effort: this post-write refresh failing for some other reason shouldn't
+            // undo the calc field mutation above, which already committed.
             warnRefreshFailure(dispatcher, "refresh the viewsheet", tname, refname, e);
          }
          finally {

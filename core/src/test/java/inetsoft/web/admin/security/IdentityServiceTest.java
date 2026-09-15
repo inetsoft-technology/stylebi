@@ -298,4 +298,40 @@ class IdentityServiceTest {
       m.setAccessible(true);
       m.invoke(service, type, newIdentityID, oldIdentityID, null, null, permission, action);
    }
+
+   // Bug #76671 (06-fix-r2.md), finding 3: SecurityApiService.updateOrganization's round-1 fix
+   // added its own, separately name-keyed CustomTheme.getOrganizations() write on top of this
+   // method's already-correct id-keyed one, producing a duplicate entry for any organization
+   // whose id differs from its display name. That extra write was removed in round 2, leaving
+   // this method as the sole writer -- this test guards it directly.
+   @Test
+   void updateCustomThemeOrganization_idDiffersFromName_writesSingleIdKeyedEntryAndSetsPointer()
+      throws Exception
+   {
+      inetsoft.sree.portal.CustomThemesManager customThemesManager =
+         mock(inetsoft.sree.portal.CustomThemesManager.class, withSettings().lenient());
+      inetsoft.sree.portal.CustomTheme theme = new inetsoft.sree.portal.CustomTheme();
+      theme.setId("theme-1");
+      theme.setOrganizations(new ArrayList<>());
+      when(customThemesManager.getCustomThemes())
+         .thenReturn(new HashSet<>(Set.of(theme)));
+      ReflectionTestUtils.setField(service, "customThemesManager", customThemesManager);
+
+      invokeUpdateCustomThemeOrganization(null, "theme-1", "org-xyz", "org-xyz");
+
+      assertEquals(List.of("org-xyz"), theme.getOrganizations(),
+         "organization theme membership must be written keyed by org id, exactly once -- not "
+         + "duplicated under the organization's display name");
+      verify(customThemesManager).setOrgSelectedTheme("theme-1", "org-xyz");
+   }
+
+   private void invokeUpdateCustomThemeOrganization(String oldThemeId, String themeID,
+                                                      String oldOrgID, String newOrgID)
+      throws Exception
+   {
+      Method m = IdentityService.class.getDeclaredMethod("updateCustomThemeOrganization",
+         String.class, String.class, String.class, String.class);
+      m.setAccessible(true);
+      m.invoke(service, oldThemeId, themeID, oldOrgID, newOrgID);
+   }
 }
