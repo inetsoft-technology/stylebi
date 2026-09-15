@@ -25,6 +25,7 @@ import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.viewsheet.ViewsheetFormatService;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -68,6 +69,7 @@ public class BindingAgentController {
                                  CalcTableService calcService,
                                  SelectionBindingService selectionService,
                                  CalcFieldAgentService calcFieldService,
+                                 ViewsheetFormatService formatService,
                                  SheetAgentBroadcastService broadcast)
    {
       this.feature = feature;
@@ -82,6 +84,7 @@ public class BindingAgentController {
       this.calcService = calcService;
       this.selectionService = selectionService;
       this.calcFieldService = calcFieldService;
+      this.formatService = formatService;
       this.broadcast = broadcast;
    }
 
@@ -581,6 +584,29 @@ public class BindingAgentController {
                                  request.col(), request.binding());
    }
 
+   @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell/format")
+   public Map<String, Object> calcCellFormat(@PathVariable String sessionToken,
+                                             @RequestParam String assembly,
+                                             @RequestParam int row,
+                                             @RequestParam int col,
+                                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formatService.getCellFormat(sessionToken, user, assembly, row, col);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc/cell/format")
+   public void setCalcCellFormat(@PathVariable String sessionToken,
+                                 @RequestBody ViewsheetFormatService.CellFormatRequest request,
+                                 @RequestParam(required = false, defaultValue = "") String linkUri,
+                                 Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      formatService.setCellFormat(sessionToken, user, request, linkUri);
+   }
+
    public record TableSortRequest(String assembly, String shelf, String column, Integer index,
                                   String direction, String sortByField,
                                   List<String> manualOrder) {}
@@ -805,5 +831,6 @@ public class BindingAgentController {
    private final CalcTableService calcService;
    private final SelectionBindingService selectionService;
    private final CalcFieldAgentService calcFieldService;
+   private final ViewsheetFormatService formatService;
    private final SheetAgentBroadcastService broadcast;
 }

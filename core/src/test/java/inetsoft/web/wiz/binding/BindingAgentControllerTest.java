@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.viewsheet.ViewsheetFormatService;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -121,7 +122,7 @@ class BindingAgentControllerTest {
                                         mock(TableBindingService.class),
                                         mock(CalcTableService.class),
                                         mock(SelectionBindingService.class),
-                                        mock(CalcFieldAgentService.class),
+                                        mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
                                         mock(SheetAgentBroadcastService.class));
    }
 
@@ -138,7 +139,7 @@ class BindingAgentControllerTest {
                                         mock(TableBindingService.class),
                                         mock(CalcTableService.class),
                                         mock(SelectionBindingService.class),
-                                        mock(CalcFieldAgentService.class),
+                                        mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
                                         mock(SheetAgentBroadcastService.class));
    }
 
@@ -276,7 +277,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
          mock(TableBindingService.class), mock(CalcTableService.class),
-         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.ShelfRequest request = new BindingAgentController.ShelfRequest(
@@ -305,7 +306,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), chartService, mock(ChartAestheticAgentService.class),
          mock(TableBindingService.class), mock(CalcTableService.class),
-         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.SingleShelfRequest request = new BindingAgentController.SingleShelfRequest(
@@ -333,7 +334,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class), aestheticService,
          mock(TableBindingService.class), mock(CalcTableService.class),
-         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.AestheticFieldRequest request =
@@ -397,7 +398,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
-         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.TableShelfRequest request =
@@ -433,7 +434,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
-         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.TableShelfRequest request = new BindingAgentController.TableShelfRequest(
@@ -462,7 +463,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
-         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.TableFieldRequest request = new BindingAgentController.TableFieldRequest(
@@ -496,7 +497,7 @@ class BindingAgentControllerTest {
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions, fields,
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
-         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
          mock(SheetAgentBroadcastService.class));
 
       BindingAgentController.TableShelfRequest request = new BindingAgentController.TableShelfRequest(
@@ -534,7 +535,7 @@ class BindingAgentControllerTest {
          mock(BindableFieldsService.class), mock(BindingReadService.class),
          mock(ChartBindingService.class), mock(ChartAestheticAgentService.class),
          mock(TableBindingService.class), mock(CalcTableService.class),
-         mock(SelectionBindingService.class), calcFieldService, mock(SheetAgentBroadcastService.class));
+         mock(SelectionBindingService.class), calcFieldService, mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
 
       CalcFieldAgentService.CalcFieldRequest request = new CalcFieldAgentService.CalcFieldRequest(
          "ORDERS", "Crosstab1", "NetTotal", null, "field['Total']", "double", false, true, false,
@@ -561,7 +562,7 @@ class BindingAgentControllerTest {
          mock(BindableFieldsService.class), mock(BindingReadService.class),
          mock(ChartBindingService.class), mock(ChartAestheticAgentService.class),
          mock(TableBindingService.class), mock(CalcTableService.class),
-         mock(SelectionBindingService.class), calcFieldService, mock(SheetAgentBroadcastService.class));
+         mock(SelectionBindingService.class), calcFieldService, mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
 
       CalcFieldAgentService.CalcFieldRequest request = new CalcFieldAgentService.CalcFieldRequest(
          "ORDERS", "Crosstab1", "NetTotal", null, "field['Total']", "double", false, true, false,
@@ -591,7 +592,7 @@ class BindingAgentControllerTest {
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), mock(TableBindingService.class),
          mock(CalcTableService.class), mock(SelectionBindingService.class),
-         mock(CalcFieldAgentService.class), broadcast);
+         mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class), broadcast);
 
       controller.detach("my-token", principal());
 
@@ -611,7 +612,7 @@ class BindingAgentControllerTest {
          mock(BindingReadService.class), mock(ChartBindingService.class),
          mock(ChartAestheticAgentService.class), mock(TableBindingService.class),
          mock(CalcTableService.class), mock(SelectionBindingService.class),
-         mock(CalcFieldAgentService.class), broadcast);
+         mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class), broadcast);
 
       controller.detach("someone-elses-token", principal());
 

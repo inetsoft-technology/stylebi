@@ -27,6 +27,7 @@ import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.CellBinding;
 import inetsoft.report.GroupableCellBinding;
 import inetsoft.report.TableCellBinding;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLayout;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
@@ -815,6 +816,55 @@ class CalcTableServiceTest {
 
       assertNull(read.get("script"));
       assertNotNull(read.get("note"), "say that no script came back rather than looking empty");
+   }
+
+   // ── cellFormatPath (bug 76679) ─────────────────────────────────────────────
+   //
+   // The canonical per-cell format address set_calc_cell_format/get_calc_cell_format resolve
+   // through -- same requireCalcTable/requireInGrid guards every other calc/cell endpoint uses,
+   // composed with CalcTableVSAssemblyInfo#getCellDataPath.
+
+   @Test
+   void cellFormatPathReturnsTheCellsCanonicalDataPath() throws Exception {
+      Harness h = harness(3, 3);
+      CalcTableVSAssembly assembly = (CalcTableVSAssembly) h.viewsheet().getAssembly("Calc1");
+      when(assembly.getVSAssemblyInfo()).thenReturn(h.assemblyInfo());
+      TableDataPath expected = new TableDataPath(-1, TableDataPath.DETAIL,
+         inetsoft.uql.schema.XSchema.STRING, new String[]{ "Cell [1,2]" });
+      when(h.assemblyInfo().getCellDataPath(1, 2)).thenReturn(expected);
+      RuntimeViewsheet rvs = h.sessions().resolve("tok", principal());
+
+      TableDataPath path = h.service.cellFormatPath(rvs, "Calc1", 1, 2);
+
+      assertSame(expected, path);
+   }
+
+   /** A3: out-of-range coordinates fail loud with requireInGrid's own message. */
+   @Test
+   void cellFormatPathRejectsAnOutOfRangeCell() throws Exception {
+      Harness h = harness(2, 2);
+      CalcTableVSAssembly assembly = (CalcTableVSAssembly) h.viewsheet().getAssembly("Calc1");
+      when(assembly.getVSAssemblyInfo()).thenReturn(h.assemblyInfo());
+      RuntimeViewsheet rvs = h.sessions().resolve("tok", principal());
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.cellFormatPath(rvs, "Calc1", 5, 0));
+
+      assertTrue(thrown.getMessage().contains("outside the grid"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("2 row(s) by 2 column(s)"), thrown.getMessage());
+   }
+
+   /** A4: a non-CalcTable assembly fails loud with requireCalcTable's own message. */
+   @Test
+   void cellFormatPathRejectsANonCalcTableAssembly() throws Exception {
+      Harness h = harnessFor(mock(CrosstabVSAssembly.class), 3, 3);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.cellFormatPath(
+            h.sessions().resolve("tok", principal()), "Crosstab1", 0, 0));
+
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("not a calc table"), thrown.getMessage());
    }
 
    /**

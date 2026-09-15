@@ -29,13 +29,19 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
+import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.FormatVSObjectEvent;
+import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
+import inetsoft.web.wiz.binding.CalcTableService;
+import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Applies assembly-level formatting through the Composer's own format service.
@@ -47,9 +53,12 @@ import java.util.List;
 @Service
 public class ViewsheetFormatService {
    @Autowired
-   public ViewsheetFormatService(ViewsheetSessionService sessions, FormatPainterService painter) {
+   public ViewsheetFormatService(ViewsheetSessionService sessions, FormatPainterService painter,
+                                 CalcTableService calcService)
+   {
       this.sessions = sessions;
       this.painter = painter;
+      this.calcService = calcService;
    }
 
    /**
@@ -103,214 +112,246 @@ public class ViewsheetFormatService {
                                            @JsonProperty("target") String target,
                                            @JsonProperty("field") String field)
       {
-         return new FormatRequest(assemblies, toModel(format), reset, target, field);
+         return new FormatRequest(assemblies, parseFormat(format, "set_format"), reset, target,
+                                  field);
       }
-
-      private static VSObjectFormatInfoModel toModel(JsonNode format) {
-         if(format == null || format.isNull()) {
-            return null;
-         }
-
-         ObjectNode object = ((ObjectNode) format).deepCopy();
-         object.put("type", VSObjectFormatInfoModel.class.getName());
-         coerceAlign(object);
-         coerceBorderStyles(object);
-
-         try {
-            return MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
-         }
-         catch(JsonProcessingException e) {
-            throw new IllegalArgumentException(
-               "set_format could not read 'format': " + e.getOriginalMessage(), e);
-         }
-      }
-
-      /**
-       * Lets {@code align} be written as a word.
-       *
-       * <p>This API documents its format as CSS-shaped and lists {@code align} beside
-       * {@code color} and {@code backgroundColor}, so a caller writes {@code align: "center"}.
-       * Underneath it is an {@code AlignmentInfo} with {@code halign}/{@code valign}, and Jackson
-       * threw on the string — during body conversion, where Spring wraps the failure in
-       * {@code HttpMessageNotReadableException} and answers with a **bodyless 400**. So the
-       * documented usage failed with no message at all.
-       *
-       * <p>Accepting the word is the right half of the fix: "center" has one sensible meaning, and
-       * the alternative is asking callers to learn an internal model this API exists to hide. Both
-       * axes are accepted, together or separately, and the object form still works.
-       */
-      private static void coerceAlign(ObjectNode object) {
-         JsonNode align = object.get("align");
-
-         if(align == null || !align.isTextual()) {
-            return;
-         }
-
-         ObjectNode alignment = object.objectNode();
-
-         for(String word : align.asText().trim().toLowerCase().split("\\s+")) {
-            if(word.isEmpty()) {
-               continue;
-            }
-
-            switch(word) {
-            case "left" -> alignment.put("halign", "Left");
-            case "center" -> alignment.put("halign", "Center");
-            case "right" -> alignment.put("halign", "Right");
-            case "top" -> alignment.put("valign", "Top");
-            case "middle" -> alignment.put("valign", "Middle");
-            case "bottom" -> alignment.put("valign", "Bottom");
-            default -> throw new IllegalArgumentException(
-               "set_format could not read 'align': '" + word + "' is not an alignment. " +
-               "Horizontal: left, center, right. Vertical: top, middle, bottom. " +
-               "Both may be given together, as \"center middle\".");
-            }
-         }
-
-         object.set("align", alignment);
-      }
-
-      /**
-       * Lets the four border styles be written as CSS words.
-       *
-       * <p>The underlying model is asymmetric: {@code FormatInfoModel.getBorderStyle} <em>reads</em>
-       * "solid"/"dashed"/"dotted"/"double", while the write goes through
-       * {@code FormatPainterService}, which does {@code Integer.parseInt} on the same field. So the
-       * word this API documents — and the word that comes back out of it — could never be written,
-       * and failed with a raw {@code For input string: "solid"} naming no field at all.
-       *
-       * <p>A number still passes through untouched, for a caller that already has the constant.
-       */
-      private static void coerceBorderStyles(ObjectNode object) {
-         for(int i = 0; i < BORDER_STYLES.size(); i++) {
-            String side = BORDER_STYLES.get(i);
-            String widthField = BORDER_WIDTHS.get(i);
-
-            // Consumed here whatever happens: nothing downstream reads it, so leaving it in the
-            // payload is what made it a silent no-op. See coerceBorderWidth.
-            JsonNode width = object.remove(widthField);
-            JsonNode style = object.get(side);
-
-            if(style == null && width == null) {
-               continue;
-            }
-
-            if(style != null && !style.isTextual()) {
-               continue;
-            }
-
-            String word = style == null ? "solid" : style.asText().trim().toLowerCase();
-
-            if(word.chars().allMatch(Character::isDigit)) {
-               if(width != null) {
-                  throw new IllegalArgumentException(
-                     "set_format got both '" + side + "' as a line constant (" + word + ") and '" +
-                     widthField + "'. The constant already encodes the weight, so honouring both " +
-                     "is ambiguous. Drop '" + widthField + "', or give '" + side + "' as a word.");
-               }
-
-               continue;
-            }
-
-            object.put(side, String.valueOf(toLineConstant(word, width, side, widthField)));
-         }
-      }
-
-      /**
-       * Folds a CSS border width into the line constant, which is where StyleBI keeps weight.
-       *
-       * <p>{@code FormatPainterService} builds its {@code Insets} from the four <em>style</em>
-       * fields alone — {@code borderTopWidth} and its siblings are never read on the write path.
-       * They are part of {@code FormatInfoModel} and are documented by this tool's own schema, so a
-       * caller asking for a 3px border got a thin one and nothing said otherwise. Consuming the
-       * field and folding it into the constant makes the documented parameter mean something.
-       *
-       * <p>Weight only exists for two families: solid (thin/medium/thick) and dash
-       * (dash/medium/large). There is no thick dotted or thick double line, so those combinations
-       * fail loud rather than quietly rendering a thin one — the same failure in a new disguise.
-       */
-      private static int toLineConstant(String word, JsonNode width, String side,
-                                        String widthField)
-      {
-         Integer px = coerceBorderWidth(width, widthField);
-
-         if(px != null && px == 0) {
-            return StyleConstants.NO_BORDER;
-         }
-
-         boolean weighted = px != null && px > 1;
-
-         return switch(word) {
-            case "none" -> StyleConstants.NO_BORDER;
-            case "solid" -> !weighted ? StyleConstants.THIN_LINE
-               : px == 2 ? StyleConstants.MEDIUM_LINE : StyleConstants.THICK_LINE;
-            case "dashed" -> !weighted ? StyleConstants.DASH_LINE
-               : px == 2 ? StyleConstants.MEDIUM_DASH : StyleConstants.LARGE_DASH;
-            case "dotted", "double" -> {
-               if(weighted) {
-                  throw new IllegalArgumentException(
-                     "set_format cannot apply '" + widthField + "' to a " + word + " border: " +
-                     "StyleBI has no weighted " + word + " line. Use a solid or dashed border for " +
-                     "a thicker line, or drop '" + widthField + "'.");
-               }
-
-               yield "dotted".equals(word) ? StyleConstants.DOT_LINE : StyleConstants.DOUBLE_LINE;
-            }
-            // Weight words carry their own thickness, so a width alongside them is a contradiction
-            // rather than extra detail.
-            case "thin", "medium", "thick" -> {
-               if(px != null) {
-                  throw new IllegalArgumentException(
-                     "set_format got '" + side + "' as '" + word + "', which already sets the " +
-                     "weight, together with '" + widthField + "'. Drop one — use 'solid' with a " +
-                     "width, or the weight word on its own.");
-               }
-
-               yield "thin".equals(word) ? StyleConstants.THIN_LINE
-                  : "medium".equals(word) ? StyleConstants.MEDIUM_LINE : StyleConstants.THICK_LINE;
-            }
-            default -> throw new IllegalArgumentException(
-               "set_format could not read '" + side + "': '" + word + "' is not a border " +
-               "style. Accepted: none, solid, dashed, dotted, double, thin, medium, thick. " +
-               "A StyleBI line constant is accepted as a number.");
-         };
-      }
-
-      /** Accepts 3, "3" and "3px"; refuses anything else by name rather than dropping it. */
-      private static Integer coerceBorderWidth(JsonNode width, String widthField) {
-         if(width == null || width.isNull()) {
-            return null;
-         }
-
-         if(width.isNumber()) {
-            return width.asInt();
-         }
-
-         String text = width.asText().trim().toLowerCase();
-
-         if(text.endsWith("px")) {
-            text = text.substring(0, text.length() - 2).trim();
-         }
-
-         try {
-            return Integer.valueOf(text);
-         }
-         catch(NumberFormatException e) {
-            throw new IllegalArgumentException(
-               "set_format could not read '" + widthField + "': '" + width.asText() + "' is not a " +
-               "width. Give a number of pixels, e.g. 1, 2 or 3 (\"2px\" is accepted).");
-         }
-      }
-
-      private static final List<String> BORDER_STYLES =
-         List.of("borderTopStyle", "borderLeftStyle", "borderBottomStyle", "borderRightStyle");
-
-      /** Index-aligned with {@link #BORDER_STYLES}. */
-      private static final List<String> BORDER_WIDTHS =
-         List.of("borderTopWidth", "borderLeftWidth", "borderBottomWidth", "borderRightWidth");
-
-      private static final ObjectMapper MAPPER = new ObjectMapper();
    }
+
+   /**
+    * @param assembly the calc table's name
+    * @param row      0-based design-grid row
+    * @param col      0-based design-grid column
+    * @param format   the format to apply; may be null only when {@code reset} is true
+    * @param reset    clear this cell's own format back to inherited, rather than applying
+    *                 {@code format}
+    */
+   public record CellFormatRequest(String assembly, Integer row, Integer col,
+                                   VSObjectFormatInfoModel format, boolean reset)
+   {
+      /** @see FormatRequest#fromJson -- same reason: bypasses Jackson's polymorphic resolver. */
+      @JsonCreator
+      public static CellFormatRequest fromJson(@JsonProperty("assembly") String assembly,
+                                               @JsonProperty("row") Integer row,
+                                               @JsonProperty("col") Integer col,
+                                               @JsonProperty("format") JsonNode format,
+                                               @JsonProperty("reset") boolean reset)
+      {
+         return new CellFormatRequest(assembly, row, col,
+                                      parseFormat(format, "set_calc_cell_format"), reset);
+      }
+   }
+
+   /**
+    * @param toolName the calling MCP tool's name (e.g. {@code "set_format"},
+    *                 {@code "set_calc_cell_format"}), named in any thrown message so it points
+    *                 at the tool the caller actually used, not whichever one first defined this
+    *                 shared parsing.
+    * @see FormatRequest#fromJson for why this reads {@code format} as a raw {@code JsonNode}.
+    */
+   static VSObjectFormatInfoModel parseFormat(JsonNode format, String toolName) {
+      if(format == null || format.isNull()) {
+         return null;
+      }
+
+      ObjectNode object = ((ObjectNode) format).deepCopy();
+      object.put("type", VSObjectFormatInfoModel.class.getName());
+      coerceAlign(object, toolName);
+      coerceBorderStyles(object, toolName);
+
+      try {
+         return MAPPER.treeToValue(object, VSObjectFormatInfoModel.class);
+      }
+      catch(JsonProcessingException e) {
+         throw new IllegalArgumentException(
+            toolName + " could not read 'format': " + e.getOriginalMessage(), e);
+      }
+   }
+
+   /**
+    * Lets {@code align} be written as a word.
+    *
+    * <p>This API documents its format as CSS-shaped and lists {@code align} beside
+    * {@code color} and {@code backgroundColor}, so a caller writes {@code align: "center"}.
+    * Underneath it is an {@code AlignmentInfo} with {@code halign}/{@code valign}, and Jackson
+    * threw on the string — during body conversion, where Spring wraps the failure in
+    * {@code HttpMessageNotReadableException} and answers with a **bodyless 400**. So the
+    * documented usage failed with no message at all.
+    *
+    * <p>Accepting the word is the right half of the fix: "center" has one sensible meaning, and
+    * the alternative is asking callers to learn an internal model this API exists to hide. Both
+    * axes are accepted, together or separately, and the object form still works.
+    */
+   private static void coerceAlign(ObjectNode object, String toolName) {
+      JsonNode align = object.get("align");
+
+      if(align == null || !align.isTextual()) {
+         return;
+      }
+
+      ObjectNode alignment = object.objectNode();
+
+      for(String word : align.asText().trim().toLowerCase().split("\\s+")) {
+         if(word.isEmpty()) {
+            continue;
+         }
+
+         switch(word) {
+         case "left" -> alignment.put("halign", "Left");
+         case "center" -> alignment.put("halign", "Center");
+         case "right" -> alignment.put("halign", "Right");
+         case "top" -> alignment.put("valign", "Top");
+         case "middle" -> alignment.put("valign", "Middle");
+         case "bottom" -> alignment.put("valign", "Bottom");
+         default -> throw new IllegalArgumentException(
+            toolName + " could not read 'align': '" + word + "' is not an alignment. " +
+            "Horizontal: left, center, right. Vertical: top, middle, bottom. " +
+            "Both may be given together, as \"center middle\".");
+         }
+      }
+
+      object.set("align", alignment);
+   }
+
+   /**
+    * Lets the four border styles be written as CSS words.
+    *
+    * <p>The underlying model is asymmetric: {@code FormatInfoModel.getBorderStyle} <em>reads</em>
+    * "solid"/"dashed"/"dotted"/"double", while the write goes through
+    * {@code FormatPainterService}, which does {@code Integer.parseInt} on the same field. So the
+    * word this API documents — and the word that comes back out of it — could never be written,
+    * and failed with a raw {@code For input string: "solid"} naming no field at all.
+    *
+    * <p>A number still passes through untouched, for a caller that already has the constant.
+    */
+   private static void coerceBorderStyles(ObjectNode object, String toolName) {
+      for(int i = 0; i < BORDER_STYLES.size(); i++) {
+         String side = BORDER_STYLES.get(i);
+         String widthField = BORDER_WIDTHS.get(i);
+
+         // Consumed here whatever happens: nothing downstream reads it, so leaving it in the
+         // payload is what made it a silent no-op. See coerceBorderWidth.
+         JsonNode width = object.remove(widthField);
+         JsonNode style = object.get(side);
+
+         if(style == null && width == null) {
+            continue;
+         }
+
+         if(style != null && !style.isTextual()) {
+            continue;
+         }
+
+         String word = style == null ? "solid" : style.asText().trim().toLowerCase();
+
+         if(word.chars().allMatch(Character::isDigit)) {
+            if(width != null) {
+               throw new IllegalArgumentException(
+                  toolName + " got both '" + side + "' as a line constant (" + word + ") and '" +
+                  widthField + "'. The constant already encodes the weight, so honouring both " +
+                  "is ambiguous. Drop '" + widthField + "', or give '" + side + "' as a word.");
+            }
+
+            continue;
+         }
+
+         object.put(side, String.valueOf(toLineConstant(word, width, side, widthField, toolName)));
+      }
+   }
+
+   /**
+    * Folds a CSS border width into the line constant, which is where StyleBI keeps weight.
+    *
+    * <p>{@code FormatPainterService} builds its {@code Insets} from the four <em>style</em>
+    * fields alone — {@code borderTopWidth} and its siblings are never read on the write path.
+    * They are part of {@code FormatInfoModel} and are documented by this tool's own schema, so a
+    * caller asking for a 3px border got a thin one and nothing said otherwise. Consuming the
+    * field and folding it into the constant makes the documented parameter mean something.
+    *
+    * <p>Weight only exists for two families: solid (thin/medium/thick) and dash
+    * (dash/medium/large). There is no thick dotted or thick double line, so those combinations
+    * fail loud rather than quietly rendering a thin one — the same failure in a new disguise.
+    */
+   private static int toLineConstant(String word, JsonNode width, String side,
+                                     String widthField, String toolName)
+   {
+      Integer px = coerceBorderWidth(width, widthField, toolName);
+
+      if(px != null && px == 0) {
+         return StyleConstants.NO_BORDER;
+      }
+
+      boolean weighted = px != null && px > 1;
+
+      return switch(word) {
+         case "none" -> StyleConstants.NO_BORDER;
+         case "solid" -> !weighted ? StyleConstants.THIN_LINE
+            : px == 2 ? StyleConstants.MEDIUM_LINE : StyleConstants.THICK_LINE;
+         case "dashed" -> !weighted ? StyleConstants.DASH_LINE
+            : px == 2 ? StyleConstants.MEDIUM_DASH : StyleConstants.LARGE_DASH;
+         case "dotted", "double" -> {
+            if(weighted) {
+               throw new IllegalArgumentException(
+                  toolName + " cannot apply '" + widthField + "' to a " + word + " border: " +
+                  "StyleBI has no weighted " + word + " line. Use a solid or dashed border for " +
+                  "a thicker line, or drop '" + widthField + "'.");
+            }
+
+            yield "dotted".equals(word) ? StyleConstants.DOT_LINE : StyleConstants.DOUBLE_LINE;
+         }
+         // Weight words carry their own thickness, so a width alongside them is a contradiction
+         // rather than extra detail.
+         case "thin", "medium", "thick" -> {
+            if(px != null) {
+               throw new IllegalArgumentException(
+                  toolName + " got '" + side + "' as '" + word + "', which already sets the " +
+                  "weight, together with '" + widthField + "'. Drop one — use 'solid' with a " +
+                  "width, or the weight word on its own.");
+            }
+
+            yield "thin".equals(word) ? StyleConstants.THIN_LINE
+               : "medium".equals(word) ? StyleConstants.MEDIUM_LINE : StyleConstants.THICK_LINE;
+         }
+         default -> throw new IllegalArgumentException(
+            toolName + " could not read '" + side + "': '" + word + "' is not a border " +
+            "style. Accepted: none, solid, dashed, dotted, double, thin, medium, thick. " +
+            "A StyleBI line constant is accepted as a number.");
+      };
+   }
+
+   /** Accepts 3, "3" and "3px"; refuses anything else by name rather than dropping it. */
+   private static Integer coerceBorderWidth(JsonNode width, String widthField, String toolName) {
+      if(width == null || width.isNull()) {
+         return null;
+      }
+
+      if(width.isNumber()) {
+         return width.asInt();
+      }
+
+      String text = width.asText().trim().toLowerCase();
+
+      if(text.endsWith("px")) {
+         text = text.substring(0, text.length() - 2).trim();
+      }
+
+      try {
+         return Integer.valueOf(text);
+      }
+      catch(NumberFormatException e) {
+         throw new IllegalArgumentException(
+            toolName + " could not read '" + widthField + "': '" + width.asText() + "' is not a " +
+            "width. Give a number of pixels, e.g. 1, 2 or 3 (\"2px\" is accepted).");
+      }
+   }
+
+   private static final List<String> BORDER_STYLES =
+      List.of("borderTopStyle", "borderLeftStyle", "borderBottomStyle", "borderRightStyle");
+
+   /** Index-aligned with {@link #BORDER_STYLES}. */
+   private static final List<String> BORDER_WIDTHS =
+      List.of("borderTopWidth", "borderLeftWidth", "borderBottomWidth", "borderRightWidth");
+
+   private static final ObjectMapper MAPPER = new ObjectMapper();
 
    public void setFormat(String sessionToken, Principal user, FormatRequest request,
                          String linkUri) throws Exception
@@ -385,6 +426,119 @@ public class ViewsheetFormatService {
       });
    }
 
+   /**
+    * {@code set_calc_cell_format}. Applies a format at one {@code CalcTable} cell's own
+    * {@code TableDataPath} ({@link CalcTableService#cellFormatPath}) rather than the whole
+    * object -- the same {@code event.getData()} per-path mechanism {@link #setFormat}'s
+    * {@code target: "title"} already uses, just with a computed cell path instead of
+    * {@link VSAssemblyInfo#TITLEPATH}. One call, one cell -- a caller wanting several cells
+    * formatted makes several calls, matching {@code set_calc_cell_script}'s own granularity.
+    */
+   public void setCellFormat(String sessionToken, Principal user, CellFormatRequest request,
+                             String linkUri) throws Exception
+   {
+      if(request.assembly() == null || request.assembly().isBlank()) {
+         throw new IllegalArgumentException("set_calc_cell_format requires 'assembly'.");
+      }
+
+      if(request.row() == null || request.col() == null) {
+         throw new IllegalArgumentException(
+            "set_calc_cell_format requires 'row' and 'col' -- calc-table cells are " +
+            "addressed by coordinate.");
+      }
+
+      if(request.format() == null && !request.reset()) {
+         throw new IllegalArgumentException(
+            "set_calc_cell_format requires 'format' unless 'reset' is true.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         TableDataPath cellPath =
+            calcService.cellFormatPath(rvs, request.assembly(), request.row(), request.col());
+
+         FormatVSObjectEvent event = new FormatVSObjectEvent();
+         event.setFormat(request.format());
+         event.setReset(request.reset());
+         event.setObjects(new String[]{ request.assembly() });
+         event.setCharts(new String[0]);
+
+         ArrayList<TableDataPath[]> data = new ArrayList<>();
+         data.add(new TableDataPath[]{ cellPath });
+         event.setData(data);
+
+         painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
+   /**
+    * {@code get_calc_cell_format}. The read side of {@link #setCellFormat}'s own
+    * {@code TableDataPath} -- resolves the identical cell path and reads it back through
+    * {@link FormatPainterService#getFormat}, the same mechanism the Composer's own format pane
+    * uses to show a selection's current format. {@code null} means the cell has no format of its
+    * own (it inherits from the table's whole-object format), the same "no override" convention
+    * {@code get_calc_cell_script} uses for a cell with no script.
+    */
+   public Map<String, Object> getCellFormat(String sessionToken, Principal user, String assembly,
+                                            int row, int col) throws Exception
+   {
+      if(assembly == null || assembly.isBlank()) {
+         throw new IllegalArgumentException("get_calc_cell_format requires 'assembly'.");
+      }
+
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         TableDataPath cellPath = calcService.cellFormatPath(rvs, assembly, row, col);
+
+         GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
+         event.setName(assembly);
+         event.setDataPath(cellPath);
+         painter.getFormat(runtimeId, event, user, dispatcher);
+
+         VSObjectFormatInfoModel model = null;
+
+         for(CapturingCommandDispatcher.Command command : dispatcher.getCapturedCommands()) {
+            if(command.getCommand() instanceof SetCurrentFormatCommand current) {
+               model = current.getModel();
+               break;
+            }
+         }
+
+         Map<String, Object> out = new LinkedHashMap<>();
+         out.put("assembly", assembly);
+         out.put("row", row);
+         out.put("col", col);
+         out.put("format", model == null ? null : toWireFormat(model));
+         return out;
+      });
+   }
+
+   /**
+    * The inverse of {@link #parseFormat}: a plain, JSON-safe map of the same CSS-shaped fields
+    * {@code set_format}/{@code set_calc_cell_format} accept, so a caller can feed a read-back
+    * value straight into another format call. Returning {@code model} itself would leak its
+    * {@code @JsonTypeInfo} Java class name into the response -- precisely the leak
+    * {@link #parseFormat} exists to avoid on the way in.
+    */
+   private static Map<String, Object> toWireFormat(VSObjectFormatInfoModel model) {
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("color", model.getColor());
+      out.put("backgroundColor", model.getBackgroundColor());
+      out.put("font", model.getFont());
+      out.put("align", model.getAlign());
+      out.put("format", model.getFormat());
+      out.put("formatSpec", model.getFormatSpec());
+      out.put("borderTopStyle", model.getBorderTopStyle());
+      out.put("borderTopColor", model.getBorderTopColor());
+      out.put("borderLeftStyle", model.getBorderLeftStyle());
+      out.put("borderLeftColor", model.getBorderLeftColor());
+      out.put("borderBottomStyle", model.getBorderBottomStyle());
+      out.put("borderBottomColor", model.getBorderBottomColor());
+      out.put("borderRightStyle", model.getBorderRightStyle());
+      out.put("borderRightColor", model.getBorderRightColor());
+      out.put("roundCorner", model.getRoundCorner());
+      out.put("wrapText", model.isWrapText());
+      return out;
+   }
+
    /** Bug 76325 item 3: distinguishes a chart's own title from its whole-object format. */
    private static String requireTarget(String target) {
       String name = target == null || target.isBlank() ? "object" : target.trim().toLowerCase();
@@ -404,4 +558,5 @@ public class ViewsheetFormatService {
 
    private final ViewsheetSessionService sessions;
    private final FormatPainterService painter;
+   private final CalcTableService calcService;
 }
