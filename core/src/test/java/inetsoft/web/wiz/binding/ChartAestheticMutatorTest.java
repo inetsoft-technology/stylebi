@@ -1202,24 +1202,130 @@ class ChartAestheticMutatorTest {
       assertInstanceOf(CategoricalColorModel.class, model.getColorField().getFrame());
    }
 
-   /**
-    * Shape has the identical unguarded cast line and texture had before this fix
-    * ({@code VSShapeFrameStrategy.createCombinedFrame:107}, same unconditional
-    * {@code (StaticShapeFrame) frames[i]}), reached the same way (shape is in
-    * {@code perMeasureFrameChannels} too). Extending the guard to it is a separate defect, out of
-    * scope for VCA-006 (line/texture only) — this pins that shape is still unprotected rather than
-    * silently asserting it is fine.
-    */
+   // ── a field-less shape/size frame on the measures must be static ──────────
+   //
+   // Shape and size have the identical unguarded cast line and texture had before VCA-006
+   // (VSShapeFrameStrategy.createCombinedFrame:107, VSSizeFrameStrategy.createCombinedFrame:116,
+   // the same unconditional (StaticShapeFrame)/(StaticSizeFrame) cast), reached the same way
+   // (shape and size are both in perMeasureFrameChannels too). Unlike line/texture, shape and size
+   // each have a field channel of their own (AestheticChannels.FIELD_CHANNELS), so their refusal
+   // must point the caller at binding that channel's own field, not at shape the way the
+   // line/texture refusal does.
+   //
+   // This section used to pin the gap open (theStaticOnlyRuleDoesNotYetCoverShape, asserting the
+   // categorical write silently succeeded); this fix closes it, so that test is replaced below
+   // with one asserting the refusal now fires, the same way VCA-006 replaced
+   // theStaticOnlyRuleIsColourOnly.
+
    @Test
-   void theStaticOnlyRuleDoesNotYetCoverShape() {
+   void theStaticOnlyRuleNowCoversShapeAndSize() {
       ChartBindingModel model = new ChartBindingModel();
       ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartAestheticMutator.setFrame(
+                      model, "shape", spec("type", "categorical", "shapes", List.of("907", "908"))));
+      assertThrows(IllegalArgumentException.class,
+                   () -> ChartAestheticMutator.setFrame(
+                      model, "size", spec("type", "categorical")));
+   }
+
+   @Test
+   void refusesACategoricalShapeFrameOnMeasuresWithNoShapeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(
+            model, "shape", spec("type", "categorical", "shapes", List.of("907", "908"))));
+
+      assertTrue(thrown.getMessage().contains("static"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_aesthetic_field"),
+                 "the refusal has to name the way forward, not just the rule");
+      assertTrue(thrown.getMessage().contains("shape"), thrown.getMessage());
+   }
+
+   /** Size's non-static families are linear and categorical, not just categorical. */
+   @Test
+   void refusesACategoricalSizeFrameOnMeasuresWithNoSizeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartAestheticMutator.setFrame(model, "size", spec("type", "categorical")));
+
+      assertTrue(thrown.getMessage().contains("static"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("set_aesthetic_field"),
+                 "the refusal has to name the way forward, not just the rule");
+      assertTrue(thrown.getMessage().contains("size"),
+                 "size has its own field -- the refusal must point at size, not shape");
+      assertFalse(thrown.getMessage().contains("shape"),
+                  "unlike line/texture, size does not share shape's field -- pointing at shape " +
+                  "would send the caller to the wrong channel");
+   }
+
+   /** The one frame the measures can actually carry, for both channels. */
+   @Test
+   void acceptsAStaticShapeFrameOnMeasuresWithNoShapeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "shape", spec("type", "static", "shape", "circle"));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertInstanceOf(StaticShapeModel.class, agg.getShapeFrame());
+   }
+
+   @Test
+   void acceptsAStaticSizeFrameOnMeasuresWithNoSizeField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+
+      ChartAestheticMutator.setFrame(model, "size", spec("type", "static", "size", 8));
+
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertEquals(8.0,
+                   assertInstanceOf(StaticSizeModel.class, agg.getSizeFrame()).getSize());
+   }
+
+   /**
+    * Unlike line/texture, shape is itself a field channel ({@code frameField} reads it directly
+    * via {@code acceptsField}) -- binding a dimension to shape routes the write to the field's own
+    * frame before the per-measure branch this fix guards is ever reached, the same guarantee
+    * {@link #aLineFrameLandsOnTheShapeFieldWhenThatFieldCarriesALineFrame} pins for line/texture's
+    * shared field.
+    */
+   @Test
+   void aShapeFrameLandsOnItsOwnFieldWhenShapeIsBoundToADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "shape", dimension("Region"));
 
       ChartAestheticMutator.setFrame(
          model, "shape", spec("type", "categorical", "shapes", List.of("907", "908")));
 
+      assertInstanceOf(CategoricalShapeModel.class, model.getShapeField().getFrame(),
+                       "the guard must not fire once shape has its own field bound");
       ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
-      assertInstanceOf(CategoricalShapeModel.class, agg.getShapeFrame());
+      assertNull(agg.getShapeFrame(),
+                 "writing the per-measure slot too would leave a second value nothing renders");
+   }
+
+   @Test
+   void aSizeFrameLandsOnItsOwnFieldWhenSizeIsBoundToADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y", List.of(measure("Sales", "Sum")));
+      ChartAestheticMutator.setField(model, "size", dimension("Region"));
+
+      ChartAestheticMutator.setFrame(model, "size", spec("type", "categorical"));
+
+      assertInstanceOf(CategoricalSizeModel.class, model.getSizeField().getFrame(),
+                       "the guard must not fire once size has its own field bound");
+      ChartAggregateRefModel agg = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertNull(agg.getSizeFrame(),
+                 "writing the per-measure slot too would leave a second value nothing renders");
    }
 
    // ── a field-less line/texture frame on the measures must be static ────────
