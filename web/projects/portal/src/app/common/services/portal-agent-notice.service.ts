@@ -54,6 +54,7 @@ export class PortalAgentNoticeService {
    private connection: StompClientConnection;
    private connecting = false;
    private readonly commandSubject = new Subject<OpenComposerAssetCommand>();
+   private portalSessionActiveFlag = false;
 
    constructor(private stompClient: StompClientService, private zone: NgZone) {
    }
@@ -75,6 +76,7 @@ export class PortalAgentNoticeService {
             connection.subscribe("/user/composer-client", (message) => {
                this.zone.run(() => {
                   if(message.frame.body) {
+                     this.portalSessionActiveFlag = true;
                      this.commandSubject.next(JSON.parse(message.frame.body));
                   }
                });
@@ -90,5 +92,19 @@ export class PortalAgentNoticeService {
    /** Every `OpenComposerAssetCommand` broadcast to this browser's own socket session. */
    public get assetOpened(): Observable<OpenComposerAssetCommand> {
       return this.commandSubject.asObservable();
+   }
+
+   /**
+    * Whether a portal-derived (directly-established) session is known to exist in this browser
+    * tab -- `true` from the first `assetOpened` broadcast onward, never cleared again. This is the
+    * only signal the browser has: D10's login-triggered establish (portal-session-pairing Lane D)
+    * is a pure JWT/server-side act with no browser round-trip of its own, so there is nothing to
+    * observe until the first `open_composer_asset`/`create_viewsheet`/`create_worksheet` call
+    * succeeds and pushes this same `/user/composer-client` notice. Gates whether
+    * {@link PortalAgentNoticeComponent}'s cross-sheet-follow toggle (Lane C / D9) renders at all --
+    * see that component's own template.
+    */
+   public get portalSessionActive(): boolean {
+      return this.portalSessionActiveFlag;
    }
 }

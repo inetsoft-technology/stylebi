@@ -25,3 +25,17 @@
     }
   </ngb-alert>
 }
+@if (portalSessionActive) {
+  <div class="cross-sheet-follow-toggle">
+    <div class="form-check">
+      <input type="checkbox" class="form-check-input" id="crossSheetFollowToggle"
+             [checked]="crossSheetFollowEnabled" (change)="onCrossSheetFollowChange($event)">
+      <label class="form-check-label" for="crossSheetFollowToggle">
+        _#(js:Follow what I have open in Composer)
+      </label>
+    </div>
+    <p class="cross-sheet-follow-disclosure text-muted">
+      _#(js:Let Claude automatically follow whatever you have open in Composer, without asking each time. Turn this off and Claude will only see what you explicitly open through it.)
+    </p>
+  </div>
+}

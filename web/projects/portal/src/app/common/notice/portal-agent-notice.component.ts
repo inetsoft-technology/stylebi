@@ -21,6 +21,7 @@ import { NgbAlert } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { OpenComposerAssetCommand } from "../../composer/command/open-composer-asset-command";
+import { CrossSheetFollowService } from "../../composer/gui/wiz/services/cross-sheet-follow.service";
 import { GuiTool } from "../util/gui-tool";
 import { PortalAgentNoticeService } from "../services/portal-agent-notice.service";
 
@@ -60,7 +61,9 @@ export class PortalAgentNoticeComponent implements OnInit, OnDestroy {
    private subscription: Subscription;
    private dismissTimer: ReturnType<typeof setTimeout>;
 
-   constructor(private noticeService: PortalAgentNoticeService) {
+   constructor(private noticeService: PortalAgentNoticeService,
+               private crossSheetFollowService: CrossSheetFollowService)
+   {
    }
 
    ngOnInit(): void {
@@ -72,6 +75,21 @@ export class PortalAgentNoticeComponent implements OnInit, OnDestroy {
    ngOnDestroy(): void {
       this.subscription?.unsubscribe();
       clearTimeout(this.dismissTimer);
+   }
+
+   /** Gates the cross-sheet-follow toggle (Lane C / D9) -- see
+    *  {@link PortalAgentNoticeService#portalSessionActive}'s own doc for why this, and not the
+    *  transient {@link notice} field, is the right signal for a *persistent* toggle. */
+   get portalSessionActive(): boolean {
+      return this.noticeService.portalSessionActive;
+   }
+
+   get crossSheetFollowEnabled(): boolean {
+      return this.crossSheetFollowService.isEnabled();
+   }
+
+   onCrossSheetFollowChange(event: Event): void {
+      this.crossSheetFollowService.setEnabled((event.target as HTMLInputElement).checked);
    }
 
    /** Bound to the template's own `(click)` -- see this class's own doc on why this must be the

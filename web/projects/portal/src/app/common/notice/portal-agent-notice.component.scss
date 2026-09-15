@@ -31,3 +31,17 @@
     padding: 0 0 0 8px;
     vertical-align: baseline;
 }
+
+.cross-sheet-follow-toggle {
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-top: 8px;
+    font-size: 0.85rem;
+}
+
+.cross-sheet-follow-disclosure {
+    margin: 4px 0 0;
+    font-size: 0.75rem;
+}
