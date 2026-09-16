@@ -216,9 +216,18 @@ public class BindingReadService {
       int runtime = aesthetic.getRTChartType();
       boolean resolved = runtime != stored && runtime != GraphTypes.CHART_AUTO;
 
+      // The 9-arg FieldRef constructor below predates `label`/`secondaryY` (see its own javadoc:
+      // "kept so those additions did not touch every call site that already named
+      // calculateInfo") and silently defaults BOTH to null -- this call site was never updated
+      // when secondaryY was added, so any y/x measure on a MULTI-STYLE chart (the only case this
+      // method is invoked for at all) lost its secondaryY on every read, even though the actual
+      // ChartAggregateRef/render correctly carried it. Bug #76689, VCS-004. Call the canonical
+      // 11-component constructor directly and thread both fields through from the original ref
+      // instead.
       return new FieldRef(ref.column(), ref.type(), ref.aggregate(), ref.dateLevel(),
                           ref.namedGroup(), stored, resolved ? runtime : null,
-                          ref.namedGroupValues(), ref.calculateInfo());
+                          ref.namedGroupValues(), ref.calculateInfo(), ref.label(),
+                          ref.secondaryY());
    }
 
    private final VSBindingService binding;

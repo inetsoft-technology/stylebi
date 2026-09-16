@@ -200,6 +200,28 @@ class BindingReadServiceTest {
    }
 
    /**
+    * A measure on a multi-style chart is rebuilt through {@code withTypes} so its per-measure
+    * {@code chartType}/{@code runtimeChartType} can be reported — but that method used to call a
+    * backward-compat {@code FieldRef} constructor that predates {@code secondaryY} (kept only so
+    * older call sites naming {@code calculateInfo} did not need to change) and silently defaulted
+    * it to {@code null}, discarding it on every read even though the underlying
+    * {@code ChartAggregateRef}/render correctly carried {@code true}. Bug #76689, VCS-004.
+    */
+   @Test
+   void reportsSecondaryYForAMeasureOnAMultiStyleChart() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setMultiStyles(true);
+      ChartAggregateRefModel secondary = aggregate("ORDER_ID", "DistinctCount");
+      secondary.setSecondaryY(true);
+      model.setYFields(List.of(withChartType(secondary, GraphTypes.CHART_BAR)));
+
+      FieldRef ref = read(model).shelves().get("y").get(0);
+
+      assertEquals(Boolean.TRUE, ref.secondaryY(),
+                  "secondaryY must survive the per-measure chart-type rebuild under multi-style");
+   }
+
+   /**
     * {@code withTypes(FieldRef, ChartAestheticModel)} rebuilds the ref through the full
     * 9-arg {@code FieldRef} constructor to stamp on the per-measure chart type — the same
     * reconstruction shape that dropped {@code namedGroupValues} before this fix, and would
