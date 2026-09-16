@@ -221,7 +221,12 @@ public class LicenseChangesetApplyService {
                     mutationEntered);
       }
       else {
-         applyUpdate(txId, task, key, original.getNewKey(), backupRef, reviewOutcome, user, results,
+         // Trimmed the same way LicenseChangePlanService.requireNewKey trims it at preview/resolve
+         // time -- original.getNewKey() is the raw, untrimmed request field, and unlike `key`
+         // (which is change.property(), already the resolved/trimmed value from the plan), there is
+         // no equivalent resolved slot for newKey to read back here (round 1 review finding).
+         String newKey = LicenseChangePlanService.requireNewKey("apply." + key, original.getNewKey());
+         applyUpdate(txId, task, key, newKey, backupRef, reviewOutcome, user, results,
                     undoable, mutationEntered);
       }
    }

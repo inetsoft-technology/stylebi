@@ -242,8 +242,12 @@ class LicenseChangePlanServiceTest {
       assertEquals(1, plan.changes().size());
       PlanChange change = plan.changes().get(0);
       assertEquals("K1", change.property());
-      assertNotNull(change.currentValue());
-      assertNotNull(change.proposedValue());
+      // Content-checked, not just non-null, so a future accidental swap of old/new projections (or
+      // a wrong key referenced) is caught here rather than passing vacuously.
+      assertTrue(change.currentValue().contains("key=K1"));
+      assertTrue(change.currentValue().contains("type=CPU"));
+      assertTrue(change.proposedValue().contains("key=K2"));
+      assertTrue(change.proposedValue().contains("type=CPU"));
       assertEquals("high", change.risk());
       assertEquals("storage", change.snapshotScope());
    }
