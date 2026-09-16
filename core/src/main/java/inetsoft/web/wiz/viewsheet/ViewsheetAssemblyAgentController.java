@@ -42,6 +42,7 @@ import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmark;
@@ -49,6 +50,7 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
@@ -112,7 +114,8 @@ public class ViewsheetAssemblyAgentController {
                                    LayoutUndoService layoutUndoService,
                                    VSBookmarkService vsBookmarkService,
                                    VSExportService exportService,
-                                   SecurityEngine securityEngine)
+                                   SecurityEngine securityEngine,
+                                   ViewsheetPropertyDialogService viewsheetPropertyDialogService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -145,6 +148,7 @@ public class ViewsheetAssemblyAgentController {
       this.vsBookmarkService = vsBookmarkService;
       this.exportService = exportService;
       this.securityEngine = securityEngine;
+      this.viewsheetPropertyDialogService = viewsheetPropertyDialogService;
    }
 
    public record JoinRequest(String code) {}
@@ -1577,12 +1581,22 @@ public class ViewsheetAssemblyAgentController {
     * @param datasource data source name. Required when {@code type} is {@code "physicalTable"}.
     * @param table      physical table name within {@code datasource}. Required when {@code type}
     *                   is {@code "physicalTable"}.
+    * @param force      when the viewsheet already has a base, repoints it to the newly-resolved
+    *                   source instead of refusing; existing assembly bindings that do not survive
+    *                   on the new source are cleared. Absent (including a body-less/pre-existing
+    *                   request) means {@code false}. Ignored when the viewsheet has no base yet.
     */
    public record AttachBaseWorksheetRequest(String path, String scope, String type,
-                                            String datasource, String table) {
+                                            String datasource, String table, Boolean force) {
+      /** Backward-compatible 5-arg form: every pre-existing caller implies force:false. */
+      public AttachBaseWorksheetRequest(String path, String scope, String type,
+                                        String datasource, String table) {
+         this(path, scope, type, datasource, table, null);
+      }
+
       /** Backward-compatible 2-arg form: every pre-existing caller implies type:"worksheet". */
       public AttachBaseWorksheetRequest(String path, String scope) {
-         this(path, scope, null, null, null);
+         this(path, scope, null, null, null, null);
       }
    }
 
@@ -1813,19 +1827,22 @@ public class ViewsheetAssemblyAgentController {
     * {@code attach_base_worksheet}. Attaches an existing, named worksheet asset as this paired
     * viewsheet's base, for a viewsheet that currently has none — closing the gap
     * {@code open_base_worksheet} deliberately leaves open (it can only ever follow an
-    * already-attached base, never name one). Refuses rather than silently repointing a viewsheet
-    * that already has a base; use the Composer UI's own Viewsheet Properties dialog to swap one.
+    * already-attached base, never name one). When the viewsheet already has a base, refuses
+    * unless {@code force:true} is passed, in which case it repoints to the newly-resolved source
+    * and updates existing assembly bindings via
+    * {@link ViewsheetPropertyDialogService#updateBoundAssemblies} — the same binding-repair logic
+    * the Composer UI's own Viewsheet Properties dialog uses when its data source is changed.
     *
     * <p>This never persists the viewsheet — like every other mutation on this controller, it only
     * updates the paired session's own in-memory {@link Viewsheet}. Call {@code save_viewsheet}
     * separately once ready.</p>
     *
     * @param sessionToken the token obtained at join time
-    * @param body         the worksheet path to attach
+    * @param body         the worksheet path to attach, and whether to force a repoint
     * @param user         the authenticated agent principal
     * @throws PairingException if the session is invalid/expired, the viewsheet already has a
-    *                          base, no {@code path} was supplied, or {@code path} does not name a
-    *                          worksheet the caller can read
+    *                          base and {@code force} was not set, no {@code path} was supplied, or
+    *                          {@code path} does not name a worksheet the caller can read
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/attach-base-worksheet")
    public void attachBaseWorksheet(@PathVariable String sessionToken,
@@ -1836,10 +1853,14 @@ public class ViewsheetAssemblyAgentController {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       Viewsheet vs = rvs.getViewsheet();
 
-      if(vs.getBaseEntry() != null) {
+      boolean hasBase = vs.getBaseEntry() != null;
+      boolean force = body != null && Boolean.TRUE.equals(body.force());
+
+      if(hasBase && !force) {
          throw new PairingException(
             "This viewsheet already has a base worksheet (\"" + vs.getBaseEntry().toView() +
-            "\"). attach_base_worksheet only attaches a base when there is none — use " +
+            "\"). Pass force:true to repoint it to a different source -- existing assembly " +
+            "bindings that do not survive on the new source will be cleared -- or use " +
             "open_base_worksheet to inspect the current one.");
       }
 
@@ -1870,10 +1891,18 @@ public class ViewsheetAssemblyAgentController {
       }
 
       AssetRepository rep = repHolder[0];
+      AssetEntry oldEntry = hasBase ? vs.getBaseEntry() : null;
+      Worksheet oldWs = hasBase ? vs.getBaseWorksheet() : null;
 
       try {
          vs.setBaseEntry(entry);
          vs.reloadBaseWorksheet(rep, xp);
+
+         if(hasBase) {
+            // Embedded VIEWSHEET_ASSET child-viewsheet assemblies are out of scope here -- they
+            // bind to their own separate base, unaffected by the outer sheet's repoint.
+            viewsheetPropertyDialogService.updateBoundAssemblies(oldEntry, oldWs, vs);
+         }
       }
       catch(Exception e) {
          // reloadBaseWorksheet performs its own independent getSheet call and can fail even
@@ -1882,8 +1911,10 @@ public class ViewsheetAssemblyAgentController {
          // so a failed attach leaves the session exactly as it was before this call -- without
          // this, wentry would stay set while the worksheet (ws) never got populated, reproducing
          // this bug's own broken state, and the guard above would then refuse every retry with a
-         // misleading "already has a base worksheet" message.
-         vs.setBaseEntry(null);
+         // misleading "already has a base worksheet" message. For a failed repoint of an
+         // already-based viewsheet, roll back to the ORIGINAL base, not null -- otherwise a failed
+         // repoint would leave a previously-working viewsheet baseless.
+         vs.setBaseEntry(hasBase ? oldEntry : null);
          throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
       }
 
@@ -2021,4 +2052,5 @@ public class ViewsheetAssemblyAgentController {
    private final VSBookmarkService vsBookmarkService;
    private final VSExportService exportService;
    private final SecurityEngine securityEngine;
+   private final ViewsheetPropertyDialogService viewsheetPropertyDialogService;
 }
