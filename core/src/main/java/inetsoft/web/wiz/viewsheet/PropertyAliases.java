@@ -126,6 +126,15 @@ public final class PropertyAliases {
       Set.of("textinput", "combobox", "slider", "spinner", "checkbox", "radiobutton");
 
    /**
+    * The three types registered through the shared {@link #listInput} helper -- used by
+    * {@code AssemblyPropertyService} to scope its {@code embedded} auto-derivation (Redmine
+    * #76699/VFO-016) to exactly the types whose {@code labels}/{@code values}/{@code embedded}
+    * path shape {@code listInput} produces.
+    */
+   private static final Set<String> LIST_INPUT_TYPES =
+      Set.of("checkbox", "combobox", "radiobutton");
+
+   /**
     * {@code refresh} is aliased through the shared {@link #basicGeneral} helper because it is
     * genuinely applied for the input assemblies (checkbox/combobox/radiobutton/slider/spinner/
     * textinput, via {@code VSInputService}) and for submit (via
@@ -198,6 +207,11 @@ public final class PropertyAliases {
     */
    public static boolean derivesVariableFlagFromTable(String assemblyType) {
       return VARIABLE_FLAG_DERIVED_TYPES.contains(normalize(assemblyType));
+   }
+
+   /** Whether {@code assemblyType} is one of the three types {@link #listInput} registers. */
+   public static boolean isListInputType(String assemblyType) {
+      return LIST_INPUT_TYPES.contains(normalize(assemblyType));
    }
 
    /**
@@ -894,8 +908,17 @@ public final class PropertyAliases {
          aliases.put("labelText", "inputLabelPaneModel.labelText");
       }
 
-      String editor = prefix + ".listValuesPaneModel.comboBoxEditorModel." +
-         "selectionListDialogModel.selectionListEditorModel";
+      // "embedded"/"query" gate whether the static labels/values below (still raw-path-only --
+      // VariableListDialogModel.labels/.values are not aliased here) are ever read at
+      // render/bind time: VSInputService's setListValues derives sourceType from these two
+      // flags alone, defaulting to NONE_SOURCE (labels/values stored but never used) when
+      // neither is set. Without a short name, the only way to discover/set "embedded" was
+      // get_assembly_properties(raw: true) (Redmine #76699/VFO-016).
+      String comboBoxEditor = prefix + ".listValuesPaneModel.comboBoxEditorModel";
+      aliases.put("embedded", comboBoxEditor + ".embedded");
+      aliases.put("query", comboBoxEditor + ".query");
+
+      String editor = comboBoxEditor + ".selectionListDialogModel.selectionListEditorModel";
       aliases.put("table", editor + ".table");
       aliases.put("column", editor + ".column");
 

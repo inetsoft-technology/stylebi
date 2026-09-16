@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
+import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
@@ -575,6 +576,181 @@ class AssemblyPropertyServiceTest {
          Map.of("dataInputPaneModel.variable", false), ""));
    }
 
+   // ── static list "embedded" auto-derivation (Redmine #76699/VFO-016) ───────
+   //
+   // labels/values have no short name (still raw-path-only), but VSInputService.setListValues
+   // always writes them while sourceType (which gates whether they are ever read back) is
+   // derived from embedded/query alone, defaulting to NONE_SOURCE. Writing labels/values with no
+   // query/table/column in the same patch has unambiguous static-list intent, so embedded is
+   // implied true; a caller who also sets query/table/column, or embedded itself, is left alone.
+
+   private static final String CHECKBOX_LABELS =
+      "checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.labels";
+   private static final String CHECKBOX_VALUES =
+      "checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.values";
+   private static final String COMBOBOX_LABELS =
+      "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.labels";
+   private static final String COMBOBOX_VALUES =
+      "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.values";
+
+   @Test
+   void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertTrue(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isEmbedded(),
+                 "embedded must be implied true so labels/values are not silently inert");
+   }
+
+   /**
+    * A patch that ALSO sets {@code table}/{@code column} alongside the static labels/values
+    * intends a real, distinct configuration ({@code embedded=false, query=true} ==
+    * {@code BOUND_SOURCE}) -- embedded must not be silently forced true, which would reclassify
+    * it into {@code MERGE_SOURCE} instead.
+    */
+   @Test
+   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+      patch.put("table", "SalesTable");
+      patch.put("column", "SalesColumn");
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "a query/table/column binding in the same patch must not be reclassified " +
+                  "into MERGE_SOURCE by forcing embedded true");
+   }
+
+   /**
+    * Same guard, exercised via {@code query} alone (no {@code table}/{@code column}) --
+    * {@code embedded=false, query=true} is itself a complete, real {@code BOUND_SOURCE}
+    * configuration, so this disjunct of the guard must trip on {@code query} by itself, not only
+    * when {@code table}/{@code column} are also present.
+    */
+   @Test
+   void leavesEmbeddedAloneWhenQueryAloneIsAlsoSetForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+      patch.put("query", true);
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "query set alone in the same patch must not be reclassified into " +
+                  "MERGE_SOURCE by forcing embedded true");
+   }
+
+   /** A caller who sets {@code embedded} explicitly is never overridden, even to {@code false}. */
+   @Test
+   void leavesEmbeddedAloneWhenCallerSetsItExplicitlyForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+      patch.put("embedded", false);
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "an explicit embedded must not be overridden by the labels/values implication");
+   }
+
+   /** Same shape, RadioButton -- confirms the derivation is not CheckBox-specific. */
+   @Test
+   void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForRadioButton() throws Exception {
+      RadioButtonPropertyDialogModel model = new RadioButtonPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRadioButton(mock(RadioButtonVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("radioButtonGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+                "variableListDialogModel.labels", java.util.List.of("Show Sales Chart"));
+      patch.put("radioButtonGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+                "variableListDialogModel.values", java.util.List.of("show"));
+
+      service.set("tok", principal(), "StartDateRadio", patch, "");
+
+      assertTrue(model.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isEmbedded(),
+                 "embedded must be implied true for RadioButton too, same shared listInput() " +
+                 "gap as CheckBox");
+   }
+
+   /**
+    * Same shape, ComboBox -- confirms the derivation is not CheckBox/RadioButton-only either.
+    * ComboBox's registration ({@code register(registry, "combobox", ..., listInput(...))}) goes
+    * through the identical {@code listInput()} helper as the other two, with no separate
+    * {@code dataInput()} merge -- {@code comboboxTableAliasIsTheListValuesQueryNotTheWriteBackTarget}
+    * in {@code PropertyAliasesTest} already pins that ComboBox's short {@code table} alias
+    * resolves to the list-values query path, not the unrelated {@code dataInputPaneModel.table}
+    * row/column write-back target -- so the guard's {@code table}/{@code column} disjunct is
+    * reachable via ComboBox's own short aliases too, not raw-path-only.
+    */
+   @Test
+   void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForCombobox() throws Exception {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(COMBOBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(COMBOBOX_VALUES, java.util.List.of("show"));
+
+      service.set("tok", principal(), "ShowSalesChartDropdown", patch, "");
+
+      assertTrue(model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isEmbedded(),
+                 "embedded must be implied true for ComboBox too, same shared listInput() gap " +
+                 "as CheckBox/RadioButton");
+   }
+
+   /**
+    * The guard case for ComboBox, using its own short {@code table}/{@code column} aliases (not
+    * a raw path) -- proves the guard's table/column disjunct is actually reachable for ComboBox
+    * through the vocabulary a caller would really use, not just in theory.
+    */
+   @Test
+   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCombobox() throws Exception {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(COMBOBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(COMBOBOX_VALUES, java.util.List.of("show"));
+      patch.put("table", "SalesTable");
+      patch.put("column", "SalesColumn");
+
+      service.set("tok", principal(), "ShowSalesChartDropdown", patch, "");
+
+      assertFalse(model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "ComboBox's own short table/column aliases must trip the guard just like the " +
+                  "raw path would, not be silently unreachable");
+   }
+
    /**
     * {@code ChartPropertyDialogService.setChartPropertyModel} only calls {@code setAlphaValue}
     * inside the {@code tipOption == true} branch, so {@code tipAlpha} set alone -- without
@@ -777,6 +953,12 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, model, baseWorksheet);
    }
 
+   private static AssemblyPropertyService serviceWithCombobox(
+      VSAssembly assembly, ComboboxPropertyDialogModel model, Worksheet baseWorksheet)
+   {
+      return serviceWith(assembly, model, model, baseWorksheet);
+   }
+
    private static AssemblyPropertyService serviceWithSelectionList(
       VSAssembly assembly, SelectionListPropertyDialogModel model)
    {
@@ -872,6 +1054,11 @@ class AssemblyPropertyServiceTest {
             when(inputService.getRadioButtonPropertyModel(anyString(), anyString(),
                                                            any(Principal.class)))
                .thenReturn(radioButtonModel);
+         }
+         else if(inputModel instanceof ComboboxPropertyDialogModel comboboxModel) {
+            when(inputService.getComboboxPropertyDialogModel(anyString(), anyString(),
+                                                              any(Principal.class)))
+               .thenReturn(comboboxModel);
          }
       }
       catch(Exception e) {

@@ -273,6 +273,10 @@ public class AssemblyPropertyService {
          model = impliedSibling(model, resolved.values(), "customTip", "customRB",
                                  TipCustomizeDialogModel.TipFormat.CUSTOM);
 
+         if(PropertyAliases.isListInputType(type)) {
+            model = deriveEmbeddedFromStaticList(model, resolved.values());
+         }
+
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
    }
@@ -322,6 +326,64 @@ public class AssemblyPropertyService {
          }
 
          model = PropertyPath.set(model, siblingPath, impliedValue);
+      }
+
+      return model;
+   }
+
+   /**
+    * CheckBox/ComboBox/RadioButton's {@code VSInputService.setListValues} always writes the
+    * static {@code variableListDialogModel.labels}/{@code .values} to the assembly, but only
+    * <i>uses</i> them at render/bind time when {@code comboBoxEditorModel.embedded} (or
+    * {@code .query}) is set -- with both false (the default), {@code sourceType} stays
+    * {@code NONE_SOURCE} and the write is silently inert (Redmine #76699/VFO-016). A patch that
+    * sets {@code labels}/{@code values} with no {@code query}/{@code table}/{@code column} in
+    * the same call has unambiguous static-list intent, so {@code embedded} is implied true for
+    * it, the same "forgiving where intent is unambiguous" shape {@link #impliedSibling} already
+    * covers for the Tip panes.
+    *
+    * <p>A patch that ALSO sets {@code query}/{@code table}/{@code column} is left alone --
+    * {@code embedded=false, query=true} is a real, distinct configuration ({@code BOUND_SOURCE},
+    * driven purely by the query binding); silently forcing {@code embedded=true} there would
+    * reclassify it into {@code MERGE_SOURCE} instead, a different, surprising outcome. A caller
+    * who sets {@code embedded} explicitly (either value) is likewise always left alone.
+    */
+   private static Object deriveEmbeddedFromStaticList(Object model,
+                                                       Collection<String> resolvedPaths)
+   {
+      for(String path : resolvedPaths) {
+         String suffix;
+
+         if(path.endsWith(".variableListDialogModel.labels")) {
+            suffix = ".variableListDialogModel.labels";
+         }
+         else if(path.endsWith(".variableListDialogModel.values")) {
+            suffix = ".variableListDialogModel.values";
+         }
+         else {
+            continue;
+         }
+
+         String editorPrefix = path.substring(0, path.length() - suffix.length());
+         String embeddedPath = editorPrefix + ".embedded";
+
+         if(resolvedPaths.contains(embeddedPath)) {
+            continue;
+         }
+
+         String queryPath = editorPrefix + ".query";
+         String tablePath =
+            editorPrefix + ".selectionListDialogModel.selectionListEditorModel.table";
+         String columnPath =
+            editorPrefix + ".selectionListDialogModel.selectionListEditorModel.column";
+
+         if(resolvedPaths.contains(queryPath) || resolvedPaths.contains(tablePath) ||
+            resolvedPaths.contains(columnPath))
+         {
+            continue;
+         }
+
+         model = PropertyPath.set(model, embeddedPath, true);
       }
 
       return model;
