@@ -408,5 +408,146 @@
     "description": "permission.andcondition (source spells it permission.andCondition; PropertiesEngine lowercases the name on every read/write, same as mail.smtp.clientSecret) is the \"Access requires BOTH User and Role permission\" (true) vs. \"EITHER\" (false) switch on Enterprise Manager's repository and Security Actions permission pages, org-scoped. Read fresh from this property on every permission check (ResourcePermissionService), so it takes effect immediately with no restart. Defaults to false (EITHER) when never explicitly set; that default is computed at each read, not persisted, so a deployment that has never touched this property will not show it as an existing stored value.",
     "risk": "high",
     "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.concurrency",
+    "aliases": [],
+    "type": "int",
+    "min": 1,
+    "description": "schedule.concurrency is the Maximum Concurrent Threads field under Scheduler Options on Enterprise Manager's Settings > Schedule > Settings page. It sizes the Quartz thread pool the scheduler creates. Only the lower bound is enforced (Quartz throws below 1); there is no upper bound, so raising it without also raising schedule.memory.max divides the same heap among more simultaneous tasks. Takes effect only the next time the scheduler initializes, not on a running scheduler.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "scheduler.rmi.port",
+    "aliases": [],
+    "type": "int",
+    "min": 0,
+    "max": 65535,
+    "description": "scheduler.rmi.port is the RMI Port Number field on Enterprise Manager's Settings > Schedule > Settings page — the port the scheduler subprocess's RMI registry binds to. The dedicated Scheduler Settings page stops a locally-managed scheduler on its OLD port before saving a change to this value; a bare property write skips that step, so a locally-managed scheduler can become unreachable until it is manually stopped and restarted at the new port. Takes effect only the next time the scheduler subprocess starts.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "scheduler.classpath",
+    "aliases": [],
+    "type": "string",
+    "description": "scheduler.classpath is the Scheduler Classpath field on Enterprise Manager's Settings > Schedule > Settings page — the Java classpath used to launch the scheduler as a local subprocess. It is spliced onto the subprocess's -classpath argument with no format validation, so a bad value breaks only the NEXT scheduler subprocess launch (Start/Restart on the Scheduler status page), not one already running.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.options.notificationemail",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.options.notificationemail is the Notification Email checkbox under Schedule Options on Enterprise Manager's Settings > Schedule > Settings page: whether a task author may set a per-task notification address. It is a per-task-author permission gate only, ANDed with a per-user SCHEDULE_OPTION permission check, and takes effect on the next request with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.options.savetodisk",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.options.savetodisk is the Save to Disk checkbox under Schedule Options: whether a task author may add a save-to-disk action when composing a task. It does not disable saving in a task that already has such an action. Per-task-author permission gate only; takes effect on the next request with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.options.emaildelivery",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.options.emaildelivery is the Email Delivery checkbox under Schedule Options: whether a task author may add an email-delivery action, and whether the viewsheet viewer's own simple-schedule dialog offers it. Per-task-author permission gate only; takes effect on the next request with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.options.emailbrowserenable",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.options.emailbrowserenable is the Enable Email Browser checkbox under Schedule Options: whether the email fields on a scheduled task offer a directory-browse button instead of requiring addresses to be typed. Unlike its three sibling Schedule Options checkboxes, it has no accompanying per-user permission check. Takes effect on the next request with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.options.sharetaskingroup",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.options.sharetaskingroup is the Share Tasks Between Users in Same Group checkbox under Schedule Options: whether users can see and work with tasks owned by other members of their own group. It does nothing when security is disabled, and also controls whether the Modify By Owner Only checkbox (schedule.options.deletetaskonlybyowner) is shown on the Scheduler page. Takes effect on the next permission check with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.options.deletetaskonlybyowner",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.options.deletetaskonlybyowner is the Modify By Owner Only checkbox under Schedule Options: whether a shared task may be deleted only by its owner rather than any group member. It has no effect unless schedule.options.sharetaskingroup is also on and security is enabled. Takes effect on the next permission check with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.memory.min",
+    "aliases": [],
+    "type": "int",
+    "min": 1,
+    "description": "schedule.memory.min is the Minimum (MB) field under Memory Usage on Enterprise Manager's Settings > Schedule > Settings page, spliced into the scheduler subprocess's -Xms flag. It is never cross-validated against schedule.memory.max by the server — only the browser's form checks min <= max — so an inverted or otherwise invalid pair is accepted silently and only fails the next scheduler launch. Takes effect only the next time the scheduler subprocess starts.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.memory.max",
+    "aliases": [],
+    "type": "int",
+    "min": 1,
+    "description": "schedule.memory.max is the Maximum (MB) field under Memory Usage on Enterprise Manager's Settings > Schedule > Settings page, spliced into the scheduler subprocess's -Xmx flag. It is never cross-validated against schedule.memory.min by the server; see that property for the same hazard. Takes effect only the next time the scheduler subprocess starts.",
+    "risk": "high",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.save.autosuffix",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.save.autosuffix is the Save File Suffix field under Schedule Options: text appended to the base name of every file a scheduled task saves to disk, passed through MessageFormat with {0}=asset name, {1}=creation date, {2}=running principal. Takes effect on the very next save with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.options.scheduleisdown",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.options.scheduleisdown is the Notify on Scheduler Down checkbox under Notification: whether StyleBI emails an alert when the monitor thread finds the scheduler not running. It needs schedule.status.check.email to name a recipient and a mail transport configured, or nothing is sent. Takes effect on the monitor thread's next pass (polls every ten minutes).",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.options.taskfailed",
+    "aliases": [],
+    "type": "boolean",
+    "description": "schedule.options.taskfailed is the Notify on Task Failure checkbox under Notification: whether StyleBI emails an alert when a scheduled task throws. It needs schedule.status.check.email to name a recipient and a mail transport configured, or nothing is sent. Takes effect on the next task failure with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.status.check.email",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.status.check.email is the Email Addresses field under Notification: the recipient list, comma- or semicolon-separated, for both the scheduler-down and task-failure alerts. An entry may be a literal address or a user/group name; an unresolvable name is silently dropped rather than failing the send. Takes effect on the next alert with no restart.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.status.check.email.subject",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.status.check.email.subject is the Subject field under Notification: the subject line of the scheduler-down alert only (the task-failure alert composes its own subject). Clearing the field stores an empty string rather than restoring the shipped default. Takes effect on the next scheduler-down alert.",
+    "risk": "low",
+    "snapshotScope": "value"
+  },
+  {
+    "name": "schedule.status.check.email.message",
+    "aliases": [],
+    "type": "string",
+    "description": "schedule.status.check.email.message is the Message field under Notification: the body of the scheduler-down alert only (the task-failure alert composes its own body). Clearing the field stores an empty string rather than restoring the shipped default. Takes effect on the next scheduler-down alert.",
+    "risk": "low",
+    "snapshotScope": "value"
   }
 ]
