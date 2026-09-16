@@ -328,25 +328,28 @@ public class SelectionBindingService {
 
    /**
     * Builds the same {@code OutputColumnRefModel} shape the property dialogs read a selection's
-    * column back into — entity/attribute split on ':', matching
-    * {@code BindableFieldsService.fieldOf}'s own "Customer:Region" convention for a logical
-    * model's entities, and a bare attribute for a plain table column.
+    * column back into.
+    *
+    * <p>Bug #76700: this used to split a logical-model column on {@code ':'} into
+    * {@code entity}/{@code attribute}, matching {@code BindableFieldsService.fieldOf}'s own
+    * "Customer:Region" convention for naming the column. But the tree
+    * {@code getSelectionTablesTree} (and the interactive property dialog's own read-back,
+    * {@code SelectionDialogService.findSelectedOutputColumnRefModel}) builds for a logical-model
+    * column leaves {@code entity} {@code null} and puts the whole compound string
+    * ({@code "Customer:Region"}) in {@code attribute} — the same shape
+    * {@code AssetEventUtil}/{@code VSEventUtil} use for every logical-model column entry
+    * server-side. Splitting here produced an {@code AttributeRef("Customer", "Region")} whose bare
+    * {@code getAttribute()} ({@code "Region"}) never equals the tree's {@code "Customer:Region"},
+    * so the read-back match always failed and {@code selectedColumn} came back {@code null} on
+    * every affected assembly. Never split: the full column string is the attribute, matching what
+    * a human's own selection binding round-trips through this same tree.
     */
    private static OutputColumnRefModel columnRef(String table, BindableField field) {
       OutputColumnRefModel ref = new OutputColumnRefModel();
       ref.setTable(table);
       String column = field.column();
-      int colon = column.indexOf(':');
-
-      if(colon >= 0) {
-         ref.setEntity(column.substring(0, colon));
-         ref.setAttribute(column.substring(colon + 1));
-      }
-      else {
-         ref.setAttribute(column);
-      }
-
-      ref.setName(field.column());
+      ref.setAttribute(column);
+      ref.setName(column);
       ref.setDataType(field.dataType() == null ? XSchema.STRING : field.dataType());
       return ref;
    }
