@@ -34,6 +34,7 @@ describe("PortalAgentNoticeComponent", () => {
    let mockCrossSheetFollowService: {
       isEnabled: ReturnType<typeof vi.fn>;
       setEnabled: ReturnType<typeof vi.fn>;
+      pending: boolean;
    };
 
    function toggle(): HTMLInputElement | null {
@@ -49,7 +50,8 @@ describe("PortalAgentNoticeComponent", () => {
       };
       mockCrossSheetFollowService = {
          isEnabled: vi.fn(() => false),
-         setEnabled: vi.fn()
+         setEnabled: vi.fn(),
+         pending: false
       };
 
       TestBed.configureTestingModule({
@@ -115,6 +117,22 @@ describe("PortalAgentNoticeComponent", () => {
          checkbox.dispatchEvent(new Event("change"));
 
          expect(mockCrossSheetFollowService.setEnabled).toHaveBeenCalledWith(false);
+      });
+
+      it("disables the checkbox while CrossSheetFollowService reports a call pending", () => {
+         mockNoticeService.portalSessionActive = true;
+         mockCrossSheetFollowService.pending = true;
+         fixture.detectChanges();
+
+         expect(toggle()!.disabled).toBe(true);
+      });
+
+      it("re-enables the checkbox once no call is pending", () => {
+         mockNoticeService.portalSessionActive = true;
+         mockCrossSheetFollowService.pending = false;
+         fixture.detectChanges();
+
+         expect(toggle()!.disabled).toBe(false);
       });
 
       it("renders the disclosure copy from design section 7.3 layer 3 / charter assertion 16", () => {

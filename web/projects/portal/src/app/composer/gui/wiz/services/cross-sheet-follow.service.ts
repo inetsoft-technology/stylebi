@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable, NgZone } from "@angular/core";
-import { Observable, Subject } from "rxjs";
+import { Observable, Subject, Subscription } from "rxjs";
 import { StompClientConnection } from "../../../../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 
@@ -81,6 +81,26 @@ export class CrossSheetFollowService {
    private connection: StompClientConnection | null = null;
    private errorSubject = new Subject<string>();
 
+   /**
+    * FIFO queue of `enabled` values sent to the server but not yet confirmed, in send order.
+    *
+    * Needed because {@link StompClientChannel#subscribe} multiplexes every subscriber on a
+    * destination through one shared `Subject` with no per-message correlation id (see its own
+    * doc): opening a SECOND subscription on `/user/commands/wiz/pairing/cross-sheet-follow` for
+    * an overlapping {@link #setEnabled} call meant the first reply that arrived fired BOTH
+    * subscriptions' callbacks at once (each `sub.unsubscribe()`-ing itself and applying its OWN
+    * requested value as if it were that reply's outcome), after which the second call's real
+    * reply arrived to no subscriber left and was silently dropped -- leaving {@link #enabled}
+    * stuck on whichever call's callback happened to run last, not on the server's actual final
+    * state. A single standing subscription plus this queue instead pairs the Nth reply on this
+    * destination with the Nth request sent, relying only on the same in-order delivery guarantee
+    * a single STOMP/WebSocket connection already gives every other request/reply pair in this
+    * codebase (see `ConnectToClaudeComponent`'s mint/joined handling) -- not on any new server
+    * contract; the server's `CrossSheetFollowResponse` still carries no id to correlate by.
+    */
+   private pendingRequests: boolean[] = [];
+   private replySubscription: Subscription | null = null;
+
    constructor(private stompClient: StompClientService, private http: HttpClient,
                private zone: NgZone)
    {
@@ -104,6 +124,17 @@ export class CrossSheetFollowService {
    }
 
    /**
+    * Whether a {@link #setEnabled} call is still waiting on the server. A host UI (the portal
+    * shell's checkbox, see `portal-agent-notice.component`) binds this to `[disabled]` so a
+    * second toggle cannot fire while one is in flight -- defense-in-depth for the common case;
+    * {@link #pendingRequests}'s queue is what actually keeps an overlapping call from corrupting
+    * another's result if one slips through anyway.
+    */
+   get pending(): boolean {
+      return this.pendingRequests.length > 0;
+   }
+
+   /**
     * Turns cross-sheet-follow on/off and tells the server. Callable from anywhere in the portal
     * (the toggle's own UI surface, per this lane's design, lives outside Composer entirely) --
     * unlike {@link FollowFocusService#setEnabled}, this takes no `socketConnection` parameter,
@@ -117,32 +148,59 @@ export class CrossSheetFollowService {
     */
    setEnabled(enabled: boolean): void {
       this.withConnection((conn: StompClientConnection) => {
-         const sub = conn.subscribe("/user/commands/wiz/pairing/cross-sheet-follow",
-            (msg: any) => {
-               sub.unsubscribe();
+         this.pendingRequests.push(enabled);
 
-               this.zone.run(() => {
-                  let body: any;
-
-                  try {
-                     body = JSON.parse(msg.frame.body);
-                  }
-                  catch(e) {
-                     this.reportFailure(enabled, "could not parse server response");
-                     return;
-                  }
-
-                  if(body.ok) {
-                     this.enabled = enabled;
-                  }
-                  else {
-                     this.reportFailure(enabled, body.error ?? "unknown error");
-                  }
-               });
-            });
+         if(!this.replySubscription) {
+            this.replySubscription = conn.subscribe(
+               "/user/commands/wiz/pairing/cross-sheet-follow", (msg: any) => this.onReply(msg));
+         }
 
          conn.send("/events/wiz/pairing/cross-sheet-follow", {}, JSON.stringify({ enabled }));
       });
+   }
+
+   /**
+    * Handles one reply on the shared `/user/commands/wiz/pairing/cross-sheet-follow` destination
+    * -- see {@link #pendingRequests}'s doc for why this pops the OLDEST still-pending request
+    * rather than trusting whichever `setEnabled` call happens to still be subscribed.
+    */
+   private onReply(msg: any): void {
+      if(this.pendingRequests.length === 0) {
+         // A reply with nothing recorded as pending should not happen given the FIFO invariant
+         // above; ignore rather than apply an unknown value.
+         return;
+      }
+
+      const requestedEnabled = this.pendingRequests.shift()!;
+
+      this.zone.run(() => {
+         let body: any;
+
+         try {
+            body = JSON.parse(msg.frame.body);
+         }
+         catch(e) {
+            this.reportFailure(requestedEnabled, "could not parse server response");
+            this.teardownReplySubscriptionIfIdle();
+            return;
+         }
+
+         if(body.ok) {
+            this.enabled = requestedEnabled;
+         }
+         else {
+            this.reportFailure(requestedEnabled, body.error ?? "unknown error");
+         }
+
+         this.teardownReplySubscriptionIfIdle();
+      });
+   }
+
+   private teardownReplySubscriptionIfIdle(): void {
+      if(this.pendingRequests.length === 0 && this.replySubscription) {
+         this.replySubscription.unsubscribe();
+         this.replySubscription = null;
+      }
    }
 
    /**

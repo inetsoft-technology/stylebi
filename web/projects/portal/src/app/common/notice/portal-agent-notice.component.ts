@@ -88,6 +88,13 @@ export class PortalAgentNoticeComponent implements OnInit, OnDestroy {
       return this.crossSheetFollowService.isEnabled();
    }
 
+   /** Bound to the checkbox's `[disabled]` -- see {@link CrossSheetFollowService#pending}'s own
+    *  doc for why this is defense-in-depth, not the actual correctness fix, for overlapping
+    *  toggles. */
+   get crossSheetFollowPending(): boolean {
+      return this.crossSheetFollowService.pending;
+   }
+
    onCrossSheetFollowChange(event: Event): void {
       this.crossSheetFollowService.setEnabled((event.target as HTMLInputElement).checked);
    }
