@@ -491,7 +491,10 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
     * Light lifts toward the canvas; dark deepens instead, and holds chroma because low chroma and
     * low lightness disappear together on a dark surface. The darkest member of a set (the anchor)
     * is the exception in both modes - it has nowhere to deepen to, so it is sent to a fixed
-    * lightness. Returns null when the index carries no base colour.
+    * lightness. The lightest members are the mirror of that exception, and only in light mode: a
+    * lift would land past white, where no chroma is in gamut and the companion comes back as the
+    * canvas itself. They recede by deepening instead. Returns null when the index carries no base
+    * colour.
     */
    public Color getCompanionColor(int index, boolean dark) {
       if(index < 0 || defaultColors == null || index >= defaultColors.size()) {
@@ -516,8 +519,20 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
             : OKLab.toColorInGamut(l - 0.26, c * 1.03, h);
       }
 
-      return anchor ? OKLab.toColorInGamut(0.855, c * 0.45, h)
-         : OKLab.toColorInGamut(l + 0.14, c * 0.40, h);
+      if(anchor) {
+         return OKLab.toColorInGamut(0.855, c * 0.45, h);
+      }
+
+      double lifted = l + 0.14;
+
+      // too light to lift: the target sits so close to white that toColorInGamut, which may only
+      // reduce chroma, answers with white. deepen and desaturate instead, which is what the
+      // designer did by hand for the one head colour that reaches this
+      if(lifted > LIGHT_MAX_L) {
+         return OKLab.toColorInGamut(0.78, c * 0.30, h);
+      }
+
+      return OKLab.toColorInGamut(lifted, c * 0.40, h);
    }
 
    /**
@@ -766,4 +781,8 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    private static final Logger LOG = LoggerFactory.getLogger(CategoricalColorFrame.class);
    private static final double LIGHT_ANCHOR_MAX_L = 0.40;
    private static final double DARK_ANCHOR_MAX_L = 0.50;
+   // a companion lighter than this is indistinguishable from the canvas. expressed as a ceiling on
+   // the lifted result rather than on the base, so it says what it is defending against: Amber, the
+   // lightest head colour, lifts to 0.953 and stays on the lift rule by design
+   private static final double LIGHT_MAX_L = 0.96;
 }
