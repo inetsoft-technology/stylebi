@@ -415,6 +415,18 @@ public class SheetOpenService {
 
       String runtimeId = viewsheetService.openTemporaryWorksheet(user, null);
 
+      // Bug #76738: openTemporaryWorksheet(user, null) does NOT leave the runtime entry-less --
+      // WorksheetEngine.openTemporaryWorksheet falls back to
+      // getTemporaryAssetEntry(user, WORKSHEET) internally when handed a null entry, exactly
+      // mirroring openTemporaryViewsheet's own getTemporaryAssetEntry(user, VIEWSHEET) fallback.
+      // The runtime already has a real (TEMPORARY_SCOPE, "Untitled-N") identity; fetch it back the
+      // same way createViewsheet already does for its own runtime, instead of assuming (wrongly)
+      // that a still-unsaved worksheet has none. Sending assetId(null) here previously fed a
+      // literal null all the way down to OpenWorksheetEvent.id() -- a non-@Nullable field -- which
+      // failed to even deserialize server-side (HttpMessageNotReadableException, 400) the moment
+      // the browser tried to actually open the tab.
+      AssetEntry newWsEntry = worksheetService.getWorksheet(runtimeId, user).getEntry();
+
       // The acting session's own socket/owner, exactly like createViewsheet mints in the reverse
       // direction -- no new pairing code, and the new session is opened whole-sheet (null
       // editorContext), matching how a freshly-created worksheet has always been opened.
@@ -436,7 +448,7 @@ public class SheetOpenService {
       }
 
       OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
-         .assetId(null)          // unsaved, blank worksheet -- there is no asset path yet
+         .assetId(newWsEntry.toIdentifier())
          .viewsheet(false)
          .runtimeId(runtimeId)
          .build();
