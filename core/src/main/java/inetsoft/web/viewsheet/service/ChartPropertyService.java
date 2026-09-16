@@ -372,7 +372,8 @@ public class ChartPropertyService {
       }
 
       CategoricalColorFrame bands =
-         CategoricalColorFrame.companionBands(base, resolveCompanion(base, ctx), BAND_SEED_COUNT);
+         CategoricalColorFrame.companionBands(
+            base, VSChartPaletteDefaults.companionOf(base, ctx), BAND_SEED_COUNT);
 
       if(bands == null) {
          return;
@@ -397,27 +398,6 @@ public class ChartPropertyService {
       // runtime ref is unresolved and isEmpty reads the aesthetic ref's own attribute rather than
       // the wrapped one - both report "unbound" on a chart that is plainly dimension-coloured
       return aref != null && aref.getDataRef() != null && !aref.isMeasure();
-   }
-
-   /**
-    * The companion of a series colour, through VSChartPaletteDefaults so an authored Modern-soft
-    * entry wins over the derivation rule. Falls back to derivation for a colour that is not a slot
-    * of the active palette (a user-pinned or static colour).
-    */
-   private Color resolveCompanion(Color base, VizContext ctx) {
-      CategoricalColorFrame active = new CategoricalColorFrame();
-      active.setDefaultColors(VSChartPaletteDefaults.activePalette(ctx));
-
-      for(int i = 0; i < active.getColorCount(); i++) {
-         if(base.equals(active.getDefaultColor(i))) {
-            return VSChartPaletteDefaults.companionColor(
-               active, ctx.dark ? DARK_PALETTE : MODERN_PALETTE, i, ctx.dark);
-         }
-      }
-
-      CategoricalColorFrame holder = new CategoricalColorFrame();
-      holder.setDefaultColor(0, base);
-      return VSChartPaletteDefaults.companionColor(holder, null, 0, ctx.dark);
    }
 
    /**
@@ -1103,8 +1083,6 @@ public class ChartPropertyService {
    };
    // matches the four band colours GraphTarget's initialiser seeds
    private static final int BAND_SEED_COUNT = 4;
-   private static final String MODERN_PALETTE = "Modern";
-   private static final String DARK_PALETTE = "Modern Dark";
    private static final String[] FORMULA_TYPES = {"Average","Min","Max",
                                                   "Median","Sum"};
    private static Pattern escapedCommaPattern = Pattern.compile("\\\\,");
