@@ -94,8 +94,35 @@ public class BindingReadService {
             shelves.put("geo", refs(chart.getGeoFields()));
          }
 
+         // describeSorts already disambiguates a column bound twice on the SAME shelf (its own
+         // "[index]" suffix), but nothing disambiguated the same bare column name appearing on
+         // two DIFFERENT shelves (e.g. a date column grouped by month on x and by year on group)
+         // -- putAll-ing each shelf's map in turn let a later shelf's entry silently clobber an
+         // earlier one sharing the same key, so a write to one shelf's sort could be invisible
+         // here even though the chart correctly rendered it (Bug #76689, VCS-012). Collect every
+         // shelf's map first, then requalify by shelf -- mirroring describeSorts' own
+         // bracket-suffix convention -- only for a key produced by more than one shelf, so the
+         // ordinary non-colliding case still reports the plain bare column name unchanged.
+         Map<String, Map<String, Object>> sortsByShelf = new LinkedHashMap<>();
+         Map<String, Long> keyShelfCount = new LinkedHashMap<>();
+
          for(String shelf : ChartBindingMutator.SHELVES) {
-            sorts.putAll(ChartBindingMutator.describeSorts(chart, shelf));
+            Map<String, Object> described = ChartBindingMutator.describeSorts(chart, shelf);
+            sortsByShelf.put(shelf, described);
+
+            for(String key : described.keySet()) {
+               keyShelfCount.merge(key, 1L, Long::sum);
+            }
+         }
+
+         for(Map.Entry<String, Map<String, Object>> shelfEntry : sortsByShelf.entrySet()) {
+            String shelf = shelfEntry.getKey();
+
+            for(Map.Entry<String, Object> e : shelfEntry.getValue().entrySet()) {
+               String key = e.getKey();
+               boolean collidesAcrossShelves = keyShelfCount.get(key) > 1;
+               sorts.put(collidesAcrossShelves ? key + " [" + shelf + "]" : key, e.getValue());
+            }
          }
 
          // The ten single-field shelves. Left out of this read until now, so a
@@ -189,9 +216,18 @@ public class BindingReadService {
       int runtime = aesthetic.getRTChartType();
       boolean resolved = runtime != stored && runtime != GraphTypes.CHART_AUTO;
 
+      // The 9-arg FieldRef constructor below predates `label`/`secondaryY` (see its own javadoc:
+      // "kept so those additions did not touch every call site that already named
+      // calculateInfo") and silently defaults BOTH to null -- this call site was never updated
+      // when secondaryY was added, so any y/x measure on a MULTI-STYLE chart (the only case this
+      // method is invoked for at all) lost its secondaryY on every read, even though the actual
+      // ChartAggregateRef/render correctly carried it. Bug #76689, VCS-004. Call the canonical
+      // 11-component constructor directly and thread both fields through from the original ref
+      // instead.
       return new FieldRef(ref.column(), ref.type(), ref.aggregate(), ref.dateLevel(),
                           ref.namedGroup(), stored, resolved ? runtime : null,
-                          ref.namedGroupValues(), ref.calculateInfo());
+                          ref.namedGroupValues(), ref.calculateInfo(), ref.label(),
+                          ref.secondaryY());
    }
 
    private final VSBindingService binding;

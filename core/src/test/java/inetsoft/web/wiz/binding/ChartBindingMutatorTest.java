@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -45,6 +46,95 @@ class ChartBindingMutatorTest {
 
       assertEquals(1, model.getXFields().size());
       assertInstanceOf(ChartDimensionRefModel.class, model.getXFields().get(0));
+   }
+
+   // ── chartType survives a shelf rewrite (Bug #76689, VCS-005) ──────────────────────────────
+   //
+   // toChartRef never sets a chartType on the refs it builds (requireNoInboundChartType refuses
+   // one arriving inbound, by design), so every setShelf call used to silently reset whatever a
+   // prior set_chart_type had stored -- confirmed live to be specific to this write path, not
+   // StyleBI generally: the native Composer UI's own drag-and-drop add does not reset an existing
+   // measure's type.
+
+   @Test
+   void preservesChartTypeWhenAddingAFieldToAnAlreadyTypedYShelf() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null),
+                 new FieldRef("Orders", "measure", "DistinctCount", null, null)));
+
+      // Simulate a prior set_chart_type(field: "DistinctCount(Orders)", type: line) write.
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setChartType(GraphTypes.CHART_LINE);
+
+      // An ordinary incremental edit -- add a third field, the other two unchanged -- not a
+      // literal resend.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null),
+                 new FieldRef("Orders", "measure", "DistinctCount", null, null),
+                 new FieldRef("Quantity", "measure", "Sum", null, null)));
+
+      assertEquals(GraphTypes.CHART_LINE,
+                   ((ChartAggregateRefModel) model.getYFields().get(1)).getChartType(),
+                   "the previously-typed measure must keep its chartType across the rewrite");
+      assertEquals(GraphTypes.CHART_AUTO,
+                   ((ChartAggregateRefModel) model.getYFields().get(2)).getChartType(),
+                   "the newly-added measure has nothing to restore -- stays auto");
+   }
+
+   @Test
+   void preservesChartTypeOnTheLiteralResendCase() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setChartType(GraphTypes.CHART_LINE);
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      assertEquals(GraphTypes.CHART_LINE,
+                   ((ChartAggregateRefModel) model.getYFields().get(0)).getChartType());
+   }
+
+   @Test
+   void removingATypedFieldDropsItsTypeRatherThanMisapplyingItElsewhere() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null),
+                 new FieldRef("Orders", "measure", "DistinctCount", null, null)));
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setChartType(GraphTypes.CHART_LINE);
+
+      // Orders is dropped entirely -- nothing should crash, and Sales must not inherit its type.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      assertEquals(1, model.getYFields().size());
+      assertEquals(GraphTypes.CHART_AUTO,
+                   ((ChartAggregateRefModel) model.getYFields().get(0)).getChartType());
+   }
+
+   /**
+    * Two measures sharing the same column+aggregate, differing only by {@code secondaryY} (the
+    * VCS-014 collision shape) -- each must restore onto its OWN match, not both onto whichever is
+    * found first.
+    */
+   @Test
+   void restoresEachCollidingMeasuresOwnChartTypeSeparately() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef primary = new FieldRef("Total", "measure", "Sum", null, null, null, null, null,
+                                      null, null, false);
+      FieldRef secondary = new FieldRef("Total", "measure", "Sum", null, null, null, null, null,
+                                        null, null, true);
+      ChartBindingMutator.setShelf(model, "y", List.of(primary, secondary));
+
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setChartType(GraphTypes.CHART_BAR);
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setChartType(GraphTypes.CHART_LINE);
+
+      ChartBindingMutator.setShelf(model, "y", List.of(primary, secondary));
+
+      assertEquals(GraphTypes.CHART_BAR,
+                   ((ChartAggregateRefModel) model.getYFields().get(0)).getChartType());
+      assertEquals(GraphTypes.CHART_LINE,
+                   ((ChartAggregateRefModel) model.getYFields().get(1)).getChartType());
    }
 
    @Test
@@ -207,6 +297,106 @@ class ChartBindingMutatorTest {
       assertEquals("top", region.get("ranking"));
       assertEquals("5", region.get("rankingN"));
       assertEquals("Sales", region.get("rankingMeasure"));
+   }
+
+   /**
+    * A bare {@code sortByField}/{@code measure} that names a column bound as a measure more than
+    * once (under different aggregates) used to silently resolve to whichever binding came first,
+    * with no error. Bug #76689, VCS-014.
+    */
+   @Test
+   void rejectsAnAmbiguousBareSortByField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null),
+                 new FieldRef("Total", "measure", "Average", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSort(model, "x", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "Total", null)));
+      assertTrue(thrown.getMessage().contains("Sum(Total)"));
+      assertTrue(thrown.getMessage().contains("Average(Total)"));
+   }
+
+   /** The already-qualified form is unambiguous by construction and always passes through. */
+   @Test
+   void acceptsAnAlreadyQualifiedSortByFieldEvenWhenAnAmbiguousSiblingExists() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null),
+                 new FieldRef("Total", "measure", "Average", null, null)));
+
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("value_desc", "Average(Total)", null));
+
+      Map<String, Object> described = ChartBindingMutator.describeSorts(model, "x");
+      assertEquals("Average(Total)", ((Map<?, ?>) described.get("Region")).get("sortByField"));
+   }
+
+   /** Same ambiguity, same fix, for ranking's {@code measure} parameter. */
+   @Test
+   void rejectsAnAmbiguousBareRankingMeasure() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null),
+                 new FieldRef("Total", "measure", "Average", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setRanking(model, "x", "Region", null,
+            new DimensionSortRanking.Ranking("top", 5, "Total", null)));
+      assertTrue(thrown.getMessage().contains("Sum(Total)"));
+      assertTrue(thrown.getMessage().contains("Average(Total)"));
+   }
+
+   /** A bare name matching exactly one bound measure is unambiguous and unaffected. */
+   @Test
+   void acceptsAnUnambiguousBareSortByField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("value_desc", "Total", null));
+
+      Map<String, Object> described = ChartBindingMutator.describeSorts(model, "x");
+      assertEquals("Total", ((Map<?, ?>) described.get("Region")).get("sortByField"));
+   }
+
+   /**
+    * Round-trip review finding on this same PR: the already-qualified fast path used to return
+    * on the *first* ref whose qualified name matched, without checking whether a SECOND ref
+    * stringifies identically -- exactly the collision {@code preserveChartTypes} already handles
+    * for VCS-005 (same column+aggregate, differing only by {@code secondaryY}), reproducing the
+    * same silent-first-match failure one level up, at the qualified-name granularity instead of
+    * the bare-column one. There is no further qualified string to offer here, so this must be
+    * refused outright rather than accepted as if it named one binding.
+    */
+   @Test
+   void rejectsAnAlreadyQualifiedSortByFieldThatIsItselfAmbiguous() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null, null, null, null, null, null,
+                              false),
+                 new FieldRef("Total", "measure", "Sum", null, null, null, null, null, null, null,
+                              true)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSort(model, "x", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "Sum(Total)", null)));
+      assertTrue(thrown.getMessage().contains("Sum(Total)"));
    }
 
    @Test
