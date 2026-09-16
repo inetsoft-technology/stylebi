@@ -261,6 +261,82 @@ class SheetOpenServiceTest {
    }
 
    /**
+    * PSP-029: when the viewsheet session is directly-established (D10), openBaseWorksheet must
+    * attach it to the new worksheet runtime IN PLACE via
+    * {@code SheetSessionService#attachEstablishedDirectly}, rather than minting an unrelated
+    * child session via {@code open()}.
+    *
+    * <p>Note: a genuinely D10-established session's {@code socketSessionId} is permanently
+    * {@code null} (see {@code SheetSessionService#openEstablishedDirectly}), which the pre-existing
+    * {@code refusesWhenTheViewsheetSessionHasNoSocketSession} guard above refuses unconditionally
+    * before this method ever reaches the attach/open call -- so this exact combination
+    * (establishedDirectly with a live socket) is not known to be reachable via any production path
+    * today. This test exercises the branch in {@code SheetOpenService.openBaseWorksheet} directly
+    * regardless, both for completeness with the other two call sites and as a guard against a
+    * future change to that unrelated socket check making the combination reachable.
+    */
+   @Test
+   void openBaseWorksheetAttachesAnEstablishedDirectlySessionInPlaceInsteadOfMintingAChild()
+      throws Exception
+   {
+      AssetEntry baseEntry = worksheetEntry();
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(baseEntry);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getUser()).thenReturn(BROWSER_PRINCIPAL);
+
+      JoinSession vsSession = new JoinSession(
+         "tok-vs-d10", "vs-runtime-1", OWNER, SheetType.VIEWSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-d10", SOCKET_USER, null, false, true, true);
+
+      ViewsheetSessionService viewsheetSessions = mock(ViewsheetSessionService.class);
+      when(viewsheetSessions.requireSessionAllowingPaneScope(anyString(), any(Principal.class)))
+         .thenReturn(vsSession);
+      when(viewsheetSessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      SheetSessionService sheetSessions = mock(SheetSessionService.class);
+      this.sheetSessions = sheetSessions;
+      when(sheetSessions.findOpen(OWNER, SheetType.WORKSHEET)).thenReturn(null);
+
+      worksheetService = mock(WorksheetService.class);
+      when(worksheetService.openWorksheet(any(AssetEntry.class), any(Principal.class)))
+         .thenReturn("ws-runtime-1");
+
+      JoinSession attached = new JoinSession(
+         "tok-vs-d10", "ws-runtime-1", OWNER, SheetType.WORKSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         "sock-d10", SOCKET_USER, null, false, true, true);
+      when(sheetSessions.attachEstablishedDirectly(eq(vsSession), eq("ws-runtime-1"),
+                                                   eq(SheetType.WORKSHEET)))
+         .thenReturn(attached);
+
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.WORKSHEET),
+                                            eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      broadcast = mock(SheetAgentBroadcastService.class);
+      viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
+      runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
+
+      SheetOpenService service = new SheetOpenService(viewsheetSessions, sheetSessions,
+         worksheetService, securityProvider, broadcast, viewsheetService, runtimeAccess);
+
+      JoinSession opened = service.openBaseWorksheet("tok-vs-d10", principal());
+
+      assertEquals("tok-vs-d10", opened.sessionToken(),
+                  "must reuse the D10 session's own token, not mint a new one");
+      assertTrue(opened.crossSheetFollowEnabled(),
+                "the D10 session's cross-sheet-follow state must survive the attach");
+      verify(sheetSessions, never()).open(anyString(), anyString(), any(SheetType.class),
+                                          any(), any(), any());
+      verify(sheetSessions).attachEstablishedDirectly(vsSession, "ws-runtime-1", SheetType.WORKSHEET);
+   }
+
+   /**
     * A broken tab-bar notification must not fail the open -- best-effort, independent try/catch,
     * mirroring {@code SheetJoinServiceTest.tabBarNotifyFailureDoesNotFailTheJoin}.
     */
@@ -653,6 +729,74 @@ class SheetOpenServiceTest {
    }
 
    /**
+    * PSP-029: when the acting session is directly-established (D10, login-triggered), createViewsheet
+    * must attach it to the new runtime IN PLACE -- same token, cross-sheet-follow state carried
+    * through -- via {@code SheetSessionService#attachEstablishedDirectly}, rather than minting an
+    * unrelated child session via {@code open()} that neither {@code findEstablishedDirectly} nor
+    * {@code findCrossSheetFollowByIdentity} could ever reach again.
+    */
+   @Test
+   void createViewsheetAttachesAnEstablishedDirectlySessionInPlaceInsteadOfMintingAChild()
+      throws Exception
+   {
+      JoinSession actingSession = new JoinSession(
+         "tok-d10", null, OWNER, null, 0L, SheetSessionService.UNATTACHED_TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, null, null, null, false, true, true);
+
+      SheetSessionService sheetSessions = mock(SheetSessionService.class);
+      this.sheetSessions = sheetSessions;
+      when(sheetSessions.resolve(eq("tok-d10"), eq(OWNER))).thenReturn(actingSession);
+
+      AssetEntry lmEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL,
+         "MyDataSource/MyModel", null);
+
+      Principal agent = principal();
+      viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.openTemporaryViewsheet(isNull(), eq(lmEntry), eq(agent), isNull()))
+         .thenReturn("vs-runtime-new");
+      inetsoft.report.composition.RuntimeViewsheet newRvs =
+         mock(inetsoft.report.composition.RuntimeViewsheet.class);
+      AssetEntry tempEntry = new AssetEntry(
+         inetsoft.uql.asset.AssetRepository.TEMPORARY_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "Untitled-1", null);
+      when(newRvs.getEntry()).thenReturn(tempEntry);
+      when(viewsheetService.getViewsheet(eq("vs-runtime-new"), eq(agent))).thenReturn(newRvs);
+
+      JoinSession attached = new JoinSession(
+         "tok-d10", "vs-runtime-new", OWNER, SheetType.VIEWSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null, false, true, true);
+      when(sheetSessions.attachEstablishedDirectly(eq(actingSession), eq("vs-runtime-new"),
+                                                   eq(SheetType.VIEWSHEET)))
+         .thenReturn(attached);
+
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.VIEWSHEET),
+                                            eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
+      broadcast = mock(SheetAgentBroadcastService.class);
+      worksheetService = mock(WorksheetService.class);
+
+      SheetOpenService service = new SheetOpenService(
+         mock(ViewsheetSessionService.class), sheetSessions, worksheetService, securityProvider,
+         broadcast, viewsheetService, runtimeAccess);
+
+      JoinSession created = service.createViewsheet("tok-d10", agent, lmEntry);
+
+      assertEquals("tok-d10", created.sessionToken(),
+                  "must reuse the D10 session's own token, not mint a new one");
+      assertTrue(created.crossSheetFollowEnabled(),
+                "the D10 session's cross-sheet-follow state must survive the attach");
+      verify(sheetSessions, never()).open(anyString(), anyString(), any(SheetType.class),
+                                          any(), any(), any());
+      verify(sheetSessions).attachEstablishedDirectly(actingSession, "vs-runtime-new",
+                                                       SheetType.VIEWSHEET);
+   }
+
+   /**
     * Attach-by-path (section 2.5): when {@code dataSource} is itself a {@code Type.VIEWSHEET}
     * entry (resolved by {@code ViewsheetAssemblyAgentController#resolveDataSourceEntry}'s new
     * "viewsheet" branch), createViewsheet must open THAT saved asset directly via
@@ -978,6 +1122,62 @@ class SheetOpenServiceTest {
          () -> service.createWorksheet("tok-acting", principal()));
 
       assertTrue(thrown.getMessage().toLowerCase().contains("permission"), thrown.getMessage());
+   }
+
+   /**
+    * PSP-029: when the acting session is directly-established (D10, login-triggered), createWorksheet
+    * must attach it to the new runtime IN PLACE -- same token, cross-sheet-follow state carried
+    * through -- via {@code SheetSessionService#attachEstablishedDirectly}, rather than minting an
+    * unrelated child session via {@code open()} that neither {@code findEstablishedDirectly} nor
+    * {@code findCrossSheetFollowByIdentity} could ever reach again.
+    */
+   @Test
+   void createWorksheetAttachesAnEstablishedDirectlySessionInPlaceInsteadOfMintingAChild()
+      throws Exception
+   {
+      JoinSession actingSession = new JoinSession(
+         "tok-d10", null, OWNER, null, 0L, SheetSessionService.UNATTACHED_TTL_MILLIS,
+         JoinSession.ConnectionMode.PAIRED, null, null, null, false, true, true);
+
+      SheetSessionService sheetSessions = mock(SheetSessionService.class);
+      this.sheetSessions = sheetSessions;
+      when(sheetSessions.resolve(eq("tok-d10"), eq(OWNER))).thenReturn(actingSession);
+
+      viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
+      when(viewsheetService.openTemporaryWorksheet(any(Principal.class), isNull()))
+         .thenReturn("ws-runtime-new");
+
+      JoinSession attached = new JoinSession(
+         "tok-d10", "ws-runtime-new", OWNER, SheetType.WORKSHEET, 0L,
+         SheetSessionService.TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null, false, true, true);
+      when(sheetSessions.attachEstablishedDirectly(eq(actingSession), eq("ws-runtime-new"),
+                                                   eq(SheetType.WORKSHEET)))
+         .thenReturn(attached);
+
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.checkPermission(any(Principal.class), eq(ResourceType.WORKSHEET),
+                                            eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      broadcast = mock(SheetAgentBroadcastService.class);
+      worksheetService = mock(WorksheetService.class);
+      runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
+
+      SheetOpenService service = new SheetOpenService(
+         mock(ViewsheetSessionService.class), sheetSessions, worksheetService, securityProvider,
+         broadcast, viewsheetService, runtimeAccess);
+
+      JoinSession created = service.createWorksheet("tok-d10", principal());
+
+      assertEquals("tok-d10", created.sessionToken(),
+                  "must reuse the D10 session's own token, not mint a new one");
+      assertTrue(created.crossSheetFollowEnabled(),
+                "the D10 session's cross-sheet-follow state must survive the attach");
+      verify(sheetSessions, never()).open(anyString(), anyString(), any(SheetType.class),
+                                          any(), any(), any());
+      verify(sheetSessions).attachEstablishedDirectly(actingSession, "ws-runtime-new",
+                                                       SheetType.WORKSHEET);
    }
 
    /**

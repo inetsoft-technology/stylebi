@@ -186,10 +186,15 @@ public class SheetOpenService {
       // it -- any editorContext on vsSession names a location on the VIEWSHEET, not this new
       // worksheet, so the new session is opened whole-sheet (null), matching how a base
       // worksheet has always been opened.
-      JoinSession wsSession = sheetSessions.open(runtimeId, vsSession.ownerIdentity(),
-                                                  SheetType.WORKSHEET,
-                                                  vsSession.socketSessionId(),
-                                                  vsSession.socketUserName(), null);
+      //
+      // A directly-established (D10) vsSession must be attached to this runtime IN PLACE (same
+      // token, same cross-sheet-follow state) rather than have a disconnected child minted for
+      // it -- see SheetSessionService#attachEstablishedDirectly (PSP-029). A pane-scoped session
+      // keeps minting a new session via open(), unchanged.
+      JoinSession wsSession = vsSession.establishedDirectly()
+         ? sheetSessions.attachEstablishedDirectly(vsSession, runtimeId, SheetType.WORKSHEET)
+         : sheetSessions.open(runtimeId, vsSession.ownerIdentity(), SheetType.WORKSHEET,
+                               vsSession.socketSessionId(), vsSession.socketUserName(), null);
 
       // Tells the Composer tab bar an agent is now attached to this runtime. Best-effort, kept
       // in its own try/catch, mirroring SheetJoinService.join's treatment of sendAgentActive: a
@@ -347,10 +352,16 @@ public class SheetOpenService {
       // The acting session's own socket/owner, exactly like openBaseWorksheet mints the reverse
       // direction -- no new pairing code, and the new session is opened whole-sheet (null
       // editorContext), matching how a freshly-created viewsheet has always been opened.
-      JoinSession vsSession = sheetSessions.open(runtimeId, actingSession.ownerIdentity(),
-                                                  SheetType.VIEWSHEET,
-                                                  actingSession.socketSessionId(),
-                                                  actingSession.socketUserName(), null);
+      //
+      // A directly-established (D10) actingSession must be attached to this runtime IN PLACE
+      // (same token, same cross-sheet-follow state) rather than have a disconnected child minted
+      // for it -- see SheetSessionService#attachEstablishedDirectly (PSP-029). A pane-scoped
+      // session keeps minting a new session via open(), unchanged.
+      JoinSession vsSession = actingSession.establishedDirectly()
+         ? sheetSessions.attachEstablishedDirectly(actingSession, runtimeId, SheetType.VIEWSHEET)
+         : sheetSessions.open(runtimeId, actingSession.ownerIdentity(), SheetType.VIEWSHEET,
+                               actingSession.socketSessionId(), actingSession.socketUserName(),
+                               null);
 
       // Tells the Composer tab bar an agent is now attached to this runtime -- the same
       // best-effort notification openBaseWorksheet sends for its own attach path (see its own
@@ -464,10 +475,16 @@ public class SheetOpenService {
       // The acting session's own socket/owner, exactly like createViewsheet mints in the reverse
       // direction -- no new pairing code, and the new session is opened whole-sheet (null
       // editorContext), matching how a freshly-created worksheet has always been opened.
-      JoinSession wsSession = sheetSessions.open(runtimeId, actingSession.ownerIdentity(),
-                                                  SheetType.WORKSHEET,
-                                                  actingSession.socketSessionId(),
-                                                  actingSession.socketUserName(), null);
+      //
+      // A directly-established (D10) actingSession must be attached to this runtime IN PLACE
+      // (same token, same cross-sheet-follow state) rather than have a disconnected child minted
+      // for it -- see SheetSessionService#attachEstablishedDirectly (PSP-029). A pane-scoped
+      // session keeps minting a new session via open(), unchanged.
+      JoinSession wsSession = actingSession.establishedDirectly()
+         ? sheetSessions.attachEstablishedDirectly(actingSession, runtimeId, SheetType.WORKSHEET)
+         : sheetSessions.open(runtimeId, actingSession.ownerIdentity(), SheetType.WORKSHEET,
+                               actingSession.socketSessionId(), actingSession.socketUserName(),
+                               null);
 
       // Tells the Composer tab bar an agent is now attached to this runtime -- the same
       // best-effort notification openBaseWorksheet/createViewsheet send for their own attach

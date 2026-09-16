@@ -1218,4 +1218,52 @@ class SheetSessionServiceTest {
       assertNotNull(synced, "must find the opted-in session even though its socketSessionId is null");
       assertEquals("rt-new", synced.runtimeId());
    }
+
+   // ---------------------------------------------------------------------------
+   // attachEstablishedDirectly -- PSP-029: createWorksheet/createViewsheet/openBaseWorksheet must
+   // attach a directly-established acting session to a new runtime IN PLACE (same token, same
+   // establishedDirectly/crossSheetFollowEnabled flags) rather than mint an unrelated child
+   // session that neither findEstablishedDirectly nor findCrossSheetFollowByIdentity can ever
+   // reach.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void attachEstablishedDirectlyReusesTheSameTokenAndCarriesFlagsThrough() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession d10 = new JoinSession("tok-d10", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null, false, true, true);
+      seedSession(svc, d10);
+
+      JoinSession attached = svc.attachEstablishedDirectly(d10, "rt-new", SheetType.WORKSHEET);
+
+      assertEquals("tok-d10", attached.sessionToken(), "must reuse the same token, not mint a new one");
+      assertEquals("rt-new", attached.runtimeId());
+      assertEquals(SheetType.WORKSHEET, attached.sheetType());
+      assertNull(attached.editorContext(), "a freshly attached sheet has no pane-level detail yet");
+      assertTrue(attached.establishedDirectly(), "establishedDirectly must survive the attach");
+      assertTrue(attached.crossSheetFollowEnabled(), "crossSheetFollowEnabled must survive the attach");
+      assertEquals(SheetSessionService.TTL_MILLIS, attached.ttlMillis(),
+                   "an attached (non-null runtimeId) session gets the longer TTL");
+
+      // Not a second entry: resolve() against the original token reflects the attach.
+      JoinSession resolved = svc.resolve("tok-d10", "alice~;~org");
+      assertNotNull(resolved);
+      assertEquals("rt-new", resolved.runtimeId());
+   }
+
+   @Test
+   void attachEstablishedDirectlyCarriesEstablishedDirectlyFalseCrossSheetFollowThrough() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession d10 = new JoinSession("tok-d10-b", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null, false, true, false);
+      seedSession(svc, d10);
+
+      JoinSession attached = svc.attachEstablishedDirectly(d10, "rt-new-2", SheetType.VIEWSHEET);
+
+      assertTrue(attached.establishedDirectly());
+      assertFalse(attached.crossSheetFollowEnabled(),
+                  "must not spuriously enable cross-sheet-follow -- carry the flag through as-is");
+   }
 }

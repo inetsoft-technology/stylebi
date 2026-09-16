@@ -185,6 +185,46 @@ public class SheetSessionService {
    }
 
    /**
+    * Attaches a directly-established (D10) session to {@code runtimeId}/{@code sheetType} IN
+    * PLACE -- same {@code sessionToken}, same {@code ownerIdentity}/{@code connectionMode}/
+    * {@code socketSessionId}/{@code socketUserName} (still {@code null} either way for a D10
+    * session, per {@link #openEstablishedDirectly}), and same
+    * {@code followFocusEnabled}/{@code establishedDirectly}/{@code crossSheetFollowEnabled} flags
+    * carried through unchanged -- rather than minting an unrelated new session via {@link #open}.
+    *
+    * <p>{@code createWorksheet}/{@code createViewsheet}/{@code openBaseWorksheet} must call this
+    * instead of {@link #open} whenever the acting session's {@link JoinSession#establishedDirectly()}
+    * is {@code true}: {@link #open} always mints a brand-new token with both flags defaulted to
+    * {@code false}, which would silently orphan whatever cross-sheet-follow state the caller's
+    * D10 session already had (PSP-029) -- the exact same "reconstruct in place, same token" shape
+    * {@link #syncToCurrentFocus} and {@link #resolve} already use, just driven by an explicit
+    * attach rather than a focus report or a refresh. {@code editorContext} is reset to
+    * {@code null} (a freshly opened/created sheet has no pane-level detail yet) and
+    * {@code ttlMillis} follows {@link #open}'s own rule ({@link #TTL_MILLIS} once a
+    * {@code runtimeId} is attached, {@link #UNATTACHED_TTL_MILLIS} otherwise).
+    *
+    * <p>Must only be called when {@code actingSession.establishedDirectly()} is {@code true}; a
+    * pane-scoped (pairing-code-joined) acting session must keep minting a new session via
+    * {@link #open}, unchanged.
+    */
+   public JoinSession attachEstablishedDirectly(JoinSession actingSession, String runtimeId,
+                                                 SheetType sheetType)
+   {
+      long ttl = runtimeId != null ? TTL_MILLIS : UNATTACHED_TTL_MILLIS;
+      JoinSession attached = new JoinSession(actingSession.sessionToken(), runtimeId,
+                                             actingSession.ownerIdentity(), sheetType,
+                                             clock.getAsLong(), ttl,
+                                             actingSession.connectionMode(),
+                                             actingSession.socketSessionId(),
+                                             actingSession.socketUserName(), null,
+                                             actingSession.followFocusEnabled(),
+                                             actingSession.establishedDirectly(),
+                                             actingSession.crossSheetFollowEnabled());
+      sessions.put(actingSession.sessionToken(), attached);
+      return attached;
+   }
+
+   /**
     * Opens (or reuses) a directly-established, unattached session for {@code ownerIdentity} --
     * the D10 login-triggered establish endpoint's own entry point (design doc section 8.5). Never
     * called with a {@code runtimeId}: this is the "no pairing code, no runtime yet" session a
