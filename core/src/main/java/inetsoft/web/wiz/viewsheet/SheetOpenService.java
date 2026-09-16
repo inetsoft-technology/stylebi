@@ -352,16 +352,14 @@ public class SheetOpenService {
                                                   actingSession.socketSessionId(),
                                                   actingSession.socketUserName(), null);
 
-      // No live browser socket (e.g. a D10-established, still-unattached acting session, which
-      // was never paired to any open Composer tab): the runtime is still opened and the session
-      // still minted above, only the best-effort "tell the browser" steps below have nothing to
-      // tell -- skip them rather than fail the whole call, matching openBaseWorksheet/
-      // createWorksheet's own null-socket tolerance.
+      // Tells the Composer tab bar an agent is now attached to this runtime -- the same
+      // best-effort notification openBaseWorksheet sends for its own attach path (see its own
+      // comment); create_viewsheet is a third real entry point that attaches a session, so it
+      // needs the same call for the tab-bar indicator to be consistent across all three. Genuinely
+      // has no meaning without a specific browser tab to highlight, so this alone stays guarded on
+      // socketSessionId != null (a D10-established, still-unattached acting session has no tab to
+      // point at) -- unlike the OpenComposerAssetCommand below, which does not need one.
       if(vsSession.socketSessionId() != null) {
-         // Tells the Composer tab bar an agent is now attached to this runtime -- the same
-         // best-effort notification openBaseWorksheet sends for its own attach path (see its own
-         // comment); create_viewsheet is a third real entry point that attaches a session, so it
-         // needs the same call for the tab-bar indicator to be consistent across all three.
          try {
             broadcast.sendAgentActive(vsSession);
          }
@@ -369,14 +367,23 @@ public class SheetOpenService {
             LOG.warn("Viewsheet created, but notifying the tab bar failed (runtimeId={})",
                      runtimeId, ex);
          }
+      }
 
-         OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
-            .assetId(newVsEntry.toIdentifier())
-            .viewsheet(true)
-            .runtimeId(runtimeId)
-            .build();
+      OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
+         .assetId(newVsEntry.toIdentifier())
+         .viewsheet(true)
+         .runtimeId(runtimeId)
+         .build();
 
+      // No live browser socket (e.g. a D10-established, still-unattached acting session, which
+      // was never paired to any open Composer tab): fall back to an identity-addressed broadcast
+      // (see SheetAgentBroadcastService#sendToComposerByIdentity) rather than silently dropping the
+      // notice PortalAgentNoticeService's /user/composer-client subscription exists to receive.
+      if(actingSession.socketSessionId() != null) {
          broadcast.sendToComposer(actingSession.socketSessionId(), command);
+      }
+      else {
+         broadcast.sendToComposerByIdentity(actingSession.ownerIdentity(), command);
       }
 
       return vsSession;
@@ -462,16 +469,14 @@ public class SheetOpenService {
                                                   actingSession.socketSessionId(),
                                                   actingSession.socketUserName(), null);
 
-      // No live browser socket (e.g. a D10-established, still-unattached acting session, which
-      // was never paired to any open Composer tab): the runtime is still opened and the session
-      // still minted above, only the best-effort "tell the browser" steps below have nothing to
-      // tell -- skip them rather than fail the whole call, matching openBaseWorksheet/
-      // createViewsheet's own null-socket tolerance.
+      // Tells the Composer tab bar an agent is now attached to this runtime -- the same
+      // best-effort notification openBaseWorksheet/createViewsheet send for their own attach
+      // paths; create_worksheet is a fourth real entry point that attaches a session, so it needs
+      // the same call for the tab-bar indicator to be consistent across all of them. Genuinely has
+      // no meaning without a specific browser tab to highlight, so this alone stays guarded on
+      // socketSessionId != null (a D10-established, still-unattached acting session has no tab to
+      // point at) -- unlike the OpenComposerAssetCommand below, which does not need one.
       if(wsSession.socketSessionId() != null) {
-         // Tells the Composer tab bar an agent is now attached to this runtime -- the same
-         // best-effort notification openBaseWorksheet/createViewsheet send for their own attach
-         // paths; create_worksheet is a fourth real entry point that attaches a session, so it needs
-         // the same call for the tab-bar indicator to be consistent across all of them.
          try {
             broadcast.sendAgentActive(wsSession);
          }
@@ -479,16 +484,25 @@ public class SheetOpenService {
             LOG.warn("Worksheet created, but notifying the tab bar failed (runtimeId={})",
                      runtimeId, ex);
          }
+      }
 
-         OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
-            // unsaved, blank worksheet -- there is no asset path yet; an attached-by-path
-            // worksheet has its own real asset id to report instead.
-            .assetId(existingEntry == null ? null : existingEntry.toIdentifier())
-            .viewsheet(false)
-            .runtimeId(runtimeId)
-            .build();
+      OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
+         // unsaved, blank worksheet -- there is no asset path yet; an attached-by-path
+         // worksheet has its own real asset id to report instead.
+         .assetId(existingEntry == null ? null : existingEntry.toIdentifier())
+         .viewsheet(false)
+         .runtimeId(runtimeId)
+         .build();
 
+      // No live browser socket (e.g. a D10-established, still-unattached acting session, which
+      // was never paired to any open Composer tab): fall back to an identity-addressed broadcast
+      // (see SheetAgentBroadcastService#sendToComposerByIdentity) rather than silently dropping the
+      // notice PortalAgentNoticeService's /user/composer-client subscription exists to receive.
+      if(actingSession.socketSessionId() != null) {
          broadcast.sendToComposer(actingSession.socketSessionId(), command);
+      }
+      else {
+         broadcast.sendToComposerByIdentity(actingSession.ownerIdentity(), command);
       }
 
       return wsSession;

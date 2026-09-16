@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.WSAssembly;
 import inetsoft.uql.asset.Worksheet;
@@ -31,6 +33,7 @@ import inetsoft.web.composer.ws.assembly.WSAssemblyModelFactory;
 import inetsoft.web.composer.ws.command.RefreshWorksheetCommand;
 import inetsoft.web.composer.ws.command.SetAgentActiveCommand;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
+import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.command.SetViewsheetInfoCommand;
@@ -45,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -70,10 +74,26 @@ public class SheetAgentBroadcastService {
 
    @Autowired
    public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
-                                     VSObjectModelFactoryService vsObjectModelFactoryService)
+                                     VSObjectModelFactoryService vsObjectModelFactoryService,
+                                     IgniteSessionRepository sessionRepository,
+                                     SimpMessagingTemplate messagingTemplate)
    {
       this.commandDispatcherService = commandDispatcherService;
       this.vsObjectModelFactoryService = vsObjectModelFactoryService;
+      this.sessionRepository = sessionRepository;
+      this.messagingTemplate = messagingTemplate;
+   }
+
+   /**
+    * Back-compat/test constructor for the many existing call sites that never exercise
+    * {@link #sendToComposerByIdentity} -- mirrors {@code SheetSessionService}'s own back-compat
+    * constructor pattern. {@link #sendToComposerByIdentity} is a no-op (logged, not thrown) when
+    * {@link #sessionRepository}/{@link #messagingTemplate} are {@code null}.
+    */
+   public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
+                                     VSObjectModelFactoryService vsObjectModelFactoryService)
+   {
+      this(commandDispatcherService, vsObjectModelFactoryService, null, null);
    }
 
    /**
@@ -267,6 +287,63 @@ public class SheetAgentBroadcastService {
    }
 
    /**
+    * {@link #sendToComposer(String, Object)}'s fallback for a session with no browser socket to
+    * address directly -- a directly-established (D10 login-triggered, {@code
+    * establishPortalSession: true}) session, which is never paired to any one open Composer tab
+    * and so never has a {@code socketSessionId} at all (unlike a pane-scoped/pairing-code session,
+    * which always does).
+    *
+    * <p>{@code PortalAgentNoticeService}'s {@code /user/composer-client} subscription is an
+    * ordinary Spring-Security-principal-keyed user destination, built to receive exactly this kind
+    * of identity-addressed push -- but {@code ownerIdentity} alone is not enough to address it: a
+    * real login mints a {@code DestinationUserNameProviderPrincipal} whose destination name (see
+    * its own {@code getDestinationUserName()}) embeds a random per-login {@code secureID}/IP that
+    * cannot be reconstructed from the bare identity string. This re-derives the correct destination
+    * from whichever currently-active login session (see
+    * {@link IgniteSessionRepository#getActiveSessions()}) matches {@code ownerIdentity} via
+    * {@link PairingUtil#sameLogicalUser(String, Principal)}, then addresses THAT live principal --
+    * the same shape every other identity-addressed send in this codebase already uses (see e.g.
+    * {@code OrganizationChangedController}, {@code NotificationService.sendNotificationToUser}),
+    * none of which ever construct a destination from a bare identity string either.
+    *
+    * <p>Deliberately sent via the plain {@link SimpMessagingTemplate}, not
+    * {@link #commandDispatcherService}'s cluster-relay path: that relay requires a
+    * {@code socketSessionId} header to know which cluster node holds the target browser's live
+    * connection, which this call -- by construction -- does not have. This carries the same
+    * single-node-only limitation every other identity-addressed send above already has; not a
+    * regression this fix introduces.
+    *
+    * <p>Best-effort: silently skipped (logged, not thrown) when no active session matches --
+    * mirroring {@link #sendPairingNotice}'s own null-destination tolerance -- since the identity
+    * may simply have no portal tab open right now.
+    */
+   public void sendToComposerByIdentity(String ownerIdentity, Object command) {
+      if(ownerIdentity == null || sessionRepository == null || messagingTemplate == null) {
+         LOG.debug("Composer broadcast (identity-addressed) skipped — no session registry wired " +
+                   "(ownerIdentity={})", ownerIdentity);
+         return;
+      }
+
+      Principal match = null;
+
+      for(SRPrincipal candidate : sessionRepository.getActiveSessions()) {
+         if(candidate != null && PairingUtil.sameLogicalUser(ownerIdentity, candidate)) {
+            match = candidate;
+            break;
+         }
+      }
+
+      if(match == null) {
+         LOG.debug("Composer broadcast (identity-addressed) skipped — no active browser " +
+                   "session found (ownerIdentity={})", ownerIdentity);
+         return;
+      }
+
+      messagingTemplate.convertAndSendToUser(
+         SUtil.getUserDestination(match), ComposerClientService.COMMANDS_TOPIC, command);
+   }
+
+   /**
     * Tell the browser that minted the code that an agent has now joined with it.
     *
     * <p>Addresses {@code socketUserName} — the destination user resolved at mint time, the same
@@ -439,4 +516,10 @@ public class SheetAgentBroadcastService {
 
    private final CommandDispatcherService commandDispatcherService;
    private final VSObjectModelFactoryService vsObjectModelFactoryService;
+
+   /** {@code null} on the back-compat/test constructor -- see {@link #sendToComposerByIdentity}. */
+   private final IgniteSessionRepository sessionRepository;
+
+   /** {@code null} on the back-compat/test constructor -- see {@link #sendToComposerByIdentity}. */
+   private final SimpMessagingTemplate messagingTemplate;
 }

@@ -20,19 +20,26 @@ package inetsoft.web.wiz.pairing;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.composer.command.OpenComposerAssetCommand;
+import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
+import inetsoft.web.viewsheet.service.ComposerClientService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.user.DestinationUserNameProvider;
 
 import java.security.Principal;
 import java.util.List;
@@ -331,5 +338,110 @@ class SheetAgentBroadcastServiceTest {
       inetsoft.web.viewsheet.command.SetViewsheetInfoCommand command =
          (inetsoft.web.viewsheet.command.SetViewsheetInfoCommand) labelCommand;
       assertEquals("bugfix-test-vs", command.getAssemblyInfo().get("name"));
+   }
+
+   // ── sendToComposerByIdentity (PSP-027) ──────────────────────────────────────
+   // A directly-established (D10) session never has a socketSessionId, so SheetOpenService's
+   // OpenComposerAssetCommand broadcast falls back to this identity-addressed path instead of
+   // silently skipping the notice PortalAgentNoticeService's /user/composer-client subscription
+   // exists to receive.
+
+   /**
+    * Minimal {@code SRPrincipal} double for {@code getActiveSessions()} -- built via
+    * {@code SRPrincipal}'s own no-arg (Externalizable-deserialization) constructor, deliberately
+    * NOT any parameterized one, which reaches into {@code SecurityEngine}/Spring machinery not
+    * available in a plain unit test (see {@code SRPrincipal()}'s own javadoc; mirrors
+    * {@code TestPrincipals.MinimalXPrincipal}'s same workaround for {@code XPrincipal}).
+    * Implements {@link DestinationUserNameProvider} itself with a fixed, injectable destination
+    * DISTINCT from the identity string, so a test can prove the fix addresses the live
+    * principal's own resolved destination rather than a re-derived identity string.
+    */
+   private static final class ActiveComposerSession extends SRPrincipal
+      implements DestinationUserNameProvider
+   {
+      ActiveComposerSession(IdentityID identityID, String destinationUserName) {
+         // getName() reads through client.getUserIdentity(), not the inherited XPrincipal.name
+         // field -- setUser is the real hook, mirroring SRPrincipal's own parameterized
+         // constructors (all of which end up calling it), without any of their Spring/
+         // SecurityEngine-reaching side effects.
+         setUser(new inetsoft.sree.ClientInfo(identityID, null));
+         this.destinationUserName = destinationUserName;
+      }
+
+      @Override
+      public String getDestinationUserName() {
+         return destinationUserName;
+      }
+
+      private final String destinationUserName;
+   }
+
+   private static ActiveComposerSession activePrincipal(String name, String org, long secureId) {
+      return new ActiveComposerSession(
+         new IdentityID(name, org), name + "~;~" + org + "[" + secureId + "]@localhost");
+   }
+
+   /**
+    * The deliberate-break assertion: a real login mints a
+    * {@code DestinationUserNameProviderPrincipal} whose {@code getDestinationUserName()} embeds a
+    * random per-login secureID/IP, NOT the bare {@code ownerIdentity} string -- so a naive fix
+    * that called {@code convertAndSendToUser(ownerIdentity, ...)} directly would silently address
+    * a destination nothing is subscribed under. This proves the SAME live principal found via
+    * {@code IgniteSessionRepository.getActiveSessions()} is what gets addressed, by asserting the
+    * destination is the DISTINCT {@code getDestinationUserName()} value, not {@code ownerIdentity}
+    * itself (which happens to be that principal's plain {@code getName()}).
+    */
+   @Test
+   void sendToComposerByIdentityAddressesTheLiveConnectedPrincipalNotTheBareIdentityString() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      IgniteSessionRepository sessionRepository = mock(IgniteSessionRepository.class);
+      SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
+      ActiveComposerSession live = activePrincipal("alice", "host-org", 42L);
+      when(sessionRepository.getActiveSessions()).thenReturn(List.of(live));
+
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(
+         dispatcher, noopModelFactory(), sessionRepository, messagingTemplate);
+      OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
+         .assetId(null).viewsheet(false).runtimeId("ws-runtime-new").build();
+
+      svc.sendToComposerByIdentity("alice~;~host-org", command);
+
+      ArgumentCaptor<String> destination = ArgumentCaptor.forClass(String.class);
+      verify(messagingTemplate).convertAndSendToUser(
+         destination.capture(), eq(ComposerClientService.COMMANDS_TOPIC), eq(command));
+      assertEquals(live.getDestinationUserName(), destination.getValue());
+      assertNotEquals("alice~;~host-org", destination.getValue(),
+         "must address the live principal's own destination name, not the bare identity string");
+   }
+
+   @Test
+   void sendToComposerByIdentitySkipsWhenNoActiveSessionMatches() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      IgniteSessionRepository sessionRepository = mock(IgniteSessionRepository.class);
+      SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
+      // A different identity is active, but not the one being addressed.
+      when(sessionRepository.getActiveSessions())
+         .thenReturn(List.of(activePrincipal("bob", "host-org", 7L)));
+
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(
+         dispatcher, noopModelFactory(), sessionRepository, messagingTemplate);
+
+      svc.sendToComposerByIdentity("alice~;~host-org", new Object());
+
+      verifyNoInteractions(messagingTemplate);
+   }
+
+   /**
+    * The back-compat constructor (every other test in this file) wires neither collaborator --
+    * mirrors {@code SheetSessionService}'s own {@code broadcast == null}/{@code runtimeAccess ==
+    * null} tolerance. Must degrade cleanly, never throw.
+    */
+   @Test
+   void sendToComposerByIdentityIsANoOpOnTheBackCompatConstructor() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(dispatcher, noopModelFactory());
+
+      assertDoesNotThrow(() -> svc.sendToComposerByIdentity("alice~;~host-org", new Object()));
+      verifyNoInteractions(dispatcher);
    }
 }
