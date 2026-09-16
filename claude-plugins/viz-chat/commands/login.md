@@ -33,9 +33,10 @@ version removes.)
    Rule out the server being DOWN before pointing at the login, because both present as unavailable
    tools while the remedy is completely different — if `wiz-services` is not running, no amount of
    re-authenticating will help. Check with
-   `curl -sk -o /dev/null -w '%{http_code}' https://localhost:3003/api/wiz/v1/health`: `401` means up
-   and auth-gated (so it IS a login problem), `000` means down. Note it serves HTTPS — plain `http://`
-   returns `000` and looks dead when it is fine.
+   `curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/wiz/v1/health` (the same host and
+   port as `STYLEBI_WIZ_URL`'s documented default): `200` means the server is up, `000` (connection
+   refused) means it is down. This health endpoint is intentionally public and unauthenticated, so a
+   `200` only rules out the server being down — it does not confirm the user is logged in.
 
 3. **After the user reports being reconnected** — call `whoami` once to confirm, and report the
    identity. If it still fails, say so plainly rather than retrying.

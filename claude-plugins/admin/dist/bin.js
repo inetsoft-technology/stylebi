@@ -9995,9 +9995,9 @@ var require_form_data = __commonJS({
     var http3 = __require("http");
     var https2 = __require("https");
     var parseUrl2 = __require("url").parse;
-    var fs5 = __require("fs");
+    var fs6 = __require("fs");
     var Stream = __require("stream").Stream;
-    var crypto5 = __require("crypto");
+    var crypto6 = __require("crypto");
     var mime = require_mime_types();
     var asynckit = require_asynckit();
     var setToStringTag = require_es_set_tostringtag();
@@ -10065,7 +10065,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs5.stat(value.path, function(err, stat) {
+          fs6.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -10206,7 +10206,7 @@ var require_form_data = __commonJS({
       return Buffer.concat([dataBuffer, Buffer.from(this._lastBoundary())]);
     };
     FormData3.prototype._generateBoundary = function() {
-      this._boundary = "--------------------------" + crypto5.randomBytes(12).toString("hex");
+      this._boundary = "--------------------------" + crypto6.randomBytes(12).toString("hex");
     };
     FormData3.prototype.getLengthSync = function() {
       var knownLength = this._overheadLength + this._valueLength;
@@ -10787,7 +10787,7 @@ var require_has_flag = __commonJS({
 var require_supports_color = __commonJS({
   "../shared/core/node_modules/supports-color/index.js"(exports, module) {
     "use strict";
-    var os3 = __require("os");
+    var os4 = __require("os");
     var tty = __require("tty");
     var hasFlag = require_has_flag();
     var { env } = process;
@@ -10835,7 +10835,7 @@ var require_supports_color = __commonJS({
         return min;
       }
       if (process.platform === "win32") {
-        const osRelease = os3.release().split(".");
+        const osRelease = os4.release().split(".");
         if (Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
           return Number(osRelease[2]) >= 14931 ? 3 : 2;
         }
@@ -17765,7 +17765,7 @@ function requirePropertyName(args) {
   }
   return raw.trim();
 }
-function normalizeVerb(raw, label) {
+function normalizeScheduleVerb(raw, label) {
   const v = typeof raw === "string" ? raw.trim().toLowerCase() : raw;
   if (v === "create" || v === "add") {
     return "create";
@@ -17773,8 +17773,14 @@ function normalizeVerb(raw, label) {
   if (v === "delete" || v === "remove") {
     return "delete";
   }
+  if (v === "run" || v === "run_now" || v === "trigger") {
+    return "run";
+  }
+  if (v === "stop" || v === "stop_now" || v === "kill") {
+    return "stop";
+  }
   throw new Error(
-    `${label}.verb: must be "create" or "delete" (also accepts "add"/"remove" as aliases); got ${JSON.stringify(raw)}`
+    `${label}.verb: must be "create", "delete", "run", or "stop" (also accepts "add"/"remove" as aliases for "create"/"delete", "run_now"/"trigger" as aliases for "run", "stop_now"/"kill" as aliases for "stop"); got ${JSON.stringify(raw)}`
   );
 }
 function requireTaskId(args, label = "taskId") {
@@ -17924,6 +17930,48 @@ function requireNoAtConditionTimeOfDay(condition, label) {
       throw new Error(
         `${label}.${field}: not used for an AT condition \u2014 an AT condition's run time is governed entirely by date server-side; remove ${field} or set it to -1 ("not used")`
       );
+    }
+  }
+}
+function requireIntInRange(value, min, max, label) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${label}: expected an integer between ${min} and ${max}; got ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+function requireNonZeroIntInRange(value, min, max, label) {
+  if (value === 0) {
+    throw new Error(`${label}: 0 is not a legal value here (it silently matches every day server-side, not "unset"); expected a non-zero integer between ${min} and ${max}`);
+  }
+  return requireIntInRange(value, min, max, label);
+}
+function requireIntArrayInRange(value, min, max, label) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${label}: required, a non-empty array of integers between ${min} and ${max}; got ${JSON.stringify(value)}`);
+  }
+  value.forEach((v, i) => requireIntInRange(v, min, max, `${label}[${i}]`));
+}
+function requireTimeConditionFieldsForType(condition, ordinal, label) {
+  const T = TIME_CONDITION_TYPE_ORDINALS;
+  if (ordinal === T.DAY_OF_WEEK || ordinal === T.EVERY_WEEK || ordinal === T.EVERY_HOUR) {
+    requireIntArrayInRange(condition.daysOfWeek, 1, 7, `${label}.daysOfWeek`);
+  }
+  if (ordinal === T.EVERY_MONTH) {
+    requireIntArrayInRange(condition.monthsOfYear, 0, 11, `${label}.monthsOfYear`);
+    const hasDayOfMonth = condition.dayOfMonth !== void 0 && condition.dayOfMonth !== null;
+    const weekOfMonthGiven = condition.weekOfMonth !== void 0 && condition.weekOfMonth !== null;
+    const hasWeekOfMonth = weekOfMonthGiven && !(hasDayOfMonth && typeof condition.weekOfMonth === "number" && condition.weekOfMonth <= 0);
+    if (hasDayOfMonth === hasWeekOfMonth) {
+      throw new Error(
+        `${label}: EVERY_MONTH requires exactly one of dayOfMonth (a specific day, e.g. the 15th; negative counts from the end of the month) OR weekOfMonth+dayOfWeek (e.g. the 2nd Tuesday) \u2014 got ${hasDayOfMonth ? "both" : "neither"}`
+      );
+    }
+    if (hasDayOfMonth) {
+      requireNonZeroIntInRange(condition.dayOfMonth, -31, 31, `${label}.dayOfMonth`);
+      condition.weekOfMonth = -1;
+    } else {
+      requireNonZeroIntInRange(condition.weekOfMonth, 1, 5, `${label}.weekOfMonth`);
+      requireIntInRange(condition.dayOfWeek, 1, 7, `${label}.dayOfWeek`);
     }
   }
 }
@@ -18122,10 +18170,10 @@ function readScheduleChange(raw, index) {
   if (!isPlainObject2(raw)) {
     throw new Error(`${label}: expected an object like { verb, taskId, spec }, got ${typeof raw}`);
   }
-  const verb = normalizeVerb(raw.verb, label);
-  if (verb === "delete") {
+  const verb = normalizeScheduleVerb(raw.verb, label);
+  if (verb === "delete" || verb === "run" || verb === "stop") {
     if ("spec" in raw && raw.spec !== void 0 && raw.spec !== null) {
-      throw new Error(`${label}.spec: not used for verb=delete; remove it or use verb=create`);
+      throw new Error(`${label}.spec: not used for verb=${verb}; remove it or use verb=create`);
     }
     return { verb, taskId: requireTaskId(raw, `${label}.taskId`) };
   }
@@ -18157,6 +18205,7 @@ function readScheduleChange(raw, index) {
       if (condition.type === TIME_CONDITION_TYPE_ORDINALS.AT) {
         requireNoAtConditionTimeOfDay(condition, conditionLabel);
       }
+      requireTimeConditionFieldsForType(condition, condition.type, conditionLabel);
     });
   }
   const actions = raw.spec.actions;
@@ -18198,7 +18247,7 @@ function normalizeScheduleChanges(input) {
     entries = [input];
   } else {
     throw new Error(
-      'changes: required \u2014 an array of { verb, taskId|spec } (verb is "create" or "delete")'
+      'changes: required \u2014 an array of { verb, taskId|spec } (verb is "create", "delete", "run", or "stop")'
     );
   }
   return entries.map(readScheduleChange);
@@ -20426,6 +20475,239 @@ function normalizeAsDriverPlugin(raw) {
     drivers: raw.drivers.map((d) => d.trim())
   };
 }
+function normalizeShapeVerb(raw, label) {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : raw;
+  if (v === "upload" || v === "add") {
+    return "upload";
+  }
+  if (v === "delete" || v === "remove") {
+    return "delete";
+  }
+  throw new Error(
+    `${label}.verb: must be "upload" or "delete" (also accepts "add"/"remove" as aliases); got ${JSON.stringify(raw)}`
+  );
+}
+function requireShapeName(raw, label) {
+  if (typeof raw !== "string" || raw.trim() === "") {
+    throw new Error(
+      `${label}.name: required \u2014 the shape's full filename (e.g. "arrow.svg"), a bare name only`
+    );
+  }
+  if (raw.indexOf("\0") >= 0) {
+    throw new Error(`${label}.name: must not contain a NUL byte`);
+  }
+  if (raw.indexOf("/") >= 0 || raw.indexOf("\\") >= 0) {
+    throw new Error(
+      `${label}.name: "${raw}" must be a bare filename, not a path \u2014 it must not contain "/" or "\\\\". Use subPath to target a nested folder inside the shapes tree instead.`
+    );
+  }
+  requireSafeStoredAssetSegment(raw, raw, `${label}.name`);
+  return raw;
+}
+function requireShapeSubPath(raw, label) {
+  if (raw === void 0 || raw === null) {
+    return void 0;
+  }
+  const normalized = requireDataSpacePath(raw, `${label}.subPath`);
+  return normalized === "" ? void 0 : normalized;
+}
+function readShapeChange(raw, index) {
+  const label = `changes[${index}]`;
+  if (!isPlainObject2(raw)) {
+    throw new Error(
+      `${label}: expected an object like { verb, scope, name, subPath?, content? }, got ${typeof raw}`
+    );
+  }
+  const verb = normalizeShapeVerb(raw.verb, label);
+  const scope = normalizeScope(raw.scope, label);
+  const name = requireShapeName(raw.name, label);
+  const subPath = requireShapeSubPath(raw.subPath, label);
+  const change = { verb, scope, name };
+  if (subPath !== void 0) {
+    change.subPath = subPath;
+  }
+  if (verb === "upload") {
+    if (typeof raw.content !== "string" || raw.content.trim() === "") {
+      throw new Error(
+        `${label}.content: required for verb="upload" (the shape file's full bytes, base64-encoded)`
+      );
+    }
+    change.content = raw.content;
+  } else if ("content" in raw && raw.content !== void 0 && raw.content !== null) {
+    throw new Error(`${label}.content: not used for verb="delete"; only verb="upload" accepts it`);
+  }
+  return change;
+}
+function normalizeShapeChanges(input) {
+  let entries;
+  if (Array.isArray(input)) {
+    if (input.length === 0) {
+      throw new Error(
+        "changes: must not be empty \u2014 pass at least one { verb, scope, name, subPath?, content? }"
+      );
+    }
+    entries = input;
+  } else if (isPlainObject2(input)) {
+    entries = [input];
+  } else {
+    throw new Error(
+      'changes: required \u2014 an array of { verb, scope, name, subPath?, content? } (verb is "upload" or "delete")'
+    );
+  }
+  return entries.map(readShapeChange);
+}
+function normalizeThemeVerb(raw, label) {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : raw;
+  if (v === "create" || v === "add") {
+    return "create";
+  }
+  if (v === "delete" || v === "remove") {
+    return "delete";
+  }
+  if (v === "update") {
+    return "update";
+  }
+  throw new Error(
+    `${label}.verb: must be "create", "delete", or "update" (also accepts "add"/"remove" as aliases for create/delete \u2014 update has no alias); got ${JSON.stringify(raw)}`
+  );
+}
+function requireThemeId(raw, label) {
+  if (typeof raw !== "string" || raw.trim() === "") {
+    throw new Error(`${label}.id: required \u2014 a theme's id, as returned by list_themes/get_theme`);
+  }
+  return raw.trim();
+}
+var THEME_SPEC_FIELDS = /* @__PURE__ */ new Set([
+  "name",
+  "global",
+  "defaultThemeGlobal",
+  "defaultThemeOrg",
+  "jar",
+  "portalCss",
+  "emCss"
+]);
+function validateThemeSpecFields(spec, label) {
+  for (const key of Object.keys(spec)) {
+    if (spec[key] === void 0) {
+      continue;
+    }
+    if (!THEME_SPEC_FIELDS.has(key)) {
+      throw new Error(
+        `${label}.spec.${key}: not a recognized Themes field \u2014 expected one of name, global, defaultThemeGlobal, defaultThemeOrg, jar, portalCss, emCss`
+      );
+    }
+  }
+}
+function normalizeThemeFileData(raw, label) {
+  if (!isPlainObject2(raw) || typeof raw.name !== "string" || raw.name.trim() === "" || typeof raw.content !== "string" || raw.content.trim() === "") {
+    throw new Error(
+      `${label}: expected an object { name, content } \u2014 content is the base64 of a FULL theme JAR archive (theme CSS plus any bundled assets), not raw CSS text; for hand-editing CSS variables directly, use portalCss/emCss instead of building a jar`
+    );
+  }
+  return { name: raw.name, content: raw.content };
+}
+function normalizeThemeCssSpec(raw, label) {
+  if (!isPlainObject2(raw) || !Array.isArray(raw.variables)) {
+    throw new Error(`${label}: expected an object { variables: [{ name, value }] }`);
+  }
+  const variables = raw.variables.map((v, i) => {
+    if (!isPlainObject2(v) || typeof v.name !== "string" || v.name.trim() === "" || typeof v.value !== "string") {
+      throw new Error(`${label}.variables[${i}]: expected an object { name, value }`);
+    }
+    return { name: v.name, value: v.value };
+  });
+  return { variables };
+}
+function normalizeThemeSpecValues(raw, label) {
+  const spec = {};
+  if (raw.name !== void 0) {
+    spec.name = raw.name;
+  }
+  for (const boolField of ["global", "defaultThemeGlobal", "defaultThemeOrg"]) {
+    if (raw[boolField] !== void 0) {
+      if (typeof raw[boolField] !== "boolean") {
+        throw new Error(`${label}.spec.${boolField}: must be a boolean; got ${typeof raw[boolField]}`);
+      }
+      spec[boolField] = raw[boolField];
+    }
+  }
+  if (raw.jar !== void 0) {
+    spec.jar = normalizeThemeFileData(raw.jar, `${label}.spec.jar`);
+  }
+  if (raw.portalCss !== void 0) {
+    spec.portalCss = normalizeThemeCssSpec(raw.portalCss, `${label}.spec.portalCss`);
+  }
+  if (raw.emCss !== void 0) {
+    spec.emCss = normalizeThemeCssSpec(raw.emCss, `${label}.spec.emCss`);
+  }
+  return spec;
+}
+function readThemeChange(raw, index) {
+  const label = `changes[${index}]`;
+  if (!isPlainObject2(raw)) {
+    throw new Error(`${label}: expected an object like { verb, id|spec }, got ${typeof raw}`);
+  }
+  const verb = normalizeThemeVerb(raw.verb, label);
+  if (verb === "delete") {
+    if ("spec" in raw && raw.spec !== void 0 && raw.spec !== null) {
+      throw new Error(`${label}.spec: not used for verb=delete; remove it or use verb=create/update`);
+    }
+    const id2 = requireThemeId(raw.id, label);
+    return { verb, id: id2 };
+  }
+  if (verb === "create") {
+    if ("id" in raw && raw.id !== void 0 && raw.id !== null) {
+      throw new Error(`${label}.id: not used for verb=create; the id is derived server-side`);
+    }
+    if (!isPlainObject2(raw.spec)) {
+      throw new Error(`${label}.spec: required for verb=create \u2014 must include at least name`);
+    }
+    validateThemeSpecFields(raw.spec, label);
+    if (typeof raw.spec.name !== "string" || raw.spec.name.trim() === "") {
+      throw new Error(`${label}.spec.name: required non-blank string for verb=create`);
+    }
+    return { verb, spec: normalizeThemeSpecValues(raw.spec, label) };
+  }
+  const id = requireThemeId(raw.id, label);
+  if (!isPlainObject2(raw.spec)) {
+    throw new Error(
+      `${label}.spec: required for verb=update \u2014 a partial object naming only the fields to change`
+    );
+  }
+  validateThemeSpecFields(raw.spec, label);
+  if (Object.keys(raw.spec).length === 0) {
+    throw new Error(`${label}.spec: at least one field is required for verb="update" (nothing to change)`);
+  }
+  for (const key of Object.keys(raw.spec)) {
+    if (raw.spec[key] === null) {
+      throw new Error(
+        `${label}.spec.${key}: explicit null is not allowed for verb="update" (the server cannot tell an explicit null apart from an omitted key) \u2014 omit it to leave unchanged.`
+      );
+    }
+  }
+  if (typeof raw.spec.name === "string" && raw.spec.name.trim() === "") {
+    throw new Error(
+      `${label}.spec.name: an empty name is not allowed for verb="update" \u2014 omit "name" entirely to leave it unchanged. NOTE: name is unconditionally applied when present (there is no separate rename flag) \u2014 resupply the theme's CURRENT name if you don't intend to rename it.`
+    );
+  }
+  return { verb, id, spec: normalizeThemeSpecValues(raw.spec, label) };
+}
+function normalizeThemeChanges(input) {
+  let entries;
+  if (Array.isArray(input)) {
+    if (input.length === 0) {
+      throw new Error("changes: must not be empty \u2014 pass at least one { verb, id|spec }");
+    }
+    entries = input;
+  } else if (isPlainObject2(input)) {
+    entries = [input];
+  } else {
+    throw new Error(
+      'changes: required \u2014 an array of { verb, id|spec } (verb is "create", "delete", or "update")'
+    );
+  }
+  return entries.map(readThemeChange);
+}
 
 // src/tools/orgValidation.ts
 var ORG_PREFIX = "inetsoft.org.";
@@ -20674,8 +20956,40 @@ function makeChangeTools(deps) {
   return [makePreviewChangesTool(deps), makeApplyChangesTool(deps)];
 }
 
+// src/tools/scheduleTools.ts
+import crypto5 from "crypto";
+
 // src/tools/scheduleTaskIntegrity.ts
 import crypto4 from "crypto";
+var PROTECTED_FIELDS = [
+  "alerts",
+  "parameters",
+  "saveToServerFilePaths",
+  "sender",
+  "ccAddresses",
+  "bccAddresses",
+  "attachmentName",
+  "bookmarkUsers",
+  "bookmarkTypes",
+  "bookmarkName",
+  "bookmarkType",
+  "bookmarkUser",
+  "emailZip",
+  "emailLink",
+  "notifyLink",
+  "notifyIfFailed",
+  "htmlMessage",
+  "emailMatch",
+  "emailExpandSelections",
+  "emailOnlyDataComponents",
+  "exportAllTabbedTables",
+  "emailCSVConfig",
+  "saveToServerMatch",
+  "saveToServerExpandSelections",
+  "saveToServerOnlyDataComponents",
+  "saveExportAllTabbedTables",
+  "saveToServerCsvConfig"
+];
 var ENVELOPE_PREFIX = "pgi1:";
 function isPlainObject4(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -20704,41 +21018,24 @@ function digestsForChange(change) {
   if (!Array.isArray(actions) || actions.length === 0) {
     return null;
   }
-  const alerts = actions.map((a) => isPlainObject4(a) ? a.alerts ?? null : null);
-  const parameters = actions.map((a) => isPlainObject4(a) ? a.parameters ?? null : null);
-  const saveToServerFilePaths = actions.map((a) => isPlainObject4(a) ? a.saveToServerFilePaths ?? null : null);
-  const sender = actions.map((a) => isPlainObject4(a) ? a.sender ?? null : null);
-  const ccAddresses = actions.map((a) => isPlainObject4(a) ? a.ccAddresses ?? null : null);
-  const bccAddresses = actions.map((a) => isPlainObject4(a) ? a.bccAddresses ?? null : null);
-  const attachmentName = actions.map((a) => isPlainObject4(a) ? a.attachmentName ?? null : null);
-  const bookmarkUsers = actions.map((a) => isPlainObject4(a) ? a.bookmarkUsers ?? null : null);
-  const alertsPresent = alerts.some((v) => v !== null);
-  const parametersPresent = parameters.some((v) => v !== null);
-  const pathsPresent = saveToServerFilePaths.some((v) => v !== null);
-  const senderPresent = sender.some((v) => v !== null);
-  const ccAddressesPresent = ccAddresses.some((v) => v !== null);
-  const bccAddressesPresent = bccAddresses.some((v) => v !== null);
-  const attachmentNamePresent = attachmentName.some((v) => v !== null);
-  const bookmarkUsersPresent = bookmarkUsers.some((v) => v !== null);
-  if (!alertsPresent && !parametersPresent && !pathsPresent && !senderPresent && !ccAddressesPresent && !bccAddressesPresent && !attachmentNamePresent && !bookmarkUsersPresent) {
+  const perFieldValues = PROTECTED_FIELDS.map(
+    (field) => actions.map((a) => isPlainObject4(a) ? a[field] ?? null : null)
+  );
+  const present = perFieldValues.map((values) => values.some((v) => v !== null));
+  if (!present.some(Boolean)) {
     return null;
   }
-  return {
-    alerts: alertsPresent ? digestOf(alerts) : null,
-    parameters: parametersPresent ? digestOf(parameters) : null,
-    saveToServerFilePaths: pathsPresent ? digestOf(saveToServerFilePaths) : null,
-    sender: senderPresent ? digestOf(sender) : null,
-    ccAddresses: ccAddressesPresent ? digestOf(ccAddresses) : null,
-    bccAddresses: bccAddressesPresent ? digestOf(bccAddresses) : null,
-    attachmentName: attachmentNamePresent ? digestOf(attachmentName) : null,
-    bookmarkUsers: bookmarkUsersPresent ? digestOf(bookmarkUsers) : null
-  };
+  const digests = {};
+  PROTECTED_FIELDS.forEach((field, i) => {
+    digests[field] = present[i] ? digestOf(perFieldValues[i]) : null;
+  });
+  return digests;
 }
 function computeProtectedFieldDigests(changes) {
   return changes.map(digestsForChange);
 }
 function hasAnyProtectedField(digests) {
-  return digests.some((d) => d !== null && (d.alerts !== null || d.parameters !== null || d.saveToServerFilePaths !== null || d.sender !== null || d.ccAddresses !== null || d.bccAddresses !== null || d.attachmentName !== null || d.bookmarkUsers !== null));
+  return digests.some((d) => d !== null && PROTECTED_FIELDS.some((field) => d[field] !== null));
 }
 function wrapScheduleTaskToken(realToken, changes) {
   const digests = computeProtectedFieldDigests(changes);
@@ -20753,7 +21050,7 @@ function unwrapScheduleTaskToken(taskToken, changes) {
   if (!taskToken.startsWith(ENVELOPE_PREFIX)) {
     if (hasAnyProtectedField(applyDigests)) {
       throw new Error(
-        "taskToken: this plan sets alerts/parameters/saveToServerFilePaths/sender/ccAddresses/bccAddresses/attachmentName/bookmarkUsers on a create action, but the given taskToken was not issued by previewing this exact plan (or has been tampered with) \u2014 call preview_schedule_task_changes again with the plan you intend to apply."
+        `taskToken: this plan sets ${PROTECTED_FIELDS.join("/")} on a create action, but the given taskToken was not issued by previewing this exact plan (or has been tampered with) \u2014 call preview_schedule_task_changes again with the plan you intend to apply.`
       );
     }
     return taskToken;
@@ -20779,16 +21076,7 @@ function unwrapScheduleTaskToken(taskToken, changes) {
   const mismatches = [];
   envelope.digests.forEach((expected, index) => {
     const actual = applyDigests[index];
-    [
-      "alerts",
-      "parameters",
-      "saveToServerFilePaths",
-      "sender",
-      "ccAddresses",
-      "bccAddresses",
-      "attachmentName",
-      "bookmarkUsers"
-    ].forEach((field) => {
+    PROTECTED_FIELDS.forEach((field) => {
       const expectedDigest = expected && typeof expected === "object" ? expected[field] ?? null : null;
       const actualDigest = actual ? actual[field] : null;
       if (expectedDigest !== actualDigest) {
@@ -20805,17 +21093,20 @@ function unwrapScheduleTaskToken(taskToken, changes) {
 }
 
 // src/tools/scheduleTools.ts
-var SPEC_DESCRIPTION = `required when verb is "create" (also accepts "add"); ignored/refused when verb is "delete" (also accepts "remove"). Fields, matching the server's CreateScheduleTaskRequest exactly: name (string, required), owner ({name, orgID}, required), enabled (boolean), deleteIfNotScheduledToRun (boolean), startDate/endDate (epoch millis), description (string), locale (string), executeAsID ({type: "USER"|"GROUP", identityID: {name, orgID}}) \u2014 omit to run as the owner. conditions (required, non-empty array) \u2014 this area's first cut supports only time-based conditions: {conditionType: "time", type, hour, minute, second, interval, daysOfWeek, dayOfMonth, weekOfMonth, monthsOfYear, weekdayOnly, date (ISO-8601 string with an explicit UTC offset, e.g. "2026-09-10T03:00:00Z" \u2014 NOT epoch millis like startDate/endDate), timeRange, timeZone}. type is one of "AT", "DAY_OF_WEEK", "EVERY_DAY", "EVERY_WEEK", "EVERY_MONTH", "EVERY_HOUR" (case-insensitive; spaces/hyphens/underscores are folded, e.g. "every-day" matches "EVERY_DAY"), or the equivalent ordinal number; "DAY_OF_MONTH"/"WEEK_OF_MONTH" are deprecated aliases and refused, not silently accepted \u2014 use "EVERY_MONTH" instead. an AT condition's hour/minute/second are refused if set to anything other than -1/omitted \u2014 AT's run time is governed entirely by date server-side, and hour/minute/second are silently ignored there, so this area refuses them rather than accept a value that would quietly do nothing. a completion condition (runs after another task) is refused, not silently dropped. actions (optional array) \u2014 only {actionType: "viewsheet", viewsheet, bookmarkNames (array of bookmark name strings), bookmarkUsers (array of {name, orgID}, index-paired 1:1 with bookmarkNames), emails (array of email address strings), notifies (array of notification recipient strings), format, subject, message, alerts, parameters, saveToServerFilePaths, ...} is supported; a single string is accepted as a one-element-array alias for bookmarkNames/emails/notifies. a batch or asset-backup action is refused, not silently dropped. bookmarkUsers is the owner of each named bookmark; required if any named bookmark is NOT owned by this task's own owner. Omitting it defaults every entry to this task's own owner (same convention as executeAsID's "omit to run as the owner") \u2014 but bookmark ownership is independent of task ownership, so if any bookmark in bookmarkNames actually belongs to a different user, this default is WRONG and the task will fail silently at its next scheduled run (not at preview or apply time) with a "bookmark not found" error. Supply bookmarkUsers explicitly whenever a bookmark's owner might differ from the task owner. alerts (optional array) gates whether a time-scheduled task's delivery actually fires: {elementId, highlightName} \u2014 the assembly and highlight name whose condition must currently be met (this is how a real "Alert"/"Automated Alert" is built; there is no separate alert conditionType). parameters (optional object, paramName -> value) supplies parameters when opening the viewsheet \u2014 each value is either a bare scalar, or one of {value, dataType}, {value, type: "expression", dataType}, {value, array: true, dataType}. type is accepted in any case ("Expression"/"EXPRESSION"/"expression") and is normalized to the server's own uppercase "EXPRESSION" before the request is sent; anything not recognizably "expression" is refused, naming the field. For an expression parameter, value must be a string and does not need a leading "=" \u2014 one is prepended automatically if missing (and left alone if already present, never doubled). saveToServerFilePaths (optional array) delivers the export to disk/FTP instead of (or in addition to) email: {format, path, username?, password?, useCredential?, secretId?} \u2014 useCredential: true requires secretId and forbids username/password; useCredential: false (the default) requires both username and password and forbids secretId.`;
+var SPEC_DESCRIPTION = `required when verb is "create" (also accepts "add"); ignored/refused when verb is "delete"/"run"/"stop" (also accepts "remove"/"run_now"/"trigger"/"stop_now"/"kill" as aliases for those three). Fields, matching the server's CreateScheduleTaskRequest exactly: name (string, required), owner ({name, orgID}, required), enabled (boolean), deleteIfNotScheduledToRun (boolean), startDate/endDate (epoch millis), description (string), locale (string), executeAsID ({type: "USER"|"GROUP", identityID: {name, orgID}}) \u2014 omit to run as the owner. conditions (required, non-empty array) \u2014 this area's first cut supports only time-based conditions: {conditionType: "time", type, hour, minute, second, interval, daysOfWeek, dayOfMonth, weekOfMonth, dayOfWeek, monthsOfYear, weekdayOnly, date (ISO-8601 string with an explicit UTC offset, e.g. "2026-09-10T03:00:00Z" \u2014 NOT epoch millis like startDate/endDate), timeRange, timeZone}. type is one of "AT", "DAY_OF_WEEK", "EVERY_DAY", "EVERY_WEEK", "EVERY_MONTH", "EVERY_HOUR" (case-insensitive; spaces/hyphens/underscores are folded, e.g. "every-day" matches "EVERY_DAY"), or the equivalent ordinal number; "DAY_OF_MONTH"/"WEEK_OF_MONTH" are deprecated aliases and refused, not silently accepted \u2014 use "EVERY_MONTH" instead. an AT condition's hour/minute/second are refused if set to anything other than -1/omitted \u2014 AT's run time is governed entirely by date server-side, and hour/minute/second are silently ignored there, so this area refuses them rather than accept a value that would quietly do nothing. each type requires the fields the server actually reads to compute a fire time, refused loud (not silently defaulted) if missing \u2014 "DAY_OF_WEEK"/"EVERY_WEEK"/"EVERY_HOUR" require a non-empty daysOfWeek (each element 1-7, 1=Sunday); "EVERY_MONTH" requires a non-empty monthsOfYear (each element 0-11, 0=January) plus exactly one of: dayOfMonth (a non-zero integer -31..31; positive counts from the start of the month, negative from the end; 0 is refused, not "unset", since it silently matches every day server-side) OR weekOfMonth (1-5) together with dayOfWeek (1-7, e.g. weekOfMonth=2, dayOfWeek=3 means "the 2nd Tuesday"); giving both or neither alternative is refused. a completion condition (runs after another task) is refused, not silently dropped. actions (optional array) \u2014 only {actionType: "viewsheet", viewsheet, bookmarkNames (array of bookmark name strings), bookmarkUsers (array of {name, orgID}, index-paired 1:1 with bookmarkNames), emails (array of email address strings), notifies (array of notification recipient strings), format, subject, message, alerts, parameters, saveToServerFilePaths, ...} is supported; a single string is accepted as a one-element-array alias for bookmarkNames/emails/notifies. a batch or asset-backup action is refused, not silently dropped. bookmarkUsers is the owner of each named bookmark; required if any named bookmark is NOT owned by this task's own owner. Omitting it defaults every entry to this task's own owner (same convention as executeAsID's "omit to run as the owner") \u2014 but bookmark ownership is independent of task ownership, so if any bookmark in bookmarkNames actually belongs to a different user, this default is WRONG and the task will fail silently at its next scheduled run (not at preview or apply time) with a "bookmark not found" error. Supply bookmarkUsers explicitly whenever a bookmark's owner might differ from the task owner. alerts (optional array) gates whether a time-scheduled task's delivery actually fires: {elementId, highlightName} \u2014 the assembly and highlight name whose condition must currently be met (this is how a real "Alert"/"Automated Alert" is built; there is no separate alert conditionType). parameters (optional object, paramName -> value) supplies parameters when opening the viewsheet \u2014 each value is either a bare scalar, or one of {value, dataType}, {value, type: "expression", dataType}, {value, array: true, dataType}. type is accepted in any case ("Expression"/"EXPRESSION"/"expression") and is normalized to the server's own uppercase "EXPRESSION" before the request is sent; anything not recognizably "expression" is refused, naming the field. For an expression parameter, value must be a string and does not need a leading "=" \u2014 one is prepended automatically if missing (and left alone if already present, never doubled). saveToServerFilePaths (optional array) delivers the export to disk/FTP instead of (or in addition to) email: {format, path, username?, password?, useCredential?, secretId?} \u2014 useCredential: true requires secretId and forbids username/password; useCredential: false (the default) requires both username and password and forbids secretId.`;
 var CHANGES_SCHEMA2 = {
   type: "array",
-  description: "the proposed schedule-task changes; each entry creates one task or deletes one. List each task id at most once.",
+  description: `the proposed schedule-task changes; each entry creates one task, deletes one, triggers one task's next run immediately (verb=run), or stops one task's currently-executing run if any (verb=stop). List each task id at most once. run/stop are non-rollback-eligible (no "undo" \u2014 running/stopping a task cannot be un-done the way a create/delete's rollback can, the same treatment data source/viewsheet/organization deletes and Cluster's pause/resume already get) and are recommended NOT to be mixed with create/delete entries in the same call: when mixed, only the create/delete portion is protected by planHash/taskToken drift-detection between preview and apply \u2014 the run/stop portion is always re-resolved fresh at apply time instead.`,
   items: {
     type: "object",
     properties: {
-      verb: { type: "string", description: '"create" or "delete" (also accepts "add"/"remove")' },
+      verb: {
+        type: "string",
+        description: '"create", "delete", "run", or "stop" (also accepts "add"/"remove" as aliases for "create"/"delete", "run_now"/"trigger" as aliases for "run", "stop_now"/"kill" as aliases for "stop")'
+      },
       taskId: {
         type: "string",
-        description: "required for verb=delete (also accepts `id`/`name`); not used for verb=create"
+        description: "required for verb=delete/run/stop (also accepts `id`/`name`); not used for verb=create"
       },
       spec: { type: "object", description: SPEC_DESCRIPTION }
     },
@@ -20899,17 +21190,98 @@ async function resolveScheduleTaskId(deps, taskId) {
   const tasks = await fetchScheduleTaskList(deps);
   return matchQualifiedScheduleTaskId(taskId, tasks);
 }
-async function resolveDeleteChangeTaskIds(deps, changes) {
+function referencesExistingTask(verb) {
+  return verb === "delete" || verb === "run" || verb === "stop";
+}
+async function resolveExistingTaskChangeIds(deps, changes) {
   const needsResolution = changes.some(
-    (change) => change.verb === "delete" && typeof change.taskId === "string" && !looksLikeQualifiedScheduleTaskId(change.taskId)
+    (change) => referencesExistingTask(change.verb) && typeof change.taskId === "string" && !looksLikeQualifiedScheduleTaskId(change.taskId)
   );
   const tasks = needsResolution ? await fetchScheduleTaskList(deps) : void 0;
   return changes.map((change) => {
-    if (change.verb !== "delete" || typeof change.taskId !== "string" || looksLikeQualifiedScheduleTaskId(change.taskId)) {
+    if (!referencesExistingTask(change.verb) || typeof change.taskId !== "string" || looksLikeQualifiedScheduleTaskId(change.taskId)) {
       return change;
     }
     return { ...change, taskId: matchQualifiedScheduleTaskId(change.taskId, tasks) };
   });
+}
+function splitScheduleChanges(changes) {
+  const planChanges = [];
+  const actionEntries = [];
+  for (const change of changes) {
+    if ((change.verb === "run" || change.verb === "stop") && typeof change.taskId === "string") {
+      actionEntries.push({ taskId: change.taskId, verb: change.verb });
+    } else {
+      planChanges.push(change);
+    }
+  }
+  return { planChanges, actionEntries };
+}
+function describeScheduleAction(entry) {
+  return entry.verb === "run" ? `Trigger task "${entry.taskId}"'s next run immediately.` : `Stop task "${entry.taskId}"'s currently-executing run, if any.`;
+}
+function actionPlanChangeEntries(actionEntries) {
+  return actionEntries.map((entry) => ({
+    property: entry.taskId,
+    orgId: null,
+    currentValue: null,
+    proposedValue: null,
+    risk: "high",
+    snapshotScope: "none",
+    recognized: true,
+    description: describeScheduleAction(entry),
+    verb: entry.verb
+  }));
+}
+var ACTION_PLAN_HASH_PREFIX = "schedule-action-plan:";
+function computeActionPlanHash(actionEntries) {
+  const canonical = actionEntries.map((entry) => ({ taskId: entry.taskId, verb: entry.verb })).sort((a, b) => a.taskId === b.taskId ? a.verb.localeCompare(b.verb) : a.taskId.localeCompare(b.taskId));
+  return ACTION_PLAN_HASH_PREFIX + crypto5.createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+async function applyScheduleActions(deps, actionEntries) {
+  const outcomesByTaskId = /* @__PURE__ */ new Map();
+  for (const verb of ["run", "stop"]) {
+    const taskNames = actionEntries.filter((entry) => entry.verb === verb).map((entry) => entry.taskId);
+    if (taskNames.length === 0) {
+      continue;
+    }
+    const path2 = verb === "run" ? "/v1/admin/schedule/run-tasks" : "/v1/admin/schedule/stop-tasks";
+    const response = await deps.wizClient.post(path2, { taskNames });
+    const results = typeof response === "object" && response !== null ? response.results : void 0;
+    (Array.isArray(results) ? results : []).forEach((outcome) => {
+      if (typeof outcome !== "object" || outcome === null) {
+        return;
+      }
+      const record = outcome;
+      if (typeof record.taskName !== "string") {
+        return;
+      }
+      outcomesByTaskId.set(record.taskName, {
+        property: record.taskName,
+        before: null,
+        after: null,
+        status: record.status,
+        error: record.error ?? null
+      });
+    });
+  }
+  return actionEntries.map((entry) => outcomesByTaskId.get(entry.taskId) ?? {
+    property: entry.taskId,
+    before: null,
+    after: null,
+    status: "failed",
+    error: `the server returned no result for task "${entry.taskId}" (verb=${entry.verb})`
+  });
+}
+var SCHEDULE_ACTION_SUCCESS_STATUSES = ["started", "stopped"];
+function skippedScheduleActionResults(actionEntries, createDeleteStatus) {
+  return actionEntries.map((entry) => ({
+    property: entry.taskId,
+    before: null,
+    after: null,
+    status: "skipped",
+    error: `run/stop was not attempted: the create/delete portion of this mixed batch came back "${createDeleteStatus}", not "applied"`
+  }));
 }
 function maskSaveToServerFilePasswords(response) {
   if (typeof response !== "object" || response === null) {
@@ -21025,7 +21397,7 @@ function makeGetScheduleTaskTool(deps) {
 function makePreviewScheduleTaskChangesTool(deps) {
   return {
     name: "preview_schedule_task_changes",
-    description: "Resolve a set of proposed schedule-task creates/deletes into a reviewable plan WITHOUT changing anything on the server. Both verbs in this area are always high risk with a required storage snapshot (requiresAgentSignoff and requiresStorageBackup are always true) \u2014 a task's actions can email or export data externally, and its executeAsID can run it under another identity's authority. You MUST pass the returned planHash to apply_schedule_task_changes: the server re-resolves the plan there and refuses with a conflict if anything drifted in between (including another caller creating a task with the same id, or deleting/editing the task you asked to delete). A preview can itself be refused if the plan would be un-rollback-able for you specifically \u2014 e.g. you may CREATE a task but not hold the DELETE permission its rollback would need, or you may DELETE a task you do not own without holding ADMIN over its owner, which its rollback (re-creating it) would need. The response also carries a taskToken, which you MUST also pass to apply_schedule_task_changes: the server writes the audit record from the task narrative embedded in taskToken \u2014 the one reviewed here \u2014 never from whatever task text apply_schedule_task_changes itself is called with. A delete entry's changes[].currentValue is the existing task's own raw XML serialization (used for the plan hash/apply-time drift check) \u2014 any saveToServerFilePaths/email-zip password embedded in it comes back masked, the same as get_schedule_task. Served by the StyleBI enterprise module; a community-only deployment 404s on this endpoint.",
+    description: "Resolve a set of proposed schedule-task creates/deletes/runs/stops into a reviewable plan WITHOUT changing anything on the server. Every verb in this area is always high risk (requiresAgentSignoff is always true); create/delete additionally always require a storage snapshot (requiresStorageBackup is true whenever the plan contains either) \u2014 a task's actions can email or export data externally, and its executeAsID can run it under another identity's authority. run/stop are NON-ROLLBACK-ELIGIBLE \u2014 triggering or stopping a task's execution cannot be un-done the way a create/delete's rollback can, the same treatment data source/viewsheet/organization deletes and Cluster's pause/resume already document for their own non-compensable actions \u2014 a run/stop entry's own changes[] description says so plainly rather than implying an undo guarantee that cannot exist; `spec` is not used for either (refused if present). You MUST pass the returned planHash AND taskToken to apply_schedule_task_changes. For a create/delete entry, the server re-resolves the plan there and refuses with a conflict if anything drifted in between (including another caller creating a task with the same id, or deleting/editing the task you asked to delete); the server writes the audit record from the task narrative embedded in taskToken \u2014 the one reviewed here \u2014 never from whatever task text apply_schedule_task_changes itself is called with. A preview containing a create/delete entry can itself be refused if that entry would be un-rollback-able for you specifically \u2014 e.g. you may CREATE a task but not hold the DELETE permission its rollback would need, or you may DELETE a task you do not own without holding ADMIN over its owner, which its rollback (re-creating it) would need. A delete entry's changes[].currentValue is the existing task's own raw XML serialization (used for the plan hash/apply-time drift check) \u2014 any saveToServerFilePaths/email-zip password embedded in it comes back masked, the same as get_schedule_task. For a run/stop entry, there is no stored \"before\" value to diff (the closest analog, the task's live run status, is not what changes) \u2014 its changes[] entry is a plain description of the intended action, and its taskId is re-resolved fresh again at apply time rather than diffed against anything captured here. A plan with NO create/delete entries (run/stop only, the common case for these two verbs) never reaches the server's create/delete plan resolver at all \u2014 planHash/taskToken are computed locally by this plugin instead, and still detect drift (e.g. a taskId changing) between this call and apply_schedule_task_changes. RECOMMENDATION: do not mix run/stop entries with create/delete entries in the same call \u2014 if mixed, only the create/delete portion is protected by planHash/taskToken drift-detection; the run/stop portion is always re-resolved fresh at apply time regardless. Served by the StyleBI enterprise module; a community-only deployment 404s on this endpoint (a deployment new enough for create/delete but predating this fix 404s specifically on the run-tasks/stop-tasks endpoints run/stop rely on).",
     inputSchema: {
       type: "object",
       properties: { task: TASK_SCHEMA2, changes: CHANGES_SCHEMA2 },
@@ -21033,19 +21405,38 @@ function makePreviewScheduleTaskChangesTool(deps) {
     },
     call: async (args) => {
       await assertStyleBIRouting(deps.tokenStore);
-      const changes = await resolveDeleteChangeTaskIds(deps, normalizeScheduleChanges(args?.changes));
+      const task = requireTask(args?.task);
+      const allChanges = await resolveExistingTaskChangeIds(deps, normalizeScheduleChanges(args?.changes));
+      const { planChanges, actionEntries } = splitScheduleChanges(allChanges);
+      if (planChanges.length === 0) {
+        const hash = computeActionPlanHash(actionEntries);
+        return {
+          task,
+          changes: actionPlanChangeEntries(actionEntries),
+          requiresAgentSignoff: true,
+          requiresStorageBackup: false,
+          planHash: hash,
+          taskToken: hash
+        };
+      }
       const response = await deps.wizClient.post("/v1/admin/schedule/preview", {
-        task: requireTask(args?.task),
-        changes
+        task,
+        changes: planChanges
       });
-      return applyTaskTokenEnvelope(maskPreviewPlanPasswords(response), changes);
+      const withToken = applyTaskTokenEnvelope(maskPreviewPlanPasswords(response), planChanges);
+      if (actionEntries.length === 0) {
+        return withToken;
+      }
+      const plan = withToken;
+      const existingChanges = Array.isArray(plan.changes) ? plan.changes : [];
+      return { ...plan, changes: [...existingChanges, ...actionPlanChangeEntries(actionEntries)] };
     }
   };
 }
 function makeApplyScheduleTaskChangesTool(deps) {
   return {
     name: "apply_schedule_task_changes",
-    description: `Apply a previewed schedule-task plan. Pass back the SAME task and changes you previewed plus the planHash AND the taskToken from preview_schedule_task_changes \u2014 the request body IS the plan; the server never trusts a stored one. It re-resolves the changes, recomputes the hash, and refuses on mismatch. The task field is required but no longer needs to match what you previewed: the audit record is written from taskToken's embedded narrative, not from this field, so it always reflects what was actually reviewed at preview_schedule_task_changes. Every plan in this area requires a non-blank reviewOutcome (the admin-reviewer subagent's verdict) because both verbs are always high risk. Result status is one of: "applied" (every change verified), "rolled-back" (something failed and every applied change was undone \u2014 a create's rollback deletes the task it created; a delete's rollback re-creates the task from a snapshot taken at apply time), or "rollback-failed" (the server may be PARTIALLY CHANGED \u2014 escalate to the operator, do not retry). A returned status of "conflict" means the plan drifted and nothing was applied \u2014 the fresh plan carried in its plan field has any embedded saveToServerFilePaths/email-zip password masked, the same as preview_schedule_task_changes and get_schedule_task. On "applied"/"rolled-back"/"rollback-failed", each results[] entry's before/after value has any embedded saveToServerFilePaths/email-zip password masked too, the same convention. Served by the StyleBI enterprise module; a community-only deployment 404s on this endpoint.`,
+    description: `Apply a previewed schedule-task plan. Pass back the SAME task and changes you previewed plus the planHash AND the taskToken from preview_schedule_task_changes. Every plan in this area requires a non-blank reviewOutcome (the admin-reviewer subagent's verdict) because every verb is always high risk. For a plan containing create/delete entries, the request body IS that portion of the plan \u2014 the server never trusts a stored one, re-resolves it, recomputes the hash, and refuses on mismatch. The task field is required but no longer needs to match what you previewed: the audit record is written from taskToken's embedded narrative, not from this field. Result status for that portion is one of: "applied" (every change verified), "rolled-back" (something failed and every applied change was undone \u2014 a create's rollback deletes the task it created; a delete's rollback re-creates the task from a snapshot taken at apply time), or "rollback-failed" (the server may be PARTIALLY CHANGED \u2014 escalate to the operator, do not retry). A returned status of "conflict" means the plan drifted and NOTHING was applied, including any run/stop entries in the same call \u2014 the fresh plan carried in its plan field has any embedded saveToServerFilePaths/email-zip password masked, the same as preview_schedule_task_changes and get_schedule_task. On "applied"/"rolled-back"/"rollback-failed", each results[] entry's before/after value has any embedded saveToServerFilePaths/email-zip password masked too, the same convention. For a run/stop entry, there is nothing to roll back (non-rollback-eligible \u2014 see preview_schedule_task_changes' own description) \u2014 it is executed directly against the new run-tasks/stop-tasks endpoints, and its own results[] entry's status is one of "started"/"stopped" (success), "scheduler-not-running"/"task-disabled" (a clear, field-named refusal \u2014 never a bare, locale-dependent message string to pattern-match), or "failed" (any other error, with a human-readable error field). In a MIXED batch, the run/stop portion is executed ONLY when the create/delete portion's own status came back "applied" \u2014 for "rolled-back"/"rollback-failed", run/stop is never attempted (an irreversible action must not fire for a create/delete that did not actually succeed), and each skipped entry's own results[] status is "skipped", naming the create/delete status that caused the skip. When the create/delete portion IS "applied" but one or more run/stop entries did not succeed, the merged top-level status is downgraded from "applied" to "partial" \u2014 never report a mixed batch as "applied" while an actionResults entry reads "failed"/"scheduler-not-running"/"task-disabled". A plan with NO create/delete entries (run/stop only) never calls the server's create/delete apply endpoint at all; its overall status is "applied" (every run/stop succeeded), "partial" (a mix), or "failed" (every run/stop failed) \u2014 matching Cluster's own status vocabulary for the identical "independent, self-inverse, no rollback" action shape. Served by the StyleBI enterprise module for create/delete; a community-only deployment 404s on this endpoint for a create/delete entry, and a community-only or pre-fix deployment 404s specifically on the run-tasks/stop-tasks endpoints a run/stop entry needs.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -21078,19 +21469,59 @@ function makeApplyScheduleTaskChangesTool(deps) {
           "taskToken: required \u2014 the token returned by preview_schedule_task_changes for this plan. Without it the server cannot verify which reviewed task narrative to audit. Call preview_schedule_task_changes first. If preview_schedule_task_changes's response contained no taskToken at all, this StyleBI deployment predates the pinned-audit contract and must be upgraded \u2014 do not retry."
         );
       }
-      const changes = await resolveDeleteChangeTaskIds(deps, normalizeScheduleChanges(args.changes));
-      const body = {
-        task: requireTask(args.task),
-        changes,
-        planHash: args.planHash.trim(),
-        taskToken: unwrapScheduleTaskToken(args.taskToken.trim(), changes)
-      };
+      const planHash = args.planHash.trim();
+      const taskToken = args.taskToken.trim();
+      const task = requireTask(args.task);
+      const allChanges = await resolveExistingTaskChangeIds(deps, normalizeScheduleChanges(args.changes));
+      const { planChanges, actionEntries } = splitScheduleChanges(allChanges);
       const reviewOutcome = normalizeReviewOutcome(args.reviewOutcome);
+      if (planChanges.length === 0) {
+        const expectedHash = computeActionPlanHash(actionEntries);
+        if (planHash !== expectedHash || taskToken !== expectedHash) {
+          throw new Error(
+            "planHash/taskToken: do not match this plan \u2014 a run/stop-only plan's hash is computed locally by this plugin (there is no create/delete changeset here for the server to verify). Call preview_schedule_task_changes again for the exact plan you intend to apply."
+          );
+        }
+        const results = await applyScheduleActions(deps, actionEntries);
+        const succeeded = (status) => status === "started" || status === "stopped";
+        return {
+          transactionId: null,
+          status: results.every((r) => succeeded(r.status)) ? "applied" : results.some((r) => succeeded(r.status)) ? "partial" : "failed",
+          backupRef: null,
+          results
+        };
+      }
+      const body = {
+        task,
+        changes: planChanges,
+        planHash,
+        taskToken: unwrapScheduleTaskToken(taskToken, planChanges)
+      };
       if (reviewOutcome !== void 0) {
         body.reviewOutcome = reviewOutcome;
       }
       try {
-        return maskApplyResultPasswords(await deps.wizClient.post("/v1/admin/schedule/apply", body));
+        const response = maskApplyResultPasswords(await deps.wizClient.post("/v1/admin/schedule/apply", body));
+        if (actionEntries.length === 0) {
+          return response;
+        }
+        const record = response;
+        const existingResults = Array.isArray(record.results) ? record.results : [];
+        if (record.status !== "applied") {
+          return {
+            ...record,
+            results: [...existingResults, ...skippedScheduleActionResults(actionEntries, record.status)]
+          };
+        }
+        const actionResults = await applyScheduleActions(deps, actionEntries);
+        const allActionsSucceeded = actionResults.every(
+          (r) => SCHEDULE_ACTION_SUCCESS_STATUSES.includes(r.status)
+        );
+        return {
+          ...record,
+          status: allActionsSucceeded ? record.status : "partial",
+          results: [...existingResults, ...actionResults]
+        };
       } catch (err) {
         const e = err;
         if (e?.code === "HTTP_409") {
@@ -21098,7 +21529,7 @@ function makeApplyScheduleTaskChangesTool(deps) {
           return {
             status: "conflict",
             error: typeof detail.error === "string" ? detail.error : e.message ?? "the plan no longer matches the planHash",
-            plan: applyTaskTokenEnvelope(maskPreviewPlanPasswords(detail.plan ?? null), changes),
+            plan: applyTaskTokenEnvelope(maskPreviewPlanPasswords(detail.plan ?? null), planChanges),
             guidance: "The plan drifted between preview_schedule_task_changes and apply_schedule_task_changes \u2014 a task was created, deleted, or edited by someone else in between, so the plan you reviewed is not the plan that would execute. NOTHING was applied. Show the returned `plan` to the user as a fresh diff, get confirmation again, then call apply_schedule_task_changes with the planHash from THAT plan."
           };
         }
@@ -24010,9 +24441,377 @@ function makePresentationTools(deps) {
   ];
 }
 
+// src/tools/shapeTools.ts
+var AMBIENT_SCOPE_DISCLOSURE2 = `scope="organization" always means the CALLING PRINCIPAL'S OWN organization, resolved ambiently from the caller \u2014 there is no orgId argument anywhere in this area, matching Presentation's own convention. On a deployment that is NOT multi-tenant, "organization" and "global" resolve to the literal SAME shapes directory \u2014 this is the underlying server's own existing fallback behavior (a non-multi-tenant deployment's org-shapes directory falls back to the global one), not a bug in this tool, so seeing the same shapes under both scopes on such a deployment is expected, not a sign anything is broken.`;
+var NOT_ENTERPRISE_GATED_DISCLOSURE2 = "This area is NOT enterprise-gated \u2014 every custom-shapes tool works on a community-only deployment, the same as the rest of Presentation, even though it is served by its own, separate DataSpace-backed controller rather than a lookAndFeel field (apply_presentation_changes cannot touch shapes; there is no shape field on any of the 16 presentation sub-models).";
+var CHANGES_SCHEMA13 = {
+  type: "array",
+  description: `the proposed shape uploads/deletes; each entry is { verb, scope, name, subPath?, content? }. verb is "upload" (create-or-overwrite \u2014 there is no separate non-overwriting create) or "delete". Every entry in this area is fully compensable: an upload's prior bytes (if any existed at that name) and a delete's removed bytes are both captured unconditionally, so there is no acknowledgeIrreversible* flag anywhere in this area.`,
+  items: {
+    type: "object",
+    properties: {
+      verb: {
+        type: "string",
+        description: '"upload" (also accepts "add") or "delete" (also accepts "remove")'
+      },
+      scope: {
+        type: "string",
+        description: '"global" or "organization" (also accepts "org"). Required, no default. ' + AMBIENT_SCOPE_DISCLOSURE2
+      },
+      name: {
+        type: "string",
+        description: `the shape's own full filename (e.g. "arrow.svg") \u2014 a bare name only, no "/" or "\\\\"; unlike lookAndFeel's logoFile/faviconFile (where only a suffix survives), a shape's WHOLE filename is written verbatim and is its own display identity in the shapes tree/palette.`
+      },
+      subPath: {
+        type: "string",
+        description: `optional subfolder inside the shapes tree that name is nested under; omit for a shape directly at the scope's shapes root. Same DataSpace-relative-path safety rules as every other path-shaped field in this plugin (no leading "/", no ".." segment).`
+      },
+      content: {
+        type: "string",
+        description: `verb="upload" only \u2014 the shape file's full bytes, base64-encoded. Binary-safe (unlike Stored Assets' UTF-8-text-only write verb), since shape images are commonly binary (GIF/PNG) as well as SVG.`
+      }
+    },
+    required: ["verb", "scope", "name"]
+  }
+};
+var TASK_SCHEMA13 = {
+  type: "string",
+  description: "a short description of what this change accomplishes; written into every audit record for the transaction"
+};
+function makeListCustomShapesTool(deps) {
+  return {
+    name: "list_custom_shapes",
+    description: "List the Custom Shapes DataSpace tree (Presentation > Look and Feel's shape library) for one scope. Returns { nodes: [{ label, path, folder, children? }] }. scope is REQUIRED, no default. " + AMBIENT_SCOPE_DISCLOSURE2 + " " + NOT_ENTERPRISE_GATED_DISCLOSURE2,
+    inputSchema: {
+      type: "object",
+      properties: {
+        scope: {
+          type: "string",
+          description: '"global" or "organization" (also accepts "org"). Required, no default.'
+        },
+        subPath: {
+          type: "string",
+          description: "optional subfolder inside the shapes tree to list instead of the root"
+        }
+      },
+      required: ["scope"]
+    },
+    call: async (args) => {
+      await assertStyleBIRouting(deps.tokenStore);
+      const scope = normalizeScope(args?.scope, "arguments");
+      const subPath = requireShapeSubPath(args?.subPath, "arguments");
+      let query = `?scope=${scope}`;
+      if (subPath !== void 0) {
+        query += `&path=${encodeURIComponent(subPath)}`;
+      }
+      return deps.wizClient.get(`/v1/admin/shapes/tree${query}`);
+    }
+  };
+}
+function makePreviewCustomShapeChangesTool(deps) {
+  return {
+    name: "preview_custom_shape_changes",
+    description: `Resolve a set of proposed Custom Shape uploads/deletes into a reviewable plan WITHOUT changing anything on the server. Response always has requiresAgentSignoff:true and requiresStorageBackup:true, unconditionally, for every entry \u2014 there is no low-risk verb in this area. Every entry is fully compensable by construction (an upload's prior bytes, if any existed at that name, and a delete's removed bytes are both captured unconditionally), so apply_custom_shape_changes never needs an acknowledgeIrreversible* flag \u2014 a stronger guarantee than Stored Assets/Presentation give their own destructive verbs. An "upload" that collides with an existing shape at that name is disclosed in the plan text as an overwrite, not refused \u2014 there is no separate non-overwriting create verb here. A "delete" targeting a name that does not exist is refused loud, not silently a no-op. Response always carries a planHash and a taskToken bound to it. You MUST pass both to apply_custom_shape_changes \u2014 the server re-resolves the plan and refuses with a conflict if anything drifted, and it writes the audit record from the task narrative embedded in taskToken, never from whatever task text apply_custom_shape_changes itself is called with. ` + AMBIENT_SCOPE_DISCLOSURE2 + " " + NOT_ENTERPRISE_GATED_DISCLOSURE2,
+    inputSchema: {
+      type: "object",
+      properties: { task: TASK_SCHEMA13, changes: CHANGES_SCHEMA13 },
+      required: ["task", "changes"]
+    },
+    call: async (args) => {
+      await assertStyleBIRouting(deps.tokenStore);
+      return deps.wizClient.post("/v1/admin/shapes/preview", {
+        task: requireTask(args?.task),
+        changes: normalizeShapeChanges(args?.changes)
+      });
+    }
+  };
+}
+function makeApplyCustomShapeChangesTool(deps) {
+  return {
+    name: "apply_custom_shape_changes",
+    description: `Apply a previewed Custom Shape change plan. Pass back the SAME task and changes you previewed plus the planHash AND taskToken from preview_custom_shape_changes. The task field is required but no longer needs to match what you previewed: the audit record is written from taskToken's embedded narrative, not from this field. Every plan in this area requires a non-blank reviewOutcome. There is no acknowledgeIrreversible* flag anywhere in this area \u2014 every entry is fully compensable by construction (see preview_custom_shape_changes). Result status is one of: "applied", "rolled-back" (something failed and every entry was reverted \u2014 including a delete, since its removed bytes were captured at preview time), "rollback-failed" (the server may be PARTIALLY CHANGED \u2014 escalate, do not retry), or "conflict" (the plan drifted since preview, e.g. someone else uploaded/deleted the same name in between \u2014 nothing was applied). ` + AMBIENT_SCOPE_DISCLOSURE2 + " " + NOT_ENTERPRISE_GATED_DISCLOSURE2,
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: TASK_SCHEMA13,
+        changes: CHANGES_SCHEMA13,
+        planHash: {
+          type: "string",
+          description: "the planHash returned by preview_custom_shape_changes for this exact plan"
+        },
+        taskToken: {
+          type: "string",
+          description: "the taskToken returned by preview_custom_shape_changes for this exact plan. The server writes the audit record from the task narrative embedded in this token, not from this call's own task field."
+        },
+        reviewOutcome: {
+          type: "string",
+          description: "the reviewer's verdict, recorded on every audit record; always required in this area"
+        }
+      },
+      required: ["task", "changes", "planHash", "taskToken"]
+    },
+    call: async (args) => {
+      await assertStyleBIRouting(deps.tokenStore);
+      if (typeof args?.planHash !== "string" || args.planHash.trim() === "") {
+        throw new Error(
+          "planHash: required \u2014 the hash returned by preview_custom_shape_changes for this plan. Call preview_custom_shape_changes first."
+        );
+      }
+      if (typeof args?.taskToken !== "string" || args.taskToken.trim() === "") {
+        throw new Error(
+          "taskToken: required \u2014 the token returned by preview_custom_shape_changes for this plan. Without it the server cannot verify which reviewed task narrative to audit. Call preview_custom_shape_changes first."
+        );
+      }
+      const changes = normalizeShapeChanges(args.changes);
+      const body = {
+        task: requireTask(args.task),
+        changes,
+        planHash: args.planHash.trim(),
+        taskToken: args.taskToken.trim()
+      };
+      const reviewOutcome = normalizeReviewOutcome(args.reviewOutcome);
+      if (reviewOutcome !== void 0) {
+        body.reviewOutcome = reviewOutcome;
+      }
+      try {
+        return await deps.wizClient.post("/v1/admin/shapes/apply", body);
+      } catch (err) {
+        const e = err;
+        if (e?.code === "HTTP_409") {
+          const detail = e.detail ?? {};
+          return {
+            status: "conflict",
+            error: typeof detail.error === "string" ? detail.error : e.message ?? "the plan no longer matches the planHash",
+            plan: detail.plan ?? null,
+            guidance: "The plan drifted between preview_custom_shape_changes and apply_custom_shape_changes \u2014 a named shape was uploaded, overwritten, or deleted by someone else in between (or this taskToken was issued for a different plan). NOTHING was applied. Show the returned `plan` to the user as a fresh diff, get confirmation again, then call preview_custom_shape_changes again and apply THAT plan's own planHash/taskToken."
+          };
+        }
+        throw err;
+      }
+    }
+  };
+}
+function makeShapeTools(deps) {
+  return [
+    makeListCustomShapesTool(deps),
+    makePreviewCustomShapeChangesTool(deps),
+    makeApplyCustomShapeChangesTool(deps)
+  ];
+}
+
+// src/tools/themeTools.ts
+import fs4 from "fs";
+import os2 from "os";
+import nodePath3 from "path";
+var ENTERPRISE_GATE_NOTE = "This area requires the StyleBI enterprise module for every tool, reads included \u2014 a community-only deployment refuses cleanly (404) rather than returning a misleading empty list or silently no-op'd success, the same posture Licensing takes for its own area.";
+var CHANGES_SCHEMA14 = {
+  type: "array",
+  description: `the proposed theme creates/updates/deletes; each entry is { verb, id?, spec? }. List each id at most once. IMPORTANT: on verb="update", spec.name is unconditionally APPLIED when present \u2014 there is no separate rename flag \u2014 so resupply the theme's CURRENT name if you don't intend to rename it; omitting name entirely leaves it unchanged. spec.jar is a whole theme JAR archive (base64), NOT raw CSS text \u2014 to hand-edit individual CSS variables, use spec.portalCss/spec.emCss instead of building a jar; omitting jar/portalCss/emCss on an update leaves that content untouched (this is the one part of this area's "omitted means unchanged" contract that is NOT symmetric with name's own behavior).`,
+  items: {
+    type: "object",
+    properties: {
+      verb: {
+        type: "string",
+        description: '"create", "delete", or "update" ("create"/"delete" also accept "add"/"remove"; "update" has no alias)'
+      },
+      id: {
+        type: "string",
+        description: `required for verb=delete/update, forbidden for verb=create (the id is derived server-side and may differ from any id you propose \u2014 the server de-conflicts a colliding id rather than refusing it; check the preview's proposedValue for the actual id that will be used). A bare, opaque, server-assigned id \u2014 never "name:orgId"-qualified the way an identity id can be.`
+      },
+      spec: {
+        type: "object",
+        description: "required for verb=create/update, forbidden for verb=delete. Shape: {name?, global?, defaultThemeGlobal?, defaultThemeOrg?, jar?, portalCss?, emCss?}. name is required non-blank for create, optional for update (omit = unchanged, see the callout above). global/defaultThemeGlobal/defaultThemeOrg are booleans; omit any of them on update to leave it unchanged. jar is { name, content } (content is base64 of a full JAR archive). portalCss/emCss are { variables: [{ name, value }] }. An explicit null on update is refused loud (it cannot be distinguished from omitted once sent). A field outside this set (e.g. role, unitType \u2014 fields that belong to a DIFFERENT area's tool-call shape) is refused loud, naming it, never silently dropped."
+      }
+    },
+    required: ["verb"]
+  }
+};
+var TASK_SCHEMA14 = {
+  type: "string",
+  description: "a short description of what this change accomplishes; written into every audit record for the transaction"
+};
+function makeListThemesTool(deps) {
+  return {
+    name: "list_themes",
+    description: `List every theme currently defined. ${ENTERPRISE_GATE_NOTE}`,
+    inputSchema: { type: "object", properties: {} },
+    call: async () => {
+      await assertStyleBIRouting(deps.tokenStore);
+      return deps.wizClient.get("/v1/admin/themes");
+    }
+  };
+}
+function makeGetThemeTool(deps) {
+  return {
+    name: "get_theme",
+    description: `Read one theme by id, including its extracted portalCss/emCss variables. Returns { found: false, ... } when no theme has that id \u2014 this is a NORMAL answer, not an error, matching get_permission_grant's own not-found convention. ${ENTERPRISE_GATE_NOTE}`,
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "the theme's id, from list_themes" } },
+      required: ["id"]
+    },
+    call: async (args) => {
+      await assertStyleBIRouting(deps.tokenStore);
+      const id = requireThemeId(args?.id, "arguments");
+      return deps.wizClient.get(`/v1/admin/themes/${encodeURIComponent(id)}`);
+    }
+  };
+}
+function makePreviewThemeChangesTool(deps) {
+  return {
+    name: "preview_theme_changes",
+    description: `Resolve a set of proposed theme creates/updates/deletes into a reviewable plan WITHOUT changing anything on the server. Every verb in this area is always high risk (requiresAgentSignoff is always true) and always requires a Tier-2 storage backup (requiresStorageBackup is always true), the same unconditional treatment identities/permissions/licensing give their own areas. For a create, proposedValue shows the ACTUAL id the server will assign (themes silently de-conflict a colliding id rather than refusing it) and, if spec.jar was given, the REAL extracted CSS variables from that jar \u2014 not just an opaque "a jar was provided" placeholder \u2014 so review the preview's proposedValue rather than assuming your own proposed id/spec is exactly what gets applied. You MUST pass the returned planHash AND taskToken to apply_theme_changes: the server re-resolves the plan and refuses with a conflict if anything drifted, and it writes the audit record from the task narrative embedded in taskToken \u2014 the one reviewed here \u2014 never from whatever task text apply_theme_changes itself is called with. ${ENTERPRISE_GATE_NOTE}`,
+    inputSchema: {
+      type: "object",
+      properties: { task: TASK_SCHEMA14, changes: CHANGES_SCHEMA14 },
+      required: ["task", "changes"]
+    },
+    call: async (args) => {
+      await assertStyleBIRouting(deps.tokenStore);
+      return deps.wizClient.post("/v1/admin/themes/preview", {
+        task: requireTask(args?.task),
+        changes: normalizeThemeChanges(args?.changes)
+      });
+    }
+  };
+}
+function makeApplyThemeChangesTool(deps) {
+  return {
+    name: "apply_theme_changes",
+    description: `Apply a previewed theme change plan. Pass back the SAME task and changes you previewed plus the planHash AND taskToken from preview_theme_changes. Every plan in this area requires a non-blank reviewOutcome. The task field is required but no longer needs to match what you previewed: the audit record is written from taskToken's embedded narrative, not from this field, so it always reflects what was actually reviewed at preview_theme_changes. Result status is one of: "applied", "rolled-back" (something failed and every undoable change was reverted \u2014 a rolled-back delete's undo may recreate the theme under a DIFFERENT id if something else took the freed id in between, disclosed as an advisory; a rolled-back update's undo re-resolves the theme by its post-update id, which differs from the original if the update itself renamed it), "rollback-failed" (the server may be PARTIALLY CHANGED \u2014 escalate, do not retry), or "conflict" (the plan drifted, nothing was applied). ${ENTERPRISE_GATE_NOTE}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: TASK_SCHEMA14,
+        changes: CHANGES_SCHEMA14,
+        planHash: {
+          type: "string",
+          description: "the planHash returned by preview_theme_changes for this exact plan"
+        },
+        taskToken: {
+          type: "string",
+          description: "the taskToken returned by preview_theme_changes for this exact plan. The server writes the audit record from the task narrative embedded in this token, not from this call's own task field \u2014 so the audit trail always reflects what was reviewed at preview, even if this call's task text differs."
+        },
+        reviewOutcome: {
+          type: "string",
+          description: "the reviewer's verdict, recorded on every audit record; always required in this area"
+        }
+      },
+      required: ["task", "changes", "planHash", "taskToken"]
+    },
+    call: async (args) => {
+      await assertStyleBIRouting(deps.tokenStore);
+      if (typeof args?.planHash !== "string" || args.planHash.trim() === "") {
+        throw new Error(
+          "planHash: required \u2014 the hash returned by preview_theme_changes for this plan. Call preview_theme_changes first."
+        );
+      }
+      if (typeof args?.taskToken !== "string" || args.taskToken.trim() === "") {
+        throw new Error(
+          "taskToken: required \u2014 the token returned by preview_theme_changes for this plan. Without it the server cannot verify which reviewed task narrative to audit. Call preview_theme_changes first."
+        );
+      }
+      const body = {
+        task: requireTask(args.task),
+        changes: normalizeThemeChanges(args.changes),
+        planHash: args.planHash.trim(),
+        taskToken: args.taskToken.trim()
+      };
+      const reviewOutcome = normalizeReviewOutcome(args.reviewOutcome);
+      if (reviewOutcome !== void 0) {
+        body.reviewOutcome = reviewOutcome;
+      }
+      try {
+        return await deps.wizClient.post("/v1/admin/themes/apply", body);
+      } catch (err) {
+        const e = err;
+        if (e?.code === "HTTP_409") {
+          const detail = e.detail ?? {};
+          return {
+            status: "conflict",
+            error: typeof detail.error === "string" ? detail.error : e.message ?? "the plan no longer matches the planHash",
+            plan: detail.plan ?? null,
+            guidance: "The plan drifted between preview_theme_changes and apply_theme_changes \u2014 one of the named themes was created, changed, or removed by someone else in between. NOTHING was applied. Show the returned `plan` to the user as a fresh diff, get confirmation again, then call apply_theme_changes with the planHash from THAT plan."
+          };
+        }
+        throw err;
+      }
+    }
+  };
+}
+function defaultDownloadDir2() {
+  return nodePath3.join(os2.homedir(), "Downloads");
+}
+function claimUniqueDest2(dir, fileName, fromPath) {
+  const ext = nodePath3.extname(fileName);
+  const base = fileName.slice(0, fileName.length - ext.length);
+  for (let i = 0; i < 1e3; i++) {
+    const candidate = i === 0 ? nodePath3.join(dir, fileName) : nodePath3.join(dir, `${base} (${i})${ext}`);
+    try {
+      fs4.linkSync(fromPath, candidate);
+      fs4.unlinkSync(fromPath);
+      return candidate;
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+    }
+  }
+  throw new Error(
+    `could not find a free filename for '${fileName}' in '${dir}' after 1000 attempts.`
+  );
+}
+function makeDownloadThemeJarTool(deps) {
+  return {
+    name: "download_theme_jar",
+    description: `Download one theme's uploaded JAR archive to local disk (mirrors download_stored_asset's shape). Returns { filePath, fileName, mimeType, byteLength } \u2014 never the file's own bytes, which keeps a multi-MB download cheap regardless of size. This is a bare action: no preview/apply/planHash \u2014 the download itself changes nothing on the server. Refused loud, naming the theme, if it has no uploaded jar (the underlying product's own download endpoint silently returns an empty body in this case; this tool does not reproduce that). ${ENTERPRISE_GATE_NOTE}`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "the theme's id, from list_themes" },
+        savePath: {
+          type: "string",
+          description: "directory to save the file into (not a full file path \u2014 the server's own filename is used). Defaults to this machine's Downloads folder. Created if it doesn't already exist."
+        }
+      },
+      required: ["id"]
+    },
+    call: async (args) => {
+      await assertStyleBIRouting(deps.tokenStore);
+      const id = requireThemeId(args?.id, "arguments");
+      const savePath = typeof args?.savePath === "string" && args.savePath.trim() !== "" ? args.savePath : void 0;
+      const dir = savePath ?? defaultDownloadDir2();
+      const provisionalDest = nodePath3.join(
+        dir,
+        `theme-jar-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`
+      );
+      const downloaded = await deps.wizClient.downloadToFile(
+        `/v1/admin/themes/${encodeURIComponent(id)}/jar`,
+        provisionalDest
+      );
+      const fileName = downloaded.fileName ?? `${id}.jar`;
+      const filePath = claimUniqueDest2(dir, fileName, provisionalDest);
+      return {
+        filePath,
+        fileName: nodePath3.basename(filePath),
+        mimeType: downloaded.mimeType,
+        byteLength: downloaded.byteLength,
+        summary: `Downloaded theme "${id}"'s jar to ${filePath} (${downloaded.byteLength.toLocaleString()} bytes).`
+      };
+    }
+  };
+}
+function makeThemeTools(deps) {
+  return [
+    makeListThemesTool(deps),
+    makeGetThemeTool(deps),
+    makePreviewThemeChangesTool(deps),
+    makeApplyThemeChangesTool(deps),
+    makeDownloadThemeJarTool(deps)
+  ];
+}
+
 // src/tools/recycleBinTools.ts
 var SCOPE_DISCLOSURE = "IMPORTANT: this only recovers assets deleted through a HUMAN path (Enterprise Manager, Composer, Portal) \u2014 a delete made through apply_viewsheet_changes bypasses the recycle bin entirely and is not recoverable through this area at all.";
-var CHANGES_SCHEMA13 = {
+var CHANGES_SCHEMA15 = {
   type: "array",
   description: "the proposed restore/purge actions against already-recycled entries. There is no unitType discriminator here (unlike the Viewsheets area) \u2014 a recycle-bin entry's own type is intrinsic to the already-recycled item and the server resolves dispatch from path alone.",
   items: {
@@ -24034,7 +24833,7 @@ var CHANGES_SCHEMA13 = {
     required: ["verb", "path"]
   }
 };
-var TASK_SCHEMA13 = {
+var TASK_SCHEMA15 = {
   type: "string",
   description: "a short description of what this change accomplishes; written into every audit record for the transaction"
 };
@@ -24076,7 +24875,7 @@ function makePreviewRecycleBinChangesTool(deps) {
     description: `Resolve a set of proposed restore/purge actions into a reviewable plan WITHOUT changing anything on the server. A plan containing any purge entry is risk:"high" and requiresAgentSignoff:true (irreversible, same treatment as a viewsheet delete elsewhere in this plugin) \u2014 a restore-only plan is risk:"low" UNLESS a restore entry's destination is already occupied, in which case (see overwrite above) the plan either refuses outright (overwrite not set) or is accepted at risk:"high" (overwrite:true \u2014 this permanently destroys the existing asset at the destination). requiresStorageBackup is always true for every verb in this area regardless of risk. There is no bulk "purge everything" verb \u2014 to empty the whole bin, compose a plan with a purge entry for every entry list_recycle_bin_entries returned. ` + SCOPE_DISCLOSURE,
     inputSchema: {
       type: "object",
-      properties: { task: TASK_SCHEMA13, changes: CHANGES_SCHEMA13 },
+      properties: { task: TASK_SCHEMA15, changes: CHANGES_SCHEMA15 },
       required: ["task", "changes"]
     },
     call: async (args) => {
@@ -24100,8 +24899,8 @@ function makeApplyRecycleBinChangesTool(deps) {
     inputSchema: {
       type: "object",
       properties: {
-        task: TASK_SCHEMA13,
-        changes: CHANGES_SCHEMA13,
+        task: TASK_SCHEMA15,
+        changes: CHANGES_SCHEMA15,
         planHash: {
           type: "string",
           description: "the planHash returned by preview_recycle_bin_changes for this exact plan"
@@ -24174,7 +24973,7 @@ function makeRecycleBinTools(deps) {
 }
 
 // src/tools/mvTools.ts
-var CHANGES_SCHEMA14 = {
+var CHANGES_SCHEMA16 = {
   type: "array",
   description: `the proposed MV changes; each entry names verb FIRST. "create" and "set_cycle" both target candidate mv names produced by a prior analyze_mv run (via analysisId) \u2014 they are NOT interchangeable with an already-created mv's own name. "delete" targets an already-created mv by name directly, with no analysisId.`,
   items: {
@@ -24209,7 +25008,7 @@ var CHANGES_SCHEMA14 = {
     required: ["verb", "mvNames"]
   }
 };
-var TASK_SCHEMA14 = {
+var TASK_SCHEMA16 = {
   type: "string",
   description: "a short description of what this change accomplishes; written into every audit record for the transaction"
 };
@@ -24300,7 +25099,7 @@ function makePreviewMvChangesTool(deps) {
     description: "Resolve a set of proposed mv changes (create/set_cycle/delete) into a reviewable plan WITHOUT changing anything on the server. A create or delete entry is always high risk (requiresAgentSignoff:true for the whole plan); a plan containing ONLY set_cycle entries is low risk. requiresStorageBackup is true whenever the plan contains any create entry \u2014 a delete alone does not require it, since dispose is itself the rollback primitive create relies on. A create entry naming an mvName not present in its analysisId's own candidate list is refused loud, naming it \u2014 never silently resolved against the wrong analysis. You MUST pass the returned planHash AND taskToken to apply_mv_changes: the server writes the audit record from the task narrative embedded in taskToken, never from whatever task text apply_mv_changes itself is called with.",
     inputSchema: {
       type: "object",
-      properties: { task: TASK_SCHEMA14, changes: CHANGES_SCHEMA14 },
+      properties: { task: TASK_SCHEMA16, changes: CHANGES_SCHEMA16 },
       required: ["task", "changes"]
     },
     call: async (args) => {
@@ -24331,8 +25130,8 @@ function makeApplyMvChangesTool(deps) {
     inputSchema: {
       type: "object",
       properties: {
-        task: TASK_SCHEMA14,
-        changes: CHANGES_SCHEMA14,
+        task: TASK_SCHEMA16,
+        changes: CHANGES_SCHEMA16,
         planHash: {
           type: "string",
           description: "the planHash returned by preview_mv_changes for this exact plan"
@@ -24416,9 +25215,9 @@ function makeMvTools(deps) {
 }
 
 // src/tools/assetTransferTools.ts
-import os2 from "os";
-import nodePath3 from "path";
-import fs4 from "fs";
+import os3 from "os";
+import nodePath4 from "path";
+import fs5 from "fs";
 import { readFile } from "fs/promises";
 function isPlainObject5(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -24503,16 +25302,16 @@ function normalizeBookmarkResolutions(raw) {
   });
 }
 function defaultExportDir() {
-  return nodePath3.join(os2.homedir(), "Downloads");
+  return nodePath4.join(os3.homedir(), "Downloads");
 }
-function claimUniqueDest2(dir, fileName, fromPath) {
-  const ext = nodePath3.extname(fileName);
+function claimUniqueDest3(dir, fileName, fromPath) {
+  const ext = nodePath4.extname(fileName);
   const base = fileName.slice(0, fileName.length - ext.length);
   for (let i = 0; i < 1e3; i++) {
-    const candidate = i === 0 ? nodePath3.join(dir, fileName) : nodePath3.join(dir, `${base} (${i})${ext}`);
+    const candidate = i === 0 ? nodePath4.join(dir, fileName) : nodePath4.join(dir, `${base} (${i})${ext}`);
     try {
-      fs4.linkSync(fromPath, candidate);
-      fs4.unlinkSync(fromPath);
+      fs5.linkSync(fromPath, candidate);
+      fs5.unlinkSync(fromPath);
       return candidate;
     } catch (err) {
       if (err.code !== "EEXIST") throw err;
@@ -24569,7 +25368,7 @@ function makeExportRepositoryAssetsTool(deps) {
         includeDependencyNames
       });
       const dir = typeof args?.savePath === "string" && args.savePath.trim() !== "" ? args.savePath : defaultExportDir();
-      const provisionalDest = nodePath3.join(
+      const provisionalDest = nodePath4.join(
         dir,
         `export-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`
       );
@@ -24578,10 +25377,10 @@ function makeExportRepositoryAssetsTool(deps) {
         provisionalDest
       );
       const fileName = downloaded.fileName ?? created.fileName;
-      const filePath = claimUniqueDest2(dir, fileName, provisionalDest);
+      const filePath = claimUniqueDest3(dir, fileName, provisionalDest);
       return {
         filePath,
-        fileName: nodePath3.basename(filePath),
+        fileName: nodePath4.basename(filePath),
         mimeType: downloaded.mimeType ?? "application/zip",
         byteLength: downloaded.byteLength,
         exportedCount: created.exportedCount,
@@ -24806,6 +25605,8 @@ function createServer(overrides = {}) {
     ...makeDashboardTools(adminDeps),
     ...makeLicensingTools(adminDeps),
     ...makePresentationTools(adminDeps),
+    ...makeShapeTools(adminDeps),
+    ...makeThemeTools(adminDeps),
     ...makeRecycleBinTools(adminDeps),
     ...makeMvTools(adminDeps),
     ...makeAssetTransferTools(adminDeps),
