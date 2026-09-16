@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
+import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
@@ -589,6 +590,12 @@ class AssemblyPropertyServiceTest {
    private static final String CHECKBOX_VALUES =
       "checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
       "variableListDialogModel.values";
+   private static final String COMBOBOX_LABELS =
+      "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.labels";
+   private static final String COMBOBOX_VALUES =
+      "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.values";
 
    @Test
    void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForCheckbox() throws Exception {
@@ -691,6 +698,57 @@ class AssemblyPropertyServiceTest {
                     .getComboBoxEditorModel().isEmbedded(),
                  "embedded must be implied true for RadioButton too, same shared listInput() " +
                  "gap as CheckBox");
+   }
+
+   /**
+    * Same shape, ComboBox -- confirms the derivation is not CheckBox/RadioButton-only either.
+    * ComboBox's registration ({@code register(registry, "combobox", ..., listInput(...))}) goes
+    * through the identical {@code listInput()} helper as the other two, with no separate
+    * {@code dataInput()} merge -- {@code comboboxTableAliasIsTheListValuesQueryNotTheWriteBackTarget}
+    * in {@code PropertyAliasesTest} already pins that ComboBox's short {@code table} alias
+    * resolves to the list-values query path, not the unrelated {@code dataInputPaneModel.table}
+    * row/column write-back target -- so the guard's {@code table}/{@code column} disjunct is
+    * reachable via ComboBox's own short aliases too, not raw-path-only.
+    */
+   @Test
+   void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForCombobox() throws Exception {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(COMBOBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(COMBOBOX_VALUES, java.util.List.of("show"));
+
+      service.set("tok", principal(), "ShowSalesChartDropdown", patch, "");
+
+      assertTrue(model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isEmbedded(),
+                 "embedded must be implied true for ComboBox too, same shared listInput() gap " +
+                 "as CheckBox/RadioButton");
+   }
+
+   /**
+    * The guard case for ComboBox, using its own short {@code table}/{@code column} aliases (not
+    * a raw path) -- proves the guard's table/column disjunct is actually reachable for ComboBox
+    * through the vocabulary a caller would really use, not just in theory.
+    */
+   @Test
+   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCombobox() throws Exception {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(COMBOBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(COMBOBOX_VALUES, java.util.List.of("show"));
+      patch.put("table", "SalesTable");
+      patch.put("column", "SalesColumn");
+
+      service.set("tok", principal(), "ShowSalesChartDropdown", patch, "");
+
+      assertFalse(model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "ComboBox's own short table/column aliases must trip the guard just like the " +
+                  "raw path would, not be silently unreachable");
    }
 
    /**
@@ -895,6 +953,12 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, model, baseWorksheet);
    }
 
+   private static AssemblyPropertyService serviceWithCombobox(
+      VSAssembly assembly, ComboboxPropertyDialogModel model, Worksheet baseWorksheet)
+   {
+      return serviceWith(assembly, model, model, baseWorksheet);
+   }
+
    private static AssemblyPropertyService serviceWithSelectionList(
       VSAssembly assembly, SelectionListPropertyDialogModel model)
    {
@@ -990,6 +1054,11 @@ class AssemblyPropertyServiceTest {
             when(inputService.getRadioButtonPropertyModel(anyString(), anyString(),
                                                            any(Principal.class)))
                .thenReturn(radioButtonModel);
+         }
+         else if(inputModel instanceof ComboboxPropertyDialogModel comboboxModel) {
+            when(inputService.getComboboxPropertyDialogModel(anyString(), anyString(),
+                                                              any(Principal.class)))
+               .thenReturn(comboboxModel);
          }
       }
       catch(Exception e) {
