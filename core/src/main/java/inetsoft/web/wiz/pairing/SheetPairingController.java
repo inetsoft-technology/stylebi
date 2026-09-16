@@ -84,6 +84,33 @@ public class SheetPairingController {
    }
 
    /**
+    * Returns whether cross-sheet-follow is currently enabled for the caller's own
+    * directly-established (portal) session, if any.
+    *
+    * <p>Queried by {@code CrossSheetFollowService}'s own constructor (PSP-028) so that EITHER
+    * Angular app's own separate bootstrap -- the portal shell and the Composer app are two
+    * distinct root injectors, each with its own independent instance of that
+    * {@code providedIn: "root"} service -- learns the server's current state on load, rather than
+    * only the one instance a human happened to click the toggle in ever knowing it. Without this,
+    * enabling the toggle from the portal shell would have no way to ever reach the Composer app's
+    * own separate instance, whose {@code reportCurrentFocus} is the one that actually matters for
+    * sending focus reports.
+    *
+    * <p>{@code false} for an unauthenticated caller or one with no live directly-established
+    * session -- mirrors this endpoint's own STOMP sibling ({@link #crossSheetFollowViaSocket}),
+    * which likewise treats "no such session" as a named condition, not a server error.
+    */
+   @GetMapping("/api/wiz/pairing/cross-sheet-follow")
+   public java.util.Map<String, Boolean> crossSheetFollowStatus(Principal owner) {
+      if(owner == null) {
+         return java.util.Map.of("enabled", false);
+      }
+
+      JoinSession session = sessions.findEstablishedDirectly(ownerKey(owner));
+      return java.util.Map.of("enabled", session != null && session.crossSheetFollowEnabled());
+   }
+
+   /**
     * REST mint — for testing only. {@code socketSessionId} is supplied by the caller and is
     * not verified server-side; any authenticated user could supply an arbitrary session ID and
     * bind a pairing code to a browser session they do not own.
@@ -293,19 +320,22 @@ public class SheetPairingController {
     * meant to be silently dropped (see {@link SheetSessionService#syncToCurrentFocus}'s own
     * javadoc), not surfaced as an error the browser needs to show.
     *
-    * <p>{@code socketSessionId} is derived from the accessor, never trusted from the client, same
-    * as every other STOMP endpoint in this controller.
+    * <p>Looked up by {@code owner} (the caller's own authenticated STOMP-frame principal), not
+    * {@code socketSessionId} -- a directly-established session's socket is permanently
+    * {@code null} (PSP-028), so a socket-keyed lookup could never find one. {@code owner} is
+    * resolved by Spring from the authenticated STOMP session the same way {@link #mintViaSocket}'s
+    * own {@code owner} parameter already is; not client-suppliable.
     *
     * <p>Send to: {@code /app/wiz/pairing/current-focus}
     */
    @MessageMapping("/wiz/pairing/current-focus")
-   public void currentFocusViaSocket(@Payload CurrentFocusRequest req, SimpMessageHeaderAccessor accessor) {
-      if(req == null || req.runtimeId() == null || req.sheetType() == null) {
+   public void currentFocusViaSocket(@Payload CurrentFocusRequest req, Principal owner) {
+      if(req == null || req.runtimeId() == null || req.sheetType() == null || owner == null) {
          return;
       }
 
       JoinSession synced =
-         sessions.syncToCurrentFocus(accessor.getSessionId(), req.runtimeId(), req.sheetType());
+         sessions.syncToCurrentFocus(ownerKey(owner), req.runtimeId(), req.sheetType());
 
       if(synced != null) {
          broadcast.sendAgentActive(synced);
@@ -327,13 +357,17 @@ public class SheetPairingController {
 
    /**
     * STOMP cross-sheet-follow toggle -- turns the opt-in on or off for the caller's own
-    * directly-established (portal) session, found by socket alone (see
+    * directly-established (portal) session, found by identity (see
     * {@link SheetSessionService#setCrossSheetFollow}). Unlike {@link #followFocusViaSocket}, this
-    * DOES reply: enabling can be refused (no directly-established session held for this
-    * connection -- e.g. attempted from a pane-scoped session) for a reason the browser needs to
-    * surface to a human, not just log (charter assertion 11).
+    * DOES reply: enabling can be refused (no directly-established session held for this identity
+    * -- e.g. attempted from a pane-scoped session) for a reason the browser needs to surface to a
+    * human, not just log (charter assertion 11).
     *
-    * <p>{@code socketSessionId} is derived from the accessor, never trusted from the client.
+    * <p>{@code owner} is resolved by Spring from the authenticated STOMP session, the same way
+    * {@link #mintViaSocket}'s own {@code owner} parameter already is -- not client-suppliable.
+    * NOT looked up via {@code socketSessionId}/the accessor: a directly-established session's
+    * socket is permanently {@code null} (PSP-028's own root cause), so an exact socket match could
+    * never find one.
     *
     * <p>Send to: {@code /app/wiz/pairing/cross-sheet-follow}<br>
     * Reply arrives on: {@code /user/queue/wiz/pairing/cross-sheet-follow}
@@ -341,14 +375,18 @@ public class SheetPairingController {
    @MessageMapping("/wiz/pairing/cross-sheet-follow")
    @SendToUser("/commands/wiz/pairing/cross-sheet-follow")
    public CrossSheetFollowResponse crossSheetFollowViaSocket(@Payload CrossSheetFollowRequest req,
-                                                             SimpMessageHeaderAccessor accessor)
+                                                             Principal owner)
    {
       if(req == null) {
          return CrossSheetFollowResponse.failure("enabled is required");
       }
 
+      if(owner == null) {
+         return CrossSheetFollowResponse.failure("Authentication required");
+      }
+
       try {
-         sessions.setCrossSheetFollow(accessor.getSessionId(), req.enabled());
+         sessions.setCrossSheetFollow(ownerKey(owner), req.enabled());
          return CrossSheetFollowResponse.success();
       }
       catch(PairingException e) {

@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { Injectable, NgZone } from "@angular/core";
+import { Observable, Subject, Subscription } from "rxjs";
 import { StompClientConnection } from "../../../../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 
@@ -58,9 +60,18 @@ import { StompClientService } from "../../../../../../../shared/stomp/stomp-clie
  *   the overwhelming majority of Composer users who never touch portal-level pairing see zero
  *   added STOMP traffic from this feature at all.
  *
- * <p>Never persisted (no storage read/write anywhere in this service, same as
- * {@link FollowFocusService}): a fresh page load starts back at disabled, matching the server's
- * own `crossSheetFollowEnabled` default of `false` until explicitly re-toggled.
+ * <p>Not persisted client-side (no storage read/write anywhere in this service) -- but, since
+ * PSP-028, this service's constructor DOES seed its own `enabled` flag from whatever a directly-
+ * established session for this identity already has server-side ({@code GET
+ * /api/wiz/pairing/cross-sheet-follow}, mirroring {@code WizService}'s own identical
+ * constructor-time-GET convention for `/api/wiz/pairing/feature`). This is load-bearing, not
+ * cosmetic: the portal shell and the Composer app are two separate Angular bootstraps (see this
+ * class's own doc above), each with its OWN root-scoped instance of this
+ * `providedIn: "root"` service. Without this seed, toggling the checkbox on in the portal shell's
+ * instance would have no way to ever reach the Composer app's own separate instance, whose
+ * `reportCurrentFocus` is the one that actually matters for sending focus reports -- exactly the
+ * gap PSP-028's tester report reproduced (toggle appeared to succeed in the portal tab, then
+ * switching sheets in the Composer app never retargeted the agent's session).
  */
 @Injectable({
    providedIn: "root"
@@ -68,11 +79,59 @@ import { StompClientService } from "../../../../../../../shared/stomp/stomp-clie
 export class CrossSheetFollowService {
    private enabled = false;
    private connection: StompClientConnection | null = null;
+   private errorSubject = new Subject<string>();
 
-   constructor(private stompClient: StompClientService) {}
+   /**
+    * FIFO queue of `enabled` values sent to the server but not yet confirmed, in send order.
+    *
+    * Needed because {@link StompClientChannel#subscribe} multiplexes every subscriber on a
+    * destination through one shared `Subject` with no per-message correlation id (see its own
+    * doc): opening a SECOND subscription on `/user/commands/wiz/pairing/cross-sheet-follow` for
+    * an overlapping {@link #setEnabled} call meant the first reply that arrived fired BOTH
+    * subscriptions' callbacks at once (each `sub.unsubscribe()`-ing itself and applying its OWN
+    * requested value as if it were that reply's outcome), after which the second call's real
+    * reply arrived to no subscriber left and was silently dropped -- leaving {@link #enabled}
+    * stuck on whichever call's callback happened to run last, not on the server's actual final
+    * state. A single standing subscription plus this queue instead pairs the Nth reply on this
+    * destination with the Nth request sent, relying only on the same in-order delivery guarantee
+    * a single STOMP/WebSocket connection already gives every other request/reply pair in this
+    * codebase (see `ConnectToClaudeComponent`'s mint/joined handling) -- not on any new server
+    * contract; the server's `CrossSheetFollowResponse` still carries no id to correlate by.
+    */
+   private pendingRequests: boolean[] = [];
+   private replySubscription: Subscription | null = null;
+
+   constructor(private stompClient: StompClientService, private http: HttpClient,
+               private zone: NgZone)
+   {
+      this.http.get<{enabled: boolean}>("../api/wiz/pairing/cross-sheet-follow").subscribe({
+         next: (res) => this.enabled = res.enabled,
+         error: () => this.enabled = false
+      });
+   }
 
    isEnabled(): boolean {
       return this.enabled;
+   }
+
+   /**
+    * Surfaces a server-side rejection of {@link #setEnabled} (e.g. no directly-established
+    * session held for this connection) for a host UI to show -- mirrors
+    * {@link FollowFocusService#errors}'s shape.
+    */
+   get errors(): Observable<string> {
+      return this.errorSubject.asObservable();
+   }
+
+   /**
+    * Whether a {@link #setEnabled} call is still waiting on the server. A host UI (the portal
+    * shell's checkbox, see `portal-agent-notice.component`) binds this to `[disabled]` so a
+    * second toggle cannot fire while one is in flight -- defense-in-depth for the common case;
+    * {@link #pendingRequests}'s queue is what actually keeps an overlapping call from corrupting
+    * another's result if one slips through anyway.
+    */
+   get pending(): boolean {
+      return this.pendingRequests.length > 0;
    }
 
    /**
@@ -80,13 +139,68 @@ export class CrossSheetFollowService {
     * (the toggle's own UI surface, per this lane's design, lives outside Composer entirely) --
     * unlike {@link FollowFocusService#setEnabled}, this takes no `socketConnection` parameter,
     * since it manages its own (see this class's own doc).
+    *
+    * <p>Does NOT flip {@link #enabled} until the server confirms success (PSP-028 / PSP-025's own
+    * established principle: a toggle must never look like it succeeded when it didn't). Waits for
+    * the {@code CrossSheetFollowResponse} on {@code /user/commands/wiz/pairing/cross-sheet-follow}
+    * before updating local state, exactly mirroring `ConnectToClaudeComponent`'s own
+    * subscribe-then-send pattern for the sibling `/user/commands/wiz/pairing/mint` reply.
     */
    setEnabled(enabled: boolean): void {
-      this.enabled = enabled;
-
       this.withConnection((conn: StompClientConnection) => {
+         this.pendingRequests.push(enabled);
+
+         if(!this.replySubscription) {
+            this.replySubscription = conn.subscribe(
+               "/user/commands/wiz/pairing/cross-sheet-follow", (msg: any) => this.onReply(msg));
+         }
+
          conn.send("/events/wiz/pairing/cross-sheet-follow", {}, JSON.stringify({ enabled }));
       });
+   }
+
+   /**
+    * Handles one reply on the shared `/user/commands/wiz/pairing/cross-sheet-follow` destination
+    * -- see {@link #pendingRequests}'s doc for why this pops the OLDEST still-pending request
+    * rather than trusting whichever `setEnabled` call happens to still be subscribed.
+    */
+   private onReply(msg: any): void {
+      if(this.pendingRequests.length === 0) {
+         // A reply with nothing recorded as pending should not happen given the FIFO invariant
+         // above; ignore rather than apply an unknown value.
+         return;
+      }
+
+      const requestedEnabled = this.pendingRequests.shift()!;
+
+      this.zone.run(() => {
+         let body: any;
+
+         try {
+            body = JSON.parse(msg.frame.body);
+         }
+         catch(e) {
+            this.reportFailure(requestedEnabled, "could not parse server response");
+            this.teardownReplySubscriptionIfIdle();
+            return;
+         }
+
+         if(body.ok) {
+            this.enabled = requestedEnabled;
+         }
+         else {
+            this.reportFailure(requestedEnabled, body.error ?? "unknown error");
+         }
+
+         this.teardownReplySubscriptionIfIdle();
+      });
+   }
+
+   private teardownReplySubscriptionIfIdle(): void {
+      if(this.pendingRequests.length === 0 && this.replySubscription) {
+         this.replySubscription.unsubscribe();
+         this.replySubscription = null;
+      }
    }
 
    /**
@@ -104,6 +218,13 @@ export class CrossSheetFollowService {
          conn.send("/events/wiz/pairing/current-focus", {},
                    JSON.stringify({ runtimeId, sheetType }));
       });
+   }
+
+   private reportFailure(enabled: boolean, reason: string): void {
+      const message = `Cross-sheet-follow ${enabled ? "enable" : "disable"} failed: ${reason}`;
+      // eslint-disable-next-line no-console
+      console.error(message);
+      this.errorSubject.next(message);
    }
 
    /**
