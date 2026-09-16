@@ -110,6 +110,21 @@ public class LicenseKeySettingsService {
       authenticationService.reset();
    }
 
+   /**
+    * Replaces one installed server license key with another, atomically -- see
+    * {@link #addServerKey} for why the two extra side effects are replicated here. Unlike
+    * {@link #setModel}/{@link #updateKeys}'s own nondeterministic multi-key diff, this targets
+    * exactly the (oldKey, newKey) pair the caller named by calling
+    * {@link LicenseManager#replaceLicense} directly -- the same primitive the Enterprise Manager
+    * "Edit License Key" dialog's own single-key edit resolves to, and the only genuinely atomic
+    * (single in-memory swap, single persisted write) mutation this area offers.
+    */
+   public void replaceServerKey(String oldKey, String newKey) throws Exception {
+      licenseManager.replaceLicense(oldKey, newKey);
+      cluster.sendMessage(new ResetLicenseKeyMessage());
+      authenticationService.reset();
+   }
+
    private List<LicenseKeyModel> getServerLicenseData() {
       return licenseManager.getInstalledLicenses().stream()
          .map(this::createLicenseKeyModel)

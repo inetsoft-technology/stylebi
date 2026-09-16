@@ -46,10 +46,10 @@ import java.util.stream.Collectors;
  * <p>Every verb in this area is {@code snapshotScope: storage} unconditionally (01-spec.md section
  * 4/7/14 D4), so the Tier-2 backup is taken synchronously here, before any change is attempted.
  *
- * <p>Calls {@link LicenseKeySettingsService#addServerKey}/{@code removeServerKey} -- never
- * {@code LicenseManager.addLicense}/{@code removeLicense} directly -- so the cluster-broadcast and
- * auth-cache-reset side effects {@code setModel} performs are always replicated (01-spec.md section
- * 0).
+ * <p>Calls {@link LicenseKeySettingsService#addServerKey}/{@code removeServerKey}/
+ * {@code replaceServerKey} -- never {@code LicenseManager.addLicense}/{@code removeLicense}/
+ * {@code replaceLicense} directly -- so the cluster-broadcast and auth-cache-reset side effects
+ * {@code setModel} performs are always replicated (01-spec.md section 0).
  */
 @Component
 public class LicenseChangesetApplyService {
@@ -216,9 +216,13 @@ public class LicenseChangesetApplyService {
          applyAdd(txId, task, key, backupRef, reviewOutcome, user, results, undoable,
                   mutationEntered);
       }
-      else {
+      else if(LicenseChangeRequest.VERB_REMOVE.equals(verb)) {
          applyRemove(txId, task, key, backupRef, reviewOutcome, user, results, undoable,
                     mutationEntered);
+      }
+      else {
+         applyUpdate(txId, task, key, original.getNewKey(), backupRef, reviewOutcome, user, results,
+                    undoable, mutationEntered);
       }
    }
 
@@ -302,6 +306,66 @@ public class LicenseChangesetApplyService {
       }
    }
 
+   // ---------------------------------------------------------------- update
+
+   /** Redmine #76694: re-verifies BOTH sides fresh at apply time -- {@code oldKey} still
+    * installed, {@code newKey} still not installed and still resolves to a valid license --
+    * mirroring {@link #applyAdd}/{@link #applyRemove}'s own concurrent-change re-checks, each with
+    * its own named failure reason. Calls {@link LicenseKeySettingsService#replaceServerKey}, the
+    * atomic single-swap primitive (see that method's own doc comment). */
+   private void applyUpdate(String txId, String task, String oldKey, String newKey,
+                            String backupRef, String reviewOutcome, Principal user,
+                            List<LicenseApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
+      throws Exception
+   {
+      Optional<License> current = findInstalled(oldKey);
+
+      if(current.isEmpty()) {
+         results.add(new LicenseApplyOutcome(oldKey, null, null, AdminChangeRecord.STATUS_FAILED,
+            "not installed at apply time (concurrent change)", null));
+         writeAudit(txId, task, oldKey, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      if(isInstalled(newKey)) {
+         results.add(new LicenseApplyOutcome(oldKey, null, null, AdminChangeRecord.STATUS_FAILED,
+            "newKey \"" + newKey + "\" is already installed at apply time (concurrent change)",
+            null));
+         writeAudit(txId, task, oldKey, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      License resolved = licenseManager.parseLicense(newKey);
+
+      if(resolved.type() == LicenseType.INVALID || !resolved.valid()) {
+         results.add(new LicenseApplyOutcome(oldKey, null, null, AdminChangeRecord.STATUS_FAILED,
+            "newKey no longer resolves to a valid license at apply time (concurrent change)", null));
+         writeAudit(txId, task, oldKey, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                   null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+         return;
+      }
+
+      String before = LicenseKeyProjection.of(current.get()).canonical();
+      mutationEntered.set(true);
+      licenseKeySettingsService.replaceServerKey(oldKey, newKey);
+
+      boolean verified = isInstalled(newKey) && !isInstalled(oldKey);
+      String after = verified ? LicenseKeyProjection.of(resolved).canonical() : null;
+      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+      results.add(new LicenseApplyOutcome(oldKey, before, after, status,
+                                          verified ? null : "key not found among installed " +
+                                          "licenses after update", null));
+      writeAudit(txId, task, oldKey, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                before, after, status, backupRef, reviewOutcome, user);
+
+      if(verified) {
+         undoable.add(Undo.updated(oldKey, newKey));
+      }
+   }
+
    // ---------------------------------------------------------------- rollback
 
    private List<RollbackFailure> rollback(String txId, String task, List<Undo> undoable,
@@ -317,8 +381,11 @@ public class LicenseChangesetApplyService {
             if(undo.kind == Undo.Kind.ADDED) {
                rollbackAdded(txId, task, undo, backupRef, reviewOutcome, user, failures);
             }
-            else {
+            else if(undo.kind == Undo.Kind.REMOVED) {
                rollbackRemoved(txId, task, undo, backupRef, reviewOutcome, user, failures, advisories);
+            }
+            else {
+               rollbackUpdated(txId, task, undo, backupRef, reviewOutcome, user, failures);
             }
          }
          catch(Exception e) {
@@ -400,6 +467,37 @@ public class LicenseChangesetApplyService {
       }
    }
 
+   /** Undo of {@code update} is {@code update} back -- exact, using the same atomic
+    * {@code replaceServerKey} primitive in reverse. Unlike {@link #rollbackRemoved}'s own
+    * claiming-node-drift caveat, {@code replaceLicense}'s cluster routing targets the exact node
+    * currently holding {@code newKey}'s claim (rather than {@code addLicense}'s "any node with an
+    * unclaimed slot" selection), so no such advisory applies here. */
+   private void rollbackUpdated(String txId, String task, Undo undo, String backupRef,
+                                String reviewOutcome, Principal user, List<RollbackFailure> failures)
+      throws Exception
+   {
+      String originalKey = undo.key;
+      String currentKey = undo.newKey;
+
+      if(!isInstalled(currentKey)) {
+         failures.add(new RollbackFailure(originalKey,
+            "rollback of update could not find \"" + currentKey + "\" to revert (already gone)"));
+         return;
+      }
+
+      licenseKeySettingsService.replaceServerKey(currentKey, originalKey);
+      boolean verified = isInstalled(originalKey) && !isInstalled(currentKey);
+      writeAudit(txId, task, originalKey, ActionRecord.ACTION_NAME_EDIT,
+                AdminChangeRecord.ACTION_ROLLBACK, null, null,
+                verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
+                backupRef, reviewOutcome, user);
+
+      if(!verified) {
+         failures.add(new RollbackFailure(originalKey,
+            "rollback of update reported the original key as still missing after reverting"));
+      }
+   }
+
    // ---------------------------------------------------------------- shared helpers
 
    private boolean isInstalled(String key) {
@@ -472,25 +570,33 @@ public class LicenseChangesetApplyService {
       return String.format("%016x", RANDOM.nextLong());
    }
 
-   /** One undo descriptor built during apply, replayed in reverse by {@link #rollback}. */
+   /** One undo descriptor built during apply, replayed in reverse by {@link #rollback}. {@code
+    * newKey} is only populated for {@code Kind.UPDATED} (the key the original {@code key} was
+    * replaced with, needed to revert via {@code replaceServerKey(newKey, key)}). */
    private static final class Undo {
-      enum Kind { ADDED, REMOVED }
+      enum Kind { ADDED, REMOVED, UPDATED }
 
       static Undo added(String key) {
-         return new Undo(Kind.ADDED, key);
+         return new Undo(Kind.ADDED, key, null);
       }
 
       static Undo removed(String key) {
-         return new Undo(Kind.REMOVED, key);
+         return new Undo(Kind.REMOVED, key, null);
       }
 
-      private Undo(Kind kind, String key) {
+      static Undo updated(String oldKey, String newKey) {
+         return new Undo(Kind.UPDATED, oldKey, newKey);
+      }
+
+      private Undo(Kind kind, String key, String newKey) {
          this.kind = kind;
          this.key = key;
+         this.newKey = newKey;
       }
 
       final Kind kind;
       final String key;
+      final String newKey;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(LicenseChangesetApplyService.class);

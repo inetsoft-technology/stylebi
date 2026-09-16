@@ -20,25 +20,34 @@ package inetsoft.web.admin.ai.licensing;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * One requested license key change: add or remove one key by its literal string (01-spec.md
- * section 1/11). {@link LicenseChangePlanService#resolve} re-validates every field independently
- * rather than trusting the caller, per this repo's CLAUDE.md tool-robustness rule -- verb aliasing
- * (e.g. "install"/"uninstall") and the "no update verb exists" refusal are the plugin (TypeScript)
- * tool layer's job, matching {@code ClusterChangePlanService.requireVerb}'s own precedent of
- * exact-label-only validation in Java.
+ * One requested license key change: add, remove, or update (replace) one key by its literal
+ * string (01-spec.md section 1/11; update added for Redmine #76694). {@link
+ * LicenseChangePlanService#resolve} re-validates every field independently rather than trusting
+ * the caller, per this repo's CLAUDE.md tool-robustness rule -- verb aliasing (e.g.
+ * "install"/"uninstall") is the plugin (TypeScript) tool layer's job, matching
+ * {@code ClusterChangePlanService.requireVerb}'s own precedent of exact-label-only validation in
+ * Java.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class LicenseChangeRequest {
    public static final String VERB_ADD = "add";
    public static final String VERB_REMOVE = "remove";
+   public static final String VERB_UPDATE = "update";
 
    public String getVerb() { return verb; }
    public void setVerb(String v) { this.verb = v; }
 
-   /** The literal license key string -- the only identifier this area has (01-spec.md section 2). */
+   /** The literal license key string -- the only identifier this area has (01-spec.md section 2).
+    * For {@code update}, this is the CURRENTLY installed key being replaced; the replacement is
+    * {@link #getNewKey()}. */
    public String getKey() { return key; }
    public void setKey(String v) { this.key = v; }
 
+   /** Only meaningful for {@code verb=update} -- the key to install in place of {@link #getKey()}. */
+   public String getNewKey() { return newKey; }
+   public void setNewKey(String v) { this.newKey = v; }
+
    private String verb;
    private String key;
+   private String newKey;
 }
