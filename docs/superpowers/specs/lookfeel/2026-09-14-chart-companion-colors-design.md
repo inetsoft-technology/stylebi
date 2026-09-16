@@ -362,7 +362,7 @@ Nothing in this slice changes a component. The picker specs added by the re-tune
 
 | Item | Trigger |
 |---|---|
-| **ENGINE §2 brushing** | Independent, and the most visible remaining consumer. `getDimColor()`/`getHighlightColor()` are static and context-free (`BrushingColor.java:36,50`), captured once per chart into `GraphGenerator:7601-7602` and threaded to ~20 live sites across `GraphGenerator`, `MapGenerator`, `VGraphPair`, `BrushingComparator`. The work is making the lookup per-mark, not swapping a call. |
+| **ENGINE §2 brushing** | Independent, and the most visible remaining consumer. `getDimColor()`/`getHighlightColor()` are static and context-free (`BrushingColor.java:36,50`), captured once per chart into `GraphGenerator:7601-7602` and threaded to ~20 live sites across `GraphGenerator`, `MapGenerator`, `VGraphPair`, `BrushingComparator` and `ExcelChartHelper`. The work is making the lookup per-mark, not swapping a call. Shipped for cartesian charts; maps deferred — see [the brushing companion-colours design](./2026-09-15-brushing-companion-colors-design.md). |
 | **ENGINE §5 area fill** | Independent. `AreaElement` has no fill colour at all — it paints the line's colour at `HINT_ALPHA 0.8` (`AreaElement.java:75`). A new property on the element and on `AreaVO`, so descriptor, persistence and UI come with it. Buys area, filled line and radar at once. |
 | **ENGINE §3 overflow generator** | Now cheaper: this slice lands the OKLab utility it shares. Still gated on the slot-9 seam mattering — `Modern` index 8 is `#8ed604`, index 9 `#9368be`, straight into the 2010-era tail via `spliceLegacy()`. Note the design doc §3i answers ENGINE's own open question: declaring `[index=9]` makes the slot real, so generated colours are themeable by declaration and no `updateCSSColors()` bound needs changing. |
 | **ENGINE §4 ramps** | Fully independent of companions. Three `AbstractSplineColorFrame` subclasses (`Amber`, `Teal`, `Variance`, 7 stops each, hexes in CSS.md), `LinearColorFrameWrapper`s, and cases in `VisualFrameWrapper`'s class-name switch (`:258`). Must **not** ship as `ChartPalette` CSS rules — that would put them in the categorical picker. |
@@ -373,7 +373,8 @@ Nothing in this slice changes a component. The picker specs added by the re-tune
 **The mechanism-with-one-consumer risk is real on this branch.** The roadmap records
 `applyDarkForeground` as *"the 9B mechanism that existed for exactly this and was wired to only one
 surface, the slider"* — landed with one caller and left, surfacing later as a defect. Companions
-have the same shape. The three consumers are enumerated above with their call sites so the next
+have the same shape. The mechanism now has three consumers — the target band, the brushing dim
+colour, and the brushing marker — rather than one, enumerated above with their call sites so the next
 person finds a list instead of rediscovering it.
 
 ## Files touched

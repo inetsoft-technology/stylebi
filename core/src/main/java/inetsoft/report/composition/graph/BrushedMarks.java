@@ -44,12 +44,42 @@ public final class BrushedMarks {
                        gobj.getTupleIndex());
    }
 
+   /**
+    * Whether the mark's colour frame carries a brush marker at all — a
+    * {@code CompanionBrushColorFrame} or an {@code HLColorFrame} in the composite. False means
+    * neither is present, which is the only case a legacy flat-colour comparison remains valid for.
+    */
+   public static boolean hasMarker(ElementGeometry gobj) {
+      if(gobj == null || gobj.getElement() == null) {
+         return false;
+      }
+
+      return hasMarker(gobj.getElement().getColorFrame());
+   }
+
+   static boolean hasMarker(ColorFrame frame) {
+      if(!(frame instanceof CompositeColorFrame)) {
+         return false;
+      }
+
+      CompositeColorFrame composite = (CompositeColorFrame) frame;
+      return composite.getFrames(CompanionBrushColorFrame.class).findAny().isPresent() ||
+         composite.getFrames(HLColorFrame.class).findAny().isPresent();
+   }
+
    static boolean isBrushed(ColorFrame frame, DataSet data, int tidx) {
       if(!(frame instanceof CompositeColorFrame) || data == null) {
          return false;
       }
 
-      return ((CompositeColorFrame) frame).getFrames(HLColorFrame.class)
+      CompositeColorFrame composite = (CompositeColorFrame) frame;
+
+      if(composite.getFrames(CompanionBrushColorFrame.class).findAny().isPresent()) {
+         return composite.getFrames(CompanionBrushColorFrame.class)
+            .anyMatch(f -> ((CompanionBrushColorFrame) f).isSelected(data, tidx));
+      }
+
+      return composite.getFrames(HLColorFrame.class)
          .anyMatch(f -> ((HLColorFrame) f).getHighlight(data, tidx) != null);
    }
 

@@ -29,6 +29,7 @@ import inetsoft.graph.scale.Scale;
 import inetsoft.graph.visual.*;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.graph.BrushDataSet;
+import inetsoft.report.composition.graph.BrushedMarks;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.graph.AllChartAggregateRef;
 import inetsoft.report.internal.table.TableFormat;
@@ -690,9 +691,7 @@ public class ExcelChartHelper {
             point.x, point.y, isSinglePointLine(style, idx));
 
          // set default datapointinfo, to avoid bugs when export stack chart.
-         if(sinfo.getDefaultDataPointInfo() == null && (!hasBrush ||
-            hasBrush && !brushHLColor.equals(dinfo.getFillColor())))
-         {
+         if(sinfo.getDefaultDataPointInfo() == null && (!hasBrush || !isBrushedVO(vo, dinfo))) {
             sinfo.setDefaultDataPointInfo(dinfo);
          }
 
@@ -3016,6 +3015,22 @@ public class ExcelChartHelper {
     */
    private int getBrushAdjust() {
       return brushAdjust;
+   }
+
+   private boolean isBrushedVO(ElementVO vo, DataPointInfo dinfo) {
+      if(vo == null || !(vo.getGeometry() instanceof ElementGeometry)) {
+         return false;
+      }
+
+      ElementGeometry gobj = (ElementGeometry) vo.getGeometry();
+
+      if(BrushedMarks.hasMarker(gobj)) {
+         return BrushedMarks.isBrushed(gobj);
+      }
+
+      // no marker frame (legacy, unmarked chart): brushing colours are still uniform there, so
+      // comparing against the flat highlight colour remains correct.
+      return brushHLColor.equals(dinfo.getFillColor());
    }
 
    /**

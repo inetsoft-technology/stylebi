@@ -1,3 +1,20 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
 package inetsoft.report.composition.graph;
 
 import inetsoft.graph.aesthetic.CompositeColorFrame;
@@ -54,6 +71,61 @@ class BrushedMarksTest {
       assertEquals(-1, BrushedMarks.order(false, true));
       assertEquals(0, BrushedMarks.order(true, true));
       assertEquals(0, BrushedMarks.order(false, false));
+   }
+
+   @Test
+   void aTargetChartLayerAnswersFromItsMarker() {
+      CompositeColorFrame brushedLayer = new CompositeColorFrame();
+      brushedLayer.addFrame(new CompanionBrushColorFrame(
+         null, true, new StaticColorFrame(Color.BLUE), false));
+      assertTrue(BrushedMarks.isBrushed(brushedLayer, data(), 0));
+
+      CompositeColorFrame allDataLayer = new CompositeColorFrame();
+      allDataLayer.addFrame(new CompanionBrushColorFrame(
+         null, false, new StaticColorFrame(Color.BLUE), false));
+      assertFalse(BrushedMarks.isBrushed(allDataLayer, data(), 0));
+   }
+
+   @Test
+   void aMarkedSourceChartAnswersPerRow() {
+      HLColorFrame predicate = new HLColorFrame(null, null, null) {
+         @Override
+         public Highlight getHighlight(DataSet data, int row) {
+            return row == 0 ? new TextHighlight() : null;
+         }
+      };
+
+      CompositeColorFrame composite = new CompositeColorFrame();
+      composite.addFrame(new CompanionBrushColorFrame(
+         predicate, false, new StaticColorFrame(Color.BLUE), false));
+      composite.addFrame(new StaticColorFrame(Color.BLUE));
+
+      assertTrue(BrushedMarks.isBrushed(composite, data(), 0));
+      assertFalse(BrushedMarks.isBrushed(composite, data(), 1));
+   }
+
+   @Test
+   void aLegacyTargetCompositeHasNoMarkerAndIsNeverBrushed() {
+      // the shape applyBrushing(ColorFrame, ColorFrame) builds when companionBrushing is off:
+      // a flat highlight/dim colour plus the base palette, no marker frame of either kind.
+      CompositeColorFrame legacy = new CompositeColorFrame();
+      legacy.addFrame(new StaticColorFrame(Color.RED));
+      legacy.addFrame(new StaticColorFrame(Color.BLUE));
+
+      assertFalse(BrushedMarks.hasMarker(legacy));
+      assertFalse(BrushedMarks.isBrushed(legacy, data(), 0));
+      assertFalse(BrushedMarks.isBrushed(legacy, data(), 1));
+   }
+
+   @Test
+   void aCompositeWithACompanionFrameHasAMarkerAndAnswersFromIt() {
+      CompositeColorFrame composite = new CompositeColorFrame();
+      composite.addFrame(new CompanionBrushColorFrame(
+         null, true, new StaticColorFrame(Color.BLUE), false));
+      composite.addFrame(new StaticColorFrame(Color.BLUE));
+
+      assertTrue(BrushedMarks.hasMarker(composite));
+      assertTrue(BrushedMarks.isBrushed(composite, data(), 0));
    }
 
    private DataSet data() {

@@ -54,6 +54,7 @@ import inetsoft.uql.viewsheet.graph.aesthetic.BrushingColor;
 import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalColorFrameContext;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
+import inetsoft.util.css.CSSDictionary;
 import inetsoft.util.log.LogLevel;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -221,6 +222,9 @@ public abstract class GraphGenerator {
       super();
 
       this.vizContext = VizContext.of(chart);
+      this.companionBrushing = vizContext.modern
+         && !CSSDictionary.getDictionary().checkPresent(".brush-dim-color")
+         && !CSSDictionary.getDictionary().checkPresent(".brush-highlight-color");
       this.graphSize = size;
       this.bconds = chart.getBrushConditionList(null, false);
       this.zconds = chart.getZoomConditionList(null);
@@ -389,36 +393,43 @@ public abstract class GraphGenerator {
       }
       // brushing target?
       else {
-         // create all color frame - gray
-         StaticColorFrame frame2 = new StaticColorFrame();
-         frame2.setUserColor(brushDimColor);
-         acolor = applyBrushing(getColorFrame(null), frame2);
+         ColorFrame base = getColorFrame(null);
+         ColorFrame dimFrame;
 
-         frame2 = createBrushingTargetColorFrame(false);
-         setColorFrame(applyBrushing(getColorFrame(null), frame2));
+         if(companionBrushing && base != null) {
+            dimFrame = new CompanionBrushColorFrame(null, false, base, vizContext.dark);
+         }
+         else {
+            StaticColorFrame flat = new StaticColorFrame();
+            flat.setUserColor(brushDimColor);
+            dimFrame = flat;
+         }
+
+         acolor = applyBrushing(getColorFrame(null), dimFrame);
+
+         ColorFrame brushed = createBrushingTargetColorFrame(false, base);
+         setColorFrame(applyBrushing(getColorFrame(null), brushed));
 
          for(String measure : cvisitor.getMeasures()) {
             VisualFrame frame = cvisitor.getMeasureFrame(measure);
-            frame = applyBrushing((ColorFrame) frame, frame2);
+            frame = applyBrushing((ColorFrame) frame, brushed);
             cvisitor.setMeasureFrame(measure, frame);
          }
       }
    }
 
-   private StaticColorFrame createBrushingTargetColorFrame(boolean isAll) {
-      StaticColorFrame frame2;
-      // create brushing color frame - red
-      frame2 = new StaticColorFrame();
-
+   private ColorFrame createBrushingTargetColorFrame(boolean isAll, ColorFrame base) {
       // if showing all data, dim all. (53441)
-      if(data instanceof BrushDataSet && ((BrushDataSet) data).isBrushedDataEmpty() &&
-         ((BrushDataSet) data).isBrushedDataOnly() || isAll)
-      {
-         frame2.setUserColor(brushDimColor);
+      boolean dimAll = data instanceof BrushDataSet &&
+         ((BrushDataSet) data).isBrushedDataEmpty() &&
+         ((BrushDataSet) data).isBrushedDataOnly() || isAll;
+
+      if(companionBrushing && base != null) {
+         return new CompanionBrushColorFrame(null, !dimAll, base, vizContext.dark);
       }
-      else {
-         frame2.setUserColor(brushHLColor);
-      }
+
+      StaticColorFrame frame2 = new StaticColorFrame();
+      frame2.setUserColor(dimAll ? brushDimColor : brushHLColor);
       return frame2;
    }
 
@@ -437,6 +448,9 @@ public abstract class GraphGenerator {
       super();
 
       this.vizContext = VizContext.LEGACY;
+      this.companionBrushing = vizContext.modern
+         && !CSSDictionary.getDictionary().checkPresent(".brush-dim-color")
+         && !CSSDictionary.getDictionary().checkPresent(".brush-highlight-color");
       this.graphSize = size;
       adata = getFixedDataSet(info, adata, true);
       data = getFixedDataSet(info, data, false);
@@ -664,7 +678,14 @@ public abstract class GraphGenerator {
       }
 
       CompositeColorFrame cframe = new CompositeColorFrame();
-      cframe.addFrame(hframe);
+
+      if(companionBrushing) {
+         cframe.addFrame(new CompanionBrushColorFrame(hframe, false, color, vizContext.dark));
+      }
+      else {
+         cframe.addFrame(hframe);
+      }
+
       cframe.addFrame(color);
       return cframe;
    }
@@ -1470,7 +1491,8 @@ public abstract class GraphGenerator {
       }
       else if(isBrusingTarget()) {
          colorFrame = applyBrushing(
-            colorFrame, createBrushingTargetColorFrame(elem.getHint("overlaid") != null));
+            colorFrame,
+            createBrushingTargetColorFrame(elem.getHint("overlaid") != null, colorFrame));
       }
 
       elem.setNodeColorFrame(colorFrame);
@@ -1637,16 +1659,16 @@ public abstract class GraphGenerator {
                int tidx = gobj.getTupleIndex();
 
                if(cframe instanceof CompositeColorFrame) {
-                  return ((CompositeColorFrame) cframe).getFrames(HLColorFrame.class).anyMatch(frame ->
-                     ((HLColorFrame) frame).getHighlight(data, tidx) != null
-                  );
+                  return BrushedMarks.isBrushed(cframe, data, tidx);
                }
 
                return true;
             });
          }
 
-         // needs the HLColorFrame in the PointSelector above.
+         // when brushing, leave the element colour frames alone: the PointSelector above reads
+         // the brush condition off them. that condition is still needed, but on a modern chart it
+         // is nested inside the companion frame rather than sitting in the composite itself.
          if(!brushing) {
             // prevent label color to be set to element color in PointVO
             for(int i = 0; i < graph.getElementCount(); i++) {
@@ -4448,9 +4470,18 @@ public abstract class GraphGenerator {
             }
             // for brush source summary, always apply gray color
             else if(isBrushingSource()) {
-               StaticColorFrame frame2 = new StaticColorFrame();
-               frame2.setUserColor(brushDimColor);
-               elem.setColorFrame(frame2);
+               if(companionBrushing && color != null) {
+                  // a bare frame rather than a composite, so BrushedMarks cannot ask it whether a
+                  // mark is brushed. every summary mark on a brush source is unbrushed, which is
+                  // what the legacy flat frame answers too, so this is a trap and not a live bug.
+                  elem.setColorFrame(
+                     new CompanionBrushColorFrame(null, false, color, vizContext.dark));
+               }
+               else {
+                  StaticColorFrame frame2 = new StaticColorFrame();
+                  frame2.setUserColor(brushDimColor);
+                  elem.setColorFrame(frame2);
+               }
             }
 
             TextureFrame texture = (TextureFrame) tvisitor.getSummaryFrame(names[i]);
@@ -4586,6 +4617,15 @@ public abstract class GraphGenerator {
                if(color0 != null) {
                   while(cframe.getFrameCount() > 1) {
                      cframe.removeFrame(1);
+                  }
+
+                  VisualFrame dim = cframe.getFrameCount() > 0 ? cframe.getFrame(0) : null;
+
+                  // the companion frame answers before the base, so it has to recede from the
+                  // per measure frame added below rather than from the global one replaced here
+                  if(dim instanceof CompanionBrushColorFrame) {
+                     cframe.removeFrame(0);
+                     cframe.addFrame(((CompanionBrushColorFrame) dim).withBase(color0));
                   }
 
                   cframe.addFrame(color0);
@@ -5400,7 +5440,7 @@ public abstract class GraphGenerator {
             for(int i = 0; i < cframe.getFrameCount(); i++) {
                ColorFrame frame = (ColorFrame) cframe.getFrame(i);
 
-               if(frame instanceof HLColorFrame) {
+               if(frame instanceof HLColorFrame || frame instanceof CompanionBrushColorFrame) {
                   applyColor = true;
                   break;
                }
@@ -7600,6 +7640,7 @@ public abstract class GraphGenerator {
    private DateComparisonInfo dateComparison;
    protected Color brushHLColor = BrushingColor.getHighlightColor();
    protected Color brushDimColor = BrushingColor.getDimColor();
+   protected boolean companionBrushing;
    protected boolean maxMode = false;
    private transient Viewsheet vs;
 
