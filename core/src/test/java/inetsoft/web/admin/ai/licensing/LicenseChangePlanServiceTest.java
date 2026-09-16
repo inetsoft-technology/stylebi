@@ -82,6 +82,14 @@ class LicenseChangePlanServiceTest {
       return r;
    }
 
+   private static LicenseChangeRequest update(String oldKey, String newKey) {
+      LicenseChangeRequest r = new LicenseChangeRequest();
+      r.setVerb(LicenseChangeRequest.VERB_UPDATE);
+      r.setKey(oldKey);
+      r.setNewKey(newKey);
+      return r;
+   }
+
    private static LicenseChangePlanRequest request(String task, List<LicenseChangeRequest> changes) {
       LicenseChangePlanRequest req = new LicenseChangePlanRequest();
       req.setTask(task);
@@ -217,6 +225,93 @@ class LicenseChangePlanServiceTest {
          () -> service.resolve(request("task", List.of(remove("GHOST")))));
       assertTrue(ex.getMessage().contains("GHOST"));
       assertTrue(ex.getMessage().contains("not currently installed"));
+   }
+
+   // -------------------------------------------------------------------------
+   // update (Redmine #76694)
+   // -------------------------------------------------------------------------
+
+   @Test void resolveAcceptsValidUpdate() {
+      License installed = license("K1", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      stubInstalled(installed);
+      License resolved = license("K2", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      when(licenseManager.parseLicense("K2")).thenReturn(resolved);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(update("K1", "K2"))));
+
+      assertEquals(1, plan.changes().size());
+      PlanChange change = plan.changes().get(0);
+      assertEquals("K1", change.property());
+      // Content-checked, not just non-null, so a future accidental swap of old/new projections (or
+      // a wrong key referenced) is caught here rather than passing vacuously.
+      assertTrue(change.currentValue().contains("key=K1"));
+      assertTrue(change.currentValue().contains("type=CPU"));
+      assertTrue(change.proposedValue().contains("key=K2"));
+      assertTrue(change.proposedValue().contains("type=CPU"));
+      assertEquals("high", change.risk());
+      assertEquals("storage", change.snapshotScope());
+   }
+
+   @Test void resolveRefusesUpdateOfNotInstalledOldKey() {
+      stubInstalled();
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(update("GHOST", "K2")))));
+      assertTrue(ex.getMessage().contains("GHOST"));
+      assertTrue(ex.getMessage().contains("not currently installed"));
+   }
+
+   @Test void resolveRefusesUpdateWhenNewKeyAlreadyInstalled() {
+      License k1 = license("K1", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      License k2 = license("K2", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      stubInstalled(k1, k2);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(update("K1", "K2")))));
+      assertTrue(ex.getMessage().contains("newKey"));
+      assertTrue(ex.getMessage().contains("already installed"));
+   }
+
+   @Test void resolveRefusesUpdateWhenNewKeyEqualsOldKey() {
+      License installed = license("K1", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      stubInstalled(installed);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(update("K1", "K1")))));
+      assertTrue(ex.getMessage().contains("newKey"));
+   }
+
+   @Test void resolveRefusesUpdateOfInvalidTypedNewKey() {
+      License installed = license("K1", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      stubInstalled(installed);
+      License invalid = license("BAD", LicenseType.INVALID, null);
+      when(licenseManager.parseLicense("BAD")).thenReturn(invalid);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(update("K1", "BAD")))));
+      assertTrue(ex.getMessage().contains("BAD"));
+   }
+
+   @Test void resolveRefusesUpdateMissingNewKey() {
+      License installed = license("K1", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      stubInstalled(installed);
+      LicenseChangeRequest change = update("K1", null);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change))));
+      assertTrue(ex.getMessage().contains("newKey"));
+   }
+
+   /** An update never changes the net installed count -- it must never itself trigger the
+    * de-licensing warning even when it is the plan's only entry. */
+   @Test void resolveDoesNotFlagDeLicensingWarningForAnUpdate() {
+      License installed = license("K1", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      stubInstalled(installed);
+      License resolved = license("K2", LicenseType.CPU, LocalDateTime.now().plusYears(1));
+      when(licenseManager.parseLicense("K2")).thenReturn(resolved);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(update("K1", "K2"))));
+
+      assertFalse(plan.changes().get(0).description().contains("WARNING"));
    }
 
    // -------------------------------------------------------------------------
