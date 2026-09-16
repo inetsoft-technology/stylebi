@@ -382,6 +382,23 @@ class SheetAgentBroadcastServiceTest {
    }
 
    /**
+    * Minimal stand-in for the phantom {@code HttpSession} that
+    * {@code WizServiceAuthenticationFilter.doFilter} mints on every JWT-bearer backend call
+    * (a plain {@code new SRPrincipal(...)}, never a {@code DestinationUserNameProviderPrincipal}) --
+    * same identity as a real browser login can carry, but NOT a {@link DestinationUserNameProvider},
+    * so {@code SUtil.getUserDestination} would fall back to the bare identity string for it.
+    */
+   private static final class PhantomBackendCallSession extends SRPrincipal {
+      PhantomBackendCallSession(IdentityID identityID) {
+         setUser(new inetsoft.sree.ClientInfo(identityID, null));
+      }
+   }
+
+   private static PhantomBackendCallSession phantomPrincipal(String name, String org) {
+      return new PhantomBackendCallSession(new IdentityID(name, org));
+   }
+
+   /**
     * The deliberate-break assertion: a real login mints a
     * {@code DestinationUserNameProviderPrincipal} whose {@code getDestinationUserName()} embeds a
     * random per-login secureID/IP, NOT the bare {@code ownerIdentity} string -- so a naive fix
@@ -422,6 +439,60 @@ class SheetAgentBroadcastServiceTest {
       // A different identity is active, but not the one being addressed.
       when(sessionRepository.getActiveSessions())
          .thenReturn(List.of(activePrincipal("bob", "host-org", 7L)));
+
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(
+         dispatcher, noopModelFactory(), sessionRepository, messagingTemplate);
+
+      svc.sendToComposerByIdentity("alice~;~host-org", new Object());
+
+      verifyNoInteractions(messagingTemplate);
+   }
+
+   /**
+    * Regression test for case-PSP-030: {@code getActiveSessions()} can hold both a phantom
+    * backend-call session (see {@link PhantomBackendCallSession}) and the real browser session
+    * for the same identity at once, in either iteration order. A phantom sorting first must not
+    * be mistaken for the real thing -- the fix must keep scanning past it and address the real,
+    * {@code DestinationUserNameProvider}-implementing session's own destination.
+    */
+   @Test
+   void sendToComposerByIdentitySkipsPhantomBackendCallSessionAndAddressesTheRealOne() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      IgniteSessionRepository sessionRepository = mock(IgniteSessionRepository.class);
+      SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
+      PhantomBackendCallSession phantom = phantomPrincipal("alice", "host-org");
+      ActiveComposerSession live = activePrincipal("alice", "host-org", 42L);
+      // Phantom ordered first, deliberately -- an unstable Ignite/Cache iterator order must not
+      // matter.
+      when(sessionRepository.getActiveSessions()).thenReturn(List.of(phantom, live));
+
+      SheetAgentBroadcastService svc = new SheetAgentBroadcastService(
+         dispatcher, noopModelFactory(), sessionRepository, messagingTemplate);
+      OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
+         .assetId(null).viewsheet(false).runtimeId("ws-runtime-new").build();
+
+      svc.sendToComposerByIdentity("alice~;~host-org", command);
+
+      ArgumentCaptor<String> destination = ArgumentCaptor.forClass(String.class);
+      verify(messagingTemplate).convertAndSendToUser(
+         destination.capture(), eq(ComposerClientService.COMMANDS_TOPIC), eq(command));
+      assertEquals(live.getDestinationUserName(), destination.getValue(),
+         "must skip the phantom session and address the real browser session's destination");
+   }
+
+   /**
+    * Regression test for case-PSP-030: when only phantom backend-call sessions exist for the
+    * identity (no real browser session open), the method must fall through to the existing
+    * "no active session found" skip -- not silently address the phantom's bare identity string,
+    * which nothing is subscribed under.
+    */
+   @Test
+   void sendToComposerByIdentitySkipsWhenOnlyPhantomBackendCallSessionsMatch() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      IgniteSessionRepository sessionRepository = mock(IgniteSessionRepository.class);
+      SimpMessagingTemplate messagingTemplate = mock(SimpMessagingTemplate.class);
+      when(sessionRepository.getActiveSessions())
+         .thenReturn(List.of(phantomPrincipal("alice", "host-org")));
 
       SheetAgentBroadcastService svc = new SheetAgentBroadcastService(
          dispatcher, noopModelFactory(), sessionRepository, messagingTemplate);

@@ -49,6 +49,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.user.DestinationUserNameProvider;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -327,7 +328,9 @@ public class SheetAgentBroadcastService {
       Principal match = null;
 
       for(SRPrincipal candidate : sessionRepository.getActiveSessions()) {
-         if(candidate != null && PairingUtil.sameLogicalUser(ownerIdentity, candidate)) {
+         if(candidate instanceof DestinationUserNameProvider &&
+            PairingUtil.sameLogicalUser(ownerIdentity, candidate))
+         {
             match = candidate;
             break;
          }
