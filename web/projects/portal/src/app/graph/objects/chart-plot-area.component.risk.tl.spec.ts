@@ -318,4 +318,20 @@ describe("ChartPlotArea — ngOnDestroy sets the destroyed flag", () => {
 
       expect(comp.destroyed).toBe(true);
    });
+
+   // Bug #76702: a scroll-triggered redraw scheduled via requestAnimationFrame must not
+   // fire against a torn-down component.
+   it("should cancel a pending scroll-redraw frame on destroy", () => {
+      const rafSpy = vi.spyOn(window, "requestAnimationFrame").mockReturnValue(7 as any);
+      const cafSpy = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+      const { comp } = createComponent();
+      comp.ngOnChanges({
+         scrollTop: { currentValue: 5, previousValue: 0, firstChange: false, isFirstChange: () => false }
+      });
+      expect(rafSpy).toHaveBeenCalledTimes(1);
+
+      comp.ngOnDestroy();
+
+      expect(cafSpy).toHaveBeenCalledWith(7);
+   });
 });
