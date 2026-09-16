@@ -1,6 +1,8 @@
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -395,5 +397,20 @@ class VSChartPaletteDefaultsTest {
          assertEquals(base.getCompanionColor(i, dark), authored.getDefaultColor(i),
                       name + " index " + (i + 1) + " must equal the rule's output");
       }
+   }
+
+   @Test
+   void modernChartsSeedTealAndClassicChartsSeedBlues() {
+      assertInstanceOf(TealColorFrame.class,
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_LIGHT)));
+      assertInstanceOf(TealColorFrame.class,
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_DARK)));
+      assertInstanceOf(BluesColorFrame.class,
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.LEGACY));
+   }
+
+   @Test
+   void aNullContextSeedsTheLegacyRamp() {
+      assertInstanceOf(BluesColorFrame.class, VSChartPaletteDefaults.defaultLinearFrame(null));
    }
 }
