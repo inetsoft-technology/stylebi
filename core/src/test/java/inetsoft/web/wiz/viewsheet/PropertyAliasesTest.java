@@ -495,6 +495,28 @@ class PropertyAliasesTest {
    }
 
    /**
+    * {@code embedded}/{@code query} gate whether the static labels/values are ever used at
+    * render/bind time (Redmine #76699/VFO-016) -- previously reachable only via
+    * {@code get_assembly_properties(raw: true)}.
+    */
+   @Test
+   void exposesEmbeddedAndQueryForCheckboxComboboxAndRadioButton() {
+      for(String type : java.util.List.of("checkbox", "combobox", "radiobutton")) {
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("embedded"),
+                    type + " should expose 'embedded'");
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("query"),
+                    type + " should expose 'query'");
+      }
+
+      assertEquals("checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.embedded",
+                   PropertyAliases.resolve("checkbox", "embedded"));
+      assertEquals("comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.query",
+                   PropertyAliases.resolve("combobox", "query"));
+      assertEquals("radioButtonGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.embedded",
+                   PropertyAliases.resolve("radiobutton", "embedded"));
+   }
+
+   /**
     * Combobox alone has two distinct fields literally named {@code table}:
     * {@code selectionListEditorModel.table} (the dropdown's own choices query -- what "table"
     * means for every other list-input type too) and a completely separate top-level
