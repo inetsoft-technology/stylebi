@@ -317,6 +317,199 @@ class AssemblyPropertyServiceTest {
                    "the unrelated property must still have been written");
    }
 
+   // ── monotonicity/min/color-count (Redmine #76717, VOF-001) ────────────────
+   //
+   // requireNoInteriorGapInGaugeRangeValues only ever caught an interior blank gap; none of
+   // these three shapes reached DefaultVSGauge.fillRanges0 rejected, they just rendered
+   // plausible-but-wrong (a band silently skipped, or falling through to a default color).
+
+   /**
+    * fillRanges0's own band-skip loop compares each boundary against every earlier one
+    * ({@code ranges[i] < ranges[k]}), so a later boundary lower than an earlier one silently
+    * drops that band instead of erroring.
+    */
+   @Test
+   void refusesANonMonotonicGaugeRangeValue() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1",
+            Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                   java.util.List.of("90", "60", "150")),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("rangeValues[1]"),
+                 "must name the offending index: " + thrown.getMessage());
+   }
+
+   @Test
+   void allowsMonotonicNonDecreasingGaugeRangeValues() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "40", "60"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1", patch, ""));
+   }
+
+   /**
+    * fillRanges0 skips any boundary {@code <= info.getMin()}, so a boundary at or below the
+    * gauge's own min (default 0 when unset, matching {@code RangeOutputVSAssemblyInfo.getMin()})
+    * silently drops that band.
+    */
+   @Test
+   void refusesAGaugeRangeValueAtOrBelowTheGaugesMin() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("-10", "60", "90"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("rangeValues[0]"),
+                 "must name the offending index: " + thrown.getMessage());
+   }
+
+   /**
+    * Confirms the check reads the gauge's own {@code min} rather than hard-coding 0 -- a
+    * boundary that would fail against the default is allowed once a lower min is set in the
+    * same patch.
+    */
+   @Test
+   void allowsAGaugeRangeValueAboveACustomMin() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("min", "-20");
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("-10", "10", "30"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1", patch, ""));
+   }
+
+   /**
+    * Scenario 3 from the report: 4 populated boundaries but only 3 populated colors.
+    * RangePaneModel does not pad either array to a fixed length -- {@code set_assembly_properties}
+    * writes them at exactly the caller's length -- so this must be a bounds check
+    * ({@code i >= rangeColorValues.length}), not an index into an array assumed to already be
+    * length 5/6; a naturally-sized 3-element array is the realistic shape, not a padded one.
+    */
+   @Test
+   void refusesAGaugeRangeColorCountMismatch() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "40", "60", "80"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("rangeColorValues[3]"),
+                 "must name the missing color index: " + thrown.getMessage());
+   }
+
+   /**
+    * Leaving {@code rangeColorValues} entirely unset is its own legitimate state -- every band
+    * paints with {@code fillRanges0}'s default color -- not the reported defect, which is a
+    * caller who has started coloring some boundaries and silently not others. The count-parity
+    * check must not turn "no colors configured at all" into a forced requirement.
+    */
+   @Test
+   void allowsGaugeRangeValuesWithNoColorsConfiguredAtAll() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "40", "60")),
+         ""));
+   }
+
+   @Test
+   void allowsMatchingGaugeRangeValueAndColorCounts() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "40", "60"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1", patch, ""));
+   }
+
+   /**
+    * A trailing blank {@code rangeValues} entry (the VBM-006 "extend to max" shape) is one
+    * boundary short of the array's own length -- the color-count check must not demand a color
+    * for that implicit slot, only for the populated boundaries before it.
+    */
+   @Test
+   void allowsATrailingAutoExtendBandWithOneFewerColorThanRangeValuesSlots() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("60", "90", "100", ""));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1", patch, ""));
+   }
+
+   /**
+    * Same guard as {@code ignoresAPreExistingInteriorGapWhenThePatchDoesNotTouchRanges}, for each
+    * new check: a gauge can already have a non-monotonic/negative/count-mismatched config saved
+    * from a source these checks don't cover (the human Composer GUI, or a call made before this
+    * guard existed); an unrelated later patch must not be blocked by state it never touched.
+    */
+   @Test
+   void ignoresAPreExistingNonMonotonicRangeWhenThePatchDoesNotTouchRanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeValues(new String[]{ "90", "60", "150" });
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("max", "999"), ""));
+   }
+
+   @Test
+   void ignoresAPreExistingBelowMinRangeWhenThePatchDoesNotTouchRanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeValues(new String[]{ "-10", "60", "90" });
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("max", "999"), ""));
+   }
+
+   @Test
+   void ignoresAPreExistingColorCountMismatchWhenThePatchDoesNotTouchRanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeValues(new String[]{ "20", "40", "60", "80" });
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeColorValues(new String[]{ "red", "yellow", "green" });
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("max", "999"), ""));
+   }
+
    /**
     * The exact reported repro (bug #76530): {@code columnValue} carries the reference,
     * {@code table} never set. Must resolve and go through, not be refused.

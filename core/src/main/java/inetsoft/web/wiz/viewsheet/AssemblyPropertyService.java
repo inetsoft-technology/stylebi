@@ -398,6 +398,13 @@ public class AssemblyPropertyService {
     * silently collapse that band to nothing -- so that shape is refused here instead of
     * being allowed to reach a plausible-but-wrong render.
     *
+    * <p>Also validates, against the same {@code fillRanges0} mechanics (Redmine #76717/VOF-001):
+    * every populated boundary must be non-decreasing relative to the one before it (a
+    * non-monotonic pair makes {@code fillRanges0} silently skip that band), must be strictly
+    * greater than the gauge's own min (its skip condition is {@code ranges[i] <= info.getMin()}),
+    * and must have a matching {@code rangeColorValues} entry (a missing one falls through to
+    * {@code fillRanges0}'s default paint instead of erroring).
+    *
     * <p>Only invoked by the caller when this call's own patch touches
     * {@code gaugeAdvancedPaneModel.rangePaneModel}. The human Composer GUI has no equivalent
     * validation, so a gauge can already have an interior gap saved from that path (or from a
@@ -427,6 +434,96 @@ public class AssemblyPropertyService {
                "only have a blank trailing entry (meaning \"extend to the gauge's own max\"), " +
                "not a gap in the middle.");
          }
+      }
+
+      double[] parsed = new double[lastPopulated + 1];
+
+      for(int i = 0; i <= lastPopulated; i++) {
+         try {
+            parsed[i] = Double.parseDouble(rangeValues[i]);
+         }
+         catch(NumberFormatException e) {
+            throw new IllegalArgumentException(
+               "rangeValues[" + i + "] ('" + rangeValues[i] + "') is not a number.");
+         }
+
+         if(i > 0 && parsed[i] < parsed[i - 1]) {
+            throw new IllegalArgumentException(
+               "rangeValues[" + i + "] (" + rangeValues[i] + ") must be >= rangeValues[" +
+               (i - 1) + "] (" + rangeValues[i - 1] + ") -- boundaries must be non-decreasing.");
+         }
+      }
+
+      Double min = gaugeMin(model);
+
+      if(min != null) {
+         for(int i = 0; i <= lastPopulated; i++) {
+            if(parsed[i] <= min) {
+               throw new IllegalArgumentException(
+                  "rangeValues[" + i + "] (" + rangeValues[i] + ") must be greater than the " +
+                  "gauge's min (" + min + ").");
+            }
+         }
+      }
+
+      String[] rangeColorValues = range.getRangeColorValues();
+      boolean anyColorPopulated = false;
+
+      for(String color : rangeColorValues) {
+         if(color != null && !color.isEmpty()) {
+            anyColorPopulated = true;
+            break;
+         }
+      }
+
+      // Only enforced once the caller has started customizing colors at all -- leaving
+      // rangeColorValues entirely unset is its own legitimate state (every band paints with
+      // fillRanges0's default color), not the reported defect. The reported defect is a
+      // *partial* list: some boundaries colored, a later one silently not, which is genuinely
+      // ambiguous the same way an interior rangeValues gap is.
+      //
+      // Bounds-checked, not indexed as if rangeColorValues were always padded to a fixed
+      // length: set_assembly_properties writes both arrays at exactly the caller's length (no
+      // padding), so "i >= rangeColorValues.length" is the normal way a missing color shows up,
+      // not an unreachable edge case. The window stops at lastPopulated (not lastPopulated + 1)
+      // so it does not demand a color for the implicit trailing auto-extend band -- any
+      // rangeValues slot beyond lastPopulated is already forgiven by the gap check above, and
+      // fillRanges0 itself tolerates a missing color there (falls through to its default paint),
+      // consistent with that same forgiveness.
+      if(anyColorPopulated) {
+         for(int i = 0; i <= lastPopulated; i++) {
+            if(i >= rangeColorValues.length || rangeColorValues[i] == null ||
+               rangeColorValues[i].isEmpty())
+            {
+               throw new IllegalArgumentException(
+                  "rangeColorValues[" + i + "] is required because rangeValues[" + i +
+                  "] is set -- every populated boundary needs a matching color.");
+            }
+         }
+      }
+   }
+
+   /**
+    * The gauge's own min, read the same place {@code GaugePropertyDialogService} does
+    * ({@code gaugeGeneralPaneModel.numberRangePaneModel.min}), falling back to {@code 0} when
+    * unset to match {@code RangeOutputVSAssemblyInfo.getMin()}'s own default. Returns
+    * {@code null} -- skip the check rather than block an unrelated write -- when the field holds
+    * something this can't compare against (e.g. an unresolved {@code "$(...)"} variable
+    * reference); that resolution only happens at render time, never here.
+    */
+   private static Double gaugeMin(Object model) {
+      Object min = PropertyPath.get(model, "gaugeGeneralPaneModel.numberRangePaneModel.min");
+      String text = min == null ? null : String.valueOf(min);
+
+      if(text == null || text.isEmpty()) {
+         return 0.0;
+      }
+
+      try {
+         return Double.parseDouble(text);
+      }
+      catch(NumberFormatException e) {
+         return null;
       }
    }
 
