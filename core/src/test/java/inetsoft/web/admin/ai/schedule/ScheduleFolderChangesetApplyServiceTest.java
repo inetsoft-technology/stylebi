@@ -209,9 +209,14 @@ class ScheduleFolderChangesetApplyServiceTest {
       lenient().when(realTaskFolderService.getFolderEntry(anyString())).thenAnswer(inv ->
          new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
                         (String) inv.getArgument(0), null));
-      // Every lookup sees a folder present -- this test only cares about the argument shape
-      // renameFolder is called with, not about this apply's own verified/rolled-back outcome.
-      lenient().when(realTaskFolderService.getTaskFolder(anyString())).thenReturn(new AssetFolder());
+      // Only "A" (the rename's source) exists -- "B" (the newPath) must NOT, or
+      // ScheduleFolderChangePlanService#resolveRename's own name-collision guard refuses the plan
+      // before ever reaching renameFolder, the same "only stub the identifier the test actually
+      // needs to exist" convention every other test in this file already follows.
+      lenient().when(realTaskFolderService.getTaskFolder(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "A", null)
+            .toIdentifier()))
+         .thenReturn(new AssetFolder());
       ArgumentCaptor<EditTaskFolderDialogModel> captor = ArgumentCaptor.forClass(EditTaskFolderDialogModel.class);
       when(realTaskFolderService.renameFolder(captor.capture(), eq(user))).thenReturn(null);
       when(backupService.backup(anyString())).thenReturn("snap-ref");
