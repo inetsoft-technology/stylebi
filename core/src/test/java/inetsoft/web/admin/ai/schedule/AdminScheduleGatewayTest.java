@@ -519,6 +519,136 @@ class AdminScheduleGatewayTest {
       verify(scheduleManager).setScheduleTask(anyString(), any(), eq(user));
    }
 
+   // -------------------------------------------------------------------------
+   // runTask / stopTask (bug 76687) -- scheduler-not-running/task-disabled are checked up front
+   // so the returned ScheduleActionOutcome.status is a field-named discriminator, not a bare
+   // Catalog-localized message string.
+   // -------------------------------------------------------------------------
+
+   private MockedStatic<OrganizationManager> mockOrg() {
+      MockedStatic<OrganizationManager> orgManagerStatic =
+         mockStatic(OrganizationManager.class, withSettings().lenient());
+      OrganizationManager orgManager = mock(OrganizationManager.class, withSettings().lenient());
+      when(orgManager.getCurrentOrgID(user)).thenReturn("host-org");
+      orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      return orgManagerStatic;
+   }
+
+   @Test
+   void runTask_schedulerNotRunning() throws Exception {
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(scheduleService.isSchedulerReady()).thenReturn(false);
+
+         ScheduleActionOutcome result = gateway.runTask("t1", user);
+
+         assertEquals("t1", result.taskName());
+         assertEquals(ScheduleActionOutcome.SCHEDULER_NOT_RUNNING, result.status());
+         assertNull(result.error());
+         verify(scheduleService, never()).runScheduledTask(anyString(), any());
+      }
+   }
+
+   @Test
+   void runTask_taskDisabled() throws Exception {
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(scheduleService.isSchedulerReady()).thenReturn(true);
+         inetsoft.sree.schedule.ScheduleTask task = new inetsoft.sree.schedule.ScheduleTask();
+         task.setEnabled(false);
+         when(scheduleManager.getScheduleTask("t1", "host-org")).thenReturn(task);
+
+         ScheduleActionOutcome result = gateway.runTask("t1", user);
+
+         assertEquals(ScheduleActionOutcome.TASK_DISABLED, result.status());
+         verify(scheduleService, never()).runScheduledTask(anyString(), any());
+      }
+   }
+
+   @Test
+   void runTask_started() throws Exception {
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(scheduleService.isSchedulerReady()).thenReturn(true);
+         when(scheduleManager.getScheduleTask("t1", "host-org")).thenReturn(null);
+
+         ScheduleActionOutcome result = gateway.runTask("t1", user);
+
+         assertEquals(ScheduleActionOutcome.STARTED, result.status());
+         assertNull(result.error());
+         verify(scheduleService).runScheduledTask("t1", user);
+      }
+   }
+
+   @Test
+   void runTask_failedSurfacesUnderlyingMessage() throws Exception {
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(scheduleService.isSchedulerReady()).thenReturn(true);
+         when(scheduleManager.getScheduleTask("t1", "host-org")).thenReturn(null);
+         doThrow(new Exception("boom")).when(scheduleService).runScheduledTask("t1", user);
+
+         ScheduleActionOutcome result = gateway.runTask("t1", user);
+
+         assertEquals(ScheduleActionOutcome.FAILED, result.status());
+         assertEquals("boom", result.error());
+      }
+   }
+
+   @Test
+   void stopTask_schedulerNotRunning() throws Exception {
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(scheduleService.isSchedulerReady()).thenReturn(false);
+
+         ScheduleActionOutcome result = gateway.stopTask("t1", user);
+
+         assertEquals(ScheduleActionOutcome.SCHEDULER_NOT_RUNNING, result.status());
+         verify(scheduleService, never()).stopScheduledTask(anyString(), any());
+      }
+   }
+
+   @Test
+   void stopTask_taskDisabled() throws Exception {
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(scheduleService.isSchedulerReady()).thenReturn(true);
+         inetsoft.sree.schedule.ScheduleTask task = new inetsoft.sree.schedule.ScheduleTask();
+         task.setEnabled(false);
+         when(scheduleManager.getScheduleTask("t1", "host-org")).thenReturn(task);
+
+         ScheduleActionOutcome result = gateway.stopTask("t1", user);
+
+         assertEquals(ScheduleActionOutcome.TASK_DISABLED, result.status());
+         verify(scheduleService, never()).stopScheduledTask(anyString(), any());
+      }
+   }
+
+   @Test
+   void stopTask_stoppedRegardlessOfTaskCurrentRunStatus() throws Exception {
+      // No precondition read of the task's current run status -- ScheduleTaskStatus.lastRunStatus
+      // is a Catalog-localized string, not a stable enum (see AdminScheduleGateway#stopTask's own
+      // javadoc), so an idle task's stop is whatever ScheduleService itself reports here, not a
+      // plugin-refused call.
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(scheduleService.isSchedulerReady()).thenReturn(true);
+         when(scheduleManager.getScheduleTask("t1", "host-org")).thenReturn(null);
+
+         ScheduleActionOutcome result = gateway.stopTask("t1", user);
+
+         assertEquals(ScheduleActionOutcome.STOPPED, result.status());
+         verify(scheduleService).stopScheduledTask("t1", user);
+      }
+   }
+
+   @Test
+   void stopTask_failedSurfacesUnderlyingMessage() throws Exception {
+      try(MockedStatic<OrganizationManager> orgManagerStatic = mockOrg()) {
+         when(scheduleService.isSchedulerReady()).thenReturn(true);
+         when(scheduleManager.getScheduleTask("t1", "host-org")).thenReturn(null);
+         doThrow(new Exception("boom")).when(scheduleService).stopScheduledTask("t1", user);
+
+         ScheduleActionOutcome result = gateway.stopTask("t1", user);
+
+         assertEquals(ScheduleActionOutcome.FAILED, result.status());
+         assertEquals("boom", result.error());
+      }
+   }
+
    private static void mockSession(MockedStatic<XSessionService> sessionStatic) {
       // SRPrincipal's constructor calls XSessionService.getService().createSessionID(), which
       // requires a Spring context. Mock it to avoid that dependency.

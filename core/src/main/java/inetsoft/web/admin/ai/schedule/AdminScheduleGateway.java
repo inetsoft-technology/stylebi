@@ -206,6 +206,91 @@ public class AdminScheduleGateway {
    }
 
    /**
+    * Triggers {@code taskName}'s next run immediately. Mirrors {@code
+    * EMScheduleController#runTasks}'s delegation to {@code ScheduleService#runScheduledTask}, but
+    * -- per bug 76687 -- never lets the call's own localized error message be the only signal:
+    * scheduler-down and task-disabled are checked up front (the same two conditions {@code
+    * ScheduleService} itself distinguishes internally) so the returned {@link
+    * ScheduleActionOutcome#status} is a field-named discriminator, not a string a caller would
+    * have to pattern-match against a {@code Catalog}-localized message.
+    */
+   public ScheduleActionOutcome runTask(String taskName, Principal user) throws Exception {
+      checkPermission(user);
+      ScheduleActionOutcome precheck = precheckSchedulerAndTask(taskName, user);
+
+      if(precheck != null) {
+         return precheck;
+      }
+
+      try {
+         scheduleService.runScheduledTask(taskName, user);
+         return new ScheduleActionOutcome(taskName, ScheduleActionOutcome.STARTED, null);
+      }
+      catch(Exception e) {
+         return new ScheduleActionOutcome(taskName, ScheduleActionOutcome.FAILED, e.getMessage());
+      }
+   }
+
+   /**
+    * Stops {@code taskName}'s currently-executing run, if any. Mirrors {@code
+    * EMScheduleController#stopTasks}'s delegation to {@code ScheduleService#stopScheduledTask}; see
+    * {@link #runTask} for why the scheduler-down/task-disabled conditions are checked up front
+    * instead of read back out of that call's own exception message.
+    *
+    * <p>Deliberately does NOT precondition on the task's current run status (e.g. refusing to stop
+    * an already-idle task): {@code ScheduleService#stopScheduledTask} itself has no such check
+    * either (it calls {@code stopNow} unconditionally once the two checks below pass), and the only
+    * place that status is exposed today ({@code ScheduleTaskStatus#lastRunStatus}) is a {@code
+    * Catalog}-localized string (e.g. {@code catalog.getString("Running")}), not a stable enum -- a
+    * client-side precondition here would silently stop matching on a non-English-locale
+    * deployment. A stop on an already-idle task is therefore whatever the server itself reports
+    * (typically a same-as-{@link ScheduleActionOutcome#STOPPED} no-op), not a plugin-refused call.
+    */
+   public ScheduleActionOutcome stopTask(String taskName, Principal user) throws Exception {
+      checkPermission(user);
+      ScheduleActionOutcome precheck = precheckSchedulerAndTask(taskName, user);
+
+      if(precheck != null) {
+         return precheck;
+      }
+
+      try {
+         scheduleService.stopScheduledTask(taskName, user);
+         return new ScheduleActionOutcome(taskName, ScheduleActionOutcome.STOPPED, null);
+      }
+      catch(Exception e) {
+         return new ScheduleActionOutcome(taskName, ScheduleActionOutcome.FAILED, e.getMessage());
+      }
+   }
+
+   /**
+    * Shared scheduler-down/task-disabled precheck for {@link #runTask}/{@link #stopTask}. Returns
+    * {@code null} when neither condition applies (caller should proceed with the actual run/stop
+    * call), otherwise the terminal {@link ScheduleActionOutcome} to return as-is.
+    *
+    * <p>A task that does not exist is deliberately NOT distinguished here (falls through to the
+    * actual run/stop call, same as {@code ScheduleService#runScheduledTask}/{@code
+    * #stopScheduledTask}'s own null-tolerant lookups) -- neither of those methods gives a distinct
+    * not-found error at their layer either.
+    */
+   private ScheduleActionOutcome precheckSchedulerAndTask(String taskName, Principal user) {
+      if(!scheduleService.isSchedulerReady()) {
+         return new ScheduleActionOutcome(taskName, ScheduleActionOutcome.SCHEDULER_NOT_RUNNING,
+            null);
+      }
+
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(user);
+      inetsoft.sree.schedule.ScheduleTask task =
+         scheduleManager.getScheduleTask(taskName, currentOrgID);
+
+      if(task != null && !task.isEnabled()) {
+         return new ScheduleActionOutcome(taskName, ScheduleActionOutcome.TASK_DISABLED, null);
+      }
+
+      return null;
+   }
+
+   /**
     * Gets the list of conditions defined for a task. Mirrors {@code
     * ScheduleApiService#getTaskConditions}.
     */

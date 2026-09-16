@@ -23,6 +23,7 @@ import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.schedule.model.TaskListModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -104,6 +107,54 @@ public class AdminScheduleController {
    public ApplyResult apply(@RequestBody ScheduleApplyRequest req, Principal user) throws Exception {
       requireSiteAdmin(user);
       return applyService.apply(req, user);
+   }
+
+   /**
+    * Triggers each named task's next run immediately (bug 76687). Unlike {@link #preview}/{@link
+    * #apply}, this is not a changeset -- there is nothing to preview and no rollback: each task's
+    * run is independent and self-inverse (a run cannot be un-run once its actions fire), matching
+    * how Cluster's own pause/resume actions are also applied immediately with no rollback
+    * machinery. See {@link AdminScheduleGateway#runTask} for how the scheduler-down/task-disabled
+    * conditions are surfaced as a field-named {@link ScheduleActionOutcome#status} rather than a
+    * bare localized message.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/run-tasks")
+   public ScheduleActionResult runTasks(@RequestBody TaskListModel req, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      List<ScheduleActionOutcome> outcomes = new ArrayList<>();
+
+      for(String taskName : req.taskNames()) {
+         outcomes.add(scheduleGateway.runTask(taskName, user));
+      }
+
+      return new ScheduleActionResult(outcomes);
+   }
+
+   /**
+    * Stops each named task's currently-executing run, if any (bug 76687). See {@link #runTasks}
+    * for why this is not a changeset, and {@link AdminScheduleGateway#stopTask} for why a stop is
+    * not preconditioned on the task's current run status client-side.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/stop-tasks")
+   public ScheduleActionResult stopTasks(@RequestBody TaskListModel req, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      List<ScheduleActionOutcome> outcomes = new ArrayList<>();
+
+      for(String taskName : req.taskNames()) {
+         outcomes.add(scheduleGateway.stopTask(taskName, user));
+      }
+
+      return new ScheduleActionResult(outcomes);
    }
 
    /** Same rationale and shape as {@code AdminAiController#requireSiteAdmin} -- see there. */
