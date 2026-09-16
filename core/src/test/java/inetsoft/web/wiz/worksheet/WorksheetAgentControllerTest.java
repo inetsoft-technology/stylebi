@@ -55,6 +55,7 @@ import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularDataSource;
@@ -3989,6 +3990,73 @@ class WorksheetAgentControllerTest {
          "with a real collision on 'ORDERS' the new table must fall back to 'ORDERS1'");
    }
 
+   /**
+    * Regression for WBT-009 (#76691): {@code add_table} used to silently rename on a name
+    * collision (see {@link #addBoundTableStillSuffixesOnRealCollision}) with nothing in the
+    * {@code edit} response disclosing it -- {@code edit} returned {@code void}, so there was no
+    * wire response to read regardless of what the caller did. {@code edit}'s response now carries
+    * the resolved assembly name for {@code add_table}; this proves it for {@code addBoundTable}'s
+    * collision path specifically.
+    */
+   @Test
+   void addBoundTableEditResponseDisclosesResolvedNameOnCollision() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      MetadataApiService metadataApiService = mock(MetadataApiService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.PHYSICAL_TABLE),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(metadataApiService.getJDBCDatasource("MyDatasource")).thenReturn(jdbcDs);
+
+      XNode tableMetaData = new XNode("ORDERS");
+      tableMetaData.setAttribute("type", "TABLE");
+      when(metadataApiService.getTableMetaData(eq(jdbcDs), isNull(), isNull(), eq("ORDERS")))
+         .thenReturn(tableMetaData);
+
+      DatabaseTableMeta tableMeta = new DatabaseTableMeta();
+      tableMeta.setColumns(new ArrayList<>());
+      when(metadataApiService.getTableDetails(eq("MyDatasource"), eq("ORDERS"), isNull(), isNull(),
+                                              eq(agent)))
+         .thenReturn(tableMeta);
+
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new PhysicalBoundTableAssembly(ws, "ORDERS"));
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-BT6"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, metadataApiService,
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addBoundTableRequest("ORDERS", "MyDatasource");
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<SQLTypes> sqlTypes = mockStatic(SQLTypes.class)) {
+         SQLTypes types = mock(SQLTypes.class);
+         sqlTypes.when(() -> SQLTypes.getSQLTypes(jdbcDs)).thenReturn(types);
+         when(types.getQualifiedName(eq(tableMetaData), eq(jdbcDs))).thenReturn("ORDERS");
+
+         response = ctrl.edit("TOK-BT6", req, agent);
+      }
+
+      assertNotNull(response.getBody(),
+         "add_table's response must disclose the resolved assembly name");
+      assertEquals("ORDERS1", response.getBody().assemblyName(),
+         "the response must report the ACTUAL resolved name, not the requested 'ORDERS'");
+   }
+
    // ---------------------------------------------------------------------------
    // add_table with endpoint/suffix — dispatch guards + permission gate for addTabularTable()
    // ---------------------------------------------------------------------------
@@ -5047,6 +5115,80 @@ class WorksheetAgentControllerTest {
       finally {
          configContext.setApplicationContext(realAppContext);
       }
+   }
+
+   /**
+    * Regression for WBT-009 (#76691): {@code addQueryParamsTable} shares the same
+    * {@code AssetUtil.getNextName} collision-suffixing as {@code addBoundTable} (see
+    * {@link #addBoundTableEditResponseDisclosesResolvedNameOnCollision}), and its {@code edit}
+    * response must disclose the resolved name too. Unlike
+    * {@link #addQueryParamsTableThreadsQueryParamsIntoTheSharedHelper}, {@code editSvc} is
+    * stubbed to actually invoke the {@code applyOnRuntime} lambda against a real
+    * {@link Worksheet} (a pre-existing "Products" assembly forces the collision), and the fake
+    * query is staged with a non-empty output column so the empty-column check does not throw
+    * before the assembly is added -- none of the existing {@code addQueryParamsTable*} tests
+    * drive it this far.
+    */
+   @Test
+   void addQueryParamsTableEditResponseDisclosesResolvedNameOnCollision() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.setOutputColumns(new XTypeNode[] { new XTypeNode("id") });
+
+      EditRequest req = addQueryParamsTableRequest("Products", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new TabularTableAssembly(ws, "Products"));
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-QP8"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         response = ctrl.edit("TOK-QP8", req, agent);
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertNotNull(ws.getAssembly("Products1"),
+         "with a real collision on 'Products' the new table must fall back to 'Products1'");
+      assertNotNull(response.getBody(),
+         "add_table's response must disclose the resolved assembly name");
+      assertEquals("Products1", response.getBody().assemblyName(),
+         "the response must report the ACTUAL resolved name, not the requested 'Products'");
    }
 
    /**
