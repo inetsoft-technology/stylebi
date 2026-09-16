@@ -51,13 +51,17 @@ class AdminScheduleControllerTest {
    @Mock private AdminScheduleGateway scheduleGateway;
    @Mock private ScheduleChangePlanService planService;
    @Mock private ScheduleChangesetApplyService applyService;
+   @Mock private AdminScheduleFolderGateway folderGateway;
+   @Mock private ScheduleFolderChangePlanService folderPlanService;
+   @Mock private ScheduleFolderChangesetApplyService folderApplyService;
    @Mock private Principal principal;
    @Mock private OrganizationManager orgManager;
    private AdminScheduleController controller;
    private MockedStatic<OrganizationManager> orgManagerStatic;
 
    @BeforeEach void setup() {
-      controller = new AdminScheduleController(scheduleGateway, planService, applyService);
+      controller = new AdminScheduleController(scheduleGateway, planService, applyService,
+         folderGateway, folderPlanService, folderApplyService);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
@@ -206,6 +210,71 @@ class AdminScheduleControllerTest {
          TaskListModel.builder().taskNames(List.of("t1")).build(), principal);
 
       assertEquals(List.of(outcome), result.results());
+   }
+
+   @Test void previewFoldersThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.previewFolders(new ScheduleFolderChangePlanRequest(), principal));
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(folderPlanService);
+   }
+
+   @Test void previewFoldersDelegatesToFolderPlanService() throws Exception {
+      ScheduleFolderChangePlanRequest req = new ScheduleFolderChangePlanRequest();
+      ResolvedPlan plan = new ResolvedPlan("t", Collections.emptyList(), true, true, "hash", "token");
+      when(folderPlanService.resolve(req, principal)).thenReturn(plan);
+
+      ResolvedPlan result = controller.previewFolders(req, principal);
+
+      assertSame(plan, result);
+   }
+
+   @Test void applyFoldersThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.applyFolders(new ScheduleFolderApplyRequest(), principal));
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(folderApplyService);
+   }
+
+   @Test void applyFoldersDelegatesToFolderApplyService() throws Exception {
+      ScheduleFolderApplyRequest req = new ScheduleFolderApplyRequest();
+      ApplyResult applied = new ApplyResult("tx-1", AdminChangesetApplyService.STATUS_APPLIED,
+                                            null, Collections.emptyList(), null);
+      when(folderApplyService.apply(req, principal)).thenReturn(applied);
+
+      ApplyResult result = controller.applyFolders(req, principal);
+
+      assertSame(applied, result);
+   }
+
+   @Test void getFolderThrowsForbiddenForNonSiteAdmin() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> controller.getFolder("/Examples", principal));
+      assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
+      verifyNoInteractions(folderGateway);
+   }
+
+   @Test void getFolderDelegatesToFolderGateway() throws Exception {
+      ScheduleFolderView view = ScheduleFolderView.of("/Examples", "admin", Collections.emptyList());
+      when(folderGateway.getFolder("/Examples", principal)).thenReturn(view);
+
+      ScheduleFolderView result = controller.getFolder("/Examples", principal);
+
+      assertSame(view, result);
+   }
+
+   @Test void getFolderReturnsNotFoundForMissingPath() throws Exception {
+      when(folderGateway.getFolder("/Missing", principal)).thenReturn(ScheduleFolderView.notFound());
+
+      ScheduleFolderView result = controller.getFolder("/Missing", principal);
+
+      assertFalse(result.found());
    }
 
    @Test void handleIllegalArgumentReturnsFailedStatus() {
