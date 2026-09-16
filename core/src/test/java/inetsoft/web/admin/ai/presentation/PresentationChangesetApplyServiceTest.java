@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.presentation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -366,32 +367,42 @@ class PresentationChangesetApplyServiceTest {
 
    /** Overrides the generic identity write/read fake (set up in {@link #setUp}) for
     * {@code LOOK_AND_FEEL} only, to actually simulate what {@code LookAndFeelService.setModel}/
-    * {@code getModel} really do to {@code logoFile}/{@code faviconFile}: derive a server-side
-    * persisted name and never round-trip the FileData field itself. Without this, the generic
-    * fake's write-then-read-is-identity assumption is exactly what bug #76729 is about, so it
-    * cannot express the bug at all (see 02-refute.md's own probe, which this mirrors). */
+    * {@code getModel} really do to {@code logoFile}/{@code faviconFile}/{@code viewsheetFile}/
+    * {@code userformatFile}: derive a server-side persisted name (or, for {@code viewsheetFile} in
+    * organization scope, keep the caller's own sanitized name under {@code "<orgId>/<name>"} per
+    * {@code LookAndFeelService.setViewsheet}) and never round-trip any of the four FileData fields
+    * themselves. Without this, the generic fake's write-then-read-is-identity assumption is exactly
+    * what bug #76729 is about, so it cannot express the bug at all (see 02-refute.md's own probe,
+    * which this mirrors). */
    private void mockLookAndFeelRealWrite() throws Exception {
       doAnswer(inv -> {
          LookAndFeelSettingsModel proposed = inv.getArgument(1);
          boolean global = inv.getArgument(3);
+         String orgId = global ? null : OrganizationManager.getInstance().getCurrentOrgID();
          state.put(stateKey(PresentationSubModel.LOOK_AND_FEEL, global),
-                   simulateLookAndFeelWrite(proposed));
+                   simulateLookAndFeelWrite(proposed, global, orgId));
          return null;
       }).when(access).write(eq(PresentationSubModel.LOOK_AND_FEEL), any(), any(), anyBoolean());
    }
 
-   private static LookAndFeelSettingsModel simulateLookAndFeelWrite(LookAndFeelSettingsModel proposed) {
+   private static LookAndFeelSettingsModel simulateLookAndFeelWrite(LookAndFeelSettingsModel proposed,
+                                                                    boolean global, String orgId)
+   {
       String logoName = proposed.defaultLogo() ? "" :
          proposed.logoFile() != null
             ? "portal/logo" + extensionOf(proposed.logoFile().name()) : proposed.logoName();
       String faviconName = proposed.defaultFavicon() ? "" :
          proposed.faviconFile() != null
             ? "portal/favicon" + extensionOf(proposed.faviconFile().name()) : proposed.faviconName();
+      String viewsheetName = proposed.defaultViewsheet() ? "" :
+         proposed.viewsheetFile() != null
+            ? (global ? "portal/format.css" : orgId + "/" + proposed.viewsheetFile().name())
+            : proposed.viewsheetName();
 
       return LookAndFeelSettingsModel.builder().from(proposed)
          .logoName(logoName).logoFile(null)
          .faviconName(faviconName).faviconFile(null)
-         .viewsheetFile(null)
+         .viewsheetName(viewsheetName).viewsheetFile(null)
          .userformatFile(null)
          .build();
    }
@@ -472,6 +483,84 @@ class PresentationChangesetApplyServiceTest {
       var after = MAPPER.readTree(outcome.after());
       assertEquals("portal/favicon.ico", after.get("faviconName").asText());
       assertTrue(after.get("faviconFile").isNull());
+   }
+
+   @Test
+   void applyVerifiesAViewsheetFileUpdateGlobalScope() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+      mockLookAndFeelRealWrite();
+
+      ObjectNode viewsheetFile = obj()
+         .put("name", "qa-test.css")
+         .put("content", Base64.getEncoder().encodeToString("body { color: red; }".getBytes()));
+      ObjectNode spec = obj().put("defaultViewsheet", false);
+      spec.set("viewsheetFile", viewsheetFile);
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", spec));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("verified", outcome.status());
+
+      var after = MAPPER.readTree(outcome.after());
+      assertEquals("portal/format.css", after.get("viewsheetName").asText());
+      assertTrue(after.get("viewsheetFile").isNull());
+   }
+
+   @Test
+   void applyVerifiesAViewsheetFileUpdateOrganizationScope() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, false, cleanLookAndFeel().build());
+      mockLookAndFeelRealWrite();
+
+      ObjectNode viewsheetFile = obj()
+         .put("name", "qa-test.css")
+         .put("content", Base64.getEncoder().encodeToString("body { color: red; }".getBytes()));
+      ObjectNode spec = obj().put("defaultViewsheet", false);
+      spec.set("viewsheetFile", viewsheetFile);
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "organization", spec));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("verified", outcome.status());
+
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      var after = MAPPER.readTree(outcome.after());
+      assertEquals(orgId + "/qa-test.css", after.get("viewsheetName").asText());
+      assertTrue(after.get("viewsheetFile").isNull());
+   }
+
+   @Test
+   void applyVerifiesAUserformatFileUpdate() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+      mockLookAndFeelRealWrite();
+
+      ObjectNode userformatFile = obj()
+         .put("name", "userformat.xml")
+         .put("content", Base64.getEncoder().encodeToString("<userformat/>".getBytes()));
+      ObjectNode spec = obj();
+      spec.set("userformatFile", userformatFile);
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", spec));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("verified", outcome.status());
+
+      var after = MAPPER.readTree(outcome.after());
+      assertTrue(after.get("userformatFile").isNull());
    }
 
    @Test

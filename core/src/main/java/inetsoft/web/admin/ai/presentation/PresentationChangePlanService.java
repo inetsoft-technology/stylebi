@@ -137,6 +137,7 @@ public class PresentationChangePlanService {
 
          if(subModel == PresentationSubModel.LOOK_AND_FEEL) {
             spec = sanitizeLookAndFeelFileNames(label, spec);
+            requireNoDerivedLookAndFeelNameFields(label, spec);
          }
 
          requireNoSecretFields(label, subModel, spec);
@@ -310,6 +311,34 @@ public class PresentationChangePlanService {
       }
 
       return copy;
+   }
+
+   /** PR #5298 {@code claude-review} bot finding, same bug axis as the class javadoc below:
+    * {@code logoName}/{@code faviconName}/{@code viewsheetName} are pure derived read-back output --
+    * {@code LookAndFeelService.getModel} is their only reader (lines 120/122/124), and {@code
+    * setModel}'s real write path never reads any of the three (confirmed by reading the source, not
+    * just the bot's claim). Setting one directly in a spec is a silent no-op for the actual write,
+    * yet with no paired {@code *File} upload {@link #simulateLookAndFeelReadback}'s {@code isDefault}/
+    * {@code hasContent} branches both miss and the caller's raw value is projected verbatim --
+    * reproducing bug #76729's exact false "value did not read back as written" symptom through this
+    * second trigger. Refused outright rather than simulated: there is no real capability lost, since
+    * the corresponding {@code *File} field (or {@code default*} to reset) is the only way any of
+    * these three names is ever actually written. */
+   private static void requireNoDerivedLookAndFeelNameFields(String label, JsonNode spec) {
+      requireNotDirectlySettable(label, spec, "logoName", "logoFile", "defaultLogo");
+      requireNotDirectlySettable(label, spec, "faviconName", "faviconFile", "defaultFavicon");
+      requireNotDirectlySettable(label, spec, "viewsheetName", "viewsheetFile", "defaultViewsheet");
+   }
+
+   private static void requireNotDirectlySettable(String label, JsonNode spec, String nameField,
+                                                  String fileField, String defaultField)
+   {
+      if(spec.has(nameField)) {
+         throw new IllegalArgumentException(
+            label + ".spec." + nameField + ": not directly settable -- " + nameField + " is " +
+            "derived from the server's own persisted filename when " + fileField + " is uploaded; " +
+            "submit " + fileField + " instead, or " + defaultField + ":true to reset it");
+      }
    }
 
    /** Bug #76729: {@code lookAndFeel}'s four {@code FileData} fields ({@code logoFile}/
