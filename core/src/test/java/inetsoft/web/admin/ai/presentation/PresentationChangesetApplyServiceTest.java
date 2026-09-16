@@ -25,6 +25,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
+import inetsoft.web.admin.model.FileData;
 import inetsoft.web.admin.presentation.model.LookAndFeelSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationDashboardSettingsModel;
 import inetsoft.web.admin.presentation.model.PresentationFormatsSettingsModel;
@@ -37,6 +38,7 @@ import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
 
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -173,7 +175,10 @@ class PresentationChangesetApplyServiceTest {
    private static LookAndFeelSettingsModel lookAndFeel(boolean expand) {
       return LookAndFeelSettingsModel.builder()
          .ascending(true).repositoryTree(true).expand(expand)
-         .defaultLogo(true).defaultFavicon(true).defaultViewsheet(true).defaultFont(true)
+         .defaultLogo(true).logoName("")
+         .defaultFavicon(true).faviconName("")
+         .defaultViewsheet(true).viewsheetName("")
+         .defaultFont(true)
          .viewsheetCSSEntries(List.of()).vsEnabled(true).build();
    }
 
@@ -346,6 +351,152 @@ class PresentationChangesetApplyServiceTest {
       var result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+   }
+
+   // ---------------------------------------------------------------- lookAndFeel FileData read-back (bug #76729)
+
+   private static LookAndFeelSettingsModel.Builder cleanLookAndFeel() {
+      return LookAndFeelSettingsModel.builder()
+         .ascending(true).repositoryTree(true).expand(false)
+         .defaultLogo(true).logoName("")
+         .defaultFavicon(true).faviconName("")
+         .defaultViewsheet(true).viewsheetName("")
+         .defaultFont(true).viewsheetCSSEntries(List.of()).vsEnabled(true);
+   }
+
+   /** Overrides the generic identity write/read fake (set up in {@link #setUp}) for
+    * {@code LOOK_AND_FEEL} only, to actually simulate what {@code LookAndFeelService.setModel}/
+    * {@code getModel} really do to {@code logoFile}/{@code faviconFile}: derive a server-side
+    * persisted name and never round-trip the FileData field itself. Without this, the generic
+    * fake's write-then-read-is-identity assumption is exactly what bug #76729 is about, so it
+    * cannot express the bug at all (see 02-refute.md's own probe, which this mirrors). */
+   private void mockLookAndFeelRealWrite() throws Exception {
+      doAnswer(inv -> {
+         LookAndFeelSettingsModel proposed = inv.getArgument(1);
+         boolean global = inv.getArgument(3);
+         state.put(stateKey(PresentationSubModel.LOOK_AND_FEEL, global),
+                   simulateLookAndFeelWrite(proposed));
+         return null;
+      }).when(access).write(eq(PresentationSubModel.LOOK_AND_FEEL), any(), any(), anyBoolean());
+   }
+
+   private static LookAndFeelSettingsModel simulateLookAndFeelWrite(LookAndFeelSettingsModel proposed) {
+      String logoName = proposed.defaultLogo() ? "" :
+         proposed.logoFile() != null
+            ? "portal/logo" + extensionOf(proposed.logoFile().name()) : proposed.logoName();
+      String faviconName = proposed.defaultFavicon() ? "" :
+         proposed.faviconFile() != null
+            ? "portal/favicon" + extensionOf(proposed.faviconFile().name()) : proposed.faviconName();
+
+      return LookAndFeelSettingsModel.builder().from(proposed)
+         .logoName(logoName).logoFile(null)
+         .faviconName(faviconName).faviconFile(null)
+         .viewsheetFile(null)
+         .userformatFile(null)
+         .build();
+   }
+
+   private static String extensionOf(String name) {
+      int dot = name.lastIndexOf('.');
+      return dot >= 0 ? name.substring(dot) : ".gif";
+   }
+
+   @Test
+   void applyVerifiesALogoFileUpdate() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+      mockLookAndFeelRealWrite();
+
+      ObjectNode logoFile = obj()
+         .put("name", "qa-test-logo.png")
+         .put("content", Base64.getEncoder().encodeToString("fake-png-bytes".getBytes()));
+      ObjectNode spec = obj().put("defaultLogo", false);
+      spec.set("logoFile", logoFile);
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", spec));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("verified", outcome.status());
+      assertNull(outcome.error());
+
+      var after = MAPPER.readTree(outcome.after());
+      assertEquals("portal/logo.png", after.get("logoName").asText());
+      assertTrue(after.get("logoFile").isNull());
+   }
+
+   @Test
+   void applyVerifiesALogoRevertToDefault() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel()
+         .defaultLogo(false).logoName("portal/logo.png").build());
+      mockLookAndFeelRealWrite();
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", obj().put("defaultLogo", true)));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("verified", outcome.status());
+
+      var after = MAPPER.readTree(outcome.after());
+      assertEquals("", after.get("logoName").asText());
+   }
+
+   @Test
+   void applyVerifiesAFaviconFileUpdate() throws Exception {
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+      mockLookAndFeelRealWrite();
+
+      ObjectNode faviconFile = obj()
+         .put("name", "qa-test-favicon.ico")
+         .put("content", Base64.getEncoder().encodeToString("fake-ico-bytes".getBytes()));
+      ObjectNode spec = obj().put("defaultFavicon", false);
+      spec.set("faviconFile", faviconFile);
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", spec));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertNull(result.rollbackFailures());
+      PresentationApplyOutcome outcome = result.results().get(0);
+      assertEquals("verified", outcome.status());
+
+      var after = MAPPER.readTree(outcome.after());
+      assertEquals("portal/favicon.ico", after.get("faviconName").asText());
+      assertTrue(after.get("faviconFile").isNull());
+   }
+
+   @Test
+   void applyReportsRollbackFailedWhenALookAndFeelEntrysOwnVerificationFails() throws Exception {
+      // Defect 2, independent of Defect 1: access.write "succeeds" (no exception) but the storage
+      // layer silently keeps the old value, as a genuine persistence failure would -- this must
+      // surface as an unconditional RollbackFailure (rollback-failed), never rolled-back, since the
+      // write attempt happened and lookAndFeel has no live rollback (01-spec.md section 4/6).
+      seed(PresentationSubModel.LOOK_AND_FEEL, true, cleanLookAndFeel().build());
+
+      doAnswer(inv -> null)
+         .when(access).write(eq(PresentationSubModel.LOOK_AND_FEEL), any(), any(), anyBoolean());
+
+      PresentationApplyRequest req = applyRequest("t", "ok", true,
+         change("lookAndFeel", "global", obj().put("expand", true)));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals("failed", result.results().get(0).status());
+      assertNotNull(result.rollbackFailures());
+      assertTrue(result.rollbackFailures().stream()
+                    .anyMatch(f -> f.property().startsWith("lookAndFeel:")));
+      assertFalse(((LookAndFeelSettingsModel)
+         state.get(stateKey(PresentationSubModel.LOOK_AND_FEEL, true))).expand());
    }
 
    // ---------------------------------------------------------------- rollback: value-scope
