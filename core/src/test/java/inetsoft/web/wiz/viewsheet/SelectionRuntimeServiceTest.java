@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
@@ -666,6 +667,51 @@ class SelectionRuntimeServiceTest {
                   SelectionRuntimeService.deselectTargets(current, toRemove));
    }
 
+   /**
+    * The vacuous-truth gap (bug-76701): against an empty {@code current}, the shortest-prefix
+    * search's {@code noneMatch} over an empty {@code remaining} is vacuously true at the very
+    * first prefix, so before the fix this manufactured a target for a value that was never
+    * actually selected. An empty {@code current} has nothing to remove at all.
+    */
+   @Test
+   void isEmptyForAnyRequestedPathWhenNothingIsCurrentlySelected() {
+      List<List<String>> toRemove = List.of(List.of("Germany"));
+
+      assertEquals(List.of(), SelectionRuntimeService.deselectTargets(List.of(), toRemove));
+   }
+
+   /**
+    * The broader shape of the same gap: a mismatched deselect value misfires even against a
+    * perfectly healthy, non-empty selection, because the shortest-prefix search only asks whether
+    * a prefix is still covered by something remaining -- never whether the path was ever a member
+    * of {@code current} to begin with.
+    */
+   @Test
+   void isEmptyForARequestedPathThatWasNeverPartOfCurrentSelection() {
+      List<List<String>> current = List.of(List.of("USA West"), List.of("USA East"));
+      List<List<String>> toRemove = List.of(List.of("Germany"));
+
+      assertEquals(List.of(), SelectionRuntimeService.deselectTargets(current, toRemove));
+   }
+
+   @Test
+   void everSelectedIsTrueWhenThePathOrAnAncestorOrDescendantIsInCurrent() {
+      List<List<String>> current = List.of(List.of("NY", "New York"));
+
+      assertTrue(SelectionRuntimeService.everSelected(current, List.of("NY", "New York")),
+                "an exact match is trivially an overlap");
+      assertTrue(SelectionRuntimeService.everSelected(current, List.of("NY")),
+                "current holds a descendant of the requested ancestor path");
+   }
+
+   @Test
+   void everSelectedIsFalseForAnUnrelatedPath() {
+      List<List<String>> current = List.of(List.of("USA West"), List.of("USA East"));
+
+      assertFalse(SelectionRuntimeService.everSelected(current, List.of("Germany")));
+      assertFalse(SelectionRuntimeService.everSelected(List.of(), List.of("Germany")));
+   }
+
    // ── additive and deselect (the accumulate-vs-replace design gap) ────────
 
    /**
@@ -721,33 +767,31 @@ class SelectionRuntimeServiceTest {
    }
 
    /**
-    * An explicit deselect list reaches the endpoint as a deselect event for exactly those values.
+    * A deselect value the caller believes is selected but that {@code current} contains no trace
+    * of (bug-76701: {@code getSelectionList()} is left unstubbed here, null, the same "domain not
+    * yet known" shape every other integration test in this file uses — {@code SelectionList}
+    * cannot be mocked outside a Spring context, confirmed by actually attempting it — so
+    * {@code selectedPaths(assembly)} sees an empty current selection) must not be reported as
+    * removed, and must not reach {@code applySelection} at all. Before the fix, an empty
+    * {@code current} vacuously matched any requested path (see {@link #deselectTargets}), which is
+    * exactly the shape of the reported bug: a fully unbound, always-empty assembly reporting
+    * {@code deselected: 1} for a value it never actually held.
     *
-    * <p>{@code getSelectionList()} is left unstubbed (null, the same "domain not yet known"
-    * shape every other integration test in this file uses — {@code SelectionList} cannot be
-    * mocked outside a Spring context) — so {@code selectedPaths(assembly)} sees an empty current
-    * selection here, not a real one. That does not weaken this test: {@link #deselectTargets}
-    * degenerates safely against an empty {@code current} (every requested path's own first
-    * segment always qualifies as its shortest clearable prefix, since nothing remains to protect),
-    * so the exact single-segment "East" path this asserts is what a real populated selection
-    * would produce too — this test is about the wiring reaching {@code applySelection} with the
-    * right value, not about the ancestor-collapse logic itself (covered directly, over
-    * {@code List<List<String>>}, above).
+    * <p>The genuinely-matched case — a value that really is in {@code current} — is covered
+    * directly over {@code List<List<String>>} above ({@code deselectTargets}/{@code everSelected}
+    * and the ancestor-collapse tests), since a real, populated {@code current} cannot be produced
+    * through this harness at all.
     */
    @Test
-   void explicitDeselectRemovesExactlyTheNamedValues() throws Exception {
+   void explicitDeselectOfAValueNotInCurrentReportsNothingRemoved() throws Exception {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
       Map<String, Object> result = h.service.setSelection("tok", principal(), "Filter1", null,
          List.of(List.of("East")), null, null, null, "");
 
-      assertEquals(1, result.get("deselected"));
-      ArgumentCaptor<ApplySelectionListEvent> sent =
-         ArgumentCaptor.forClass(ApplySelectionListEvent.class);
-      verify(h.selections).applySelection(anyString(), anyString(), sent.capture(),
-                                          any(Principal.class), any(), anyString());
-      assertArrayEquals(new String[]{ "East" }, sent.getValue().getValues().get(0).getValue());
-      assertFalse(sent.getValue().getValues().get(0).isSelected());
+      assertFalse(result.containsKey("deselected"),
+                 "East was never actually selected (current is empty), so nothing was removed");
+      verifyNoInteractions(h.selections);
    }
 
    /** Naming the same value in both 'values' and 'deselect' is a contradiction, refused by name. */
@@ -966,9 +1010,90 @@ class SelectionRuntimeServiceTest {
                    "writeStateContent writes the selection on the save path, so a caller must know");
    }
 
+   // ── the unbound-column guard (bug-76701: select/deselect/clear all reported success while
+   // never actually writing a filter, because the assembly had no column bound) ────────────────
+
+   /**
+    * A null {@code getDataRef()} means {@code getConditionList()}/{@code getSelection()} always
+    * short-circuit to null/false -- nothing downstream of {@code setSelection} could ever produce
+    * a real applied condition, so this has to be refused before any of it runs.
+    */
+   @Test
+   void refusesSetSelectionOnAColumnlessSelectionList() {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      when(assembly.getDataRef()).thenReturn(null);
+      Harness h = harness(assembly);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Filter1", List.of(List.of("East")), null,
+                                      null, null, null, ""));
+
+      assertTrue(e.getMessage().contains("Filter1"), e.getMessage());
+      assertTrue(e.getMessage().contains("no column bound"), e.getMessage());
+      verifyNoInteractions(h.selections);
+   }
+
+   /** {@code getDataRefs()} returning an empty array is the same "no column bound" shape. */
+   @Test
+   void refusesSetSelectionOnATreeWithNoDataRefsAtAll() {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, false);
+      when(assembly.getDataRefs()).thenReturn(new DataRef[0]);
+      Harness h = harness(assembly);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Tree1", List.of(List.of("East")), null,
+                                      null, null, null, ""));
+
+      assertTrue(e.getMessage().contains("Tree1"), e.getMessage());
+      verifyNoInteractions(h.selections);
+   }
+
+   /** {@code getDataRefs()} returning an array of nulls is the same "no column bound" shape. */
+   @Test
+   void refusesSetSelectionOnATreeWhoseDataRefsAreAllNull() {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, false);
+      when(assembly.getDataRefs()).thenReturn(new DataRef[]{ null });
+      Harness h = harness(assembly);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Tree1", List.of(List.of("East")), null,
+                                      null, null, null, ""));
+   }
+
+   @Test
+   void refusesClearSelectionOnAColumnlessSelectionList() {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      when(assembly.getDataRef()).thenReturn(null);
+      Harness h = harness(assembly);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.clearSelection("tok", principal(), "Filter1", ""));
+
+      assertTrue(e.getMessage().contains("Filter1"), e.getMessage());
+      verifyNoInteractions(h.selections);
+   }
+
+   @Test
+   void refusesSelectSubtreeOnAColumnlessTree() {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, false);
+      when(assembly.getDataRefs()).thenReturn(null);
+      Harness h = harness(assembly);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.selectSubtree("tok", principal(), "Tree1", List.of("East"), "select", ""));
+
+      assertTrue(e.getMessage().contains("Tree1"), e.getMessage());
+      verifyNoInteractions(h.selections);
+   }
+
    // ── fixtures ──────────────────────────────────────────────────────────────
 
-   /** Infos are mocked: their real constructors need SreeEnv and the Spring context. */
+   /**
+    * Infos are mocked: their real constructors need SreeEnv and the Spring context. Stubs a bound
+    * column by default -- {@code getDataRef()} -- since bug-76701's guard now refuses any of
+    * these endpoints on a column-less assembly; a test of that guard itself overrides it back to
+    * null (see {@code refusesAnUnboundSelectionList} et al.).
+    */
    private static SelectionListVSAssembly list(int sortType, boolean single, String search,
                                                String... selected) {
       SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
@@ -977,15 +1102,18 @@ class SelectionRuntimeServiceTest {
       when(info.getSortTypeValue()).thenReturn(sortType);
       when(info.getSearchString()).thenReturn(search);
       doReturn(info).when(assembly).getInfo();
+      when(assembly.getDataRef()).thenReturn(mock(DataRef.class));
       return assembly;
    }
 
+   /** See {@link #list}'s note on the default bound column. */
    private static SelectionTreeVSAssembly tree(int sortType, boolean single) {
       SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
       SelectionTreeVSAssemblyInfo info = mock(SelectionTreeVSAssemblyInfo.class);
       when(info.isSingleSelection()).thenReturn(single);
       when(info.getSortTypeValue()).thenReturn(sortType);
       doReturn(info).when(assembly).getInfo();
+      when(assembly.getDataRefs()).thenReturn(new DataRef[]{ mock(DataRef.class) });
       return assembly;
    }
 
