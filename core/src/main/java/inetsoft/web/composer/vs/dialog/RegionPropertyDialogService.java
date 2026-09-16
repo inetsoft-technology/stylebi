@@ -258,6 +258,16 @@ public class RegionPropertyDialogService {
       TitleDescriptor titleDesc = regionHandler.getTitleDescriptor(descriptor, axisType);
       ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
       TitleArea titleArea = regionHandler.getTitleArea(chartArea, axisType);
+
+      // ChartArea only builds a TitleArea for an axis whose title is currently visible (a hidden
+      // title has no label, so VGraph never builds one to derive an area from), so a title that
+      // is currently hidden otherwise reaches an unguarded NPE here instead of a clear refusal.
+      if(titleArea == null) {
+         throw new IllegalArgumentException(
+            "The '" + axisType + "' axis title is not visible, so it has no region properties " +
+            "to get. Show the title before requesting its format.");
+      }
+
       String oldTitle = (String) titleArea.getChartAreaInfo().getProperty("titlename");
 
       return new TitleFormatDialogModel(titleDesc, oldTitle);
