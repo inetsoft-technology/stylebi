@@ -18,9 +18,7 @@
 package inetsoft.uql.rest.auth;
 
 import com.sun.security.jgss.ExtendedGSSCredential;
-import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.rest.AbstractRestDataSource;
-import inetsoft.util.ThreadContext;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.KerberosCredentials;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -53,24 +51,9 @@ public class KerberosAuthenticator implements RestAuthenticator {
          final GSSCredential serviceCredentials;
 
          if(ds.isConstrainedDelegation()) {
-            final SRPrincipal contextPrincipal = (SRPrincipal) ThreadContext.getContextPrincipal();
-            final KerberosImpersonationType impersonationType = ds.getImpersonationType();
-            final String impersonate;
-
-            switch(impersonationType) {
-            case STATIC:
-               impersonate = ds.getImpersonatePrincipal();
-               break;
-            case PRINCIPAL:
-               impersonate = contextPrincipal.getName();
-               break;
-            case PROPERTY:
-               impersonate = contextPrincipal.getProperty(ds.getImpersonatePrincipal());
-               break;
-            default:
-               impersonate = null;
-               LOG.warn("Invalid kerberos impersonation type: {}", impersonationType);
-            }
+            // resolved by the data source so that the identity impersonated here and the
+            // one used to discriminate the query cache key cannot drift apart (Bug #76658)
+            final String impersonate = ds.getImpersonatedIdentity();
 
             // may need callback handler if keytab is out of order
             final String serviceName = ds.getConfigurationServiceName();
