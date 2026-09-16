@@ -986,4 +986,158 @@ class WorksheetEditServiceTest {
                  "a join whose wiring failed after registration must not remain in the worksheet");
       assertEquals(2, ws.getAssemblies().length, "no assembly beyond the pre-existing 2 tables");
    }
+
+   // Bug #76730 WBS-050: addCrossJoin()/addMergeJoin() built their TableAssemblyOperator.Operator
+   // without ever calling setLeftTable()/setRightTable(), unlike the two-table addJoin() overload
+   // (~line 774-775) and the multi-table addJoin(joinPaths) path (~line 870-871), both of which do.
+   // That left the operator's own leftTable/rightTable null for the life of the join, which in
+   // turn made editJoin() silently no-op on a CROSS join (it read the null names and wrote to a
+   // brand-new (null,null) map entry instead of the real edge) and made
+   // WorksheetReadService.readJoins() filter the edge out of the model entirely (it skips any
+   // operator with a null leftTable/rightTable).
+
+   @Test
+   void addCrossJoinPopulatesOperatorTableNames() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), eq(ResourceType.CROSS_JOIN), anyString(), any()))
+         .thenReturn(true);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), securityEngine, mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent, ed -> ed.addCrossJoin("CJ", "A", "B"));
+
+      RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) ws.getAssembly("CJ");
+      assertNotNull(join);
+      TableAssemblyOperator.Operator op = join.getOperator(0).getOperator(0);
+      assertEquals("A", op.getLeftTable());
+      assertEquals("B", op.getRightTable());
+   }
+
+   @Test
+   void addMergeJoinPopulatesOperatorTableNames() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent, ed -> ed.addMergeJoin("MJ", new String[]{ "A", "B", "C" }));
+
+      MergeJoinTableAssembly join = (MergeJoinTableAssembly) ws.getAssembly("MJ");
+      assertNotNull(join);
+      TableAssemblyOperator.Operator op0 = join.getOperator(0).getOperator(0);
+      assertEquals("A", op0.getLeftTable());
+      assertEquals("B", op0.getRightTable());
+      TableAssemblyOperator.Operator op1 = join.getOperator(1).getOperator(0);
+      assertEquals("B", op1.getLeftTable());
+      assertEquals("C", op1.getRightTable());
+   }
+
+   @Test
+   void editJoinOnCrossJoinActuallyUpdatesTheRealEdge() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), eq(ResourceType.CROSS_JOIN), anyString(), any()))
+         .thenReturn(true);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), securityEngine, mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent, ed -> ed.addCrossJoin("CJ", "A", "B"));
+      svc.apply("TOK", agent, ed -> ed.editJoin("CJ", "id", "id", "INNER", null, null));
+
+      RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) ws.getAssembly("CJ");
+      TableAssemblyOperator.Operator realOp = join.getOperator("A", "B").getOperator(0);
+      assertEquals(TableAssemblyOperator.INNER_JOIN, realOp.getOperation(),
+                   "the edit must land on the real (A,B) edge, not a discarded (null,null) one");
+      assertEquals("id", realOp.getLeftAttribute().getAttribute());
+      assertEquals("id", realOp.getRightAttribute().getAttribute());
+      assertNull(join.getOperator((String) null, (String) null),
+                 "editJoin must not create an orphan (null,null) operator entry");
+   }
+
+   @Test
+   void editJoinOnMergeJoinThrowsAccurateMessage() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent, ed -> ed.addMergeJoin("MJ", new String[]{ "A", "B" }));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editJoin("MJ", "id", "id", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("MERGE"));
+      assertTrue(ex.getMessage().contains("position"));
+      assertFalse(ex.getMessage().contains("not found"));
+   }
 }
