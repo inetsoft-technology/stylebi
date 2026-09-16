@@ -215,19 +215,7 @@ public class SheetSessionService {
     * lookup {@link #openEstablishedDirectly} uses before minting a new one.
     */
    public JoinSession findEstablishedDirectly(String ownerIdentity) {
-      if(ownerIdentity == null) {
-         return null;
-      }
-
-      long now = clock.getAsLong();
-
-      for(JoinSession s : sessions.values()) {
-         if(!s.isExpired(now) && s.establishedDirectly() && ownerIdentity.equals(s.ownerIdentity())) {
-            return s;
-         }
-      }
-
-      return null;
+      return findByIdentityAndFlag(ownerIdentity, JoinSession::establishedDirectly);
    }
 
    /** Returns the session (TTL refreshed) iff present, unexpired, and owned by agentIdentity; else null. */
@@ -398,59 +386,46 @@ public class SheetSessionService {
    }
 
    /**
-    * Returns the unexpired session bound to {@code socketSessionId} with
+    * Returns the unexpired session owned by {@code ownerIdentity} with
     * {@link JoinSession#crossSheetFollowEnabled()} {@code true}, or {@code null} if none is held.
-    * Structurally like {@link #findBySocketAndRuntime}, but scanning by socket alone -- the whole
+    * Structurally like {@link #findEstablishedDirectly}, but this is the toggle-ON half of the
+    * feature's own state rather than the {@code establishedDirectly} flag alone -- the whole
     * point of cross-sheet-follow is that the session's {@code runtimeId} is changing, so it
     * cannot be part of the lookup key (design doc section 7.2).
     *
-    * <p>At most one such session is expected live per socket (mirroring section 2's own
-    * assumption that a second portal mint from the same socket replaces, not coexists with, the
-    * first) -- not explicitly re-confirmed for this specific case; the multi-tab/same-socket edge
-    * case is an accepted, documented limitation (design doc section 7.7 item 4), not silently
-    * solved here.
+    * <p>Looked up by identity, not {@code socketSessionId}: a directly-established (D10) session's
+    * {@code socketSessionId} is permanently {@code null} (it is never paired to any one browser
+    * tab -- see {@link #openEstablishedDirectly}), so an exact socket match could never find one.
+    * {@code ownerIdentity} is instead resolved from the caller's own authenticated STOMP-frame
+    * principal, which is unspoofable the same way an HTTP-authenticated request's principal is
+    * (PSP-028; mirrors {@link SheetAgentBroadcastService#sendToComposerByIdentity}'s own
+    * identity-based resolution, added for the sibling PSP-027 bug).
+    *
+    * <p>At most one such session is expected live per identity (mirroring section 2's own
+    * assumption that a second portal mint from the same identity replaces, not coexists with, the
+    * first) -- not explicitly re-confirmed for this specific case; the multi-tab/same-identity
+    * edge case is an accepted, documented limitation (design doc section 7.7 item 4; see also
+    * {@code SheetAgentBroadcastService.sendToComposerByIdentity}'s own "first match" note), not
+    * silently solved here.
     */
-   private JoinSession findCrossSheetFollowBySocket(String socketSessionId) {
-      if(socketSessionId == null) {
-         return null;
-      }
-
-      long now = clock.getAsLong();
-
-      for(JoinSession s : sessions.values()) {
-         if(!s.isExpired(now) && s.crossSheetFollowEnabled() &&
-            socketSessionId.equals(s.socketSessionId()))
-         {
-            return s;
-         }
-      }
-
-      return null;
+   private JoinSession findCrossSheetFollowByIdentity(String ownerIdentity) {
+      return findByIdentityAndFlag(ownerIdentity, JoinSession::crossSheetFollowEnabled);
    }
 
    /**
-    * Returns the unexpired, {@link JoinSession#establishedDirectly()} session bound to
-    * {@code socketSessionId}, or {@code null} if none is held. Used by
-    * {@link #setCrossSheetFollow} to find the session a toggle applies to: a cross-sheet-follow
-    * session may not yet have a {@code runtimeId} to key a lookup by (it starts life unattached,
-    * established directly at login -- see {@link JoinSession#establishedDirectly()} -- and is
-    * only ever attached by {@link #syncToCurrentFocus} itself), so
-    * {@link #findBySocketAndRuntime}'s {@code (socketSessionId, runtimeId)} key cannot be used
-    * here. A pane-scoped session ({@code establishedDirectly() == false}) never matches this
-    * lookup, regardless of whether it happens to share a socket with a directly-established one
-    * -- the load-bearing half of charter assertion 11.
+    * Shared identity-keyed lookup behind {@link #findEstablishedDirectly} and
+    * {@link #findCrossSheetFollowByIdentity} -- both need "the one unexpired session owned by this
+    * identity with some particular boolean flag set", differing only in which flag.
     */
-   public JoinSession findEstablishedDirectlyBySocket(String socketSessionId) {
-      if(socketSessionId == null) {
+   private JoinSession findByIdentityAndFlag(String ownerIdentity, Predicate<JoinSession> flag) {
+      if(ownerIdentity == null) {
          return null;
       }
 
       long now = clock.getAsLong();
 
       for(JoinSession s : sessions.values()) {
-         if(!s.isExpired(now) && s.establishedDirectly() &&
-            socketSessionId.equals(s.socketSessionId()))
-         {
+         if(!s.isExpired(now) && flag.test(s) && ownerIdentity.equals(s.ownerIdentity())) {
             return s;
          }
       }
@@ -586,7 +561,12 @@ public class SheetSessionService {
     * {@code sessionToken} never changes, so the agent's very next tool call against that same
     * token simply resolves against the newly-focused sheet, with zero agent action.
     *
-    * <p><b>No match</b> (no cross-sheet-follow-enabled session on this socket, or {@code
+    * <p>Looked up by {@code ownerIdentity} (the caller's own authenticated STOMP-frame principal),
+    * not {@code socketSessionId} -- see {@link #findCrossSheetFollowByIdentity}'s javadoc for why
+    * a directly-established session's socket is permanently {@code null} and cannot be used as a
+    * lookup key (PSP-028).
+    *
+    * <p><b>No match</b> (no cross-sheet-follow-enabled session for this identity, or {@code
     * runtimeId}/{@code sheetType} missing): silent no-op (returns {@code null}), mirroring
     * {@link #detach}/{@link #popFocus}'s existing fire-and-forget, nothing-to-report shape -- this
     * is a passive background sync the browser is not waiting on a reply for.
@@ -598,14 +578,14 @@ public class SheetSessionService {
     * {@code ownerIdentity} -- and drops the report silently (logged, session left unchanged) on a
     * genuine mismatch. A {@code null} runtime owner (not found on this node) is tolerated, not
     * treated as a mismatch, mirroring step 3b's own null-tolerant treatment: the focus report is
-    * socket-scoped and therefore unspoofable by the agent, but it is still just the browser's own
+    * identity-scoped and therefore unspoofable by the agent, but it is still just the browser's own
     * assertion of what it has open, and this is the one place that re-verifies it against the
     * runtime's real recorded owner before trusting it (counter-assertion: "a focus report naming
     * a runtime the identity doesn't actually own is silently dropped, not trusted" -- charter
     * assertion 13).
     */
-   public JoinSession syncToCurrentFocus(String socketSessionId, String runtimeId, SheetType sheetType) {
-      JoinSession session = findCrossSheetFollowBySocket(socketSessionId);
+   public JoinSession syncToCurrentFocus(String ownerIdentity, String runtimeId, SheetType sheetType) {
+      JoinSession session = findCrossSheetFollowByIdentity(ownerIdentity);
 
       if(session == null || runtimeId == null || sheetType == null) {
          return null;
@@ -632,27 +612,32 @@ public class SheetSessionService {
 
    /**
     * Turns cross-sheet-follow on or off for the caller's own directly-established session, found
-    * by socket alone via {@link #findEstablishedDirectlyBySocket} -- see that method's javadoc
-    * for why a cross-sheet-follow session cannot be looked up by
-    * {@code (socketSessionId, runtimeId)} the way {@link #setFollowFocus} looks up a Follow Focus
-    * session.
+    * by identity via {@link #findEstablishedDirectly} -- NOT by {@code socketSessionId}: a
+    * directly-established (D10) session is never paired to any one browser tab, so its
+    * {@code socketSessionId} is permanently {@code null} (see {@link #openEstablishedDirectly})
+    * and can never be used to look one up. {@code ownerIdentity} is the caller's own authenticated
+    * STOMP-frame principal, the same source of truth an HTTP-authenticated request's principal
+    * already is elsewhere in this codebase -- not client-suppliable, so this is not a weaker check
+    * than the socket-keyed lookups {@link #setFollowFocus}/{@link #retarget} use for a pane-scoped
+    * session (PSP-028; mirrors {@link SheetAgentBroadcastService#sendToComposerByIdentity}'s own
+    * identity resolution, added for the sibling PSP-027 bug).
     *
     * <p>Throws, named, rather than silently no-opping or silently succeeding, when no
-    * directly-established session is found on this socket -- charter assertion 11's own
+    * directly-established session is found for this identity -- charter assertion 11's own
     * load-bearing check: a pane-scoped session (one whose {@link PairingGrant} named a non-null
     * {@code runtimeId} at mint time, i.e. {@link JoinSession#establishedDirectly()} {@code ==
-    * false}) can never be the one {@link #findEstablishedDirectlyBySocket} matches, since
+    * false}) can never be the one {@link #findEstablishedDirectly} matches, since
     * {@code establishedDirectly} is recorded once at {@code open()} time and never changed
     * thereafter -- this is the load-bearing server-side check, not merely a UI restriction a
     * direct STOMP message could bypass.
     *
     * @throws PairingException {@code INVALID_ARGUMENT} if no directly-established session is
-    *                          held on this socket
+    *                          held for this identity
     */
-   public JoinSession setCrossSheetFollow(String socketSessionId, boolean enabled)
+   public JoinSession setCrossSheetFollow(String ownerIdentity, boolean enabled)
       throws PairingException
    {
-      JoinSession session = findEstablishedDirectlyBySocket(socketSessionId);
+      JoinSession session = findEstablishedDirectly(ownerIdentity);
 
       if(session == null) {
          throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,

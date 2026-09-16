@@ -1005,7 +1005,7 @@ class SheetSessionServiceTest {
          "sock-portal", "alice", null, false, true);
       seedSession(svc, portal);
 
-      JoinSession updated = svc.setCrossSheetFollow("sock-portal", true);
+      JoinSession updated = svc.setCrossSheetFollow("alice~;~org", true);
 
       assertTrue(updated.crossSheetFollowEnabled());
       assertTrue(updated.establishedDirectly());
@@ -1020,7 +1020,7 @@ class SheetSessionServiceTest {
          JoinSession.ConnectionMode.PAIRED, "sock-portal-2", "alice", null, false, true, true);
       seedSession(svc, following);
 
-      JoinSession updated = svc.setCrossSheetFollow("sock-portal-2", false);
+      JoinSession updated = svc.setCrossSheetFollow("alice~;~org", false);
 
       assertFalse(updated.crossSheetFollowEnabled());
       assertEquals("rt-1", updated.runtimeId(), "disabling must not touch the current attachment");
@@ -1028,19 +1028,19 @@ class SheetSessionServiceTest {
 
    /**
     * Charter assertion 11's own load-bearing case: attempting the toggle-enable against a
-    * pane-scoped session's socketSessionId is refused, not a silent no-op or silent success.
+    * pane-scoped session's ownerIdentity is refused, not a silent no-op or silent success.
     * A pane-scoped session (establishedDirectly == false) never matches
-    * findEstablishedDirectlyBySocket, regardless of it sharing a socket.
+    * findEstablishedDirectly, regardless of it sharing an identity with a directly-established one.
     */
    @Test
-   void setCrossSheetFollowRefusesWhenOnlyAPaneScopedSessionIsOnThisSocket() {
+   void setCrossSheetFollowRefusesWhenOnlyAPaneScopedSessionExistsForThisIdentity() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
       JoinSession paneScoped = svc.open("rt-pane", "alice~;~org", SheetType.VIEWSHEET,
          "sock-pane", "alice", new EditorContext("assemblyMain", "Chart1", null, null));
       assertFalse(paneScoped.establishedDirectly());
 
       PairingException ex = assertThrows(PairingException.class,
-         () -> svc.setCrossSheetFollow("sock-pane", true));
+         () -> svc.setCrossSheetFollow("alice~;~org", true));
       assertEquals(PairingException.Kind.INVALID_ARGUMENT, ex.getKind());
 
       // Not a silent no-op either: the pane-scoped session itself must be untouched.
@@ -1049,9 +1049,31 @@ class SheetSessionServiceTest {
    }
 
    @Test
-   void setCrossSheetFollowRefusesWhenNoSessionAtAllIsOnThisSocket() {
+   void setCrossSheetFollowRefusesWhenNoSessionAtAllExistsForThisIdentity() {
       SheetSessionService svc = serviceAt(FIXED_NOW);
-      assertThrows(PairingException.class, () -> svc.setCrossSheetFollow("sock-unknown", true));
+      assertThrows(PairingException.class, () -> svc.setCrossSheetFollow("nobody~;~org", true));
+   }
+
+   /**
+    * PSP-028's own regression: a directly-established session's socketSessionId is permanently
+    * null by construction (it is never paired to any one browser tab -- see
+    * openEstablishedDirectly). The toggle must still succeed when looked up by the caller's
+    * identity, exactly like the production shape, not just the `"sock-portal"`-seeded shape the
+    * tests above use for convenience. Before PSP-028's fix, setCrossSheetFollow matched on
+    * socketSessionId.equals(s.socketSessionId()) -- `"anything".equals(null)` is always false, so
+    * this would have thrown for every real directly-established session, unconditionally.
+    */
+   @Test
+   void setCrossSheetFollowEnablesOnASessionWithATrulyNullSocketSessionId() throws PairingException {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession portal = new JoinSession("tok-null-sock", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null, false, true);
+      seedSession(svc, portal);
+
+      JoinSession updated = svc.setCrossSheetFollow("alice~;~org", true);
+
+      assertTrue(updated.crossSheetFollowEnabled());
    }
 
    // ---------------------------------------------------------------------------
@@ -1073,7 +1095,7 @@ class SheetSessionServiceTest {
          "sock-sync", "alice", null, false, true, true);
       seedSession(svc, following);
 
-      JoinSession synced = svc.syncToCurrentFocus("sock-sync", "rt-new", SheetType.VIEWSHEET);
+      JoinSession synced = svc.syncToCurrentFocus("alice~;~org", "rt-new", SheetType.VIEWSHEET);
 
       assertNotNull(synced);
       assertEquals("tok-sync", synced.sessionToken(), "sessionToken must not change");
@@ -1085,7 +1107,7 @@ class SheetSessionServiceTest {
    }
 
    @Test
-   void syncToCurrentFocusIsANoOpWhenNoSessionOnThisSocketHasOptedIn() {
+   void syncToCurrentFocusIsANoOpWhenNoSessionForThisIdentityHasOptedIn() {
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
       SheetSessionService svc = new SheetSessionService(() -> FIXED_NOW,
          mock(SheetAgentBroadcastService.class), runtimeAccess);
@@ -1095,7 +1117,7 @@ class SheetSessionServiceTest {
          "sock-x", "alice", null, false, true);
       seedSession(svc, notOptedIn);
 
-      JoinSession result = svc.syncToCurrentFocus("sock-x", "rt-new", SheetType.VIEWSHEET);
+      JoinSession result = svc.syncToCurrentFocus("alice~;~org", "rt-new", SheetType.VIEWSHEET);
 
       assertNull(result);
       verify(runtimeAccess, never()).getRuntimeOwner(any(), any());
@@ -1119,7 +1141,7 @@ class SheetSessionServiceTest {
          JoinSession.ConnectionMode.PAIRED, "sock-sync-2", "alice", null, false, true, true);
       seedSession(svc, following);
 
-      JoinSession result = svc.syncToCurrentFocus("sock-sync-2", "rt-not-mine", SheetType.VIEWSHEET);
+      JoinSession result = svc.syncToCurrentFocus("alice~;~org", "rt-not-mine", SheetType.VIEWSHEET);
 
       assertNull(result, "a mismatched-owner report must not be trusted");
       JoinSession stillOld = svc.resolve("tok-sync-2", "alice~;~org");
@@ -1140,7 +1162,7 @@ class SheetSessionServiceTest {
          "sock-sync-3", "alice", null, false, true, true);
       seedSession(svc, following);
 
-      JoinSession synced = svc.syncToCurrentFocus("sock-sync-3", "rt-unknown-node", SheetType.VIEWSHEET);
+      JoinSession synced = svc.syncToCurrentFocus("alice~;~org", "rt-unknown-node", SheetType.VIEWSHEET);
 
       assertNotNull(synced, "a null runtime owner must be tolerated, not treated as a mismatch");
       assertEquals("rt-unknown-node", synced.runtimeId());
@@ -1154,8 +1176,8 @@ class SheetSessionServiceTest {
          "sock-sync-4", "alice", null, false, true, true);
       seedSession(svc, following);
 
-      assertNull(svc.syncToCurrentFocus("sock-sync-4", null, SheetType.VIEWSHEET));
-      assertNull(svc.syncToCurrentFocus("sock-sync-4", "rt-x", null));
+      assertNull(svc.syncToCurrentFocus("alice~;~org", null, SheetType.VIEWSHEET));
+      assertNull(svc.syncToCurrentFocus("alice~;~org", "rt-x", null));
    }
 
    /**
@@ -1174,6 +1196,26 @@ class SheetSessionServiceTest {
       seedSession(svc, following);
 
       assertDoesNotThrow(() ->
-         assertNotNull(svc.syncToCurrentFocus("sock-sync-5", "rt-new", SheetType.VIEWSHEET)));
+         assertNotNull(svc.syncToCurrentFocus("alice~;~org", "rt-new", SheetType.VIEWSHEET)));
+   }
+
+   /**
+    * PSP-028's own regression, mirrored from {@code setCrossSheetFollowEnablesOnASessionWithATrulyNullSocketSessionId}:
+    * syncToCurrentFocus must find a directly-established, opted-in session by identity even when
+    * its socketSessionId is genuinely null (the production shape), not just the
+    * `"sock-sync"`-seeded shape the tests above use for convenience.
+    */
+   @Test
+   void syncToCurrentFocusRetargetsASessionWithATrulyNullSocketSessionId() {
+      SheetSessionService svc = serviceAt(FIXED_NOW);
+      JoinSession following = new JoinSession("tok-sync-6", null, "alice~;~org", null, FIXED_NOW,
+         SheetSessionService.UNATTACHED_TTL_MILLIS, JoinSession.ConnectionMode.PAIRED,
+         null, null, null, false, true, true);
+      seedSession(svc, following);
+
+      JoinSession synced = svc.syncToCurrentFocus("alice~;~org", "rt-new", SheetType.VIEWSHEET);
+
+      assertNotNull(synced, "must find the opted-in session even though its socketSessionId is null");
+      assertEquals("rt-new", synced.runtimeId());
    }
 }

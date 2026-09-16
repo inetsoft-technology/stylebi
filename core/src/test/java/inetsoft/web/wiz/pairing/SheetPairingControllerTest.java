@@ -332,15 +332,16 @@ class SheetPairingControllerTest {
       // sessions.open(...) can never produce establishedDirectly == true -- that flag is only
       // ever set by a login-triggered establish (Lane D, not present in this branch), so this
       // seeds one directly, mirroring SheetSessionServiceTest's own seedSession reflection
-      // convention rather than laundering it through open().
-      JoinSession portal = seedEstablishedDirectlySession(
-         sessions, "alice~;~host-org", "stomp-portal", "alice");
-      c.crossSheetFollowViaSocket(new SheetPairingController.CrossSheetFollowRequest(true),
-         accessorFor("stomp-portal"));
+      // convention rather than laundering it through open(). socketSessionId is deliberately
+      // null here (PSP-028): a real directly-established session's socket is always null, and
+      // the lookup below must succeed by identity regardless.
+      JoinSession portal = seedEstablishedDirectlySession(sessions, "alice~;~host-org", null, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+      c.crossSheetFollowViaSocket(new SheetPairingController.CrossSheetFollowRequest(true), alice);
 
       c.currentFocusViaSocket(
          new SheetPairingController.CurrentFocusRequest("Viewsheet/vs-1", SheetType.VIEWSHEET),
-         accessorFor("stomp-portal"));
+         alice);
 
       JoinSession resolved = sessions.resolve(portal.sessionToken(), "alice~;~host-org");
       assertEquals("Viewsheet/vs-1", resolved.runtimeId());
@@ -362,7 +363,24 @@ class SheetPairingControllerTest {
 
       c.currentFocusViaSocket(
          new SheetPairingController.CurrentFocusRequest("Viewsheet/vs-1", SheetType.VIEWSHEET),
-         accessorFor("stomp-portal"));
+         TestPrincipals.user("alice", "host-org"));
+
+      verifyNoInteractions(broadcast);
+   }
+
+   @Test
+   void currentFocusViaSocketDoesNotBroadcastWhenOwnerIsNull() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, broadcast, true);
+
+      seedEstablishedDirectlySession(sessions, "alice~;~host-org", null, null);
+
+      c.currentFocusViaSocket(
+         new SheetPairingController.CurrentFocusRequest("Viewsheet/vs-1", SheetType.VIEWSHEET),
+         null);
 
       verifyNoInteractions(broadcast);
    }
@@ -374,11 +392,12 @@ class SheetPairingControllerTest {
       SheetPairingController c = new SheetPairingController(
          new SheetPairingService(), sessions, feature, mock(SheetAgentBroadcastService.class), true);
 
-      JoinSession portal = seedEstablishedDirectlySession(
-         sessions, "alice~;~host-org", "stomp-portal", "alice");
+      // socketSessionId deliberately null -- see the identical note above.
+      JoinSession portal = seedEstablishedDirectlySession(sessions, "alice~;~host-org", null, null);
 
       SheetPairingController.CrossSheetFollowResponse resp = c.crossSheetFollowViaSocket(
-         new SheetPairingController.CrossSheetFollowRequest(true), accessorFor("stomp-portal"));
+         new SheetPairingController.CrossSheetFollowRequest(true),
+         TestPrincipals.user("alice", "host-org"));
 
       assertTrue(resp.ok());
       assertNull(resp.error());
@@ -387,8 +406,7 @@ class SheetPairingControllerTest {
 
    /**
     * Charter assertion 11's own controller-level case: attempting the toggle-enable STOMP message
-    * against a pane-scoped session's socketSessionId is refused, not a silent no-op or silent
-    * success.
+    * against a pane-scoped session's identity is refused, not a silent no-op or silent success.
     */
    @Test
    void crossSheetFollowViaSocketRefusesAPaneScopedSession() {
@@ -401,17 +419,49 @@ class SheetPairingControllerTest {
                                        "stomp-pane", "alice", null);
 
       SheetPairingController.CrossSheetFollowResponse resp = c.crossSheetFollowViaSocket(
-         new SheetPairingController.CrossSheetFollowRequest(true), accessorFor("stomp-pane"));
+         new SheetPairingController.CrossSheetFollowRequest(true),
+         TestPrincipals.user("alice", "host-org"));
 
       assertFalse(resp.ok());
       assertNotNull(resp.error());
       assertFalse(sessions.resolve(pane.sessionToken(), "alice~;~host-org").crossSheetFollowEnabled());
    }
 
-   private static SimpMessageHeaderAccessor accessorFor(String sessionId) {
-      SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
-      accessor.setSessionId(sessionId);
-      return accessor;
+   @Test
+   void crossSheetFollowViaSocketRefusesWhenOwnerIsNull() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, mock(SheetAgentBroadcastService.class), true);
+
+      seedEstablishedDirectlySession(sessions, "alice~;~host-org", null, null);
+
+      SheetPairingController.CrossSheetFollowResponse resp = c.crossSheetFollowViaSocket(
+         new SheetPairingController.CrossSheetFollowRequest(true), null);
+
+      assertFalse(resp.ok());
+      assertNotNull(resp.error());
+   }
+
+   @Test
+   void crossSheetFollowStatusReflectsTheSessionsCurrentState() {
+      SheetSessionService sessions = new SheetSessionService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      SheetPairingController c = new SheetPairingController(
+         new SheetPairingService(), sessions, feature, mock(SheetAgentBroadcastService.class), true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      assertFalse(c.crossSheetFollowStatus(alice).get("enabled"),
+                  "no directly-established session yet -- must default false, not throw");
+      assertFalse(c.crossSheetFollowStatus(null).get("enabled"),
+                  "an unauthenticated caller must read false, not throw");
+
+      seedEstablishedDirectlySession(sessions, "alice~;~host-org", null, null);
+      assertFalse(c.crossSheetFollowStatus(alice).get("enabled"),
+                  "established but never toggled on");
+
+      c.crossSheetFollowViaSocket(new SheetPairingController.CrossSheetFollowRequest(true), alice);
+      assertTrue(c.crossSheetFollowStatus(alice).get("enabled"));
    }
 
    /**
