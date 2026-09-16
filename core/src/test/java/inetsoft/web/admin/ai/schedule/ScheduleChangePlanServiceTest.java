@@ -370,6 +370,10 @@ class ScheduleChangePlanServiceTest {
       ResolvedPlan second = service.resolve(request("delete", List.of(deleteChange("t1"))), user);
 
       assertEquals(first.planHash(), second.planHash());
+      // Round 2 (sentinel-value refinement): the password is normalized to a fixed "SET" value
+      // rather than stripped outright, so the fact that a password is saved must still survive
+      // into currentValue -- not just the hash staying stable.
+      assertTrue(first.changes().get(0).currentValue().contains("password=\"SET\""));
    }
 
    // -------------------------------------------------------------------------

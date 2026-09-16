@@ -64,12 +64,23 @@ public final class ScheduleXmlProjection {
       return normalize(sw.toString());
    }
 
-   /** Strips every {@link #EXCLUDED_ATTRIBUTES} entry from a raw {@code writeXML} string. */
+   /** The fixed value every {@link #NORMALIZED_ATTRIBUTES} entry is rewritten to. */
+   private static final String NORMALIZED_VALUE = "SET";
+
+   /**
+    * Strips every {@link #EXCLUDED_ATTRIBUTES} entry and rewrites every
+    * {@link #NORMALIZED_ATTRIBUTES} entry's value to {@link #NORMALIZED_VALUE} in a raw
+    * {@code writeXML} string.
+    */
    static String normalize(String xml) {
       String result = xml;
 
       for(Pattern p : EXCLUSION_PATTERNS) {
          result = p.matcher(result).replaceAll("");
+      }
+
+      for(Pattern p : NORMALIZATION_PATTERNS) {
+         result = p.matcher(result).replaceAll("$1=\"" + NORMALIZED_VALUE + "\"");
       }
 
       return result;
@@ -88,22 +99,47 @@ public final class ScheduleXmlProjection {
     * shipping. Do not remove an entry from this list without a passing test demonstrating it is
     * stable; do not assume a fourth attribute is safe to include in the hash without the same
     * test.
+    */
+   static final String[] EXCLUDED_ATTRIBUTES = { "lastModified", "path", "editable", "removable" };
+
+   /**
+    * Attributes whose VALUE is recomputed by the persistence layer on every serialization but
+    * whose PRESENCE is itself meaningful, and is therefore normalized to a fixed sentinel value
+    * rather than stripped outright -- mirrors {@code ProviderProjection}'s {@code pw:set}/
+    * {@code pw:unset} presence token for the same category of problem (a secret whose literal
+    * content must never appear in a hash input, but whose set/unset state is a real semantic
+    * difference a plan should catch).
     *
     * <p>{@code password}: CONFIRMED unstable (bug 76726) -- {@code ServerPathInfo#writeXML}/
     * {@code EmailInfo#writeXML} re-encrypt the stored password via {@code Tool#encryptPassword}
     * on every serialization, and the underlying JCE cipher generates a fresh random IV per call,
     * so the ciphertext substring differs on every call even though the password itself never
-    * changed.
+    * changed. Both writers only ever emit the {@code password} attribute when the password is
+    * non-blank, so normalizing its value to a constant (rather than excluding the attribute)
+    * reproduces exactly the set/unset distinction: attribute present (now always
+    * {@code password="SET"}) means a password is saved, attribute absent means it is not --
+    * without ever exposing the ciphertext (or even its varying length) to the hash.
     */
-   static final String[] EXCLUDED_ATTRIBUTES = { "lastModified", "path", "editable", "removable", "password" };
+   static final String[] NORMALIZED_ATTRIBUTES = { "password" };
 
-   private static final Pattern[] EXCLUSION_PATTERNS = buildPatterns();
+   private static final Pattern[] EXCLUSION_PATTERNS = buildExclusionPatterns();
+   private static final Pattern[] NORMALIZATION_PATTERNS = buildNormalizationPatterns();
 
-   private static Pattern[] buildPatterns() {
+   private static Pattern[] buildExclusionPatterns() {
       Pattern[] patterns = new Pattern[EXCLUDED_ATTRIBUTES.length];
 
       for(int i = 0; i < EXCLUDED_ATTRIBUTES.length; i++) {
          patterns[i] = Pattern.compile("\\s+" + Pattern.quote(EXCLUDED_ATTRIBUTES[i]) + "=\"[^\"]*\"");
+      }
+
+      return patterns;
+   }
+
+   private static Pattern[] buildNormalizationPatterns() {
+      Pattern[] patterns = new Pattern[NORMALIZED_ATTRIBUTES.length];
+
+      for(int i = 0; i < NORMALIZED_ATTRIBUTES.length; i++) {
+         patterns[i] = Pattern.compile("(\\s+" + Pattern.quote(NORMALIZED_ATTRIBUTES[i]) + ")=\"[^\"]*\"");
       }
 
       return patterns;

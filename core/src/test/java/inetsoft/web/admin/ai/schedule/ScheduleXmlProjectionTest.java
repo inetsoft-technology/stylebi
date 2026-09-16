@@ -89,11 +89,13 @@ class ScheduleXmlProjectionTest {
    }
 
    // Bug 76726: ServerPathInfo#writeXML re-encrypts the stored password with a fresh IV on every
-   // call (Tool#encryptPassword -> the JCE cipher), so a delete-plan hash built off the unstripped
+   // call (Tool#encryptPassword -> the JCE cipher), so a delete-plan hash built off the raw
    // projection would differ on every call even though the task itself never changed. Stubs
    // Tool.encryptPassword to return a genuinely varying ciphertext per call for the same plaintext
    // -- simulating two real writeXML calls -- rather than a fixed deterministic mock, or this test
-   // would pass without the fix.
+   // would pass without the fix. Round 2 (sentinel-value refinement): the password attribute is no
+   // longer stripped, it is normalized to a fixed "SET" value, so this asserts the projections
+   // are equal AND that the presence of a saved password still survives into the projection.
    @Test void projectionIsStableAcrossPasswordReencryption() {
       AtomicInteger callCount = new AtomicInteger();
 
@@ -114,7 +116,21 @@ class ScheduleXmlProjectionTest {
          // calls over the identical plaintext password must produce different ciphertext.
          assertNotEquals(rawWriteXml(a), rawWriteXml(b));
          assertEquals(projectionA, projectionB);
+         assertTrue(projectionA.contains("password=\"SET\""));
       }
+   }
+
+   // Round 2: a task with no saved password must project with no password attribute at all --
+   // the dual-state (present/absent) distinction the sentinel-value normalization relies on is
+   // unaffected by this change, since ServerPathInfo/EmailInfo only ever emit the attribute when
+   // non-blank.
+   @Test void projectionHasNoPasswordAttributeWhenNoPasswordIsSaved() {
+      ScheduleTask task = task("t", "admin");
+      task.addAction(viewsheetActionWithSaveToServerPassword(""));
+
+      String projection = ScheduleXmlProjection.project(task);
+
+      assertFalse(projection.contains("password="));
    }
 
    @Test void normalizeStripsEveryExcludedAttributeByName() {
@@ -129,6 +145,19 @@ class ScheduleXmlProjectionTest {
 
       assertTrue(normalized.contains("name=\"t\""));
       assertTrue(normalized.contains("enabled=\"true\""));
+   }
+
+   @Test void normalizeRewritesEveryNormalizedAttributeValueToSet() {
+      String xml = "<Action password=\"cipherA\"><Nested password=\"cipherB\"/></Action>";
+
+      String normalized = ScheduleXmlProjection.normalize(xml);
+
+      for(String attr : ScheduleXmlProjection.NORMALIZED_ATTRIBUTES) {
+         assertFalse(normalized.contains(attr + "=\"cipher"),
+            "expected " + attr + " value to be rewritten");
+         assertTrue(normalized.contains(attr + "=\"SET\""),
+            "expected " + attr + " to be normalized to SET");
+      }
    }
 
    private static ScheduleTask task(String name, String owner) {
