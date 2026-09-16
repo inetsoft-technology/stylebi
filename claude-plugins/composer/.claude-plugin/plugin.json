@@ -1,0 +1,16 @@
+{
+  "name": "stylebi-composer-chat",
+  "version": "0.7.0",
+  "description": "Edit a live StyleBI sheet open in the Composer — worksheet structure, viewsheet layout and formatting, chart and table data binding, and the JavaScript attached to a viewsheet. One pairing code per open sheet serves all of it.",
+  "author": { "name": "StyleBI" },
+  "commands": "./claude/commands/",
+  "agents": ["./claude/agents/worksheet-editor.md"],
+  "skills": "./shared/skills/",
+  "mcpServers": {
+    "composer-chat": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/bin.js"]
+    }
+  }
+}

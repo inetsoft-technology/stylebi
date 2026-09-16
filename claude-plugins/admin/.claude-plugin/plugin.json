@@ -1,0 +1,16 @@
+{
+  "name": "stylebi-admin-chat",
+  "version": "0.1.0",
+  "description": "Administer StyleBI Enterprise Manager from Claude Code — inspect server properties and make reviewable, audited, all-or-nothing property changes via natural language.",
+  "author": { "name": "StyleBI" },
+  "commands": "./claude/commands/",
+  "agents": ["./claude/agents/admin-reviewer.md"],
+  "skills": "./shared/skills/",
+  "mcpServers": {
+    "admin-chat": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/bin.js"]
+    }
+  }
+}
