@@ -1,0 +1,22 @@
+{
+  "name": "stylebi-viz-chat",
+  "version": "0.1.0",
+  "description": "Create and modify StyleBI visualizations via Claude Code",
+  "author": {
+    "name": "StyleBI"
+  },
+  "commands": "./commands/",
+  "agents": [
+    "./agents/annotation-reviewer.md",
+    "./agents/chart-type-selector.md",
+    "./agents/viz-reviewer.md"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": {
+    "viz-chat": {
+      "type": "http",
+      "url": "${STYLEBI_WIZ_URL:-http://localhost:8000}/api/wiz/mcp"
+    }
+  }
+}

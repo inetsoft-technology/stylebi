@@ -1,0 +1,26 @@
+{
+  "name": "stylebi-chat",
+  "owner": {
+    "name": "InetSoft"
+  },
+  "plugins": [
+    {
+      "name": "stylebi-admin-chat",
+      "description": "Administer StyleBI Enterprise Manager from Claude Code — inspect server properties and make reviewable, audited, all-or-nothing property changes via natural language.",
+      "version": "0.1.0",
+      "source": "./claude-plugins/admin"
+    },
+    {
+      "name": "stylebi-composer-chat",
+      "description": "Edit a live StyleBI sheet open in the Composer — worksheet structure, viewsheet layout and formatting, chart and table data binding, and the JavaScript attached to a viewsheet. One pairing code per open sheet serves all of it.",
+      "version": "0.7.0",
+      "source": "./claude-plugins/composer"
+    },
+    {
+      "name": "stylebi-viz-chat",
+      "description": "Create and modify StyleBI visualizations via Claude Code",
+      "version": "0.1.0",
+      "source": "./claude-plugins/viz-chat"
+    }
+  ]
+}
