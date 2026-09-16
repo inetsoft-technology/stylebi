@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -81,6 +82,12 @@ class SheetOpenServiceTest {
     * dataSource's own identifier.
     */
    private AssetEntry newVsTempEntry;
+
+   /**
+    * Populated by {@code createWorksheetService} -- the freshly-minted worksheet runtime's own
+    * real, TEMPORARY_SCOPE entry (Bug #76738), mirroring {@link #newVsTempEntry}.
+    */
+   private AssetEntry newWsTempEntry;
 
    /**
     * The principal that owns the paired viewsheet runtime — i.e. the user's browser session.
@@ -694,6 +701,30 @@ class SheetOpenServiceTest {
    }
 
    /**
+    * Bug #76738: create_worksheet used to send {@code assetId(null)} on the theory that a
+    * freshly-minted worksheet has no identity at all yet. It does -- openTemporaryWorksheet
+    * already generates a real (TEMPORARY_SCOPE, "Untitled-N") entry when handed a null one,
+    * mirroring openTemporaryViewsheet's own fallback. A literal {@code null} assetId instead fed
+    * all the way down to {@code OpenWorksheetEvent.id()} (a non-@Nullable field), which failed to
+    * even deserialize server-side the moment the browser tried to open the tab
+    * (HttpMessageNotReadableException, 400) -- so the new worksheet's tab never actually opened,
+    * confirmed live.
+    */
+   @Test
+   void pushesTheRuntimesOwnRealTempEntryAsAssetIdNotNull() throws Exception {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+
+      service.createWorksheet("tok-acting", principal());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertEquals(newWsTempEntry.toIdentifier(), sent.assetId());
+      assertNotNull(sent.assetId());
+   }
+
+   /**
     * agent-sheet-visibility: create_worksheet is another real entry point that attaches a
     * session, alongside SheetJoinService.join, openBaseWorksheet, and createViewsheet, so it
     * needs the same sendAgentActive notification for the Composer tab-bar "agent connected"
@@ -841,6 +872,16 @@ class SheetOpenServiceTest {
 
          broadcast = mock(SheetAgentBroadcastService.class);
          worksheetService = mock(WorksheetService.class);
+
+         // Bug #76738: createWorksheet fetches the runtime's own temp entry back (mirroring
+         // createViewsheet) instead of assuming the freshly-minted worksheet has none.
+         newWsTempEntry = new AssetEntry(
+            inetsoft.uql.asset.AssetRepository.TEMPORARY_SCOPE, AssetEntry.Type.WORKSHEET,
+            "Untitled-1", null);
+         RuntimeWorksheet newWsRuntime = mock(RuntimeWorksheet.class);
+         when(newWsRuntime.getEntry()).thenReturn(newWsTempEntry);
+         when(worksheetService.getWorksheet(eq("ws-runtime-new"), any(Principal.class)))
+            .thenReturn(newWsRuntime);
 
          return new SheetOpenService(mock(ViewsheetSessionService.class), sheetSessions,
                                      worksheetService, securityProvider, broadcast,

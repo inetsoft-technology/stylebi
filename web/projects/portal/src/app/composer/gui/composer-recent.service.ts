@@ -80,6 +80,15 @@ export class ComposerRecentService {
       return;
     }
 
+    // Bug #76738: an unsaved sheet with no real asset path (e.g. create_worksheet's blank
+    // worksheet) yields a null entry from createAssetEntry(null) -- entry.path below would throw
+    // once recentlyViewed is non-empty, and that exception propagated out of the editAsset
+    // subscription callback, silently skipping the openWorksheet(...) call right after it. There
+    // is nothing real to record here, so treat it the same as the no-list-yet case above.
+    if(!entry) {
+      return;
+    }
+
     for(let i = 0; i < this.recentlyViewed.length; i++) {
       if(entry.path === this.recentlyViewed[i].path) {
         this.recentlyViewed.splice(i, 1);
