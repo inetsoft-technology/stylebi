@@ -5288,6 +5288,30 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * PC-010 residual gap (Redmine #76692, filed against PC-008's own residual-gap note): the
+    * short-form spellings a caller naturally reaches for -- "greater than or equal" without the
+    * "_OR_", "not equal" without the "_TO" -- were refused before this, loudly and correctly
+    * naming the rejected token, but there was no reason to keep refusing the obvious guess once
+    * noticed. Each must resolve to the SAME XCondition as its already-accepted long form, and
+    * isEqualInclusive/isNegatedOperation must recognise them too -- parseOperation alone
+    * resolving the constant is not enough, since addFilter/buildGroupConditionList call all three
+    * independently off the same raw operation string.
+    */
+   @Test
+   void theNaturalShortFormOperatorAliasesAreNowAccepted() {
+      assertEquals(XCondition.GREATER_THAN, WorksheetMutationSupport.parseOperation("GREATER_THAN_EQUAL"));
+      assertEquals(XCondition.LESS_THAN, WorksheetMutationSupport.parseOperation("LESS_THAN_EQUAL"));
+      assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation("NOT_EQUAL"));
+
+      assertTrue(WorksheetMutationSupport.isEqualInclusive("GREATER_THAN_EQUAL"));
+      assertTrue(WorksheetMutationSupport.isEqualInclusive("LESS_THAN_EQUAL"));
+      assertTrue(WorksheetMutationSupport.isNegatedOperation("NOT_EQUAL"));
+
+      // Case-insensitive and space-tolerant the same way every other operator token already is.
+      assertEquals(XCondition.GREATER_THAN, WorksheetMutationSupport.parseOperation("greater than equal"));
+   }
+
+   /**
     * "Absent" has to include whitespace, not just null. add_named_group omits the operator on
     * purpose and the contract says an absent one means equals, so a blank string reaching the
     * refusal would break a caller that had done nothing wrong.

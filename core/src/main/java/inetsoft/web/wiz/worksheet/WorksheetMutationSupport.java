@@ -2662,11 +2662,16 @@ public final class WorksheetMutationSupport {
          // "=" had no case of its own -- it reached EQUAL_TO through the default branch, which is
          // exactly why that branch could not simply be turned into a refusal.
          case "=", "EQUAL_TO", "EQUALS" -> XCondition.EQUAL_TO;
-         case "!=", "NOT_EQUAL_TO", "<>" -> XCondition.EQUAL_TO; // negated via setNegated
+         // NOT_EQUAL (no "_TO") is the natural short-form guess PC-008's residual-gap note
+         // (Redmine #76692) flagged as missing -- a loud, correctly-named refusal before this,
+         // not silent corruption, but there is no reason to keep refusing the obvious spelling.
+         case "!=", "NOT_EQUAL_TO", "NOT_EQUAL", "<>" -> XCondition.EQUAL_TO; // negated via setNegated
          case "<", "LESS_THAN"           -> XCondition.LESS_THAN;
          case ">", "GREATER_THAN"        -> XCondition.GREATER_THAN;
-         case "<=", "LESS_THAN_OR_EQUAL" -> XCondition.LESS_THAN;
-         case ">=", "GREATER_THAN_OR_EQUAL" -> XCondition.GREATER_THAN;
+         // LESS_THAN_EQUAL/GREATER_THAN_EQUAL (no "_OR_") are the same class of natural
+         // short-form guess -- same PC-008 residual-gap note.
+         case "<=", "LESS_THAN_OR_EQUAL", "LESS_THAN_EQUAL" -> XCondition.LESS_THAN;
+         case ">=", "GREATER_THAN_OR_EQUAL", "GREATER_THAN_EQUAL" -> XCondition.GREATER_THAN;
          case "BETWEEN"                  -> XCondition.BETWEEN;
          case "ONE_OF", "IN"             -> XCondition.ONE_OF;
          case "NOT_ONE_OF"               -> XCondition.ONE_OF;  // negated via setNegated
@@ -2701,7 +2706,8 @@ public final class WorksheetMutationSupport {
       }
 
       return switch(operation.toUpperCase().replace(' ', '_')) {
-         case "<=", "LESS_THAN_OR_EQUAL", ">=", "GREATER_THAN_OR_EQUAL" -> true;
+         case "<=", "LESS_THAN_OR_EQUAL", "LESS_THAN_EQUAL",
+              ">=", "GREATER_THAN_OR_EQUAL", "GREATER_THAN_EQUAL" -> true;
          default -> false;
       };
    }
@@ -2712,7 +2718,7 @@ public final class WorksheetMutationSupport {
       }
 
       return switch(operation.toUpperCase().replace(' ', '_')) {
-         case "!=", "NOT_EQUAL_TO", "<>",
+         case "!=", "NOT_EQUAL_TO", "NOT_EQUAL", "<>",
               "NOT_ONE_OF", "NOT_NULL"  -> true;
          default                        -> false;
       };
