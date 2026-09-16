@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.BDimensionRefModel;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Read-modify-write over {@code ChartBindingModel}.
@@ -108,10 +110,19 @@ public final class ChartBindingMutator {
       requireColumnLimit(chartInfo, readShelf(model, name).size(), fields == null ? 0 : fields.size());
       requireNoMapDimensionOnXY(chartInfo, name, fields);
 
+      // Only x/y ever carry a per-measure chartType (multi-style) -- group's aggregates have
+      // none to lose, so this is skipped there rather than harmlessly doing nothing every call.
+      List<ChartRefModel> oldRefs = "x".equals(name) || "y".equals(name)
+         ? new ArrayList<>(readShelf(model, name)) : List.of();
+
       List<ChartRefModel> refs = new ArrayList<>();
 
       for(FieldRef field : fields == null ? List.<FieldRef>of() : fields) {
          refs.add(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
+      }
+
+      if(!oldRefs.isEmpty()) {
+         preserveChartTypes(oldRefs, refs);
       }
 
       switch(name) {
@@ -119,6 +130,77 @@ public final class ChartBindingMutator {
       case "y" -> model.setYFields(refs);
       default -> model.setGroupFields(refs);
       }
+   }
+
+   /**
+    * Carries each surviving measure's {@code chartType} across a shelf rewrite.
+    *
+    * <p>{@code toChartRef} never sets a {@code chartType} on the refs it builds --
+    * {@code requireNoInboundChartType} refuses one arriving on the incoming {@code FieldRef} by
+    * design, since {@code set_chart_type}'s own {@code field} argument is the only accepted way
+    * to write one. But that left every {@code set_chart_shelf} call silently resetting whatever a
+    * prior {@code set_chart_type} had stored -- including the ordinary case of adding one more
+    * field to an already-typed shelf, confirmed live to NOT happen via drag-and-drop in the native
+    * Composer UI, only through this write path. Bug #76689, VCS-005.
+    *
+    * <p>Matches by (column, aggregate) identity, and further by {@code secondaryY} when more than
+    * one surviving ref shares that identity (two measures can legitimately share a column and
+    * aggregate, differing only by which Y axis they render on -- {@code requireNoInboundChartType}'s
+    * own sibling ambiguity, VCS-014) -- a candidate consumed by one match is removed from
+    * consideration so it is never reused for a second match, meaning two old refs sharing an
+    * identity restore onto two different new refs (in bind order) rather than both restoring onto
+    * whichever is found first.
+    */
+   private static void preserveChartTypes(List<ChartRefModel> oldRefs, List<ChartRefModel> newRefs) {
+      List<ChartAggregateRefModel> survivors = new ArrayList<>();
+
+      for(ChartRefModel ref : oldRefs) {
+         if(ref instanceof ChartAggregateRefModel aggregate &&
+            aggregate.getChartType() != GraphTypes.CHART_AUTO)
+         {
+            survivors.add(aggregate);
+         }
+      }
+
+      if(survivors.isEmpty()) {
+         return;
+      }
+
+      for(ChartRefModel ref : newRefs) {
+         if(!(ref instanceof ChartAggregateRefModel newAggregate)) {
+            continue;
+         }
+
+         ChartAggregateRefModel matched = null;
+
+         // Prefer column+aggregate+secondaryY, so a same-identity pair (differing only by
+         // secondaryY) each restore onto their own match rather than either onto both.
+         for(ChartAggregateRefModel old : survivors) {
+            if(sameMeasure(old, newAggregate) && old.isSecondaryY() == newAggregate.isSecondaryY()) {
+               matched = old;
+               break;
+            }
+         }
+
+         if(matched == null) {
+            for(ChartAggregateRefModel old : survivors) {
+               if(sameMeasure(old, newAggregate)) {
+                  matched = old;
+                  break;
+               }
+            }
+         }
+
+         if(matched != null) {
+            newAggregate.setChartType(matched.getChartType());
+            survivors.remove(matched);
+         }
+      }
+   }
+
+   private static boolean sameMeasure(ChartAggregateRefModel a, ChartAggregateRefModel b) {
+      return Objects.equals(a.getColumnValue(), b.getColumnValue()) &&
+             Objects.equals(a.getFormula(), b.getFormula());
    }
 
    /**

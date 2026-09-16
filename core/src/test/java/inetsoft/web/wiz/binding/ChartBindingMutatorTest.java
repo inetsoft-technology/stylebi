@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -45,6 +46,95 @@ class ChartBindingMutatorTest {
 
       assertEquals(1, model.getXFields().size());
       assertInstanceOf(ChartDimensionRefModel.class, model.getXFields().get(0));
+   }
+
+   // ── chartType survives a shelf rewrite (Bug #76689, VCS-005) ──────────────────────────────
+   //
+   // toChartRef never sets a chartType on the refs it builds (requireNoInboundChartType refuses
+   // one arriving inbound, by design), so every setShelf call used to silently reset whatever a
+   // prior set_chart_type had stored -- confirmed live to be specific to this write path, not
+   // StyleBI generally: the native Composer UI's own drag-and-drop add does not reset an existing
+   // measure's type.
+
+   @Test
+   void preservesChartTypeWhenAddingAFieldToAnAlreadyTypedYShelf() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null),
+                 new FieldRef("Orders", "measure", "DistinctCount", null, null)));
+
+      // Simulate a prior set_chart_type(field: "DistinctCount(Orders)", type: line) write.
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setChartType(GraphTypes.CHART_LINE);
+
+      // An ordinary incremental edit -- add a third field, the other two unchanged -- not a
+      // literal resend.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null),
+                 new FieldRef("Orders", "measure", "DistinctCount", null, null),
+                 new FieldRef("Quantity", "measure", "Sum", null, null)));
+
+      assertEquals(GraphTypes.CHART_LINE,
+                   ((ChartAggregateRefModel) model.getYFields().get(1)).getChartType(),
+                   "the previously-typed measure must keep its chartType across the rewrite");
+      assertEquals(GraphTypes.CHART_AUTO,
+                   ((ChartAggregateRefModel) model.getYFields().get(2)).getChartType(),
+                   "the newly-added measure has nothing to restore -- stays auto");
+   }
+
+   @Test
+   void preservesChartTypeOnTheLiteralResendCase() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setChartType(GraphTypes.CHART_LINE);
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      assertEquals(GraphTypes.CHART_LINE,
+                   ((ChartAggregateRefModel) model.getYFields().get(0)).getChartType());
+   }
+
+   @Test
+   void removingATypedFieldDropsItsTypeRatherThanMisapplyingItElsewhere() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null),
+                 new FieldRef("Orders", "measure", "DistinctCount", null, null)));
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setChartType(GraphTypes.CHART_LINE);
+
+      // Orders is dropped entirely -- nothing should crash, and Sales must not inherit its type.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      assertEquals(1, model.getYFields().size());
+      assertEquals(GraphTypes.CHART_AUTO,
+                   ((ChartAggregateRefModel) model.getYFields().get(0)).getChartType());
+   }
+
+   /**
+    * Two measures sharing the same column+aggregate, differing only by {@code secondaryY} (the
+    * VCS-014 collision shape) -- each must restore onto its OWN match, not both onto whichever is
+    * found first.
+    */
+   @Test
+   void restoresEachCollidingMeasuresOwnChartTypeSeparately() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef primary = new FieldRef("Total", "measure", "Sum", null, null, null, null, null,
+                                      null, null, false);
+      FieldRef secondary = new FieldRef("Total", "measure", "Sum", null, null, null, null, null,
+                                        null, null, true);
+      ChartBindingMutator.setShelf(model, "y", List.of(primary, secondary));
+
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setChartType(GraphTypes.CHART_BAR);
+      ((ChartAggregateRefModel) model.getYFields().get(1)).setChartType(GraphTypes.CHART_LINE);
+
+      ChartBindingMutator.setShelf(model, "y", List.of(primary, secondary));
+
+      assertEquals(GraphTypes.CHART_BAR,
+                   ((ChartAggregateRefModel) model.getYFields().get(0)).getChartType());
+      assertEquals(GraphTypes.CHART_LINE,
+                   ((ChartAggregateRefModel) model.getYFields().get(1)).getChartType());
    }
 
    @Test
