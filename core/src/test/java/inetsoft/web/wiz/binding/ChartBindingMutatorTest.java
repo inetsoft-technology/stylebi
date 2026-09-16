@@ -209,6 +209,79 @@ class ChartBindingMutatorTest {
       assertEquals("Sales", region.get("rankingMeasure"));
    }
 
+   /**
+    * A bare {@code sortByField}/{@code measure} that names a column bound as a measure more than
+    * once (under different aggregates) used to silently resolve to whichever binding came first,
+    * with no error. Bug #76689, VCS-014.
+    */
+   @Test
+   void rejectsAnAmbiguousBareSortByField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null),
+                 new FieldRef("Total", "measure", "Average", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSort(model, "x", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "Total", null)));
+      assertTrue(thrown.getMessage().contains("Sum(Total)"));
+      assertTrue(thrown.getMessage().contains("Average(Total)"));
+   }
+
+   /** The already-qualified form is unambiguous by construction and always passes through. */
+   @Test
+   void acceptsAnAlreadyQualifiedSortByFieldEvenWhenAnAmbiguousSiblingExists() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null),
+                 new FieldRef("Total", "measure", "Average", null, null)));
+
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("value_desc", "Average(Total)", null));
+
+      Map<String, Object> described = ChartBindingMutator.describeSorts(model, "x");
+      assertEquals("Average(Total)", ((Map<?, ?>) described.get("Region")).get("sortByField"));
+   }
+
+   /** Same ambiguity, same fix, for ranking's {@code measure} parameter. */
+   @Test
+   void rejectsAnAmbiguousBareRankingMeasure() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null),
+                 new FieldRef("Total", "measure", "Average", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setRanking(model, "x", "Region", null,
+            new DimensionSortRanking.Ranking("top", 5, "Total", null)));
+      assertTrue(thrown.getMessage().contains("Sum(Total)"));
+      assertTrue(thrown.getMessage().contains("Average(Total)"));
+   }
+
+   /** A bare name matching exactly one bound measure is unambiguous and unaffected. */
+   @Test
+   void acceptsAnUnambiguousBareSortByField() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null)));
+
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("value_desc", "Total", null));
+
+      Map<String, Object> described = ChartBindingMutator.describeSorts(model, "x");
+      assertEquals("Total", ((Map<?, ?>) described.get("Region")).get("sortByField"));
+   }
+
    @Test
    void rejectsSortingAColumnNotOnTheShelfNamingWhatIsBound() {
       ChartBindingModel model = new ChartBindingModel();

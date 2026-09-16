@@ -332,13 +332,81 @@ public final class ChartBindingMutator {
    public static void setSort(ChartBindingModel model, String shelf, String column,
                               Integer index, DimensionSortRanking.Sort sort)
    {
+      if(sort != null && sort.sortByField() != null && !sort.sortByField().isBlank()) {
+         requireUnambiguousMeasure(model, sort.sortByField(), "sortByField");
+      }
+
       DimensionSortRanking.applySort(requireDimension(model, shelf, column, index), sort);
    }
 
    public static void setRanking(ChartBindingModel model, String shelf, String column,
                                  Integer index, DimensionSortRanking.Ranking ranking)
    {
+      if(ranking != null && ranking.measure() != null && !ranking.measure().isBlank()) {
+         requireUnambiguousMeasure(model, ranking.measure(), "measure");
+      }
+
       DimensionSortRanking.applyRanking(requireDimension(model, shelf, column, index), ranking);
+   }
+
+   /**
+    * Refuses a {@code sortByField}/{@code measure} that names a bare column bound as a measure
+    * more than once across the chart's shelves under different aggregates -- e.g. both
+    * {@code Sum(Total)} and {@code Average(Total)} on {@code y}. Bug #76689, VCS-014: a bare name
+    * that matches 2+ bound measures used to silently resolve to whichever was bound first (via
+    * {@code BDimensionRefModel.setSortByCol}/{@code setRankingCol}, which stores the raw string
+    * with no resolution logic of its own downstream), with no error and no signal a different
+    * aggregate could have been meant. An already-qualified form (e.g. {@code "Sum(Total)"}) is
+    * always unambiguous and passes straight through, matching {@code get_binding}'s own
+    * {@code highlightField} vocabulary for a measure -- mirrors {@code requireDimension}'s
+    * same-shelf {@code index}-ambiguity discipline, extended across shelves and by aggregate
+    * identity instead of shelf position, since a measure (unlike a dimension) is never
+    * disambiguated by position.
+    */
+   private static void requireUnambiguousMeasure(ChartBindingModel model, String measure,
+                                                  String param)
+   {
+      List<String> bareMatches = new ArrayList<>();
+
+      for(String shelf : SHELVES) {
+         for(ChartRefModel ref : readShelf(model, shelf)) {
+            if(!(ref instanceof ChartAggregateRefModel aggregate)) {
+               continue;
+            }
+
+            String column = aggregate.getColumnValue();
+            String formula = aggregate.getFormula();
+
+            if(column == null) {
+               continue;
+            }
+
+            String qualified = formula == null ? column : formula + "(" + column + ")";
+
+            if(qualified.equalsIgnoreCase(measure)) {
+               // Already qualified and it names exactly one binding -- unambiguous by
+               // construction, no need to also check the bare-name matches below.
+               return;
+            }
+
+            if(column.equalsIgnoreCase(measure)) {
+               bareMatches.add(qualified);
+            }
+         }
+      }
+
+      if(bareMatches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + param + "' \"" + measure + "\" is ambiguous -- " + bareMatches.size() +
+            " measures share this column with different aggregates: " +
+            String.join(", ", bareMatches) + ". Pass the qualified form (e.g. " + param + ":\"" +
+            bareMatches.get(0) + "\") to disambiguate.");
+      }
+
+      // Zero matches is deliberately NOT refused here, unlike the >1 case above: this check's
+      // scope is narrowly the silent-first-match ambiguity (Bug #76689, VCS-014), not whether
+      // the name resolves to a real binding at all -- an unresolvable sortByField/measure is
+      // pre-existing, documented behavior this fix does not change.
    }
 
    /** The sort and ranking on every dimension of a chart shelf. */
