@@ -296,7 +296,8 @@ class SheetOpenServiceTest {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService realBroadcast = new SheetAgentBroadcastService(
          dispatcher, mock(VSObjectModelFactoryService.class),
-         mock(inetsoft.web.binding.service.VSBindingTreeService.class));
+         mock(inetsoft.web.binding.service.VSBindingTreeService.class),
+         mock(inetsoft.web.viewsheet.service.CoreLifecycleService.class));
       SheetOpenService service =
          serviceWithBase(worksheetEntry(), true, null, "sock-1", realBroadcast);
 

@@ -1558,6 +1558,42 @@ class ViewsheetAssemblyAgentControllerTest {
       verify(broadcast).broadcastBindingTreeRefresh(eq(rvs), eq("rt-vs-3"), eq(agent));
    }
 
+   /**
+    * Bug #76637 (reopen): neither broadcastRefresh nor broadcastBindingTreeRefresh ever writes
+    * VSPane's this.vs.baseEntry client-side -- only a SetViewsheetInfoCommand does -- so the
+    * Composer's bottom status-bar worksheet-path chip stayed blank after attach_base_worksheet
+    * until a manual refresh. A third, separate broadcast is required.
+    */
+   @Test
+   void attachBaseWorksheetAlsoBroadcastsAViewsheetInfoRefresh() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-3");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class), broadcast);
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Sample Queries/customers", null),
+         agent);
+
+      verify(broadcast).broadcastViewsheetInfoRefresh(eq(rvs), eq("rt-vs-3"), eq(agent));
+   }
+
    /** Permission is actually enforced (getSheet's permission arg is true), not skipped. */
    @Test
    void attachBaseWorksheetProbesWithPermissionCheckingEnabled() throws Exception {
