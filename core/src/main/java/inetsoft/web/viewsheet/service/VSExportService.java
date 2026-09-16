@@ -839,7 +839,20 @@ public class VSExportService {
             }
             finally {
                rbox.get().setViewsheet(originalViewsheet, false);
+               // rvs.setViewsheet() (unlike the sandbox-level setViewsheet() call directly
+               // above, which was deliberately passed resetRuntime=false) has no resetRuntime
+               // parameter and unconditionally forces ViewsheetSandbox.resetRuntime() --
+               // clearing parametersApplied even though the viewsheet content itself is back to
+               // where it started. Left alone, the next input-assembly refresh
+               // (VSInputService.refreshVS0 -> reset(clist), initing=true) would treat that as
+               // "not yet initialized" and let applyParameterToInput() silently reapply a stale
+               // VariableTable snapshot over a selection change that already landed correctly --
+               // same class of bug as #74220 (see markParametersApplied()'s own javadoc), just
+               // triggered by this export swap instead of an undo/redo restore. Restore the
+               // latch immediately after, exactly as RuntimeViewsheet.restoreCheckpoint0() does
+               // for #74220. (Redmine #76699 VFO-017 mechanism 2)
                rvs.setViewsheet(originalViewsheet);
+               rbox.get().markParametersApplied();
             }
          }
       }

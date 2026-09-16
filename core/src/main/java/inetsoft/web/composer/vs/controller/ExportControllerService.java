@@ -269,7 +269,15 @@ public class ExportControllerService {
             }
             finally {
                rbox.get().setViewsheet(originalViewsheet, false);
+               // See VSExportService.writeViewsheetExport's identical fix (Redmine #76699
+               // VFO-017 mechanism 2): rvs.setViewsheet() unconditionally forces
+               // ViewsheetSandbox.resetRuntime(), clearing parametersApplied even though the
+               // sandbox-level setViewsheet() call directly above was deliberately passed
+               // resetRuntime=false. Left alone, the next input-assembly refresh would let
+               // applyParameterToInput() silently reapply a stale VariableTable snapshot over a
+               // selection change that already landed correctly -- same class of bug as #74220.
                rvs.setViewsheet(originalViewsheet);
+               rbox.get().markParametersApplied();
             }
          }
       }
