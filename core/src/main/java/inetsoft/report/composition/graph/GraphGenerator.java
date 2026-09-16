@@ -222,9 +222,7 @@ public abstract class GraphGenerator {
       super();
 
       this.vizContext = VizContext.of(chart);
-      this.companionBrushing = vizContext.modern
-         && !CSSDictionary.getDictionary().checkPresent(".brush-dim-color")
-         && !CSSDictionary.getDictionary().checkPresent(".brush-highlight-color");
+      this.companionBrushing = resolveCompanionBrushing(vizContext);
       this.graphSize = size;
       this.bconds = chart.getBrushConditionList(null, false);
       this.zconds = chart.getZoomConditionList(null);
@@ -448,9 +446,7 @@ public abstract class GraphGenerator {
       super();
 
       this.vizContext = VizContext.LEGACY;
-      this.companionBrushing = vizContext.modern
-         && !CSSDictionary.getDictionary().checkPresent(".brush-dim-color")
-         && !CSSDictionary.getDictionary().checkPresent(".brush-highlight-color");
+      this.companionBrushing = resolveCompanionBrushing(vizContext);
       this.graphSize = size;
       adata = getFixedDataSet(info, adata, true);
       data = getFixedDataSet(info, data, false);
@@ -601,6 +597,18 @@ public abstract class GraphGenerator {
     */
    protected boolean isRotated(Coordinate coord) {
       return rotatedCoords.contains(coord);
+   }
+
+   /**
+    * Whether brushing recedes a mark to its own companion rather than to a flat colour. A
+    * deployment that has themed either brushing colour keeps the flat pair: the two are tuned
+    * together, and honouring one alone produces a combination nobody designed. Both constructors
+    * resolve it the same way, so the rule lives here rather than in each of them.
+    */
+   private static boolean resolveCompanionBrushing(VizContext ctx) {
+      return ctx.modern
+         && !CSSDictionary.getDictionary().checkPresent(".brush-dim-color")
+         && !CSSDictionary.getDictionary().checkPresent(".brush-highlight-color");
    }
 
    /**

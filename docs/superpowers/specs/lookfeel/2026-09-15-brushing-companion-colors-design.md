@@ -298,7 +298,13 @@ frontend, so no Angular suite is expected to move.
 - A brushed line or point chart on a brushing **target** dashboard — marks keep the darkening that
   makes them stand out; they should not read lighter than the same chart unbrushed.
 - A multi-aesthetic brushing target — the dimmed all-data layer companions from the per-measure
-  colours, not from the chart-level frame.
+  colours, not from the chart-level frame. Be specific about this one: **Multiple Styles on, two
+  measures each with its own colour binding, on a bar chart.** Multi-series by dimension does not
+  exercise it at all — `isMultiAesthetic()` is `isMultiStyles()`, so a chart-level colour binding
+  never reaches the path. And the chart type matters: line, point, radar, candle, stock and boxplot
+  deep-clone the composite per element at `GraphGenerator:4675`, which would hide a fault that a bar
+  chart exposes. Pass is each measure's dimmed bars receding to a companion of *its own* colour;
+  failure is both measures sharing one, whichever was processed last.
 - A brushed chart on an unmarked dashboard — flat grey and red.
 - A deployment with `.brush-dim-color` set — pixel-identical to before.
 - An Excel export of a brushed chart — default series colour on empty columns still taken from an
