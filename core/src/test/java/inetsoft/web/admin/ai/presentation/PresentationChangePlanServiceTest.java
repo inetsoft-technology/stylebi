@@ -20,6 +20,7 @@ package inetsoft.web.admin.ai.presentation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.general.model.WebMapSettingsModel;
@@ -118,7 +119,10 @@ class PresentationChangePlanServiceTest {
       case LOOK_AND_FEEL:
          return LookAndFeelSettingsModel.builder()
             .ascending(true).repositoryTree(true).expand(false)
-            .defaultLogo(true).defaultFavicon(true).defaultViewsheet(true).defaultFont(true)
+            .defaultLogo(true).logoName("")
+            .defaultFavicon(true).faviconName("")
+            .defaultViewsheet(true).viewsheetName("")
+            .defaultFont(true)
             .viewsheetCSSEntries(List.of()).vsEnabled(true).build();
       case WELCOME_PAGE:
          return WelcomePageSettingsModel.builder().type(0).source("").build();
@@ -367,7 +371,13 @@ class PresentationChangePlanServiceTest {
 
       var plan = service.resolve(req, PRINCIPAL);
       String proposed = plan.changes().get(0).proposedValue();
-      assertTrue(proposed.contains("\"name\":\"passwd\""), proposed);
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      // Bug #76729 fix: proposedValue now predicts the real post-write read-back, which never
+      // round-trips viewsheetFile and derives viewsheetName as "<orgId>/<sanitized name>" for
+      // organization scope (LookAndFeelService.setViewsheet) -- the sanitized name must still never
+      // contain the caller's raw ".." path traversal.
+      assertTrue(proposed.contains("\"viewsheetName\":\"" + orgId + "/passwd\""), proposed);
+      assertTrue(proposed.contains("\"viewsheetFile\":null"), proposed);
       assertFalse(proposed.contains(".."), proposed);
    }
 
@@ -382,6 +392,55 @@ class PresentationChangePlanServiceTest {
       IllegalArgumentException ex =
          assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
       assertTrue(ex.getMessage().contains("logoFile"));
+   }
+
+   // ---------------------------------------------------------------- PR #5298 finding: derived lookAndFeel *Name fields
+
+   @Test
+   void lookAndFeelLogoNameCannotBeSetDirectlyGlobalScope() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+      PresentationChangePlanRequest req = request("t",
+         change("lookAndFeel", "global", obj().put("logoName", "portal/attacker-logo.png")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+      assertTrue(ex.getMessage().contains("logoName"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("logoFile"), ex.getMessage());
+   }
+
+   @Test
+   void lookAndFeelLogoNameCannotBeSetDirectlyOrganizationScope() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+      PresentationChangePlanRequest req = request("t",
+         change("lookAndFeel", "organization", obj().put("logoName", "portal/org1/attacker-logo.png")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+      assertTrue(ex.getMessage().contains("logoName"), ex.getMessage());
+   }
+
+   @Test
+   void lookAndFeelFaviconNameCannotBeSetDirectly() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+      PresentationChangePlanRequest req = request("t",
+         change("lookAndFeel", "global", obj().put("faviconName", "portal/attacker-favicon.ico")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+      assertTrue(ex.getMessage().contains("faviconName"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("faviconFile"), ex.getMessage());
+   }
+
+   @Test
+   void lookAndFeelViewsheetNameCannotBeSetDirectly() throws Exception {
+      stub(PresentationSubModel.LOOK_AND_FEEL, currentFor(PresentationSubModel.LOOK_AND_FEEL));
+      PresentationChangePlanRequest req = request("t",
+         change("lookAndFeel", "organization", obj().put("viewsheetName", "org1/attacker.css")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, PRINCIPAL));
+      assertTrue(ex.getMessage().contains("viewsheetName"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("viewsheetFile"), ex.getMessage());
    }
 
    // ---------------------------------------------------------------- 03-reconcile.md Addition 2: portalIntegration.tabs
