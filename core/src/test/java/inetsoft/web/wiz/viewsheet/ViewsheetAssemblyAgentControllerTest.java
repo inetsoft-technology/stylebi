@@ -1543,6 +1543,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
       inetsoft.analytic.composition.ViewsheetService viewsheetService =
@@ -1568,7 +1569,10 @@ class ViewsheetAssemblyAgentControllerTest {
 
       // Never persisted -- attach only mutates the paired session's in-memory Viewsheet.
       verifyNoInteractions(viewsheetService);
-      verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET), eq("rt-vs-3"), eq(agent));
+      // The write now routes through sessions.mutate(...), whose own finally block (not this
+      // mocked path) is responsible for the checkpoint and broadcastRefresh -- see
+      // attachBaseWorksheetChecksPointsSoItCanBeUndone for the dedicated regression test.
+      verify(sessions).mutate(eq("tok"), eq(agent), any());
    }
 
    /**
@@ -1593,6 +1597,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
@@ -1622,6 +1627,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1667,6 +1673,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1725,6 +1732,9 @@ class ViewsheetAssemblyAgentControllerTest {
          verifyNoInteractions(rep);
          verifyNoInteractions(viewsheetPropertyDialogService);
          verify(vs, never()).setBaseEntry(any());
+         // The no-op refusal must never enter the checkpoint path -- a call that changes
+         // nothing must not create an undo step or broadcast a refresh.
+         verify(sessions, never()).mutate(any(), any(), any());
       }
    }
 
@@ -1756,6 +1766,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService viewsheetPropertyDialogService =
          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class);
@@ -1805,6 +1816,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService viewsheetPropertyDialogService =
          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class);
@@ -1842,6 +1854,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1872,6 +1885,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1896,6 +1910,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1929,6 +1944,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1961,6 +1977,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1998,6 +2015,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2049,6 +2067,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2087,6 +2106,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2124,6 +2144,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2184,6 +2205,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2225,6 +2247,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2250,6 +2273,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2261,6 +2285,44 @@ class ViewsheetAssemblyAgentControllerTest {
                "x", null, "query", null, null),
             agent));
       assertTrue(ex.getMessage().contains("worksheet"));
+   }
+
+   /**
+    * Follow-up to bug 76724: a successful attach/repoint must go through
+    * {@link ViewsheetSessionService#mutate} rather than {@link ViewsheetSessionService#resolve} for
+    * its write, so it gets a checkpoint (undo step) and the write-revision bump every other mutating
+    * endpoint on this controller gets -- {@code mutate}'s own {@code finally} block is what actually
+    * adds the checkpoint, so this test pins that {@code attachBaseWorksheet} reaches {@code mutate}
+    * at all (re-testing {@code mutate}'s own internals is out of scope here).
+    */
+   @Test
+   void attachBaseWorksheetChecksPointsSoItCanBeUndone() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Sample Queries/customers", null),
+         agent);
+
+      verify(sessions).mutate(eq("tok"), eq(agent), any());
    }
 
    // ---------------------------------------------------------------------------
