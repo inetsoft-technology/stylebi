@@ -115,7 +115,10 @@ public class MvChangePlanService {
    {
       requireCandidate(fc, candidatesByAnalysisId);
       boolean noData = fc.source.getNoData() == null || fc.source.getNoData();
-      boolean background = fc.source.getRunInBackground() == null || fc.source.getRunInBackground();
+      // Mirrors applyCreate's gating in MvChangesetApplyService so this preview string describes
+      // the runInBackground value apply will actually use.
+      boolean background = !noData &&
+         (fc.source.getRunInBackground() == null || fc.source.getRunInBackground());
       String proposed = "cycle=" + fc.source.getCycle() + ";noData=" + noData +
          ";runInBackground=" + background;
       return new PlanChange(fc.mvName, orgId, null, proposed, AdminChangeRecord.RISK_HIGH,
