@@ -156,6 +156,41 @@ describe("VSChart Tests", () => {
       TestBed.compileComponents();
    }));
 
+   // Bug #76703: cloneNode() (used to snapshot the chart so it stays visible while tiles
+   // reload) does not preserve live scroll state, so every scrollable descendant in the
+   // clone used to render at scrollLeft/Top 0 even when the real chart was scrolled --
+   // making the whole plot visibly jump to the unscrolled position while the snapshot was
+   // shown, then jump back once it cleared.
+   it("should preserve scroll position of scrollable containers in the loading snapshot", () => {
+      let fixture = TestBed.createComponent(VSChart);
+      let chartComponent: any = fixture.componentInstance;
+
+      const container = document.createElement("div");
+      container.innerHTML = `<chart-area><div class="chart-plot-area-scroll-container"></div></chart-area>`;
+      document.body.appendChild(container);
+
+      try {
+         const originalScrollEl =
+            container.querySelector(".chart-plot-area-scroll-container") as HTMLElement;
+         originalScrollEl.scrollLeft = 42;
+         originalScrollEl.scrollTop = 17;
+
+         chartComponent.chartContainer = { nativeElement: container };
+         chartComponent.captureChartSnapshot();
+
+         const clone = chartComponent.chartSnapshot as HTMLElement;
+         const cloneScrollEl = clone.querySelector(".chart-plot-area-scroll-container") as HTMLElement;
+
+         expect(cloneScrollEl.scrollLeft).toBe(42);
+         expect(cloneScrollEl.scrollTop).toBe(17);
+
+         chartComponent.clearChartSnapshot();
+      }
+      finally {
+         document.body.removeChild(container);
+      }
+   });
+
    it.skip("should run callbacks for visible icons", () => {
       let fixture = TestBed.createComponent(TestApp);
       fixture.componentInstance.mockObject.axes.push({
