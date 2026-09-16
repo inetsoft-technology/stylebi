@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.viewsheet.service;
+package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.VGraph;
@@ -29,18 +29,17 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.io.viewsheet.VSExporter;
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.Worksheet;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
-import inetsoft.util.FileSystemService;
 import inetsoft.util.XPortalHelper;
+import inetsoft.web.service.BinaryTransferService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.wiz.pairing.TestPrincipals;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,51 +55,34 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.mockito.Mockito.mock;
 
 /**
- * Redmine #76699 / VFO-017, mechanism 2. {@code RuntimeViewsheet.setViewsheet(Viewsheet)} always
- * calls {@code ViewsheetSandbox.setViewsheet(vs, true)} ({@code RuntimeViewsheet.java:694}) -- it
- * has no way to request {@code resetRuntime=false}. {@code VSExportService}'s whole-viewsheet
- * "current view" export (the fallback {@code get_viewsheet_image} takes for a CheckBox, which
- * cannot be rendered in isolation) calls this method to temporarily swap the live
- * {@code Viewsheet} for a clone and back -- and so unconditionally forces
- * {@code ViewsheetSandbox.resetRuntime()} in the process, even though the export code
- * deliberately passes {@code resetRuntime=false} to the sandbox-level setter it also calls two
- * lines later. {@code resetRuntime()} clears {@code ViewsheetSandbox.parametersApplied}, the flag
- * that normally short-circuits {@code refreshVariable()}'s call to {@code applyParameterToInput()}
- * for the rest of a viewsheet's life (see {@code refreshVariable}'s own
- * {@code if(initing && wbox != null && !parametersApplied)} guard). Once cleared, the very next
- * {@code initing=true} refresh -- exactly what {@code VSInputService.refreshVS0}'s
- * {@code box.get().reset(clist)} call (the 1-arg overload, which hardcodes {@code initing=true})
- * triggers -- re-fires {@code applyParameterToInput()}, which reapplies whatever stale value is
- * still sitting in the sandbox's {@code VariableTable} for that assembly -- silently reverting a
- * selection change that had just been applied directly (as {@code set_input_value}'s
- * {@code applySelection0} does), in the same request. Confirmed live with a debugger attached to a
- * running StyleBI JVM; see
+ * Redmine #76699 / VFO-017, mechanism 2 -- the same bug found (live, unpatched) in a second
+ * production call site during PR #5299's review (see
+ * {@code docs/teams/2026-09-16-bug-76699-vfo017-checkbox-clear-lag/06-review-mechanism2-r1.md}
+ * finding 1). {@code ExportControllerService.writeViewsheetExport}'s "current view" branch
+ * ({@code ExportControllerService.java:214-275} -- the Composer toolbar's manual "Export" action)
+ * is a near-verbatim copy of {@code VSExportService.writeViewsheetExport}'s identical branch: the
+ * same {@code synchronized(rvs) { rvs.setViewsheet(cviewsheet); try { ... } finally {
+ * rvs.setViewsheet(originalViewsheet); } }} swap-restore shape, sharing the exact same defect --
+ * {@code RuntimeViewsheet.setViewsheet(Viewsheet)} unconditionally forces
+ * {@code ViewsheetSandbox.resetRuntime()}, clearing {@code ViewsheetSandbox.parametersApplied} and
+ * re-arming {@code applyParameterToInput()} to reapply a stale {@code VariableTable} snapshot on
+ * the very next {@code VSInputService.refreshVS0 -> reset(clist)} cascade. See
  * {@code docs/teams/2026-09-16-bug-76699-vfo017-checkbox-clear-lag/07-mechanism2-root-cause.md}
- * in the stylebi-wiz repo for the full trace.
- *
- * <p>This is a distinct, deeper-layer bug from the {@code cellValue}-snapshot mechanism fixed by
- * {@code 665836d68} (mechanism 1): that fix made {@code CheckBox.value} track the live getter
- * instead of a frozen literal, but does nothing to stop {@code applyParameterToInput} from
- * mutating the live getter's own backing field in the first place.
+ * for the full root-cause trace (against {@code VSExportService}; the mechanism here is identical).
  *
  * <p>This test drives the real, private
- * {@code VSExportService.writeViewsheetExport(RuntimeViewsheet, VSExporter, ...)} method (via
- * reflection, since it is private) with {@code current=true} -- the exact method
- * {@code get_viewsheet_image}'s whole-viewsheet CheckBox fallback calls -- so it exercises the
- * actual production call site containing the fix (the {@code rbox.get().markParametersApplied()}
- * call added to the {@code finally} block after the clone swap-restore, the same idiom
- * {@code RuntimeViewsheet.restoreCheckpoint0()} already uses to protect the undo/redo restore path
- * for Bug #74220). The {@code exporter} is a real, minimal {@code AbstractVSExporter} subclass
- * ({@link NoOpVSExporter}, all {@code write*} methods no-op) rather than a bare {@code VSExporter}
- * mock -- deliberately, so that {@code exporter instanceof AbstractVSExporter} is true and
- * {@code AbstractVSExporter.export()}'s own internal {@code rvs.setViewsheet(...)} swap-restore
- * (a *second*, independent {@code resetRuntime()} trigger, distinct from the direct one at
- * {@code VSExportService.java:786}) genuinely runs too. This test is not about rendering output,
- * only about whether the swap-restore dance -- both layers of it -- leaves the sandbox's
- * input-parameter-reapplication latch where it needs to be.
+ * {@code ExportControllerService.writeViewsheetExport(RuntimeViewsheet, VSExporter, ...)} method
+ * (via reflection) with {@code current=true} -- the Composer toolbar's manual export of the
+ * current view -- against the same fix pattern applied here:
+ * {@code rbox.get().markParametersApplied()} added to the {@code finally} block, immediately
+ * after the swap-restore. The {@code exporter} is a real, minimal {@code AbstractVSExporter}
+ * subclass ({@link NoOpVSExporter}), not a bare mock, so that {@code AbstractVSExporter.export()}'s
+ * own internal {@code rvs.setViewsheet(...)} swap-restore (a second, independent
+ * {@code resetRuntime()} trigger) genuinely runs too -- this test exercises both triggers the fix
+ * has to survive, not just the direct one.
  */
 @WizAgentTestSupport
-class VSExportServiceParametersAppliedRegressionTest {
+class ExportControllerServiceParametersAppliedRegressionTest {
    private static final String CHECKBOX = "CheckBox1";
 
    private Viewsheet vs;
@@ -125,7 +107,7 @@ class VSExportServiceParametersAppliedRegressionTest {
 
       AssetEntry entry = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
-         "test/VSExportServiceParametersAppliedRegressionTest", null,
+         "test/ExportControllerServiceParametersAppliedRegressionTest", null,
          OrganizationManager.getInstance().getCurrentOrgID());
 
       sandbox = new ViewsheetSandbox(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, entry);
@@ -142,7 +124,7 @@ class VSExportServiceParametersAppliedRegressionTest {
       // Simulate a normal running viewsheet: the initial apply pass has already completed.
       setPrivateField(sandbox, ViewsheetSandbox.class, "parametersApplied", true);
 
-      writeViewsheetExport = VSExportService.class.getDeclaredMethod(
+      writeViewsheetExport = ExportControllerService.class.getDeclaredMethod(
          "writeViewsheetExport", RuntimeViewsheet.class, VSExporter.class, Principal.class,
          boolean.class, boolean.class, boolean.class, String[].class, boolean.class,
          boolean.class);
@@ -169,11 +151,10 @@ class VSExportServiceParametersAppliedRegressionTest {
    }
 
    @Test
-   void clearSurvivesAGetViewsheetImageExportOfTheCurrentView() throws Exception {
-      VSExportService service = new VSExportService(
+   void clearSurvivesAComposerToolbarExportOfTheCurrentView() throws Exception {
+      ExportControllerService service = new ExportControllerService(
          mock(ViewsheetService.class), mock(CoreLifecycleService.class),
-         mock(ParameterService.class), mock(SecurityEngine.class), mock(XSessionService.class),
-         mock(FileSystemService.class));
+         mock(BinaryTransferService.class));
 
       // The user checks itemA; refreshVariable's own side effect keeps the VariableTable
       // echoing the assembly's current value (production: driven by
@@ -182,16 +163,9 @@ class VSExportServiceParametersAppliedRegressionTest {
       variableTable.put(CHECKBOX, new Object[]{ "itemA" });
 
       Principal principal = TestPrincipals.user("alice", "host-org");
-      // A real AbstractVSExporter subclass, not a bare VSExporter mock: exporter instanceof
-      // AbstractVSExporter must be true so writeViewsheetExport calls setRuntimeViewsheet(rvs),
-      // and AbstractVSExporter.export()'s own internal rvs.setViewsheet swap-restore
-      // (AbstractVSExporter.java:1148, :1534 -- the root-cause doc's "hit 2", a *second*,
-      // independent resetRuntime() trigger) actually runs, so this test exercises both
-      // resetRuntime() triggers the fix's markParametersApplied() call has to survive, not just
-      // the direct one.
       VSExporter exporter = new NoOpVSExporter();
 
-      // get_viewsheet_image's whole-viewsheet CheckBox fallback: a "current view" export.
+      // The Composer toolbar's manual "Export" action, exporting the current view.
       writeViewsheetExport.invoke(service, rvs, exporter, principal, true, false, true,
          new String[0], false, false);
 
@@ -202,8 +176,8 @@ class VSExportServiceParametersAppliedRegressionTest {
 
       assertArrayEquals(new Object[0], info.getSelectedObjects(),
          "a clear that lands correctly must not be reverted by the next refreshVS0/reset(clist) " +
-         "cascade just because get_viewsheet_image's whole-viewsheet export ran first " +
-         "(Redmine #76699 VFO-017 mechanism 2)");
+         "cascade just because a manual Composer-toolbar export of the current view ran first " +
+         "(Redmine #76699 VFO-017 mechanism 2, PR #5299 review finding 1)");
    }
 
    /** A real, minimal AbstractVSExporter subclass -- every write* method is a no-op, since this
