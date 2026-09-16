@@ -18,6 +18,8 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
@@ -25,12 +27,16 @@ import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.schedule.ScheduleService;
+import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
+import inetsoft.web.admin.schedule.model.EditTaskFolderDialogModel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -183,8 +189,58 @@ class ScheduleFolderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // owner preservation on rename (reviewer round 1: this file's own mocked folderGateway hides
+   // the real AdminScheduleFolderGateway#renameFolder boundary entirely, so it cannot catch a
+   // future "simplification" back to passing a null owner directly -- see that method's own
+   // javadoc for why null WIPES the owner rather than preserving it. This test wires a REAL
+   // AdminScheduleFolderGateway (backed by mocked ScheduleTaskFolderService/ScheduleService)
+   // through the full preview/apply pipeline, so it fails if that boundary regresses.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesARenameAndSendsAnOwnerPreservingModelToTheRealService() throws Exception {
+      ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
+      ScheduleService realScheduleService = mock(ScheduleService.class);
+      AdminScheduleFolderGateway realGateway =
+         new AdminScheduleFolderGateway(realTaskFolderService, realScheduleService);
+      ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
+      ScheduleFolderChangesetApplyService realApplyService =
+         new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
+
+      lenient().when(realTaskFolderService.getFolderEntry(anyString())).thenAnswer(inv ->
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        (String) inv.getArgument(0), null));
+      // Every lookup sees a folder present -- this test only cares about the argument shape
+      // renameFolder is called with, not about this apply's own verified/rolled-back outcome.
+      lenient().when(realTaskFolderService.getTaskFolder(anyString())).thenReturn(new AssetFolder());
+      ArgumentCaptor<EditTaskFolderDialogModel> captor = ArgumentCaptor.forClass(EditTaskFolderDialogModel.class);
+      when(realTaskFolderService.renameFolder(captor.capture(), eq(user))).thenReturn(null);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest rename = renameChange("A", "B");
+      ResolvedPlan preview = realPlanService.resolve(planRequest(rename), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), rename);
+      req.setReviewOutcome("approved");
+
+      realApplyService.apply(req, user);
+
+      EditTaskFolderDialogModel model = captor.getValue();
+      assertNotNull(model.owner(), "owner must not be null -- a null owner WIPES the folder's " +
+                     "existing owner in ScheduleTaskFolderService#changeFolder, it does not preserve it");
+      assertEquals("", model.owner().name);
+      assertNull(model.owner().orgID);
+   }
+
+   // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
+
+   private static ScheduleFolderChangeRequest renameChange(String path, String newPath) {
+      ScheduleFolderChangeRequest change = new ScheduleFolderChangeRequest();
+      change.setVerb(ScheduleFolderChangeRequest.VERB_RENAME);
+      change.setPath(path);
+      change.setNewPath(newPath);
+      return change;
+   }
 
    private static ScheduleFolderChangePlanRequest planRequest(ScheduleFolderChangeRequest... changes) {
       ScheduleFolderChangePlanRequest req = new ScheduleFolderChangePlanRequest();

@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
-import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
@@ -258,7 +257,6 @@ public class ScheduleFolderChangesetApplyService {
    {
       AssetFolder before = folderGateway.findFolder(path);
       String beforeProjection = ScheduleFolderXmlProjection.project(path, before);
-      IdentityID ownerBefore = before == null ? null : before.getOwner();
       // Re-run the non-empty preflight against LIVE state at apply time too (a concurrent save
       // into the folder since preview could have added content) -- same reasoning
       // ViewsheetChangesetApplyService#applyFolderDelete documents for its own re-check.
@@ -280,7 +278,7 @@ public class ScheduleFolderChangesetApplyService {
          // permanently destroyed and nothing here resurrects it. Still queued for rollback because
          // restoring the label is strictly better than leaving it deleted too when another entry
          // in the same plan fails -- see this class's own javadoc.
-         undoable.add(Undo.delete(path, ownerBefore));
+         undoable.add(Undo.delete(path));
       }
    }
 
@@ -339,9 +337,9 @@ public class ScheduleFolderChangesetApplyService {
    {
       // Recreates an EMPTY folder at the same path -- restores the label, not any contained
       // schedule task that was permanently destroyed (see applyDelete's own javadoc). The owner
-      // captured at delete time cannot be forced back explicitly (addFolder always inherits the
-      // parent's own owner), so the recreated folder's owner may differ from undo.ownerBefore if
-      // the parent's own owner changed in between -- a further disclosed, known incompleteness.
+      // the folder had at delete time cannot be forced back explicitly (addFolder always inherits
+      // the parent's own owner), so the recreated folder's owner may differ from what it was
+      // before deletion -- a further disclosed, known incompleteness.
       folderGateway.createFolder(undo.path, user);
       boolean verified = folderGateway.findFolder(undo.path) != null;
       writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_CREATE,
@@ -443,8 +441,7 @@ public class ScheduleFolderChangesetApplyService {
          return new Undo(Kind.CREATE, path, path, null);
       }
 
-      /** @param ownerBefore disclosed-best-effort only; see {@link #rollbackDelete}'s own comment. */
-      static Undo delete(String path, IdentityID ownerBefore) {
+      static Undo delete(String path) {
          return new Undo(Kind.DELETE, path, path, null);
       }
 

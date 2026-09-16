@@ -23,9 +23,11 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
+import inetsoft.web.admin.schedule.model.EditTaskFolderDialogModel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -192,6 +194,29 @@ class AdminScheduleFolderGatewayTest {
       gateway.createFolder("/A", user);
 
       verify(taskFolderService, never()).addFolder(any(), anyString(), anyString(), anyInt(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // renameFolder -- name-only owner preservation (design §3 decision 2)
+   // -------------------------------------------------------------------------
+
+   // ScheduleTaskFolderService#changeFolder's own owner-resolution rule: a NULL owner argument
+   // WIPES the folder's existing owner (it does not mean "keep the current one") -- only an
+   // IdentityID with a BLANK name triggers the "inherit the prior owner" branch. Passing a literal
+   // null here would silently reintroduce that footgun; this test fails loud if a future
+   // "simplification" of renameFolder ever does.
+   @Test void renameFolderSendsAnEmptyNameIdentityIdNotANullOwner() throws Exception {
+      ArgumentCaptor<EditTaskFolderDialogModel> captor = ArgumentCaptor.forClass(EditTaskFolderDialogModel.class);
+      when(taskFolderService.renameFolder(captor.capture(), eq(user))).thenReturn(null);
+
+      gateway.renameFolder("A", "B", user);
+
+      EditTaskFolderDialogModel model = captor.getValue();
+      assertEquals("A", model.oldPath());
+      assertEquals("B", model.folderName());
+      assertNotNull(model.owner(), "a null owner would WIPE the folder's existing owner, not preserve it");
+      assertEquals("", model.owner().name);
+      assertNull(model.owner().orgID);
    }
 
    // -------------------------------------------------------------------------
