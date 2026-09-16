@@ -2054,6 +2054,13 @@ public class WorksheetEditService {
       {
          Assembly a = ws.getAssembly(name);
 
+         if(a instanceof MergeJoinTableAssembly) {
+            throw new PairingException(
+               "\"" + name + "\" is a MERGE join -- rows are paired by position, not by key, " +
+               "so it has no join keys to edit (the native Composer UI has no such action " +
+               "either). Remove it and rebuild with addMergeJoin instead.");
+         }
+
          if(!(a instanceof RelationalJoinTableAssembly join)) {
             throw new PairingException("Join assembly not found: " + name);
          }
@@ -2122,6 +2129,16 @@ public class WorksheetEditService {
                newOp.setOperation(operation);
                newTop.addOperator(newOp);
             }
+         }
+
+         if(leftTable == null || rightTable == null) {
+            // Every join-creating path (addJoin/addCrossJoin/addMergeJoin) must set both
+            // table names on each operator it builds; a null here means that invariant broke
+            // upstream, and writing to (null, null) would silently discard this edit instead
+            // of applying it to the real join edge (see bug-76730-WBS-050).
+            throw new PairingException(
+               "Join assembly \"" + name + "\" has an operator with no left/right table name " +
+               "recorded -- refusing to edit rather than silently discarding the change.");
          }
 
          join.setOperator(leftTable, rightTable, newTop);
@@ -2454,6 +2471,8 @@ public class WorksheetEditService {
 
          TableAssemblyOperator top = new TableAssemblyOperator();
          TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setLeftTable(leftTable);
+         op.setRightTable(rightTable);
          op.setOperation(TableAssemblyOperator.CROSS_JOIN);
          top.addOperator(op);
 
@@ -2495,6 +2514,8 @@ public class WorksheetEditService {
          for(int i = 0; i < operators.length; i++) {
             TableAssemblyOperator top = new TableAssemblyOperator();
             TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setLeftTable(tableNames[i]);
+            op.setRightTable(tableNames[i + 1]);
             op.setOperation(TableAssemblyOperator.MERGE_JOIN);
             top.addOperator(op);
             operators[i] = top;
