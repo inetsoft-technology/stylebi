@@ -631,6 +631,30 @@ class AssemblyPropertyServiceTest {
                   "into MERGE_SOURCE by forcing embedded true");
    }
 
+   /**
+    * Same guard, exercised via {@code query} alone (no {@code table}/{@code column}) --
+    * {@code embedded=false, query=true} is itself a complete, real {@code BOUND_SOURCE}
+    * configuration, so this disjunct of the guard must trip on {@code query} by itself, not only
+    * when {@code table}/{@code column} are also present.
+    */
+   @Test
+   void leavesEmbeddedAloneWhenQueryAloneIsAlsoSetForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+      patch.put("query", true);
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "query set alone in the same patch must not be reclassified into " +
+                  "MERGE_SOURCE by forcing embedded true");
+   }
+
    /** A caller who sets {@code embedded} explicitly is never overridden, even to {@code false}. */
    @Test
    void leavesEmbeddedAloneWhenCallerSetsItExplicitlyForCheckbox() throws Exception {
