@@ -35,8 +35,6 @@ import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetRuntimeAccess;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -59,8 +57,6 @@ import java.security.Principal;
  */
 @Service
 public class SheetOpenService {
-   private static final Logger LOG = LoggerFactory.getLogger(SheetOpenService.class);
-
    @Autowired
    public SheetOpenService(ViewsheetSessionService viewsheetSessions,
                             SheetSessionService sheetSessions,
@@ -191,21 +187,16 @@ public class SheetOpenService {
                                                   vsSession.socketSessionId(),
                                                   vsSession.socketUserName(), null);
 
-      // Tells the Composer tab bar an agent is now attached to this runtime. Best-effort, kept
-      // in its own try/catch, mirroring SheetJoinService.join's treatment of sendAgentActive: a
-      // failed notification must never block the open that already succeeded.
-      try {
-         broadcast.sendAgentActive(wsSession);
-      }
-      catch(Exception ex) {
-         LOG.warn("Base worksheet opened, but notifying the tab bar failed (runtimeId={})",
-                  runtimeId, ex);
-      }
-
+      // Tells the Composer tab bar an agent is now attached to this runtime -- carried on the
+      // OpenComposerAssetCommand below, not a separate sendAgentActive push, since the browser has
+      // no subscriber for that push's per-runtime channel until it processes THIS command. See
+      // OpenComposerAssetCommand.agentActive()'s own doc for why.
       OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
          .assetId(baseEntry.toIdentifier())
          .viewsheet(false)
          .runtimeId(runtimeId)
+         .agentActive(true)
+         .agentOwnerIdentity(wsSession.ownerIdentity())
          .build();
 
       // The Composer's own channel, not the paired sheet's: this command is handled by
@@ -333,22 +324,16 @@ public class SheetOpenService {
                                                   actingSession.socketSessionId(),
                                                   actingSession.socketUserName(), null);
 
-      // Tells the Composer tab bar an agent is now attached to this runtime -- the same
-      // best-effort notification openBaseWorksheet sends for its own attach path (see its own
-      // comment); create_viewsheet is a third real entry point that attaches a session, so it
-      // needs the same call for the tab-bar indicator to be consistent across all three.
-      try {
-         broadcast.sendAgentActive(vsSession);
-      }
-      catch(Exception ex) {
-         LOG.warn("Viewsheet created, but notifying the tab bar failed (runtimeId={})",
-                  runtimeId, ex);
-      }
-
+      // Tells the Composer tab bar an agent is now attached to this runtime -- carried on the
+      // OpenComposerAssetCommand below, same as openBaseWorksheet's attach path (see its own
+      // comment and OpenComposerAssetCommand.agentActive()'s doc for why a separate
+      // sendAgentActive push does not work for a runtime the browser has not opened yet).
       OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
          .assetId(newVsEntry.toIdentifier())
          .viewsheet(true)
          .runtimeId(runtimeId)
+         .agentActive(true)
+         .agentOwnerIdentity(vsSession.ownerIdentity())
          .build();
 
       broadcast.sendToComposer(actingSession.socketSessionId(), command);
@@ -472,22 +457,16 @@ public class SheetOpenService {
                                                   actingSession.socketSessionId(),
                                                   actingSession.socketUserName(), null);
 
-      // Tells the Composer tab bar an agent is now attached to this runtime -- the same
-      // best-effort notification openBaseWorksheet/createViewsheet send for their own attach
-      // paths; create_worksheet is a fourth real entry point that attaches a session, so it needs
-      // the same call for the tab-bar indicator to be consistent across all of them.
-      try {
-         broadcast.sendAgentActive(wsSession);
-      }
-      catch(Exception ex) {
-         LOG.warn("Worksheet created, but notifying the tab bar failed (runtimeId={})",
-                  runtimeId, ex);
-      }
-
+      // Tells the Composer tab bar an agent is now attached to this runtime -- carried on the
+      // OpenComposerAssetCommand below, same as openBaseWorksheet/createViewsheet's attach paths
+      // (see OpenComposerAssetCommand.agentActive()'s doc for why a separate sendAgentActive push
+      // does not work for a runtime the browser has not opened yet).
       OpenComposerAssetCommand command = OpenComposerAssetCommand.builder()
          .assetId(newWsEntry.toIdentifier())
          .viewsheet(false)
          .runtimeId(runtimeId)
+         .agentActive(true)
+         .agentOwnerIdentity(wsSession.ownerIdentity())
          .build();
 
       broadcast.sendToComposer(actingSession.socketSessionId(), command);
