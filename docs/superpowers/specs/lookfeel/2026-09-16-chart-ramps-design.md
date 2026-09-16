@@ -146,8 +146,9 @@ and `companionOf` in the class that already owns modern-palette policy.
 **The trap.** `VisualFrameWrapper:258` reads `case "BluesColorFrameW":`, but `stripInnerName` strips
 a trailing `"Wrapper"` and hands the switch `"BluesColorFrame"`. The case never matches and Blues
 falls through to the `Class.forName` default — harmless, since the default resolves correctly, and
-invisible, since nothing fails. Ours must not be written the same way; §5 carries the test that would
-catch it. Fixing the existing typo is out of scope.
+invisible, since nothing fails. The switch is explicitly an optimization, so a misspelled case only
+costs a reflective load and is not a correctness defect; ours are spelled correctly regardless, and
+no test can or should detect the difference. Fixing the existing typo is out of scope.
 
 **No name collision.** `defaults.css` declares no `ChartPalette` named Amber, Teal or Variance —
 these three names exist only as frame classes, which is what the re-tune's Corrections require.

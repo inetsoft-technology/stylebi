@@ -31,6 +31,12 @@ class HouseRampTest {
       }
    }
 
+   /**
+    * Guards cross-wiring: a case label that resolves to the wrong wrapper class. It does not catch
+    * a case label that fails to match at all - createWrapper's switch is a fast path and its
+    * Class.forName default recovers the same wrapper by name, so a misspelled label costs a
+    * reflective load and nothing else.
+    */
    @Test
    void eachFrameSurvivesTheWrapperRoundTrip() throws Exception {
       assertRoundTrips(new AmberColorFrame(), AmberColorFrameWrapper.class);

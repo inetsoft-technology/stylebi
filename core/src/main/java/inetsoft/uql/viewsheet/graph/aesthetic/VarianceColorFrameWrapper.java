@@ -21,7 +21,7 @@ import inetsoft.graph.aesthetic.VarianceColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
 
 /**
- * This class defines a sequential house color frame for continuous numeric values.
+ * This class defines a diverging house color frame for continuous numeric values.
  *
  * @version 15.0
  * @author InetSoft Technology
