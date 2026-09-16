@@ -43,6 +43,7 @@ import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import inetsoft.web.viewsheet.service.ComposerClientService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,9 +53,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class SheetAgentBroadcastService {
@@ -74,11 +73,13 @@ public class SheetAgentBroadcastService {
    @Autowired
    public SheetAgentBroadcastService(CommandDispatcherService commandDispatcherService,
                                      VSObjectModelFactoryService vsObjectModelFactoryService,
-                                     VSBindingTreeService vsBindingTreeService)
+                                     VSBindingTreeService vsBindingTreeService,
+                                     CoreLifecycleService coreLifecycleService)
    {
       this.commandDispatcherService = commandDispatcherService;
       this.vsObjectModelFactoryService = vsObjectModelFactoryService;
       this.vsBindingTreeService = vsBindingTreeService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    /**
@@ -220,6 +221,46 @@ public class SheetAgentBroadcastService {
    }
 
    /**
+    * Push a fully-populated {@code SetViewsheetInfoCommand} (the same field set
+    * {@link CoreLifecycleService#setViewsheetInfo} sends for human-driven flows) to the browser
+    * holding this runtime's paired session.
+    *
+    * <p>This is the only command that writes {@code VSPane}'s {@code this.vs.baseEntry}
+    * client-side, which drives the Composer's bottom status-bar worksheet-path chip. Neither
+    * {@link #broadcastRefresh} (per-assembly canvas repaint) nor {@link #broadcastBindingTreeRefresh}
+    * (Data panel/asset tree) ever touches it, so a caller that changes a viewsheet's base entry
+    * (e.g. {@code attach_base_worksheet}) needs this separate push too, or the chip stays stale
+    * until the user manually reopens/refreshes the viewsheet.
+    *
+    * <p>Callers must not let a failure here fail the mutation that already succeeded -- a stale
+    * status bar is a paper cut, not lost data -- so build/dispatch errors are logged and swallowed,
+    * mirroring {@link #broadcastBindingTreeRefresh}'s contract.
+    */
+   public void broadcastViewsheetInfoRefresh(RuntimeViewsheet rvs, String runtimeId,
+                                             Principal principal)
+   {
+      String sessionId = rvs.getSocketSessionId();
+
+      if(sessionId == null) {
+         return;
+      }
+
+      String user = rvs.getSocketUserName();
+
+      if(user == null) {
+         user = principal == null ? null : principal.getName();
+      }
+
+      try {
+         SetViewsheetInfoCommand command = coreLifecycleService.buildViewsheetInfoCommand(rvs, null);
+         sendCommand(user, sessionId, runtimeId, command);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to build/send viewsheet info refresh (runtimeId={})", runtimeId, e);
+      }
+   }
+
+   /**
     * Push a tab-label command (SetViewsheetInfoCommand or SetWorksheetInfoCommand, matching the
     * runtime's own type) + SaveSheetCommand to the browser so the tab title, id, and save point
     * update — mirrors the regular save flow in SaveWorksheetDialogService.
@@ -241,12 +282,16 @@ public class SheetAgentBroadcastService {
       // (viewsheet-pane.component.ts) only listens for SetViewsheetInfoCommand.assemblyInfo.name,
       // never SetWorksheetInfoCommand.label; sending the worksheet command here left every
       // viewsheet save silently unable to update its own tab title.
-      if(rs instanceof RuntimeViewsheet) {
-         Map<String, Object> assemblyInfo = new HashMap<>();
-         assemblyInfo.put("name", rs.getEntry().toView());
-         SetViewsheetInfoCommand labelCommand = new SetViewsheetInfoCommand();
-         labelCommand.setAssemblyInfo(assemblyInfo);
-         sendCommand(user, sessionId, runtimeId, labelCommand);
+      //
+      // Bug #76637: this used to send a SetViewsheetInfoCommand with only assemblyInfo populated,
+      // leaving info/baseEntry at their Java null defaults. processSetViewsheetInfoCommand
+      // unconditionally assigns command.baseEntry into this.vs.baseEntry with no null guard, so
+      // that partial command silently re-nulled the bottom-bar worksheet-path chip on every save --
+      // including right after attach_base_worksheet populated it. Use the same fully-populated
+      // builder CoreLifecycleService.setViewsheetInfo uses instead of hand-rolling a subset.
+      if(rs instanceof RuntimeViewsheet rvs) {
+         SetViewsheetInfoCommand infoCommand = coreLifecycleService.buildViewsheetInfoCommand(rvs, null);
+         sendCommand(user, sessionId, runtimeId, infoCommand);
       }
       else {
          SetWorksheetInfoCommand labelCommand = SetWorksheetInfoCommand.builder()
@@ -494,4 +539,5 @@ public class SheetAgentBroadcastService {
    private final CommandDispatcherService commandDispatcherService;
    private final VSObjectModelFactoryService vsObjectModelFactoryService;
    private final VSBindingTreeService vsBindingTreeService;
+   private final CoreLifecycleService coreLifecycleService;
 }
