@@ -199,8 +199,15 @@ public final class ChartBindingMutator {
    }
 
    private static boolean sameMeasure(ChartAggregateRefModel a, ChartAggregateRefModel b) {
-      return Objects.equals(a.getColumnValue(), b.getColumnValue()) &&
-             Objects.equals(a.getFormula(), b.getFormula());
+      return equalsIgnoreCaseOrBothNull(a.getColumnValue(), b.getColumnValue()) &&
+             equalsIgnoreCaseOrBothNull(a.getFormula(), b.getFormula());
+   }
+
+   /** Case-insensitive like the rest of this class's column/measure-name matching (e.g.
+    *  {@code requireDimension}, {@code requireUnambiguousMeasure}) -- {@code Objects.equals}
+    *  alone would compare case-sensitively, an inconsistent convention within the same class. */
+   private static boolean equalsIgnoreCaseOrBothNull(String a, String b) {
+      return a == null ? b == null : a.equalsIgnoreCase(b);
    }
 
    /**
@@ -439,15 +446,19 @@ public final class ChartBindingMutator {
     * {@code BDimensionRefModel.setSortByCol}/{@code setRankingCol}, which stores the raw string
     * with no resolution logic of its own downstream), with no error and no signal a different
     * aggregate could have been meant. An already-qualified form (e.g. {@code "Sum(Total)"}) is
-    * always unambiguous and passes straight through, matching {@code get_binding}'s own
+    * ordinarily unambiguous and passes straight through, matching {@code get_binding}'s own
     * {@code highlightField} vocabulary for a measure -- mirrors {@code requireDimension}'s
     * same-shelf {@code index}-ambiguity discipline, extended across shelves and by aggregate
     * identity instead of shelf position, since a measure (unlike a dimension) is never
-    * disambiguated by position.
+    * disambiguated by position. "Ordinarily", not always: the same column+aggregate can also be
+    * bound twice differing only by {@code secondaryY} (the collision {@code preserveChartTypes}
+    * already handles for VCS-005), in which case even the qualified form is genuinely ambiguous
+    * and is refused rather than silently accepted as if it named one binding.
     */
    private static void requireUnambiguousMeasure(ChartBindingModel model, String measure,
                                                   String param)
    {
+      List<String> qualifiedMatches = new ArrayList<>();
       List<String> bareMatches = new ArrayList<>();
 
       for(String shelf : SHELVES) {
@@ -466,15 +477,36 @@ public final class ChartBindingMutator {
             String qualified = formula == null ? column : formula + "(" + column + ")";
 
             if(qualified.equalsIgnoreCase(measure)) {
-               // Already qualified and it names exactly one binding -- unambiguous by
-               // construction, no need to also check the bare-name matches below.
-               return;
+               qualifiedMatches.add(qualified);
             }
 
             if(column.equalsIgnoreCase(measure)) {
                bareMatches.add(qualified);
             }
          }
+      }
+
+      // An already-qualified form is only unambiguous when exactly one binding produces it.
+      // Two bindings can legitimately stringify identically -- e.g. Sum(Total) bound twice,
+      // once on the primary Y axis and once on secondary (the same collision setShelf's own
+      // chartType restoration -- see preserveChartTypes/sameMeasure above -- already has to
+      // handle) -- since this qualified vocabulary (matching get_binding's own
+      // highlightField) carries no secondaryY/shelf qualifier at all. There is no further
+      // string this call could accept to tell them apart, so it is refused outright rather
+      // than silently resolving to whichever bound first -- the same failure shape this
+      // whole method exists to close, just one level up from the bare-column case below.
+      if(qualifiedMatches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + param + "' \"" + measure + "\" names " + qualifiedMatches.size() +
+            " separate measure bindings that all stringify identically (the same column and " +
+            "aggregate bound more than once, most likely differing only by which Y axis they " +
+            "render on) -- there is currently no qualified form that tells them apart. Remove " +
+            "the duplicate binding, or " + param + " by a different, unambiguous measure " +
+            "instead.");
+      }
+
+      if(qualifiedMatches.size() == 1) {
+         return;
       }
 
       if(bareMatches.size() > 1) {
@@ -485,7 +517,7 @@ public final class ChartBindingMutator {
             bareMatches.get(0) + "\") to disambiguate.");
       }
 
-      // Zero matches is deliberately NOT refused here, unlike the >1 case above: this check's
+      // Zero matches is deliberately NOT refused here, unlike the >1 cases above: this check's
       // scope is narrowly the silent-first-match ambiguity (Bug #76689, VCS-014), not whether
       // the name resolves to a real binding at all -- an unresolvable sortByField/measure is
       // pre-existing, documented behavior this fix does not change.

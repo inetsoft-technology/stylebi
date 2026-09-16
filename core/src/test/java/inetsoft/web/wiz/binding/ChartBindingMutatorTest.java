@@ -372,6 +372,33 @@ class ChartBindingMutatorTest {
       assertEquals("Total", ((Map<?, ?>) described.get("Region")).get("sortByField"));
    }
 
+   /**
+    * Round-trip review finding on this same PR: the already-qualified fast path used to return
+    * on the *first* ref whose qualified name matched, without checking whether a SECOND ref
+    * stringifies identically -- exactly the collision {@code preserveChartTypes} already handles
+    * for VCS-005 (same column+aggregate, differing only by {@code secondaryY}), reproducing the
+    * same silent-first-match failure one level up, at the qualified-name granularity instead of
+    * the bare-column one. There is no further qualified string to offer here, so this must be
+    * refused outright rather than accepted as if it named one binding.
+    */
+   @Test
+   void rejectsAnAlreadyQualifiedSortByFieldThatIsItselfAmbiguous() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null, null, null, null, null, null,
+                              false),
+                 new FieldRef("Total", "measure", "Sum", null, null, null, null, null, null, null,
+                              true)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> ChartBindingMutator.setSort(model, "x", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "Sum(Total)", null)));
+      assertTrue(thrown.getMessage().contains("Sum(Total)"));
+   }
+
    @Test
    void rejectsSortingAColumnNotOnTheShelfNamingWhatIsBound() {
       ChartBindingModel model = new ChartBindingModel();
