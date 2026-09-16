@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -54,6 +55,39 @@ class BindingReadServiceTest {
       assertTrue(result.shelves().containsKey("x"), "a chart exposes an x shelf");
       assertTrue(result.shelves().containsKey("y"));
       assertTrue(result.shelves().containsKey("group"));
+   }
+
+   /**
+    * The same bare column bound on two DIFFERENT shelves (a date column grouped by month on x,
+    * by year on group) used to collapse to one {@code sorts} entry — the group shelf's untouched
+    * default silently clobbered the x shelf's explicit sort, or vice versa, depending on
+    * {@code ChartBindingMutator.SHELVES}'s iteration order — even though the chart itself
+    * correctly rendered both. Bug #76689, VCS-012.
+    */
+   @Test
+   void disambiguatesTheSameBareColumnSortedOnTwoDifferentShelves() {
+      VSBindingService binding = mock(VSBindingService.class);
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("ORDER_DATE", "dimension", null, "month", null)));
+      ChartBindingMutator.setShelf(model, "group",
+         List.of(new FieldRef("ORDER_DATE", "dimension", null, "year", null)));
+      ChartBindingMutator.setSort(model, "x", "ORDER_DATE", null,
+         new DimensionSortRanking.Sort("desc", null, null));
+      when(binding.createModel(any())).thenReturn(model);
+
+      AssemblyBinding result = new BindingReadService(binding)
+         .read(runtimeWith("Chart1", mock(ChartVSAssembly.class)), "Chart1");
+
+      assertFalse(result.sorts().containsKey("ORDER_DATE"),
+                  "an ambiguous bare key must not survive once two shelves produce it");
+      Map<?, ?> xSort = (Map<?, ?>) result.sorts().get("ORDER_DATE [x]");
+      Map<?, ?> groupSort = (Map<?, ?>) result.sorts().get("ORDER_DATE [group]");
+      assertNotNull(xSort, "the x shelf's explicit sort must be readable under its own key");
+      assertNotNull(groupSort, "the group shelf's (untouched) sort must be readable under its own key");
+      assertEquals("desc", xSort.get("direction"));
+      assertEquals("asc", groupSort.get("direction"),
+                  "group's own default must not have been overwritten by x's explicit sort");
    }
 
    /**

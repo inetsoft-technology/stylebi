@@ -94,8 +94,35 @@ public class BindingReadService {
             shelves.put("geo", refs(chart.getGeoFields()));
          }
 
+         // describeSorts already disambiguates a column bound twice on the SAME shelf (its own
+         // "[index]" suffix), but nothing disambiguated the same bare column name appearing on
+         // two DIFFERENT shelves (e.g. a date column grouped by month on x and by year on group)
+         // -- putAll-ing each shelf's map in turn let a later shelf's entry silently clobber an
+         // earlier one sharing the same key, so a write to one shelf's sort could be invisible
+         // here even though the chart correctly rendered it (Bug #76689, VCS-012). Collect every
+         // shelf's map first, then requalify by shelf -- mirroring describeSorts' own
+         // bracket-suffix convention -- only for a key produced by more than one shelf, so the
+         // ordinary non-colliding case still reports the plain bare column name unchanged.
+         Map<String, Map<String, Object>> sortsByShelf = new LinkedHashMap<>();
+         Map<String, Long> keyShelfCount = new LinkedHashMap<>();
+
          for(String shelf : ChartBindingMutator.SHELVES) {
-            sorts.putAll(ChartBindingMutator.describeSorts(chart, shelf));
+            Map<String, Object> described = ChartBindingMutator.describeSorts(chart, shelf);
+            sortsByShelf.put(shelf, described);
+
+            for(String key : described.keySet()) {
+               keyShelfCount.merge(key, 1L, Long::sum);
+            }
+         }
+
+         for(Map.Entry<String, Map<String, Object>> shelfEntry : sortsByShelf.entrySet()) {
+            String shelf = shelfEntry.getKey();
+
+            for(Map.Entry<String, Object> e : shelfEntry.getValue().entrySet()) {
+               String key = e.getKey();
+               boolean collidesAcrossShelves = keyShelfCount.get(key) > 1;
+               sorts.put(collidesAcrossShelves ? key + " [" + shelf + "]" : key, e.getValue());
+            }
          }
 
          // The ten single-field shelves. Left out of this read until now, so a
