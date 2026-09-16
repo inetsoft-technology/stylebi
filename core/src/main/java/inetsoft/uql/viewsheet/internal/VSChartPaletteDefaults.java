@@ -106,8 +106,9 @@ public final class VSChartPaletteDefaults {
     * The linear colour frame a chart's measure-to-colour binding is born on.
     *
     * A modern chart takes the house sequential ramp; everything else keeps the ColorBrewer ramp that
-    * has been the default since 12.3. There is no dark branch: one table serves both surfaces, which
-    * is why the frame can be persisted by class name at all - see the ramps design, decision 2.
+    * has been the default since 12.3. There is no dark branch: one stop table is tuned to clear both
+    * the light canvas and the dark surface, which is what lets the frame be persisted by class name
+    * at all.
     *
     * A null context seeds legacy rather than throwing. A seed site that cannot name its context is a
     * site that should not silently modernize a chart.

@@ -407,6 +407,10 @@ class VSChartPaletteDefaultsTest {
                        VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_DARK)));
       assertInstanceOf(BluesColorFrame.class,
                        VSChartPaletteDefaults.defaultLinearFrame(VizContext.LEGACY));
+      // not LEGACY, but still not modern: an unmarked assembly builds a fresh non-modern context,
+      // so a resolver that identity-compares against the LEGACY singleton would wrongly seed Teal
+      assertInstanceOf(BluesColorFrame.class,
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.of((VizMark) null)));
    }
 
    @Test
