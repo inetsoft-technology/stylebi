@@ -257,18 +257,28 @@ public class WorksheetAgentController {
     * @param sessionToken the token obtained at join time
     * @param req          the edit operation and its parameters
     * @param user         the authenticated agent principal
+    * @return {@code 200} with an {@link EditResponse} carrying the resolved assembly name for
+    *         {@code add_table} (see {@link EditResponse}); {@code 204 No Content} for every
+    *         other op, matching this endpoint's response before {@link EditResponse} existed
     * @throws PairingException if the session is invalid/expired, the runtime is not found,
     *                          or the requested operation is unknown
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/edit")
-   public void edit(@PathVariable String sessionToken,
+   public ResponseEntity<EditResponse> edit(@PathVariable String sessionToken,
                     @RequestBody EditRequest req,
                     Principal user)
       throws Exception
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
-      editOp(sessionToken, req, user);
+      String[] resolvedNameHolder = new String[1];
+      editOp(sessionToken, req, user, resolvedNameHolder);
+
+      if(resolvedNameHolder[0] == null) {
+         return ResponseEntity.noContent().build();
+      }
+
+      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0]));
    }
 
    /**
@@ -286,6 +296,19 @@ public class WorksheetAgentController {
     * its one caller is scoped tighter than {@link #edit} is, not looser.
     */
    public void editOp(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      editOp(sessionToken, req, user, null);
+   }
+
+   /**
+    * Same as {@link #editOp(String, EditRequest, Principal)}, plus an optional out-param that
+    * {@code add_table}'s branches fill with the resolved assembly name (see {@link EditResponse}).
+    * {@code null} for every other op, and accepted as {@code null} here too (the 3-arg overload
+    * above passes {@code null} for its one in-process caller, which has no use for the name).
+    */
+   private void editOp(String sessionToken, EditRequest req, Principal user,
+                       String[] resolvedNameHolder)
       throws Exception
    {
       requireEnabled();
@@ -358,7 +381,7 @@ public class WorksheetAgentController {
                "property map instead.");
          }
 
-         addQueryParamsTable(sessionToken, req, user);
+         addQueryParamsTable(sessionToken, req, user, resolvedNameHolder);
          return;
       }
 
@@ -397,7 +420,7 @@ public class WorksheetAgentController {
                " has no schema/catalog.");
          }
 
-         addTabularTable(sessionToken, req, user);
+         addTabularTable(sessionToken, req, user, resolvedNameHolder);
          return;
       }
 
@@ -415,10 +438,10 @@ public class WorksheetAgentController {
          && !req.datasource().isBlank())
       {
          if(req.logicalModel() != null && !req.logicalModel().isBlank()) {
-            addLogicalModelTable(sessionToken, req, user);
+            addLogicalModelTable(sessionToken, req, user, resolvedNameHolder);
          }
          else {
-            addBoundTable(sessionToken, req, user);
+            addBoundTable(sessionToken, req, user, resolvedNameHolder);
          }
          return;
       }
@@ -530,7 +553,8 @@ public class WorksheetAgentController {
     * {@link SourceInfo#PHYSICAL_TABLE} is created, the assembly is added to the worksheet,
     * and {@link AssetEventUtil#initColumnSelection} populates the column metadata.</p>
     */
-   private void addBoundTable(String sessionToken, EditRequest req, Principal user)
+   private void addBoundTable(String sessionToken, EditRequest req, Principal user,
+                              String[] resolvedNameHolder)
       throws Exception
    {
       String datasourceName = req.datasource();
@@ -598,6 +622,10 @@ public class WorksheetAgentController {
          String assemblyName = AssetUtil.normalizeTable(tablePath);
          assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = assemblyName;
+         }
+
          PhysicalBoundTableAssembly assembly =
             new PhysicalBoundTableAssembly(ws, assemblyName);
 
@@ -623,7 +651,8 @@ public class WorksheetAgentController {
     * A {@link SourceInfo} of type {@link SourceInfo#MODEL} is created and the column
     * selection is populated from the entity's attributes.</p>
     */
-   private void addLogicalModelTable(String sessionToken, EditRequest req, Principal user)
+   private void addLogicalModelTable(String sessionToken, EditRequest req, Principal user,
+                                     String[] resolvedNameHolder)
       throws Exception
    {
       String datasourceName = req.datasource();
@@ -691,6 +720,10 @@ public class WorksheetAgentController {
          String assemblyName = AssetUtil.normalizeTable(entityName);
          assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = assemblyName;
+         }
+
          BoundTableAssembly assembly = new BoundTableAssembly(ws, assemblyName);
 
          SourceInfo sinfo = new SourceInfo(
@@ -723,7 +756,8 @@ public class WorksheetAgentController {
     * path), which already builds the same kind of {@code TabularTableAssembly} from its own
     * {@code TabularSource} request shape.</p>
     */
-   private void addTabularTable(String sessionToken, EditRequest req, Principal user)
+   private void addTabularTable(String sessionToken, EditRequest req, Principal user,
+                                String[] resolvedNameHolder)
       throws Exception
    {
       String dsName = req.datasource();
@@ -866,6 +900,11 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          String normalizedTableName = AssetUtil.normalizeTable(tableName);
          String assemblyName = AssetUtil.getNextName(ws, normalizedTableName, normalizedTableName);
+
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = assemblyName;
+         }
+
          TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
          TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
          info.setQuery(query);
@@ -910,7 +949,8 @@ public class WorksheetAgentController {
     * ...), FILE (OneDrive, ServerFile), and Rest.XML, none of which have an
     * {@code endpoint}/{@code suffix} property on their query class.
     */
-   private void addQueryParamsTable(String sessionToken, EditRequest req, Principal user)
+   private void addQueryParamsTable(String sessionToken, EditRequest req, Principal user,
+                                    String[] resolvedNameHolder)
       throws Exception
    {
       String dsName = req.datasource();
@@ -961,6 +1001,11 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          String normalizedTableName = AssetUtil.normalizeTable(tableName);
          String assemblyName = AssetUtil.getNextName(ws, normalizedTableName, normalizedTableName);
+
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = assemblyName;
+         }
+
          TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
          TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
          info.setQuery(query);
