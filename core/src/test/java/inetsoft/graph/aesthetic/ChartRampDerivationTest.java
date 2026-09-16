@@ -11,6 +11,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
 class ChartRampDerivationTest {
+   /** Below this, an OKLab patch stops reading as a hue at all. A real collapse lands near zero. */
+   private static final double CHROMA_FLOOR = 0.01;
+
    @Test
    void everyStopClearsBothSurfaces() {
       double light = lightnessOf(LIGHT_SURFACE);
@@ -39,6 +42,9 @@ class ChartRampDerivationTest {
             assertTrue(cur < prev, "lightness must fall monotonically, broke at stop " + i);
          }
 
+         // guards constant drift, not the algorithm: the derivation maps the source extremes onto
+         // the whole band, so this fires only if DELTA_L_MIN, EPSILON or a surface colour moves far
+         // enough to squeeze the band below what a sequential ramp needs
          assertTrue(Math.abs(first - last) >= 0.30, "lightness span must be at least 0.30");
       }
    }
@@ -55,6 +61,9 @@ class ChartRampDerivationTest {
          hi = Math.max(hi, l);
       }
 
+      // deriveDiverging gives every stop one lightness, so this cannot fail today. It guards the
+      // regression that would matter most: a later change giving Variance per-stop lightness would
+      // put magnitude back into the channel this ramp exists to keep it out of
       assertTrue(hi - lo <= 0.10, "Variance lightness must stay inside a 0.10 band, was " + (hi - lo));
 
       int mid = ramp.length / 2;
@@ -79,11 +88,11 @@ class ChartRampDerivationTest {
    @Test
    void everyStopHasLiveChromaExceptTheAchromaticMidpoint() {
       for(String stop : amber()) {
-         assertTrue(chromaOf(stop) > 0.01, stop + " collapsed toward grey (chroma <= 0.01)");
+         assertTrue(chromaOf(stop) > CHROMA_FLOOR, stop + " collapsed toward grey (chroma <= " + CHROMA_FLOOR + ")");
       }
 
       for(String stop : teal()) {
-         assertTrue(chromaOf(stop) > 0.01, stop + " collapsed toward grey (chroma <= 0.01)");
+         assertTrue(chromaOf(stop) > CHROMA_FLOOR, stop + " collapsed toward grey (chroma <= " + CHROMA_FLOOR + ")");
       }
 
       String[] variance = variance();
@@ -91,13 +100,13 @@ class ChartRampDerivationTest {
 
       for(int i = 0; i < variance.length; i++) {
          if(i == mid) {
-            assertTrue(chromaOf(variance[i]) <= 0.01,
+            assertTrue(chromaOf(variance[i]) <= CHROMA_FLOOR,
                        "Variance's midpoint should be achromatic by construction, was chroma "
                        + chromaOf(variance[i]));
          }
          else {
-            assertTrue(chromaOf(variance[i]) > 0.01,
-                       variance[i] + " collapsed toward grey (chroma <= 0.01)");
+            assertTrue(chromaOf(variance[i]) > CHROMA_FLOOR,
+                       variance[i] + " collapsed toward grey (chroma <= " + CHROMA_FLOOR + ")");
          }
       }
    }

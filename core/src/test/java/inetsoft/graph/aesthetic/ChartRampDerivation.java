@@ -5,9 +5,9 @@ import inetsoft.graph.internal.OKLab;
 import java.awt.Color;
 
 /**
- * The ENGINE §4 derivation rule. Lives in test sources because nothing derives a ramp at runtime -
- * the three house ramps are fixed, authored literally, and this class exists to prove the authored
- * hexes are still what the rule produces.
+ * Derives the house ramps' stops from the design's source colours. Lives in test sources because
+ * nothing derives a ramp at runtime - the three house ramps are fixed, authored literally, and this
+ * class exists to prove the authored hexes are still what the rule produces.
  */
 public final class ChartRampDerivation {
    public enum Kind { SEQUENTIAL, DIVERGING }
@@ -100,6 +100,8 @@ public final class ChartRampDerivation {
 
    private static String[] deriveDiverging(double[][] lch) {
       int mid = lch.length / 2;
+      // EPSILON cancels in the average; written symmetrically so the band's definition stays in
+      // one shape across both derivations
       double l = ((bandLow() + EPSILON) + (bandHigh() - EPSILON)) / 2;
       String[] out = new String[lch.length];
 
