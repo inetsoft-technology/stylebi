@@ -1033,6 +1033,33 @@ class SelectionRuntimeServiceTest {
       verifyNoInteractions(h.selections);
    }
 
+   /**
+    * A {@code sortOrder}-only or {@code singleSelect}-only call never reaches
+    * {@code getConditionList()}/{@code getSelection()} -- it does not touch {@code values} or
+    * {@code deselect} at all -- so it must succeed on a column-less assembly rather than being
+    * refused for a problem it does not have.
+    */
+   @Test
+   void allowsASortOrderOnlyCallOnAColumnlessSelectionList() throws Exception {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      when(assembly.getDataRef()).thenReturn(null);
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.setSelection("tok", principal(), "Filter1", null, null,
+         "desc", null, null, ""));
+   }
+
+   /** See {@link #allowsASortOrderOnlyCallOnAColumnlessSelectionList} -- same reasoning, singleSelect. */
+   @Test
+   void allowsASingleSelectOnlyCallOnAColumnlessSelectionList() throws Exception {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      when(assembly.getDataRef()).thenReturn(null);
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.setSelection("tok", principal(), "Filter1", null, null,
+         null, true, null, ""));
+   }
+
    /** {@code getDataRefs()} returning an empty array is the same "no column bound" shape. */
    @Test
    void refusesSetSelectionOnATreeWithNoDataRefsAtAll() {

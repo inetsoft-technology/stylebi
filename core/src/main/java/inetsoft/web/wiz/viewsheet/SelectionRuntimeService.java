@@ -147,7 +147,14 @@ public class SelectionRuntimeService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
-         requireBoundColumn(assembly, assemblyName);
+
+         // Only the values/deselect paths ever touch getConditionList()/getSelection() -- a
+         // sortOrder-only or singleSelect-only call never reaches them, so it must not be
+         // refused for a problem it does not have.
+         if(values != null || hasDeselect) {
+            requireBoundColumn(assembly, assemblyName);
+         }
+
          SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) assembly.getInfo();
 
          result.put("assembly", assemblyName);
@@ -377,13 +384,14 @@ public class SelectionRuntimeService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
-         requireBoundColumn(assembly, assemblyName);
 
          if(!(assembly instanceof SelectionTreeVSAssembly)) {
             throw new IllegalArgumentException(
                "'" + assemblyName + "' is " + describe(assembly) + ", and subtrees only exist on a " +
                "selection tree. Use set_selection for a list or a range slider.");
          }
+
+         requireBoundColumn(assembly, assemblyName);
 
          result.put("assembly", assemblyName);
          result.put("path", path);
