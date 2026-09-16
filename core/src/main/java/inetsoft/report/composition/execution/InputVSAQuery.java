@@ -483,10 +483,13 @@ public class InputVSAQuery extends VSAQuery {
             ((CompositeVSAScriptable) scriptable)
                .setCellValue(((SingleInputVSAssembly) iassembly).getSelectedObject());
          }
-         // checkbox should always be array so script don't need to check for different types
+         // CheckBox's "value" is now a live getter (CheckBoxVSAScriptable.addProperties()), so
+         // clear the per-cell dynamic-format iteration's scratch value here instead of
+         // re-snapshotting the whole selection, which would otherwise go stale relative to any
+         // later direct model mutation (e.g. a subsequent selection change) that doesn't happen
+         // to re-run this method before the next script read of CheckBox.value.
          else if(iassembly instanceof CompositeInputVSAssembly) {
-            ((CompositeVSAScriptable) scriptable)
-               .setCellValue(((CompositeInputVSAssembly) iassembly).getSelectedObjects());
+            ((CompositeVSAScriptable) scriptable).setCellValue(CompositeVSAScriptable.NULL);
          }
       }
    }

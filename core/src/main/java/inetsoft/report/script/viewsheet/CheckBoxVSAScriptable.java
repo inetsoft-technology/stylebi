@@ -96,7 +96,11 @@ public class CheckBoxVSAScriptable extends InputVSAScriptable
                   boolean.class, info.getClass(), info);
       addProperty("selectFirstItemOnLoad", "isSelectFirstItem", "setSelectFirstItem",
          boolean.class, getClass(), this);
-      addProperty("value", new Object[0]);
+      // live getter, matching selectedObjects/selectedLabels, so a bare read reflects the
+      // current selection instead of a frozen literal (cellValue, checked in getMember above,
+      // still takes precedence during per-cell dynamic-format iteration).
+      addProperty("value", "getSelectedObjectsArray", "setSelectedObjects",
+                  Object[].class, getClass(), this);
    }
 
    /**
