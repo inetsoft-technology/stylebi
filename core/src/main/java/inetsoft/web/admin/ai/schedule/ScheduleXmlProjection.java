@@ -88,8 +88,14 @@ public final class ScheduleXmlProjection {
     * shipping. Do not remove an entry from this list without a passing test demonstrating it is
     * stable; do not assume a fourth attribute is safe to include in the hash without the same
     * test.
+    *
+    * <p>{@code password}: CONFIRMED unstable (bug 76726) -- {@code ServerPathInfo#writeXML}/
+    * {@code EmailInfo#writeXML} re-encrypt the stored password via {@code Tool#encryptPassword}
+    * on every serialization, and the underlying JCE cipher generates a fresh random IV per call,
+    * so the ciphertext substring differs on every call even though the password itself never
+    * changed.
     */
-   static final String[] EXCLUDED_ATTRIBUTES = { "lastModified", "path", "editable", "removable" };
+   static final String[] EXCLUDED_ATTRIBUTES = { "lastModified", "path", "editable", "removable", "password" };
 
    private static final Pattern[] EXCLUSION_PATTERNS = buildPatterns();
 

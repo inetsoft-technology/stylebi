@@ -19,7 +19,10 @@ package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.web.api.schedule.*;
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ServerPathInfo;
+import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -33,6 +36,7 @@ import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -339,6 +343,31 @@ class ScheduleChangePlanServiceTest {
 
       ResolvedPlan first = service.resolve(request("delete the nightly task", List.of(deleteChange("t1"))), user);
       ResolvedPlan second = service.resolve(request("remove nightly-refresh task", List.of(deleteChange("t1"))), user);
+
+      assertEquals(first.planHash(), second.planHash());
+   }
+
+   // Bug 76726: a saveToServerFilePaths password is re-encrypted (fresh IV) on every writeXML
+   // call, so a delete plan's hash must not depend on that ciphertext -- override the class's
+   // deterministic Tool.encryptPassword stub with a genuinely varying one so this actually
+   // exercises the bug rather than passing on the fixed "TKN:" stub alone.
+   @Test void hashIsStableForDeleteWhenPasswordIsReencryptedBetweenCalls() throws Exception {
+      AtomicInteger callCount = new AtomicInteger();
+      tool.when(() -> Tool.encryptPassword(anyString()))
+         .thenAnswer(inv -> "IV" + callCount.incrementAndGet() + ":" + inv.getArgument(0));
+
+      inetsoft.sree.schedule.ScheduleTask task = sreeTask("t1", "admin");
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("vs1");
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF,
+         new ServerPathInfo("/exports/report.pdf", "scheduler", "s3cret"));
+      task.addAction(action);
+
+      when(scheduleManager.getScheduleTask("t1")).thenReturn(task);
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+
+      ResolvedPlan first = service.resolve(request("delete", List.of(deleteChange("t1"))), user);
+      ResolvedPlan second = service.resolve(request("delete", List.of(deleteChange("t1"))), user);
 
       assertEquals(first.planHash(), second.planHash());
    }

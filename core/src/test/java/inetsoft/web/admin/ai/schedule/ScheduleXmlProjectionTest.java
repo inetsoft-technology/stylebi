@@ -18,12 +18,24 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.ServerPathInfo;
 import inetsoft.sree.schedule.TimeCondition;
+import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.Answers;
+import org.mockito.MockedStatic;
+import org.mockito.quality.Strictness;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.withSettings;
 
 @Tag("core")
 class ScheduleXmlProjectionTest {
@@ -76,6 +88,35 @@ class ScheduleXmlProjectionTest {
       assertEquals(ScheduleXmlProjection.project(a), ScheduleXmlProjection.project(b));
    }
 
+   // Bug 76726: ServerPathInfo#writeXML re-encrypts the stored password with a fresh IV on every
+   // call (Tool#encryptPassword -> the JCE cipher), so a delete-plan hash built off the unstripped
+   // projection would differ on every call even though the task itself never changed. Stubs
+   // Tool.encryptPassword to return a genuinely varying ciphertext per call for the same plaintext
+   // -- simulating two real writeXML calls -- rather than a fixed deterministic mock, or this test
+   // would pass without the fix.
+   @Test void projectionIsStableAcrossPasswordReencryption() {
+      AtomicInteger callCount = new AtomicInteger();
+
+      try(MockedStatic<Tool> tool = mockStatic(Tool.class, withSettings()
+         .strictness(Strictness.LENIENT).defaultAnswer(Answers.CALLS_REAL_METHODS))) {
+         tool.when(() -> Tool.encryptPassword(anyString()))
+            .thenAnswer(inv -> "IV" + callCount.incrementAndGet() + ":" + inv.getArgument(0));
+
+         ScheduleTask a = task("t", "admin");
+         a.addAction(viewsheetActionWithSaveToServerPassword("s3cret"));
+         ScheduleTask b = task("t", "admin");
+         b.addAction(viewsheetActionWithSaveToServerPassword("s3cret"));
+
+         String projectionA = ScheduleXmlProjection.project(a);
+         String projectionB = ScheduleXmlProjection.project(b);
+
+         // Sanity check that this fixture actually exercises the bug: two independent writeXML
+         // calls over the identical plaintext password must produce different ciphertext.
+         assertNotEquals(rawWriteXml(a), rawWriteXml(b));
+         assertEquals(projectionA, projectionB);
+      }
+   }
+
    @Test void normalizeStripsEveryExcludedAttributeByName() {
       String xml = "<Task name=\"t\" lastModified=\"5\" path=\"/\" editable=\"true\" " +
          "removable=\"false\" enabled=\"true\">";
@@ -104,5 +145,23 @@ class ScheduleXmlProjectionTest {
       condition.setHour(hour);
       condition.setMinute(minute);
       return condition;
+   }
+
+   private static ViewsheetAction viewsheetActionWithSaveToServerPassword(String password) {
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("vs1");
+      action.setFilePath(FileFormatInfo.EXPORT_TYPE_PDF,
+         new ServerPathInfo("/exports/report.pdf", "scheduler", password));
+      return action;
+   }
+
+   private static String rawWriteXml(ScheduleTask task) {
+      java.io.StringWriter sw = new java.io.StringWriter();
+
+      try(java.io.PrintWriter pw = new java.io.PrintWriter(sw)) {
+         task.writeXML(pw);
+      }
+
+      return sw.toString();
    }
 }
