@@ -21,7 +21,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
+import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.graph.model.dialog.*;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -931,6 +933,54 @@ class ChartRegionPropertyServiceTest {
    }
 
    /**
+    * Redmine #76732 VCC-001. {@code ChartArea} only builds a {@code TitleArea} for an axis whose
+    * title is currently visible (see {@code ChartArea}'s constructor and
+    * {@code GraphGenerator}'s title-spec builder, which sets a null label whenever
+    * {@code TitleDescriptor.isVisible()} is false). {@code RegionPropertyDialogService
+    * .getTitleFormatDialogModel} dereferenced that null {@code TitleArea} unconditionally, so
+    * reading a hidden axis title's region properties was a raw NPE instead of a named refusal.
+    */
+   @Test
+   void refusesToListAHiddenTitleRegionInsteadOfNpeing() {
+      Harness h = harnessWithHiddenTitle("y");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.list("tok", principal(), "Chart1", "title", "y", null));
+
+      assertTrue(thrown.getMessage().contains("hidden"));
+      assertTrue(thrown.getMessage().contains("set_chart_element_visibility"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The write path shares the exact same crash site, via {@code set}'s own model prefetch. */
+   @Test
+   void refusesToWriteAHiddenTitleRegionInsteadOfNpeing() {
+      Harness h = harnessWithHiddenTitle("y");
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "title", "y", null,
+                             Map.of("rotation", "-90"), ""));
+
+      assertTrue(thrown.getMessage().contains("hidden"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The working path must be unaffected: a visible title still lists its properties. */
+   @Test
+   void stillListsATitleRegionWhenVisible() throws Exception {
+      Harness h = harness();
+      when(h.regions.getTitleFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                               any(Principal.class)))
+         .thenReturn(titleModel());
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "title", "y", null);
+
+      assertEquals("title", listed.get("region"));
+   }
+
+   /**
     * <b>Found live 2026-08-20.</b> A y2 write landed on the primary axis, because
     * {@code ChartRegionHandler.getChartRef} does not know the short {@code "y2"} form while
     * {@code getAxisArea} does — so the area resolved, the descriptor did not, and the chain fell
@@ -1035,6 +1085,11 @@ class ChartRegionPropertyServiceTest {
       return harness(viewsheet(secondaryAxis));
    }
 
+   /** Same chart as the default harness, but with the given axis's title hidden. */
+   private static Harness harnessWithHiddenTitle(String axisType) {
+      return harness(viewsheet(true, axisType));
+   }
+
    private static Harness harness(Viewsheet vs) {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
@@ -1058,7 +1113,8 @@ class ChartRegionPropertyServiceTest {
       }
 
       RegionPropertyDialogService regions = mock(RegionPropertyDialogService.class);
-      return new Harness(new ChartRegionPropertyService(sessions, regions), regions);
+      return new Harness(
+         new ChartRegionPropertyService(sessions, regions, new ChartRegionHandler()), regions);
    }
 
    /**
@@ -1067,6 +1123,19 @@ class ChartRegionPropertyServiceTest {
     * pin what the binding implies, and the laid-out graph is the live case's business.
     */
    private static Viewsheet viewsheet(boolean secondaryAxis) {
+      return viewsheet(secondaryAxis, null);
+   }
+
+   /**
+    * Same fixture, but with {@code hiddenTitleType} ({@code "x"/"x2"/"y"/"y2"}, or {@code null}
+    * for none) reporting {@code TitleDescriptor.isVisible() == false}.
+    *
+    * <p>The real {@code ChartDescriptor}/{@code TitleDescriptor}/{@code CompositeTextFormat}
+    * chain reaches {@code VSUtil}'s static initializer, which needs a live Spring context this
+    * plain unit test never starts — constructing any of them for real throws
+    * {@code ExceptionInInitializerError}. Every descriptor here is a bare mock instead.
+    */
+   private static Viewsheet viewsheet(boolean secondaryAxis, String hiddenTitleType) {
       // Built before any stubbing: mocking inside a when(...) argument is nested stubbing.
       VSChartAggregateRef primary = mock(VSChartAggregateRef.class);
       when(primary.isSecondaryY()).thenReturn(false);
@@ -1084,11 +1153,42 @@ class ChartRegionPropertyServiceTest {
       when(info.getYFields()).thenReturn(y);
       when(info.isInvertedGraph()).thenReturn(false);
 
+      ChartVSAssemblyInfo assemblyInfo = chartAssemblyInfo(hiddenTitleType);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
+      when(chart.getVSAssemblyInfo()).thenReturn(assemblyInfo);
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(chart);
       return vs;
+   }
+
+   /** All titles visible, except {@code hiddenTitleType} (or none, if it is null). */
+   private static ChartVSAssemblyInfo chartAssemblyInfo(String hiddenTitleType) {
+      // Each titleDescriptor(...) call stubs a mock of its own; it must fully finish before the
+      // surrounding when(...).thenReturn(...) starts, or Mockito treats it as nested stubbing.
+      TitleDescriptor xTitle = titleDescriptor("x".equals(hiddenTitleType));
+      TitleDescriptor x2Title = titleDescriptor("x2".equals(hiddenTitleType));
+      TitleDescriptor yTitle = titleDescriptor("y".equals(hiddenTitleType));
+      TitleDescriptor y2Title = titleDescriptor("y2".equals(hiddenTitleType));
+
+      TitlesDescriptor titlesDescriptor = mock(TitlesDescriptor.class);
+      when(titlesDescriptor.getXTitleDescriptor()).thenReturn(xTitle);
+      when(titlesDescriptor.getX2TitleDescriptor()).thenReturn(x2Title);
+      when(titlesDescriptor.getYTitleDescriptor()).thenReturn(yTitle);
+      when(titlesDescriptor.getY2TitleDescriptor()).thenReturn(y2Title);
+
+      ChartDescriptor descriptor = mock(ChartDescriptor.class);
+      when(descriptor.getTitlesDescriptor()).thenReturn(titlesDescriptor);
+
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      when(info.getChartDescriptor()).thenReturn(descriptor);
+      return info;
+   }
+
+   private static TitleDescriptor titleDescriptor(boolean hidden) {
+      TitleDescriptor titleDescriptor = mock(TitleDescriptor.class);
+      when(titleDescriptor.isVisible()).thenReturn(!hidden);
+      return titleDescriptor;
    }
 
    private static Principal principal() {
