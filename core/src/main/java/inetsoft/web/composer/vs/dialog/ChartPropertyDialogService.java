@@ -253,8 +253,13 @@ public class ChartPropertyDialogService {
       boolean appliedDateComparison = DateComparisonUtil.appliedDateComparison(chartAssemblyInfo);
       linesModel.setChartTargets(this.chartPropertyService.
                                     getTargetInfoList(chartDescriptor, vsChartInfo, appliedDateComparison || hasDynamic(vsChartInfo)));
-      linesModel.setNewTargetInfo(this.chartPropertyService.
-                                     getTargetInfo(vsChartInfo, new GraphTarget(), appliedDateComparison || hasDynamic(vsChartInfo)));
+      boolean targetRt = appliedDateComparison || hasDynamic(vsChartInfo);
+      GraphTarget newTarget = new GraphTarget();
+      // seed only the template: an existing target's band fill is its author's, never reseeded
+      this.chartPropertyService.seedCompanionBandFill(
+         vsChartInfo, newTarget, VizContext.of(chartAssemblyInfo), targetRt);
+      linesModel.setNewTargetInfo(this.chartPropertyService.getTargetInfo(vsChartInfo, newTarget,
+                                                                         targetRt));
       linesModel.setAvailableFields(this.chartPropertyService.getMeasures(vsChartInfo,
                                                                           appliedDateComparison || hasDynamic(vsChartInfo)));
       chartAdvancedPaneModel.setChartTargetLinesPaneModel(linesModel);
@@ -494,8 +499,13 @@ public class ChartPropertyDialogService {
 
       advancePane.updateChartAdvancedPaneModel(assemblyInfo);
 
-      this.chartPropertyService.updateAllTargets(chartDescriptor,
-                                                 advancePane.getChartTargetLinesPaneModel().getChartTargets());
+      // same rt the dialog resolved its measure list with, so a target's stored field name looks
+      // up the same ref on the way back in
+      boolean targetRt =
+         DateComparisonUtil.appliedDateComparison(assemblyInfo) || hasDynamic(vsChartInfo);
+      this.chartPropertyService.updateAllTargets(
+         chartDescriptor, advancePane.getChartTargetLinesPaneModel().getChartTargets(), vsChartInfo,
+         VizContext.of(assemblyInfo), targetRt);
       this.chartPropertyService.removeDeletedTargets(chartDescriptor,
                                                      advancePane.getChartTargetLinesPaneModel().getDeletedIndexList());
 
