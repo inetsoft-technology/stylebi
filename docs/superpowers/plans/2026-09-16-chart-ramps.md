@@ -783,7 +783,7 @@ Append to `core/src/test/java/inetsoft/uql/viewsheet/internal/VSChartPaletteDefa
    @Test
    void modernChartsSeedTealAndClassicChartsSeedBlues() {
       assertInstanceOf(TealColorFrame.class,
-                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN)));
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_LIGHT)));
       assertInstanceOf(TealColorFrame.class,
                        VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_DARK)));
       assertInstanceOf(BluesColorFrame.class,
@@ -906,7 +906,7 @@ class SeededLinearFrameTest {
 
    @Test
    void graphUtilSeedsTealForAModernChart() {
-      assertInstanceOf(TealColorFrame.class, seedThrough(VizContext.of(VizMark.MODERN)));
+      assertInstanceOf(TealColorFrame.class, seedThrough(VizContext.of(VizMark.MODERN_LIGHT)));
    }
 
    @Test
@@ -1027,7 +1027,7 @@ Append to `VSChartPaletteDefaultsTest.java`:
 
    @Test
    void aModernChartHidesTheSucceededFamiliesOnly() {
-      Set<String> hidden = VSChartPaletteDefaults.hiddenLinearFrames(VizContext.of(VizMark.MODERN));
+      Set<String> hidden = VSChartPaletteDefaults.hiddenLinearFrames(VizContext.of(VizMark.MODERN_LIGHT));
 
       assertEquals(16, hidden.size(), "six single hue, nine diverging, and Heat");
 
