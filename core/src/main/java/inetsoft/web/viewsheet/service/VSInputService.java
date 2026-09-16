@@ -2906,6 +2906,14 @@ public class VSInputService {
          hint0 = info.setSelectedObject(obj);
       }
       else if(info instanceof TextInputVSAssemblyInfo) {
+         ColumnOption option = ((TextInputVSAssemblyInfo) info).getColumnOption();
+
+         if(!option.validate(obj)) {
+            coreLifecycleService.sendMessage(
+               option.getErrorMessage(obj), MessageCommand.Type.ERROR, dispatcher);
+            return 0;
+         }
+
          hint0 = info.setSelectedObject(obj);
       }
       else {
