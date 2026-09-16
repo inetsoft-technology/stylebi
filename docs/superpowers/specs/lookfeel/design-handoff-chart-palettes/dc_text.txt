@@ -1,0 +1,534 @@
+ 
+ Turn 3 &middot; chart palettes 
+ Eleven palettes become six 
+ Redesigned against the refresh shell: every set is judged on the warm neutral canvas #F8F7F4 , not on white. Ground truth for the current set is core/src/main/resources/inetsoft/util/css/defaults.css on epic-74519 — 11 ChartPalette names, eight of which are single-hue ramps sitting in a categorical picker. Light and dark variants throughout, with one deliberate exception in 3d . The default categorical set in 3b is eight bases plus a soft companion per base — companions are addressed by role, not as sequence slots. 
+ 3a 
+ What each palette becomes 
+ the migration map 
+ Today Slots Becomes Why 
+ Default 40 Default · 8 merged Twenty base/tint pairs then twenty Office-era hexes. Nothing reads past series 8, so the sequence stops there. Rebuilt as eight hues built around a near-black anchor — see 3l . 
+ Pastel 16 ↳ companions The tints were the useful half, but as slots 9–16 they were never reached. Each becomes the soft companion of a base, addressable by role. 
+ Soft 8 Soft · 8 Kept as a role — the low-chroma set for dashboards with many small charts. Rebuilt warmer. 
+ Heat 8 / 16 / 24 48 Amber · 7 Three lengths of one ramp is a UI artifact. One ramp, interpolated to whatever length the encoding needs. 
+ Blue / Green 8 Teal · 7 One cool ramp instead of two near-identical ones, tuned to the support-family teal. 
+ — 0 Variance · 7 New. There is no diverging palette today, so every above/below-target encoding is hand-built per dashboard. 
+ — 0 Contrast · 8 New. Nothing today serves projection, monochrome print, or low vision — authors hand-pick colours for those, per dashboard. 
+ Red · Orange · Gray 12 Retired Red and Orange collapse into Amber. Gray as a data ramp is retired — confirmed unused; de-emphasis belongs to the shell neutrals, which are unaffected. 
+ 3b 
+ Default · 8, applied 
+ merged · companions by role 
+ Default · 8 + companions 
+ default categorical 
+ eight bases, each with a soft variant 
+ A near-black anchor at slot 3 grounds the set, so the remaining hues read as accents against it rather than as eight equal voices. Chroma runs high and lightness spans L 0.27 to 0.81 — two and a half times the range of an evenly spread ring — which is what carries separation once hues sit closer together than 45&deg;. The two candidates this was chosen over are in the appendix . 
+ 1 · Azure 
+ 2 · Coral 
+ 3 · Ink anchor 
+ 4 · Teal 
+ 5 · Violet 
+ 6 · Amber 
+ 7 · Magenta 
+ 8 · Acid 
+ Eight bases is the whole sequence — a chart needing a ninth category needs a different encoding, not a ninth colour. The soft variant is not slot 9 : it is addressable as the companion of its base, so it appears in two- and three-series charts instead of waiting for one that never arrives. The ink anchor sits at slot 3, not slot 1 — with one or two series there is nothing to anchor against, and a lone near-black bar reads as an error rather than a decision; from three series up it grounds the set. It is also the one exception to how a companion is derived: every other companion is its base lifted toward the canvas, but lifting a near-black by the same amount only produces a second dark colour. The anchor&rsquo;s companion is set at the canvas end outright — #CCCCE9 at L 0.86 — so it recedes like the rest. Four places companions earn their keep: 
+ Default · 8 — share of revenue 
+ ⋮ 
+ Direct 31% 
+ Partner 22% 
+ Renewal 17% 
+ Services 12% 
+ Training 10% 
+ Support 8% 
+ Area fill under a line 
+ base stroke, companion fill 
+ phase 3 
+ ⋮ 
+ A single-series chart. The companion is doing work here, and today there is no palette entry for it — authors reach for opacity, which muddies whatever is behind it. 
+ Target band 
+ companion as band fill 
+ phase 1 
+ ⋮ 
+ Drawn to the real z-order: band fill at TARGET_FILL_Z_INDEX 10 so it sits under the marks (under gridlines, even), boundary lines at 120 so they cross over them, in the default #AFAFAD . TargetForm already takes a CategoricalColorFrame for band colour via setBandColorFrame — it is handed an empty one and softens with alpha instead. Passing the companion frame makes the band belong to its measure rather than wash over whatever is behind it. 
+ Brushing 
+ one product brushed 
+ phase 2 
+ ⋮ 
+ Before 
+ Three products, four months. 
+ Brushed &middot; today 
+ Coral becomes Color.red ; Azure and Ink become the same Color.gray and are now indistinguishable. 
+ Brushed &middot; companions 
+ Coral keeps its own colour; the other two recede but stay themselves. 
+ Azure 
+ Coral &larr; brushed 
+ Ink 
+ Brushing one product is the harder case, and today it loses information on both sides of the selection: getHighlightColor() returns one global red for whatever was brushed, and getDimColor() one global grey for everything else — so a three-product chart becomes red plus two identical greys. Correcting myself on the mechanism: this is not an opacity pass. Both are already colour lookups ( Color.red and Color.gray by default, overridable as .brush-highlight-color and .brush-dim-color ), so resolving them per slot is the whole change. 
+ Confidence interval 
+ the same band mechanism 
+ phase 1 
+ ⋮ 
+ ConfidenceIntervalStrategy is a target strategy, so an interval is the same lines-plus-band construction as above rather than its own series. Same fix, same code path — which is why these two cases cost one change, not two. 
+ Shape change. The set is six palettes. Three are categorical — Default, Soft and Contrast — and the default of those is eight bases plus eight companions rather than sixteen sequence slots. Slots 9–16 were unreachable in practice — a chart with seven categories is a chart with a problem — so the tints were decorative where they sat. As companions they are addressable by role, which is what puts them into ordinary two- and three-series charts. The ask on the engine is one new accessor plus three call-site changes of very different size — and the ordering is not what I first guessed. 
+ Phase Cases Engine ask What it touches 
+ 0 
+ Foundation 
+ New accessor 
+ One method on CategoricalColorFrame — getCompanionColor(index) — that checks the authored Default-soft palette first and otherwise applies the derivation rule from 3j . Needs the sRGB&harr;OKLab utility the overflow generator in 3e also wants. Nothing else works without this; nothing else is expensive because of it. 
+ 1 
+ Target band &middot; confidence interval 
+ Wiring only 
+ TargetForm.setBandColorFrame() already accepts a CategoricalColorFrame and is handed an empty one. Pass the companion frame and drop the alpha softening. ConfidenceIntervalStrategy is a target strategy, so it comes along for free — two cases, no new API. 
+ 2 
+ Brushing 
+ Signature change 
+ BrushingColor.getDimColor() and getHighlightColor() are static and take no arguments — that is why they can only return one grey and one red. They need the series index and its frame, and their call sites need to resolve per mark rather than once per chart. Real work, but no re-architecture: it is already a colour lookup. 
+ 3 
+ Area fill &mdash; and filled line and radar with it 
+ New visual property 
+ The expensive one, and I had it ranked too low. AreaElement has no fill colour at all — it sets HINT_ALPHA 0.8 in an instance initialiser and paints the fill as the line&rsquo;s colour at 80% opacity. Giving the fill its own colour means a new property on the element and on AreaVO , not a lookup swap. It buys more than one chart type, though. LineElement has no fill of its own — a filled line and a radar are both AreaElement (radar is simply the zero-measure case, isRadar() returns getVarCount() == 0 ), so one property covers area, filled line and filled radar together. Worth noting LineElement carries a second opacity-for-colour case in fillLineAlpha 0.3 , the wash over null-gap segments — same substitution, different symptom. 
+ Every case above is grounded in code that exists — AreaElement , TargetForm bands, ConfidenceIntervalStrategy , BrushingColor . None is a hypothetical feature, which also means none can be deferred on the grounds that nobody uses it. Phase 0 alone is worth shipping: with the accessor in place, phase 1 is a two-line wiring change. 
+ 3c 
+ Soft &middot; 8, applied 
+ the low-chroma categorical set 
+ Soft · 8 — line, four series 
+ ⋮ 
+ North 
+ South 
+ East 
+ West 
+ Low chroma so twelve small charts on one dashboard don't compete. Today's Soft is a saturated eight — that is Default's job, not Soft's. 
+ 3d 
+ Contrast &middot; 8 — the third categorical set 
+ new 
+ Cutting to two categorical palettes left one job uncovered. Default varies lightness for depth and Soft lowers chroma for calm — both are tuned for a screen in a well-lit room, and both degrade in the three places charts get hardest to read: a washed-out projector, a monochrome printer, and low vision. Contrast is built for those and nothing else. 
+ 1 · Navy L .05 
+ 2 · Orange L .41 
+ 3 · Orchid L .18 
+ 4 · Yellow L .66 
+ 5 · Brick L .11 
+ 6 · Sky L .50 
+ 7 · Teal L .23 
+ 8 · Green L .31 
+ Desaturated — the print test 
+ holds 
+ Six series shown, the full eight in the strip. Each member sits on its own rung of a luminance ladder — no two closer than 0.05 relative luminance , against a total span of 0.05 to 0.66. Hue is the second signal, not the only one, so the set survives a monochrome printer and the common forms of colour blindness alike. 
+ Same test, Soft &middot; 8 
+ collapses 
+ Soft is deliberately even in lightness — that is what lets twelve small charts sit quietly together. Desaturated, the same property turns all eight into one grey. Not a defect in Soft; a demonstration that no single palette does both jobs. 
+ In colour — six series 
+ ⋮ 
+ Direct 
+ Partner 
+ Renewal 
+ Services 
+ Training 
+ Support 
+ What it costs 
+ It is loud, and it should be — the lightness ladder that makes it robust also makes it insistent. This is not the palette for an executive dashboard. Offering it is the point: an author reaching for it has a reason, which is exactly what the eight palettes we cut could not claim. 
+ Slot order interleaves the ladder rather than climbing it, so a two- or three-series chart draws from opposite ends: navy against orange against orchid, never three adjacent greys. 
+ Dark mode: Contrast is the one palette that should not get a dark variant. Its contract is maximum separation against paper and projection; re-tuning it for a dark surface would be a different palette wearing the same name. 
+ 3e 
+ Nine categories — what slot 9 does 
+ the palette has eight bases; the chart asked for nine 
+ Cutting Default to eight bases makes overflow a real case rather than a theoretical one — at forty slots it effectively never happened. Three ways the ninth colour can come out, on the same nine-bar chart. 
+ Wrap 
+ today 
+ Slot 9 = slot 1, modulo 
+ 1 
+ 2 
+ 3 
+ 4 
+ 5 
+ 6 
+ 7 
+ 8 
+ 9 
+ What index % length gives you. Bars 1 and 9 are the same blue, so the chart is quietly wrong — two categories that share a colour read as one. Survivable at forty slots; not at eight. 
+ Fall to companions 
+ rejected 
+ Slot 9 = companion of base 1 
+ 1 
+ 2 
+ 3 
+ 4 
+ 5 
+ 6 
+ 7 
+ 8 
+ 9 
+ Distinguishable, but it lies: pale blue beside blue asserts a relationship between category 9 and category 1 that the data does not have. It also spends the companion, which has a job elsewhere. 
+ Generate 
+ recommended 
+ Bisect the widest hue gap 
+ 1 
+ 2 
+ 3 
+ 4 
+ 5 
+ 6 
+ 7 
+ 8 
+ 9 
+ The eight bases sit on a hue ring at uneven spacing. Slot 9 takes the midpoint of the widest gap — teal&rarr;azure at 78&deg;, giving #009FB6 — at the ring&rsquo;s lightness and chroma, so it belongs to the family rather than arriving from nowhere. 
+ How the generator continues 
+ 1 
+ 2 
+ 3 
+ 4 
+ 5 
+ 6 
+ 7 
+ 8 
+ 9 
+ 10 
+ 11 
+ Each new slot bisects the widest remaining gap: 9 lands at cyan (teal&rarr;azure, 78&deg;), 10 at olive (amber&rarr;acid, 55&deg;), 11 at orchid (violet&rarr;magenta, 51&deg;). It never repeats and never runs out — but each addition is by construction closer to its neighbours than the eight bases are to each other, which is the honest argument for treating slot 9 as a warning rather than a feature. 
+ What the author should see 
+ ! 
+ This chart has 9 categories and the palette has 8 unpinned colours. The last 1 is generated and harder to tell apart — consider grouping the smallest into Other . 
+ The generator guarantees the chart is never wrong . It cannot make a nine-hue chart readable — nothing can. So the real answer is a nudge in Composer toward top- n -plus-Other, with generation as the silent safety net behind it. 
+ The threshold is not always eight. updateUnusedColors() removes any colour the author has pinned in the colour-mapping dialog, so the unpinned pool shrinks: pin three and generation begins at category 6. The warning must read the live pool size, not the constant. 
+ Engine ask 
+ One line in CategoricalColorFrame.getColor(int,int,boolean,boolean) — colors.get(index % colors.size()) becomes a bounds check falling through to a cached extension — plus the generator itself. It touches neither marks nor the interaction path, so it sits alongside phase 2. 
+ Three decisions it forces: the generator must be a pure function of index and pool, since frames are cloned and shareColors syncs palettes across a dashboard — otherwise one category drifts colour between two charts. AWT ships RGBtoHSB , but HSB hue steps are not perceptually even; OKLCH costs a small conversion utility and is worth it. And generated slots turn out to be themeable already — declaring [index=9] in CSS makes the slot real and generation resumes past it ( 3i ). 
+ 3f 
+ Multi-level charts 
+ icicle and sunburst — one rule, two geometries 
+ Colour comes from a single bound dimension, so what goes wrong depends on which one an author picks. Bind the leaf dimension and the palette restarts at every level, leaving a child with no visual link to its parent. Bind the root dimension and the whole branch turns one flat colour, so nothing distinguishes a ring from the ring outside it. Neither encodes depth, and neither is fixed by adding colours — what is missing is a rule for what colour means at each level. 
+ Icicle &mdash; colour bound to the leaf dimension 
+ today 
+ North America LATAM EMEA APAC 
+ With the leaf dimension bound, every region&rsquo;s children begin at slot 1 — so the first child of North America and the first child of LATAM are the same blue. Colour repeats without meaning anything and the eye cannot follow a branch outward. 
+ Icicle &mdash; hue inherited, lightness by depth 
+ proposed 
+ North America LATAM EMEA APAC 
+ A branch is one hue from root to leaf, so the eye follows it outward without a legend. Depth reads as recession — the further from the root, the closer to the canvas. Both bindings below collapse into the same rule; treemap and circle packing turn out not to need it. 
+ Sunburst 
+ colour bound to the root dimension 
+ Today 
+ Proposed 
+ Bind colour to the root dimension and a branch is already one flat hue all the way out — inheritance is not the thing that is missing. What is missing is everything inside the branch: three rings of one colour say nothing about which ring is which, and two adjacent children are told apart only by the white stroke between them. The ladder spends that flat colour on depth and sibling instead of leaving it unused. 
+ Treemap and circle packing are out of scope 
+ verified 
+ // TreemapVO.paint 
+ if(gobj.isLeaf() || !mapType.isContainment()) 
+ g2.fill(shape); 
+ Treemap and circle packing are containment types — children are drawn inside their parent — so only leaves are ever filled with a data colour. A parent gets a border whose width steps with depth ( min(level+1, 5) ) and, optionally, a fixed per-level background that is a theme colour rather than a series colour. Labels follow the same rule: hasTextLabel returns isLeaf() for treemap. Depth there is carried by nested border weight, not hue — one colour level, as you thought . Sunburst and icicle are not containment types, so every node is filled and the ladder applies. 
+ One thing still worth taking from it. Treemap leaves are coloured by sequential leaf index, so two leaves under different parents can land on the same colour and nothing ties a leaf to its branch. Inheriting the ancestor&rsquo;s hue and spreading siblings within one band — the same rule collapsed to a single level — would fix that without touching the containment rendering. Not built here; flagging it rather than assuming it. 
+ Signal Encodes 
+ Hue 
+ Which branch. Assigned once at the level the legend names, then inherited by every descendant. This is the only signal that consumes a palette slot. 
+ Lightness band 
+ How deep. Each level owns a band, walking from the base toward the canvas. Chroma falls with it, so a leaf never competes with its root. 
+ Position in band 
+ Which sibling. Shade purely by level and every child of a parent is identical. The white stroke between slices keeps them from literally merging, so this is the weakest of the three signals — but without it a legend entry and its neighbour are the same swatch, and a reader comparing two siblings has only position to go on. Siblings spread across their band instead. 
+ Ladder room per branch 
+ shipping base &middot; re-anchored 
+ Azure 
+ 0.21 
+ Coral 
+ 0.17 
+ Ink 
+ 0.59 
+ Teal 
+ 0.07 
+ Violet 
+ 0.30 
+ Amber 
+ 0.04 
+ Magenta 
+ 0.25 
+ Acid 
+ 0.06 
+ Lightness available between a base and the canvas. The set was tuned for categorical separation, so its members deliberately sit at different lightnesses — leaving Ink fourteen times the ladder room of Amber (0.59 against 0.04). A three-level chart on Amber would step 0.02 per level and look flat while the same chart on Ink read cleanly. Depth cannot mean something different depending on which slot a branch drew. 
+ So hierarchy charts re-anchor the bases 
+ Azure 
+ Coral 
+ Ink 
+ Teal 
+ Violet 
+ Amber 
+ Magenta 
+ Acid 
+ Each hue keeps its own place in the order but its lightness is compressed into L 0.40&ndash;0.58 , and its chroma is re-struck at the same fraction of what that hue can reach at its new lightness. Two things survive that the obvious fix — flattening every root to one lightness — would destroy: relative chroma stays exactly as authored, and roots keep an L spread of 0.18, so they are still separated by lightness and not by hue alone. Room now varies 1.7&times; across branches rather than 14.7&times;, with every branch guaranteed at least 0.27. The cost is that a multi-level chart sits visibly deeper than a bar chart beside it. 
+ How deep it holds, worst branch 
+ 2 kids 4 kids 6 kids 
+ 2 levels 0.187 0.062 0.037 
+ 3 levels 0.093 0.031 0.019 
+ 4 levels 0.062 0.021 0.012 
+ 5 levels 0.047 0.016 0.009 
+ Smallest lightness step between adjacent siblings on the tightest branch (room 0.27), against a perceptible floor of 0.02. Depth and branching factor spend one budget: three levels holds for trees up to four children, two levels for wider ones . Four levels reaches exactly 0.021 at four children — on the floor rather than clear of it, so treat it as binary-only in practice. Nothing to configure — the engine knows depth, breadth and the branch&rsquo;s own room at render time, so the limit is computed per branch rather than set. 
+ When levels are Use Why 
+ One dimension, recursively 
+ Org &rarr; sub-org, category &rarr; sub-category. Inheritance is the point: the child is part of the parent, so it should look like it. 
+ Two different dimensions 
+ Country &rarr; Industry. Industry is comparable across countries, so it needs its own identity rather than a shade of its parent. Level 1 takes Default , level 2 takes Soft — no new palette, and the chroma gap means a level-2 colour can never be mistaken for a level-1 one. 
+ Past the limit 
+ Deeper or wider than the ladder supports, or below roughly 8px: drop to alternating neutrals and let geometry and the tooltip carry it. A three-pixel slice conveys nothing by hue no matter which colour is in it. 
+ Engine ask. One function — getShade(index, depth, levels, sibling, siblings) on CategoricalColorFrame , alongside the getCompanionColor of 3j and sharing its OKLab utility. Not the same function: the companion is a tuned pair whose partner sits at a deliberate distance, while this is a sequence fitting n levels into finite lightness, and at two levels they give different answers. The larger question is upstream — TreemapGeometry already carries getLevel() and getChildRows() , but nothing passes depth, breadth or sibling index into colour resolution, so TreemapVisualModel.getColor falls through to the ordinary categorical lookup for every node. 
+ 3g 
+ The three ramps 
+ not categorical 
+ These three encode a measure , not a set of categories — and the engine already agrees. Binding a measure to colour goes through LinearColorFrame.getColor(double ratio) , an entirely separate path from CategoricalColorFrame , with its own list. That corrects an earlier claim of mine : I described gating the ramps out of the categorical picker as work to be done, and it is not. The real decision is which frame — three exist today, and only one of them lets a designer say where the ramp goes. 
+ How colour is produced Mechanism Consequence 
+ Two-point lerp GradientColorFrame , an RGBCube subclass overriding the path 
+ Straight RGB interpolation between two colours — defaults #FF99CC to #008000 . 
+ Generated, so it never runs out of steps — but interpolating in RGB passes through desaturated middles. A blue-to-orange gradient crosses grey. 
+ Path through control points RGBCubeColorFrame — Heat, Rainbow, Bipolar 
+ A path through control points — Heat runs black &rarr; orange &rarr; white, clipped to the middle of that path by getMinRatio 0.2 and getMaxRatio 0.8 . 
+ Also generated, same RGB muddiness. The clipping is a workaround for the ends being unusable. 
+ Authored stops AbstractSplineColorFrame — the right home 
+ Literal hex stops, spline-interpolated — seven variants per ramp from 3 stops up to 9. Blues is deebf7 9ecae1 3182bd at three. 
+ Stops are authored, so the ramp goes where a designer put it. Amber, Teal and Variance are specified here as 7 stops and drop straight in. 
+ Two endpoints, re-based keep it — fix the math 
+ Same author-picks-two-colours affordance, interpolated in OKLCH along the short hue arc instead of in RGB. Optional third input for a midpoint. 
+ Covers what no fixed ramp can — brand matching, one-off dashboards — without the grey middle. The midpoint turns it into a diverging ramp, which is what most bound measures actually are. 
+ Azure &rarr; coral, interpolated in RGB 
+ today 
+ Azure to coral, both from the palette. The midpoint lands on #82759A — chroma 0.06 against endpoints at 0.19 and 0.21. Half the ramp is spent passing through mud, so the steps either side of centre are nearly indistinguishable and the measure appears to flatten in its middle range. 
+ Same two endpoints, interpolated in OKLCH 
+ proposed 
+ Midpoint #CC61DA — chroma 0.20 , 3.5&times; the RGB one. The 142&deg; short arc runs through violet rather than grey. Taking the short hue arc at held chroma keeps every step as saturated as its endpoints, so the ramp reads evenly across its whole range. 
+ One utility, two features. The sRGB&harr;OKLab conversion this needs is the same one the overflow generator in 3e needs to bisect the hue ring — roughly 80 lines, no dependency. Neither feature justifies it alone; together they do. And the optional midpoint should default to the canvas neutral, for the same reason Variance does: at target should read as absence, not as a colour. 
+ Amber · 7 sequential 
+ Replaces Heat 8/16/24. Monotonic in lightness, so it survives grayscale. The spec assigns #E58A2A to --inet-viz-active-border , and it disappears against the ramp's warm middle — no amount of hue-shifting fixes that. So the active cell (shown above) carries a 2px primary stroke backed by a white hairline: the hairline separates the stroke from whatever it sits on, and the state survives every step of every ramp. 
+ Teal · 7 sequential 
+ The cool ramp, absorbing Blue and Green. Tuned to the shell's teal support family so a ramp and a support badge on the same screen belong together. 
+ Variance · 7 diverging — new 
+ Teal-to-amber through a warm neutral midpoint that matches the canvas, so "at target" reads as absence. Not red/green — that fails for the most common form of colour blindness, and red already means destructive in the shell. The warm end also clears --inet-viz-anomaly-bg #F7DEDE , so a flagged outlier still reads on top of a diverging fill. 
+ 3h 
+ Dark variants 
+ every palette except Contrast, re-tuned — not the light one inverted 
+ Default · 8 + companions 
+ Four series, second one selected — the rest drop to their companions 
+ On dark the companion is the deeper member for every slot but the anchor — receding means losing luminance against a dark surface, so the pair inverts while the role stays identical. The anchor is already the darkest member and has no room to deepen, so it lifts instead: #49447D paired with #8988AB . 
+ Soft · 8 
+ Lightened, not desaturated further — on dark, low chroma plus low lightness disappears. 
+ Amber · 7 
+ Direction flips: low values are dark, so the ramp still reads as "more = brighter". 
+ Teal · 7 
+ Same flip. Step 1 stays above the surface colour so an empty cell is still visible. 
+ Variance · 7 
+ Midpoint becomes a dark neutral — the light-mode #EFEDE7 would read as the brightest value here. 
+ Variance is the sharpest case for gating. Consumed in order its first four slots run teal → teal → pale teal → neutral, so the diverging structure is invisible unless the field is bound to a signed measure — see 3g .
+ Nine of the eleven ChartPalette names stop resolving — only Default and Soft survive. What happens to a dashboard that names one of the other nine is worked through in 3k . 
+ 3i 
+ Adding a palette 
+ what a deployment can do without us 
+ Correction to something I said earlier: I described adding a wholly new named palette as unsupported. It is supported, and more cleanly than overriding. ColorPalettes.loadPalettes() does not read from a registry — it asks the stylesheet what palettes exist: 
+ ColorPalettes.java 
+ // returns the set of palette names, 
+ // discovered from the CSS rather than a list 
+ cssDictionary.getCSSAttributeValues( 
+ "ChartPalette" , null, "name" ); 
+ so this is all it takes 
+ /* org theme CSS — no rebuild, no code change */ 
+ ChartPalette[name=Northwind][index=1] { color: #0490FF ; } 
+ ChartPalette[name=Northwind][index=2] { color: #FF5A35 ; } 
+ ChartPalette[name=Northwind][index=3] { color: #241C4F ; } 
+ … 
+ ChartPalette[name=Northwind][index=8] { color: #8ED604 ; } 
+ Select Palette 
+ appears automatically 
+ Default 
+ Soft 
+ Contrast 
+ Northwind 
+ The dialog is populated by getPaletteNames() , so a name that exists in CSS is a name in the picker. The frame is rebuilt whenever the stylesheet's modified time changes — edit the file, reload the dashboard. 
+ Property of the loader What it means Consequence for this redesign 
+ Length = highest index Color[] colors = new Color[max] — the palette is as long as its largest declared index, not as long as its count of rules. Our sets declare 1&ndash;8 and are eight long. A stray [index=40] would produce a forty-slot palette with thirty-one nulls. 
+ Indexes are 1-based, gaps are null Anything below 1 is skipped, and a missing index leaves a null in the array rather than collapsing. A deployment that overrides 1, 2 and 5 gets nulls at 3 and 4. Worth a validation warning; the loader itself does not complain. 
+ Per organization paletteMap is keyed by OrganizationManager.getCurrentOrgID() , and reports resolve through a separate cssLocation . Palette sets are per-tenant, not global. Two orgs on one install can ship different palettes — which is the real answer to &ldquo;our customer needs their own colours.&rdquo; 
+ Overriding a generated slot Declaring [index=9] makes max nine, so the slot becomes real rather than generated. This resolves the question I left open in 3e : generated colours are themeable by declaring them, and generation simply resumes past whatever the deployment defined. No bound to change. 
+ The one gap is companions. The selector carries name and index and resolves to a single colour, so there is nowhere in this schema for a slot's soft variant. Two options: teach CSSDictionary a third attribute ( ChartPalette[name=Default][index=3][variant=soft] ), which is the honest model but touches the parser; or use a parallel palette name — Default-soft , loaded by the existing code with no change at all. The second costs nothing and is how I would ship it; 3j works it through, including why the authored palette should be the override rather than the mechanism. 
+ 3j 
+ Companions for every palette 
+ built-in and deployment-authored alike — derived by rule, overridable per slot 
+ The gap named in 3i : ChartPalette[name][index] resolves to one colour, so there is nowhere to put a slot&rsquo;s soft variant. Authoring a second palette by hand solves it for our three sets and leaves every deployment palette without companions — which would make the companion a feature only we can use. So companions are derived from the base by rule , and the authored palette is an override rather than the mechanism. 
+ Light — recede toward the canvas 
+ 1 · Azure 
+ 2 · Coral 
+ 3 · Ink anchor 
+ 4 · Teal 
+ 5 · Violet 
+ 6 · Amber 
+ 7 · Magenta 
+ 8 · Acid 
+ L + 0.14 · C × 0.40 
+ Hue is never touched, so a companion always reads as the same series. 
+ L &rarr; 0.855 · C × 0.45 
+ The anchor exception. A near-black lifted by 0.14 is still near-black, so slot 3 is sent to the canvas end outright — the failure we hit when the offset was uniform. 
+ Dark — recede by deepening 
+ 1 · Azure 
+ 2 · Coral 
+ 3 · Ink anchor 
+ 4 · Teal 
+ 5 · Violet 
+ 6 · Amber 
+ 7 · Magenta 
+ 8 · Acid 
+ L &minus; 0.26 · C × 1.03 
+ Chroma is held rather than cut — on a dark surface, low chroma and low lightness disappears together. 
+ L &rarr; 0.64 · C × 0.55 
+ The anchor again, and here it lifts : already the darkest member, it has no room to deepen. 
+ Resolution order for a companion 
+ 1 
+ Authored palette. Default-soft exists and has this index &rarr; use it. Loaded by the current ColorPalettes with no code change, so an override needs no new mechanism. 
+ 2 
+ Derived. No authored entry &rarr; apply the rule above to the base. Every palette gets companions, including a deployment&rsquo;s own Northwind . 
+ 3 
+ Base itself. Palette has fewer slots than the chart needs and the base came from the overflow generator in 3e &rarr; derive from the generated colour, same rule. 
+ 4 
+ Global grey. Today&rsquo;s BrushingColor.getDimColor() — one colour for every series. It stays as the fallback for frames that are not categorical, where there is no slot to companion. 
+ overriding a derived companion 
+ /* only the slots you disagree with */ 
+ ChartPalette[name=Default-soft][index=3] 
+ { color: #CCCCE9 ; } 
+ One caveat from the loader: palette length is the highest declared index, so overriding slot 3 alone yields a three-long palette with nulls at 1 and 2. A null must fall through to the derived value, not render as absent — otherwise a partial override silently breaks two other series. 
+ The one thing to get right in the picker. getPaletteNames() returns every name in the CSS, so Default-soft would appear in Select Palette as a choosable palette. Filtering by suffix works but is fragile — a customer palette genuinely called Sage-soft would vanish from their own picker. Better to filter in getPaletteNames() itself and expose companions only through a getCompanionPalette(name) accessor, so the reserved suffix is enforced in one place rather than assumed by every caller. 
+ 3k 
+ Retiring the nine names 
+ what a saved dashboard does when its palette is gone 
+ The failure is silent 
+ // ColorPalettes.getPalette 
+ return paletteMap.get(orgID).get(name); 
+ A plain map lookup. An unknown name returns null — no exception, no fallback, not even a log line. So &ldquo;let the retired names fail&rdquo; is not one of the options on the table: it is the option already selected by default, and it is invisible. That settles it — every retired name gets an alias. 
+ The alias is free 
+ /* Heat 8 keeps resolving */ 
+ ChartPalette[name=Heat 8][index=1] 
+ { color: #FCEFE0 ; } 
+ Palettes are CSS, not code — the same mechanism as 3i . An alias is just the retired name re-declared with the successor&rsquo;s colours: no code, no migration script , and old dashboards keep rendering while pointing at the new palette. 
+ Retired name Slots Aliases to Fidelity Note 
+ Pastel 
+ 16 
+ Default-soft 
+ faithful 
+ The neatest of the nine. Pastel was the tint palette and the companion palette is the tint palette, so the name lands on the thing it always meant. 
+ Heat 8 
+ 8 
+ Amber 
+ faithful 
+ Same ramp, better stops. Length drops 8 &rarr; 7, which no chart notices — a ramp is sampled by ratio, not by slot. 
+ Heat 16 
+ 16 
+ Amber 
+ faithful 
+ As above. 
+ Heat 24 
+ 24 
+ Amber 
+ faithful 
+ As above. 
+ Blue 
+ 4 
+ Teal 
+ faithful 
+ A cool single-hue ramp becoming the cool single-hue ramp. 
+ Orange 
+ 4 
+ Amber 
+ faithful 
+ A warm single-hue ramp becoming the warm one. 
+ Green 
+ 4 
+ Teal 
+ lossy 
+ Hue shifts green &rarr; teal. The intent survives, the colour does not, and nothing closer exists once Green and Blue merge. 
+ Red 
+ 4 
+ Amber 
+ lossy 
+ Red carries alarm and amber does not, so a dashboard that chose Red for urgency loses that reading. Red stays reserved for destructive actions in the shell, which is why it is not returning as a data ramp. 
+ Gray 
+ 4 
+ Soft 
+ lossy 
+ No successor by construction. Soft is the quiet categorical set, which is the nearest intent. Confirmed unused, so this alias exists to satisfy the lookup rather than to serve anyone. 
+ Aliases must not reappear in the picker 
+ Nine aliases in CSS put nine names back into getCSSAttributeValues("ChartPalette", null, "name") , so Select Palette would offer fifteen palettes — the six we designed plus the nine we retired. That is the same problem Default-soft raises in 3j and it wants the same answer: one hidden-names filter inside getPaletteNames() , with getPalette() left unfiltered so saved dashboards still resolve. One mechanism, two uses — worth building once rather than twice. 
+ One consequence worth expecting 
+ A dashboard on Heat 24 with twenty categories currently gets twenty declared colours. Aliased to Amber it gets seven, and slots 8 through 20 come from the overflow generator in 3e . That is the right outcome — twenty ramp steps used categorically was never readable — but it is a visible change on load rather than a silent one, and it is the strongest argument for the Composer nudge toward top- n -plus-Other shipping in the same release as the cut. 
+ 3l 
+ Appendix — why these eight hues 
+ design history · not needed to implement 
+ C adopted 
+ Current bases 
+ superseded &mdash; the viz spec&rsquo;s Vivid exploration, itself descended from the Office-era forty in defaults.css 
+ Three things date it: hues spread evenly round the wheel at near-uniform chroma and lightness, so the set reads as one-of-each rather than authored; #8A6E54 brown and #C7A21A mustard exist to fill the 60&ndash;95&deg; arc, not because a chart wants them; and with lightness flat, separation rests entirely on hue, leaving no hierarchy — eight series all shout at once. 
+ A 
+ Cool spine, warm accents 
+ not taken 
+ five cool members carry the set; three warm accents earn their place 
+ 1 · Indigo 
+ 2 · Burnt orange 
+ 3 · Teal 
+ 4 · Raspberry 
+ 5 · Violet 
+ 6 · Amber 
+ 7 · Lime 
+ 8 · Sky 
+ Grouped — three series 
+ ⋮ 
+ Six categories 
+ ⋮ 
+ Indigo 31% 
+ Burnt orange 22% 
+ Teal 17% 
+ Raspberry 12% 
+ Violet 10% 
+ Amber 8% 
+ Deliberately unbalanced: the wheel is not covered evenly, and the warm side is spent on three specific accents rather than filled in. Lightness swings hard — indigo at the dark end, sky at the light end — so the set has depth instead of eight equal shouts. No brown, no mustard. 
+ B 
+ Muted ladder, one focal 
+ not taken 
+ Chroma pulled down throughout so one member — terracotta — becomes the focal point, with slots 1 and 7 the same hue at different lightness and slot 8 a deliberate neutral. Rejected because the restraint costs separation that dense dashboards cannot spare: on a six-series chart the muted members start trading places. 
+ C 
+ Ink and electric 
+ adopted 
+ a dark anchor, high chroma, wide lightness spread 
+ The honest critique of A is that its eight hues are stock — recognisable from any modern component library, safe rather than authored. C makes two moves A would not. One slot is a near-black ink rather than a colour, giving a chart a graphic anchor — and at C 0.09 it is deliberately the least saturated swatch in either palette, because an anchor that competes is not an anchor. The rest run hotter: mean chroma 0.20 across slots 2–8 against A's 0.18, with violet at 0.25 and magenta at 0.24 sitting near the sRGB boundary. But the real separation is lightness — C spans L 0.27 (ink) to 0.81 (amber), a range of 0.54 , against A's 0.53–0.73, a range of 0.21. Two and a half times the vertical room. 
+ 1 · Azure 
+ 2 · Coral 
+ 3 · Ink 
+ 4 · Teal 
+ 5 · Violet 
+ 6 · Amber 
+ 7 · Magenta 
+ 8 · Acid 
+ A — cool spine 
+ not taken 
+ Four series drawn in order: indigo, burnt orange, teal, raspberry. Even, competent, and it could be any BI product shipped since 2019. 
+ C — ink and electric 
+ adopted 
+ Same four slots: azure, coral, ink, teal. The ink anchors the chart so the colours read as accents against it rather than as four equal claims — which is the whole difference in feel. 
+ What C costs, plainly. Ink is nearly the text colour, so a chart and its labels start sharing a value — fine on the warm canvas, risky on white cards. High chroma is fatiguing across a twelve-widget dashboard in a way A is not; that is partly what Soft exists for, but it does push more work onto the author's palette choice. And the lightness spread that makes C graphic is the same property that makes its lightest members thin on a projector — Contrast stays the answer there. My read: C is right if StyleBI wants charts that look like its charts; A is right if the priority is never being the reason someone dislikes a dashboard. 
+ D 
+ State-safe — the band belongs to meaning 
+ not taken 
+ 40–110° 
+ reserved 
+ Reading the visualization spec's state tokens together shows something neither A nor C accounts for: six of the eleven live in a 70° wedge of warm hue. Amber is not the brand accent that happens to appear in charts — it is the analytical state language. 
+ active 61° 
+ sorted 65° 
+ filtered 74° 
+ warning 82° 
+ pinned 83° 
+ context 87° 
+ A series colour inside that wedge competes with six meanings at once. A has two members there — burnt orange at 42° and amber at 63°, the latter ΔE 0.023 from --inet-viz-active-border , effectively the same colour. C has one, amber at 75°, mitigated by the white-hairline active treatment in 3g . D vacated the warm band entirely — though only the warm one: its sky at 228° then landed ΔE 0.079 from --inet-viz-selected-border , trading a warm collision for a cool one. That, plus a palette defined by what it excludes, is why it was not taken. 
+ 1 · Blue 252° 
+ 2 · Coral 25° 
+ 3 · Teal 180° 
+ 4 · Violet 295° 
+ 5 · Green 140° 
+ 6 · Magenta 355° 
+ 7 · Sky 228° 
+ 8 · Plum 325° 
+ Four series, with state on top 
+ Revenue ↓ 
+ Region: West 
+ 2 above threshold 
+ Every warm mark on this chart is state — the filtered chip, the warning count, the sorted header, and the amber ring on the active bar. None of it can be mistaken for a series, because no series sits in the reserved band. 
+ What it costs 
+ Eight hues now share 290° instead of 360°, so adjacent members sit ~36° apart rather than ~45°. The lightness ladder carries the difference — L spans 0.38 to 0.84 , a range of 0.46 against A's 0.21 — which is why this reads as separated despite the narrower arc. 
+ No gold, no olive, no brown. Charts lose a warm mid-tone they have always had, and some customers will read that as the palette missing something. The answer is that it is not missing — it is reserved. 
+ Also fixes C's ink. The coordination doc names shell neutral surfaces and border greys as colours that must not become visualization colours; C's ink at L 0.27 sat in text-strong 's territory at L 0.24. D's darkest member is plum at L 0.38 — dark enough to anchor, clear of the text ramp. 
+ Decided: C. It is applied throughout — 3b , 3e and 3h now run on the ink-and-electric bases ( 3c is Soft, a separate palette, and is untouched), with violet moved from 291&deg; to 308&deg; to open the gap against ink at 286&deg;. The overflow generator is re-derived from the new ring: slot 9 is cyan #009FB6 , bisecting the 78&deg; teal&rarr;azure gap. A and D stay below as the roads not taken — A because its amber sat &Delta;E 0.023 from --inet-viz-active-border and its hues were stock; D because vacating the reserved band does not relocate gold, it deletes it, which is why optimising against the constraint produced a defensive palette. C&rsquo;s one live conflict, amber against the active border, is already handled by the white-hairline treatment in 3g . 
