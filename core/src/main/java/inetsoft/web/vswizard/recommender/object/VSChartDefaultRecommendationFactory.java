@@ -24,6 +24,7 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardData;
@@ -83,8 +84,12 @@ public final class VSChartDefaultRecommendationFactory implements VSChartRecomme
       }
 
       boolean autoOrder = isAutoOrder(principal);
+      // the temp chart carries the host viewsheet's mark, so a wizard chart is seeded the same
+      // ramp the composer would give it
+      VizContext ctx = bindingHandler.getTempChartContext(wizardData);
       // create all valid recommedation.
-      List<ChartInfo> infos = ChartCombinationUtil.getChartInfos(entries, temp, geoCols, autoOrder);
+      List<ChartInfo> infos =
+         ChartCombinationUtil.getChartInfos(entries, temp, geoCols, autoOrder, ctx);
       // changed to control how many is showing on the client.
       // get the top recommendation.
       //infos = infos.stream().limit(12).collect(Collectors.toList());

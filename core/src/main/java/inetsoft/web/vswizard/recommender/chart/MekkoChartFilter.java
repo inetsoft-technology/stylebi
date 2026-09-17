@@ -60,7 +60,7 @@ public class MekkoChartFilter extends ChartTypeFilter {
          info.setTextField(createAestheticRef(f));
       });
 
-      GraphUtil.fixVisualFrames(info);
+      GraphUtil.fixVisualFrames(info, vizContext);
       return getClassyInfo(info);
    }
 

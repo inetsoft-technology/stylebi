@@ -75,7 +75,7 @@ public class WordCloudFilter extends ChartTypeFilter {
       if(info.getSizeField() == null && refs.size() > 0) {
          VSAestheticRef aes = getAestheticRef(0);
          info.setSizeField(aes);
-         GraphUtil.fixVisualFrames(info);
+         GraphUtil.fixVisualFrames(info, vizContext);
       }
 
       return getClassyInfo(info);

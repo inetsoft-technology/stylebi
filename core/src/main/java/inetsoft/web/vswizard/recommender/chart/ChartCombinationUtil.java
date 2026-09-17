@@ -21,6 +21,7 @@ import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.vswizard.recommender.ChartRecommenderUtil;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import inetsoft.web.vswizard.recommender.object.VSChartScoreComparator;
@@ -50,6 +51,18 @@ public class ChartCombinationUtil {
    public static List<ChartInfo> getChartInfos(AssetEntry[] entries, VSChartInfo temp,
                                                ColumnSelection geoCols, boolean autoOrder)
    {
+      return getChartInfos(entries, temp, geoCols, autoOrder, VizContext.LEGACY);
+   }
+
+   /**
+    * Method to filter chart combination.
+    *
+    * @param ctx the context the recommendations are seeded against, from the temp chart's mark.
+    */
+   public static List<ChartInfo> getChartInfos(AssetEntry[] entries, VSChartInfo temp,
+                                               ColumnSelection geoCols, boolean autoOrder,
+                                               VizContext ctx)
+   {
       ChartRef[] groups = temp.getXFields();
       ChartRef[] aggs = temp.getYFields();
       int n = groups.length + aggs.length;
@@ -63,7 +76,7 @@ public class ChartCombinationUtil {
       }
 
       List<List<ChartRef>> hgroup = getHierarchy(entries, temp);
-      List<ChartTypeFilter> filters = createFilters(entries, temp, hgroup, geoCols, autoOrder);
+      List<ChartTypeFilter> filters = createFilters(entries, temp, hgroup, geoCols, autoOrder, ctx);
       List<ChartInfo> infos = getChartInfos(n, filters);
 
       return infos;
@@ -78,9 +91,11 @@ public class ChartCombinationUtil {
       return Arrays.asList(temp.getBindingRefs(false));
    }
 
-   private static List<ChartTypeFilter> createFilters(AssetEntry[] entries, VSChartInfo temp,
-                                                      List<List<ChartRef>> hgroup,
-                                                      ColumnSelection geoCols, boolean autoOrder)
+   // package-private so the context handoff below can be asserted directly
+   static List<ChartTypeFilter> createFilters(AssetEntry[] entries, VSChartInfo temp,
+                                              List<List<ChartRef>> hgroup,
+                                              ColumnSelection geoCols, boolean autoOrder,
+                                              VizContext ctx)
    {
       List<ChartTypeFilter> filters = new ArrayList<>();
       // These styles will be primary chart.
@@ -125,6 +140,10 @@ public class ChartCombinationUtil {
       filters.add(new ParetoChartFilter(entries, temp, hgroup, autoOrder));
       filters.add(new BoxChartFilter(entries, temp, hgroup, autoOrder));
       filters.add(new FacetBoxChartFilter(entries, temp, hgroup, autoOrder));
+
+      // one handoff for the whole list, so a filter added above cannot be left seeding the
+      // pre-modern ramp by a constructor nobody remembered to widen
+      filters.forEach(filter -> filter.setVizContext(ctx));
 
       return filters;
    }

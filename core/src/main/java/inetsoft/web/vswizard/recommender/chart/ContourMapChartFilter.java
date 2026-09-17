@@ -17,10 +17,10 @@
  */
 package inetsoft.web.vswizard.recommender.chart;
 
-import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 
 import java.util.List;
 
@@ -46,7 +46,7 @@ public class ContourMapChartFilter extends MapChartFilter {
 
       if(info != null) {
          info.setChartType(GraphTypes.CHART_MAP_CONTOUR);
-         info.setColorFrame(new BluesColorFrame());
+         info.setColorFrame(VSChartPaletteDefaults.defaultLinearFrame(vizContext));
          info.setClearedFormula(clearFormula(info));
       }
 

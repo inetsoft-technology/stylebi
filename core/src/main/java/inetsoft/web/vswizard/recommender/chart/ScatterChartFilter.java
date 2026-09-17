@@ -109,7 +109,7 @@ public class ScatterChartFilter extends ChartTypeFilter {
    // Do not sort ref, add inside field by select order.
    protected void addInsideField(VSChartInfo info, ChartRefCombination comb, List<ChartRef> refs) {
       getRefs(comb.getInside(), refs).forEach(ref -> putInside(info, ref));
-      GraphUtil.fixVisualFrames(info);
+      GraphUtil.fixVisualFrames(info, vizContext);
    }
 
    @Override
