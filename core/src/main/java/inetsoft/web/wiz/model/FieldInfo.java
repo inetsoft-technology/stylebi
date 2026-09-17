@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -53,7 +54,27 @@ public class FieldInfo {
       this.format = format;
    }
 
+   /**
+    * The original "$(ComponentName)" literal when {@link #getField()} has been rewritten to the
+    * column that reference currently resolves to, so the dynamic binding can be restored onto the
+    * rebuilt ref afterward (see WizAutoBindingService#resolveDynamicFieldConfigs). Null for an
+    * ordinary field.
+    *
+    * <p>{@code @JsonIgnore} deliberately: this is internal bookkeeping for the rebuild, not part of
+    * the wiz API's field echo.
+    */
+   @JsonIgnore
+   public String getDynamicColumnValue() {
+      return dynamicColumnValue;
+   }
+
+   @JsonIgnore
+   public void setDynamicColumnValue(String dynamicColumnValue) {
+      this.dynamicColumnValue = dynamicColumnValue;
+   }
+
    private String field;
+   private String dynamicColumnValue;
    private String type;
    private String title;
    private String format;
