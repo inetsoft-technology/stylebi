@@ -886,6 +886,8 @@ public class WorksheetEditService {
          RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
             ws, name, tableSet.toArray(new TableAssembly[0]), new TableAssemblyOperator[0]);
 
+         requireNoSelfReferencingSource(join);
+
          // Position + register before wiring the edges (matching placeAssembly's order for
          // every other join creator here), since editExistingJoinTable needs the assembly
          // already registered in ws to resolve table names against.
@@ -3364,9 +3366,46 @@ public class WorksheetEditService {
        */
       private void placeAssembly(WSAssembly assembly) throws PairingException {
          requireStorableName(assembly.getName(), "An assembly name");
+         requireNoSelfReferencingSource(assembly);
          assembly.setPixelOffset(new Point(25, 25));
          AssetEventUtil.adjustAssemblyPosition(assembly, ws);
          ws.addAssembly(assembly);
+      }
+
+      /**
+       * Refuses an assembly whose own name collides with one of its own source tables.
+       *
+       * <p>{@link Worksheet#addAssembly} silently evicts and replaces any existing assembly that
+       * already has that name (see its own doc there). A {@link ComposedTableAssembly} only
+       * stores its sources by name ({@code getTableNames()}), re-resolved against the worksheet
+       * lazily on every call -- so if {@code assembly}'s own name matches one of those source
+       * names, resolving that source after registration returns {@code assembly} itself. Every
+       * recursive traversal over sources (e.g. {@code checkValidity()}, {@code
+       * getAllVariables()}) then recurses into itself with no cycle guard, terminating only in an
+       * uncaught {@link StackOverflowError} -- and the original, evicted assembly has no
+       * in-memory path back. Must run before {@link Worksheet#addAssembly}, since by then the
+       * eviction has already happened and cannot be undone.</p>
+       */
+      static void requireNoSelfReferencingSource(WSAssembly assembly) throws PairingException {
+         if(!(assembly instanceof ComposedTableAssembly composed)) {
+            return;
+         }
+
+         String[] sourceNames = composed.getTableNames();
+
+         if(sourceNames == null) {
+            return;
+         }
+
+         for(String sourceName : sourceNames) {
+            if(assembly.getName().equals(sourceName)) {
+               throw new PairingException(
+                  "\"" + assembly.getName() + "\" collides with one of its own source tables. " +
+                  "Registering it under that name would silently replace and permanently corrupt " +
+                  "the existing \"" + sourceName + "\" assembly. Choose a different name for the " +
+                  "new assembly, or edit \"" + sourceName + "\" in place instead.");
+            }
+         }
       }
 
       /**
