@@ -132,8 +132,68 @@ public class SheetPropertyService {
                PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
+         reconcileParameterLists(model, resolved);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
+   }
+
+   /**
+    * {@code enabledParameters}/{@code disabledParameters} are two independently-settable fields
+    * on the underlying model — {@link ViewsheetSettingsService#setViewsheetParameterInfo} writes
+    * {@code disabledVariable} and {@code orderedVariables} separately, with nothing enforcing
+    * that a name in one is absent from the other. The Composer's own "Customize" dialog never
+    * exposes this seam: moving a parameter between its enabled/disabled columns always submits
+    * both as one already-partitioned pair. A patch through this generic property path can touch
+    * only one side, though, leaving the other carrying whatever the pre-patch read had — which
+    * may still include the very name just moved to the other list.
+    *
+    * <p>Confirmed live (2026-09-17): patching only {@code disabledParameters:["MinPopulation"]}
+    * against a viewsheet whose query genuinely declares that variable left it listed in BOTH
+    * {@code enabledParameters} AND {@code disabledParameters} on the next read — a state the real
+    * dialog can never produce, reported as a plain success with no indication anything was
+    * inconsistent.
+    *
+    * <p>Resolved here, after the ordinary per-key writes above have applied whatever the caller
+    * actually supplied: if only one of the two fields was touched, the overlap is pruned from the
+    * OTHER (untouched) side — the side the caller's patch actually named wins, matching what
+    * "move this parameter to the other column" means in the dialog. If the caller supplied
+    * <b>both</b> fields and they still overlap, that is a self-contradictory patch, not an
+    * ordering question, and is refused rather than silently resolved one way or the other.
+    */
+   private static void reconcileParameterLists(
+      ViewsheetPropertyDialogModel model, Map<String, String> resolved)
+   {
+      boolean touchesEnabled = resolved.values().contains(ENABLED_PARAMETERS_PATH);
+      boolean touchesDisabled = resolved.values().contains(DISABLED_PARAMETERS_PATH);
+
+      if(!touchesEnabled && !touchesDisabled) {
+         return;
+      }
+
+      ViewsheetParametersDialogModel params = model.vsOptionsPane().getViewsheetParametersDialogModel();
+      List<String> enabled = new ArrayList<>(namesOf(params.getEnabledParameters()));
+      List<String> disabled = new ArrayList<>(namesOf(params.getDisabledParameters()));
+      Set<String> overlap = new LinkedHashSet<>(enabled);
+      overlap.retainAll(disabled);
+
+      if(overlap.isEmpty()) {
+         return;
+      }
+
+      if(touchesEnabled && touchesDisabled) {
+         throw new IllegalArgumentException(
+            "'" + overlap + "' cannot be in both enabledParameters and disabledParameters in " +
+            "the same patch -- a parameter is one or the other, never both.");
+      }
+
+      if(touchesDisabled) {
+         enabled.removeAll(overlap);
+         params.setEnabledParameters(enabled.toArray(new String[0]));
+      }
+      else {
+         disabled.removeAll(overlap);
+         params.setDisabledParameters(disabled.toArray(new String[0]));
+      }
    }
 
    /**
@@ -220,9 +280,12 @@ public class SheetPropertyService {
          value + "' is not one.");
    }
 
-   private static final Set<String> PARAMETER_LIST_PATHS = Set.of(
-      "vsOptionsPane.viewsheetParametersDialogModel.enabledParameters",
-      "vsOptionsPane.viewsheetParametersDialogModel.disabledParameters");
+   private static final String ENABLED_PARAMETERS_PATH =
+      "vsOptionsPane.viewsheetParametersDialogModel.enabledParameters";
+   private static final String DISABLED_PARAMETERS_PATH =
+      "vsOptionsPane.viewsheetParametersDialogModel.disabledParameters";
+   private static final Set<String> PARAMETER_LIST_PATHS =
+      Set.of(ENABLED_PARAMETERS_PATH, DISABLED_PARAMETERS_PATH);
 
    /**
     * Rebinds or clears the viewsheet's own Data Source — the Options dialog's "Select"/"Clear"
