@@ -655,7 +655,7 @@ public class ViewsheetPropertyDialogService {
       return deleteList;
    }
 
-   private void updateBoundAssemblies(AssetEntry oldDatasource, Worksheet ows, Viewsheet viewsheet)
+   public void updateBoundAssemblies(AssetEntry oldDatasource, Worksheet ows, Viewsheet viewsheet)
    {
       AssetEntry datasource = viewsheet.getBaseEntry();
 

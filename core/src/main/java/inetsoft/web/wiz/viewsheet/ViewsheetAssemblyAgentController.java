@@ -38,10 +38,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmark;
@@ -49,6 +51,7 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
@@ -112,7 +115,8 @@ public class ViewsheetAssemblyAgentController {
                                    LayoutUndoService layoutUndoService,
                                    VSBookmarkService vsBookmarkService,
                                    VSExportService exportService,
-                                   SecurityEngine securityEngine)
+                                   SecurityEngine securityEngine,
+                                   ViewsheetPropertyDialogService viewsheetPropertyDialogService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -145,6 +149,7 @@ public class ViewsheetAssemblyAgentController {
       this.vsBookmarkService = vsBookmarkService;
       this.exportService = exportService;
       this.securityEngine = securityEngine;
+      this.viewsheetPropertyDialogService = viewsheetPropertyDialogService;
    }
 
    public record JoinRequest(String code) {}
@@ -1577,12 +1582,22 @@ public class ViewsheetAssemblyAgentController {
     * @param datasource data source name. Required when {@code type} is {@code "physicalTable"}.
     * @param table      physical table name within {@code datasource}. Required when {@code type}
     *                   is {@code "physicalTable"}.
+    * @param force      when the viewsheet already has a base, repoints it to the newly-resolved
+    *                   source instead of refusing; existing assembly bindings that do not survive
+    *                   on the new source are cleared. Absent (including a body-less/pre-existing
+    *                   request) means {@code false}. Ignored when the viewsheet has no base yet.
     */
    public record AttachBaseWorksheetRequest(String path, String scope, String type,
-                                            String datasource, String table) {
+                                            String datasource, String table, Boolean force) {
+      /** Backward-compatible 5-arg form: every pre-existing caller implies force:false. */
+      public AttachBaseWorksheetRequest(String path, String scope, String type,
+                                        String datasource, String table) {
+         this(path, scope, type, datasource, table, null);
+      }
+
       /** Backward-compatible 2-arg form: every pre-existing caller implies type:"worksheet". */
       public AttachBaseWorksheetRequest(String path, String scope) {
-         this(path, scope, null, null, null);
+         this(path, scope, null, null, null, null);
       }
    }
 
@@ -1813,33 +1828,58 @@ public class ViewsheetAssemblyAgentController {
     * {@code attach_base_worksheet}. Attaches an existing, named worksheet asset as this paired
     * viewsheet's base, for a viewsheet that currently has none — closing the gap
     * {@code open_base_worksheet} deliberately leaves open (it can only ever follow an
-    * already-attached base, never name one). Refuses rather than silently repointing a viewsheet
-    * that already has a base; use the Composer UI's own Viewsheet Properties dialog to swap one.
+    * already-attached base, never name one). When the viewsheet already has a base, refuses
+    * unless {@code force:true} is passed, in which case it repoints to the newly-resolved source
+    * and updates existing assembly bindings via
+    * {@link ViewsheetPropertyDialogService#updateBoundAssemblies} — the same binding-repair logic
+    * the Composer UI's own Viewsheet Properties dialog uses when its data source is changed.
     *
     * <p>This never persists the viewsheet — like every other mutation on this controller, it only
     * updates the paired session's own in-memory {@link Viewsheet}. Call {@code save_viewsheet}
     * separately once ready.</p>
     *
+    * <p>The actual write routes through {@link ViewsheetSessionService#mutate}, so a successful (or
+    * partially-applied) attach/repoint gets a checkpoint and is undoable via {@code /undo} like
+    * every other mutating endpoint here. The hasBase-and-not-forced refusal is a pure no-op and
+    * deliberately stays outside {@code mutate} so it does not itself create a checkpoint.</p>
+    *
+    * <p>On failure this rolls back {@code setBaseEntry}/{@code reloadBaseWorksheet} to the previous
+    * base so a failed attach ordinarily leaves the session as it was before this call -- except in
+    * the rare case where the restore-reload itself also fails (e.g. a repository-wide outage), in
+    * which case the thrown message says so explicitly rather than claiming a clean rollback. This
+    * also cannot undo a partial {@link ViewsheetPropertyDialogService#updateBoundAssemblies} run if
+    * it throws partway through several assemblies -- that non-atomicity is shared with the Composer
+    * UI's own datasource-swap path and tracked separately.</p>
+    *
     * @param sessionToken the token obtained at join time
-    * @param body         the worksheet path to attach
+    * @param body         the worksheet path to attach, and whether to force a repoint
     * @param user         the authenticated agent principal
     * @throws PairingException if the session is invalid/expired, the viewsheet already has a
-    *                          base, no {@code path} was supplied, or {@code path} does not name a
-    *                          worksheet the caller can read
+    *                          base and {@code force} was not set, no {@code path} was supplied, or
+    *                          {@code path} does not name a worksheet the caller can read
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/attach-base-worksheet")
    public void attachBaseWorksheet(@PathVariable String sessionToken,
                                    @RequestBody AttachBaseWorksheetRequest body,
-                                   Principal user) throws PairingException
+                                   Principal user) throws Exception
    {
       requireEnabled();
-      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
-      Viewsheet vs = rvs.getViewsheet();
 
-      if(vs.getBaseEntry() != null) {
+      // Read-only refusal check, deliberately outside sessions.mutate(...): a call that changes
+      // nothing must not create a checkpoint or broadcast a refresh, but everything mutate()
+      // touches gets both (see its own javadoc) -- appropriate for a partially-applied write, not
+      // for a no-op. This resolve is separate from (and in addition to) the one mutate() performs
+      // for the actual write below.
+      RuntimeViewsheet probeRvs = sessions.resolve(sessionToken, user);
+      Viewsheet probeVs = probeRvs.getViewsheet();
+      boolean hasBase = probeVs.getBaseEntry() != null;
+      boolean force = body != null && Boolean.TRUE.equals(body.force());
+
+      if(hasBase && !force) {
          throw new PairingException(
-            "This viewsheet already has a base worksheet (\"" + vs.getBaseEntry().toView() +
-            "\"). attach_base_worksheet only attaches a base when there is none — use " +
+            "This viewsheet already has a base worksheet (\"" + probeVs.getBaseEntry().toView() +
+            "\"). Pass force:true to repoint it to a different source -- existing assembly " +
+            "bindings that do not survive on the new source will be cleared -- or use " +
             "open_base_worksheet to inspect the current one.");
       }
 
@@ -1848,50 +1888,105 @@ public class ViewsheetAssemblyAgentController {
                                     "XPrincipal (" + user.getClass().getName() + ")");
       }
 
-      // The caret check on 'path' lives in resolveDataSourceEntry itself (shared with
-      // create_viewsheet), not here -- see that method's javadoc. rep is resolved lazily
-      // (only once resolveDataSourceEntry's own field checks pass) so a refusal on a bad field
-      // never triggers a real getAssetRepository() call, matching create_viewsheet's own supplier
-      // contract for this same shared method.
-      AssetRepository[] repHolder = new AssetRepository[1];
-      AssetEntry entry;
+      RuntimeViewsheet[] rvsHolder = new RuntimeViewsheet[1];
 
-      try {
-         entry = resolveDataSourceEntry(body == null ? null : body.type(),
-            body == null ? null : body.path(), body == null ? null : body.scope(),
-            body == null ? null : body.datasource(), body == null ? null : body.table(), xp,
-            () -> repHolder[0] = rvs.getAssetRepository());
-      }
-      catch(PairingException e) {
-         throw e;
-      }
-      catch(Exception e) {
-         throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
-      }
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         rvsHolder[0] = rvs;
+         Viewsheet vs = rvs.getViewsheet();
 
-      AssetRepository rep = repHolder[0];
+         // Recomputed from the actual mutate() target rather than reusing the outer pre-mutate
+         // probe's hasBase/oldEntry/oldWs -- those are only valid for the no-op refusal check
+         // above (which must stay outside mutate()), not for the write/rollback below.
+         boolean hasBaseNow = vs.getBaseEntry() != null;
+         AssetEntry oldEntry = hasBaseNow ? vs.getBaseEntry() : null;
+         Worksheet oldWs = hasBaseNow ? vs.getBaseWorksheet() : null;
 
-      try {
-         vs.setBaseEntry(entry);
-         vs.reloadBaseWorksheet(rep, xp);
-      }
-      catch(Exception e) {
-         // reloadBaseWorksheet performs its own independent getSheet call and can fail even
-         // after the probe above succeeded (a permission change, storage error, or corrupt
-         // worksheet XML in the narrow window between the two fetches). Roll back setBaseEntry
-         // so a failed attach leaves the session exactly as it was before this call -- without
-         // this, wentry would stay set while the worksheet (ws) never got populated, reproducing
-         // this bug's own broken state, and the guard above would then refuse every retry with a
-         // misleading "already has a base worksheet" message.
-         vs.setBaseEntry(null);
-         throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
-      }
+         // The caret check on 'path' lives in resolveDataSourceEntry itself (shared with
+         // create_viewsheet), not here -- see that method's javadoc. rep is resolved lazily
+         // (only once resolveDataSourceEntry's own field checks pass) so a refusal on a bad field
+         // never triggers a real getAssetRepository() call, matching create_viewsheet's own
+         // supplier contract for this same shared method.
+         AssetRepository[] repHolder = new AssetRepository[1];
+         AssetEntry entry;
 
-      broadcast.broadcastRefresh(rvs, SheetType.VIEWSHEET, rvs.getID(), user);
+         try {
+            entry = resolveDataSourceEntry(body == null ? null : body.type(),
+               body == null ? null : body.path(), body == null ? null : body.scope(),
+               body == null ? null : body.datasource(), body == null ? null : body.table(), xp,
+               () -> repHolder[0] = rvs.getAssetRepository());
+         }
+         catch(PairingException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
+         }
 
-      // broadcastRefresh only repaints visible assembly canvases; the Data panel/asset tree that
-      // shows the newly attached base worksheet is only reachable through this separate push -- see
+         AssetRepository rep = repHolder[0];
+         boolean reloadSucceeded = false;
+
+         try {
+            vs.setBaseEntry(entry);
+            vs.reloadBaseWorksheet(rep, xp);
+            reloadSucceeded = true;
+
+            if(hasBaseNow) {
+               // Embedded VIEWSHEET_ASSET child-viewsheet assemblies are out of scope here --
+               // they bind to their own separate base, unaffected by the outer sheet's repoint.
+               viewsheetPropertyDialogService.updateBoundAssemblies(oldEntry, oldWs, vs);
+            }
+
+            // Mirrors the Composer UI's own datasource-swap (ViewsheetPropertyDialogService
+            // #setViewsheetInfo): viewsheet.update()'s extra clearCache()/embedded-viewsheet work
+            // is unrelated to binding repair and is skipped in favor of the lighter
+            // reloadBaseWorksheet(), but ViewsheetSandbox#resetRuntime() is still called since it
+            // clears table-metadata caching and script scope that reloadBaseWorksheet() does not
+            // touch. Called unconditionally (not gated on hasBaseNow) since it is cheap and a
+            // stale sandbox from an earlier, since-cleared base cannot be ruled out.
+            rvs.getViewsheetSandbox().ifPresent(ViewsheetSandbox::resetRuntime);
+         }
+         catch(Exception e) {
+            // reloadBaseWorksheet performs its own independent getSheet call and can fail even
+            // after the probe above succeeded (a permission change, storage error, or corrupt
+            // worksheet XML in the narrow window between the two fetches). Roll back setBaseEntry
+            // so a failed attach ordinarily leaves the session as it was before this call --
+            // without this, wentry would stay set while the worksheet (ws) never got populated,
+            // reproducing this bug's own broken state, and the guard above would then refuse every
+            // retry with a misleading "already has a base worksheet" message. For a failed repoint
+            // of an already-based viewsheet, roll back to the ORIGINAL base, not null -- otherwise
+            // a failed repoint would leave a previously-working viewsheet baseless.
+            vs.setBaseEntry(hasBaseNow ? oldEntry : null);
+
+            // setBaseEntry only restores wentry -- if reloadBaseWorksheet had already succeeded
+            // before updateBoundAssemblies (or the sandbox reset) threw, ws/originalWs/wnames
+            // still point at the NEW worksheet's content. Re-reload the old entry to restore those
+            // too. This must never suppress or replace the original exception -- a failure here
+            // only appends to the message thrown below.
+            String restoreFailureSuffix = "";
+
+            if(hasBaseNow && reloadSucceeded) {
+               try {
+                  vs.reloadBaseWorksheet(rep, xp);
+               }
+               catch(Exception restoreEx) {
+                  LOG.warn("Failed to restore previous base worksheet (\"{}\") after a failed " +
+                           "attach_base_worksheet repoint", oldEntry, restoreEx);
+                  restoreFailureSuffix = "; additionally failed to restore the previous base " +
+                     "worksheet (\"" + oldEntry + "\") -- this viewsheet's base worksheet " +
+                     "reference may not match its cached content until repaired";
+               }
+            }
+
+            throw new PairingException(
+               "Failed to attach base worksheet: " + e.getMessage() + restoreFailureSuffix, e);
+         }
+      });
+
+      // mutate()'s own finally block already calls broadcast.broadcastRefresh -- no need to
+      // repeat it here. broadcastBindingTreeRefresh is specific to this endpoint (refreshing the
+      // Data panel/asset tree) and is NOT covered by mutate()'s generic refresh -- see
       // SheetAgentBroadcastService#broadcastBindingTreeRefresh's own javadoc for why.
+      RuntimeViewsheet rvs = rvsHolder[0];
       broadcast.broadcastBindingTreeRefresh(rvs, rvs.getID(), user);
 
       // Bug #76637: neither broadcast above ever writes VSPane's this.vs.baseEntry client-side --
@@ -2026,4 +2121,5 @@ public class ViewsheetAssemblyAgentController {
    private final VSBookmarkService vsBookmarkService;
    private final VSExportService exportService;
    private final SecurityEngine securityEngine;
+   private final ViewsheetPropertyDialogService viewsheetPropertyDialogService;
 }
