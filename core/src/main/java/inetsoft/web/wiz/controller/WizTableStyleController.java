@@ -32,6 +32,7 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Wraps StyleBI's Table Style asset (LibManager, AssetEntry.Type.TABLE_STYLE) -- a reusable,
@@ -80,7 +81,7 @@ public class WizTableStyleController {
 
    public record CreateTableStyleRequest(String name, String folder, TableStyleFormatModel format) {}
 
-   public record UpdateTableStyleRequest(TableStyleFormatModel format) {}
+   public record UpdateTableStyleRequest(String name, String folder, TableStyleFormatModel format) {}
 
    @GetMapping
    public List<TableStyleSummary> list(Principal principal) {
@@ -215,7 +216,62 @@ public class WizTableStyleController {
    {
       LibManager lib = libManagerProvider.getManager(principal);
       XTableStyle style = requireExists(lib, styleId).clone();
-      requirePermission(principal, style.getName(), ResourceAction.WRITE);
+      String oldFullName = style.getName();
+      requirePermission(principal, oldFullName, ResourceAction.WRITE);
+
+      if(request.name() != null || request.folder() != null) {
+         if(request.name() != null && request.name().isBlank()) {
+            throw new IllegalArgumentException("'name' must not be blank.");
+         }
+
+         if(request.name() != null && request.name().contains(LibManager.SEPARATOR)) {
+            throw new IllegalArgumentException(
+               "'name' must not contain '" + LibManager.SEPARATOR + "' -- that is LibManager's " +
+               "own internal folder separator, not a valid character in a table style's plain " +
+               "name. Use 'folder' (a plain \"/\"-joined path) to move it instead.");
+         }
+
+         if(request.folder() != null && request.folder().contains(LibManager.SEPARATOR)) {
+            throw new IllegalArgumentException(
+               "'folder' must not contain '" + LibManager.SEPARATOR + "' -- that is LibManager's " +
+               "own internal folder separator; join nested folder segments with '/' instead " +
+               "(e.g. 'User Defined/Sales').");
+         }
+
+         String oldInternalFolder = internalFolderOf(oldFullName);
+         String newLeaf = request.name() != null ? request.name() : leafName(oldFullName);
+         String newInternalFolder = request.folder() != null ?
+            toInternalFolder(request.folder()) : oldInternalFolder;
+         String newFullName = newInternalFolder == null ?
+            newLeaf : newInternalFolder + LibManager.SEPARATOR + newLeaf;
+
+         if(!newFullName.equals(oldFullName)) {
+            // LibManager.renameTableStyle/TableStyleLogicalLibrary.rename do no duplicate-name
+            // check themselves (that's a controller-layer responsibility in the composer flows
+            // this mirrors -- see AssetEventUtil.isRenameDuplicate/isChangeDuplicate), so a
+            // rename-to-an-existing-name would otherwise silently collide.
+            if(tableStyleService.contains(newInternalFolder, newLeaf)) {
+               throw new IllegalArgumentException(
+                  "A table style named '" + newLeaf + "' already exists" +
+                  (newInternalFolder != null ?
+                     " in folder '" + toDisplayFolder(newInternalFolder) + "'" : "") +
+                  ". Pick a different name/folder.");
+            }
+
+            requirePermission(principal, newFullName, ResourceAction.WRITE);
+
+            if(!Objects.equals(newInternalFolder, oldInternalFolder)) {
+               requireFolderWritePermission(principal, newInternalFolder);
+            }
+
+            lib.renameTableStyle(oldFullName, newFullName, styleId);
+
+            // Critical: lib.setTableStyle(style.getID(), style) below runs unconditionally and
+            // persists THIS clone, not the stored entry renameTableStyle just mutated -- without
+            // this, that call silently reverts the rename on every request.
+            style.setName(newFullName);
+         }
+      }
 
       if(request.format() != null) {
          requireCompleteFormat(request.format());
@@ -305,6 +361,13 @@ public class WizTableStyleController {
       return sep < 0 ? "" : toDisplayFolder(name.substring(0, sep));
    }
 
+   /** {@code internalFolderOf}'s counterpart to {@code folderOf} -- no display conversion, so
+    * the result is directly comparable against {@code toInternalFolder}'s output. */
+   private static String internalFolderOf(String name) {
+      int sep = name.lastIndexOf(LibManager.SEPARATOR);
+      return sep < 0 ? null : name.substring(0, sep);
+   }
+
    /** {@code null}/blank means the library root, {@code LibManager}'s own root sentinel. */
    private static String toInternalFolder(String displayFolder) {
       if(displayFolder == null || displayFolder.isBlank()) {
@@ -330,6 +393,31 @@ public class WizTableStyleController {
       }
       catch(Exception e) {
          return false;
+      }
+   }
+
+   /**
+    * Mirrors {@code ChangeAssetController.changeTableStyle}'s destination-folder WRITE check --
+    * the name-level check in {@link #requirePermission} only covers the full style name, not the
+    * folder itself, and {@code TABLE_STYLE_LIBRARY}/{@code "*"} (root) vs. {@code TABLE_STYLE}/
+    * folder-path (non-root) use different resource types, same as that controller's
+    * {@code getTableStyleResourceType}.
+    */
+   private void requireFolderWritePermission(Principal principal, String internalFolder) {
+      ResourceType type = internalFolder == null ? ResourceType.TABLE_STYLE_LIBRARY : ResourceType.TABLE_STYLE;
+      String resource = internalFolder == null ? "*" : internalFolder;
+      boolean allowed;
+
+      try {
+         allowed = securityEngine.checkPermission(principal, type, resource, ResourceAction.WRITE);
+      }
+      catch(Exception e) {
+         allowed = false;
+      }
+
+      if(!allowed) {
+         throw new SecurityException(
+            "No WRITE permission on table style folder '" + toDisplayFolder(internalFolder) + "'.");
       }
    }
 
