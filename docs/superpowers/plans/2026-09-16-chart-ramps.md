@@ -1262,11 +1262,24 @@ Expected: BUILD SUCCESS.
 From the design's §5, in a running server, in both light and dark:
 
 - A modern chart binding a measure to colour is born on Teal.
+- **A chart created through the object wizard**, binding a measure to colour, is also born on Teal — the path Task 10 closed, and the one that was wrong for the whole slice until then.
 - The same chart in dark mode reads at both ends — the low stop is not the brightest thing on screen.
 - A classic chart is unchanged in both picker and seed.
-- A modern chart saved on `Spectral` before this slice still renders it and still pre-selects it.
 - A report chart is unchanged.
-- The three new swatches render in the dropdown; none is a broken image.
+
+**The picker's exact expected contents** — this is what "the swatches render" has to mean to be checkable:
+
+| Row | Modern-marked chart | Classic chart |
+|---|---|---|
+| Custom | visible | visible |
+| Single Hue | **2** — Amber, Teal | **8** — Amber, Blues, Greens, Greys, Oranges, Purples, Reds, Teal |
+| Multi-Hue | **12**, unchanged | **12**, unchanged |
+| Diverging | **1** — Variance | **10** — the nine ColorBrewer diverging ramps, plus Variance |
+| Heat | **row absent** | visible |
+
+Amber is first in Single Hue and Teal last; Variance is last in Diverging. Confirm each of the three renders an image rather than a broken-image placeholder — the files are `assets/Amber.png`, `assets/Teal.png`, `assets/Variance.png`.
+
+**Then the hide-never-remove case, which is the behaviour most likely to be wrong.** Open a modern chart already bound to a hidden ramp — `Spectral` is the clearest — and confirm Diverging shows **two** entries, Variance and Spectral, with Spectral selected. Click OK without changing anything and confirm the chart does not repaint. That rule is what keeps existing dashboards from silently re-colouring.
 
 Record what was checked and what was seen. **Anything that does not match goes in the report, not into a fix — the reviewer decides.**
 
