@@ -23,7 +23,9 @@ import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.uql.VariableTable;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
@@ -97,6 +99,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1400,8 +1403,14 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      assertThrows(RenderNotReadyException.class,
-         () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+      // clearBoundQueryCache (bug #76711 round 2) reaches AssetQuery.createAssetQuery, which
+      // needs live Spring beans (XRepository/XSessionManager) this lightweight test context
+      // doesn't wire -- mock it away to a no-op default (null, not a BoundQuery) since this test
+      // isn't about that mechanism.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+      }
    }
 
    /** A table whose data is already warm (or warms within the bound) refreshes normally. */
@@ -1436,7 +1445,10 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
+      // See the sibling "Slow" test above for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
+      }
 
       verify(box, atLeastOnce()).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
    }
@@ -1480,7 +1492,10 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
 
-      ctrl.edit("TOK-RD3", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD3", refreshDataRequest("Table1"), agent);
+      }
 
       verify(assetDataCache).remove(any());
    }
@@ -1560,7 +1575,10 @@ class WorksheetAgentControllerTest {
 
       assertNotNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS), "sanity: cap set before refresh");
 
-      ctrl.edit("TOK-RD5", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD5", refreshDataRequest("Table1"), agent);
+      }
 
       assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
          "Run Query's own row-cap removal must be mirrored for RUNTIME_MODE tables");
@@ -1596,7 +1614,10 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      ctrl.edit("TOK-RD6", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD6", refreshDataRequest("Table1"), agent);
+      }
 
       verify(table).loadColumnSelection(any(), eq(true), any());
    }
@@ -1640,8 +1661,12 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
+      // clearBoundQueryCache (bug #76711 round 2) reaches AssetQuery.createAssetQuery, which
+      // needs live Spring beans this lightweight test context doesn't wire -- mock it away to a
+      // no-op default (null, not a BoundQuery) since this test isn't about that mechanism.
       try(MockedStatic<WorksheetEventUtil> eventUtil =
-             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
          eventUtil.when(() ->
                WorksheetEventUtil.loadTableData(eq(rws), eq("Table1"), anyBoolean(), anyBoolean()))
             .thenAnswer(invocation -> {
@@ -1655,6 +1680,88 @@ class WorksheetAgentControllerTest {
 
       assertNull(vars.get("__refresh_report__"),
          "flag must be removed again after the reload, same as Run Query's finally block");
+   }
+
+   /**
+    * Bug #76711, review round 2: {@code RenderWaitSupport.awaitOrRetry}'s reload work runs on a
+    * separate virtual thread that is NOT cancelled on timeout (see its own doc comment) -- so a
+    * reload slower than the timeout keeps running after {@code refreshData}'s own {@code finally}
+    * block has already removed {@code __refresh_report__}, which can race that still-running
+    * thread and silently fall back to the stale {@code XSessionManager} cache (this is exactly
+    * what a {@code claude-review} CI bot caught, and the lead independently reproduced live, in
+    * this bug's round-1 fix). The actual fix is {@code clearBoundQueryCache} -- a synchronous
+    * {@code AssetQuery.createAssetQuery(...)} + {@code BoundQuery.clearQueryCache(...)} call made
+    * BEFORE the bounded reload is even submitted, so its correctness cannot depend on winning that
+    * race. This test simulates a reload slower than the 2000ms timeout (same technique as
+    * {@code insertColumnThrowsRenderNotReadyWhenColumnSelectionIsSlow} -- an instance stub on
+    * {@code box}, not a static mock, since {@code MockedStatic} is thread-confined and
+    * {@code RenderWaitSupport} runs the reload on a different (virtual) thread) and asserts
+    * clearQueryCache was already invoked -- in order, before the slow reload started -- by the
+    * time {@code RenderNotReadyException} propagates out, proving the invalidation does not
+    * depend on the reload finishing in time.
+    */
+   @Test
+   void refreshDataClearsBoundQueryCacheBeforeSlowReload() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      List<String> callOrder = Collections.synchronizedList(new ArrayList<>());
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+      doAnswer(invocation -> {
+         callOrder.add("reload");
+         // Slower than RenderWaitSupport's 2000ms timeout -- keeps running in the background
+         // (not cancelled) after awaitOrRetry has already thrown. An instance stub (not a static
+         // mock) so it fires correctly from RenderWaitSupport's virtual worker thread.
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Table1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD8"), any())).thenReturn(session("TOK-RD8"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      BoundQuery boundQuery = mock(BoundQuery.class);
+
+      doAnswer(invocation -> {
+         callOrder.add("clearQueryCache");
+         return null;
+      }).when(boundQuery).clearQueryCache(any());
+
+      // clearBoundQueryCache runs synchronously on this (the test) thread, before awaitOrRetry
+      // submits the reload -- a MockedStatic registered here is visible for that call, unlike the
+      // reload work above which runs on a different thread.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assetQuery.when(() -> AssetQuery.createAssetQuery(
+               any(), anyInt(), eq(box), eq(false), eq(-1L), eq(true), eq(false)))
+            .thenReturn(boundQuery);
+
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD8", refreshDataRequest("Table1"), agent));
+      }
+
+      assertEquals(List.of("clearQueryCache", "reload"), callOrder,
+         "the query cache must be cleared synchronously before the reload is even submitted, " +
+         "not merely before/after it happens to finish within the timeout");
    }
 
    /**
