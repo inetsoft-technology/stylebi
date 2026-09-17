@@ -730,6 +730,42 @@ public class ViewsheetAssemblyAgentController {
       sheetPropertyService.set(sessionToken, user, request.properties(), linkUri);
    }
 
+   /**
+    * {@code convert_data_source_to_worksheet} (Redmine #76739). The Options dialog's "Convert
+    * Source to Worksheet" link, offered there only when the viewsheet's base is a Logical Model.
+    * See {@link SheetPropertyService#convertDataSourceToWorksheet} for what this does and does
+    * not do — in particular, it only saves the new worksheet asset; call
+    * {@link #setDataSource} with the returned path to actually attach it.
+    *
+    * <p>{@code convertLogicModelToWorksheet}'s own "not a logical model" / "unsaved viewsheet"
+    * refusals are plain {@link Exception}s, a type this controller's local
+    * {@code @ExceptionHandler(PairingException.class)} does not recognize and neither does
+    * {@link inetsoft.web.wiz.WizControllerErrorHandler} — left uncaught, either one reaches the
+    * client as an opaque, unhelpful 500 ("unexpected server error") instead of naming the actual
+    * problem. Confirmed live (2026-09-16): calling this against a viewsheet whose base was a
+    * worksheet, not a logical model, surfaced exactly that opaque 500 before this wrapping was
+    * added. Re-thrown as a {@link PairingException} carrying the original message, the same
+    * catch-and-rewrap {@link #attachBaseWorksheet}/{@link #createViewsheet} already do for
+    * {@code resolveDataSourceEntry}'s failures.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/convert-data-source-to-worksheet")
+   public Map<String, Object> convertDataSourceToWorksheet(@PathVariable String sessionToken,
+                                                            Principal user) throws Exception
+   {
+      requireEnabled();
+
+      try {
+         return sheetPropertyService.convertDataSourceToWorksheet(sessionToken, user);
+      }
+      catch(PairingException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new PairingException("Failed to convert data source to worksheet: " +
+                                    e.getMessage(), e);
+      }
+   }
+
    public record HyperlinkRequest(String assembly, Integer row, Integer col, String colName,
                                   Boolean axis, Boolean text, Boolean titleLink,
                                   Boolean emptyPlotLink, Map<String, Object> link) {
@@ -1897,6 +1933,146 @@ public class ViewsheetAssemblyAgentController {
       // Bug #76637: neither broadcast above ever writes VSPane's this.vs.baseEntry client-side --
       // only a SetViewsheetInfoCommand does -- so the Composer's bottom status-bar worksheet-path
       // chip stayed blank until a manual refresh. See broadcastViewsheetInfoRefresh's own javadoc.
+      broadcast.broadcastViewsheetInfoRefresh(rvs, rvs.getID(), user);
+   }
+
+   /**
+    * Request body for the set-data-source endpoint.
+    *
+    * @param clear      {@code true} clears the viewsheet's base entirely, matching the Options
+    *                   dialog's "Clear" button. Refused when combined with any other field.
+    * @param path       see {@link AttachBaseWorksheetRequest#path}
+    * @param scope      see {@link AttachBaseWorksheetRequest#scope}
+    * @param type       see {@link AttachBaseWorksheetRequest#type}
+    * @param datasource see {@link AttachBaseWorksheetRequest#datasource}
+    * @param table      see {@link AttachBaseWorksheetRequest#table}
+    */
+   public record SetDataSourceRequest(Boolean clear, String path, String scope, String type,
+                                      String datasource, String table) {}
+
+   /**
+    * {@code set_viewsheet_data_source}. Rebinds or clears the viewsheet's own Data Source — the
+    * Composer's Options dialog "Select"/"Clear" buttons
+    * ({@code vsOptionsPane.selectDataSourceDialogModel.dataSource}) — the one field of that
+    * dialog {@code set_viewsheet_properties} cannot reach, since it needs a resolved
+    * {@link AssetEntry} rather than a scalar leaf value (Redmine #76739). See
+    * {@link PropertyAliases}'s own comment on why this is a dedicated tool rather than an alias.
+    *
+    * <p>Unlike {@link #attachBaseWorksheet}, which only ever fills an EMPTY base and refuses
+    * otherwise, this always replaces whatever base is currently set (or clears it), matching
+    * what the Options dialog itself allows. Reuses {@link #resolveDataSourceEntry} for the exact
+    * same asset resolution and read-permission check {@code attach_base_worksheet}/
+    * {@code create_viewsheet} already share, then delegates the actual apply to
+    * {@link SheetPropertyService#setDataSource} so the dependency-refresh/sandbox-reset side
+    * effects run through the same, single, already-tested path as every other viewsheet
+    * property write.
+    *
+    * @throws PairingException naming the specific problem: {@code clear} combined with another
+    *                          field, no source fields at all, or an unresolvable/unreadable
+    *                          data source.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/set-data-source")
+   public void setDataSource(@PathVariable String sessionToken,
+                             @RequestBody SetDataSourceRequest body,
+                             @RequestParam(required = false, defaultValue = "") String linkUri,
+                             Principal user) throws Exception
+   {
+      requireEnabled();
+
+      // Resolved before any body validation, matching attachBaseWorksheet's own ordering — an
+      // invalid/expired session is refused the same way regardless of what the body contains.
+      // Kept for the post-write broadcasts below, not touched until the write itself succeeds.
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      boolean clear = body != null && Boolean.TRUE.equals(body.clear());
+
+      if(clear) {
+         if(body.path() != null || body.scope() != null || body.type() != null ||
+            body.datasource() != null || body.table() != null)
+         {
+            throw new PairingException(
+               "set_viewsheet_data_source: 'clear' cannot be combined with 'path'/'scope'/" +
+               "'type'/'datasource'/'table' -- pass clear:true alone to remove the base, or " +
+               "the source fields alone to set one.");
+         }
+
+         setDataSourceOrRewrap(sessionToken, user, null, linkUri);
+         broadcastDataSourceChanged(rvs, user);
+         return;
+      }
+
+      if(body == null || (body.path() == null && body.datasource() == null &&
+         body.table() == null && body.type() == null))
+      {
+         throw new PairingException(
+            "set_viewsheet_data_source needs either clear:true, or a 'path' (worksheet/" +
+            "logicalModel) / 'datasource'+'table' (physicalTable) naming the new data source.");
+      }
+
+      if(!(user instanceof XPrincipal xp)) {
+         throw new PairingException("Cannot set data source: agent principal is not an " +
+                                    "XPrincipal (" + user.getClass().getName() + ")");
+      }
+
+      AssetEntry entry;
+
+      try {
+         entry = resolveDataSourceEntry(body.type(), body.path(), body.scope(),
+            body.datasource(), body.table(), xp, () -> rvs.getAssetRepository());
+      }
+      catch(PairingException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new PairingException("Failed to set data source: " + e.getMessage(), e);
+      }
+
+      setDataSourceOrRewrap(sessionToken, user, entry, linkUri);
+      broadcastDataSourceChanged(rvs, user);
+   }
+
+   /**
+    * {@link SheetPropertyService#setDataSource} delegates to
+    * {@link inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService#setViewsheetInfo},
+    * whose data-source branch calls {@code Viewsheet.update(...)} — declared to throw a plain
+    * {@link Exception}, a type neither this controller's local
+    * {@code @ExceptionHandler(PairingException.class)} nor
+    * {@link inetsoft.web.wiz.WizControllerErrorHandler} recognizes. Left uncaught, that would
+    * reach the client as the same opaque 500 confirmed live for
+    * {@link #convertDataSourceToWorksheet} (Redmine #76739) rather than a named failure. Rewrapped
+    * here for the same reason and the same way.
+    */
+   private void setDataSourceOrRewrap(String sessionToken, Principal user, AssetEntry entry,
+                                      String linkUri) throws Exception
+   {
+      try {
+         sheetPropertyService.setDataSource(sessionToken, user, entry, linkUri);
+      }
+      catch(PairingException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new PairingException("Failed to set data source: " + e.getMessage(), e);
+      }
+   }
+
+   /**
+    * Found live (Redmine #76739 follow-up, 2026-09-17): after a successful data-source change,
+    * the Composer's Toolbox/Data panel tree did not refresh to show the new source. {@code
+    * ViewsheetPropertyDialogService#setViewsheetInfo}'s data-source branch dispatches only a
+    * {@code VSDependencyChangedCommand}, which the human dialog's own client-side handler reacts
+    * to by re-requesting the tree itself — a request this agent-driven write has no client-side
+    * counterpart to make. {@link #attachBaseWorksheet} hit the identical gap (bug #76637) and
+    * fixed it with these same two pushes; {@link SheetPropertyService#setDataSource} goes through
+    * {@link ViewsheetSessionService#mutate}, which already broadcasts the per-assembly canvas
+    * refresh on its own, so only the two {@code attachBaseWorksheet} adds beyond that are needed
+    * here.
+    *
+    * <p>Called after the write already succeeded, matching {@link #attachBaseWorksheet}'s own
+    * ordering — a failure to refresh the browser must never be reported as a failure to change
+    * the data source, which is why both pushes below already swallow their own errors.
+    */
+   private void broadcastDataSourceChanged(RuntimeViewsheet rvs, Principal user) {
+      broadcast.broadcastBindingTreeRefresh(rvs, rvs.getID(), user);
       broadcast.broadcastViewsheetInfoRefresh(rvs, rvs.getID(), user);
    }
 

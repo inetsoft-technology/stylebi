@@ -18,6 +18,10 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
+import inetsoft.web.composer.model.vs.ConvertToWorksheetResponseModel;
+import inetsoft.web.composer.model.vs.SelectDataSourceDialogModel;
 import inetsoft.web.composer.model.vs.ViewsheetPropertyDialogModel;
 import inetsoft.web.composer.model.vs.VSOptionsPaneModel;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
@@ -171,6 +175,193 @@ class SheetPropertyServiceTest {
       assertThrows(Exception.class, () -> service.set("tok", principal(), Map.of(), ""));
    }
 
+   /** Redmine #76739: the "Customize" parameter list is a plain String[] pair -- proves the
+    *  JSON-array-to-String[] coercion PropertyPath already does for other array-typed leaves
+    *  also works through this alias, once every named parameter is one the viewsheet's query
+    *  actually declares (the pre-existing model already lists Region/Year/Quarter as known,
+    *  simulating what a real getViewsheetInfo would report for a parameterized query). */
+   @Test
+   void enabledAndDisabledParametersAreWritableWhenAlreadyKnown() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model =
+         modelWithKnownParameters(List.of("Region", "Year", "Quarter"), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.set("tok", principal(), Map.of(
+         "enabledParameters", List.of("Region", "Year"),
+         "disabledParameters", List.of("Quarter")), "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                      anyString(), any());
+      assertArrayEquals(new String[] {"Region", "Year"},
+         captor.getValue().vsOptionsPane().getViewsheetParametersDialogModel()
+            .getEnabledParameters());
+      assertArrayEquals(new String[] {"Quarter"},
+         captor.getValue().vsOptionsPane().getViewsheetParametersDialogModel()
+            .getDisabledParameters());
+   }
+
+   /**
+    * Redmine #76739 follow-up, found live: setViewsheetParameterInfo stores whatever the model
+    * contains unconditionally, but the NEXT read re-derives these two arrays by filtering against
+    * the viewsheet's actual query-declared variables -- so a name outside that set reports
+    * ok:true and then silently vanishes on the very next get_viewsheet_properties. Confirmed live
+    * 2026-09-16 against Examples/Census: setting enabledParameters:["Region"] (a selection-list
+    * assembly name, not a real query parameter -- this viewsheet's query declares none) returned
+    * ok:true, and the immediate readback showed an empty array. Refused here instead.
+    */
+   @Test
+   void refusesAnEnabledParameterNameTheQueryDoesNotDeclare() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model = modelWithKnownParameters(List.of("Region"), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Exception thrown = assertThrows(Exception.class, () -> service.set(
+         "tok", principal(), Map.of("enabledParameters", List.of("State")), ""));
+
+      assertTrue(thrown.getMessage().contains("State"));
+      assertTrue(thrown.getMessage().contains("Region"));
+      verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(), any(), anyString(),
+                                               any());
+   }
+
+   /** Same refusal, reached through disabledParameters instead of enabledParameters -- both
+    *  resolved paths must be checked, not just one. */
+   @Test
+   void refusesADisabledParameterNameTheQueryDoesNotDeclare() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model = modelWithKnownParameters(List.of("Region"), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      assertThrows(Exception.class, () -> service.set(
+         "tok", principal(), Map.of("disabledParameters", List.of("NotAParameter")), ""));
+      verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(), any(), anyString(),
+                                               any());
+   }
+
+   /** A viewsheet whose query declares no variables at all gets a clearer message than an empty
+    *  "Known parameters: []" -- there is nothing to enable or disable, not merely a typo. */
+   @Test
+   void refusesWithADedicatedMessageWhenTheQueryHasNoParametersAtAll() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model = modelWithKnownParameters(List.of(), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Exception thrown = assertThrows(Exception.class, () -> service.set(
+         "tok", principal(), Map.of("enabledParameters", List.of("Region")), ""));
+
+      assertTrue(thrown.getMessage().contains("declares no variables"));
+   }
+
+   /** A patch that leaves both parameter lists alone is unaffected by this validation, even when
+    *  the viewsheet has no query parameters at all. */
+   @Test
+   void parameterValidationDoesNotBlockAnUnrelatedPatch() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model = modelWithKnownParameters(List.of(), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.set("tok", principal(), Map.of("desc", "new description"), "");
+
+      verify(dialog).setViewsheetInfo(eq("rt1"), any(), any(Principal.class), any(),
+                                      anyString(), any());
+   }
+
+   // ── setDataSource (Redmine #76739) ──────────────────────────────────────────
+
+   @Test
+   void setDataSourceRebindsTheViewsheetThroughOneCheckpoint() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model = modelWith(20, "old");
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+      ViewsheetSessionService sessions = sessionsMock();
+
+      SheetPropertyService service = new SheetPropertyService(sessions, dialog);
+      AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
+                                        "Sample Queries/customers", null);
+
+      service.setDataSource("tok", principal(), entry, "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                      anyString(), any());
+      assertSame(entry,
+         captor.getValue().vsOptionsPane().getSelectDataSourceDialogModel().getDataSource());
+      verify(sessions, times(1)).mutate(anyString(), any(Principal.class), any());
+   }
+
+   /** A null entry is how the dialog's "Clear" button is expressed -- it must reach
+    *  setViewsheetInfo as null, not be skipped. */
+   @Test
+   void setDataSourceWithNullEntryClearsTheBinding() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      SelectDataSourceDialogModel dsModel = new SelectDataSourceDialogModel();
+      dsModel.setDataSource(new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Old Source", null));
+      VSOptionsPaneModel options = new VSOptionsPaneModel();
+      options.setSelectDataSourceDialogModel(dsModel);
+      ViewsheetPropertyDialogModel model =
+         ViewsheetPropertyDialogModel.builder().vsOptionsPane(options).build();
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.setDataSource("tok", principal(), null, "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                      anyString(), any());
+      assertNull(
+         captor.getValue().vsOptionsPane().getSelectDataSourceDialogModel().getDataSource());
+   }
+
+   // ── convertDataSourceToWorksheet (Redmine #76739) ───────────────────────────
+
+   @Test
+   void convertDataSourceToWorksheetReturnsTheNewPathAndMvFlag() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      AssetEntry newEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "MyViewsheet Worksheet", null);
+      SelectDataSourceDialogModel dsModel = new SelectDataSourceDialogModel();
+      dsModel.setDataSource(newEntry);
+      when(dialog.convertLogicModelToWorksheet(eq("rt1"), any(Principal.class)))
+         .thenReturn(new ConvertToWorksheetResponseModel(dsModel, true));
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Map<String, Object> result = service.convertDataSourceToWorksheet("tok", principal());
+
+      assertEquals("MyViewsheet Worksheet", result.get("path"));
+      assertEquals(true, result.get("hasMaterializedViews"));
+   }
+
+   @Test
+   void convertDataSourceToWorksheetPropagatesTheServicesOwnRefusal() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.convertLogicModelToWorksheet(eq("rt1"), any(Principal.class)))
+         .thenThrow(new Exception("Invalid data source type. Data source needs to be a logic model"));
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.convertDataSourceToWorksheet("tok", principal()));
+      assertTrue(thrown.getMessage().contains("logic model"));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static SheetPropertyService serviceWith(ViewsheetPropertyDialogModel model)
@@ -206,6 +397,21 @@ class SheetPropertyServiceTest {
       VSOptionsPaneModel options = new VSOptionsPaneModel();
       options.setMaxRows(maxRows);
       options.setDesc(desc);
+      return ViewsheetPropertyDialogModel.builder().vsOptionsPane(options).build();
+   }
+
+   /** A model whose viewsheetParametersDialogModel already lists {@code enabled}/{@code disabled}
+    *  as known query parameters -- what a real getViewsheetInfo would report for a viewsheet
+    *  whose query declares exactly these variables. */
+   private static ViewsheetPropertyDialogModel modelWithKnownParameters(
+      List<String> enabled, List<String> disabled)
+   {
+      inetsoft.web.composer.model.vs.ViewsheetParametersDialogModel parameters =
+         new inetsoft.web.composer.model.vs.ViewsheetParametersDialogModel();
+      parameters.setEnabledParameters(enabled.toArray(new String[0]));
+      parameters.setDisabledParameters(disabled.toArray(new String[0]));
+      VSOptionsPaneModel options = new VSOptionsPaneModel();
+      options.setViewsheetParametersDialogModel(parameters);
       return ViewsheetPropertyDialogModel.builder().vsOptionsPane(options).build();
    }
 

@@ -947,6 +947,84 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
    }
 
+   /** Feature enabled, {@code sessions}/{@code propertyService} wired -- for the
+    *  set_viewsheet_data_source / convert_data_source_to_worksheet tests, which need both a
+    *  live {@code sessions.resolve} (to reach resolveDataSourceEntry's own AssetRepository
+    *  probe) and a mock to verify delegation into {@link SheetPropertyService}. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      ViewsheetSessionService sessions, SheetPropertyService propertyService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          propertyService,
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+   }
+
+   /** Same as the two-arg {@code controllerWith(sessions, propertyService)} above, but with
+    *  {@code broadcast} also caller-supplied -- for the set_viewsheet_data_source Toolbox/Data
+    *  panel refresh tests, which need to verify calls into {@link SheetAgentBroadcastService}. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      ViewsheetSessionService sessions, SheetPropertyService propertyService,
+      SheetAgentBroadcastService broadcast)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          propertyService,
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          broadcast,
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+   }
+
    // ---------------------------------------------------------------------------
    // create_viewsheet -- closes the create half of PVA-007/bug 76332 that
    // attach_base_worksheet (PR #4900) explicitly deferred.
@@ -2141,6 +2219,276 @@ class ViewsheetAssemblyAgentControllerTest {
                "x", null, "query", null, null),
             agent));
       assertTrue(ex.getMessage().contains("worksheet"));
+   }
+
+   // ---------------------------------------------------------------------------
+   // set_viewsheet_data_source / convert_data_source_to_worksheet -- Redmine #76739: the
+   // Options dialog's Data Source Select/Clear buttons and its "Convert Source to Worksheet"
+   // link had no plugin coverage at all. Entry resolution itself (worksheet/logicalModel/
+   // physicalTable/caret/missing-field refusals) is resolveDataSourceEntry()'s own code path,
+   // already covered by attach_base_worksheet's tests above -- these only check this endpoint's
+   // own added behavior: the clear branch, its field-combination refusals, and delegation into
+   // SheetPropertyService.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void setDataSourceClearDelegatesWithANullEntry() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, propertyService);
+
+      controller.setDataSource("tok",
+         new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+            true, null, null, null, null, null),
+         "link", agent);
+
+      verify(propertyService).setDataSource(eq("tok"), eq(agent), isNull(), eq("link"));
+   }
+
+   /** The Toolbox/Data panel tree refresh gap attach_base_worksheet already hit (bug #76637) --
+    *  confirmed live 2026-09-17 that this endpoint had the identical gap. Both broadcasts must
+    *  fire after a successful clear, not just after a successful set. */
+   @Test
+   void setDataSourceClearAlsoBroadcastsTheBindingTreeAndViewsheetInfoRefresh() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getID()).thenReturn("rt-vs-clear");
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(sessions, propertyService, broadcast);
+
+      controller.setDataSource("tok",
+         new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+            true, null, null, null, null, null),
+         "", agent);
+
+      verify(broadcast).broadcastBindingTreeRefresh(eq(rvs), eq("rt-vs-clear"), eq(agent));
+      verify(broadcast).broadcastViewsheetInfoRefresh(eq(rvs), eq("rt-vs-clear"), eq(agent));
+   }
+
+   /** Same gap, reached through the set (non-clear) branch. */
+   @Test
+   void setDataSourceAlsoBroadcastsTheBindingTreeAndViewsheetInfoRefresh() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-set");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(sessions, propertyService, broadcast);
+
+      controller.setDataSource("tok",
+         new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+            null, "Sample Queries/customers", null, null, null, null),
+         "", agent);
+
+      verify(broadcast).broadcastBindingTreeRefresh(eq(rvs), eq("rt-vs-set"), eq(agent));
+      verify(broadcast).broadcastViewsheetInfoRefresh(eq(rvs), eq("rt-vs-set"), eq(agent));
+   }
+
+   /** Neither broadcast should fire when the request is refused before any write happens. */
+   @Test
+   void setDataSourceDoesNotBroadcastWhenTheRequestIsRefused() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(sessions, propertyService, broadcast);
+
+      assertThrows(PairingException.class, () -> controller.setDataSource("tok",
+         new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+            true, "Sample Queries/customers", null, null, null, null),
+         "", agent));
+
+      verifyNoInteractions(broadcast);
+   }
+
+   @Test
+   void setDataSourceRefusesClearCombinedWithPath() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(mock(ViewsheetSessionService.class), propertyService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.setDataSource("tok",
+            new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+               true, "Sample Queries/customers", null, null, null, null),
+            "", agent));
+
+      assertTrue(ex.getMessage().contains("clear"));
+      verifyNoInteractions(propertyService);
+   }
+
+   /** Symmetry with the path/type/datasource/table refusal above -- 'scope' is meaningless
+    *  without a path, but it should be refused the same way rather than silently ignored. */
+   @Test
+   void setDataSourceRefusesClearCombinedWithScope() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(mock(ViewsheetSessionService.class), propertyService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.setDataSource("tok",
+            new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+               true, null, "user", null, null, null),
+            "", agent));
+
+      assertTrue(ex.getMessage().contains("clear"));
+      verifyNoInteractions(propertyService);
+   }
+
+   @Test
+   void setDataSourceRefusesWhenNoFieldsAreSuppliedAtAll() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(mock(ViewsheetSessionService.class), propertyService);
+
+      assertThrows(PairingException.class, () ->
+         controller.setDataSource("tok",
+            new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+               null, null, null, null, null, null),
+            "", agent));
+      assertThrows(PairingException.class, () ->
+         controller.setDataSource("tok", null, "", agent));
+
+      verifyNoInteractions(propertyService);
+   }
+
+   @Test
+   void setDataSourceResolvesTheEntryAndDelegatesToTheService() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, propertyService);
+
+      controller.setDataSource("tok",
+         new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+            null, "Sample Queries/customers", null, null, null, null),
+         "link", agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(propertyService).setDataSource(eq("tok"), eq(agent), entryCaptor.capture(),
+                                            eq("link"));
+      assertEquals(AssetRepository.GLOBAL_SCOPE, entryCaptor.getValue().getScope());
+      assertEquals(AssetEntry.Type.WORKSHEET, entryCaptor.getValue().getType());
+      assertEquals("Sample Queries/customers", entryCaptor.getValue().getPath());
+   }
+
+   /** Unlike attach_base_worksheet, an already-based viewsheet must NOT be refused -- replacing
+    *  an existing base is exactly what this endpoint is for. */
+   @Test
+   void setDataSourceReplacesAnAlreadyBasedViewsheet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      // No vs.getBaseEntry() stub at all -- proves this endpoint never calls it, unlike
+      // attachBaseWorksheet's own already-based refusal.
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions, propertyService);
+
+      controller.setDataSource("tok",
+         new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+            null, "Sample Queries/orders", null, null, null, null),
+         "", agent);
+
+      verify(propertyService).setDataSource(eq("tok"), eq(agent), any(AssetEntry.class), eq(""));
+   }
+
+   @Test
+   void convertDataSourceToWorksheetDelegatesToTheService() throws Exception {
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      Map<String, Object> expected = Map.of("path", "MyVS Worksheet", "hasMaterializedViews", false);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      when(propertyService.convertDataSourceToWorksheet(eq("tok"), eq(agent)))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(mock(ViewsheetSessionService.class), propertyService);
+
+      assertSame(expected, controller.convertDataSourceToWorksheet("tok", agent));
+   }
+
+   /**
+    * Found live 2026-09-16: convertLogicModelToWorksheet's own "not a logical model" refusal is a
+    * plain Exception, a type neither this controller's local
+    * {@code @ExceptionHandler(PairingException.class)} nor the global WizControllerErrorHandler
+    * recognizes -- left uncaught, it reached the client as an opaque 500 ("unexpected server
+    * error") instead of naming the actual problem. Must be rewrapped as a PairingException, the
+    * one type this controller's own handler turns into a clean 400.
+    */
+   @Test
+   void convertDataSourceToWorksheetRewrapsAPlainServiceExceptionAsPairingException()
+      throws Exception
+   {
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      when(propertyService.convertDataSourceToWorksheet(eq("tok"), eq(agent)))
+         .thenThrow(new Exception("Invalid data source type. Data source needs to be a logic model"));
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(mock(ViewsheetSessionService.class), propertyService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.convertDataSourceToWorksheet("tok", agent));
+      assertTrue(ex.getMessage().contains("logic model"));
+   }
+
+   /** Same rewrap requirement on the other new endpoint -- setViewsheetInfo's data-source branch
+    *  calls Viewsheet.update(...), also declared to throw a plain Exception. */
+   @Test
+   void setDataSourceRewrapsAPlainServiceExceptionAsPairingException() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      SheetPropertyService propertyService = mock(SheetPropertyService.class);
+      doThrow(new Exception("write conflict"))
+         .when(propertyService).setDataSource(eq("tok"), eq(agent), isNull(), anyString());
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWith(mock(ViewsheetSessionService.class), propertyService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.setDataSource("tok",
+            new ViewsheetAssemblyAgentController.SetDataSourceRequest(
+               true, null, null, null, null, null),
+            "", agent));
+      assertTrue(ex.getMessage().contains("write conflict"));
    }
 
    // ---------------------------------------------------------------------------
