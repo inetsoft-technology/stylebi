@@ -2025,16 +2025,6 @@ public class IdentityService {
       newOrg.setName(name);
       List<IdentityModel> members = model.members();
 
-      if(oldOrg != null && !Tool.equals(oldOrg.getName(), newOrg.getName()) &&
-         Tool.equals(oldOrg.getId(), newOrg.getId()))
-      {
-         Organization org = eprovider.getOrganization(id);
-         org.setName(newOrg.getName());
-         eprovider.setOrganization(id, org);
-
-         return org;
-      }
-
       List<String> memberNames = members.stream()
          .map(IdentityModel::identityID)
          .map(i -> i.name)
@@ -2075,7 +2065,10 @@ public class IdentityService {
          updateOrganizationMembers(newOrg, members, oldID, eprovider);
       }
 
-      if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
+      // gated on the organization id, not on Organization.equals (which also compares the
+      // display name): every step below is org-id migration and is a no-op, or worse, for a
+      // rename that keeps the same id.
+      if(fromOrg != null && !Tool.equals(fromOrgID, newOrg.getId())) {
          dashboardRegistryManager.migrateRegistry(null, fromOrg, newOrg);
          repletRegistryManager.getRegistry(fromOrgID).shutdown();
          updateOrgScopedDataSpace(fromOrg, newOrg);
@@ -2094,6 +2087,10 @@ public class IdentityService {
       if(fromOrg != null && Tool.equals(fromOrg.getId(), newOrg.getId()) &&
          fromOrg instanceof FSOrganization)
       {
+         // fromOrg is the stored organization, so it still carries the old display name; a
+         // rename that keeps the same id is applied here instead of short-circuiting the
+         // locale/theme/member sync above.
+         ((FSOrganization) fromOrg).setName(newOrg.getName());
          ((FSOrganization) fromOrg).setLocale(localeString);
          updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, fromOrgID);
          ((FSOrganization) fromOrg).setTheme(model.theme());

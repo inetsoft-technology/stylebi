@@ -17,13 +17,24 @@
  */
 package inetsoft.web.admin.security;
 
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.CustomTheme;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.AuthenticationProvider;
+import inetsoft.sree.security.AuthorizationChain;
+import inetsoft.sree.security.EditableAuthenticationProvider;
+import inetsoft.sree.security.FSOrganization;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.IdentityInfo;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.Permission;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.SecurityProvider;
+import inetsoft.sree.web.dashboard.DashboardRegistryManager;
+import inetsoft.util.DataSpace;
+import inetsoft.sree.RepletRegistryManager;
+import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -31,9 +42,11 @@ import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.IndexedStorage;
 import inetsoft.web.admin.favorites.FavoritesService;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Method;
+import java.security.Principal;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -333,5 +346,133 @@ class IdentityServiceTest {
          String.class, String.class, String.class, String.class);
       m.setAccessible(true);
       m.invoke(service, oldThemeId, themeID, oldOrgID, newOrgID);
+   }
+
+   // ------------------------------------------------------------------------------------------
+   // setOrganizationInfo: an id-preserving rename must not short-circuit the sync tail.
+   //
+   // The method used to return early (right after writing the new display name) whenever the
+   // organization's name changed but its id did not, skipping updateOrganizationMembers, the
+   // locale reverse-lookup and updateCustomThemeOrganization. The EM posts name, theme, locale
+   // and members in a single request, so "rename it and re-theme it" silently dropped everything
+   // but the rename.
+   // ------------------------------------------------------------------------------------------
+
+   private static final String ORG_ID = "org-xyz";
+   private static final String OLD_ORG_NAME = "Old Name";
+   private static final String NEW_ORG_NAME = "New Name";
+
+   private final Properties localeProperties = new Properties();
+   private EditableAuthenticationProvider eprovider;
+   private CustomThemesManager themesManager;
+   private DashboardRegistryManager dashboardRegistryManager;
+   private RepletRegistryManager repletRegistryManager;
+   private DataSpace dataSpace;
+
+   @Test
+   void setOrganizationInfo_renameWithThemeChange_appliesThemeAndPointer() throws Exception {
+      CustomTheme theme = new CustomTheme();
+      theme.setId("theme-1");
+      theme.setOrganizations(new ArrayList<>());
+      FSOrganization stored = setUpRenameFixture(null, theme);
+
+      invokeSetOrganizationInfo(stored, renameModel().theme("theme-1").build());
+
+      assertEquals(NEW_ORG_NAME, stored.getName(), "the rename itself must still be applied");
+      assertEquals("theme-1", stored.getTheme(),
+                   "a theme change bundled with a rename must not be dropped");
+      assertEquals(List.of(ORG_ID), theme.getOrganizations(),
+                   "the theme's organization membership must be written, keyed by org id");
+      verify(themesManager).setOrgSelectedTheme("theme-1", ORG_ID);
+      verify(eprovider).setOrganization(ORG_ID, stored);
+   }
+
+   @Test
+   void setOrganizationInfo_renameWithLocaleChange_appliesLocale() throws Exception {
+      localeProperties.setProperty("en_US", "English(America)");
+      FSOrganization stored = setUpRenameFixture(null);
+
+      invokeSetOrganizationInfo(stored, renameModel().locale("English(America)").build());
+
+      assertEquals(NEW_ORG_NAME, stored.getName(), "the rename itself must still be applied");
+      assertEquals("en_US", stored.getLocale(),
+                   "a locale change bundled with a rename must not be dropped; the model carries "
+                   + "the label and the stored value is the code it reverse-looks-up to");
+   }
+
+   @Test
+   void setOrganizationInfo_renameOnly_stillRenamesAndSkipsIdMigration() throws Exception {
+      FSOrganization stored = setUpRenameFixture("theme-1");
+
+      invokeSetOrganizationInfo(stored, renameModel().theme("theme-1").build());
+
+      assertEquals(NEW_ORG_NAME, stored.getName(), "the rename itself must still be applied");
+      assertEquals("theme-1", stored.getTheme(), "an unchanged theme must survive the rename");
+      verify(eprovider).setOrganization(ORG_ID, stored);
+      // none of these are org-id migration: the id did not change, so they must stay untouched
+      verifyNoInteractions(dashboardRegistryManager);
+      verifyNoInteractions(repletRegistryManager);
+      verify(dataSpace, never()).rename(anyString(), anyString());
+   }
+
+   private EditOrganizationPaneModel.Builder renameModel() {
+      return EditOrganizationPaneModel.builder()
+         .name(NEW_ORG_NAME)
+         .oldName(OLD_ORG_NAME)
+         .id(ORG_ID)
+         .members(Collections.emptyList());
+   }
+
+   /**
+    * Wires only the collaborators the same-id organization edit path touches and returns the
+    * stored organization the provider hands back (the object the method mutates and saves).
+    */
+   private FSOrganization setUpRenameFixture(String storedTheme, CustomTheme... themes) {
+      SecurityProvider securityProvider = mock(SecurityProvider.class, withSettings().lenient());
+      when(securityProvider.getAuthorizationProvider()).thenReturn(mock(AuthorizationChain.class));
+
+      themesManager = mock(CustomThemesManager.class, withSettings().lenient());
+      when(themesManager.getCustomThemes()).thenReturn(new HashSet<>(Arrays.asList(themes)));
+
+      dashboardRegistryManager = mock(DashboardRegistryManager.class);
+      repletRegistryManager = mock(RepletRegistryManager.class);
+      dataSpace = mock(DataSpace.class, withSettings().lenient());
+      when(dataSpace.getOrgScopedPaths(any())).thenReturn(new String[0]);
+
+      ReflectionTestUtils.setField(service, "securityProvider", securityProvider);
+      ReflectionTestUtils.setField(service, "customThemesManager", themesManager);
+      ReflectionTestUtils.setField(service, "dashboardRegistryManager", dashboardRegistryManager);
+      ReflectionTestUtils.setField(service, "repletRegistryManager", repletRegistryManager);
+      ReflectionTestUtils.setField(service, "dataSpace", dataSpace);
+
+      FSOrganization stored = new FSOrganization(ORG_ID);
+      stored.setName(OLD_ORG_NAME);
+      stored.setTheme(storedTheme);
+      stored.setMembers(new String[0]);
+
+      eprovider = mock(EditableAuthenticationProvider.class, withSettings().lenient());
+      when(eprovider.getUsers()).thenReturn(new IdentityID[0]);
+      when(eprovider.getGroups()).thenReturn(new IdentityID[0]);
+      when(eprovider.getRoles()).thenReturn(new IdentityID[0]);
+      when(eprovider.getOrgIdFromName(OLD_ORG_NAME)).thenReturn(ORG_ID);
+      when(eprovider.getOrganization(ORG_ID)).thenReturn(stored);
+
+      return stored;
+   }
+
+   private void invokeSetOrganizationInfo(FSOrganization oldOrg, EditOrganizationPaneModel model)
+      throws Exception
+   {
+      Method m = IdentityService.class.getDeclaredMethod(
+         "setOrganizationInfo", FSOrganization.class, EditOrganizationPaneModel.class,
+         EditableAuthenticationProvider.class, Principal.class);
+      m.setAccessible(true);
+
+      // the locale reverse-lookup reads the locale list off the DataSpace, which needs a running
+      // Spring context; everything else on SUtil keeps calling the real method
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         sutil.when(SUtil::loadLocaleProperties).thenReturn(localeProperties);
+         m.invoke(service, oldOrg, model, eprovider, null);
+      }
    }
 }
