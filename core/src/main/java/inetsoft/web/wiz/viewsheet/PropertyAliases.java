@@ -1026,6 +1026,7 @@ public final class PropertyAliases {
       dataGeneral(aliases, "tableViewGeneralPaneModel");
       sizePosition(aliases, "tableViewGeneralPaneModel");
       title(aliases, "tableViewGeneralPaneModel");
+      aliases.put("tableStyle", "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle");
       aliases.put("shrink", "calcTableAdvancedPaneModel.shrink");
       aliases.put("fillBlankWithZero", "calcTableAdvancedPaneModel.fillBlankWithZero");
       aliases.put("sortOthersLast", "calcTableAdvancedPaneModel.sortOthersLast");
