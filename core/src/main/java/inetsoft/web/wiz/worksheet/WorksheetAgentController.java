@@ -83,6 +83,7 @@ import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.service.TabularQueryContractSupport;
@@ -3305,19 +3306,15 @@ public class WorksheetAgentController {
                }
 
                // WSQueryService.runQuery also drops a BoundQuery/TabularBoundQuery's own
-               // XSessionManager cache entry (no time-based expiry in practice -- bug #76711)
-               // via a fresh AssetQuery.createAssetQuery(...) + BoundQuery.clearQueryCache(...),
-               // synchronously, before reloading. Do it here too, and do it before the bounded
-               // reload below is even submitted: that reload's warm-up work runs on a separate
-               // virtual thread that RenderWaitSupport does NOT cancel on timeout (see its own
-               // doc comment), so a __refresh_report__ flag alone -- cleared in this method's own
-               // finally block as soon as awaitOrRetry returns -- can race that still-running
-               // background thread on any reload slower than the timeout and get cleared before
-               // the background work reads it, silently falling back to the stale cache (this is
-               // exactly what reintroduced #76711 in this method's first fix attempt). Clearing
-               // the cache entry synchronously beforehand removes that race entirely: the entry
-               // is already gone by the time any reload -- finished before or after the timeout
-               // -- reaches it.
+               // XSessionManager cache entry via a fresh AssetQuery.createAssetQuery(...) +
+               // BoundQuery.clearQueryCache(...); do it here too, best-effort. NOTE: confirmed
+               // live (see bug #76711 archive, 05-idea-debug-r2.md) that this call is a silent
+               // no-op in deployments where XSessionManager's underlying service is a JDK dynamic
+               // proxy rather than a concrete XEngine -- removeQueryCacheData's `instanceof
+               // XEngine` guard can never pass a proxy, so removeQueryCache is never actually
+               // invoked. Do NOT rely on this call alone to invalidate the cache; the
+               // __refresh_report__ flag below is the mechanism this method's correctness
+               // actually depends on.
                clearBoundQueryCache(box, table, mode);
             }
             else {
@@ -3332,22 +3329,43 @@ public class WorksheetAgentController {
             // this is an explicit, caller-requested op, so a timeout throws RenderNotReadyException
             // (mapped to 503/RENDER_NOT_READY by WizControllerErrorHandler) rather than being
             // swallowed — the caller gets a live "not ready, retry" signal instead of a raw hang.
-            // WSQueryService.runQuery also sets this flag before reloading; kept here too as a
-            // second, zero-cost layer alongside clearBoundQueryCache above (mirroring runQuery,
-            // which uses both together) -- it no longer needs to win any race to be correct,
-            // since the cache entry it would otherwise guard against is already gone by now.
+            // WSQueryService.runQuery also sets this flag before reloading, and it is the ONLY
+            // mechanism this method's correctness actually depends on (see clearBoundQueryCache's
+            // comment above). It must stay set for as long as the reload is actually running, not
+            // just for as long as the caller waits: RenderWaitSupport does not cancel the reload
+            // on timeout, so removing the flag in a finally scoped to awaitOrRetry's own return
+            // (bug #76711, rounds 1 and 2) clears it while that background work is still running,
+            // reintroducing the exact stale-read bug. Remove it inside the callable instead, right
+            // after the work it guards actually finishes, on whichever thread that turns out to be.
             box.getVariableTable().put("__refresh_report__", "true");
 
             try {
                RenderWaitSupport.awaitOrRetry(() -> {
-                  WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-                  WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+                  try {
+                     WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+                     WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+                  }
+                  finally {
+                     box.getVariableTable().remove("__refresh_report__");
+                  }
+
                   return null;
                }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
                   (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
             }
-            finally {
+            catch(RenderNotReadyException e) {
+               // Timed out waiting, not failed: the reload above is still running in the
+               // background and removes the flag itself once it finishes. Do not remove it here,
+               // or the flag can go missing while that work -- and the __refresh_report__-gated
+               // cache read it exists to suppress -- is still in flight.
+               throw e;
+            }
+            catch(Exception e) {
+               // Any other failure means the callable either already ran (its own finally above
+               // already removed the flag -- this is then a harmless no-op) or never ran at all,
+               // e.g. rejected before being submitted -- the only case this remove is load-bearing.
                box.getVariableTable().remove("__refresh_report__");
+               throw e;
             }
          }
          else {

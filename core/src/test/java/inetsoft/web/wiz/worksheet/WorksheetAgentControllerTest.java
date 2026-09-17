@@ -103,6 +103,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -1762,6 +1763,82 @@ class WorksheetAgentControllerTest {
       assertEquals(List.of("clearQueryCache", "reload"), callOrder,
          "the query cache must be cleared synchronously before the reload is even submitted, " +
          "not merely before/after it happens to finish within the timeout");
+   }
+
+   /**
+    * Bug #76711, round 3: rounds 1 and 2 both removed {@code __refresh_report__} in a
+    * {@code finally} scoped to {@code RenderWaitSupport.awaitOrRetry}'s own return -- which fires
+    * the instant the caller's bounded wait gives up (2000ms here), NOT when the reload it wraps
+    * actually finishes running on its own, uncancelled virtual thread. A live IDEA debugger session
+    * confirmed round 2's {@code clearBoundQueryCache} is a silent no-op in deployments where
+    * {@code XSessionManager}'s {@code service} is a dynamic proxy rather than a concrete
+    * {@code XEngine}, so the flag's own lifetime is the only thing this method's correctness
+    * depends on. Same slow-reload technique as {@code refreshDataClearsBoundQueryCacheBeforeSlowReload}
+    * (an instance stub on {@code box}, since the reload runs on a different thread than a
+    * {@code MockedStatic} would be visible from) -- but this test asserts on the flag's own state,
+    * from inside the stubbed slow call itself and immediately after the caller times out, not on
+    * {@code clearQueryCache}'s call order.
+    */
+   @Test
+   void refreshDataKeepsRefreshReportFlagSetUntilSlowReloadActuallyFinishes() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      AtomicBoolean flagSetDuringSlowReload = new AtomicBoolean(false);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+      doAnswer(invocation -> {
+         // Slower than RenderWaitSupport's 2000ms timeout -- runs on its own virtual thread well
+         // past the point the caller below has already given up and thrown RenderNotReadyException.
+         Thread.sleep(3_000);
+         flagSetDuringSlowReload.set("true".equals(vars.get("__refresh_report__")));
+         return null;
+      }).when(box).refreshColumnSelection(eq("Table1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD9"), any())).thenReturn(session("TOK-RD9"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD9", refreshDataRequest("Table1"), agent));
+
+         assertEquals("true", vars.get("__refresh_report__"),
+            "flag must still be set immediately after the caller times out -- the reload is " +
+            "still running in the background, not finished");
+
+         long deadline = System.currentTimeMillis() + 5_000;
+
+         while(vars.get("__refresh_report__") != null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+         }
+      }
+
+      assertTrue(flagSetDuringSlowReload.get(),
+         "flag must still have been set at the moment the slow reload actually ran, well past " +
+         "the caller's own 2000ms timeout");
+      assertNull(vars.get("__refresh_report__"),
+         "flag must finally be removed once the background reload actually completes, not " +
+         "merely once the caller stops waiting for it");
    }
 
    /**
