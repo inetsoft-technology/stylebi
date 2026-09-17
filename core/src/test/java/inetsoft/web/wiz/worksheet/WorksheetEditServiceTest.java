@@ -77,6 +77,47 @@ class WorksheetEditServiceTest {
    }
 
    /**
+    * Same regression as {@code ViewsheetSessionServiceTest}'s
+    * {@code mutateNeverOvewritesTheRuntimesCurrentSocketSessionIdWithThisSessionsOwnFrozenValue}
+    * -- see that test's doc comment. {@code apply} must NOT reapply this session's own
+    * pairing-mint-frozen socketSessionId over whatever the runtime's field currently holds
+    * (possibly healed since by a human's manual Refresh), or it would silently undo that
+    * recovery on every subsequent agent call.
+    */
+   @Test
+   void applyNeverOverwritesTheRuntimesCurrentSocketSessionIdWithThisSessionsOwnFrozenValue()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getSocketSessionId()).thenReturn("human-healed-live-socket");
+      when(rws.getSocketUserName()).thenReturn("alice");
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED,
+                                     "stale-frozen-at-mint", "alice", null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("Worksheet/foo-7"), eq(agent)))
+         .thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess, broadcast,
+         mock(SecurityEngine.class), mock(InnerJoinService.class));
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
+
+      verify(rws, never()).setSocketSessionId(any());
+   }
+
+   /**
     * Bug #76350 follow-on (item A): {@code refreshAssemblies} — called unconditionally at the end
     * of every mutation-applying method, looping over every {@link TableAssembly} in the
     * worksheet, not just the one edited — called {@code refreshColumnSelection} (the call that

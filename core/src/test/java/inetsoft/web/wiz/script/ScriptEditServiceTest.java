@@ -80,6 +80,40 @@ class ScriptEditServiceTest {
    }
 
    /**
+    * Same regression as {@code ViewsheetSessionServiceTest}'s
+    * {@code mutateNeverOvewritesTheRuntimesCurrentSocketSessionIdWithThisSessionsOwnFrozenValue}
+    * -- see that test's doc comment. Must NOT reapply this session's own pairing-mint-frozen
+    * socketSessionId over whatever the runtime's field currently holds (possibly healed since
+    * by a human's manual Refresh), or it would silently undo that recovery on every subsequent
+    * agent call.
+    */
+   @Test
+   void applyOnRuntimeIfChangedNeverOverwritesTheRuntimesCurrentSocketSessionId()
+      throws Exception
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("human-healed-live-socket");
+      when(rvs.getSocketUserName()).thenReturn("alice");
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED,
+                                      "stale-frozen-at-mint", "alice", null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ScriptEditService svc = new ScriptEditService(sessions, runtimeAccess, broadcast);
+      svc.applyOnRuntimeIfChanged("TOK", agent, r -> "executed", r -> true);
+
+      verify(rvs, never()).setSocketSessionId(any());
+   }
+
+   /**
     * Write coordination (2026-08-17-write-coordination-design.md / -implementation.md): a script
     * write is a direct live write, not routed through any XxxPropertyDialogService, so it must
     * bump the shared write revision itself. Without this, a property dialog with an embedded

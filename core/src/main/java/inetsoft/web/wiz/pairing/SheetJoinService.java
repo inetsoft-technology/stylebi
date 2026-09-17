@@ -160,6 +160,32 @@ public class SheetJoinService {
                                     "Pairing code does not belong to this user");
       }
 
+      // 3c. Stamp the runtime's socket session from THIS grant, unconditionally, exactly once.
+      // grant.socketSessionId()/socketUserName() were captured moments ago from the live STOMP
+      // mint request, so at this specific instant they are provably fresher than whatever the
+      // runtime already holds -- including a stale id left over from a browser reconnect the
+      // runtime was never told about. This is the ONLY place that gets to make that assumption:
+      // applySocketSession (ViewsheetSessionService/WorksheetEditService/ScriptEditService),
+      // called on every SUBSEQUENT resolve/mutate under this same long-lived JoinSession, must
+      // NOT repeat this unconditional overwrite -- JoinSession.socketSessionId() is frozen at
+      // this exact moment for the rest of the token's life (SheetSessionService.resolve() only
+      // bumps lastAccess/TTL and copies the same value forward, never re-derives it), so
+      // reapplying it on every later call would silently undo a human's own later recovery (a
+      // manual Refresh unconditionally re-stamps the runtime from a live dispatcher -- see
+      // CoreLifecycleService/VSLifecycleControllerService) the very next time the agent makes
+      // any call at all on the un-re-paired token. Confirmed live: an agent-paired viewsheet's
+      // edits silently stopped reaching the browser after its socket went stale; re-pairing with
+      // a fresh code is what actually fixes it, which only works if THIS join-time stamp exists.
+      if(runtimeSheet != null) {
+         if(grant.socketSessionId() != null) {
+            runtimeSheet.setSocketSessionId(grant.socketSessionId());
+         }
+
+         if(grant.socketUserName() != null) {
+            runtimeSheet.setSocketUserName(grant.socketUserName());
+         }
+      }
+
       // 4. Open a reusable session, carrying the browser's socket session ID for broadcast.
       JoinSession session = sessions.open(grant.runtimeId(), grant.ownerIdentity(),
                                           grant.sheetType(), grant.socketSessionId(),

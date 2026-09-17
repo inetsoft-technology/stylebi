@@ -366,6 +366,14 @@ public class WorksheetEditService {
    private static final long REFRESH_ASSEMBLIES_BUDGET_MS =
       TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS;
 
+   /**
+    * Fills a null socket session only -- deliberately not unconditional. See
+    * {@code ViewsheetSessionService.applySocketSession}'s doc comment: {@code SheetJoinService
+    * .join} is the one place that may apply a grant's socket values unconditionally, exactly
+    * once per pairing, because that is the one moment they are provably fresh. Reapplying this
+    * session's own frozen value on every later call would silently undo a human's own later
+    * recovery (a manual Refresh unconditionally re-stamps the runtime from a live dispatcher).
+    */
    private void applySocketSession(RuntimeWorksheet rws, JoinSession session) {
       if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {
          rws.setSocketSessionId(session.socketSessionId());
