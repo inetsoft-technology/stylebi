@@ -3291,11 +3291,7 @@ public class WorksheetAgentController {
                // WSQueryService.runQuery also clears the cached query result from AssetDataCache
                // before re-executing -- resetTableLens alone leaves that cache holding the
                // pre-refresh result, so a caller reading the table right after refresh_data could
-               // still observe stale data. (WSQueryService additionally
-               // clears AssetQueryCacheNormalizer's and a live BoundQuery's own cache via a fresh
-               // AssetQuery.createAssetQuery(...) call -- both reach into repository/datasource
-               // resolution that needs a real Spring context, so they're deliberately left for a
-               // follow-up once that's live-verifiable rather than shipped unverified here.)
+               // still observe stale data.
                DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
                assetDataCache.remove(key);
 
@@ -3318,12 +3314,24 @@ public class WorksheetAgentController {
             // this is an explicit, caller-requested op, so a timeout throws RenderNotReadyException
             // (mapped to 503/RENDER_NOT_READY by WizControllerErrorHandler) rather than being
             // swallowed — the caller gets a live "not ready, retry" signal instead of a raw hang.
-            RenderWaitSupport.awaitOrRetry(() -> {
-               WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-               WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
-               return null;
-            }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-               (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            // WSQueryService.runQuery also sets this flag before reloading -- it makes
+            // XSessionManager.DataCacheResult.visitCache skip its dataCache lookup entirely
+            // for a BoundQuery/TabularBoundQuery (e.g. a SERVER_FILE tabular table), which
+            // has no time-based expiry in practice; without it, resetTableLens/AssetDataCache
+            // above still leave that deeper cache serving the pre-refresh rows forever.
+            box.getVariableTable().put("__refresh_report__", "true");
+
+            try {
+               RenderWaitSupport.awaitOrRetry(() -> {
+                  WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+                  WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+                  return null;
+               }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+                  (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            }
+            finally {
+               box.getVariableTable().remove("__refresh_report__");
+            }
          }
          else {
             // Refresh all table assemblies.
