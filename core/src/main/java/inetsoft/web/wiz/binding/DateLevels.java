@@ -130,11 +130,14 @@ public final class DateLevels {
     * Whether {@code val} is a {@code $(ComponentName)}/{@code =script} dynamic value rather than
     * a literal. Mirrors {@code VSUtil.isDynamicValue}/{@code isVariableValue}/{@code isScriptValue}'s
     * exact predicate, not {@code VSUtil} itself — see the comment at this method's call site in
-    * {@link #normalize}. Package-visible so a caller for which a dynamic date level has no
-    * model-layer home (e.g. {@code CalcTableService}'s calc-table cell binding, a plain {@code int}
-    * with no {@code DynamicValue} counterpart) can recognize one after {@link #normalize} returns
-    * it unchanged, and reject it with its own field-named error instead of a raw
-    * {@code NumberFormatException} — rather than a third copy of this same string check.
+    * {@link #normalize}. Package-visible as the one shared copy of this check for the whole
+    * {@code inetsoft.web.wiz.binding} package, rather than each caller reimplementing it: used
+    * here in {@link #normalize}; by {@code CalcTableService.applyDateGroup}, for which a dynamic
+    * date level has no model-layer home (a plain {@code int} with no {@code DynamicValue}
+    * counterpart) and so must be rejected with its own field-named error instead of a raw
+    * {@code NumberFormatException} after {@link #normalize} returns it unchanged; and by
+    * {@code TableBindingMutator}'s {@code percentageBy}/{@code stringBoolean}, which pass a
+    * recognized dynamic value through unresolved the same way.
     */
    static boolean isDynamicValue(String val) {
       return (val.startsWith("$(") && val.endsWith(")")) || val.startsWith("=");
