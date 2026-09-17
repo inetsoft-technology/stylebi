@@ -1641,6 +1641,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
