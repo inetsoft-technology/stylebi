@@ -94,12 +94,26 @@ class SecurityServiceTest {
                                              withSettings().strictness(org.mockito.quality.Strictness.LENIENT));
       organizationManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       this.orgManager = orgManager;
+      // applyOrganizationProperties's OrganizationManager.runInOrgScope call would otherwise be a
+      // silent no-op under this static mock (a static mock with no CALLS_REAL_METHODS default
+      // answer never invokes the real body) -- make it actually run the supplied Callable, so
+      // property-write tests exercise the real SreeEnv.setProperty/getProperty logic inside it.
+      organizationManagerStatic.when(() -> OrganizationManager.runInOrgScope(anyString(), any()))
+         .thenAnswer(inv -> {
+            java.util.concurrent.Callable<?> callable = inv.getArgument(1);
+            return callable.call();
+         });
 
       Audit audit = mock(Audit.class, withSettings().lenient());
       auditStatic = mockStatic(Audit.class, withSettings().strictness(org.mockito.quality.Strictness.LENIENT));
       auditStatic.when(Audit::getInstance).thenReturn(audit);
 
       sreeEnvStatic = mockStatic(SreeEnv.class, withSettings().strictness(org.mockito.quality.Strictness.LENIENT));
+      // Default: no org-scoped properties stored anywhere -- getOrganizationModel's properties
+      // scan (readOrganizationProperties) calls SreeEnv.getProperties().keySet() unconditionally,
+      // so every test that reaches getOrganization/getOrganizationModel needs a non-null Properties
+      // here, not just the tests that care about the properties field itself.
+      sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(new Properties());
 
       identityService = mock(IdentityService.class, withSettings().lenient());
       systemAdminService = mock(SystemAdminService.class, withSettings().lenient());
@@ -619,6 +633,115 @@ class SecurityServiceTest {
       assertEquals(List.of(VIEWER_ROLE), List.of(captor.getValue().getRoles()));
    }
 
+   // ── createRole/updateRole/getRole defaultRole & sysAdmin (Bug #76715) ───────────────────
+
+   @Test
+   void createRole_setsDefaultRoleAndSysAdminFromRequest() throws Exception {
+      stubCommonCreateGates();
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(new IdentityID("neworgrole2", "org1"));
+      request.setDefaultRole(true);
+      request.setSysAdmin(true);
+
+      service.createRole(request, null, principal);
+
+      ArgumentCaptor<FSRole> captor = ArgumentCaptor.forClass(FSRole.class);
+      verify(editableProvider).addRole(captor.capture());
+      assertTrue(captor.getValue().isDefaultRole());
+      assertTrue(captor.getValue().isSysAdmin());
+   }
+
+   @Test
+   void createRole_omittedDefaultRoleAndSysAdmin_defaultToFalse() throws Exception {
+      stubCommonCreateGates();
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(new IdentityID("neworgrole3", "org1"));
+
+      service.createRole(request, null, principal);
+
+      ArgumentCaptor<FSRole> captor = ArgumentCaptor.forClass(FSRole.class);
+      verify(editableProvider).addRole(captor.capture());
+      assertFalse(captor.getValue().isDefaultRole());
+      assertFalse(captor.getValue().isSysAdmin());
+   }
+
+   @Test
+   void updateRole_setsDefaultRoleAndSysAdminFromRequest() throws Exception {
+      IdentityID roleId = new IdentityID("orgrole1", "org1");
+      FSRole oldRole = new FSRole(roleId);
+      when(securityProvider.getRole(roleId)).thenReturn(oldRole);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            roleId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getRole(roleId)).thenReturn(oldRole);
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(roleId);
+      request.setDefaultRole(true);
+      request.setSysAdmin(true);
+
+      service.updateRole(roleId, request, principal);
+
+      ArgumentCaptor<EditRolePaneModel> captor = ArgumentCaptor.forClass(EditRolePaneModel.class);
+      verify(identityService).setIdentity(eq(oldRole), captor.capture(), eq(editableProvider), eq(principal));
+      assertTrue(captor.getValue().defaultRole());
+      assertTrue(captor.getValue().isSysAdmin());
+   }
+
+   // updateRole's request already carries the caller's override or the current value, preserved by
+   // IdentityMerge.mergeRole upstream of this method in the identities apply path (IdentityMergeTest
+   // covers that preservation directly) -- this pins updateRole's OWN contract: it must trust
+   // request verbatim, the same blind-overwrite-on-omission behavior description/theme already have
+   // here, not silently re-derive from the role's current persisted state as it used to.
+   @Test
+   void updateRole_omittedDefaultRoleAndSysAdmin_blindlyOverwritesToFalse() throws Exception {
+      IdentityID roleId = new IdentityID("orgrole1", "org1");
+      FSRole oldRole = new FSRole(roleId);
+      oldRole.setDefaultRole(true);
+      oldRole.setSysAdmin(true);
+      when(securityProvider.getRole(roleId)).thenReturn(oldRole);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            roleId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getRole(roleId)).thenReturn(oldRole);
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(roleId);
+      // defaultRole/sysAdmin left unset on the raw request -- a direct REST caller who omits them.
+
+      service.updateRole(roleId, request, principal);
+
+      ArgumentCaptor<EditRolePaneModel> captor = ArgumentCaptor.forClass(EditRolePaneModel.class);
+      verify(identityService).setIdentity(eq(oldRole), captor.capture(), eq(editableProvider), eq(principal));
+      assertFalse(captor.getValue().defaultRole());
+      assertFalse(captor.getValue().isSysAdmin());
+   }
+
+   @Test
+   void getRole_existingRole_returnsDefaultRoleAndSysAdmin() throws Exception {
+      IdentityID role = new IdentityID("Analyst", "org1");
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            role.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      FSRole existingRole = new FSRole(role, "Read-only analyst role");
+      existingRole.setDefaultRole(true);
+      existingRole.setSysAdmin(true);
+      when(securityProvider.getRole(role)).thenReturn(existingRole);
+      doReturn(new Identity[0]).when(authenticationProvider).getRoleMembers(role);
+      IdentityInfo info = new IdentityInfo(existingRole, authenticationProvider);
+      when(identityService.getIdentityInfo(role, Identity.ROLE, securityProvider)).thenReturn(info);
+      when(identityService.getPermission(eq(role), eq(ResourceType.SECURITY_ROLE), any(), eq(principal)))
+         .thenReturn(List.of());
+      when(securityProvider.isSystemAdministratorRole(role)).thenReturn(true);
+
+      SecurityRole result = service.getRole(role, principal);
+
+      assertEquals(Boolean.TRUE, result.getDefaultRole());
+      assertEquals(Boolean.TRUE, result.getSysAdmin());
+   }
+
    // ── createUser/createGroup parent-group permission key form (Bug #76654) ────────────────
    //
    // createUser's request.getGroups() filter and createGroup's request.getParentGroups() filter
@@ -1073,6 +1196,77 @@ class SecurityServiceTest {
       assertThrows(InvalidResourceException.class,
                    () -> service.createOrganization(request, null, principal));
       verify(editableProvider, never()).addOrganization(any());
+   }
+
+   // ── createOrganization/updateOrganization/getOrganization properties (Bug #76715) ───────
+
+   @Test
+   void createOrganization_writesPropertiesIntoSreeEnv() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId("neworg-id");
+      request.setName("New Organization");
+      request.setProperties(List.of(PropertyModel.builder().name("custom.key").value("v").build()));
+
+      service.createOrganization(request, null, principal);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("custom.key", "v", true));
+   }
+
+   @Test
+   void updateOrganization_writesPropertiesAndClearsOmittedQuotaKeyForEmParity() throws Exception {
+      String orgId = "org-xyz";
+      String orgName = "Xyz Organization";
+      FSOrganization oldOrganization = new FSOrganization(orgId);
+      oldOrganization.setName(orgName);
+      when(securityProvider.getOrganization(orgId)).thenReturn(oldOrganization);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            orgId, ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getOrganization(orgId)).thenReturn(oldOrganization);
+      when(editableProvider.getOrgIdFromName(orgName)).thenReturn(orgId);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      // A quota key currently set, not mentioned in this update's properties list -- this general-
+      // purpose method mirrors EM's own editOrganization clear-on-omission behavior for these 4
+      // named keys (the identities admin-chat path protects against this instead, one layer up, in
+      // IdentityMerge.mergeOrganization -- see IdentityMergeTest).
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("max.row.count", false, true)).thenReturn("1000");
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId(orgId);
+      request.setName(orgName);
+      request.setProperties(List.of(PropertyModel.builder().name("other").value("y").build()));
+
+      service.updateOrganization(orgId, request, principal);
+
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("other", "y", true));
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty("max.row.count", null, true));
+   }
+
+   @Test
+   void getOrganization_readsPropertiesBackFromSreeEnv() throws Exception {
+      String orgId = "org-xyz";
+      String orgName = "Xyz Organization";
+      FSOrganization organization = new FSOrganization(orgId);
+      organization.setName(orgName);
+      when(securityProvider.getOrganization(orgId)).thenReturn(organization);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            orgId, ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(identityService.getIdentityInfo(any(IdentityID.class), eq(Identity.ORGANIZATION),
+                                           eq(securityProvider)))
+         .thenReturn(new IdentityInfo());
+      Properties raw = new Properties();
+      raw.setProperty("inetsoft.org." + orgId.toLowerCase() + ".custom.key", "v");
+      sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(raw);
+      sreeEnvStatic.when(() -> SreeEnv.getProperty("custom.key", false, true)).thenReturn("v");
+
+      SecurityOrganization result = service.getOrganization(orgId, principal);
+
+      assertEquals(1, result.getProperties().size());
+      assertEquals("custom.key", result.getProperties().get(0).name());
+      assertEquals("v", result.getProperties().get(0).value());
    }
 
    // ── updateOrganization locale (Bug #76678) ─────────────────────────────

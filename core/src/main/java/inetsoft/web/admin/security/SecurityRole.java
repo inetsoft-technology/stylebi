@@ -132,6 +132,46 @@ public class SecurityRole {
    }
 
    /**
+    * Gets whether this role is automatically assigned to every newly-created user.
+    *
+    * @return {@code true} if this is a default role, {@code false} if not, or {@code null} if
+    * unspecified.
+    */
+   @Schema(description = "Whether this role is automatically assigned to every newly-created user.")
+   public Boolean getDefaultRole() {
+      return defaultRole;
+   }
+
+   /**
+    * Sets whether this role is automatically assigned to every newly-created user.
+    *
+    * @param defaultRole {@code true}/{@code false} to set, or {@code null} to leave unspecified.
+    */
+   public void setDefaultRole(Boolean defaultRole) {
+      this.defaultRole = defaultRole;
+   }
+
+   /**
+    * Gets whether this role designates the System Administrator role.
+    *
+    * @return {@code true} if this is the System Administrator role, {@code false} if not, or
+    * {@code null} if unspecified.
+    */
+   @Schema(description = "Whether this role designates the System Administrator role.")
+   public Boolean getSysAdmin() {
+      return sysAdmin;
+   }
+
+   /**
+    * Sets whether this role designates the System Administrator role.
+    *
+    * @param sysAdmin {@code true}/{@code false} to set, or {@code null} to leave unspecified.
+    */
+   public void setSysAdmin(Boolean sysAdmin) {
+      this.sysAdmin = sysAdmin;
+   }
+
+   /**
     * Sets the identities with admin permission over the user
     *
     * @return the identities.
@@ -191,12 +231,15 @@ public class SecurityRole {
          (assignedUsers == null || assignedUsers.equals(that.assignedUsers)) &&
          (assignedGroups == null || assignedGroups.equals(that.assignedGroups)) &&
          (inheritedRoles == null || inheritedRoles.equals(that.inheritedRoles)) &&
-         (adminIdentities == null || adminIdentities.equals(that.adminIdentities));
+         (adminIdentities == null || adminIdentities.equals(that.adminIdentities)) &&
+         (defaultRole == null || defaultRole.equals(that.defaultRole)) &&
+         (sysAdmin == null || sysAdmin.equals(that.sysAdmin));
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(identityID.name, description, theme, assignedUsers, assignedGroups, inheritedRoles, adminIdentities);
+      return Objects.hash(identityID.name, description, theme, assignedUsers, assignedGroups,
+                          inheritedRoles, adminIdentities, defaultRole, sysAdmin);
    }
 
    @Override
@@ -210,6 +253,8 @@ public class SecurityRole {
          ", assignedGroups=" + assignedGroups +
          ", inheritedRoles=" + inheritedRoles +
          ", adminIdentities=" + adminIdentities +
+         ", defaultRole=" + defaultRole +
+         ", sysAdmin=" + sysAdmin +
          '}';
    }
 
@@ -220,4 +265,6 @@ public class SecurityRole {
    private List<String> assignedGroups;
    private List<IdentityID> inheritedRoles;
    private AdminIdentities adminIdentities;
+   private Boolean defaultRole;
+   private Boolean sysAdmin;
 }

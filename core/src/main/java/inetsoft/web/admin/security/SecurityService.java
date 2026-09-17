@@ -18,6 +18,7 @@
 package inetsoft.web.admin.security;
 
 import inetsoft.mv.MVManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
@@ -865,6 +866,7 @@ public class SecurityService {
             .orElse(null);
          organization.setTheme(currentTheme == null ? null : currentTheme.getName());
          provider.addOrganization(organization);
+         applyOrganizationProperties(oid, request.getProperties());
 
          for(IdentityID memberUser : memberUserIds) {
             FSUser user = new FSUser(memberUser);
@@ -995,6 +997,7 @@ public class SecurityService {
       IdentityID newId = new IdentityID(organizationModel.name(), organizationModel.id());
 
       identityService.setIdentity(oldOrganization, organizationModel, provider, principal);
+      applyOrganizationProperties(id, request.getProperties());
       identityService.setIdentityPermissions(
          oldId, newId, ResourceType.SECURITY_ORGANIZATION,
          principal, organizationModel.permittedIdentities(), "");
@@ -1061,8 +1064,90 @@ public class SecurityService {
       organizationModel.setMemberGroups(memberGroups);
       organizationModel.setRoles(memberRoles);
       organizationModel.setAdminIdentities(getIdentityPermissions(identityID, ResourceType.SECURITY_ORGANIZATION, principal));
+      organizationModel.setProperties(readOrganizationProperties(identityID.orgID));
 
       return organizationModel;
+   }
+
+   /**
+    * Reads the org-scoped property overrides written by {@link #applyOrganizationProperties} back
+    * out of the shared global property store, mirroring {@code UserTreeService.
+    * getOrganizationModel}'s own identical scan (not shared with it: that method belongs to a
+    * different, EM-UI-only code path with its own model shape).
+    */
+   private List<PropertyModel> readOrganizationProperties(String orgId) {
+      List<PropertyModel> properties = new ArrayList<>();
+      String orgPrefix = "inetsoft.org." + orgId.toLowerCase() + ".";
+
+      for(Object key : SreeEnv.getProperties().keySet()) {
+         String propName = (String) key;
+
+         if(!propName.startsWith(orgPrefix)) {
+            continue;
+         }
+
+         propName = propName.substring(orgPrefix.length());
+         String value = SreeEnv.getProperty(propName, false, true);
+
+         if(value != null) {
+            properties.add(PropertyModel.builder().name(propName).value(value).build());
+         }
+      }
+
+      return properties;
+   }
+
+   /**
+    * Writes an organization's property overrides into the shared global property store, mirroring
+    * {@code UserTreeService.editOrganization}'s own identical write (same not-shared reasoning as
+    * {@link #readOrganizationProperties}). {@code null} means "not specified" (leave every existing
+    * property untouched); a non-null list is de-duplicated by last-write-wins per name, then written
+    * verbatim, with the same 4 named quota keys (max.row.count/max.col.count/max.cell.size/
+    * max.user.count) cleared if currently set but absent from the list -- EM parity for this
+    * general-purpose method. (The identities admin-chat create/update path never lets that clearing
+    * fire in practice: {@code IdentityMerge.mergeOrganization} always re-includes each quota key's
+    * current value into the caller's list first, per this bug's own confirmed human decision to NOT
+    * replicate that clear-on-omission behavior for that path.)
+    */
+   private void applyOrganizationProperties(String orgId, List<PropertyModel> properties)
+      throws Exception
+   {
+      if(properties == null) {
+         return;
+      }
+
+      Map<String, PropertyModel> deduped = new LinkedHashMap<>();
+
+      for(PropertyModel property : properties) {
+         deduped.put(property.name(), property);
+      }
+
+      List<PropertyModel> ordered = new ArrayList<>(deduped.values());
+
+      OrganizationManager.runInOrgScope(orgId, () -> {
+         boolean saveProperties = false;
+
+         for(PropertyModel property : ordered) {
+            SreeEnv.setProperty(property.name(), property.value(), true);
+            saveProperties = true;
+         }
+
+         String[] quotaKeys =
+            { "max.row.count", "max.col.count", "max.cell.size", "max.user.count" };
+
+         for(String key : quotaKeys) {
+            if(SreeEnv.getProperty(key, false, true) != null && !deduped.containsKey(key)) {
+               SreeEnv.setProperty(key, null, true);
+               saveProperties = true;
+            }
+         }
+
+         if(saveProperties) {
+            SreeEnv.save();
+         }
+
+         return null;
+      });
    }
 
    public SecurityRoleList getRoles(String orgID, Principal principal) throws Exception {
@@ -1161,6 +1246,8 @@ public class SecurityService {
 
          FSRole role = new FSRole(id, description);
          role.setRoles(inheritedRoles.toArray(new IdentityID[0]));
+         role.setDefaultRole(Boolean.TRUE.equals(request.getDefaultRole()));
+         role.setSysAdmin(Boolean.TRUE.equals(request.getSysAdmin()));
          provider.addRole(role);
 
          //Assign role to users
@@ -1246,14 +1333,18 @@ public class SecurityService {
                .build())
             .collect(Collectors.toList()));
 
-      IdentityInfo info = identityService.getIdentityInfo(roleId, Identity.ROLE, provider);
-
       EditRolePaneModel.Builder builder = EditRolePaneModel.builder()
          .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
          .oldName(roleId.name)
          .organization(orgID)
-         .defaultRole(info.isDefaultRole())
-         .isSysAdmin(provider.isSystemAdministratorRole(roleId))
+         // request already carries either the caller's override or the current value, preserved
+         // by IdentityMerge.mergeRole before this method is called from the identities apply path
+         // -- reading info/provider's OWN current state here (as this used to) would make request's
+         // value inert. A raw REST caller who omits the field gets Boolean.TRUE.equals(null) ==
+         // false, the same blind-overwrite-on-omission contract every other field in this builder
+         // already has (description/theme below never fall back to the current value either).
+         .defaultRole(Boolean.TRUE.equals(request.getDefaultRole()))
+         .isSysAdmin(Boolean.TRUE.equals(request.getSysAdmin()))
          .isOrgAdmin(provider.isOrgAdministratorRole(roleId))
          .description(request.getDescription())
          .theme(request.getTheme())
@@ -1325,6 +1416,8 @@ public class SecurityService {
       roleModel.setAssignedGroups(assignedGroups);
       roleModel.setInheritedRoles(Arrays.asList(info.getRoles()));
       roleModel.setAdminIdentities(getIdentityPermissions(identityID, ResourceType.SECURITY_ROLE, principal));
+      roleModel.setDefaultRole(info.isDefaultRole());
+      roleModel.setSysAdmin(provider.isSystemAdministratorRole(identityID));
 
       return roleModel;
    }

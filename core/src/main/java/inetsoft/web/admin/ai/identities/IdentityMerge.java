@@ -20,7 +20,10 @@ package inetsoft.web.admin.ai.identities;
 import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.IdentityID;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -85,6 +88,13 @@ final class IdentityMerge {
       merged.setInheritedRoles(spec.getInheritedRoles() != null ?
                                toIdentityIds(spec.getInheritedRoles(), currentId.orgID) :
                                current.getInheritedRoles());
+      // Requires current.getDefaultRole()/getSysAdmin() to already be populated by
+      // SecurityService.getRoleModel (the read-path fix) -- landing this merge fix before that
+      // read-path fix would make current.getDefaultRole()/getSysAdmin() always null here, silently
+      // resetting an existing defaultRole:true/sysAdmin:true role to false on any unrelated update.
+      merged.setDefaultRole(spec.getDefaultRole() != null ? spec.getDefaultRole() :
+                            current.getDefaultRole());
+      merged.setSysAdmin(spec.getSysAdmin() != null ? spec.getSysAdmin() : current.getSysAdmin());
       return merged;
    }
 
@@ -107,7 +117,50 @@ final class IdentityMerge {
       merged.setMemberUsers(current.getMemberUsers());
       merged.setMemberGroups(current.getMemberGroups());
       merged.setRoles(current.getRoles());
+      // Requires current.getProperties() to already be populated by
+      // SecurityService.getOrganizationModel (the read-path fix) -- same ordering dependency as
+      // mergeRole's defaultRole/sysAdmin above.
+      merged.setProperties(mergeProperties(spec.getProperties(), current.getProperties()));
       return merged;
+   }
+
+   private static final List<String> QUOTA_PROPERTY_KEYS =
+      List.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
+
+   /**
+    * {@code spec.getProperties()}'s value if present (never {@code current}'s, so an explicit empty
+    * list really does clear every property, matching every other list field's clear-with-empty-list
+    * convention), de-duplicated by last-write-wins per name (design section 3, human decision 5) --
+    * BUT with the 4 named quota keys' CURRENT value re-included whenever {@code spec} is present but
+    * silent on them. This is where human decision 4 is implemented: {@code
+    * SecurityService.applyOrganizationProperties}'s own EM-parity clear-on-omission behavior for
+    * those 4 keys would otherwise silently clear them the moment a caller updates {@code properties}
+    * without re-listing every quota key it never meant to touch -- deliberately NOT replicating that
+    * asymmetry for this admin-chat identities path, done here (server-side) rather than in wiz's
+    * normalizer, since {@code current} is already available at exactly this merge boundary.
+    */
+   private static List<PropertyModel> mergeProperties(List<PropertyModel> specProperties,
+                                                       List<PropertyModel> currentProperties)
+   {
+      if(specProperties == null) {
+         return currentProperties;
+      }
+
+      Map<String, PropertyModel> merged = new LinkedHashMap<>();
+
+      for(PropertyModel property : specProperties) {
+         merged.put(property.name(), property);
+      }
+
+      if(currentProperties != null) {
+         for(PropertyModel property : currentProperties) {
+            if(QUOTA_PROPERTY_KEYS.contains(property.name()) && !merged.containsKey(property.name())) {
+               merged.put(property.name(), property);
+            }
+         }
+      }
+
+      return new ArrayList<>(merged.values());
    }
 
    /** Moved from {@code IdentityChangesetApplyService} (design section 3.1's explicit

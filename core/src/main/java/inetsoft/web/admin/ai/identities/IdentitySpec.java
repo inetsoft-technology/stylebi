@@ -18,6 +18,7 @@
 package inetsoft.web.admin.ai.identities;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.web.admin.security.PropertyModel;
 
 import java.util.List;
 
@@ -119,6 +120,26 @@ public class IdentitySpec {
    public String getTheme() { return theme; }
    public void setTheme(String v) { this.theme = v; }
 
+   /** role only. {@code null} means "not specified" -- same unset-vs-false convention as
+    * {@link #getActive()} (spec section 11). Marks the role as automatically assigned to every
+    * newly-created user. */
+   public Boolean getDefaultRole() { return defaultRole; }
+   public void setDefaultRole(Boolean v) { this.defaultRole = v; }
+
+   /** role only. {@code null} means "not specified", same convention as {@link #getDefaultRole()}.
+    * Designates the role as the System Administrator role -- security-sensitive, same class as
+    * Providers' {@code sysAdminRoles}. */
+   public Boolean getSysAdmin() { return sysAdmin; }
+   public void setSysAdmin(Boolean v) { this.sysAdmin = v; }
+
+   /** organization only: org-scoped overrides into the shared global server-property namespace
+    * (the same store this plugin's Properties area manages, namespaced per-organization) -- not
+    * inert metadata. {@code null} means "not specified" (leave existing properties untouched);
+    * an empty list clears every existing property. De-duplicated by last-write-wins per name if
+    * two entries share a name. */
+   public List<PropertyModel> getProperties() { return properties; }
+   public void setProperties(List<PropertyModel> v) { this.properties = v; }
+
    private String name;
    private String orgId;
    private String id;
@@ -138,4 +159,7 @@ public class IdentitySpec {
    private List<String> assignedUsers;
    private List<String> assignedGroups;
    private String theme;
+   private Boolean defaultRole;
+   private Boolean sysAdmin;
+   private List<PropertyModel> properties;
 }
