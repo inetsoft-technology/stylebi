@@ -105,6 +105,8 @@ public class ViewsheetAssemblyAgentController {
                                    SelectionRuntimeService selectionService,
                                    CalendarDisplayService calendarService,
                                    InputValueService inputService,
+                                   ParameterCollectionService parameterCollectionService,
+                                   ParameterValueService parameterValueService,
                                    ViewsheetService viewsheetService,
                                    SheetAgentBroadcastService broadcast,
                                    SheetOpenService openService,
@@ -138,6 +140,8 @@ public class ViewsheetAssemblyAgentController {
       this.selectionService = selectionService;
       this.calendarService = calendarService;
       this.inputService = inputService;
+      this.parameterCollectionService = parameterCollectionService;
+      this.parameterValueService = parameterValueService;
       this.viewsheetService = viewsheetService;
       this.broadcast = broadcast;
       this.openService = openService;
@@ -982,6 +986,39 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return inputService.setValue(sessionToken, user, request.assembly(), request.value(), linkUri);
+   }
+
+   public record SetParametersRequest(Map<String, java.util.List<Object>> values) {}
+
+   /**
+    * {@code collect_parameters}. Lists the variables the connected viewsheet's source query and
+    * viewsheet tree reference -- the same computation StyleBI's own "Parameters" prompt dialog
+    * uses, minus anything already bound to an on-canvas input assembly (use set_input_value for
+    * those).
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/parameters")
+   public java.util.List<inetsoft.web.wiz.viewsheet.model.ParameterModel> listParameters(
+      @PathVariable String sessionToken, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return parameterCollectionService.list(sessionToken, user);
+   }
+
+   /**
+    * {@code set_parameters}. Applies the given values and refreshes the viewsheet -- the same
+    * effect as answering the "Parameters" prompt dialog and clicking OK.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/parameters")
+   public Map<String, Object> setParameters(@PathVariable String sessionToken,
+                                            @RequestBody SetParametersRequest request,
+                                            @RequestParam(required = false, defaultValue = "")
+                                            String linkUri,
+                                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return parameterValueService.setValues(sessionToken, user, request.values(), linkUri);
    }
 
    public record CalendarDisplayRequest(String assembly, Boolean yearView, Boolean doubleCalendar,
@@ -2110,6 +2147,8 @@ public class ViewsheetAssemblyAgentController {
    private final SelectionRuntimeService selectionService;
    private final CalendarDisplayService calendarService;
    private final InputValueService inputService;
+   private final ParameterCollectionService parameterCollectionService;
+   private final ParameterValueService parameterValueService;
    private final ViewsheetService viewsheetService;
    private final SheetAgentBroadcastService broadcast;
    private final SheetOpenService openService;
