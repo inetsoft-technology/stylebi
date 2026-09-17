@@ -24,6 +24,7 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
 import org.junit.jupiter.api.Tag;
@@ -65,6 +66,49 @@ class SeededLinearFrameTest {
    @Test
    void graphUtilSeedsBluesForAClassicChart() {
       assertInstanceOf(BluesColorFrame.class, seedThrough(VizContext.LEGACY));
+   }
+
+   /**
+    * The threading itself, end to end: a marked assembly info, through VizContext.of(info), the
+    * processor's context field, fixVisualFrames, fixVisualFrames0 and fixVisualFrame. The three
+    * tests above call fixVisualFrame directly and would pass even if no caller threaded a context.
+    */
+   @Test
+   void aModernMarkedAssemblyIsBornOnTeal() {
+      assertInstanceOf(TealColorFrame.class, seedThroughProcessor(VizMark.MODERN_LIGHT));
+   }
+
+   @Test
+   void anUnmarkedAssemblyIsBornOnBlues() {
+      assertInstanceOf(BluesColorFrame.class, seedThroughProcessor(null));
+   }
+
+   /** Runs the whole chain the way a real chart-type change does. */
+   private VisualFrame seedThroughProcessor(VizMark mark) {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVizMark(mark);
+
+      VSChartInfo cinfo = info.getVSChartInfo();
+      cinfo.setChartType(GraphTypes.CHART_BAR);
+      cinfo.addYField(measureField());
+      cinfo.setColorField(measureColorRef());
+
+      assertNull(cinfo.getColorField().getVisualFrame(),
+                 "fixture must start with no colour frame or nothing is seeded");
+
+      ChartInfo processed = new ChangeChartTypeProcessor(
+         GraphTypes.CHART_BAR, GraphTypes.CHART_BAR, null, cinfo, VizContext.of(info)).process();
+
+      return processed.getColorField().getVisualFrame();
+   }
+
+   /** A y-axis measure, so the processor is not forced to auto for want of one. */
+   private VSChartAggregateRef measureField() {
+      VSChartAggregateRef aggr = new VSChartAggregateRef();
+      aggr.setColumnValue("Quantity");
+      aggr.setFormula(AggregateFormula.SUM);
+
+      return aggr;
    }
 
    private VisualFrame seedThrough(VizContext ctx) {

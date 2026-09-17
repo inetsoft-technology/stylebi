@@ -67,12 +67,10 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
    protected abstract ChartInfo getInfo();
 
    /**
-    * The context a frame seeded from script is born on. The report scriptable has no assembly to
-    * ask, so it keeps LEGACY; the viewsheet scriptable answers from its assembly's mark.
+    * The context a frame seeded from script is born on. Abstract on purpose: a subclass that cannot
+    * name its context must say LEGACY out loud, not inherit it.
     */
-   protected VizContext getVizContext() {
-      return VizContext.LEGACY;
-   }
+   protected abstract VizContext getVizContext();
 
    /**
     * Set top n for a dimension column.

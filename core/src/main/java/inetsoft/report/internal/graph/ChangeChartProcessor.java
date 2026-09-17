@@ -213,16 +213,6 @@ public class ChangeChartProcessor {
     * @param type the chart type.
     */
    public void fixColorField(ChartBindable info, int type) {
-      fixColorField(info, type, VizContext.LEGACY);
-   }
-
-   /**
-    * Fix the color frame for the color field depending on the chart type.
-    * @param info the chart info needed to be fixed.
-    * @param type the chart type.
-    * @param ctx the context the chart's measure-to-colour frame is born on.
-    */
-   public void fixColorField(ChartBindable info, int type, VizContext ctx) {
       AestheticRef cfield = info.getColorField();
 
       if(cfield == null || cfield.getVisualFrame() == null) {
@@ -241,7 +231,7 @@ public class ChangeChartProcessor {
       else if(GraphUtil.isMeasure(cfield.getDataRef()) &&
          !(frame instanceof LinearColorFrame))
       {
-         newFrame = VSChartPaletteDefaults.defaultLinearFrame(ctx);
+         newFrame = new BluesColorFrame();
       }
 
       if(newFrame == null) {

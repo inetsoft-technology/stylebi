@@ -50,12 +50,10 @@ public abstract class ChartInfoModelBuilder {
    }
 
    /**
-    * The context a frame seeded while rebuilding a chart from its binding model is born on. The
-    * viewsheet builder answers from its assembly's mark; a builder with no assembly keeps LEGACY.
+    * The context a frame seeded while rebuilding a chart from its binding model is born on. Abstract
+    * on purpose: a subclass that cannot name its context must say LEGACY out loud, not inherit it.
     */
-   protected VizContext getVizContext() {
-      return VizContext.LEGACY;
-   }
+   protected abstract VizContext getVizContext();
 
    public ChartBindingModel createChartBinding(ChartInfo cinfo, PlotDescriptor plot, boolean wizard)
    {
