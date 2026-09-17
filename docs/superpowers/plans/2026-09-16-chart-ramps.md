@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/lookfeel/2026-09-16-chart-ramps-design.md`
 
-**Branch:** `feature-chart-ramps`, based on `feature-chart-companion-colors` (PR #5275) because `OKLab` is not yet on `epic-74519`. Retarget the PR to `epic-74519` once #5275 merges.
+**Branch:** `feature-chart-ramps`, on `epic-74519`. It was built on `feature-chart-companion-colors` because `OKLab` was only on PR #5275 at the time, and rebased onto `epic-74519` once #5275 and #5311 merged.
 
 ## Global Constraints
 

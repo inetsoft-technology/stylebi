@@ -2,9 +2,11 @@
 
 **Date:** 2026-09-16
 **Status:** approved, not implemented
-**Branch:** `epic-74519` (base). Depends on `OKLab` from
-[#5275](https://github.com/inetsoft-technology/stylebi/pull/5275); if that has not merged when this
-starts, base on `feature-chart-companion-colors` as the brushing slice did.
+**Branch:** `epic-74519` (base). It was written when `OKLab` existed only on
+[#5275](https://github.com/inetsoft-technology/stylebi/pull/5275), so the work was built on
+`feature-chart-companion-colors` and rebased onto `epic-74519` once #5275 and
+[#5311](https://github.com/inetsoft-technology/stylebi/pull/5311) merged. `OKLab` now comes from
+`epic-74519`; nothing here carries it.
 **Source:** ENGINE §4 of the external design set `SBI Color and Type Pairings.dc.html` and its
 `design_handoff_chart_palettes/` folder, recovered into
 `docs/superpowers/specs/lookfeel/design-handoff-chart-palettes/`.
