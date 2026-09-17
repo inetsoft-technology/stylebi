@@ -23,7 +23,9 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.report.composition.execution.DataKey;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
@@ -81,6 +83,7 @@ import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.service.TabularQueryContractSupport;
@@ -3257,6 +3260,14 @@ public class WorksheetAgentController {
                throw new PairingException("Table not found: " + req.table());
             }
 
+            // Bug #76711 round 6: computed here, outside the instanceof-pattern block below, so
+            // it stays in scope (and effectively final) for the shared reload lambda further down
+            // -- the RUNTIME_MODE-forcing call added there needs it too, and that lambda runs
+            // after the block below has already closed. -1 for a non-TableAssembly assembly,
+            // which the RUNTIME_MODE-forcing call below is guarded to skip anyway.
+            final int mode = assembly instanceof TableAssembly modeAssembly
+               ? WorksheetEventUtil.getMode(modeAssembly) : -1;
+
             if(assembly instanceof TableAssembly table) {
                // WSQueryService.runQuery (the UI's own "Run Query" action this tool mirrors) reaches
                // this same validity gate via WorksheetEventUtil.refreshAssembly, which this agent
@@ -3277,33 +3288,77 @@ public class WorksheetAgentController {
                   LOG.warn("Failed to check the worksheet assembly validity: " + req.table(), e);
                }
 
-               int mode = WorksheetEventUtil.getMode(table);
-
-               // WSQueryService.runQuery removes the row cap in RUNTIME_MODE before re-running the
-               // query; without this, refresh_data could return a still row-limited preview where a
-               // real "Run Query" click would not.
-               if(mode == AssetQuerySandbox.RUNTIME_MODE) {
-                  box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
-               }
+               // Bug #76711 round 5: XSessionManager.dataCache's key is built from the XQuery's
+               // own serialized XML (XHandler.getQueryKey), which includes <maxrows>/<timeout> --
+               // so a query built WITH the row-cap hint present and one built with it removed are
+               // two DIFFERENT cache entries, confirmed live by printing both keys side by side
+               // (docs/teams/.../bug-76711/07-idea-debug-r4.md). preview_worksheet_data (and any
+               // other RUNTIME_MODE reader) always executes with the hint removed (maxrows=0). This
+               // used to only remove the hint when mode == RUNTIME_MODE (matching WSQueryService.
+               // runQuery, which is correct there since the UI's "Run Query" always operates on a
+               // table already in RUNTIME_MODE) -- but an ordinary add_table'd table's own mode is
+               // DESIGN_MODE (getMode above), so that guard never fired here, and refreshData's own
+               // reload kept writing fresh data into the WRONG (row-capped) cache entry -- one
+               // preview_worksheet_data never reads -- no matter how thoroughly every other cache
+               // layer was invalidated. Remove the hint unconditionally so the reload always targets
+               // the same query shape RUNTIME_MODE readers actually consult.
+               box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
 
                box.resetTableLens(req.table(), mode);
 
                // WSQueryService.runQuery also clears the cached query result from AssetDataCache
                // before re-executing -- resetTableLens alone leaves that cache holding the
                // pre-refresh result, so a caller reading the table right after refresh_data could
-               // still observe stale data. (WSQueryService additionally
-               // clears AssetQueryCacheNormalizer's and a live BoundQuery's own cache via a fresh
-               // AssetQuery.createAssetQuery(...) call -- both reach into repository/datasource
-               // resolution that needs a real Spring context, so they're deliberately left for a
-               // follow-up once that's live-verifiable rather than shipped unverified here.)
+               // still observe stale data.
                DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
                assetDataCache.remove(key);
+
+               // Bug #76711 round 4: every real reader of this table's data outside the Composer
+               // UI itself -- preview_worksheet_data (WorksheetPreviewService.java), the CSV
+               // export and sample-probe services (RawDataService, WorksheetTableService) -- reads
+               // it under a hardcoded AssetQuerySandbox.RUNTIME_MODE, regardless of the table's own
+               // design-time isRuntime()/isLiveData()/isEditMode() flags that getMode(table) above
+               // is based on. An ordinary add_table'd table has none of those flags set, so mode is
+               // DESIGN_MODE here and the invalidation above never touches the RUNTIME_MODE slot in
+               // either AssetQuerySandbox.tmap or AssetDataCache -- both keyed by mode -- leaving it
+               // to keep serving pre-refresh data indefinitely no matter how many times this table
+               // is refreshed. Invalidate the RUNTIME_MODE slot too, in addition to (not instead of)
+               // the table's own computed mode: the next real read under either mode is a genuine
+               // cache miss and lazily re-executes (AssetQuerySandbox.getTableLens0/executeQuery),
+               // reading whatever refreshColumnSelection below just wrote into the deeper,
+               // mode-independent XSessionManager.dataCache layer -- no proactive RUNTIME_MODE
+               // reload is needed here.
+               if(mode != AssetQuerySandbox.RUNTIME_MODE) {
+                  box.resetTableLens(req.table(), AssetQuerySandbox.RUNTIME_MODE);
+                  DataKey runtimeKey = AssetDataCache.getCacheKey(
+                     table, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
+                  assetDataCache.remove(runtimeKey);
+               }
 
                // WSQueryService.runQuery discovers a not-yet-run tabular query's columns before
                // reloading; without it, refresh_data on a query that has never executed in this
                // runtime loads against an empty column selection.
                if(table instanceof TabularTableAssembly tabular) {
                   tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
+               }
+
+               // WSQueryService.runQuery also drops a BoundQuery/TabularBoundQuery's own
+               // XSessionManager cache entry via a fresh AssetQuery.createAssetQuery(...) +
+               // BoundQuery.clearQueryCache(...); do it here too, best-effort. NOTE: confirmed
+               // live (see bug #76711 archive, 05-idea-debug-r2.md) that this call is a silent
+               // no-op in deployments where XSessionManager's underlying service is a JDK dynamic
+               // proxy rather than a concrete XEngine -- removeQueryCacheData's `instanceof
+               // XEngine` guard can never pass a proxy, so removeQueryCache is never actually
+               // invoked. Do NOT rely on this call alone to invalidate the cache; the
+               // __refresh_report__ flag below is the mechanism this method's correctness
+               // actually depends on. Best-effort per its own description above -- wrapped so a
+               // failure here (bug #76711 review, round 6 re-review finding 2) can't fail the
+               // whole refresh, matching the bulk branch's own handling of the identical call.
+               try {
+                  clearBoundQueryCache(box, table, mode);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to clear the bound query cache for table: " + req.table(), e);
                }
             }
             else {
@@ -3318,24 +3373,153 @@ public class WorksheetAgentController {
             // this is an explicit, caller-requested op, so a timeout throws RenderNotReadyException
             // (mapped to 503/RENDER_NOT_READY by WizControllerErrorHandler) rather than being
             // swallowed — the caller gets a live "not ready, retry" signal instead of a raw hang.
-            RenderWaitSupport.awaitOrRetry(() -> {
-               WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-               WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
-               return null;
-            }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-               (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            // WSQueryService.runQuery also sets this flag before reloading, and it is the ONLY
+            // mechanism this method's correctness actually depends on (see clearBoundQueryCache's
+            // comment above). It must stay set for as long as the reload is actually running, not
+            // just for as long as the caller waits: RenderWaitSupport does not cancel the reload
+            // on timeout, so removing the flag in a finally scoped to awaitOrRetry's own return
+            // (bug #76711, rounds 1 and 2) clears it while that background work is still running,
+            // reintroducing the exact stale-read bug. Remove it inside the callable instead, right
+            // after the work it guards actually finishes, on whichever thread that turns out to be.
+            box.getVariableTable().put("__refresh_report__", "true");
+
+            try {
+               RenderWaitSupport.awaitOrRetry(() -> {
+                  try {
+                     WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+                     WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+
+                     // Bug #76711 round 6: loadTableData above only ever actually EXECUTES the
+                     // query under this table's OWN mode (DESIGN_MODE for an ordinary add_table'd
+                     // table -- confirmed live via a logged executeQuery(mode=...) call site, see
+                     // bug-76711/08-idea-debug-r5.md). Round 4's RUNTIME_MODE cache invalidation
+                     // only clears the OUTER AssetQuerySandbox.tmap/AssetDataCache slots for
+                     // RUNTIME_MODE -- it never itself runs a query, so it only helps if SOME
+                     // later caller's own lazy re-execution reaches a fresh XSessionManager.dataCache
+                     // entry. But DESIGN_MODE and RUNTIME_MODE queries are structurally different
+                     // XQuery shapes (confirmed live: <maxrows>/<timeout> differ, e.g. 5000/30 vs
+                     // 0/0), which XHandler.getQueryKey folds into the XSessionManager.dataCache
+                     // key itself -- so the DESIGN_MODE execution above never refreshes the
+                     // RUNTIME_MODE-shaped entry preview_worksheet_data (and any other RUNTIME_MODE
+                     // reader) actually consults; that entry is only ever populated by whichever
+                     // caller FIRST executes under RUNTIME_MODE, and nothing thereafter re-executes
+                     // it fresh. Force a real RUNTIME_MODE execution here too, still inside this
+                     // __refresh_report__-protected block, so the RUNTIME_MODE-shaped
+                     // XSessionManager.dataCache entry is genuinely refreshed, not just the outer
+                     // caches around it invalidated and left to some later caller's lazy reload.
+                     if(mode >= 0 && mode != AssetQuerySandbox.RUNTIME_MODE) {
+                        box.getTableLens(req.table(), AssetQuerySandbox.RUNTIME_MODE);
+                     }
+                  }
+                  finally {
+                     box.getVariableTable().remove("__refresh_report__");
+                  }
+
+                  return null;
+               }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+                  (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            }
+            catch(RenderNotReadyException e) {
+               // Timed out waiting, not failed: the reload above is still running in the
+               // background and removes the flag itself once it finishes. Do not remove it here,
+               // or the flag can go missing while that work -- and the __refresh_report__-gated
+               // cache read it exists to suppress -- is still in flight.
+               throw e;
+            }
+            catch(Exception e) {
+               // Any other failure means the callable either already ran (its own finally above
+               // already removed the flag -- this is then a harmless no-op) or never ran at all,
+               // e.g. rejected before being submitted -- the only case this remove is load-bearing.
+               box.getVariableTable().remove("__refresh_report__");
+               throw e;
+            }
          }
          else {
-            // Refresh all table assemblies.
+            // Refresh all table assemblies. Mirrors the single-assembly branch's cache
+            // invalidation (AssetDataCache + the BoundQuery/XSessionManager layer -- bug #76711
+            // review Finding 2) for every table, so a later read of ANY table after a bulk
+            // refresh_data is a genuine cache miss too, not just resetTableLens's
+            // AssetQuerySandbox.tmap layer, which used to be the only thing this branch touched.
+            //
+            // Bug #76711 round 6 (bulk branch): confirmed live that this branch had the exact
+            // same gap as the single-assembly branch did before round 6 -- invalidating the
+            // outer AssetQuerySandbox.tmap/AssetDataCache slots alone leaves the deep
+            // XSessionManager.dataCache entry preview_worksheet_data (and any other RUNTIME_MODE
+            // reader) actually consults untouched, since nothing here ever forced a real
+            // RUNTIME_MODE execution. Mirror the single-assembly branch's HINT_MAX_ROWS removal,
+            // RUNTIME_MODE slot invalidation, and __refresh_report__-protected forced RUNTIME_MODE
+            // read for every table. Deliberately does NOT also wrap each table's forced read in
+            // RenderWaitSupport.awaitOrRetry: that would be new behavior this branch never had (up
+            // to N sequential timeout-and-retry windows for N tables) -- a plain synchronous call
+            // is enough here since this branch was never bounded to begin with.
+            //
+            // Bug #76711 round 6 re-review finding 1: unlike the single-assembly branch, this
+            // branch never calls loadTableData/refreshColumnSelection to execute a query under
+            // the table's own mode first -- resetTableLens/AssetDataCache.remove only clear the
+            // cache shell, they never run anything. So a table whose own mode is ALREADY
+            // RUNTIME_MODE had nothing here that actually re-executes its query: the forced
+            // RUNTIME_MODE read below must run unconditionally, not only when
+            // mode != RUNTIME_MODE (that guard is correct in the single-assembly branch only
+            // because loadTableData there already covers the mode == RUNTIME_MODE case).
+            box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
+
             for(Assembly a : ws.getAssemblies()) {
-               if(a instanceof TableAssembly) {
-                  box.resetTableLens(a.getName());
+               if(a instanceof TableAssembly table) {
+                  int mode = WorksheetEventUtil.getMode(table);
+                  box.resetTableLens(table.getName(), mode);
+
+                  DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
+                  assetDataCache.remove(key);
+
+                  if(mode != AssetQuerySandbox.RUNTIME_MODE) {
+                     box.resetTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
+                     DataKey runtimeKey = AssetDataCache.getCacheKey(
+                        table, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
+                     assetDataCache.remove(runtimeKey);
+                  }
+
+                  try {
+                     clearBoundQueryCache(box, table, mode);
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to clear the bound query cache for table: " +
+                        table.getName(), e);
+                  }
+
+                  box.getVariableTable().put("__refresh_report__", "true");
+
+                  try {
+                     box.getTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
+                  }
+                  finally {
+                     box.getVariableTable().remove("__refresh_report__");
+                  }
                }
             }
          }
 
          return null;
       });
+   }
+
+   /**
+    * Synchronously drops the {@code XSessionManager.dataCache} entry a {@link BoundQuery}
+    * (e.g. a SERVER_FILE tabular table's {@code TabularBoundQuery}) would otherwise keep
+    * serving indefinitely -- no time-based expiry in practice, see bug #76711 -- mirroring
+    * {@code WSQueryService.runQuery}'s own {@code AssetQuery.createAssetQuery(...)} +
+    * {@code BoundQuery.clearQueryCache(...)} call.
+    */
+   private void clearBoundQueryCache(AssetQuerySandbox box, TableAssembly table, int mode)
+      throws Exception
+   {
+      TableAssembly clone = (TableAssembly) table.clone();
+      AssetQuery query = AssetQuery.createAssetQuery(clone, mode, box, false, -1L, true, false);
+
+      if(query instanceof BoundQuery boundQuery) {
+         VariableTable vars = box.getVariableTable().clone();
+         vars.put(XQuery.HINT_PREVIEW, AssetQuerySandbox.isLiveMode(mode) + "");
+         boundQuery.clearQueryCache(vars);
+      }
    }
 
    // ---------------------------------------------------------------------------

@@ -23,7 +23,9 @@ import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.uql.VariableTable;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
@@ -97,9 +99,11 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -1400,8 +1404,14 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      assertThrows(RenderNotReadyException.class,
-         () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+      // clearBoundQueryCache (bug #76711 round 2) reaches AssetQuery.createAssetQuery, which
+      // needs live Spring beans (XRepository/XSessionManager) this lightweight test context
+      // doesn't wire -- mock it away to a no-op default (null, not a BoundQuery) since this test
+      // isn't about that mechanism.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+      }
    }
 
    /** A table whose data is already warm (or warms within the bound) refreshes normally. */
@@ -1436,7 +1446,10 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
+      // See the sibling "Slow" test above for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
+      }
 
       verify(box, atLeastOnce()).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
    }
@@ -1480,9 +1493,269 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
 
-      ctrl.edit("TOK-RD3", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD3", refreshDataRequest("Table1"), agent);
+      }
 
-      verify(assetDataCache).remove(any());
+      // Bug #76711 round 4 also clears the RUNTIME_MODE slot for this DESIGN_MODE table (see
+      // refreshDataAlsoInvalidatesTheRuntimeModeSlotForADesignModeTable), so this is now 2 calls.
+      verify(assetDataCache, atLeastOnce()).remove(any());
+   }
+
+   /**
+    * Bug #76711 round 4: for an ordinary table (not runtime, not live-data -- the state an
+    * {@code add_table}'d table is left in, per {@code WorksheetEventUtil.getMode}), refreshData's
+    * own computed {@code mode} is DESIGN_MODE, but every real reader of this table's data
+    * (preview_worksheet_data's WorksheetPreviewService, RawDataService, WorksheetTableService)
+    * always reads under a hardcoded RUNTIME_MODE. Round 3's fix only invalidated the DESIGN_MODE
+    * slot in AssetQuerySandbox.tmap/AssetDataCache, leaving RUNTIME_MODE's slot stale forever.
+    * This test would FAIL against round 3's code, which calls resetTableLens/assetDataCache.remove
+    * exactly once, for DESIGN_MODE only.
+    */
+   @Test
+   void refreshDataAlsoInvalidatesTheRuntimeModeSlotForADesignModeTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD10"), any())).thenReturn(session("TOK-RD10"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      inetsoft.report.composition.execution.AssetDataCache assetDataCache =
+         mock(inetsoft.report.composition.execution.AssetDataCache.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD10", refreshDataRequest("Table1"), agent);
+      }
+
+      verify(box).resetTableLens("Table1", AssetQuerySandbox.DESIGN_MODE);
+      verify(box).resetTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+      verify(assetDataCache, times(2)).remove(any());
+   }
+
+   /**
+    * Bug #76711 round 5: XSessionManager.dataCache's key includes the query's own
+    * maxrows/timeout, so a reload executed WITH the row-cap hint present writes into a
+    * different cache entry than the one RUNTIME_MODE readers (preview_worksheet_data, etc.)
+    * consult -- they always execute with the hint removed. The row-cap hint used to only be
+    * removed when mode == RUNTIME_MODE (mirroring WSQueryService.runQuery), but an ordinary
+    * add_table'd table's own mode is DESIGN_MODE, so that guard never fired and the hint stayed
+    * set through the whole reload. This test would FAIL against round 4's code, which leaves
+    * the hint in place for a DESIGN_MODE table.
+    */
+   @Test
+   void refreshDataRemovesRowCapEvenInDesignMode() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      vars.put(inetsoft.uql.XQuery.HINT_MAX_ROWS, "100");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD11"), any())).thenReturn(session("TOK-RD11"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD11", refreshDataRequest("Table1"), agent);
+      }
+
+      assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
+         "the row-cap hint must be removed even for a DESIGN_MODE table, not only RUNTIME_MODE");
+   }
+
+   /**
+    * Bug #76711 round 6: resetTableLens/AssetDataCache.remove only clear the RUNTIME_MODE slot's
+    * stale entry -- they never themselves run a query, so the RUNTIME_MODE-shaped
+    * XSessionManager.dataCache entry any real RUNTIME_MODE reader consults is only ever
+    * repopulated by whichever caller happens to read under RUNTIME_MODE next. refresh_data itself
+    * never does, so a table that's never independently read under RUNTIME_MODE stays stuck
+    * serving pre-refresh data forever. This test would FAIL against round 5's code, which never
+    * calls getTableLens(table, RUNTIME_MODE) at all.
+    */
+   @Test
+   void refreshDataForcesARuntimeModeExecutionForADesignModeTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD12"), any())).thenReturn(session("TOK-RD12"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD12", refreshDataRequest("Table1"), agent);
+      }
+
+      verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+   }
+
+   /**
+    * Bug #76711 round 6 (bulk branch): the "refresh all tables" branch (no table name given) had
+    * the exact same gap as the single-assembly branch did before round 6 -- it invalidated the
+    * outer AssetQuerySandbox.tmap/AssetDataCache slots but never forced a real RUNTIME_MODE
+    * execution, so it never actually refreshed the XSessionManager.dataCache entry RUNTIME_MODE
+    * readers consult, confirmed live. This test would FAIL against the pre-round-6 bulk branch,
+    * which never calls getTableLens(table, RUNTIME_MODE) or removes the row-cap hint.
+    */
+   @Test
+   void refreshDataAllTablesAlsoForcesARuntimeModeExecution() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      vars.put(inetsoft.uql.XQuery.HINT_MAX_ROWS, "100");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD13"), any())).thenReturn(session("TOK-RD13"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD13", refreshDataRequest(null), agent);
+      }
+
+      verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+      assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
+         "the bulk refresh-all branch must also remove the row-cap hint unconditionally");
+   }
+
+   /**
+    * Bug #76711 round 6 re-review finding 1: unlike the single-assembly branch, the bulk branch
+    * never calls loadTableData/refreshColumnSelection to execute a query under the table's own
+    * mode first -- resetTableLens/AssetDataCache.remove only clear the cache shell, they never
+    * run anything. So a table whose own mode is ALREADY RUNTIME_MODE (e.g. one interactively
+    * open in the Composer canvas) had nothing in the bulk branch that actually re-executes its
+    * query, reproducing bug #76711 for that specific table/mode combination. This test would
+    * FAIL against the first round-6 bulk-branch fix, which guarded the forced read with
+    * {@code mode != RUNTIME_MODE} -- correct for the single-assembly branch (loadTableData there
+    * already covers the RUNTIME_MODE case) but wrong here, where there is no such fallback.
+    */
+   @Test
+   void refreshDataAllTablesForcesRuntimeModeExecutionEvenWhenAlreadyRuntimeMode() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      table.setRuntime(true);
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD14"), any())).thenReturn(session("TOK-RD14"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD14", refreshDataRequest(null), agent);
+      }
+
+      verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
    }
 
    /**
@@ -1560,7 +1833,10 @@ class WorksheetAgentControllerTest {
 
       assertNotNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS), "sanity: cap set before refresh");
 
-      ctrl.edit("TOK-RD5", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD5", refreshDataRequest("Table1"), agent);
+      }
 
       assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
          "Run Query's own row-cap removal must be mirrored for RUNTIME_MODE tables");
@@ -1596,9 +1872,230 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      ctrl.edit("TOK-RD6", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD6", refreshDataRequest("Table1"), agent);
+      }
 
       verify(table).loadColumnSelection(any(), eq(true), any());
+   }
+
+   /**
+    * Bug #76711: a table whose {@code XSessionManager.dataCache} entry is already populated
+    * (e.g. a SERVER_FILE/tabular {@code BoundQuery}) must have {@code __refresh_report__} set for
+    * the duration of the reload, same as {@code WSQueryService.runQuery} -- otherwise
+    * {@code resetTableLens}/{@code AssetDataCache} above still leave that deeper, key-stable cache
+    * serving pre-refresh rows forever, silently, even though {@code refresh_data} reports
+    * {@code {"ok":true}}.
+    */
+   @Test
+   void refreshDataSetsRefreshReportFlagAroundReload() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD7"), any())).thenReturn(session("TOK-RD7"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // clearBoundQueryCache (bug #76711 round 2) reaches AssetQuery.createAssetQuery, which
+      // needs live Spring beans this lightweight test context doesn't wire -- mock it away to a
+      // no-op default (null, not a BoundQuery) since this test isn't about that mechanism.
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         eventUtil.when(() ->
+               WorksheetEventUtil.loadTableData(eq(rws), eq("Table1"), anyBoolean(), anyBoolean()))
+            .thenAnswer(invocation -> {
+               assertEquals("true", vars.get("__refresh_report__"),
+                  "flag must be set for the duration of the reload, same as Run Query");
+               return null;
+            });
+
+         ctrl.edit("TOK-RD7", refreshDataRequest("Table1"), agent);
+      }
+
+      assertNull(vars.get("__refresh_report__"),
+         "flag must be removed again after the reload, same as Run Query's finally block");
+   }
+
+   /**
+    * Bug #76711, review round 2: {@code RenderWaitSupport.awaitOrRetry}'s reload work runs on a
+    * separate virtual thread that is NOT cancelled on timeout (see its own doc comment) -- so a
+    * reload slower than the timeout keeps running after {@code refreshData}'s own {@code finally}
+    * block has already removed {@code __refresh_report__}, which can race that still-running
+    * thread and silently fall back to the stale {@code XSessionManager} cache (this is exactly
+    * what a {@code claude-review} CI bot caught, and the lead independently reproduced live, in
+    * this bug's round-1 fix). The actual fix is {@code clearBoundQueryCache} -- a synchronous
+    * {@code AssetQuery.createAssetQuery(...)} + {@code BoundQuery.clearQueryCache(...)} call made
+    * BEFORE the bounded reload is even submitted, so its correctness cannot depend on winning that
+    * race. This test simulates a reload slower than the 2000ms timeout (same technique as
+    * {@code insertColumnThrowsRenderNotReadyWhenColumnSelectionIsSlow} -- an instance stub on
+    * {@code box}, not a static mock, since {@code MockedStatic} is thread-confined and
+    * {@code RenderWaitSupport} runs the reload on a different (virtual) thread) and asserts
+    * clearQueryCache was already invoked -- in order, before the slow reload started -- by the
+    * time {@code RenderNotReadyException} propagates out, proving the invalidation does not
+    * depend on the reload finishing in time.
+    */
+   @Test
+   void refreshDataClearsBoundQueryCacheBeforeSlowReload() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      List<String> callOrder = Collections.synchronizedList(new ArrayList<>());
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+      doAnswer(invocation -> {
+         callOrder.add("reload");
+         // Slower than RenderWaitSupport's 2000ms timeout -- keeps running in the background
+         // (not cancelled) after awaitOrRetry has already thrown. An instance stub (not a static
+         // mock) so it fires correctly from RenderWaitSupport's virtual worker thread.
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Table1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD8"), any())).thenReturn(session("TOK-RD8"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      BoundQuery boundQuery = mock(BoundQuery.class);
+
+      doAnswer(invocation -> {
+         callOrder.add("clearQueryCache");
+         return null;
+      }).when(boundQuery).clearQueryCache(any());
+
+      // clearBoundQueryCache runs synchronously on this (the test) thread, before awaitOrRetry
+      // submits the reload -- a MockedStatic registered here is visible for that call, unlike the
+      // reload work above which runs on a different thread.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assetQuery.when(() -> AssetQuery.createAssetQuery(
+               any(), anyInt(), eq(box), eq(false), eq(-1L), eq(true), eq(false)))
+            .thenReturn(boundQuery);
+
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD8", refreshDataRequest("Table1"), agent));
+      }
+
+      assertEquals(List.of("clearQueryCache", "reload"), callOrder,
+         "the query cache must be cleared synchronously before the reload is even submitted, " +
+         "not merely before/after it happens to finish within the timeout");
+   }
+
+   /**
+    * Bug #76711, round 3: rounds 1 and 2 both removed {@code __refresh_report__} in a
+    * {@code finally} scoped to {@code RenderWaitSupport.awaitOrRetry}'s own return -- which fires
+    * the instant the caller's bounded wait gives up (2000ms here), NOT when the reload it wraps
+    * actually finishes running on its own, uncancelled virtual thread. A live IDEA debugger session
+    * confirmed round 2's {@code clearBoundQueryCache} is a silent no-op in deployments where
+    * {@code XSessionManager}'s {@code service} is a dynamic proxy rather than a concrete
+    * {@code XEngine}, so the flag's own lifetime is the only thing this method's correctness
+    * depends on. Same slow-reload technique as {@code refreshDataClearsBoundQueryCacheBeforeSlowReload}
+    * (an instance stub on {@code box}, since the reload runs on a different thread than a
+    * {@code MockedStatic} would be visible from) -- but this test asserts on the flag's own state,
+    * from inside the stubbed slow call itself and immediately after the caller times out, not on
+    * {@code clearQueryCache}'s call order.
+    */
+   @Test
+   void refreshDataKeepsRefreshReportFlagSetUntilSlowReloadActuallyFinishes() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      AtomicBoolean flagSetDuringSlowReload = new AtomicBoolean(false);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+      doAnswer(invocation -> {
+         // Slower than RenderWaitSupport's 2000ms timeout -- runs on its own virtual thread well
+         // past the point the caller below has already given up and thrown RenderNotReadyException.
+         Thread.sleep(3_000);
+         flagSetDuringSlowReload.set("true".equals(vars.get("__refresh_report__")));
+         return null;
+      }).when(box).refreshColumnSelection(eq("Table1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD9"), any())).thenReturn(session("TOK-RD9"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD9", refreshDataRequest("Table1"), agent));
+
+         assertEquals("true", vars.get("__refresh_report__"),
+            "flag must still be set immediately after the caller times out -- the reload is " +
+            "still running in the background, not finished");
+
+         long deadline = System.currentTimeMillis() + 5_000;
+
+         while(vars.get("__refresh_report__") != null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+         }
+      }
+
+      assertTrue(flagSetDuringSlowReload.get(),
+         "flag must still have been set at the moment the slow reload actually ran, well past " +
+         "the caller's own 2000ms timeout");
+      assertNull(vars.get("__refresh_report__"),
+         "flag must finally be removed once the background reload actually completes, not " +
+         "merely once the caller stops waiting for it");
    }
 
    /**
