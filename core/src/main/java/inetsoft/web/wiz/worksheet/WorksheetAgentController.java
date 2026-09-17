@@ -3351,8 +3351,15 @@ public class WorksheetAgentController {
                // XEngine` guard can never pass a proxy, so removeQueryCache is never actually
                // invoked. Do NOT rely on this call alone to invalidate the cache; the
                // __refresh_report__ flag below is the mechanism this method's correctness
-               // actually depends on.
-               clearBoundQueryCache(box, table, mode);
+               // actually depends on. Best-effort per its own description above -- wrapped so a
+               // failure here (bug #76711 review, round 6 re-review finding 2) can't fail the
+               // whole refresh, matching the bulk branch's own handling of the identical call.
+               try {
+                  clearBoundQueryCache(box, table, mode);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to clear the bound query cache for table: " + req.table(), e);
+               }
             }
             else {
                box.resetTableLens(req.table());
@@ -3445,6 +3452,15 @@ public class WorksheetAgentController {
             // RenderWaitSupport.awaitOrRetry: that would be new behavior this branch never had (up
             // to N sequential timeout-and-retry windows for N tables) -- a plain synchronous call
             // is enough here since this branch was never bounded to begin with.
+            //
+            // Bug #76711 round 6 re-review finding 1: unlike the single-assembly branch, this
+            // branch never calls loadTableData/refreshColumnSelection to execute a query under
+            // the table's own mode first -- resetTableLens/AssetDataCache.remove only clear the
+            // cache shell, they never run anything. So a table whose own mode is ALREADY
+            // RUNTIME_MODE had nothing here that actually re-executes its query: the forced
+            // RUNTIME_MODE read below must run unconditionally, not only when
+            // mode != RUNTIME_MODE (that guard is correct in the single-assembly branch only
+            // because loadTableData there already covers the mode == RUNTIME_MODE case).
             box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
 
             for(Assembly a : ws.getAssemblies()) {
@@ -3473,9 +3489,7 @@ public class WorksheetAgentController {
                   box.getVariableTable().put("__refresh_report__", "true");
 
                   try {
-                     if(mode != AssetQuerySandbox.RUNTIME_MODE) {
-                        box.getTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
-                     }
+                     box.getTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
                   }
                   finally {
                      box.getVariableTable().remove("__refresh_report__");

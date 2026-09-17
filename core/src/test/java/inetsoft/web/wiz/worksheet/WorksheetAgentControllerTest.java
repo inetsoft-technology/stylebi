@@ -1711,6 +1711,54 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #76711 round 6 re-review finding 1: unlike the single-assembly branch, the bulk branch
+    * never calls loadTableData/refreshColumnSelection to execute a query under the table's own
+    * mode first -- resetTableLens/AssetDataCache.remove only clear the cache shell, they never
+    * run anything. So a table whose own mode is ALREADY RUNTIME_MODE (e.g. one interactively
+    * open in the Composer canvas) had nothing in the bulk branch that actually re-executes its
+    * query, reproducing bug #76711 for that specific table/mode combination. This test would
+    * FAIL against the first round-6 bulk-branch fix, which guarded the forced read with
+    * {@code mode != RUNTIME_MODE} -- correct for the single-assembly branch (loadTableData there
+    * already covers the RUNTIME_MODE case) but wrong here, where there is no such fallback.
+    */
+   @Test
+   void refreshDataAllTablesForcesRuntimeModeExecutionEvenWhenAlreadyRuntimeMode() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      table.setRuntime(true);
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD14"), any())).thenReturn(session("TOK-RD14"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD14", refreshDataRequest(null), agent);
+      }
+
+      verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+   }
+
+   /**
     * #8: an invalid table (here, the same missing-SourceInfo shape the sibling tests above now
     * avoid) must refuse loudly instead of silently proceeding -- mirrors
     * {@code WorksheetEventUtil.refreshAssembly}'s own {@code checkValidity()} gate, which the UI's
