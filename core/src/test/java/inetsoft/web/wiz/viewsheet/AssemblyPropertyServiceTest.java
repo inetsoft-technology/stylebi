@@ -22,6 +22,8 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.CalcTablePropertyDialogModel;
 import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
@@ -29,6 +31,7 @@ import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
+import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
@@ -1122,6 +1125,112 @@ class AssemblyPropertyServiceTest {
       assertEquals(1, model.getSelectionGeneralPaneModel().getShowType());
    }
 
+   // ── tableStyle write-time validation (bug #76764/VTS-003) ────────────────
+   //
+   // PropertyPath's CONSTRAINED_STRINGS gate doesn't cover tableStyle (a dynamic, per-library
+   // domain), so a raw-path write of a name that matches no real style was silently accepted,
+   // stored verbatim, and resolved to null at render time (DataVSAQuery/VSUtil.getTableStyle),
+   // falling back to CSS-only formatting with no error anywhere. These exercise both leaf
+   // fields a real style tree node carries -- data() (the ID, what the interactive Composer UI
+   // itself writes/matches) and label() (the folder-stripped name, what this plugin's own
+   // tableStyleTools.ts tells callers to write) -- since a validator that accepted only one
+   // would falsely refuse the other's real, currently-legitimate calling convention.
+
+   private static final String TABLE_STYLE_PATH =
+      "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle";
+
+   private static TreeNodeModel sampleStyleTree() {
+      TreeNodeModel style = TreeNodeModel.builder()
+         .label("Default Style")
+         .data("4611686018437387905")
+         .type("style")
+         .leaf(true)
+         .build();
+      TreeNodeModel folder = TreeNodeModel.builder()
+         .label("Styles")
+         .type("folder")
+         .leaf(false)
+         .children(java.util.List.of(style))
+         .build();
+
+      return TreeNodeModel.builder().children(java.util.List.of(folder)).build();
+   }
+
+   @Test
+   void refusesADanglingTableStyleNameOnATable() {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Table1",
+            Map.of(TABLE_STYLE_PATH, "No Such Style"), ""));
+
+      assertTrue(thrown.getMessage().contains("No Such Style"),
+                 "must name the bad value: " + thrown.getMessage());
+   }
+
+   @Test
+   void refusesADanglingTableStyleNameOnACalcTable() {
+      CalcTablePropertyDialogModel model = new CalcTablePropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service =
+         serviceWithCalcTable(mock(CalcTableVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "CalcTable1",
+            Map.of(TABLE_STYLE_PATH, "No Such Style"), ""));
+
+      assertTrue(thrown.getMessage().contains("No Such Style"),
+                 "must name the bad value: " + thrown.getMessage());
+   }
+
+   /** The plugin's own documented convention (tableStyleTools.ts): write the style's name. */
+   @Test
+   void allowsATableStyleWriteMatchingARealStylesLabel() throws Exception {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      service.set("tok", principal(), "Table1", Map.of(TABLE_STYLE_PATH, "Default Style"), "");
+
+      assertEquals("Default Style", model.getTableViewGeneralPaneModel()
+         .getTableStylePaneModel().getTableStyle());
+   }
+
+   /**
+    * The interactive Composer UI's own convention (table-style-pane.component.ts): write the
+    * style's ID, not its name. A validator that only matched label() would wrongly refuse this.
+    */
+   @Test
+   void allowsATableStyleWriteMatchingARealStylesId() throws Exception {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      service.set("tok", principal(), "Table1",
+                  Map.of(TABLE_STYLE_PATH, "4611686018437387905"), "");
+
+      assertEquals("4611686018437387905", model.getTableViewGeneralPaneModel()
+         .getTableStylePaneModel().getTableStyle());
+   }
+
+   /** Clearing the style (empty string) is a legitimate "no style" request, not a dangling name. */
+   @Test
+   void allowsClearingTableStyleToEmpty() throws Exception {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Table1",
+         Map.of(TABLE_STYLE_PATH, ""), ""));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
@@ -1160,6 +1269,18 @@ class AssemblyPropertyServiceTest {
 
    private static AssemblyPropertyService serviceWithCalendar(
       VSAssembly assembly, CalendarPropertyDialogModel model)
+   {
+      return serviceWith(assembly, model, null, null);
+   }
+
+   private static AssemblyPropertyService serviceWithTable(
+      VSAssembly assembly, TableViewPropertyDialogModel model)
+   {
+      return serviceWith(assembly, model, null, null);
+   }
+
+   private static AssemblyPropertyService serviceWithCalcTable(
+      VSAssembly assembly, CalcTablePropertyDialogModel model)
    {
       return serviceWith(assembly, model, null, null);
    }
@@ -1271,17 +1392,43 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      TableViewPropertyDialogService table = mock(TableViewPropertyDialogService.class);
+
+      if(model instanceof TableViewPropertyDialogModel tableModel) {
+         try {
+            when(table.getTableViewPropertyDialogModel(anyString(), anyString(),
+                                                        any(Principal.class)))
+               .thenReturn(tableModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
+      CalcTablePropertyDialogService calcTable = mock(CalcTablePropertyDialogService.class);
+
+      if(model instanceof CalcTablePropertyDialogModel calcTableModel) {
+         try {
+            when(calcTable.getCalcTablePropertyDialogModel(anyString(), anyString(), anyDouble(),
+                                                            any(Principal.class)))
+               .thenReturn(calcTableModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       return new AssemblyPropertyService(
          sessions, gauge, mock(ImagePropertyDialogService.class),
          mock(TextPropertyDialogService.class),
-         chart, mock(TableViewPropertyDialogService.class),
+         chart, table,
          mock(CrosstabPropertyDialogService.class),
          selectionList,
          mock(SelectionTreePropertyDialogService.class),
          inputService,
          mock(RangeSliderPropertyDialogService.class),
          calendar, mock(TabPropertyDialogService.class),
-         mock(CalcTablePropertyDialogService.class),
+         calcTable,
          mock(GroupContainerPropertyDialogService.class),
          mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
          mock(RectanglePropertyDialogService.class),
