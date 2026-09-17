@@ -118,6 +118,7 @@ public class ScriptLibraryChangePlanService {
       requireUnused(label, "newName", change.getNewName());
       requireUnused(label, "force", change.getForce());
       claim(label, "scriptlibrary:" + name, seenKeys);
+      scriptLibraryService.requirePermission(name, user, ResourceAction.ADMIN);
 
       if(scriptLibraryService.exists(name, user)) {
          throw new IllegalArgumentException(label + ".name: a script library entry named \"" +
