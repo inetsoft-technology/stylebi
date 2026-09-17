@@ -583,6 +583,55 @@ class CalcTableServiceTest {
       assertTrue(captor.getValue().getBinding().getOrder().isOthers());
    }
 
+   // ── field.dateLevel (applyDateGroup) ──────────────────────────────────────────
+
+   @Test
+   void appliesALiteralDateLevelToTheOrderOption() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension", "dateLevel", "year")));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(XConstants.YEAR_DATE_GROUP, captor.getValue().getBinding().getOrder().getOption());
+   }
+
+   /**
+    * Unlike a chart/table dimension's dlevelValue, a calc-table cell's OrderModel.option is a
+    * plain int with no DynamicValue counterpart -- DateLevels.normalize() now returns a
+    * "$(ComponentName)" value unchanged (bug #76751) rather than throwing, so applyDateGroup has
+    * to reject it itself instead of letting it fall into Integer.parseInt as a raw
+    * NumberFormatException.
+    */
+   @Test
+   void refusesADynamicDateLevelOnACalcTableCellWithACleanError() {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.setCellBinding(
+         "tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension",
+                            "dateLevel", "$(RadioButton1)"))));
+
+      assertTrue(thrown.getMessage().contains("field.dateLevel"));
+      assertTrue(thrown.getMessage().contains("$(RadioButton1)"));
+   }
+
+   @Test
+   void stillRefusesAGarbageDateLevelOnACalcTableCell() {
+      Harness h = harness(3, 3);
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.setCellBinding(
+         "tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension",
+                            "dateLevel", "fortnight"))));
+
+      assertTrue(thrown.getMessage().contains("fortnight"));
+   }
+
    // ── mergeRowGroup / mergeColGroup / timeSeries wiring ─────────────────────────
 
    @Test

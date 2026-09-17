@@ -127,10 +127,16 @@ public final class DateLevels {
    }
 
    /**
-    * Mirrors {@code VSUtil.isDynamicValue}/{@code isVariableValue}/{@code isScriptValue}'s exact
-    * predicate, not {@code VSUtil} itself — see the comment at this method's one call site.
+    * Whether {@code val} is a {@code $(ComponentName)}/{@code =script} dynamic value rather than
+    * a literal. Mirrors {@code VSUtil.isDynamicValue}/{@code isVariableValue}/{@code isScriptValue}'s
+    * exact predicate, not {@code VSUtil} itself — see the comment at this method's call site in
+    * {@link #normalize}. Package-visible so a caller for which a dynamic date level has no
+    * model-layer home (e.g. {@code CalcTableService}'s calc-table cell binding, a plain {@code int}
+    * with no {@code DynamicValue} counterpart) can recognize one after {@link #normalize} returns
+    * it unchanged, and reject it with its own field-named error instead of a raw
+    * {@code NumberFormatException} — rather than a third copy of this same string check.
     */
-   private static boolean isDynamicValue(String val) {
+   static boolean isDynamicValue(String val) {
       return (val.startsWith("$(") && val.endsWith(")")) || val.startsWith("=");
    }
 
