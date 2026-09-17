@@ -224,6 +224,70 @@ rather than left to be rediscovered. The alternative — no default, every calle
 would break `ChangeChartTypeProcessor`'s existing no-arg constructor at `:46` and widen the diff well
 past this slice.
 
+## 4a. Keeping a bound ramp in step with the mark
+
+§4 answers what a *new* measure→colour binding is born on. A chart's mark can change after that, so
+the seeded ramp also has to move when it does. `ChartVSAssemblyInfo.seedChromeDefaults` — the hook
+every mark-dependent chrome value is written through — carries that in `seedColorPalette`
+(`ChartVSAssemblyInfo:251-278`), as a second branch beside the categorical one it already had.
+
+**The hook has four callers and only two of them are mark transitions.** This is the fact the branch
+was built without, and the whole of the scoping below follows from it:
+
+| Caller | What it is | Runs the linear re-seed |
+|---|---|---|
+| `VSAssemblyInfo.initDefaultFormat:1236` → `seedChromeDefaults(VizContext.of(this))` | creation | no |
+| `VizModernizeUtil.modernize:62-68` | classic → modern | **yes** |
+| `VizModernizeUtil.revert:102-112` | modern → classic | **yes** |
+| `VizModernizeUtil.reseedAfterRestore:145`, from `AbstractVSAssembly.parseState:656` and `Viewsheet.parseState:2271,2311` | every state and bookmark restore | no |
+
+`VizContext` carries the distinction: `VizContext.ofTransition(VizMark)` (`VizContext:89`) sets a
+`transition` flag that only Modernize and Revert build, and the linear branch reads it
+(`ChartVSAssemblyInfo:272`). Nothing else about the context changes — `ofTransition` delegates to
+`of(mark)` for modern, dark and density — so no resolver sees a different answer because of it.
+
+**Why the two branches are scoped differently.** The categorical branch runs on all four callers and
+must keep doing so. It is non-destructive by construction: it rewrites a frame's *default* colours,
+and a per-value user colour is checked before the defaults in `CategoricalColorFrame.getColor`, so an
+author's choice outranks whatever it writes. The linear branch replaces the frame object outright.
+On the restore path that would be silent data loss, because a restore runs on a chart whose mark has
+not changed — see the legacy-chart decision below for why the frame it would discard is a real
+choice.
+
+**The guard is an exact class compare, and deliberately narrow.** `isOtherMarkSeededLinearFrame`
+(`ChartVSAssemblyInfo:292`) replaces the frame only when it is exactly the class the *other* mark
+seeds by default: `BluesColorFrame` on a chart becoming modern, `TealColorFrame` on one becoming
+classic. `Spectral`, `Amber`, `Variance`, a gradient — anything else — is left alone. `getClass() ==`
+rather than `instanceof`: every ramp extends `AbstractSplineColorFrame`, so an `instanceof` test
+would swallow the whole family.
+
+**The `changed` flag is not available as a guard, even as belt-and-braces.** `VisualFrameWrapper`
+carries a persisted `changed` flag, and four sibling panes set it on a user edit
+(`static-color-pane:33`, `binding-size-pane:63,68`, `static-size-pane:57`, `static-texture-pane:60`);
+`linear-color-pane` never does. Worse, it could not round-trip if it did:
+`VisualFrameModelFactory.updateVisualFrameWrapper0` (`VisualFrameModelFactory:57-59`) is a base
+method that returns the wrapper untouched, and of the 39 `ColorFrameModelFactory` subclasses only
+five override it — Static, Categorical, Gradient, Brightness and Saturation. Not one of the 30
+linear ramp factories does. So for a linear frame the flag reads false whether or not the author
+chose the ramp, on every chart saved before this slice and on every one saved after it.
+
+**A classic chart may deliberately hold a house ramp.** The preceding slice's rule is that
+*retirements* are gated on the mark and *additions* ship to everyone: `hiddenLinearFrames` returns
+`Set.of()` for a classic chart, and the pane lists Amber, Teal and Variance unconditionally, so a
+classic chart's picker offers them and an author can select and save one. That is intended and is
+not changed here — the alternative, hiding the house ramps from a classic chart, was considered and
+rejected. It is also exactly why the linear re-seed cannot run outside a transition: a classic
+chart's `TealColorFrame` is indistinguishable, by class, from the leftover seed of a mark it no
+longer carries, and outside a transition there is nothing else to tell them apart.
+
+**What pins it.** `ChartVSAssemblyInfoSeedTest` covers both branches and both scopings: a Revert and
+a Modernize moving the ramp each way under `ofTransition`, an author's Spectral surviving a Revert
+(`assertSame` on the instance, not the class), a classic chart's Teal surviving
+`reseedAfterRestore`, and the categorical palette still re-seeding on both a non-transition seed and
+the restore path. `VizModernizeUtilTest.modernizeAndRevertMoveTheMeasureToColourRampBothWays` runs
+the real `VizModernizeUtil` entry points, which is what proves the flag is threaded rather than
+merely readable.
+
 ## 5. Testing
 
 **Java.**

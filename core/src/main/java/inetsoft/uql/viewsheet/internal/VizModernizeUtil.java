@@ -59,7 +59,7 @@ public final class VizModernizeUtil {
          return 0;
       }
 
-      VizContext ctx = VizContext.of(mark);
+      VizContext ctx = VizContext.ofTransition(mark);
       List<VSAssemblyInfo> targets = unmarked(vs);
 
       for(VSAssemblyInfo info : targets) {
@@ -101,9 +101,10 @@ public final class VizModernizeUtil {
     */
    public static int revert(Viewsheet vs) {
       List<VSAssemblyInfo> targets = marked(vs);
-      // every target is unmarked by the time it is seeded, so one context serves them all; the
-      // cast picks the VizMark overload rather than the VSAssemblyInfo one
-      VizContext ctx = VizContext.of((VizMark) null);
+      // every target is unmarked by the time it is seeded, so one context serves them all. A
+      // transition context, like modernize's: the seeds that may run only when the mark actually
+      // changes read that flag, and nothing else builds one
+      VizContext ctx = VizContext.ofTransition(null);
 
       for(VSAssemblyInfo info : targets) {
          info.setVizMark(null);
@@ -131,6 +132,10 @@ public final class VizModernizeUtil {
     * the live assembly's own mark by the time it gets here regardless of what the blob said.
     * seedChromeDefaults writes DEFAULT tiers and the palette only, so a user format the restored
     * state legitimately carried survives untouched.
+    *
+    * Not a transition: the mark has not changed here, so the context carries transition=false and
+    * a seed reserved for Modernize and Revert - the measure-to-colour ramp, which replaces the
+    * frame outright rather than rewriting defaults under it - does not run on this path.
     *
     * Per-assembly only. The sheet's shared colour frames are cleared once at the end of
     * Viewsheet.parseState, because a render prefers them over an assembly's own.

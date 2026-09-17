@@ -41,6 +41,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * colours in step with its mark. It has always known about CategoricalColorFrame; a chart's
  * measure-to-colour binding is a second colour surface (VSChartPaletteDefaults.defaultLinearFrame)
  * that the hook must extend to cover, without touching a ramp an author picked deliberately.
+ *
+ * The two branches are reached differently on purpose. The categorical one runs on all four routes
+ * into the hook - creation, Modernize, Revert and reseedAfterRestore - because it rewrites default
+ * colours and a per-value user colour still outranks them. The linear one replaces the frame, so it
+ * runs only under a VizContext.ofTransition context, which only Modernize and Revert build.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -76,7 +81,7 @@ class ChartVSAssemblyInfoSeedTest {
       bindColor(info, new TealColorFrame());
 
       info.setVizMark(null);
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      info.seedChromeDefaults(VizContext.ofTransition(null));
 
       assertInstanceOf(BluesColorFrame.class, colorFrame(info),
                         "Revert must not leave the modern default seeded on a legacy chart");
@@ -91,7 +96,7 @@ class ChartVSAssemblyInfoSeedTest {
       bindColor(info, new BluesColorFrame());
 
       info.setVizMark(VizMark.MODERN_LIGHT);
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      info.seedChromeDefaults(VizContext.ofTransition(VizMark.MODERN_LIGHT));
 
       assertInstanceOf(TealColorFrame.class, colorFrame(info),
                         "Modernize must not leave the legacy default seeded on a modern chart");
@@ -111,7 +116,7 @@ class ChartVSAssemblyInfoSeedTest {
       bindColor(info, spectral);
 
       info.setVizMark(null);
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      info.seedChromeDefaults(VizContext.ofTransition(null));
 
       assertSame(spectral, colorFrame(info),
                  "an author's deliberately chosen ramp must not be replaced by Revert");
@@ -132,5 +137,42 @@ class ChartVSAssemblyInfoSeedTest {
 
       assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
                    "the pre-existing categorical branch must keep re-seeding");
+   }
+
+   /**
+    * Case 5: a legacy chart an author deliberately put on the house Teal ramp keeps it across a
+    * state or bookmark restore. reseedAfterRestore runs on every one of those, not only on a mark
+    * transition, and the picker offers Teal to a classic chart - additions ship to everyone, only
+    * retirements are gated on the mark - so Teal there is a real choice, not the other mark's
+    * leftover seed.
+    */
+   @Test
+   void aLegacyChartsDeliberateTealSurvivesRestore() {
+      ChartVSAssemblyInfo info = newChart();
+      TealColorFrame teal = new TealColorFrame();
+      bindColor(info, teal);
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertSame(teal, colorFrame(info),
+                 "a restore must not re-seed a linear ramp - only Modernize and Revert may");
+   }
+
+   /**
+    * Case 6: the categorical branch is not scoped to a transition with the linear one. It still
+    * re-seeds on the restore path, where it is non-destructive by construction: it rewrites default
+    * colours and a per-value user colour still outranks them.
+    */
+   @Test
+   void categoricalPaletteIsStillReseededOnRestore() {
+      ChartVSAssemblyInfo info = newChart();
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      bindColor(info, frame);
+      info.setVizMark(VizMark.MODERN_LIGHT);
+
+      VizModernizeUtil.reseedAfterRestore(info);
+
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
+                   "the categorical branch must keep running on the restore path");
    }
 }

@@ -27,6 +27,8 @@
  *   Group 5 [Risk 1] — isSelectedFrame/gmodel: selected frame exposes live frame reference
  *   Group 6 [Risk 3] — hiddenFrames filtering: modern-mark chart hides legacy ramps but never
  *     the currently selected one (hide-never-remove)
+ *   Group 7 [Risk 3] — the family radios and their collapsed faces: a hidden ramp is never the
+ *     face a family shows, nor the ramp its radio selects
  *
  * HTTP: MSW inline server.use() for GET ../api/composer/chart/hiddenlinearframes; a beforeEach
  *   default returns [] so Groups 1-5 (which don't care about hiding) see every ramp offered.
@@ -263,4 +265,80 @@ describe("LinearColorPane — hiddenFrames filtering [Group 6, Risk 3]", () => {
       expect(divergingDropdown.colorFrame).toBe("SpectralColorModel");
       expect(radioByLabel(DIVERGING)).toBeChecked();
    });
+
+   // the Heat row is a radio and a fixed image rather than a dropdown entry, so it has no
+   // family list to keep it in - without its own escape a chart on Heat under a modern mark
+   // would leave all four radios unchecked and no route back
+   it("should keep the Heat row rendered and checked when the frame is already on Heat", async () => {
+      server.use(
+         http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(SIXTEEN_HIDDEN))
+      );
+      const { fixture, container } = await renderPane(new V.HeatColorModel(),
+         { vsId: "vs1", assemblyName: "Chart1" });
+
+      await waitFor(() => {
+         expect(fixture.componentInstance.hiddenFrames).toEqual(SIXTEEN_HIDDEN);
+      });
+      fixture.detectChanges();
+
+      expect(screen.getByLabelText(HEAT)).toBeInTheDocument();
+      expect(radioByLabel(HEAT)).toBeChecked();
+
+      // the row's width toggle reads the same getter, so it cannot drift from the row itself
+      const divergingHost =
+         container.querySelectorAll("linear-color-dropdown")[2].parentElement;
+      expect(divergingHost.classList.contains("col-4")).toBe(true);
+      expect(divergingHost.classList.contains("col-10")).toBe(false);
+   });
+});
+
+describe("LinearColorPane — family radios under a modern mark [Group 7, Risk 3]", () => {
+   it("should offer a visible single hue and land on it when the frame is a house diverging ramp",
+      async () => {
+         server.use(
+            http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(SIXTEEN_HIDDEN))
+         );
+         const { fixture } = await renderPane(new V.VarianceColorModel(),
+            { vsId: "vs1", assemblyName: "Chart1" });
+
+         await waitFor(() => {
+            expect(fixture.componentInstance.hiddenFrames).toEqual(SIXTEEN_HIDDEN);
+         });
+         fixture.detectChanges();
+
+         const [singleHueDropdown, , divergingDropdown] = dropdowns(fixture);
+         expect(singleHueDropdown.colorFrame).toBe("AmberColorModel");
+         expect(singleHueDropdown.colorFrames).toContain(singleHueDropdown.colorFrame);
+         expect(divergingDropdown.colorFrame).toBe("VarianceColorModel");
+         expect(divergingDropdown.colorFrames).toContain(divergingDropdown.colorFrame);
+
+         await userEvent.click(radioByLabel(SINGLE_HUE));
+         fixture.detectChanges();
+
+         expect(fixture.componentInstance.frame.clazz).toMatch(/\.AmberColorModel$/);
+         expect(radioByLabel(SINGLE_HUE)).toBeChecked();
+      });
+
+   it("should land the diverging radio on the house ramp rather than the retired default",
+      async () => {
+         server.use(
+            http.get(HIDDEN_LINEAR_FRAMES_URI, () => HttpResponse.json(SIXTEEN_HIDDEN))
+         );
+         const { fixture } = await renderPane(new V.TealColorModel(),
+            { vsId: "vs1", assemblyName: "Chart1" });
+
+         await waitFor(() => {
+            expect(fixture.componentInstance.hiddenFrames).toEqual(SIXTEEN_HIDDEN);
+         });
+         fixture.detectChanges();
+
+         const [, , divergingDropdown] = dropdowns(fixture);
+         expect(divergingDropdown.colorFrame).toBe("VarianceColorModel");
+
+         await userEvent.click(radioByLabel(DIVERGING));
+         fixture.detectChanges();
+
+         expect(fixture.componentInstance.frame.clazz).toMatch(/\.VarianceColorModel$/);
+         expect(radioByLabel(DIVERGING)).toBeChecked();
+      });
 });

@@ -37,9 +37,14 @@ public final class VizContext {
    public static final VizContext LEGACY = new VizContext(false, false, DENSE);
 
    private VizContext(boolean modern, boolean dark, String density) {
+      this(modern, dark, density, false);
+   }
+
+   private VizContext(boolean modern, boolean dark, String density, boolean transition) {
       this.modern = modern;
       this.dark = dark;
       this.density = density;
+      this.transition = transition;
    }
 
    /**
@@ -75,10 +80,26 @@ public final class VizContext {
       return new VizContext(modern, modern && mark == VizMark.MODERN_DARK, VSDensityDefaults.mode());
    }
 
+   /**
+    * The context a Modernize or Revert runs under: what of(mark) gives, additionally flagged as a
+    * mark transition. A seed that replaces a value an author can reach - the measure-to-colour
+    * ramp - may run only here, because every other route into seedChromeDefaults (creation, and
+    * reseedAfterRestore on every state and bookmark restore) would replace a deliberate choice.
+    */
+   public static VizContext ofTransition(VizMark mark) {
+      VizContext ctx = of(mark);
+      return new VizContext(ctx.modern, ctx.dark, ctx.density, true);
+   }
+
    /** Whether modern chrome applies. */
    public final boolean modern;
    /** Whether the dark palette applies. Never true without modern. */
    public final boolean dark;
    /** The active density mode: dense, compact or comfortable. Meaningful only when modern. */
    public final String density;
+   /**
+    * Whether this context was built for a Modernize or a Revert. False everywhere else, including
+    * creation and restore, which reach the same seed hook without the mark having changed.
+    */
+   public final boolean transition;
 }

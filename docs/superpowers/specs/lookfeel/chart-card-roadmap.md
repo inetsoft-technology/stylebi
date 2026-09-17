@@ -1757,6 +1757,16 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   two of which fail silently — its CSS block is 0-based where `ColorPalettes` drops any index below 1,
   and the 8-slot `Default` it proposes is discarded by `VSChartPaletteDefaults.fromFrame()`, which
   falls back to `spliceLegacy()` below 40 colours. It also predates `Modern`/`Modern Dark` existing
+- [2026-09-16-chart-ramps-design.md](./2026-09-16-chart-ramps-design.md) — **implemented, in
+  review.** The other half of the chart's colour: the *measure*→colour ramp, which the categorical
+  re-tune above never touched. Authors the three house ramps `Amber`, `Teal` and `Variance`, hides
+  the fifteen ColorBrewer ramps and Heat they succeed from a modern-marked chart's picker, and
+  re-seeds a new binding onto Teal under a modern mark. **Read its §4a before touching
+  `seedChromeDefaults` or anything it writes**: the hook has four callers and only two of them are
+  mark transitions, so a seed that *replaces* a value rather than rewriting a default under it must
+  read `VizContext.transition` or it fires on every bookmark restore. §4a also records why the
+  wrapper's `changed` flag cannot serve as that guard, and the decision that a classic chart may
+  deliberately hold a house ramp — retirements are gated on the mark, additions ship to everyone
 - [chart-card-slice1-design.md](./chart-card-slice1-design.md) ·
   [chart-card-slice2-tables-design.md](./chart-card-slice2-tables-design.md) ·
   [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped slice

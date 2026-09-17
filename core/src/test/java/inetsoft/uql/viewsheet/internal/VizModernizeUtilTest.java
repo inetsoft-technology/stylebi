@@ -17,7 +17,9 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.uql.viewsheet.graph.aesthetic.SharedFrameParameters;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
@@ -29,6 +31,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -469,6 +472,31 @@ class VizModernizeUtilTest {
       assertTrue(bp.isSmoothLines(), "a legacy Area chart is smooth; guards a false pass on false");
       assertEquals(bp.isSmoothLines(), ap.isSmoothLines());
       assertEquals(bp.getBarCornerRadius(), ap.getBarCornerRadius(), 0.0001);
+   }
+
+   @Test
+   void modernizeAndRevertMoveTheMeasureToColourRampBothWays() {
+      // the linear re-seed runs only under a transition context, and nothing but these two build
+      // one - so this is what proves the flag is actually threaded rather than merely readable
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setVisualFrame(new BluesColorFrame());
+      chart.getVSChartInfo().setColorField(colorRef);
+      vs.addAssembly(chart);
+
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      assertInstanceOf(TealColorFrame.class,
+                       chart.getVSChartInfo().getColorField().getVisualFrame(),
+                       "Modernize must advance the legacy default ramp to the house one");
+
+      VizModernizeUtil.revert(vs);
+      assertInstanceOf(BluesColorFrame.class,
+                       chart.getVSChartInfo().getColorField().getVisualFrame(),
+                       "and Revert must put it back");
    }
 
    /**

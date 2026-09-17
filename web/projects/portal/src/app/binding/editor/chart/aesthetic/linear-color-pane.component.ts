@@ -164,6 +164,35 @@ export class LinearColorPane implements OnInit {
       this.visibleSingleHue = this.visible(this.singleHueModels);
       this.visibleMultiHue = this.visible(this.multiHueModels);
       this.visibleDiverging = this.visible(this.divergingModels);
+      this.singleHueModel = this.offeredFamilyModel(this.singleHueModel, this.visibleSingleHue);
+      this.multiHueModel = this.offeredFamilyModel(this.multiHueModel, this.visibleMultiHue);
+      this.divergingModel = this.offeredFamilyModel(this.divergingModel, this.visibleDiverging);
+   }
+
+   /**
+    * A family's remembered model, moved onto the family's first offered ramp when the one it holds
+    * is hidden. The family radio and the collapsed dropdown face both read this model, so leaving a
+    * hidden ramp in it would show a retired ramp and put the chart on it in one click. The current
+    * frame is never moved: visible() keeps it in its own family's list.
+    */
+   private offeredFamilyModel(model: V.ColorFrameModel, offered: string[]): V.ColorFrameModel {
+      const name = model?.clazz?.substring(model.clazz.lastIndexOf(".") + 1);
+
+      if(name && offered.length > 0 && !offered.includes(name) && this[offered[0]]) {
+         return this[offered[0]];
+      }
+
+      return model;
+   }
+
+   /**
+    * Whether the Heat row is rendered. Hidden under a modern mark, unless the chart is already on
+    * Heat - hide never removes, and the four radios in this pane bind against their own class, so
+    * dropping the row on a chart that holds Heat would leave none of them checked and no way back.
+    */
+   get heatVisible(): boolean {
+      return !this.hiddenFrames.includes("HeatColorModel")
+         || this.frame?.clazz?.endsWith(".HeatColorModel");
    }
 
    // set single/multi/diverging from frame
