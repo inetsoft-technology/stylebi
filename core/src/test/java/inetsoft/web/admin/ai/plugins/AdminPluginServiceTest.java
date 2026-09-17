@@ -171,6 +171,22 @@ class AdminPluginServiceTest {
          () -> service.uploadMaven("does.not:exist:1.0", principal));
    }
 
+   @Test
+   void uploadMavenRejectsAMalformedGavWithoutCallingUploadService() throws Exception {
+      when(securityEngine.checkPermission(principal, ResourceType.UPLOAD_DRIVERS, "*",
+                                           ResourceAction.ACCESS)).thenReturn(true);
+
+      for(String badGav : new String[]{null, "", "  ", "org.postgresql", "org.postgresql:postgresql",
+                                        "org.postgresql:postgresql:42.7.3:extra"})
+      {
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> service.uploadMaven(badGav, principal));
+         assertTrue(ex.getMessage().contains("gav"), ex.getMessage());
+      }
+
+      verifyNoInteractions(uploadService);
+   }
+
    // -------------------------------------------------------------------------
    // scan
    // -------------------------------------------------------------------------
