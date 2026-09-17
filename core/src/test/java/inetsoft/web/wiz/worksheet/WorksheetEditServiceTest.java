@@ -489,6 +489,171 @@ class WorksheetEditServiceTest {
    }
 
    /**
+    * Bug #76731-WBS-051: a {@link GroupRef} bound to a named group clones the mapping once
+    * at {@code set_group_aggregate} time ({@code GroupRef.update(Worksheet)}) and never reads
+    * it live. Before this fix, {@code editNamedGroup} replaced only the named-group assembly's
+    * own {@code NamedGroupInfo} — a genuinely standalone table (not a sub-table of any
+    * JOIN/CONCATENATED/MIRROR elsewhere in the worksheet, so never incidentally swept by
+    * {@code refreshAssemblies}'s {@code checkValidity}/{@code getTableAssemblies} side effect)
+    * stayed frozen on the pre-edit mapping indefinitely. This is deliberately NOT a
+    * composite-table sub-table, since that case already happened to pass before this fix and
+    * would mask a regression here.
+    */
+   @Test
+   void editNamedGroupRefreshesStandaloneLeafTableGroupRefImmediately() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t1 = TestWorksheets.tableWithColumns(ws, "T1", "state");
+      ws.addAssembly(t1);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("G", null, null, "string",
+                                       List.of(new WorksheetMutationSupport.GroupMapping(
+                                          "West", List.of("CA"))),
+                                       false));
+      svc.apply("TOK", agent,
+                ed -> ed.setGroupAggregate("T1",
+                   List.of(new WorksheetMutationSupport.GroupSpec("state", null, "G")),
+                   List.of()));
+      svc.apply("TOK", agent,
+                ed -> ed.editNamedGroup("G",
+                                        List.of(new WorksheetMutationSupport.GroupMapping(
+                                           "East", List.of("NY"))),
+                                        false));
+
+      GroupRef t1Group = ((TableAssembly) ws.getAssembly("T1")).getAggregateInfo().getGroups()[0];
+      assertNull(t1Group.getNamedGroupInfo().getGroupCondition("West"),
+                 "T1's GroupRef clone must not still report the pre-edit mapping");
+      assertNotNull(t1Group.getNamedGroupInfo().getGroupCondition("East"),
+                    "T1's GroupRef clone must pick up the new mapping immediately, without " +
+                    "needing set_group_aggregate reissued on T1");
+   }
+
+   /**
+    * Companion to {@link #editNamedGroupRefreshesStandaloneLeafTableGroupRefImmediately}: a
+    * table that IS a JOIN sub-table already self-healed before this fix (incidentally, via
+    * {@code refreshAssemblies}'s {@code checkValidity}/{@code getTableAssemblies} sweep of its
+    * owning composite table) — confirms the new explicit sweep in {@code editNamedGroup} doesn't
+    * break that pre-existing path.
+    */
+   @Test
+   void editNamedGroupRefreshesJoinSubtableGroupRefToo() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t2 = TestWorksheets.tableWithColumns(ws, "T2", "state");
+      EmbeddedTableAssembly t3 = TestWorksheets.tableWithColumns(ws, "T3", "state");
+      ws.addAssembly(t2);
+      ws.addAssembly(t3);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         new InnerJoinService(null, null));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("G", null, null, "string",
+                                       List.of(new WorksheetMutationSupport.GroupMapping(
+                                          "West", List.of("CA"))),
+                                       false));
+      svc.apply("TOK", agent,
+                ed -> ed.setGroupAggregate("T2",
+                   List.of(new WorksheetMutationSupport.GroupSpec("state", null, "G")),
+                   List.of()));
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("JOINED", "T2", "state", "T3", "state", "INNER", null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.editNamedGroup("G",
+                                        List.of(new WorksheetMutationSupport.GroupMapping(
+                                           "East", List.of("NY"))),
+                                        false));
+
+      GroupRef t2Group = ((TableAssembly) ws.getAssembly("T2")).getAggregateInfo().getGroups()[0];
+      assertNull(t2Group.getNamedGroupInfo().getGroupCondition("West"));
+      assertNotNull(t2Group.getNamedGroupInfo().getGroupCondition("East"));
+   }
+
+   /**
+    * Locks in that the fix's flat {@code ws.getAssemblies()} sweep reaches a table nested two
+    * composite levels deep (a leaf joined into {@code J1}, itself joined into {@code J2}) without
+    * needing to walk composite structure recursively — the refuter's own repro shape, since a
+    * fix that only checked direct sub-tables would still miss this case.
+    */
+   @Test
+   void editNamedGroupRefreshesNestedCompositeLeafGroupRef() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t5 = TestWorksheets.tableWithColumns(ws, "T5", "state", "k1");
+      EmbeddedTableAssembly t6 = TestWorksheets.tableWithColumns(ws, "T6", "k1", "k2");
+      EmbeddedTableAssembly t7 = TestWorksheets.tableWithColumns(ws, "T7", "k2");
+      ws.addAssembly(t5);
+      ws.addAssembly(t6);
+      ws.addAssembly(t7);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         new InnerJoinService(null, null));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addNamedGroup("G", null, null, "string",
+                                       List.of(new WorksheetMutationSupport.GroupMapping(
+                                          "West", List.of("CA"))),
+                                       false));
+      svc.apply("TOK", agent,
+                ed -> ed.setGroupAggregate("T5",
+                   List.of(new WorksheetMutationSupport.GroupSpec("state", null, "G")),
+                   List.of()));
+      // T5 is a sub-table of J1, which is itself a sub-table of J2 -- two composite levels deep.
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("J1", "T5", "k1", "T6", "k1", "INNER", null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("J2", "J1", "k2", "T7", "k2", "INNER", null, null));
+      svc.apply("TOK", agent,
+                ed -> ed.editNamedGroup("G",
+                                        List.of(new WorksheetMutationSupport.GroupMapping(
+                                           "East", List.of("NY"))),
+                                        false));
+
+      GroupRef t5Group = ((TableAssembly) ws.getAssembly("T5")).getAggregateInfo().getGroups()[0];
+      assertNull(t5Group.getNamedGroupInfo().getGroupCondition("West"));
+      assertNotNull(t5Group.getNamedGroupInfo().getGroupCondition("East"));
+   }
+
+   /**
     * Guards the invariant {@code CalcTableService.worksheetNamedGroups}/{@code FieldRefFactory}
     * depend on: a named group attached to a worksheet table column must carry
     * {@code SourceInfo(ASSET, null, <worksheet table name>)} — the same convention

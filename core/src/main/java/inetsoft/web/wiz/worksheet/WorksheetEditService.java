@@ -3179,6 +3179,30 @@ public class WorksheetEditService {
          }
 
          nga.setNamedGroupInfo(ngi);
+
+         // A GroupRef bound to this named group holds a one-time clone of its mapping
+         // (GroupRef.update(Worksheet)), taken at set_group_aggregate time and never
+         // invalidated here otherwise -- leaving dependent tables silently stale until
+         // something else (e.g. a composite table's own sub-table resolution) happens to
+         // re-run update() on them. Sweep every referencing GroupRef so all dependents
+         // pick up the new mapping immediately, regardless of worksheet graph shape.
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(!(assembly instanceof TableAssembly table)) {
+               continue;
+            }
+
+            AggregateInfo ainfo = table.getAggregateInfo();
+
+            if(ainfo == null) {
+               continue;
+            }
+
+            for(GroupRef group : ainfo.getGroups()) {
+               if(name.equals(group.getNamedGroupAssembly())) {
+                  group.update(ws);
+               }
+            }
+         }
       }
 
       // -----------------------------------------------------------------------
