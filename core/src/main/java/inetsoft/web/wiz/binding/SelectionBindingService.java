@@ -113,6 +113,7 @@ public class SelectionBindingService {
          String resolvedTable = resolveTable(tables, assemblyName, table);
          List<BindableField> resolvedColumns =
             resolveColumns(tables, assemblyName, resolvedTable, columns);
+         List<String> resolvedAdditional = resolveAdditionalTables(tables, assemblyName, additional);
 
          if(assembly instanceof SelectionListVSAssembly) {
             requireArity(assemblyName, "a selection list", resolvedColumns, 1, 1);
@@ -121,7 +122,7 @@ public class SelectionBindingService {
             SelectionListPaneModel pane = model.getSelectionListPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(additional);
+            pane.setAdditionalTables(resolvedAdditional);
             pane.setSelectedColumn(columnRef(resolvedTable, resolvedColumns.get(0)));
 
             if(measure != null && !measure.isBlank()) {
@@ -139,7 +140,7 @@ public class SelectionBindingService {
             SelectionTreePaneModel pane = model.getSelectionTreePaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(additional);
+            pane.setAdditionalTables(resolvedAdditional);
             // Hierarchy levels, not the id/parent-id/label mode — the shape set_selection_source
             // exposes is an ordered column list, matching TimeSlider's own SingleTimeInfo/
             // CompositeTimeInfo choice below rather than the ID-hierarchy alternative.
@@ -156,7 +157,7 @@ public class SelectionBindingService {
             RangeSliderDataPaneModel pane = model.getRangeSliderDataPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(additional);
+            pane.setAdditionalTables(resolvedAdditional);
             boolean composite = resolvedColumns.size() > 1;
             pane.setComposite(composite);
             pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
@@ -181,7 +182,7 @@ public class SelectionBindingService {
             CalendarDataPaneModel pane = model.getCalendarDataPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(additional);
+            pane.setAdditionalTables(resolvedAdditional);
             pane.setSelectedColumn(columnRef(resolvedTable, resolvedColumns.get(0)));
             calendarService.setCalendarPropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
@@ -269,6 +270,50 @@ public class SelectionBindingService {
       throw new IllegalArgumentException(
          "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " + names + ". " +
          "A source the assembly cannot see binds nothing and renders an empty assembly.");
+   }
+
+   /**
+    * Canonicalizes each {@code additionalTables} entry the same way {@link #resolveTable} does
+    * for {@code table}, instead of writing the raw caller-supplied strings straight onto the
+    * pane model. Without this, an entry that does not match a real worksheet table-assembly name
+    * (including a correctly-spelled one in the wrong case) reaches
+    * {@code Viewsheet.createSelectionTables()}, which silently skips building the composite
+    * selection table for the whole union with no error surfaced back to the caller.
+    */
+   private static List<String> resolveAdditionalTables(List<BindableTable> tables,
+                                                        String assemblyName,
+                                                        List<String> additionalTables)
+   {
+      List<String> resolved = new ArrayList<>(additionalTables.size());
+
+      for(String additionalTable : additionalTables) {
+         resolved.add(resolveAdditionalTable(tables, assemblyName, additionalTable));
+      }
+
+      return resolved;
+   }
+
+   private static String resolveAdditionalTable(List<BindableTable> tables, String assemblyName,
+                                                String additionalTable)
+   {
+      for(BindableTable candidate : tables) {
+         if(candidate.name() != null && candidate.name().equalsIgnoreCase(additionalTable)) {
+            return candidate.name();
+         }
+      }
+
+      List<String> names = new ArrayList<>();
+
+      for(BindableTable candidate : tables) {
+         if(candidate.name() != null) {
+            names.add(candidate.name());
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' cannot add 'additionalTables' entry '" + additionalTable +
+         "': it does not match a bindable table for this viewsheet. Available: " + names + ". " +
+         "See list_bindable_fields.");
    }
 
    private static List<BindableField> resolveColumns(List<BindableTable> tables,
