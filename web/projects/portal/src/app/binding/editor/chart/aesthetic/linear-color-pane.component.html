@@ -57,7 +57,7 @@
         </div>
       </div>
       <div class="col-4">
-        <linear-color-dropdown [colorFrames]="singleHueModels"
+        <linear-color-dropdown [colorFrames]="visibleSingleHue"
           [colorFrame]="getSingleHueModel()"
           (colorFrameChange)="switchColorModel($event)">
         </linear-color-dropdown>
@@ -73,7 +73,7 @@
         </div>
       </div>
       <div class="col-4">
-        <linear-color-dropdown [colorFrames]="multiHueModels"
+        <linear-color-dropdown [colorFrames]="visibleMultiHue"
           [colorFrame]="getMultiHueModel()"
           (colorFrameChange)="switchColorModel($event)">
         </linear-color-dropdown>
@@ -90,27 +90,30 @@
           </label>
         </div>
       </div>
-      <div class="col-4">
-        <linear-color-dropdown [colorFrames]="divergingModels"
+      <div [class.col-4]="!hiddenFrames.includes('HeatColorModel')"
+        [class.col-10]="hiddenFrames.includes('HeatColorModel')">
+        <linear-color-dropdown [colorFrames]="visibleDiverging"
           [colorFrame]="getDivergingHueModel()"
           (colorFrameChange)="switchColorModel($event)">
         </linear-color-dropdown>
       </div>
-      <div class="col-2 color-label">
-        <div class="form-check">
-          <input type="radio" class="form-check-input" name="lgroup" value="{{heatModel.clazz}}"
-            id="heat"
-            (click)="switchColorModel(heatModel.clazz)" [ngModel]="frame.clazz"/>
-          <label class="form-check-label" for="heat">
-            _#(Heat)
-          </label>
+      @if (!hiddenFrames.includes('HeatColorModel')) {
+        <div class="col-2 color-label">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" name="lgroup" value="{{heatModel.clazz}}"
+              id="heat"
+              (click)="switchColorModel(heatModel.clazz)" [ngModel]="frame.clazz"/>
+            <label class="form-check-label" for="heat">
+              _#(Heat)
+            </label>
+          </div>
         </div>
-      </div>
-      <div class="col-4">
-        <div class="color-strip" (click)="switchColorModel(heatModel.clazz)">
-          <img src="assets/heat.png"/>
+        <div class="col-4">
+          <div class="color-strip" (click)="switchColorModel(heatModel.clazz)">
+            <img src="assets/heat.png"/>
+          </div>
         </div>
-      </div>
+      }
     </div>
   </div>
 }

@@ -103,6 +103,8 @@
           @case ('LinearColor') {
             <div>
               <linear-color-pane [(frame)]="frames[0]"
+                [vsId]="vsId"
+                [assemblyName]="assemblyName"
                 (onChangeColorFrame)="changeColorFrame($event)"
                 (apply)="openChanged($event)">
               </linear-color-pane>

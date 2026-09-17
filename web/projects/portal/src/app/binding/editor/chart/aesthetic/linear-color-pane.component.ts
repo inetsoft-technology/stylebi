@@ -15,13 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpParams } from "@angular/common/http";
 import { Component, Input, OnInit, Output, EventEmitter } from "@angular/core";
+import { Observable } from "rxjs";
 import { Tool } from "../../../../../../../shared/util/tool";
 import * as V from "../../../../common/data/visual-frame-model";
+import { ModelService } from "../../../../widget/services/model.service";
 import { LinearColorDropdown } from "./linear-color-dropdown.component";
 import { GradientColorEditor } from "./gradient-color-editor.component";
 import { FormsModule } from "@angular/forms";
 
+const HIDDEN_LINEAR_FRAMES_URI: string = "../api/composer/chart/hiddenlinearframes";
 
 @Component({
     selector: "linear-color-pane",
@@ -31,6 +35,8 @@ import { FormsModule } from "@angular/forms";
 })
 export class LinearColorPane implements OnInit {
    @Input() frame: V.ColorFrameModel = new V.GradientColorModel();
+   @Input() vsId: string;
+   @Input() assemblyName: string;
    @Output() onChangeColorFrame: EventEmitter<any> = new EventEmitter<any>();
    @Output() apply: EventEmitter<boolean> = new EventEmitter<boolean>();
    originalFrame: V.ColorFrameModel;
@@ -39,7 +45,12 @@ export class LinearColorPane implements OnInit {
    singleHueModel: V.BluesColorModel = new V.BluesColorModel();
    multiHueModel: V.BuGnColorModel = new V.BuGnColorModel();
    divergingModel: V.BrBGColorModel = new V.BrBGColorModel();
+   hiddenFrames: string[] = [];
+   visibleSingleHue: string[] = [];
+   visibleMultiHue: string[] = [];
+   visibleDiverging: string[] = [];
 
+   AmberColorModel: V.AmberColorModel = new V.AmberColorModel();
    BluesColorModel: V.BluesColorModel = new V.BluesColorModel();
    BrBGColorModel: V.BrBGColorModel = new V.BrBGColorModel();
    BuGnColorModel: V.BuGnColorModel = new V.BuGnColorModel();
@@ -63,18 +74,22 @@ export class LinearColorPane implements OnInit {
    RedsColorModel: V.RedsColorModel = new V.RedsColorModel();
    SpectralColorModel: V.SpectralColorModel = new V.SpectralColorModel();
    RdYlBuColorModel: V.RdYlBuColorModel = new V.RdYlBuColorModel();
+   TealColorModel: V.TealColorModel = new V.TealColorModel();
+   VarianceColorModel: V.VarianceColorModel = new V.VarianceColorModel();
    YlGnBuColorModel: V.YlGnBuColorModel = new V.YlGnBuColorModel();
    YlGnColorModel: V.YlGnColorModel = new V.YlGnColorModel();
    YlOrBrColorModel: V.YlOrBrColorModel = new V.YlOrBrColorModel();
    YlOrRdColorModel: V.YlOrRdColorModel = new V.YlOrRdColorModel();
 
    singleHueModels: string[] = [
+      "AmberColorModel",
       "BluesColorModel",
       "GreensColorModel",
       "GreysColorModel",
       "OrangesColorModel",
       "PurplesColorModel",
       "RedsColorModel",
+      "TealColorModel",
    ];
 
    multiHueModels: string[] = [
@@ -102,15 +117,53 @@ export class LinearColorPane implements OnInit {
       "RdYlGnColorModel",
       "SpectralColorModel",
       "RdYlBuColorModel",
+      "VarianceColorModel",
    ];
 
-   constructor() {
+   constructor(private modelService: ModelService) {
    }
 
    ngOnInit() {
       this.resetEditors(true);
       this.syncColors(false);
       this.setBrewerColor();
+      this.getHiddenFrames().subscribe((data: string[]) => {
+         this.hiddenFrames = data || [];
+         this.recomputeVisible();
+      });
+      this.recomputeVisible();
+   }
+
+   /**
+    * load which linear frames are hidden under the current chart's mark mode.
+    */
+   private getHiddenFrames(): Observable<string[]> {
+      let params = new HttpParams();
+
+      if(this.vsId) {
+         params = params.set("vsId", this.vsId);
+      }
+
+      if(this.assemblyName) {
+         params = params.set("assemblyName", this.assemblyName);
+      }
+
+      return this.modelService.getModel(HIDDEN_LINEAR_FRAMES_URI, params);
+   }
+
+   /**
+    * Filter a family's model names to the ones that should be offered, keeping the
+    * currently selected frame even when it is hidden so a chart already on a hidden
+    * ramp doesn't lose it out from under itself.
+    */
+   private visible(models: string[]): string[] {
+      return models.filter(m => !this.hiddenFrames.includes(m) || this.frame?.clazz?.endsWith("." + m));
+   }
+
+   private recomputeVisible(): void {
+      this.visibleSingleHue = this.visible(this.singleHueModels);
+      this.visibleMultiHue = this.visible(this.multiHueModels);
+      this.visibleDiverging = this.visible(this.divergingModels);
    }
 
    // set single/multi/diverging from frame
@@ -192,6 +245,7 @@ export class LinearColorPane implements OnInit {
       }
 
       this.setBrewerColor();
+      this.recomputeVisible();
       this.onChangeColorFrame.emit(this.frame);
    }
 
