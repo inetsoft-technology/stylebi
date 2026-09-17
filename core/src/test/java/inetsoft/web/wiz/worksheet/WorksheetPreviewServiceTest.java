@@ -20,6 +20,7 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.util.CoreTool;
 import inetsoft.web.wiz.pairing.PairingException;
@@ -419,5 +420,84 @@ class WorksheetPreviewServiceTest {
 
       assertTrue(result.warnings().isEmpty(),
                  "a message queued before this call started must not be attributed to it");
+   }
+
+   // ---------------------------------------------------------------------------
+   // WBT-012 (#76733): capping a table the sandbox itself did not cap
+   // ---------------------------------------------------------------------------
+
+   // WBT-012 (#76733): AssetQuerySandbox only applies its own column cap to a live-data
+   // (mode:"detail") table, and every table add_table creates is mode:"full" -- so the sandbox
+   // hands this endpoint an uncapped lens for the most common way a table gets built. preview()
+   // re-applies the cap itself. This is reachable here precisely because the class mocks
+   // AssetQuerySandbox: the mock stands in for a "full"-mode execution that raised nothing.
+   @Test
+   void capsColumnsAndWarnsWhenTableExceedsOrganizationLimit() throws Exception {
+      int max = Util.getOrganizationMaxColumn();
+      TableLens l = wideLens(max + 5);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertEquals(1, result.rows().size());
+      assertEquals(max, result.rows().get(0).size(),
+                   "row should carry exactly the organization's column limit, not every column");
+      assertTrue(result.rows().get(0).containsKey("c0"));
+      assertTrue(result.rows().get(0).containsKey("c" + (max - 1)));
+      assertFalse(result.rows().get(0).containsKey("c" + max),
+                  "columns past the limit must be dropped");
+      assertEquals(List.of(Util.getColumnLimitMessage()), result.warnings(),
+                   "dropping columns silently is the defect -- it has to be disclosed");
+   }
+
+   @Test
+   void doesNotCapOrWarnWhenTableIsWithinLimit() throws Exception {
+      int max = Util.getOrganizationMaxColumn();
+      TableLens l = wideLens(max);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenReturn(l);
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertEquals(max, result.rows().get(0).size(), "a table exactly at the limit is not capped");
+      assertTrue(result.warnings().isEmpty(), "nothing was dropped, so nothing to warn about");
+   }
+
+   // A mode:"detail" table is capped by AssetQuerySandbox.getColumnLimitTableLens before it ever
+   // reaches preview(), which raises the message and hands back an already-narrowed lens. The new
+   // cap above must be a no-op on that shape -- neither narrowing it a second time nor queueing a
+   // second copy of the same warning.
+   @Test
+   void doesNotReCapOrDoubleWarnWhenTheSandboxAlreadyCapped() throws Exception {
+      int max = Util.getOrganizationMaxColumn();
+      TableLens l = wideLens(max);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(box.getTableLens(eq("T"), anyInt())).thenAnswer(invocation -> {
+         CoreTool.addUserMessage(Util.getColumnLimitMessage());
+         return l;
+      });
+
+      WorksheetPreviewService.PreviewResult result = service.preview(rws(box), "T", 0, 10);
+
+      assertEquals(max, result.rows().get(0).size());
+      assertEquals(List.of(Util.getColumnLimitMessage()), result.warnings());
+      assertNull(CoreTool.getUserMessage(),
+                 "no second copy of the warning should still be queued after the call");
+   }
+
+   /**
+    * A single-data-row lens {@code colCount} columns wide, headers {@code c0..cN-1}.
+    */
+   private static TableLens wideLens(int colCount) throws Exception {
+      String[] headers = new String[colCount];
+      Object[] row = new Object[colCount];
+
+      for(int col = 0; col < colCount; col++) {
+         headers[col] = "c" + col;
+         row[col] = "v" + col;
+      }
+
+      return lens(headers, new Object[][]{ row });
    }
 }
