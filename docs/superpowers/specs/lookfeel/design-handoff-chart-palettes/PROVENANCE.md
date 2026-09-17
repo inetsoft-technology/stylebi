@@ -37,7 +37,9 @@ This folder sits outside it for that reason, alongside the design documents that
 |---|---|---|
 | 0, 1 | Companion foundation, target band | [`2026-09-14-chart-companion-colors-design.md`](../2026-09-14-chart-companion-colors-design.md) |
 | 2 | Brushing | [`2026-09-15-brushing-companion-colors-design.md`](../2026-09-15-brushing-companion-colors-design.md) |
-| 3–6 | Overflow, ramps, area fill, multi-level | deferred; triggers in the two designs above |
+| 4 | Ramps | `2026-09-16-chart-ramps-design.md`, which lands here with [#5345](https://github.com/inetsoft-technology/stylebi/pull/5345) |
+| 3 | The palette tail | [`2026-09-17-chart-palette-tail-design.md`](../2026-09-17-chart-palette-tail-design.md) — **and §3's premise does not hold on this branch.** It argues the `index % size` wrap is the defect; `Modern` is 40 slots, so the wrap engages only past 40. The defect is the legacy tail in slots 9–40. Read that design's "Why the source needed correcting" before taking §3 from the handoff |
+| 5, 6 | Area fill, multi-level | deferred; triggers in the designs above |
 
 The re-tune those sit on is
 [`2026-09-11-chart-palette-retune-design.md`](../2026-09-11-chart-palette-retune-design.md).

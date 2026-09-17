@@ -1767,6 +1767,16 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   read `VizContext.transition` or it fires on every bookmark restore. §4a also records why the
   wrapper's `changed` flag cannot serve as that guard, and the decision that a classic chart may
   deliberately hold a house ramp — retirements are gated on the mark, additions ship to everyone
+- [2026-09-17-chart-palette-tail-design.md](./2026-09-17-chart-palette-tail-design.md) —
+  **approved, not implemented.** Slots 9-40 of `Modern` and `Modern Dark`, which every slice above
+  left as the 2010-era legacy list while re-tuning, companioning and gating the first eight.
+  Replaces them with a tail derived from each palette's own head, authored as literal hexes with a
+  drift guard rather than generated at runtime. **Read its "Why the source needed correcting"
+  before taking ENGINE §3 from the handoff**: §3 argues the `index % size` wrap is the defect, and
+  on this branch `Modern` is 40 slots, so that wrap engages only past 40 — the defect is the seam,
+  not the wrap, and the re-tune design had already recorded this. Note also that it changes what a
+  modern chart with nine or more categories looks like, with no migration: `applyModernPalette`
+  re-resolves all forty slots from live CSS on every render
 - [chart-card-slice1-design.md](./chart-card-slice1-design.md) ·
   [chart-card-slice2-tables-design.md](./chart-card-slice2-tables-design.md) ·
   [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped slice
