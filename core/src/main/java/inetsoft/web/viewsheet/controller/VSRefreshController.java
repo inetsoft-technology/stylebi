@@ -76,6 +76,13 @@ public class VSRefreshController {
     *
     * @param runtimeId the runtime viewsheet id; must not be {@code null}.
     */
+   // Carries the same @LoadingMask as the STOMP-mapped overload above: a caller reaching this
+   // one directly (a @ClusterProxyKey-routed service passing its own id) is doing the same
+   // whole-viewsheet refresh and needs the same busy indication. Without it, #5252 and #76674
+   // silently dropped the mask at every site that moved off the 4-arg method. This does not
+   // double-mask the STOMP path -- the overload above reaches this one by a plain `this` call,
+   // which bypasses the Spring AOP proxy, so the aspect fires exactly once there.
+   @LoadingMask(value = true, watchdogTimeout = 0)
    public void refreshViewsheet(String runtimeId, VSRefreshEvent event, Principal principal,
                                 CommandDispatcher commandDispatcher, String linkUri)
       throws Exception

@@ -776,7 +776,30 @@ public class RuntimeSheetCache
       return cluster.isLocalCacheKey(cache.getName(), key);
    }
 
+   /**
+    * Computes the Ignite affinity key that colocates a runtime sheet's cluster calls.
+    *
+    * <p>Every affinity-routed path funnels through this method, so it is the one place a null
+    * runtime id can be rejected before it reaches Ignite. Without the check below,
+    * {@code AffinityKey}'s constructor throws
+    * {@code NullPointerException("Ouch! Argument cannot be null: key")} -- a message that stays
+    * opaque until someone decompiles ignite-core, since Ignite ships no sources jar.
+    *
+    * <p>A null id here nearly always means the caller derived it from {@code RuntimeViewsheetRef},
+    * a STOMP-message-scoped bean populated only from a native header on a live browser WebSocket
+    * session, and was then reached without one -- by a plain Java method call or a plain HTTP
+    * request. Such a caller should instead pass the runtime id it already holds, typically its
+    * own {@code @ClusterProxyKey} parameter. See bugs #76615, #76666 and #76674.
+    *
+    * @param id the runtime sheet id; must not be null
+    * @return the affinity key for {@code id}
+    * @throws NullPointerException if {@code id} is null
+    */
    AffinityKey<String> getAffinityKey(String id) {
+      Objects.requireNonNull(
+         id, "Runtime id is null (no live WebSocket session supplied one, and no explicit id " +
+         "was passed); cannot compute a cluster affinity key");
+
       return new AffinityKey<>(id, getOriginalId(id));
    }
 

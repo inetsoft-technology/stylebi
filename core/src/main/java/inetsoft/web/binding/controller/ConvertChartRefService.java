@@ -38,7 +38,6 @@ import inetsoft.web.binding.event.RefreshBindingTreeEvent;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
@@ -71,18 +70,16 @@ public class ConvertChartRefService {
 
    public ConvertChartRefService(
       VSBindingService bindingFactory,
-      RuntimeViewsheetRef runtimeViewsheetRef,
       CoreLifecycleService coreLifecycleService,
-      VSBindingTreeController bindingTreeController,
+      VSBindingTreeControllerServiceProxy vsBindingTreeService,
       VSAssemblyInfoHandler assemblyInfoHandler,
       VSChartHandler chartHandler,
       VSChartDataHandler chartDataHandler,
       ViewsheetService viewsheetService)
    {
       this.bindingFactory = bindingFactory;
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.coreLifecycleService = coreLifecycleService;
-      this.bindingTreeController = bindingTreeController;
+      this.vsBindingTreeService = vsBindingTreeService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
       this.chartDataHandler = chartDataHandler;
@@ -245,16 +242,21 @@ public class ConvertChartRefService {
 
       RefreshBindingTreeEvent refreshBindingTreeEvent = new RefreshBindingTreeEvent();
       refreshBindingTreeEvent.setName(name);
-      bindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher);
+      // Was VSBindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher),
+      // which re-derives the runtime id from RuntimeViewsheetRef -- a STOMP-message-scoped bean
+      // populated only from a native header on a live browser WebSocket session. A caller reached
+      // without one gets null, and that null reaches Ignite's AffinityKey constructor. Call the
+      // proxy directly with the id this call already holds (its own @ClusterProxyKey parameter),
+      // as #4971 did for ModifyCalculateFieldService. Bug #76674, following #76666.
+      vsBindingTreeService.getBinding(id, refreshBindingTreeEvent, principal, dispatcher);
       return null;
    }
 
 
 
    private final VSBindingService bindingFactory;
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final CoreLifecycleService coreLifecycleService;
-   private final VSBindingTreeController bindingTreeController;
+   private final VSBindingTreeControllerServiceProxy vsBindingTreeService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final VSChartHandler chartHandler;
    private final VSChartDataHandler chartDataHandler;

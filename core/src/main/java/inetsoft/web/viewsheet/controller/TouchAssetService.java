@@ -127,7 +127,8 @@ public class TouchAssetService {
 
                if(update && vinfo.isUpdateEnabled() && (changeTime != 0 && changeTime > rvs.getTouchTimestamp())) {
                   // refresh content
-                  processRefreshEvent(principal, commandDispatcher, linkUri, width, height);
+                  processRefreshEvent(runtimeId, principal, commandDispatcher, linkUri, width,
+                                      height);
                }
             }
             else if(changed) {
@@ -223,7 +224,7 @@ public class TouchAssetService {
    /**
     * Refresh the viewsheet.
     */
-   private void processRefreshEvent(Principal principal,
+   private void processRefreshEvent(String runtimeId, Principal principal,
                                     CommandDispatcher commandDispatcher, String linkUri,
                                     int width, int height)
       throws Exception
@@ -236,8 +237,13 @@ public class TouchAssetService {
          .width(width)
          .height(height)
          .build();
+      // This used to call the 4-arg refreshViewsheet, which re-derives the runtime id from
+      // RuntimeViewsheetRef -- a STOMP-message-scoped bean populated only from a native header on
+      // a live browser WebSocket session. A caller reached without one gets null, and that null
+      // reaches Ignite's AffinityKey constructor. Pass the id this call already holds
+      // (touchAsset's @ClusterProxyKey parameter) instead. Bug #76674, following #76666.
       vsRefreshController.refreshViewsheet(
-         refresh, principal, commandDispatcher, linkUri);
+         runtimeId, refresh, principal, commandDispatcher, linkUri);
    }
 
    private WorksheetService worksheetService;
