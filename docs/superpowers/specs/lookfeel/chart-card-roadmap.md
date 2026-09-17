@@ -1762,7 +1762,7 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   re-tune above never touched. Authors the three house ramps `Amber`, `Teal` and `Variance`, hides
   the fifteen ColorBrewer ramps and Heat they succeed from a modern-marked chart's picker, and
   re-seeds a new binding onto Teal under a modern mark. **Read its §4a before touching
-  `seedChromeDefaults` or anything it writes**: the hook has four callers and only two of them are
+  `seedChromeDefaults` or anything it writes**: the hook has four *kinds* of caller and only two are
   mark transitions, so a seed that *replaces* a value rather than rewriting a default under it must
   read `VizContext.transition` or it fires on every bookmark restore. §4a also records why the
   wrapper's `changed` flag cannot serve as that guard, and the decision that a classic chart may

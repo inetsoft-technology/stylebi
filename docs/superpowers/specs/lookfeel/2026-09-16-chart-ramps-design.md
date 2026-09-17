@@ -229,10 +229,17 @@ past this slice.
 §4 answers what a *new* measure→colour binding is born on. A chart's mark can change after that, so
 the seeded ramp also has to move when it does. `ChartVSAssemblyInfo.seedChromeDefaults` — the hook
 every mark-dependent chrome value is written through — carries that in `seedColorPalette`
-(`ChartVSAssemblyInfo:251-278`), as a second branch beside the categorical one it already had.
+(`ChartVSAssemblyInfo:252-281`), as a second branch beside the categorical one it already had.
 
-**The hook has four callers and only two of them are mark transitions.** This is the fact the branch
-was built without, and the whole of the scoping below follows from it:
+**The hook has four *kinds* of caller and only two of them are mark transitions.** This is the fact
+the branch was built without, and the whole of the scoping below follows from it.
+
+Grepping `seedChromeDefaults` finds fifteen invocations, not four: the creation row below fans out
+across eleven per-type `initDefaultFormat` overrides — chart, calendar, check box, combo box, radio
+button, selection base, spinner, submit, text input, text and time slider — each of which calls the
+hook again for its own type. Every one of them builds `VizContext.of(this)`, so every one is a
+creation-path context with `transition == false`. The four kinds are what matters; the fan-out does
+not change the rule.
 
 | Caller | What it is | Runs the linear re-seed |
 |---|---|---|
@@ -243,7 +250,7 @@ was built without, and the whole of the scoping below follows from it:
 
 `VizContext` carries the distinction: `VizContext.ofTransition(VizMark)` (`VizContext:89`) sets a
 `transition` flag that only Modernize and Revert build, and the linear branch reads it
-(`ChartVSAssemblyInfo:272`). Nothing else about the context changes — `ofTransition` delegates to
+(`ChartVSAssemblyInfo:273`). Nothing else about the context changes — `ofTransition` delegates to
 `of(mark)` for modern, dark and density — so no resolver sees a different answer because of it.
 
 **Why the two branches are scoped differently.** The categorical branch runs on all four callers and
@@ -255,7 +262,7 @@ not changed — see the legacy-chart decision below for why the frame it would d
 choice.
 
 **The guard is an exact class compare, and deliberately narrow.** `isOtherMarkSeededLinearFrame`
-(`ChartVSAssemblyInfo:292`) replaces the frame only when it is exactly the class the *other* mark
+(`ChartVSAssemblyInfo:293`) replaces the frame only when it is exactly the class the *other* mark
 seeds by default: `BluesColorFrame` on a chart becoming modern, `TealColorFrame` on one becoming
 classic. `Spectral`, `Amber`, `Variance`, a gradient — anything else — is left alone. `getClass() ==`
 rather than `instanceof`: every ramp extends `AbstractSplineColorFrame`, so an `instanceof` test
