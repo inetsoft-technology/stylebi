@@ -255,21 +255,43 @@ public class SelectionBindingService {
    private static String resolveTable(List<BindableTable> tables, String assemblyName,
                                       String table)
    {
+      String resolved = findByName(tables, table);
+
+      if(resolved != null) {
+         return resolved;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " +
+         availableNames(tables) + ". A source the assembly cannot see binds nothing and " +
+         "renders an empty assembly.");
+   }
+
+   /**
+    * Case-insensitive lookup shared by {@link #resolveTable} and {@link #resolveAdditionalTable}
+    * — both need the same "does this name match a bindable table" match, just with different
+    * error messages on a miss.
+    */
+   private static String findByName(List<BindableTable> tables, String name) {
+      for(BindableTable candidate : tables) {
+         if(candidate.name() != null && candidate.name().equalsIgnoreCase(name)) {
+            return candidate.name();
+         }
+      }
+
+      return null;
+   }
+
+   private static List<String> availableNames(List<BindableTable> tables) {
       List<String> names = new ArrayList<>();
 
       for(BindableTable candidate : tables) {
          if(candidate.name() != null) {
             names.add(candidate.name());
-
-            if(candidate.name().equalsIgnoreCase(table)) {
-               return candidate.name();
-            }
          }
       }
 
-      throw new IllegalArgumentException(
-         "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " + names + ". " +
-         "A source the assembly cannot see binds nothing and renders an empty assembly.");
+      return names;
    }
 
    /**
@@ -296,24 +318,16 @@ public class SelectionBindingService {
    private static String resolveAdditionalTable(List<BindableTable> tables, String assemblyName,
                                                 String additionalTable)
    {
-      for(BindableTable candidate : tables) {
-         if(candidate.name() != null && candidate.name().equalsIgnoreCase(additionalTable)) {
-            return candidate.name();
-         }
-      }
+      String resolved = findByName(tables, additionalTable);
 
-      List<String> names = new ArrayList<>();
-
-      for(BindableTable candidate : tables) {
-         if(candidate.name() != null) {
-            names.add(candidate.name());
-         }
+      if(resolved != null) {
+         return resolved;
       }
 
       throw new IllegalArgumentException(
          "'" + assemblyName + "' cannot add 'additionalTables' entry '" + additionalTable +
-         "': it does not match a bindable table for this viewsheet. Available: " + names + ". " +
-         "See list_bindable_fields.");
+         "': it does not match a bindable table for this viewsheet. Available: " +
+         availableNames(tables) + ". See list_bindable_fields.");
    }
 
    private static List<BindableField> resolveColumns(List<BindableTable> tables,
