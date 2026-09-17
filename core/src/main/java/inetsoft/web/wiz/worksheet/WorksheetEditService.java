@@ -366,12 +366,18 @@ public class WorksheetEditService {
    private static final long REFRESH_ASSEMBLIES_BUDGET_MS =
       TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS;
 
+   /**
+    * Always takes {@code session}'s value over whatever the runtime already has -- see
+    * {@code ViewsheetSessionService.applySocketSession}'s doc comment for why a fill-only-if-null
+    * guard here lets a runtime's socket session go permanently stale after the browser's
+    * WebSocket reconnects, silently breaking every future agent-driven broadcast to it.
+    */
    private void applySocketSession(RuntimeWorksheet rws, JoinSession session) {
-      if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {
+      if(session.socketSessionId() != null) {
          rws.setSocketSessionId(session.socketSessionId());
       }
 
-      if(rws.getSocketUserName() == null && session.socketUserName() != null) {
+      if(session.socketUserName() != null) {
          rws.setSocketUserName(session.socketUserName());
       }
    }

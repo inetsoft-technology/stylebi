@@ -230,12 +230,18 @@ public class ScriptEditService {
       return vs;
    }
 
+   /**
+    * Always takes {@code session}'s value over whatever the runtime already has -- see
+    * {@code ViewsheetSessionService.applySocketSession}'s doc comment for why a fill-only-if-null
+    * guard here lets a runtime's socket session go permanently stale after the browser's
+    * WebSocket reconnects, silently breaking every future agent-driven broadcast to it.
+    */
    private void applySocketSession(RuntimeViewsheet rvs, JoinSession session) {
-      if(session.socketSessionId() != null && rvs.getSocketSessionId() == null) {
+      if(session.socketSessionId() != null) {
          rvs.setSocketSessionId(session.socketSessionId());
       }
 
-      if(rvs.getSocketUserName() == null && session.socketUserName() != null) {
+      if(session.socketUserName() != null) {
          rvs.setSocketUserName(session.socketUserName());
       }
    }

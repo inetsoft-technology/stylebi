@@ -80,6 +80,39 @@ class ScriptEditServiceTest {
    }
 
    /**
+    * Same defect as {@code ViewsheetSessionServiceTest}'s
+    * {@code mutateOverwritesAStaleSocketSessionIdWithTheCurrentSessionsValue} -- see that test's
+    * doc comment. A runtime whose browser socket reconnected keeps a stale-but-non-null
+    * socketSessionId; the fix takes the current session's value unconditionally rather than
+    * only filling a null field.
+    */
+   @Test
+   void applyOnRuntimeIfChangedOverwritesAStaleSocketSessionIdWithTheCurrentSessionsValue()
+      throws Exception
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("stale-dead-socket");
+      when(rvs.getSocketUserName()).thenReturn("alice");
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED,
+                                      "fresh-live-socket", "alice", null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ScriptEditService svc = new ScriptEditService(sessions, runtimeAccess, broadcast);
+      svc.applyOnRuntimeIfChanged("TOK", agent, r -> "executed", r -> true);
+
+      verify(rvs).setSocketSessionId("fresh-live-socket");
+   }
+
+   /**
     * Write coordination (2026-08-17-write-coordination-design.md / -implementation.md): a script
     * write is a direct live write, not routed through any XxxPropertyDialogService, so it must
     * bump the shared write revision itself. Without this, a property dialog with an embedded

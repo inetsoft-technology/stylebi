@@ -164,6 +164,43 @@ class ViewsheetSessionServiceTest {
    }
 
    /**
+    * Confirmed live: a paired runtime whose browser WebSocket reconnected (an idle timeout, a
+    * proxy hiccup) kept a STALE socketSessionId, and every agent mutation since kept silently
+    * addressing that dead session -- broadcastRefresh finds a non-null id and never knows it is
+    * wrong. The old fill-only-if-null guard could never correct this: it only ever wrote when
+    * the runtime's field was null, which a stale-but-present value never is. mutate must instead
+    * take the CURRENT session's socketSessionId unconditionally, since it was captured fresh at
+    * this pairing's own mint time from a live STOMP request.
+    */
+   @Test
+   void mutateOverwritesAStaleSocketSessionIdWithTheCurrentSessionsValue() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getSocketSessionId()).thenReturn("stale-dead-socket");
+      when(rvs.getSocketUserName()).thenReturn("alice");
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      // This session's own mint captured a fresh, live socket id -- different from whatever is
+      // already (stale) on the runtime.
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED,
+                                      "fresh-live-socket", "alice", null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
+
+      verify(rvs).setSocketSessionId("fresh-live-socket");
+   }
+
+   /**
     * {@code isSessionLive} is a bare passthrough to {@code SheetSessionService.isLive} -- no
     * owner/pane-scope check of its own -- for {@code LayoutSessionService}'s scheduled cleanup
     * sweep, which has no {@code Principal} and needs none: it is deciding whether to free a

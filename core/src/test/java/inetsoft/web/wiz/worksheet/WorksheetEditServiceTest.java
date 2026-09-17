@@ -77,6 +77,44 @@ class WorksheetEditServiceTest {
    }
 
    /**
+    * Same defect as {@code ViewsheetSessionServiceTest}'s
+    * {@code mutateOverwritesAStaleSocketSessionIdWithTheCurrentSessionsValue} -- see that test's
+    * doc comment. A runtime whose browser socket reconnected keeps a stale-but-non-null
+    * socketSessionId; the fix takes the current session's value unconditionally rather than
+    * only filling a null field.
+    */
+   @Test
+   void applyOverwritesAStaleSocketSessionIdWithTheCurrentSessionsValue() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ws.addAssembly(t);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getSocketSessionId()).thenReturn("stale-dead-socket");
+      when(rws.getSocketUserName()).thenReturn("alice");
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED,
+                                     "fresh-live-socket", "alice", null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("Worksheet/foo-7"), eq(agent)))
+         .thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess, broadcast,
+         mock(SecurityEngine.class), mock(InnerJoinService.class));
+      svc.apply("TOK", agent, ed -> ed.removeColumn("T", "a"));
+
+      verify(rws).setSocketSessionId("fresh-live-socket");
+   }
+
+   /**
     * Bug #76350 follow-on (item A): {@code refreshAssemblies} — called unconditionally at the end
     * of every mutation-applying method, looping over every {@link TableAssembly} in the
     * worksheet, not just the one edited — called {@code refreshColumnSelection} (the call that

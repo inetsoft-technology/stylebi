@@ -242,13 +242,29 @@ public class ViewsheetSessionService {
     * Carry the browser's socket session onto the runtime. Without this
     * {@code SheetAgentBroadcastService} finds no socket session and skips the broadcast, so
     * the human's Composer never reflects the agent's edits.
+    *
+    * <p>Always takes {@code session}'s value over whatever the runtime already has, rather than
+    * only filling a null field. A {@link JoinSession}'s socketSessionId/socketUserName are
+    * captured fresh at mint time from a live STOMP request, so they are always at least as
+    * trustworthy as whatever the runtime is currently holding -- and the runtime's own value can
+    * go stale independently of this session (the browser's WebSocket reconnects -- an idle
+    * timeout, a proxy hiccup -- without anything telling the runtime its old id is dead). A
+    * fill-only-if-null guard here means that once a runtime's field goes stale it can NEVER
+    * self-heal through this path again: every subsequent agent mutation keeps finding it
+    * non-null and leaving it alone, so {@code broadcastRefresh} keeps addressing a dead session
+    * and every future edit silently stops reaching the browser, with no error surfaced anywhere.
+    * The only thing that used to fix it was a human action going through a DIFFERENT,
+    * unconditional stamp (e.g. {@code CoreLifecycleService.setViewsheetInfo}'s own
+    * {@code rvs.setSocketSessionId(dispatcher.getSessionId())} on a manual Refresh) -- confirmed
+    * live: a paired session's edits stopped reaching the browser entirely until the human
+    * manually refreshed, after which agent-driven pushes worked again with no other change.
     */
    private void applySocketSession(RuntimeViewsheet rvs, JoinSession session) {
-      if(session.socketSessionId() != null && rvs.getSocketSessionId() == null) {
+      if(session.socketSessionId() != null) {
          rvs.setSocketSessionId(session.socketSessionId());
       }
 
-      if(rvs.getSocketUserName() == null && session.socketUserName() != null) {
+      if(session.socketUserName() != null) {
          rvs.setSocketUserName(session.socketUserName());
       }
    }
