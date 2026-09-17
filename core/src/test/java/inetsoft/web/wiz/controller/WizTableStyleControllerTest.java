@@ -123,7 +123,8 @@ class WizTableStyleControllerTest {
       TableStyleFormatModel incomplete = new TableStyleFormatModel();
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
-         "1001", new WizTableStyleController.UpdateTableStyleRequest(incomplete), fixture.principal));
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, null, incomplete),
+         fixture.principal));
 
       assertTrue(thrown.getMessage().contains("topBorderFormat"));
       assertTrue(thrown.getMessage().contains("bodyRegionFormat"));
@@ -143,11 +144,149 @@ class WizTableStyleControllerTest {
       long originalModified = fixture.existingStyle.getLastModified();
 
       fixture.controller.update(
-         "1001", new WizTableStyleController.UpdateTableStyleRequest(null), fixture.principal);
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, null, null), fixture.principal);
 
       assertEquals(originalModified, fixture.existingStyle.getLastModified(),
                    "the shared cached instance must be untouched");
       verify(fixture.lib).setTableStyle(eq("1001"), argThat(style -> style != fixture.existingStyle));
+   }
+
+   /** {@code fixture.existingStyle}'s full name is "User Defined~BorderedBands" -- leaf-only rename. */
+   @Test
+   void update_renamesTheLeafWhenOnlyNameIsProvided() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, null), fixture.principal);
+
+      verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "User Defined~Renamed", "1001");
+      verify(fixture.lib).setTableStyle(eq("1001"),
+         argThat(style -> "User Defined~Renamed".equals(style.getName())));
+   }
+
+   @Test
+   void update_movesToANewFolderWhenOnlyFolderIsProvided() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest(null, "Sales", null), fixture.principal);
+
+      verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "Sales~BorderedBands", "1001");
+      verify(fixture.lib).setTableStyle(eq("1001"),
+         argThat(style -> "Sales~BorderedBands".equals(style.getName())));
+   }
+
+   @Test
+   void update_renamesAndMovesTogetherInOneCall() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", "Sales", null), fixture.principal);
+
+      verify(fixture.lib).renameTableStyle("User Defined~BorderedBands", "Sales~Renamed", "1001");
+      verify(fixture.lib).setTableStyle(eq("1001"),
+         argThat(style -> "Sales~Renamed".equals(style.getName())));
+   }
+
+   /**
+    * {@code TableStyleLogicalLibrary.rename}/{@code LibManager.renameTableStyle} do no duplicate-
+    * name check themselves -- that's a controller-layer responsibility in the existing composer
+    * flows (see {@code AssetEventUtil.isRenameDuplicate}/{@code isChangeDuplicate}), so this
+    * controller must do it explicitly or a rename-to-an-existing-name silently collides.
+    */
+   @Test
+   void update_refusesARenameThatCollidesWithAnExistingStyleAtTheDestination() {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      when(fixture.tableStyleService.contains("User Defined", "Taken")).thenReturn(true);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "1001", new WizTableStyleController.UpdateTableStyleRequest("Taken", null, null),
+         fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("already exists"),
+                 "must say why, got: " + thrown.getMessage());
+      verify(fixture.lib, never()).renameTableStyle(any(), any(), any());
+      verify(fixture.lib, never()).setTableStyle(anyString(), any());
+   }
+
+   @Test
+   void update_refusesANameContainingLibManagersInternalSeparator() {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "1001", new WizTableStyleController.UpdateTableStyleRequest("Foo~Bar", null, null),
+         fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("'name' must not contain"));
+      verify(fixture.lib, never()).renameTableStyle(any(), any(), any());
+      verify(fixture.lib, never()).setTableStyle(anyString(), any());
+   }
+
+   @Test
+   void update_refusesAFolderContainingLibManagersInternalSeparator() {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "1001", new WizTableStyleController.UpdateTableStyleRequest(null, "User Defined~Sales", null),
+         fixture.principal));
+
+      assertTrue(thrown.getMessage().contains("'folder' must not contain"));
+      verify(fixture.lib, never()).renameTableStyle(any(), any(), any());
+      verify(fixture.lib, never()).setTableStyle(anyString(), any());
+   }
+
+   /**
+    * Regression for the refuter's finding on bug-76742's VTS-004: {@code update()}'s tail,
+    * {@code lib.setTableStyle(style.getID(), style)}, runs unconditionally on every call and
+    * persists the LOCAL clone -- if that clone's name isn't also updated alongside the
+    * {@code lib.renameTableStyle(...)} call that renames the STORED entry, this same call
+    * silently undoes its own rename the instant it reaches the tail. A format payload in the
+    * same request must not resurrect the pre-rename name either.
+    */
+   @Test
+   void update_aRenameSurvivesTheSameCallsUnconditionalFormatMergeAndPersistTail() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+      TableStyleFormatModel completeFormat = new TableStyleFormatModel(fixture.existingStyle);
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, completeFormat),
+         fixture.principal);
+
+      verify(fixture.lib).setTableStyle(eq("1001"),
+         argThat(style -> "User Defined~Renamed".equals(style.getName())));
+   }
+
+   /**
+    * Same regression, across two separate requests: a rename, then an unrelated format-only
+    * update. The second call must not revert the name the first call just set.
+    */
+   @Test
+   void update_aSubsequentFormatOnlyUpdateDoesNotRevertAPriorRename() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getTableStyle("1001")).thenReturn(fixture.existingStyle);
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest("Renamed", null, null), fixture.principal);
+
+      // Simulate the real LibManager after the first call: renameTableStyle mutates the stored
+      // entry in place, keyed by the same oid, so a re-fetch by styleId now returns the new name.
+      XTableStyle renamedStoredEntry = newStyle("1001", "User Defined~Renamed");
+      when(fixture.lib.getTableStyle("1001")).thenReturn(renamedStoredEntry);
+      TableStyleFormatModel completeFormat = new TableStyleFormatModel(renamedStoredEntry);
+
+      fixture.controller.update("1001",
+         new WizTableStyleController.UpdateTableStyleRequest(null, null, completeFormat),
+         fixture.principal);
+
+      verify(fixture.lib, times(2)).setTableStyle(eq("1001"),
+         argThat(style -> "User Defined~Renamed".equals(style.getName())));
    }
 
    /**
@@ -247,7 +386,10 @@ class WizTableStyleControllerTest {
             // excludes null, and the collision-check tests below never stub
             // TableStyleService.getTableStyleLabel(), so create()'s now-earlier permission check
             // runs against a null styleName before those tests' own stubbed collision is reached.
-            when(securityEngine.checkPermission(any(), eq(ResourceType.TABLE_STYLE),
+            // any(ResourceType.class), not eq(TABLE_STYLE) -- update()'s destination-folder check
+            // uses TABLE_STYLE_LIBRARY for the library root, a second resource type this default
+            // must also cover.
+            when(securityEngine.checkPermission(any(), any(ResourceType.class),
                                                 nullable(String.class),
                                                 any(ResourceAction.class))).thenReturn(true);
          }
