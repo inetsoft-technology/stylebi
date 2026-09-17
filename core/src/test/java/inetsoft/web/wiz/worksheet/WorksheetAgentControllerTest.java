@@ -1602,6 +1602,62 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #76711: a table whose {@code XSessionManager.dataCache} entry is already populated
+    * (e.g. a SERVER_FILE/tabular {@code BoundQuery}) must have {@code __refresh_report__} set for
+    * the duration of the reload, same as {@code WSQueryService.runQuery} -- otherwise
+    * {@code resetTableLens}/{@code AssetDataCache} above still leave that deeper, key-stable cache
+    * serving pre-refresh rows forever, silently, even though {@code refresh_data} reports
+    * {@code {"ok":true}}.
+    */
+   @Test
+   void refreshDataSetsRefreshReportFlagAroundReload() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD7"), any())).thenReturn(session("TOK-RD7"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() ->
+               WorksheetEventUtil.loadTableData(eq(rws), eq("Table1"), anyBoolean(), anyBoolean()))
+            .thenAnswer(invocation -> {
+               assertEquals("true", vars.get("__refresh_report__"),
+                  "flag must be set for the duration of the reload, same as Run Query");
+               return null;
+            });
+
+         ctrl.edit("TOK-RD7", refreshDataRequest("Table1"), agent);
+      }
+
+      assertNull(vars.get("__refresh_report__"),
+         "flag must be removed again after the reload, same as Run Query's finally block");
+   }
+
+   /**
     * Bug #76350 follow-on (item A), review round 1: {@code insertColumn} calls the same unwrapped
     * {@code refreshColumnSelection}/{@code loadTableData} pair 3a already bounds for
     * {@code refresh_data} -- a prior {@code set_group_aggregate(crosstab=true)} on this same
