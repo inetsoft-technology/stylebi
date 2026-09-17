@@ -417,4 +417,37 @@ class VSChartPaletteDefaultsTest {
    void aNullContextSeedsTheLegacyRamp() {
       assertInstanceOf(BluesColorFrame.class, VSChartPaletteDefaults.defaultLinearFrame(null));
    }
+
+   @Test
+   void aClassicChartHidesNoRamps() {
+      assertTrue(VSChartPaletteDefaults.hiddenLinearFrames(VizContext.LEGACY).isEmpty());
+   }
+
+   @Test
+   void aModernChartHidesTheSucceededFamiliesOnly() {
+      Set<String> hidden = VSChartPaletteDefaults.hiddenLinearFrames(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(16, hidden.size(), "six single hue, nine diverging, and Heat");
+
+      // the single-hue family, succeeded by Amber and Teal
+      assertTrue(hidden.containsAll(Set.of("BluesColorModel", "GreensColorModel", "GreysColorModel",
+                                           "OrangesColorModel", "PurplesColorModel", "RedsColorModel")));
+      // the diverging family, succeeded by Variance
+      assertTrue(hidden.containsAll(Set.of("BrBGColorModel", "PiYGColorModel", "PRGnColorModel",
+                                           "PuOrColorModel", "RdBuColorModel", "RdGyColorModel",
+                                           "RdYlGnColorModel", "SpectralColorModel",
+                                           "RdYlBuColorModel")));
+      // Heat, succeeded by Amber
+      assertTrue(hidden.contains("HeatColorModel"));
+
+      // multi-hue has no house successor and survives intact
+      assertFalse(hidden.contains("BuGnColorModel"));
+      assertFalse(hidden.contains("YlOrRdColorModel"));
+      // the house ramps are never hidden from the charts they were built for
+      assertFalse(hidden.contains("AmberColorModel"));
+      assertFalse(hidden.contains("TealColorModel"));
+      assertFalse(hidden.contains("VarianceColorModel"));
+      // Custom is retained by ENGINE §4
+      assertFalse(hidden.contains("GradientColorModel"));
+   }
 }

@@ -103,6 +103,37 @@ public final class VSChartPaletteDefaults {
    }
 
    /**
+    * The linear colour frames a picker hides, by client model name.
+    *
+    * Hidden at family granularity: a family the house set succeeds goes, a family it does not stays.
+    * Amber and Teal succeed the single hues and Heat; Variance succeeds the diverging set. Multi-hue
+    * has no house member and survives whole, and so does Custom, kept for brand matching. Greys and
+    * Purples go with their family and have no individual successor - the linear analogue of the
+    * categorical Gray, which the handoff also retires with none.
+    *
+    * Hiding is a display concern. Nothing here is removed from resolution, so a chart already on any
+    * of these keeps rendering it and keeps showing it selected.
+    */
+   public static Set<String> hiddenLinearFrames(VizContext ctx) {
+      if(ctx == null || !ctx.modern) {
+         return Set.of();
+      }
+
+      return HIDDEN_LINEAR_FRAMES;
+   }
+
+   private static final Set<String> HIDDEN_LINEAR_FRAMES = Set.of(
+      // single hue, succeeded by Amber and Teal
+      "BluesColorModel", "GreensColorModel", "GreysColorModel",
+      "OrangesColorModel", "PurplesColorModel", "RedsColorModel",
+      // diverging, succeeded by Variance
+      "BrBGColorModel", "PiYGColorModel", "PRGnColorModel", "PuOrColorModel",
+      "RdBuColorModel", "RdGyColorModel", "RdYlBuColorModel", "RdYlGnColorModel",
+      "SpectralColorModel",
+      // Heat, succeeded by Amber
+      "HeatColorModel");
+
+   /**
     * The linear colour frame a chart's measure-to-colour binding is born on.
     *
     * A modern chart takes the house sequential ramp; everything else keeps the ColorBrewer ramp that

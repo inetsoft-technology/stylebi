@@ -263,6 +263,21 @@ public class VSChartBindingController {
       return palettes;
    }
 
+   @RequestMapping(value = "/api/composer/chart/hiddenlinearframes", method = RequestMethod.GET)
+   @HandleExceptions
+   @SwitchOrg
+   public String[] getHiddenLinearFrames(
+      @OrganizationID String orgId,
+      @RequestParam(required = false, value = "vsId") String vsId,
+      @RequestParam(required = false, value = "assemblyName") String assemblyName,
+      Principal principal)
+      throws Exception
+   {
+      return VSChartPaletteDefaults
+         .hiddenLinearFrames(pickerContext(vsId, assemblyName, principal))
+         .toArray(new String[0]);
+   }
+
    /**
     * The context a palette picker's hidden flags are computed from.
     *
