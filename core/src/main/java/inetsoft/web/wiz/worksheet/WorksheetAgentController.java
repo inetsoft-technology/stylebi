@@ -23,7 +23,9 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.report.composition.execution.DataKey;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
@@ -3301,6 +3303,22 @@ public class WorksheetAgentController {
                if(table instanceof TabularTableAssembly tabular) {
                   tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
                }
+
+               // WSQueryService.runQuery also drops a BoundQuery/TabularBoundQuery's own
+               // XSessionManager cache entry (no time-based expiry in practice -- bug #76711)
+               // via a fresh AssetQuery.createAssetQuery(...) + BoundQuery.clearQueryCache(...),
+               // synchronously, before reloading. Do it here too, and do it before the bounded
+               // reload below is even submitted: that reload's warm-up work runs on a separate
+               // virtual thread that RenderWaitSupport does NOT cancel on timeout (see its own
+               // doc comment), so a __refresh_report__ flag alone -- cleared in this method's own
+               // finally block as soon as awaitOrRetry returns -- can race that still-running
+               // background thread on any reload slower than the timeout and get cleared before
+               // the background work reads it, silently falling back to the stale cache (this is
+               // exactly what reintroduced #76711 in this method's first fix attempt). Clearing
+               // the cache entry synchronously beforehand removes that race entirely: the entry
+               // is already gone by the time any reload -- finished before or after the timeout
+               // -- reaches it.
+               clearBoundQueryCache(box, table, mode);
             }
             else {
                box.resetTableLens(req.table());
@@ -3314,11 +3332,10 @@ public class WorksheetAgentController {
             // this is an explicit, caller-requested op, so a timeout throws RenderNotReadyException
             // (mapped to 503/RENDER_NOT_READY by WizControllerErrorHandler) rather than being
             // swallowed — the caller gets a live "not ready, retry" signal instead of a raw hang.
-            // WSQueryService.runQuery also sets this flag before reloading -- it makes
-            // XSessionManager.DataCacheResult.visitCache skip its dataCache lookup entirely
-            // for a BoundQuery/TabularBoundQuery (e.g. a SERVER_FILE tabular table), which
-            // has no time-based expiry in practice; without it, resetTableLens/AssetDataCache
-            // above still leave that deeper cache serving the pre-refresh rows forever.
+            // WSQueryService.runQuery also sets this flag before reloading; kept here too as a
+            // second, zero-cost layer alongside clearBoundQueryCache above (mirroring runQuery,
+            // which uses both together) -- it no longer needs to win any race to be correct,
+            // since the cache entry it would otherwise guard against is already gone by now.
             box.getVariableTable().put("__refresh_report__", "true");
 
             try {
@@ -3334,16 +3351,57 @@ public class WorksheetAgentController {
             }
          }
          else {
-            // Refresh all table assemblies.
+            // Refresh all table assemblies. Mirrors the single-assembly branch's cache
+            // invalidation (AssetDataCache + the BoundQuery/XSessionManager layer -- bug #76711
+            // review Finding 2) for every table, so a later read of ANY table after a bulk
+            // refresh_data is a genuine cache miss too, not just resetTableLens's
+            // AssetQuerySandbox.tmap layer, which used to be the only thing this branch touched.
+            // Deliberately does NOT also add a bounded, eager reload (RenderWaitSupport.awaitOrRetry)
+            // per table here: that would be new behavior this branch never had (up to N sequential
+            // timeout-and-retry windows for N tables), and isn't needed to fix the reported
+            // symptom -- invalidating the cache is enough for the next real read of any of these
+            // tables to come back fresh.
             for(Assembly a : ws.getAssemblies()) {
-               if(a instanceof TableAssembly) {
-                  box.resetTableLens(a.getName());
+               if(a instanceof TableAssembly table) {
+                  int mode = WorksheetEventUtil.getMode(table);
+                  box.resetTableLens(table.getName(), mode);
+
+                  DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
+                  assetDataCache.remove(key);
+
+                  try {
+                     clearBoundQueryCache(box, table, mode);
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to clear the bound query cache for table: " +
+                        table.getName(), e);
+                  }
                }
             }
          }
 
          return null;
       });
+   }
+
+   /**
+    * Synchronously drops the {@code XSessionManager.dataCache} entry a {@link BoundQuery}
+    * (e.g. a SERVER_FILE tabular table's {@code TabularBoundQuery}) would otherwise keep
+    * serving indefinitely -- no time-based expiry in practice, see bug #76711 -- mirroring
+    * {@code WSQueryService.runQuery}'s own {@code AssetQuery.createAssetQuery(...)} +
+    * {@code BoundQuery.clearQueryCache(...)} call.
+    */
+   private void clearBoundQueryCache(AssetQuerySandbox box, TableAssembly table, int mode)
+      throws Exception
+   {
+      TableAssembly clone = (TableAssembly) table.clone();
+      AssetQuery query = AssetQuery.createAssetQuery(clone, mode, box, false, -1L, true, false);
+
+      if(query instanceof BoundQuery boundQuery) {
+         VariableTable vars = box.getVariableTable().clone();
+         vars.put(XQuery.HINT_PREVIEW, AssetQuerySandbox.isLiveMode(mode) + "");
+         boundQuery.clearQueryCache(vars);
+      }
    }
 
    // ---------------------------------------------------------------------------
