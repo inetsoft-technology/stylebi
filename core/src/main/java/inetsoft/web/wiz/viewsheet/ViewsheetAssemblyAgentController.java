@@ -27,6 +27,7 @@ import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.model.LayoutModel;
+import inetsoft.web.wiz.viewsheet.model.ParameterModel;
 import inetsoft.web.wiz.viewsheet.model.ViewsheetModel;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -988,7 +989,7 @@ public class ViewsheetAssemblyAgentController {
       return inputService.setValue(sessionToken, user, request.assembly(), request.value(), linkUri);
    }
 
-   public record SetParametersRequest(Map<String, java.util.List<Object>> values) {}
+   public record SetParametersRequest(Map<String, List<Object>> values) {}
 
    /**
     * {@code collect_parameters}. Lists the variables the connected viewsheet's source query and
@@ -997,7 +998,7 @@ public class ViewsheetAssemblyAgentController {
     * those).
     */
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/parameters")
-   public java.util.List<inetsoft.web.wiz.viewsheet.model.ParameterModel> listParameters(
+   public List<ParameterModel> listParameters(
       @PathVariable String sessionToken, Principal user)
       throws Exception
    {
