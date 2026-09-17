@@ -1289,3 +1289,97 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 - **Two stop-and-report conditions**, both in Task 1's and Task 4's steps: a C1/C2 conflict in derivation, and a Variance swatch whose centre does not read neutral. Both mean the design is wrong, and the design says such findings come back rather than being tuned away.
 - **Line numbers are advisory.** They were read at the branch point. Confirm each with `grep -n` before editing.
 - **Do not fix `case "BluesColorFrameW"`.** It is recorded in the design as deferred, and widening the diff at a review gate is the wrong trade.
+
+---
+
+### Task 10: Thread the context through the wizard recommender
+
+**Runs before Task 9**, so the final verification covers it. Added after Task 6's review disproved the deferral this plan originally carried.
+
+Task 6 threaded a `VizContext` to every seed site the composer reaches. The object wizard's recommender was left on legacy overloads, so a wizard-created chart binding a measure to colour is seeded `BluesColorFrame` — and keeps it, because every threaded seed guards on `!(frame instanceof LinearColorFrame)` and Teal is one. This is a live gap, not a latent one: the wizard's temp chart carries the host viewsheet's mark.
+
+**Files:**
+- Modify: `core/src/main/java/inetsoft/web/vswizard/recommender/object/VSChartDefaultRecommendationFactory.java` — `recommend(VSWizardData, Principal)` resolves the context
+- Modify: `core/src/main/java/inetsoft/web/vswizard/recommender/chart/ChartCombinationUtil.java` — pass it through
+- Modify: `core/src/main/java/inetsoft/web/vswizard/recommender/chart/ChartTypeFilter.java` — three constructors and the field
+- Modify: its subclasses under `.../recommender/chart/`
+- Modify: the five legacy-overload callers — `ChartTypeFilter:342`, `CirclePackingChartFilter:67,92`, `MekkoChartFilter:63`, `ScatterChartFilter:112`, `WordCloudFilter:78`
+- Modify: the two direct seeds — `ContourMapChartFilter:49`, `ContourScatterChartFilter:48`
+- Test: `core/src/test/java/inetsoft/web/vswizard/recommender/WizardSeededLinearFrameTest.java`
+
+**Interfaces:**
+- Consumes: `VSChartPaletteDefaults.defaultLinearFrame(VizContext)` and `GraphUtil.fixVisualFrames(ChartInfo, VizContext)`, both from Task 6.
+- Produces: nothing later tasks call.
+
+- [ ] **Step 1: Confirm the chain, then re-derive the site list**
+
+The mark is reachable in one call. `VSWizardBindingHandler.getTempChart(VSWizardData)` (`:1888-1896`) already holds the marked assembly and returns only its info:
+
+```java
+   public VSChartInfo getTempChart(VSWizardData wizardData) {
+      ChartVSAssembly chart = null;
+
+      if(wizardData != null && wizardData.getVsTemporaryInfo() != null) {
+         chart = wizardData.getVsTemporaryInfo().getTempChart();
+      }
+
+      return chart == null ? null : chart.getVSChartInfo();
+   }
+```
+
+The assembly is stamped at creation: `VSWizardTemporaryInfoService:69` builds it as `new ChartVSAssembly(vs, TEMP_CHART_NAME)` from the real runtime viewsheet, and `AbstractVSAssembly:136` sets `info.setVizMark(hostInfo.getVizMark())`.
+
+Then re-derive rather than trusting the list above:
+
+- `grep -rn "new BluesColorFrame()" core/src/main/java/inetsoft/web/vswizard`
+- `grep -rn "fixVisualFrames(\|fixVisualFrame(" core/src/main/java/inetsoft/web/vswizard`
+- `grep -rn "new ChartTypeFilter(\|extends ChartTypeFilter" core/src/main/java/inetsoft/web/vswizard`
+
+**Your grep wins over this plan.** Its predecessor was wrong about both counts in Task 6. Report any discrepancy.
+
+- [ ] **Step 2: Write the failing test**
+
+Create `WizardSeededLinearFrameTest`. Mirror the shape of `SeededLinearFrameTest.aModernMarkedAssemblyIsBornOnTeal` — build a `ChartVSAssemblyInfo`, `setVizMark(VizMark.MODERN_LIGHT)`, bind a measure to colour, drive the recommender path, assert `TealColorFrame`; and an unmarked counterpart asserting `BluesColorFrame`.
+
+Drive it at the lowest layer that still crosses the threading you add. If standing up a full `VSWizardData` needs a runtime viewsheet, test `ChartTypeFilter` (or whichever class actually holds the new context field) directly instead — and say in your report which layer you chose and what that leaves uncovered.
+
+- [ ] **Step 3: Run it and watch it fail**
+
+Run: `./mvnw test -pl core -Dtest=WizardSeededLinearFrameTest`
+Expected: FAIL, the modern case returning `BluesColorFrame`. **If it passes before you change anything, stop and report** — it means the test does not cross the threading and proves nothing.
+
+- [ ] **Step 4: Thread the context**
+
+Resolve it once at the factory, from the assembly rather than the info:
+
+```java
+      ChartVSAssembly tempChart = wizardData == null || wizardData.getVsTemporaryInfo() == null
+         ? null : wizardData.getVsTemporaryInfo().getTempChart();
+      VizContext ctx = tempChart == null
+         ? VizContext.LEGACY : VizContext.of(tempChart.getVSAssemblyInfo());
+```
+
+Pass it through `ChartCombinationUtil` and onto `ChartTypeFilter` as a field, keeping a no-context overload on each constructor defaulting to `VizContext.LEGACY`, exactly as Task 6 did. Then:
+
+- the five `GraphUtil.fixVisualFrames(info)` calls become `GraphUtil.fixVisualFrames(info, ctx)`
+- the two `info.setColorFrame(new BluesColorFrame())` become `info.setColorFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx))`
+
+- [ ] **Step 5: Run the test, then the full suite**
+
+Run: `./mvnw test -pl core -Dtest=WizardSeededLinearFrameTest` → PASS
+Run: `./mvnw test -pl core` → compare against 5795 tests / 0 failures / 0 errors / 69 skipped, and report exact counts.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add core/src/main/java/inetsoft/web/vswizard core/src/test/java/inetsoft/web/vswizard
+git commit -m "Seed a wizard-created chart on Teal too
+
+The recommender held the temp chart's mark and threw it away: getTempChart
+returned only the info, and every filter called the legacy fixVisualFrames
+overload that hard-codes the pre-modern context. A wizard-created modern
+chart took Blues and kept it, because the seeds only fire when no linear
+frame is present.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
