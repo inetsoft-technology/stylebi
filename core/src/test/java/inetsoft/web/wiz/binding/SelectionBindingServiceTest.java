@@ -50,7 +50,8 @@ class SelectionBindingServiceTest {
          .thenReturn(new SelectionListPropertyDialogModel());
 
       Map<String, Object> result = harness(assembly, listService, null, null, null)
-         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, false, "");
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), null, null, null,
+                   null, null, false, "");
 
       ArgumentCaptor<SelectionListPropertyDialogModel> captor =
          ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
@@ -71,7 +72,7 @@ class SelectionBindingServiceTest {
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, listService, null, null, null)
             .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE", "CITY"), null,
-                      null, false, ""));
+                      null, null, null, null, false, ""));
 
       assertTrue(thrown.getMessage().contains("selection list"));
    }
@@ -85,7 +86,7 @@ class SelectionBindingServiceTest {
 
       harness(assembly, null, treeService, null, null)
          .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE", "CITY"), null, null,
-                   false, "");
+                   null, null, null, false, "");
 
       ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
          ArgumentCaptor.forClass(SelectionTreePropertyDialogModel.class);
@@ -105,9 +106,117 @@ class SelectionBindingServiceTest {
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, null, mock(SelectionTreePropertyDialogService.class), null, null)
-            .setSource("tok", principal(), "Tree1", "ORDERS", List.of(), null, null, false, ""));
+            .setSource("tok", principal(), "Tree1", "ORDERS", List.of(), null, null, null, null,
+                      null, false, ""));
 
       assertTrue(thrown.getMessage().contains("at least one column"));
+   }
+
+   // ── ID-hierarchy mode (regression for Bug #76768) ───────────────────────────
+
+   @Test
+   void bindsASelectionTreeInIdHierarchyMode() throws Exception {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(new SelectionTreePropertyDialogModel());
+
+      Map<String, Object> result = harness(assembly, null, treeService, null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                   "ORDER_DATE", false, "");
+
+      ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionTreePropertyDialogModel.class);
+      verify(treeService).setSelectionTreePropertyModel(
+         eq("rt1"), eq("Tree1"), captor.capture(), eq(""), any(), any());
+      SelectionTreePaneModel pane = captor.getValue().getSelectionTreePaneModel();
+      assertEquals(SelectionTreeVSAssemblyInfo.ID, pane.getMode());
+      assertEquals("CITY", pane.getParentId());
+      assertEquals("STATE", pane.getId());
+      assertEquals("ORDER_DATE", pane.getLabel());
+      assertEquals("CITY", pane.getParentIdRef().getAttribute());
+      assertEquals("STATE", pane.getIdRef().getAttribute());
+      assertEquals("ORDER_DATE", pane.getLabelRef().getAttribute());
+      assertEquals("CITY", result.get("parentIdColumn"));
+      assertEquals("STATE", result.get("idColumn"));
+      assertEquals("ORDER_DATE", result.get("labelColumn"));
+   }
+
+   @Test
+   void refusesADynamicReferenceOnAnIdModeColumn() {
+      // #76768: unlike `measure`, an id/parentId/label column cannot support "$(ComponentName)"
+      // -- SelectionTreeVSAQuery2.refreshSelectionValue0 matches these columns by name against
+      // assembly.getDataRefs(), which never contains an entry for a dynamic (non-literal) value,
+      // so the tree would silently render empty/broken rather than actually swap. Refused loudly
+      // instead, naming the field.
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, treeService, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                      "$(RadioButton1)", false, ""));
+
+      assertTrue(thrown.getMessage().contains("labelColumn"));
+      assertTrue(thrown.getMessage().contains("does not accept"));
+      verifyNoInteractions(treeService);
+   }
+
+   @Test
+   void refusesPartialIdModeColumns() {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, mock(SelectionTreePropertyDialogService.class), null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                      null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("idColumn"));
+      assertTrue(thrown.getMessage().contains("labelColumn"));
+   }
+
+   @Test
+   void refusesCombiningColumnsWithIdModeColumns() {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, mock(SelectionTreePropertyDialogService.class), null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE"), null, null,
+                      "CITY", "STATE", "ORDER_DATE", false, ""));
+
+      assertTrue(thrown.getMessage().contains("columns"));
+   }
+
+   @Test
+   void refusesAnUnknownIdModeColumnNamingWhatIsAvailable() throws Exception {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(new SelectionTreePropertyDialogModel());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, treeService, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY",
+                      "NO_SUCH_COLUMN", "ORDER_DATE", false, ""));
+
+      assertTrue(thrown.getMessage().contains("NO_SUCH_COLUMN"));
+      assertTrue(thrown.getMessage().contains("STATE"));
+   }
+
+   @Test
+   void refusesIdModeColumnsOnANonTreeAssembly() {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+
+      // A selection list has no ID-hierarchy mode. parentIdColumn/idColumn/labelColumn take the
+      // place of 'columns' in the request, so a selection list given these instead sees an empty
+      // 'columns' and is refused the same way a selection list given zero columns always was --
+      // the arity check below has no assembly-type awareness of idMode, and does not need one.
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, mock(SelectionListPropertyDialogService.class), null, null, null)
+            .setSource("tok", principal(), "List1", "ORDERS", null, null, null, "CITY", "STATE",
+                      "ORDER_DATE", false, ""));
+
+      assertTrue(thrown.getMessage().contains("selection list"));
    }
 
    @Test
@@ -118,8 +227,8 @@ class SelectionBindingServiceTest {
          .thenReturn(new RangeSliderPropertyDialogModel());
 
       Map<String, Object> result = harness(assembly, null, null, sliderService, null)
-         .setSource("tok", principal(), "Slider1", "ORDERS", List.of("AMOUNT"), null, null, false,
-                   "");
+         .setSource("tok", principal(), "Slider1", "ORDERS", List.of("AMOUNT"), null, null, null,
+                   null, null, false, "");
 
       ArgumentCaptor<RangeSliderPropertyDialogModel> captor =
          ArgumentCaptor.forClass(RangeSliderPropertyDialogModel.class);
@@ -140,7 +249,7 @@ class SelectionBindingServiceTest {
 
       Map<String, Object> result = harness(assembly, null, null, sliderService, null)
          .setSource("tok", principal(), "Slider1", "ORDERS", List.of("STATE", "AMOUNT"), null,
-                   null, false, "");
+                   null, null, null, null, false, "");
 
       ArgumentCaptor<RangeSliderPropertyDialogModel> captor =
          ArgumentCaptor.forClass(RangeSliderPropertyDialogModel.class);
@@ -161,7 +270,7 @@ class SelectionBindingServiceTest {
 
       harness(assembly, null, null, null, calendarService)
          .setSource("tok", principal(), "Calendar1", "ORDERS", List.of("ORDER_DATE"), null, null,
-                   false, "");
+                   null, null, null, false, "");
 
       ArgumentCaptor<CalendarPropertyDialogModel> captor =
          ArgumentCaptor.forClass(CalendarPropertyDialogModel.class);
@@ -178,7 +287,7 @@ class SelectionBindingServiceTest {
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, null, null, null, mock(CalendarPropertyDialogService.class))
             .setSource("tok", principal(), "Calendar1", "ORDERS", List.of("ORDER_DATE", "STATE"),
-                      null, null, false, ""));
+                      null, null, null, null, null, false, ""));
 
       assertTrue(thrown.getMessage().contains("calendar"));
    }
@@ -189,8 +298,8 @@ class SelectionBindingServiceTest {
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, mock(SelectionListPropertyDialogService.class), null, null, null)
-            .setSource("tok", principal(), "List1", "NOPE", List.of("STATE"), null, null, false,
-                      ""));
+            .setSource("tok", principal(), "List1", "NOPE", List.of("STATE"), null, null, null,
+                      null, null, false, ""));
 
       assertTrue(thrown.getMessage().contains("NOPE"));
       assertTrue(thrown.getMessage().contains("ORDERS"));
@@ -203,7 +312,7 @@ class SelectionBindingServiceTest {
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, mock(SelectionListPropertyDialogService.class), null, null, null)
             .setSource("tok", principal(), "List1", "ORDERS", List.of("NO_SUCH_COLUMN"), null,
-                      null, false, ""));
+                      null, null, null, null, false, ""));
 
       assertTrue(thrown.getMessage().contains("NO_SUCH_COLUMN"));
       assertTrue(thrown.getMessage().contains("STATE"));
@@ -221,7 +330,7 @@ class SelectionBindingServiceTest {
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, listService, null, null, null)
             .setSource("tok", principal(), "List1", "CUSTOMERS", List.of("NAME"), null, null,
-                      false, ""));
+                      null, null, null, false, ""));
 
       assertTrue(thrown.getMessage().contains("force"));
    }
@@ -236,8 +345,8 @@ class SelectionBindingServiceTest {
          .thenReturn(bound);
 
       harness(assembly, listService, null, null, null)
-         .setSource("tok", principal(), "List1", "CUSTOMERS", List.of("NAME"), null, null, true,
-                   "");
+         .setSource("tok", principal(), "List1", "CUSTOMERS", List.of("NAME"), null, null, null,
+                   null, null, true, "");
 
       verify(listService).setSelectionListPropertyModel(
          eq("rt1"), eq("List1"), any(), eq(""), any(), any());
@@ -254,7 +363,7 @@ class SelectionBindingServiceTest {
 
       Map<String, Object> result = harness(assembly, listService, null, null, null)
          .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
-                   List.of("customers"), null, false, "");
+                   List.of("customers"), null, null, null, null, false, "");
 
       ArgumentCaptor<SelectionListPropertyDialogModel> captor =
          ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
@@ -272,7 +381,7 @@ class SelectionBindingServiceTest {
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, mock(SelectionListPropertyDialogService.class), null, null, null)
             .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
-                      List.of("NOPE"), null, false, ""));
+                      List.of("NOPE"), null, null, null, null, false, ""));
 
       assertTrue(thrown.getMessage().contains("List1"));
       assertTrue(thrown.getMessage().contains("NOPE"));
@@ -310,7 +419,7 @@ class SelectionBindingServiceTest {
          mock(CalendarPropertyDialogService.class));
 
       service.setSource("tok", principal(), "List1", "Order Model", List.of("Customer:Region"),
-                        null, null, false, "");
+                        null, null, null, null, null, false, "");
 
       ArgumentCaptor<SelectionListPropertyDialogModel> captor =
          ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
@@ -346,7 +455,8 @@ class SelectionBindingServiceTest {
          mock(CalendarPropertyDialogService.class));
 
       service.setSource("tok", principal(), "Tree1", "Order Model",
-                        List.of("Customer:Region", "Customer:City"), null, null, false, "");
+                        List.of("Customer:Region", "Customer:City"), null, null, null, null, null,
+                        false, "");
 
       ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
          ArgumentCaptor.forClass(SelectionTreePropertyDialogModel.class);

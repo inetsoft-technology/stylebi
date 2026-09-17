@@ -76,16 +76,35 @@ public class SelectionBindingService {
     * @param columns  one or more column names, as reported by {@code list_bindable_fields}. A
     *                 selection list or calendar accepts exactly one; a selection tree accepts one
     *                 or more, in hierarchy order; a range slider accepts one (a single range) or
-    *                 more (a composite range).
+    *                 more (a composite range). Not used — and refused if non-empty — when
+    *                 {@code parentIdColumn}/{@code idColumn}/{@code labelColumn} are given instead
+    *                 (a selection tree's ID-hierarchy mode).
     * @param measure  selection list only — an optional aggregate/bar-chart measure column. Ignored
-    *                 for every other type.
+    *                 for every other type. Also accepts a StyleBI {@code DynamicValue}
+    *                 {@code "$(ComponentName)"} reference, forwarded untouched: the caller (the
+    *                 plugin) is responsible for validating it resolves to a real,
+    *                 dynamic-reference-capable assembly before this method ever sees it (#76768).
+    * @param parentIdColumn  selection tree only — the column holding each row's parent's
+    *                        {@code idColumn} value, for an arbitrary-depth tree built from one
+    *                        flat, self-referencing table ({@code SelectionTreeVSAssemblyInfo.ID}
+    *                        mode) instead of {@code columns}' fixed hierarchy levels. Required
+    *                        together with {@code idColumn}/{@code labelColumn}; refused alongside
+    *                        a non-empty {@code columns}. Unlike {@code measure}, this is a literal
+    *                        column name only — {@code "$(ComponentName)"} is refused (#76768; see
+    *                        {@code resolveIdModeColumnRef}'s doc for why it cannot work here).
+    * @param idColumn  selection tree only — the column holding each row's own unique key. See
+    *                  {@code parentIdColumn}.
+    * @param labelColumn  selection tree only — the column holding each row's displayed label. See
+    *                     {@code parentIdColumn}.
     * @param force    discards an existing binding to a different table, the way
     *                 {@code set_table_source}'s {@code force} does.
     */
    public Map<String, Object> setSource(String sessionToken, Principal user, String assemblyName,
                                         String table, List<String> columns,
                                         List<String> additionalTables, String measure,
-                                        boolean force, String linkUri) throws Exception
+                                        String parentIdColumn, String idColumn,
+                                        String labelColumn, boolean force, String linkUri)
+      throws Exception
    {
       if(table == null || table.isBlank()) {
          throw new IllegalArgumentException(
@@ -93,11 +112,29 @@ public class SelectionBindingService {
             "list_bindable_fields reports what this assembly can bind to.");
       }
 
-      if(columns == null || columns.isEmpty()) {
+      boolean idMode = requireIdModeAllOrNothing(parentIdColumn, idColumn, labelColumn);
+
+      if(idMode && columns != null && !columns.isEmpty()) {
          throw new IllegalArgumentException(
-            "set_selection_source requires at least one column in 'columns'.");
+            "set_selection_source's 'columns' cannot be combined with 'parentIdColumn'/" +
+            "'idColumn'/'labelColumn' — pick one hierarchy shape per call.");
       }
 
+      if(!idMode && (columns == null || columns.isEmpty())) {
+         throw new IllegalArgumentException(
+            "set_selection_source requires at least one column in 'columns', or " +
+            "'parentIdColumn'/'idColumn'/'labelColumn' for a selection tree's ID-hierarchy mode.");
+      }
+
+      if(idMode) {
+         // Validated up front, before touching any session state -- see resolveIdModeColumnRef's
+         // doc for why a dynamic reference cannot work for these three fields, unlike `measure`.
+         refuseIfDynamic("parentIdColumn", parentIdColumn);
+         refuseIfDynamic("idColumn", idColumn);
+         refuseIfDynamic("labelColumn", labelColumn);
+      }
+
+      List<String> columnsOrEmpty = columns == null ? List.of() : columns;
       List<String> additional = additionalTables == null ? List.of() : additionalTables;
       Map<String, Object> result = new LinkedHashMap<>();
 
@@ -112,7 +149,7 @@ public class SelectionBindingService {
          List<BindableTable> tables = fieldsService.list(runtimeId, null, user);
          String resolvedTable = resolveTable(tables, assemblyName, table);
          List<BindableField> resolvedColumns =
-            resolveColumns(tables, assemblyName, resolvedTable, columns);
+            resolveColumns(tables, assemblyName, resolvedTable, columnsOrEmpty);
          List<String> resolvedAdditional = resolveAdditionalTables(tables, assemblyName, additional);
 
          if(assembly instanceof SelectionListVSAssembly) {
@@ -134,21 +171,49 @@ public class SelectionBindingService {
             result.put("bound", "single");
          }
          else if(assembly instanceof SelectionTreeVSAssembly) {
-            requireArity(assemblyName, "a selection tree", resolvedColumns, 1, null);
             SelectionTreePropertyDialogModel model =
                selectionTreeService.getSelectionTreePropertyModel(runtimeId, assemblyName, user);
             SelectionTreePaneModel pane = model.getSelectionTreePaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
             pane.setAdditionalTables(resolvedAdditional);
-            // Hierarchy levels, not the id/parent-id/label mode — the shape set_selection_source
-            // exposes is an ordered column list, matching TimeSlider's own SingleTimeInfo/
-            // CompositeTimeInfo choice below rather than the ID-hierarchy alternative.
-            pane.setMode(SelectionTreeVSAssemblyInfo.COLUMN);
-            pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
-            selectionTreeService.setSelectionTreePropertyModel(
-               runtimeId, assemblyName, model, linkUri, user, dispatcher);
-            result.put("levels", resolvedColumns.size());
+
+            if(idMode) {
+               // #76768: an arbitrary-depth tree from one flat, self-referencing table, distinct
+               // from the fixed-hierarchy-levels COLUMN mode below. Literal columns only --
+               // unlike `measure`, a "$(ComponentName)" value here cannot work: refuseIfDynamic
+               // rejects it up front. See that method's own doc for why.
+               OutputColumnRefModel parentIdRef = resolveIdModeColumnRef(
+                  tables, assemblyName, resolvedTable, "parentIdColumn", parentIdColumn);
+               OutputColumnRefModel idRef = resolveIdModeColumnRef(
+                  tables, assemblyName, resolvedTable, "idColumn", idColumn);
+               OutputColumnRefModel labelRef = resolveIdModeColumnRef(
+                  tables, assemblyName, resolvedTable, "labelColumn", labelColumn);
+
+               pane.setMode(SelectionTreeVSAssemblyInfo.ID);
+               pane.setParentId(parentIdColumn);
+               pane.setId(idColumn);
+               pane.setLabel(labelColumn);
+               pane.setParentIdRef(parentIdRef);
+               pane.setIdRef(idRef);
+               pane.setLabelRef(labelRef);
+               selectionTreeService.setSelectionTreePropertyModel(
+                  runtimeId, assemblyName, model, linkUri, user, dispatcher);
+               result.put("parentIdColumn", parentIdColumn);
+               result.put("idColumn", idColumn);
+               result.put("labelColumn", labelColumn);
+            }
+            else {
+               requireArity(assemblyName, "a selection tree", resolvedColumns, 1, null);
+               // Hierarchy levels, not the id/parent-id/label mode above — this shape is an
+               // ordered column list, matching TimeSlider's own SingleTimeInfo/CompositeTimeInfo
+               // choice below rather than the ID-hierarchy alternative.
+               pane.setMode(SelectionTreeVSAssemblyInfo.COLUMN);
+               pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
+               selectionTreeService.setSelectionTreePropertyModel(
+                  runtimeId, assemblyName, model, linkUri, user, dispatcher);
+               result.put("levels", resolvedColumns.size());
+            }
          }
          else if(assembly instanceof TimeSliderVSAssembly) {
             requireArity(assemblyName, "a range slider", resolvedColumns, 1, null);
@@ -205,6 +270,39 @@ public class SelectionBindingService {
       });
 
       return result;
+   }
+
+   /**
+    * Returns true (ID-hierarchy mode requested) only when all three of parentIdColumn/idColumn/
+    * labelColumn are non-blank; returns false when none are given. Throws, naming exactly which
+    * are present and which are missing, for a partial set — rather than silently falling back to
+    * column mode or guessing at the missing ones (#76768).
+    */
+   private static boolean requireIdModeAllOrNothing(String parentIdColumn, String idColumn,
+                                                     String labelColumn)
+   {
+      boolean parent = parentIdColumn != null && !parentIdColumn.isBlank();
+      boolean id = idColumn != null && !idColumn.isBlank();
+      boolean label = labelColumn != null && !labelColumn.isBlank();
+
+      if(!parent && !id && !label) {
+         return false;
+      }
+
+      if(parent && id && label) {
+         return true;
+      }
+
+      List<String> given = new ArrayList<>();
+      List<String> missing = new ArrayList<>();
+      if(parent) given.add("parentIdColumn"); else missing.add("parentIdColumn");
+      if(id) given.add("idColumn"); else missing.add("idColumn");
+      if(label) given.add("labelColumn"); else missing.add("labelColumn");
+
+      throw new IllegalArgumentException(
+         "set_selection_source's 'parentIdColumn', 'idColumn' and 'labelColumn' are required " +
+         "together — got " + String.join(", ", given) + " but not " + String.join(", ", missing) +
+         ".");
    }
 
    /**
@@ -373,6 +471,54 @@ public class SelectionBindingService {
       }
 
       return resolved;
+   }
+
+   /**
+    * Resolves one ID-hierarchy-mode column (parentIdColumn/idColumn/labelColumn) into the
+    * {@code OutputColumnRefModel} {@code SelectionTreePropertyDialogService.setAssemblyInfoDataRefs}
+    * needs to build the tree's {@code dataRefs}.
+    *
+    * <p>Unlike {@code measure}, this deliberately does NOT accept a {@code "$(ComponentName)"}
+    * dynamic reference (#76768's original ask, walked back after live-tracing the query path):
+    * {@code SelectionTreeVSAQuery2.refreshSelectionValue0} locates the id/parentId/label columns
+    * by matching {@code assembly.getDataRefs()[i].getName()} against the *resolved* value of
+    * {@code assembly.getID()}/{@code getParentID()}/{@code getLabel()} — and
+    * {@code setAssemblyInfoDataRefs}'s ID-mode branch only adds a ref to {@code dataRefs} for a
+    * literal column, never for a dynamic one (there is no real column to add). So a dynamic
+    * parentIdColumn/idColumn/labelColumn can never find a matching index at runtime: for
+    * {@code idColumn} specifically this means an immediate empty tree ({@code idIndex == -1}
+    * short-circuits {@code refreshSelectionValue0}); for {@code parentIdColumn}/{@code labelColumn}
+    * it silently drops the hierarchy/labels instead. This is structurally different from
+    * {@code measure}, whose dynamic value is resolved through a separate per-row aggregation path
+    * that never touches {@code dataRefs} at all — the two are not analogous despite the shape of
+    * the ask. See {@link #refuseIfDynamic}.
+    */
+   private static OutputColumnRefModel resolveIdModeColumnRef(List<BindableTable> tables,
+                                                               String assemblyName, String table,
+                                                               String fieldName, String value)
+   {
+      refuseIfDynamic(fieldName, value);
+
+      List<BindableField> resolved = resolveColumns(tables, assemblyName, table, List.of(value));
+      return columnRef(table, resolved.get(0));
+   }
+
+   /**
+    * Refuses a {@code "$(ComponentName)"}-shaped value for a field that cannot actually support
+    * one (#76768) — see {@link #resolveIdModeColumnRef}'s doc for why. Explicit and loud rather
+    * than silently forwarding a value that would render an empty or broken tree with no error
+    * anywhere in the chain.
+    */
+   private static void refuseIfDynamic(String fieldName, String value) {
+      if(value != null && value.trim().startsWith("$(")) {
+         throw new IllegalArgumentException(
+            "set_selection_source's '" + fieldName + "' does not accept a \"$(ComponentName)\" " +
+            "dynamic reference: StyleBI's selection-tree query engine matches ID-hierarchy " +
+            "columns by name against the resolved column list, not against a live runtime " +
+            "value, so a dynamic parentIdColumn/idColumn/labelColumn would silently render an " +
+            "empty or broken tree instead of the swap this would suggest. Use a literal column " +
+            "name, as reported by list_bindable_fields.");
+      }
    }
 
    private static OutputColumnRefModel[] columnRefs(String table, List<BindableField> fields) {
