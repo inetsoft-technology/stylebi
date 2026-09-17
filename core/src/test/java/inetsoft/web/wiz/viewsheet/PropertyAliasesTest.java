@@ -970,4 +970,37 @@ class PropertyAliasesTest {
       assertEquals("selectionContainerGeneralPaneModel.adhocEnabled",
                    PropertyAliases.resolve("selectioncontainer", "adhocEnabled"));
    }
+
+   /**
+    * The chart's target-lines pane has no scalar write path at all -- its entries are
+    * {@code TargetInfo} beans that {@code PropertyPath} cannot build -- so the raw dotted path,
+    * the only way in, is refused rather than left to fail with a generic coercion message. The
+    * refusal has to name the tools that do work, or a caller reads "not supported" and stops.
+    */
+   @Test
+   void theChartTargetLinesPaneIsRefusedForWriteAndNamesItsReplacement() {
+      for(String path : java.util.List.of(
+         "chartAdvancedPaneModel.chartTargetLinesPaneModel",
+         "chartAdvancedPaneModel.chartTargetLinesPaneModel.chartTargets",
+         "chartAdvancedPaneModel.chartTargetLinesPaneModel.newTargetInfo",
+         "chartAdvancedPaneModel.chartTargetLinesPaneModel.deletedIndexList",
+         "chartAdvancedPaneModel.chartTargetLinesPaneModel.supportsTarget",
+         "chartTargetLinesPaneModel.chartTargets"))
+      {
+         IllegalArgumentException thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> PropertyAliases.resolveForWrite("chart", path), path + " must be refused");
+         assertTrue(thrown.getMessage().contains("add_chart_target_line"),
+                    "the refusal must point at the tool that works: " + thrown.getMessage());
+      }
+   }
+
+   /** The refusal is chart-scoped, and must not swallow the plot-options pane beside it. */
+   @Test
+   void theTargetLinesRefusalDoesNotReachTheRestOfTheAdvancedPane() {
+      assertEquals("chartAdvancedPaneModel.chartPlotOptionsPaneModel.showReferenceLine",
+                   PropertyAliases.resolveForWrite("chart", "showReferenceLine"));
+      assertEquals("chartLinePaneModel.trendLineType",
+                   PropertyAliases.resolveForWrite("chart", "trendLineType"));
+   }
 }

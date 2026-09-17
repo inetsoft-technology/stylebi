@@ -103,6 +103,7 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyHyperlinkService hyperlinkService,
                                    ChartElementService chartElementService,
                                    ChartRegionPropertyService chartRegionService,
+                                   ChartTargetLineService chartTargetLineService,
                                    HierarchyDimensionService hierarchyDimensionService,
                                    AssemblyConditionService conditionService,
                                    AssemblyHighlightService highlightService,
@@ -142,6 +143,7 @@ public class ViewsheetAssemblyAgentController {
       this.hyperlinkService = hyperlinkService;
       this.chartElementService = chartElementService;
       this.chartRegionService = chartRegionService;
+      this.chartTargetLineService = chartTargetLineService;
       this.hierarchyDimensionService = hierarchyDimensionService;
       this.conditionService = conditionService;
       this.highlightService = highlightService;
@@ -1639,6 +1641,63 @@ public class ViewsheetAssemblyAgentController {
                                               request.index(), linkUri);
    }
 
+   public record TargetLineRequest(String assembly, String measure, String value, String label,
+                                   String lineStyle, String lineColor) {}
+
+   public record TargetLineDeleteRequest(String assembly, List<Integer> indexes) {}
+
+   /**
+    * {@code list_chart_target_lines}. The chart's target (goal) lines, with the index each one is
+    * removed by, and what this chart will accept.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines")
+   public Map<String, Object> listChartTargetLines(@PathVariable String sessionToken,
+                                                   @RequestParam String assembly,
+                                                   Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.list(sessionToken, user, assembly);
+   }
+
+   /**
+    * {@code add_chart_target_line}. Adds a fixed-value target line -- the Targets tab's "line"
+    * target, at a constant.
+    *
+    * <p>Not to be confused with the chart's trend line ({@code trendLineType} et al. through
+    * {@code set_assembly_properties}), which is a statistical fit through the data rather than a
+    * goal at a value the caller names.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines")
+   public Map<String, Object> addChartTargetLine(
+      @PathVariable String sessionToken,
+      @RequestBody TargetLineRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.add(sessionToken, user, request.assembly(), request.measure(),
+                                        request.value(), request.label(), request.lineStyle(),
+                                        request.lineColor(), linkUri);
+   }
+
+   /**
+    * {@code remove_chart_target_line}. Removes targets by the indexes
+    * {@code list_chart_target_lines} reports -- including band and statistics targets, which that
+    * listing reports as read-only but still addressable.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/chart/target-lines/delete")
+   public Map<String, Object> removeChartTargetLine(
+      @PathVariable String sessionToken,
+      @RequestBody TargetLineDeleteRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return chartTargetLineService.remove(sessionToken, user, request.assembly(),
+                                           request.indexes(), linkUri);
+   }
+
    /**
     * One clause in the flat condition vocabulary. {@code junction} joins it to the NEXT clause,
     * so the last clause must not carry one — {@link ConditionVocabulary} enforces that.
@@ -2844,6 +2903,7 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyHyperlinkService hyperlinkService;
    private final ChartElementService chartElementService;
    private final ChartRegionPropertyService chartRegionService;
+   private final ChartTargetLineService chartTargetLineService;
    private final HierarchyDimensionService hierarchyDimensionService;
    private final AssemblyConditionService conditionService;
    private final AssemblyHighlightService highlightService;
