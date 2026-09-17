@@ -202,7 +202,10 @@ export interface CreateComponentOpts {
 export function createComponent(opts: CreateComponentOpts = {}) {
    const chartService = { clearCanvas: vi.fn(), drawRectangle: vi.fn() };
    const changeRef = { detectChanges: vi.fn() };
-   const zone = { run: vi.fn((fn: Function) => fn()) };
+   const zone = {
+      run: vi.fn((fn: Function) => fn()),
+      runOutsideAngular: vi.fn((fn: Function) => fn()),
+   };
    const debounceService = {
       debounce: vi.fn((_key: string, fn: Function) => fn()),
       cancel: vi.fn(),
