@@ -676,6 +676,79 @@ class SheetOpenServiceTest {
       verify(viewsheetService).openTemporaryWorksheet(any(Principal.class), isNull());
    }
 
+   /**
+    * The bug this whole fix is for (Redmine #76636, reopened): {@code createWorksheet} used to
+    * open the new runtime as the raw agent principal instead of the acting session's browser
+    * principal, unlike its siblings {@code openBaseWorksheet} and {@code createViewsheet} -- so
+    * the browser's later attach (directly, or via a {@code create_viewsheet} built from this
+    * worksheet) died on "Invalid user found". Before this fix, the only assertion touching this
+    * argument used a loose {@code any(Principal.class)} matcher that could not tell the two
+    * principals apart; this test can, by stubbing them as distinct objects (see
+    * {@code createWorksheetService}'s own {@code browserPrincipal} stub) and asserting on the
+    * captured value's name.
+    */
+   @Test
+   void createWorksheetOpensTheRuntimeAsTheActingSessionsBrowserPrincipalNotTheAgents()
+      throws Exception
+   {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+
+      service.createWorksheet("tok-acting", principal());
+
+      ArgumentCaptor<Principal> openedAs = ArgumentCaptor.forClass(Principal.class);
+      verify(viewsheetService).openTemporaryWorksheet(openedAs.capture(), isNull());
+      assertEquals("browser-" + PRINCIPAL_NAME, openedAs.getValue().getName());
+      assertNotEquals(PRINCIPAL_NAME, openedAs.getValue().getName());
+   }
+
+   /**
+    * The acting session (a JoinSession, its own 30-minute-TTL store) can outlive its own
+    * underlying runtime, which has an independent cache lifecycle -- so getSheetForPairing can
+    * throw SESSION_EXPIRED even though nothing is wrong with the request itself. Unlike
+    * createViewsheet, createWorksheet has no dataSource to default from the acting runtime -- the
+    * new worksheet is always blank -- so actingSheet is used here ONLY to resolve the browser
+    * principal, never for content. There is no "genuinely needs it" branch to fail loud on here:
+    * fall back to the agent's own principal and proceed, exactly like createViewsheet's own
+    * explicit-dataSource case.
+    */
+   @Test
+   void createWorksheetToleratesExpiredActingRuntimeAndFallsBackToTheAgentPrincipal()
+      throws Exception
+   {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+      Principal agent = principal();
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                            any(Principal.class)))
+         .thenThrow(new inetsoft.web.wiz.pairing.PairingException(
+            inetsoft.web.wiz.pairing.PairingException.Kind.SESSION_EXPIRED,
+            "Worksheet runtime not found or expired: acting-runtime-1"));
+
+      JoinSession created = service.createWorksheet("tok-acting", agent);
+
+      assertEquals(SheetType.WORKSHEET, created.sheetType());
+      verify(viewsheetService).openTemporaryWorksheet(same(agent), isNull());
+   }
+
+   /**
+    * Only SESSION_EXPIRED is tolerated -- every other PairingException kind (bad argument, user
+    * mismatch, feature disabled, rate limited, internal error) names a real problem with the
+    * request itself, not a benignly-stale runtime cache, and must still fail loud.
+    */
+   @Test
+   void createWorksheetPropagatesANonSessionExpiredPairingException() throws Exception {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                            any(Principal.class)))
+         .thenThrow(new inetsoft.web.wiz.pairing.PairingException(
+            inetsoft.web.wiz.pairing.PairingException.Kind.USER_MISMATCH,
+            "Pairing code belongs to a different user"));
+
+      assertThrows(inetsoft.web.wiz.pairing.PairingException.class,
+         () -> service.createWorksheet("tok-acting", principal()));
+
+      verify(viewsheetService, never()).openTemporaryWorksheet(any(Principal.class), any());
+   }
+
    @Test
    void theNewWorksheetSessionCarriesTheActingSessionsSocketIdentifiers() throws Exception {
       SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
@@ -860,6 +933,19 @@ class SheetOpenServiceTest {
             .thenReturn(newWsSession);
 
          runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
+
+         // createWorksheet fetches the acting session's own RuntimeSheet to open the new runtime
+         // as the BROWSER's principal rather than the agent's (see SheetOpenService's own
+         // comment) -- stubbed for every actingType, mirroring createViewsheetService's own
+         // unconditional stub, since createWorksheet has no dataSource-defaulting special case
+         // that would ever leave this unresolved.
+         Principal browserPrincipal = () -> "browser-" + PRINCIPAL_NAME;
+         inetsoft.report.composition.RuntimeSheet actingSheet =
+            mock(inetsoft.report.composition.RuntimeSheet.class);
+         when(actingSheet.getUser()).thenReturn(browserPrincipal);
+         when(runtimeAccess.getSheetForPairing(eq(actingType), eq("acting-runtime-1"),
+                                               any(Principal.class)))
+            .thenReturn(actingSheet);
 
          viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
          when(viewsheetService.openTemporaryWorksheet(any(Principal.class), isNull()))

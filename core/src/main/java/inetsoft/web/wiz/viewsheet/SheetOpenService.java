@@ -413,7 +413,34 @@ public class SheetOpenService {
             "You do not have permission to create a Data Worksheet in Visual Composer.");
       }
 
-      String runtimeId = viewsheetService.openTemporaryWorksheet(user, null);
+      // Same reason as createViewsheet's actingSheet/browserUser resolution (see its own
+      // comment): the new runtime must be opened as the BROWSER's principal, not the agent's,
+      // or the browser's own later attach to it dies on "Invalid user found" -- two principals
+      // for the same user differing only by session.
+      RuntimeSheet actingSheet;
+
+      try {
+         actingSheet = runtimeAccess.getSheetForPairing(
+            actingSession.sheetType(), actingSession.runtimeId(), user);
+      }
+      catch(PairingException e) {
+         // Unlike createViewsheet, this method has no dataSource to default from the acting
+         // runtime -- the new worksheet is always blank -- so actingSheet is used here ONLY to
+         // resolve the browser principal, never for content. That is exactly the case
+         // createViewsheet's own comment tolerates unconditionally (an explicit dataSource never
+         // depended on the acting runtime before it started fetching it just for the principal),
+         // so there is no "genuinely needs it" branch here to fail loud on: a still-valid
+         // JoinSession whose underlying runtime cache already expired must not block minting a
+         // brand-new, unrelated worksheet. Fall back to the agent's own principal and proceed.
+         if(e.getKind() != PairingException.Kind.SESSION_EXPIRED) {
+            throw e;
+         }
+
+         actingSheet = null;
+      }
+
+      Principal browserUser = actingSheet == null ? user : actingSheet.getUser();
+      String runtimeId = viewsheetService.openTemporaryWorksheet(browserUser, null);
 
       // Bug #76738: openTemporaryWorksheet(user, null) does NOT leave the runtime entry-less --
       // WorksheetEngine.openTemporaryWorksheet falls back to
