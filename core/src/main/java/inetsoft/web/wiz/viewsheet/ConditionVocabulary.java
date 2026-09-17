@@ -134,6 +134,7 @@ public final class ConditionVocabulary {
             clause.put("equal", condition.isEqual());
             clause.put("level", condition.getLevel());
             clause.put("junction", junctionAfter(conditionList, i));
+            clause.put("junctionLevel", junctionLevelAfter(conditionList, i));
             out.add(clause);
          }
       }
@@ -448,6 +449,21 @@ public final class ConditionVocabulary {
          conditionList[index + 1] instanceof JunctionOperatorModel junction)
       {
          return junction.getType() == JunctionOperator.OR ? "or" : "and";
+      }
+
+      return null;
+   }
+
+   /**
+    * The joining junction's own level, so a caller reading {@code get_condition}'s output and
+    * replaying it unchanged into {@code set_condition} doesn't silently lose an explicit
+    * {@code junctionLevel} back to the default-inference formula.
+    */
+   private static Integer junctionLevelAfter(Object[] conditionList, int index) {
+      if(index + 1 < conditionList.length &&
+         conditionList[index + 1] instanceof JunctionOperatorModel junction)
+      {
+         return junction.getLevel();
       }
 
       return null;

@@ -595,6 +595,51 @@ class ConditionVocabularyTest {
                    "replaying get_condition's own output must not flatten the nesting level");
    }
 
+   /**
+    * The same destructive round trip as above, but for an explicit {@code junctionLevel} on a
+    * two-independent-groups joining junction: {@code describe()} must surface the junction's own
+    * level (not just its type), or replaying get_condition's own output into set_condition falls
+    * onto the default Math.min formula and silently reintroduces the flat/misgroup bug this PR
+    * exists to fix.
+    */
+   @Test
+   void anExplicitJunctionLevelSurvivesAGetConditionThenSetConditionRoundTrip() {
+      ConditionVocabulary.Clause a = new ConditionVocabulary.Clause(
+         "Region", "equals", List.of("a"), "or", false, false, 1, null);
+      ConditionVocabulary.Clause b = new ConditionVocabulary.Clause(
+         "Revenue", "equals", List.of("b"), "and", false, false, 1, 0);
+      ConditionVocabulary.Clause c = new ConditionVocabulary.Clause(
+         "OrderDate", "equals", List.of("c"), "or", false, false, 1, null);
+      ConditionVocabulary.Clause d = new ConditionVocabulary.Clause(
+         "Region", "equals", List.of("d"), null, false, false, 1, null);
+
+      Object[] originalList = ConditionVocabulary.toConditionList(List.of(a, b, c, d), FIELDS);
+      List<Map<String, Object>> described = ConditionVocabulary.describe(originalList);
+
+      assertEquals(0, described.get(1).get("junctionLevel"),
+                   "get_condition must surface the joining 'and's explicit junctionLevel, "
+                   + "not just its type");
+
+      List<ConditionVocabulary.Clause> replayed = new ArrayList<>();
+
+      for(Map<String, Object> described_clause : described) {
+         @SuppressWarnings("unchecked")
+         List<Object> values = (List<Object>) described_clause.get("values");
+         replayed.add(new ConditionVocabulary.Clause(
+            (String) described_clause.get("field"), (String) described_clause.get("operator"),
+            values, (String) described_clause.get("junction"),
+            (boolean) described_clause.get("negated"), (boolean) described_clause.get("equal"),
+            (int) described_clause.get("level"),
+            (Integer) described_clause.get("junctionLevel")));
+      }
+
+      Object[] replayedList = ConditionVocabulary.toConditionList(replayed, FIELDS);
+
+      assertEquals(0, ((JunctionOperatorModel) replayedList[3]).getLevel(),
+                   "replaying get_condition's own output must not flatten the joining 'and's "
+                   + "level back to the default-inferred value");
+   }
+
    // ── L8 parity finding 5: typed condition values ─────────────────────────────
 
    @Test
