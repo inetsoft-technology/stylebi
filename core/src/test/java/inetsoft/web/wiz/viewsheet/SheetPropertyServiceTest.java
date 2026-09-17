@@ -22,6 +22,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.composer.model.vs.ConvertToWorksheetResponseModel;
 import inetsoft.web.composer.model.vs.SelectDataSourceDialogModel;
+import inetsoft.web.composer.model.vs.ViewsheetParametersDialogModel;
 import inetsoft.web.composer.model.vs.ViewsheetPropertyDialogModel;
 import inetsoft.web.composer.model.vs.VSOptionsPaneModel;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
@@ -203,6 +204,129 @@ class SheetPropertyServiceTest {
       assertArrayEquals(new String[] {"Quarter"},
          captor.getValue().vsOptionsPane().getViewsheetParametersDialogModel()
             .getDisabledParameters());
+   }
+
+   // ── enabledParameters/disabledParameters mutual exclusivity ────────────────
+
+   /**
+    * Redmine #76739 follow-up, found live 2026-09-17: patching only disabledParameters left the
+    * moved name listed in BOTH arrays on the next read, since enabledParameters (untouched by
+    * this patch) still carried it from the pre-patch read. The Composer's own "Customize" dialog
+    * can never produce this -- it always submits both columns as one already-partitioned pair.
+    * The untouched side must be pruned of whatever the touched side just claimed.
+    */
+   @Test
+   void disablingAParameterRemovesItFromEnabledEvenWhenEnabledIsNotInThePatch() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model =
+         modelWithKnownParameters(List.of("MinPopulation"), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.set("tok", principal(), Map.of("disabledParameters", List.of("MinPopulation")), "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                      anyString(), any());
+      ViewsheetParametersDialogModel written =
+         captor.getValue().vsOptionsPane().getViewsheetParametersDialogModel();
+      assertArrayEquals(new String[] {"MinPopulation"}, written.getDisabledParameters());
+      assertArrayEquals(new String[0], written.getEnabledParameters(),
+         "the parameter just disabled must not remain in enabledParameters too");
+   }
+
+   /** Same gap, the other direction -- re-enabling a parameter must remove it from
+    *  disabledParameters even when disabledParameters is not in the patch. */
+   @Test
+   void enablingAParameterRemovesItFromDisabledEvenWhenDisabledIsNotInThePatch() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model =
+         modelWithKnownParameters(List.of(), List.of("MinPopulation"));
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.set("tok", principal(), Map.of("enabledParameters", List.of("MinPopulation")), "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                      anyString(), any());
+      ViewsheetParametersDialogModel written =
+         captor.getValue().vsOptionsPane().getViewsheetParametersDialogModel();
+      assertArrayEquals(new String[] {"MinPopulation"}, written.getEnabledParameters());
+      assertArrayEquals(new String[0], written.getDisabledParameters(),
+         "the parameter just enabled must not remain in disabledParameters too");
+   }
+
+   /** A patch naming other, unrelated parameters must not have its untouched entries pruned --
+    *  only the actual overlap is removed. */
+   @Test
+   void reconciliationOnlyPrunesTheOverlapNotUnrelatedEntries() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model =
+         modelWithKnownParameters(List.of("A", "B"), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.set("tok", principal(), Map.of("disabledParameters", List.of("A")), "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                      anyString(), any());
+      ViewsheetParametersDialogModel written =
+         captor.getValue().vsOptionsPane().getViewsheetParametersDialogModel();
+      assertArrayEquals(new String[] {"A"}, written.getDisabledParameters());
+      assertArrayEquals(new String[] {"B"}, written.getEnabledParameters(),
+         "B was never mentioned and was not part of the overlap -- it must stay enabled");
+   }
+
+   /** Supplying both lists explicitly, still overlapping, is a self-contradictory patch --
+    *  refused rather than resolved one way or the other. */
+   @Test
+   void refusesAPatchThatExplicitlyPutsTheSameNameInBothLists() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model =
+         modelWithKnownParameters(List.of("MinPopulation"), List.of());
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Exception thrown = assertThrows(Exception.class, () -> service.set("tok", principal(),
+         Map.of("enabledParameters", List.of("MinPopulation"),
+                "disabledParameters", List.of("MinPopulation")), ""));
+
+      assertTrue(thrown.getMessage().contains("MinPopulation"));
+      verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(), any(), anyString(),
+                                               any());
+   }
+
+   /** Supplying both lists explicitly with no overlap is exactly the dialog's own submission
+    *  shape and must pass through unchanged. */
+   @Test
+   void bothListsSuppliedTogetherWithNoOverlapPassThroughUnchanged() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      ViewsheetPropertyDialogModel model =
+         modelWithKnownParameters(List.of("A"), List.of("B"));
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(model);
+
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      service.set("tok", principal(), Map.of(
+         "enabledParameters", List.of("B"), "disabledParameters", List.of("A")), "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                      anyString(), any());
+      ViewsheetParametersDialogModel written =
+         captor.getValue().vsOptionsPane().getViewsheetParametersDialogModel();
+      assertArrayEquals(new String[] {"B"}, written.getEnabledParameters());
+      assertArrayEquals(new String[] {"A"}, written.getDisabledParameters());
    }
 
    /**
