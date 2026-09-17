@@ -80,18 +80,19 @@ class ScriptEditServiceTest {
    }
 
    /**
-    * Same defect as {@code ViewsheetSessionServiceTest}'s
-    * {@code mutateOverwritesAStaleSocketSessionIdWithTheCurrentSessionsValue} -- see that test's
-    * doc comment. A runtime whose browser socket reconnected keeps a stale-but-non-null
-    * socketSessionId; the fix takes the current session's value unconditionally rather than
-    * only filling a null field.
+    * Same regression as {@code ViewsheetSessionServiceTest}'s
+    * {@code mutateNeverOvewritesTheRuntimesCurrentSocketSessionIdWithThisSessionsOwnFrozenValue}
+    * -- see that test's doc comment. Must NOT reapply this session's own pairing-mint-frozen
+    * socketSessionId over whatever the runtime's field currently holds (possibly healed since
+    * by a human's manual Refresh), or it would silently undo that recovery on every subsequent
+    * agent call.
     */
    @Test
-   void applyOnRuntimeIfChangedOverwritesAStaleSocketSessionIdWithTheCurrentSessionsValue()
+   void applyOnRuntimeIfChangedNeverOverwritesTheRuntimesCurrentSocketSessionId()
       throws Exception
    {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
-      when(rvs.getSocketSessionId()).thenReturn("stale-dead-socket");
+      when(rvs.getSocketSessionId()).thenReturn("human-healed-live-socket");
       when(rvs.getSocketUserName()).thenReturn("alice");
       SheetSessionService sessions = mock(SheetSessionService.class);
       SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
@@ -101,7 +102,7 @@ class ScriptEditServiceTest {
       JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
                                       SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
                                       JoinSession.ConnectionMode.PAIRED,
-                                      "fresh-live-socket", "alice", null);
+                                      "stale-frozen-at-mint", "alice", null);
       when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
       when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
          .thenReturn(rvs);
@@ -109,7 +110,7 @@ class ScriptEditServiceTest {
       ScriptEditService svc = new ScriptEditService(sessions, runtimeAccess, broadcast);
       svc.applyOnRuntimeIfChanged("TOK", agent, r -> "executed", r -> true);
 
-      verify(rvs).setSocketSessionId("fresh-live-socket");
+      verify(rvs, never()).setSocketSessionId(any());
    }
 
    /**

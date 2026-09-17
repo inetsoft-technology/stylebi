@@ -367,17 +367,19 @@ public class WorksheetEditService {
       TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS;
 
    /**
-    * Always takes {@code session}'s value over whatever the runtime already has -- see
-    * {@code ViewsheetSessionService.applySocketSession}'s doc comment for why a fill-only-if-null
-    * guard here lets a runtime's socket session go permanently stale after the browser's
-    * WebSocket reconnects, silently breaking every future agent-driven broadcast to it.
+    * Fills a null socket session only -- deliberately not unconditional. See
+    * {@code ViewsheetSessionService.applySocketSession}'s doc comment: {@code SheetJoinService
+    * .join} is the one place that may apply a grant's socket values unconditionally, exactly
+    * once per pairing, because that is the one moment they are provably fresh. Reapplying this
+    * session's own frozen value on every later call would silently undo a human's own later
+    * recovery (a manual Refresh unconditionally re-stamps the runtime from a live dispatcher).
     */
    private void applySocketSession(RuntimeWorksheet rws, JoinSession session) {
-      if(session.socketSessionId() != null) {
+      if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {
          rws.setSocketSessionId(session.socketSessionId());
       }
 
-      if(session.socketUserName() != null) {
+      if(rws.getSocketUserName() == null && session.socketUserName() != null) {
          rws.setSocketUserName(session.socketUserName());
       }
    }

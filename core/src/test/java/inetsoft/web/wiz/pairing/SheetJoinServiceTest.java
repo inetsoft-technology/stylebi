@@ -514,6 +514,62 @@ class SheetJoinServiceTest {
    }
 
    // ---------------------------------------------------------------------------
+   // joinStampsTheRuntimesSocketSessionUnconditionallyFromTheFreshGrant
+   //
+   // Review finding on the socket-session-staleness fix: a runtime's socketSessionId can go
+   // stale independently (the browser's WebSocket reconnects with nothing telling the runtime
+   // its old id died). Re-pairing with a fresh code is supposed to fix that, because the fresh
+   // grant's socketSessionId was captured moments ago from a live STOMP mint request -- provably
+   // newer than whatever the runtime is currently holding. This can ONLY be true exactly once,
+   // right here at join time: applySocketSession (ViewsheetSessionService/WorksheetEditService/
+   // ScriptEditService), which runs on every SUBSEQUENT call under this same JoinSession, must
+   // stay fill-only-if-null (its own regression test elsewhere proves that), since
+   // JoinSession.socketSessionId() never changes after this point. So join() is the one place
+   // allowed -- and required -- to overwrite an already-non-null runtime socket unconditionally.
+   // ---------------------------------------------------------------------------
+   @Test
+   void joinStampsTheRuntimesSocketSessionUnconditionallyFromTheFreshGrant() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      // Deliberately unstubbed getSocketSessionId (defaults to null): the fix overwrites
+      // unconditionally without reading the runtime's existing value first, so a stub here would
+      // be unread and flagged as unnecessary by strict stubbing. The runtime's PRE-join value is
+      // exercised live (a genuinely stale, non-null one) rather than through a mock here.
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.WORKSHEET, "Worksheet/foo-20"))
+         .thenReturn(rws);
+      String code = pairing.mint("Worksheet/foo-20", ALICE_KEY, "fresh-live-socket", "alice-dest",
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      svc.join(code, alice);
+
+      verify(rws).setSocketSessionId("fresh-live-socket");
+      verify(rws).setSocketUserName("alice-dest");
+   }
+
+   // ---------------------------------------------------------------------------
+   // joinDoesNotStampWhenTheRuntimeIsNotFound
+   //
+   // The join-time stamp above must degrade the same tolerant way resolveSheetLabel and the
+   // step-3b ownership check already do -- getRuntimeSheetDirect returning null (runtime not on
+   // this node) must never NPE, just skip the stamp. sheetLabelIsNullWhenRuntimeIsNotFound
+   // already proves join() as a whole survives this; this test asserts the specific new code
+   // path directly, on a mock that would fail loudly (UnnecessaryStubbing/NPE) if the null guard
+   // were missing.
+   // ---------------------------------------------------------------------------
+   @Test
+   void joinDoesNotStampWhenTheRuntimeIsNotFound() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      when(runtimeAccess.getRuntimeSheetDirect(SheetType.WORKSHEET, "Worksheet/foo-21"))
+         .thenReturn(null);
+      String code = pairing.mint("Worksheet/foo-21", ALICE_KEY, "fresh-live-socket", "alice-dest",
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      assertDoesNotThrow(() -> svc.join(code, alice));
+   }
+
+   // ---------------------------------------------------------------------------
    // sheetLabelIsNullWhenRuntimeIsNotFound
    //
    // getRuntimeSheetDirect returning null (runtime not in this node's cache) must degrade the
