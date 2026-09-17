@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
  * Community has no organization-switching concept, so every method here operates on the caller's
  * current organization -- there is no {@code organizationid} parameter.
  */
-@Service
+@Service("adminDataSourceService")
 public class DataSourceService {
    @Autowired
    public DataSourceService(XRepository repository, SecurityEngine securityEngine,
