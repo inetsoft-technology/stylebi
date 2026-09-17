@@ -22,6 +22,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.RelationChartInfo;
@@ -282,9 +283,10 @@ public class ScriptImageService {
       BufferedImage full = decodePng(pngBytes, "the viewsheet");
       BufferedImage scaled = scaleToFit(full, w, h);
       byte[] encoded = encodePng(scaled, "the viewsheet");
+      Viewsheet vs = rvs.getViewsheet();
+      String note = joinNotes(dropdownSelectionListNote(vs), submitAssemblyNote(vs));
 
-      return new ChartImage(encoded, true, scaled.getWidth(), scaled.getHeight(),
-         dropdownSelectionListNote(rvs.getViewsheet()));
+      return new ChartImage(encoded, true, scaled.getWidth(), scaled.getHeight(), note);
    }
 
    /**
@@ -328,6 +330,56 @@ public class ScriptImageService {
          "export pipeline (SVG/PNG/HTML/PDF) doesn't draw dropdown chrome for any format. The " +
          "interactive Composer/Viewer renders " + (plural ? "them" : "it") + " correctly, " +
          "including the arrow, border, and selected value; only this static image is affected.";
+   }
+
+   /**
+    * Every export format's {@code writeSubmit} override (SVG/PNG, PDF, PowerPoint, Excel, HTML,
+    * CSV) is a deliberate no-op — a Submit assembly is a pure interactive action-trigger with no
+    * static appearance, so it reserves its footprint but draws nothing there, in every format,
+    * including StyleBI's own Export toolbar button. Note the gap rather than let an empty area
+    * pass as a plausible result (see {@link #dropdownSelectionListNote} for the same pattern).
+    */
+   private static String submitAssemblyNote(Viewsheet vs) {
+      if(vs == null) {
+         return null;
+      }
+
+      StringBuilder names = new StringBuilder();
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(assembly instanceof SubmitVSAssembly submit && submit.isVisible()) {
+            if(names.length() > 0) {
+               names.append(", ");
+            }
+
+            names.append('"').append(submit.getAbsoluteName()).append('"');
+         }
+      }
+
+      if(names.length() == 0) {
+         return null;
+      }
+
+      boolean plural = names.indexOf(",") >= 0;
+
+      return names + (plural ? " are Submit assemblies" : " is a Submit assembly") +
+         " that will render as an empty area in this export — StyleBI's export pipeline " +
+         "(SVG/PNG/Excel/PowerPoint/PDF/HTML/CSV) never draws Submit assemblies in any format. " +
+         "This isn't specific to this tool; StyleBI's own Export toolbar button has the same " +
+         "behavior.";
+   }
+
+   /** Joins two possibly-null notes with a space, so neither overwrites the other. */
+   private static String joinNotes(String a, String b) {
+      if(a == null) {
+         return b;
+      }
+
+      if(b == null) {
+         return a;
+      }
+
+      return a + " " + b;
    }
 
    /**

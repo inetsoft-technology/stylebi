@@ -137,6 +137,152 @@ public class RecycleBinService {
       return registry.isFolder(entry.getOriginalPath());
    }
 
+   /**
+    * Verifies that the recycled asset {@code entry} points at is still resolvable at its own trash
+    * path -- the source-side twin of {@link #wouldCollide}, mirroring the lookups {@code
+    * RecycleUtils.restoreSheet}/{@code restoreWSFolder} run internally ({@code getSheetEntry}/{@code
+    * getAssetEntry}/{@code getFolderAssetEntry}) and throw on, and the {@code RecycleUtils.getRegistry}
+    * load {@code restoreRepositoryFolder} opens with, exposed here so {@code
+    * RecycleBinChangesetApplyService} can run them BEFORE marking the item mutation-entered
+    * (bug #76672 follow-up: those lookups all fire strictly before their own method's first
+    * mutating call, so a throw from one leaves nothing changed).
+    *
+    * <p>Deliberately stops short of {@code RecycleUtils.validatePath}/{@code checkParentFolderExist}
+    * -- the next statements in those methods -- because both of those already MUTATE
+    * ({@code repository.addFolder}/{@code registry.addFolder}), so they cannot be part of a
+    * pre-mutation gate.
+    *
+    * @throws MissingResourceException if the recycled asset is no longer resolvable (e.g. it was
+    *         purged concurrently between preview and apply), matching the 404-shaped contract
+    *         {@link #requireEntry} already declares.
+    */
+   public void requireRestorableSource(RecycleBin.Entry entry, Principal user) throws Exception {
+      if(entry.isSheet()) {
+         // Mirrors RecycleUtils.restoreSheet's own trash-path derivation and getSheetEntry lookup.
+         String path = entry.getOriginalScope() == AssetRepository.USER_SCOPE ?
+            Tool.MY_DASHBOARD + "/" + entry.getPath() : entry.getPath();
+         boolean viewsheet = entry.getType() != RepositoryEntry.WORKSHEET;
+         AssetEntry.Type type = viewsheet ? AssetEntry.Type.VIEWSHEET : AssetEntry.Type.WORKSHEET;
+         AssetEntry source = lookupSheetSource(type, path, entry.getOriginalUser());
+
+         if(source == null && viewsheet) {
+            // getSheetEntry's own snapshot fallback, which is always global-scoped there even for a
+            // My Dashboards path.
+            source = lookup(AssetEntry.Type.VIEWSHEET_SNAPSHOT, path, null, false);
+         }
+
+         if(source != null) {
+            // restoreSheet immediately re-reads the entry a second time, now under the type the
+            // first lookup resolved, and throws again on null (RecycleUtils lines 257-267). That
+            // second miss is just as pre-mutation as the first -- most visibly for a My Dashboards
+            // dashboard that only resolved through the global snapshot fallback above, whose
+            // user-scoped snapshot re-read comes back null.
+            source = lookupSheetSource(source.getType(), path, entry.getOriginalUser());
+         }
+
+         if(source == null) {
+            throw new MissingResourceException(
+               "path: the recycled asset at \"" + path + "\" owned by " + entry.getOriginalUser() +
+               " could not be found -- it may already have been purged since preview");
+         }
+
+         return;
+      }
+
+      if(entry.isWSFolder()) {
+         // Mirrors RecycleUtils.restoreWSFolder's two-step resolution: getAssetEntry(FOLDER, path)
+         // followed by the getFolderAssetEntry scan of the parent folder. Both dereference their
+         // result unchecked there (the latent NPEs at RecycleUtils lines 314/320), so both are
+         // pre-mutation failure points this gate has to cover.
+         String path = entry.getPath();
+         AssetEntry source = lookupWSFolderSource(path, entry.getOriginalUser());
+
+         if(source != null) {
+            source = findChildFolder(source, user);
+         }
+
+         if(source == null) {
+            throw new MissingResourceException(
+               "path: the recycled worksheet folder at \"" + path + "\" could not be found -- it " +
+               "may already have been purged since preview");
+         }
+
+         return;
+      }
+
+      // Repository (dashboard) folder: restoreRepositoryFolder opens with this same registry load,
+      // the only thing it does before checkParentFolderExist starts mutating -- the same gate
+      // applyPurge's own repository-folder branch already uses. Today wouldCollide happens to run
+      // the identical load a few lines earlier on the restore path, so this is belt-and-braces
+      // there; it is kept so this method's own contract holds for all three entry kinds rather
+      // than silently no-opping for one of them.
+      RecycleUtils.getRegistry(entry.getOriginalPath(), entry.getOriginalUser());
+   }
+
+   /**
+    * Mirrors {@code RecycleUtils.getSheetEntry}, which picks the user-scoped lookup off the PATH
+    * ({@code SUtil.isMyDashboard}) -- restoreSheet prepends the My Dashboards prefix itself when
+    * the entry was user-scoped, so the path alone carries that decision.
+    */
+   private AssetEntry lookupSheetSource(AssetEntry.Type type, String path, IdentityID owner)
+      throws Exception
+   {
+      return lookup(type, path, owner, path != null && SUtil.isMyDashboard(path));
+   }
+
+   /**
+    * Mirrors {@code RecycleUtils.restoreWSFolder}, which -- unlike the sheet path -- picks the
+    * user-scoped lookup off the OWNER alone ({@code getOriginalUser() != null}). A recycled
+    * worksheet folder's trash path is a bare {@code "Recycle Bin/<uuid>"} with no My Dashboards
+    * prefix (see {@code moveAssetFolderToRecycleBin}), so keying off the path here would refuse
+    * every user-scoped folder restore.
+    */
+   private AssetEntry lookupWSFolderSource(String path, IdentityID owner) throws Exception {
+      return lookup(AssetEntry.Type.FOLDER, path, owner, owner != null);
+   }
+
+   /** Mirrors {@code RecycleUtils.getAssetEntry}'s two overloads: the user-scoped one strips a My
+    * Dashboards prefix when the path carries one, the global one takes the path as-is. */
+   private AssetEntry lookup(AssetEntry.Type type, String path, IdentityID owner, boolean userScope)
+      throws Exception
+   {
+      if(path == null) {
+         return null;
+      }
+
+      AssetEntry candidate;
+
+      if(userScope) {
+         candidate = new AssetEntry(AssetRepository.USER_SCOPE, type,
+            SUtil.isMyDashboard(path) ? path.substring(Tool.MY_DASHBOARD.length() + 1) : path,
+            owner);
+      }
+      else {
+         candidate = new AssetEntry(AssetRepository.GLOBAL_SCOPE, type, path, null);
+      }
+
+      return assetRepository.getAssetEntry(candidate);
+   }
+
+   /** Mirrors {@code RecycleUtils.getFolderAssetEntry}: the folder as listed by its own parent. */
+   private AssetEntry findChildFolder(AssetEntry folder, Principal user) throws Exception {
+      AssetEntry parent = folder.getUser() == null ?
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER,
+                        folder.getParentPath(), null) :
+         new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.FOLDER, folder.getParentPath(),
+                        folder.getUser());
+      AssetEntry[] entries = assetRepository.getEntries(parent, user, ResourceAction.READ,
+         new AssetEntry.Selector(AssetEntry.Type.FOLDER));
+
+      for(AssetEntry child : entries) {
+         if(child.toIdentifier().equals(folder.toIdentifier())) {
+            return child;
+         }
+      }
+
+      return null;
+   }
+
    RecycleBinEntryProjection project(RecycleBin.Entry entry) {
       String scope = entry.getOriginalScope() == AssetRepository.USER_SCOPE ?
          RecycleBinEntryProjection.SCOPE_USER : RecycleBinEntryProjection.SCOPE_GLOBAL;

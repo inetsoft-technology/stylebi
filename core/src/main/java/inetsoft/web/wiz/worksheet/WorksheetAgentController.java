@@ -57,6 +57,7 @@ import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.DefaultMetaDataProvider;
+import inetsoft.uql.util.EmptyTableToEmbeddedException;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.util.filereader.CSVLoader;
@@ -3547,15 +3548,23 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          Assembly a = ws.getAssembly(req.table());
 
-         if(!(a instanceof BoundTableAssembly)) {
+         if(!(a instanceof TableAssembly)) {
             throw new PairingException("Not a bound table: " + req.table());
          }
 
          // replace=true keeps the same name; the returned assembly must be
          // explicitly added to replace the old bound table in the worksheet.
-         EmbeddedTableAssembly embedded = AssetEventUtil.convertEmbeddedTable(
-            rws.getAssetQuerySandbox(), (BoundTableAssembly) a,
-            true, false, false);
+         EmbeddedTableAssembly embedded;
+
+         try {
+            embedded = AssetEventUtil.convertEmbeddedTable(
+               rws.getAssetQuerySandbox(), (TableAssembly) a,
+               true, false, false);
+         }
+         catch(EmptyTableToEmbeddedException e) {
+            throw new PairingException(
+               "Could not convert '" + req.table() + "' — table has no data to convert.");
+         }
 
          if(embedded == null) {
             throw new PairingException(

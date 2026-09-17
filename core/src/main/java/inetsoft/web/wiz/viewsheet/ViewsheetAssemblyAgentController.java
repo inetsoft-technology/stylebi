@@ -1988,6 +1988,11 @@ public class ViewsheetAssemblyAgentController {
       // SheetAgentBroadcastService#broadcastBindingTreeRefresh's own javadoc for why.
       RuntimeViewsheet rvs = rvsHolder[0];
       broadcast.broadcastBindingTreeRefresh(rvs, rvs.getID(), user);
+
+      // Bug #76637: neither broadcast above ever writes VSPane's this.vs.baseEntry client-side --
+      // only a SetViewsheetInfoCommand does -- so the Composer's bottom status-bar worksheet-path
+      // chip stayed blank until a manual refresh. See broadcastViewsheetInfoRefresh's own javadoc.
+      broadcast.broadcastViewsheetInfoRefresh(rvs, rvs.getID(), user);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/undo")

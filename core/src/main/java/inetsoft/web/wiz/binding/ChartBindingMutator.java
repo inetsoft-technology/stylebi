@@ -20,6 +20,7 @@ package inetsoft.web.wiz.binding;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.BDimensionRefModel;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Read-modify-write over {@code ChartBindingModel}.
@@ -108,10 +110,19 @@ public final class ChartBindingMutator {
       requireColumnLimit(chartInfo, readShelf(model, name).size(), fields == null ? 0 : fields.size());
       requireNoMapDimensionOnXY(chartInfo, name, fields);
 
+      // Only x/y ever carry a per-measure chartType (multi-style) -- group's aggregates have
+      // none to lose, so this is skipped there rather than harmlessly doing nothing every call.
+      List<ChartRefModel> oldRefs = "x".equals(name) || "y".equals(name)
+         ? new ArrayList<>(readShelf(model, name)) : List.of();
+
       List<ChartRefModel> refs = new ArrayList<>();
 
       for(FieldRef field : fields == null ? List.<FieldRef>of() : fields) {
          refs.add(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
+      }
+
+      if(!oldRefs.isEmpty()) {
+         preserveChartTypes(oldRefs, refs);
       }
 
       switch(name) {
@@ -119,6 +130,84 @@ public final class ChartBindingMutator {
       case "y" -> model.setYFields(refs);
       default -> model.setGroupFields(refs);
       }
+   }
+
+   /**
+    * Carries each surviving measure's {@code chartType} across a shelf rewrite.
+    *
+    * <p>{@code toChartRef} never sets a {@code chartType} on the refs it builds --
+    * {@code requireNoInboundChartType} refuses one arriving on the incoming {@code FieldRef} by
+    * design, since {@code set_chart_type}'s own {@code field} argument is the only accepted way
+    * to write one. But that left every {@code set_chart_shelf} call silently resetting whatever a
+    * prior {@code set_chart_type} had stored -- including the ordinary case of adding one more
+    * field to an already-typed shelf, confirmed live to NOT happen via drag-and-drop in the native
+    * Composer UI, only through this write path. Bug #76689, VCS-005.
+    *
+    * <p>Matches by (column, aggregate) identity, and further by {@code secondaryY} when more than
+    * one surviving ref shares that identity (two measures can legitimately share a column and
+    * aggregate, differing only by which Y axis they render on -- {@code requireNoInboundChartType}'s
+    * own sibling ambiguity, VCS-014) -- a candidate consumed by one match is removed from
+    * consideration so it is never reused for a second match, meaning two old refs sharing an
+    * identity restore onto two different new refs (in bind order) rather than both restoring onto
+    * whichever is found first.
+    */
+   private static void preserveChartTypes(List<ChartRefModel> oldRefs, List<ChartRefModel> newRefs) {
+      List<ChartAggregateRefModel> survivors = new ArrayList<>();
+
+      for(ChartRefModel ref : oldRefs) {
+         if(ref instanceof ChartAggregateRefModel aggregate &&
+            aggregate.getChartType() != GraphTypes.CHART_AUTO)
+         {
+            survivors.add(aggregate);
+         }
+      }
+
+      if(survivors.isEmpty()) {
+         return;
+      }
+
+      for(ChartRefModel ref : newRefs) {
+         if(!(ref instanceof ChartAggregateRefModel newAggregate)) {
+            continue;
+         }
+
+         ChartAggregateRefModel matched = null;
+
+         // Prefer column+aggregate+secondaryY, so a same-identity pair (differing only by
+         // secondaryY) each restore onto their own match rather than either onto both.
+         for(ChartAggregateRefModel old : survivors) {
+            if(sameMeasure(old, newAggregate) && old.isSecondaryY() == newAggregate.isSecondaryY()) {
+               matched = old;
+               break;
+            }
+         }
+
+         if(matched == null) {
+            for(ChartAggregateRefModel old : survivors) {
+               if(sameMeasure(old, newAggregate)) {
+                  matched = old;
+                  break;
+               }
+            }
+         }
+
+         if(matched != null) {
+            newAggregate.setChartType(matched.getChartType());
+            survivors.remove(matched);
+         }
+      }
+   }
+
+   private static boolean sameMeasure(ChartAggregateRefModel a, ChartAggregateRefModel b) {
+      return equalsIgnoreCaseOrBothNull(a.getColumnValue(), b.getColumnValue()) &&
+             equalsIgnoreCaseOrBothNull(a.getFormula(), b.getFormula());
+   }
+
+   /** Case-insensitive like the rest of this class's column/measure-name matching (e.g.
+    *  {@code requireDimension}, {@code requireUnambiguousMeasure}) -- {@code Objects.equals}
+    *  alone would compare case-sensitively, an inconsistent convention within the same class. */
+   private static boolean equalsIgnoreCaseOrBothNull(String a, String b) {
+      return a == null ? b == null : a.equalsIgnoreCase(b);
    }
 
    /**
@@ -332,13 +421,106 @@ public final class ChartBindingMutator {
    public static void setSort(ChartBindingModel model, String shelf, String column,
                               Integer index, DimensionSortRanking.Sort sort)
    {
+      if(sort != null && sort.sortByField() != null && !sort.sortByField().isBlank()) {
+         requireUnambiguousMeasure(model, sort.sortByField(), "sortByField");
+      }
+
       DimensionSortRanking.applySort(requireDimension(model, shelf, column, index), sort);
    }
 
    public static void setRanking(ChartBindingModel model, String shelf, String column,
                                  Integer index, DimensionSortRanking.Ranking ranking)
    {
+      if(ranking != null && ranking.measure() != null && !ranking.measure().isBlank()) {
+         requireUnambiguousMeasure(model, ranking.measure(), "measure");
+      }
+
       DimensionSortRanking.applyRanking(requireDimension(model, shelf, column, index), ranking);
+   }
+
+   /**
+    * Refuses a {@code sortByField}/{@code measure} that names a bare column bound as a measure
+    * more than once across the chart's shelves under different aggregates -- e.g. both
+    * {@code Sum(Total)} and {@code Average(Total)} on {@code y}. Bug #76689, VCS-014: a bare name
+    * that matches 2+ bound measures used to silently resolve to whichever was bound first (via
+    * {@code BDimensionRefModel.setSortByCol}/{@code setRankingCol}, which stores the raw string
+    * with no resolution logic of its own downstream), with no error and no signal a different
+    * aggregate could have been meant. An already-qualified form (e.g. {@code "Sum(Total)"}) is
+    * ordinarily unambiguous and passes straight through, matching {@code get_binding}'s own
+    * {@code highlightField} vocabulary for a measure -- mirrors {@code requireDimension}'s
+    * same-shelf {@code index}-ambiguity discipline, extended across shelves and by aggregate
+    * identity instead of shelf position, since a measure (unlike a dimension) is never
+    * disambiguated by position. "Ordinarily", not always: the same column+aggregate can also be
+    * bound twice differing only by {@code secondaryY} (the collision {@code preserveChartTypes}
+    * already handles for VCS-005), in which case even the qualified form is genuinely ambiguous
+    * and is refused rather than silently accepted as if it named one binding.
+    */
+   private static void requireUnambiguousMeasure(ChartBindingModel model, String measure,
+                                                  String param)
+   {
+      List<String> qualifiedMatches = new ArrayList<>();
+      List<String> bareMatches = new ArrayList<>();
+
+      for(String shelf : SHELVES) {
+         for(ChartRefModel ref : readShelf(model, shelf)) {
+            if(!(ref instanceof ChartAggregateRefModel aggregate)) {
+               continue;
+            }
+
+            String column = aggregate.getColumnValue();
+            String formula = aggregate.getFormula();
+
+            if(column == null) {
+               continue;
+            }
+
+            String qualified = formula == null ? column : formula + "(" + column + ")";
+
+            if(qualified.equalsIgnoreCase(measure)) {
+               qualifiedMatches.add(qualified);
+            }
+
+            if(column.equalsIgnoreCase(measure)) {
+               bareMatches.add(qualified);
+            }
+         }
+      }
+
+      // An already-qualified form is only unambiguous when exactly one binding produces it.
+      // Two bindings can legitimately stringify identically -- e.g. Sum(Total) bound twice,
+      // once on the primary Y axis and once on secondary (the same collision setShelf's own
+      // chartType restoration -- see preserveChartTypes/sameMeasure above -- already has to
+      // handle) -- since this qualified vocabulary (matching get_binding's own
+      // highlightField) carries no secondaryY/shelf qualifier at all. There is no further
+      // string this call could accept to tell them apart, so it is refused outright rather
+      // than silently resolving to whichever bound first -- the same failure shape this
+      // whole method exists to close, just one level up from the bare-column case below.
+      if(qualifiedMatches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + param + "' \"" + measure + "\" names " + qualifiedMatches.size() +
+            " separate measure bindings that all stringify identically (the same column and " +
+            "aggregate bound more than once, most likely differing only by which Y axis they " +
+            "render on) -- there is currently no qualified form that tells them apart. Remove " +
+            "the duplicate binding, or " + param + " by a different, unambiguous measure " +
+            "instead.");
+      }
+
+      if(qualifiedMatches.size() == 1) {
+         return;
+      }
+
+      if(bareMatches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + param + "' \"" + measure + "\" is ambiguous -- " + bareMatches.size() +
+            " measures share this column with different aggregates: " +
+            String.join(", ", bareMatches) + ". Pass the qualified form (e.g. " + param + ":\"" +
+            bareMatches.get(0) + "\") to disambiguate.");
+      }
+
+      // Zero matches is deliberately NOT refused here, unlike the >1 cases above: this check's
+      // scope is narrowly the silent-first-match ambiguity (Bug #76689, VCS-014), not whether
+      // the name resolves to a real binding at all -- an unresolvable sortByField/measure is
+      // pre-existing, documented behavior this fix does not change.
    }
 
    /** The sort and ranking on every dimension of a chart shelf. */

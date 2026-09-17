@@ -29,6 +29,7 @@ import inetsoft.web.admin.content.repository.MVSupportService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
@@ -381,5 +382,52 @@ class MvChangesetApplyServiceTest {
       // status is rollback-failed, and MV2 (never undoable -- delete has no inverse) is still there.
       assertFalse(existingMvs.contains("MV1"));
       assertTrue(existingMvs.contains("MV2"));
+   }
+
+   // -------------------------------------------------------------------------
+   // applyCreate: background must be gated on noData (bug #76720 -- noData:true is documented as
+   // the fast, no-background-job path, but runInBackground was passed through unconditionally,
+   // racing existsInOrg against createMV0's async remoteCreatePool dispatch in scheduler-less
+   // deployments)
+   // -------------------------------------------------------------------------
+
+   @Test void createDefaultsPassBackgroundFalseToGateway() throws Throwable {
+      assertBackgroundGating(null, null, false);
+   }
+
+   @Test void createExplicitNoDataTrueRunInBackgroundTrueStillPassesBackgroundFalse() throws Throwable {
+      assertBackgroundGating(true, true, false);
+   }
+
+   @Test void createNoDataFalseRunInBackgroundTruePassesBackgroundTrue() throws Throwable {
+      assertBackgroundGating(false, true, true);
+   }
+
+   @Test void createNoDataFalseRunInBackgroundFalsePassesBackgroundFalse() throws Throwable {
+      assertBackgroundGating(false, false, false);
+   }
+
+   private void assertBackgroundGating(Boolean noData, Boolean runInBackground,
+                                       boolean expectedBackground) throws Throwable
+   {
+      AtomicInteger a1Calls = new AtomicInteger();
+      lenient().when(mvGateway.getAnalysisResult("A1"))
+         .thenAnswer(inv -> analysisResultFor(a1Calls.incrementAndGet(), 0, "MV1"));
+      wireCreateAndDispose();
+
+      MvChangeRequest c1 = createChange("A1", "MV1");
+      c1.setNoData(noData);
+      c1.setRunInBackground(runInBackground);
+      String hash = planService.resolve(request(c1), user).planHash();
+      MvApplyRequest req = applyRequest("task", hash, "looks good", null, c1);
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         service.apply(req, user);
+      }
+
+      ArgumentCaptor<Boolean> captor = ArgumentCaptor.forClass(Boolean.class);
+      verify(mvGateway).createMV(eq(List.of("MV1")), anyList(), captor.capture(), anyBoolean(),
+                                 any());
+      assertEquals(expectedBackground, captor.getValue());
    }
 }

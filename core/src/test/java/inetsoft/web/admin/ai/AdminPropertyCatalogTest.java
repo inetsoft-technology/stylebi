@@ -492,4 +492,84 @@ class AdminPropertyCatalogTest {
       assertThrows(IllegalArgumentException.class,
                    () -> catalog.canonicalizeValue(entry, "OpenId Connect"));
    }
+
+   @Test
+   void theSchedulerOptionsAreaIsCataloguedAndClassifiedConsistently() {
+      // Redmine #76723 (Track B). Traced to SchedulerConfigurationService.getConfiguration/
+      // setConfiguration, lines 68-157: every field on EM's "Scheduler Options" card (plus the
+      // Scheduler Status Notification sub-section on the same card, folded in by human decision)
+      // is a plain, independent SreeEnv property with zero entries here before this fix - so every
+      // one came back recognized:false and an unconditional risk:high + storage-backup
+      // classification, real friction for what are mostly low-risk scalar toggles.
+      AdminPropertyCatalog catalog = new AdminPropertyCatalog();
+
+      for(String name : new String[] {
+         "schedule.concurrency", "scheduler.rmi.port", "scheduler.classpath",
+         "schedule.options.notificationemail", "schedule.options.savetodisk",
+         "schedule.options.emaildelivery", "schedule.options.emailbrowserenable",
+         "schedule.options.sharetaskingroup", "schedule.options.deletetaskonlybyowner",
+         "schedule.memory.min", "schedule.memory.max", "schedule.save.autosuffix",
+         "schedule.options.scheduleisdown", "schedule.options.taskfailed",
+         "schedule.status.check.email", "schedule.status.check.email.subject",
+         "schedule.status.check.email.message" })
+      {
+         CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse(name));
+         assertNotNull(entry, name + " should be catalogued");
+         // None of these fields appears in PropertyChangeSideEffects or
+         // PropertiesEngine.applyProperty, so a write reaches nothing beyond the value itself and
+         // does not need a Tier-2 storage snapshot.
+         assertEquals("value", entry.snapshotScope(), name + ": no side-effect channel reaches it");
+      }
+
+      // rmiPort/classpath: a bad value breaks the next scheduler subprocess launch outright, and
+      // rmiPort additionally skips the dedicated EM page's stop-before-change safety step when
+      // written through this generic path.
+      for(String name : new String[] { "scheduler.rmi.port", "scheduler.classpath" }) {
+         assertEquals("high", catalog.getEntry(AdminPropertyName.parse(name)).risk(), name);
+      }
+
+      // Memory min/max: the schema has only low/high (no medium tier - see
+      // everyCatalogueEntryIsWellFormed above), and a bad or inverted pair is never
+      // server-cross-validated, only failing at the next scheduler launch - the same
+      // outage-shaped risk as rmiPort/classpath, so it rounds up to high rather than down to low.
+      for(String name : new String[] { "schedule.memory.min", "schedule.memory.max" }) {
+         assertEquals("high", catalog.getEntry(AdminPropertyName.parse(name)).risk(), name);
+      }
+
+      // Everything else on the card is a low-risk scalar: a bad value is either an inert
+      // permission gate, a harmlessly wrong cosmetic string, or bounded by Quartz's own guard.
+      for(String name : new String[] {
+         "schedule.concurrency", "schedule.options.notificationemail",
+         "schedule.options.savetodisk", "schedule.options.emaildelivery",
+         "schedule.options.emailbrowserenable", "schedule.options.sharetaskingroup",
+         "schedule.options.deletetaskonlybyowner", "schedule.save.autosuffix",
+         "schedule.options.scheduleisdown", "schedule.options.taskfailed",
+         "schedule.status.check.email", "schedule.status.check.email.subject",
+         "schedule.status.check.email.message" })
+      {
+         assertEquals("low", catalog.getEntry(AdminPropertyName.parse(name)).risk(), name);
+      }
+   }
+
+   @Test
+   void schedulerRmiPortEnforcesTheSameRangeAsTheEmField() {
+      CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse("scheduler.rmi.port"));
+
+      assertEquals("1099", catalog.canonicalizeValue(entry, " 1099 "));
+      assertThrows(IllegalArgumentException.class,
+                   () -> catalog.canonicalizeValue(entry, "70000"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> catalog.canonicalizeValue(entry, "-1"));
+   }
+
+   @Test
+   void scheduleConcurrencyEnforcesOnlyTheLowerBound() {
+      // Quartz's SimpleThreadPool throws below 1; there is no upper bound anywhere in the product.
+      CatalogEntry entry = catalog.getEntry(AdminPropertyName.parse("schedule.concurrency"));
+
+      assertEquals("3", catalog.canonicalizeValue(entry, "3"));
+      assertEquals("1000000", catalog.canonicalizeValue(entry, "1000000"));
+      assertThrows(IllegalArgumentException.class,
+                   () -> catalog.canonicalizeValue(entry, "0"));
+   }
 }

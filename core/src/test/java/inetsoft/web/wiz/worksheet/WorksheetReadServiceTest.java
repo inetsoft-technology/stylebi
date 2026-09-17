@@ -1303,4 +1303,71 @@ class WorksheetReadServiceTest {
          "a negated STARTING_WITH has no round-trippable operation string and must not be " +
             "reported as the plain positive one");
    }
+
+   // Bug #76730 WBS-050: readJoins() skips any operator whose leftTable/rightTable is null,
+   // which is exactly what addCrossJoin()/addMergeJoin() left unset before that fix, so both
+   // join subtypes reported an empty joins list with no way to tell them apart. No change was
+   // needed in this class — op.getName() already distinguishes "CROSS_JOIN"/"MERGE_JOIN" — so
+   // these tests build the join assembly directly with the table names populated on the
+   // operator, matching what the fixed WorksheetEditService now produces.
+
+   @Test
+   void readJoinsReportsCrossJoinEdgeWithSubtype() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setLeftTable("A");
+      op.setRightTable("B");
+      op.setOperation(TableAssemblyOperator.CROSS_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+
+      RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+         ws, "CJ", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      ws.addAssembly(join);
+
+      WorksheetModel.TableModel tm = read(ws).tables().stream()
+         .filter(t -> "CJ".equals(t.name())).findFirst().orElseThrow();
+      assertEquals(1, tm.joins().size());
+      WorksheetModel.JoinModel jm = tm.joins().get(0);
+      assertEquals("A", jm.leftTable());
+      assertEquals("B", jm.rightTable());
+      assertNull(jm.leftKey());
+      assertNull(jm.rightKey());
+      assertEquals("CROSS_JOIN", jm.op());
+   }
+
+   @Test
+   void readJoinsReportsMergeJoinEdgeWithSubtype() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setLeftTable("A");
+      op.setRightTable("B");
+      op.setOperation(TableAssemblyOperator.MERGE_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+
+      MergeJoinTableAssembly join = new MergeJoinTableAssembly(
+         ws, "MJ", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      ws.addAssembly(join);
+
+      WorksheetModel.TableModel tm = read(ws).tables().stream()
+         .filter(t -> "MJ".equals(t.name())).findFirst().orElseThrow();
+      assertEquals(1, tm.joins().size());
+      WorksheetModel.JoinModel jm = tm.joins().get(0);
+      assertEquals("A", jm.leftTable());
+      assertEquals("B", jm.rightTable());
+      assertNull(jm.leftKey());
+      assertNull(jm.rightKey());
+      assertEquals("MERGE_JOIN", jm.op());
+   }
 }

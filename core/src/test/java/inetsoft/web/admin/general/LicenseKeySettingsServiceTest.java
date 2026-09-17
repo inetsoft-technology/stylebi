@@ -69,4 +69,19 @@ class LicenseKeySettingsServiceTest {
       order.verify(authenticationService).reset();
       verifyNoMoreInteractions(licenseManager, cluster, authenticationService);
    }
+
+   /** Redmine #76694 -- {@code replaceServerKey} must call {@code LicenseManager.replaceLicense}
+    * (the atomic single-swap primitive), then replicate the same two side effects in the same
+    * order as {@code addServerKey}/{@code removeServerKey}. */
+   @Test
+   void replaceServerKeyCallsReplaceLicenseThenBroadcastsThenResetsAuth() throws Exception {
+      InOrder order = inOrder(licenseManager, cluster, authenticationService);
+
+      service.replaceServerKey("KEY-1", "KEY-2");
+
+      order.verify(licenseManager).replaceLicense("KEY-1", "KEY-2");
+      order.verify(cluster).sendMessage(any(ResetLicenseKeyMessage.class));
+      order.verify(authenticationService).reset();
+      verifyNoMoreInteractions(licenseManager, cluster, authenticationService);
+   }
 }

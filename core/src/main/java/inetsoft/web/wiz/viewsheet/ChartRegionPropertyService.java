@@ -17,10 +17,14 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
+import inetsoft.uql.viewsheet.graph.TitleDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
+import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.graph.model.dialog.AxisPropertyDialogModel;
 import inetsoft.web.graph.model.dialog.LegendFormatDialogModel;
 import inetsoft.web.graph.model.dialog.ModelAlias;
@@ -49,10 +53,12 @@ import java.util.stream.Stream;
 public class ChartRegionPropertyService {
    @Autowired
    public ChartRegionPropertyService(ViewsheetSessionService sessions,
-                                     RegionPropertyDialogService regions)
+                                     RegionPropertyDialogService regions,
+                                     ChartRegionHandler regionHandler)
    {
       this.sessions = sessions;
       this.regions = regions;
+      this.regionHandler = regionHandler;
    }
 
    /** The regions and what each one's {@code target} means. */
@@ -523,6 +529,46 @@ public class ChartRegionPropertyService {
             ChartRegionResolver.resolve(rvs, ChartRegionResolver.requireChart(rvs, assembly)));
 
       ChartRegionResolver.requireAxis(axes, region, target);
+
+      if("title".equals(region)) {
+         requireVisibleTitle(sessionToken, user, assembly, ChartRegionResolver.canonical(target));
+      }
+   }
+
+   /**
+    * Refuses a title region whose axis title is currently hidden.
+    *
+    * <p>{@code ChartArea} only builds a {@code TitleArea} for an axis whose
+    * {@code TitleDescriptor.isVisible()} is true — when it is false, the corresponding
+    * {@code x/x2/y/y2}TitleArea field stays null (it is normal, expected state; see
+    * {@code ChartArea}'s own serialization code, which writes a boolean flag for exactly this
+    * case). {@code RegionPropertyDialogService.getTitleFormatDialogModel} does not expect that
+    * null and dereferences it unconditionally, turning a hidden title into a raw NPE for both
+    * {@link #list} and {@link #set} (the latter via its own {@code readModel} prefetch). Refuse
+    * loudly here, before either path reaches that dereference.
+    */
+   private void requireVisibleTitle(String sessionToken, Principal user, String assembly,
+                                     String titleType)
+      throws Exception
+   {
+      boolean visible = sessions.read(
+         sessionToken, user,
+         (rvs, runtimeId, dispatcher) -> {
+            ChartVSAssemblyInfo info = (ChartVSAssemblyInfo)
+               ChartRegionResolver.requireChart(rvs, assembly).getVSAssemblyInfo();
+            TitleDescriptor titleDesc =
+               regionHandler.getTitleDescriptor(info.getChartDescriptor(), titleType);
+
+            return titleDesc == null || titleDesc.isVisible();
+         });
+
+      if(!visible) {
+         throw new IllegalArgumentException(
+            "The " + titleType + " title is currently hidden — show it with " +
+            "set_chart_element_visibility {element: 'title', target: '" + titleType +
+            "'} before reading or setting its region properties, or use list_chart_elements to " +
+            "check titleVisible.");
+      }
    }
 
    private Object readModel(String sessionToken, Principal user, String assembly, String region,
@@ -726,4 +772,5 @@ public class ChartRegionPropertyService {
 
    private final ViewsheetSessionService sessions;
    private final RegionPropertyDialogService regions;
+   private final ChartRegionHandler regionHandler;
 }

@@ -216,6 +216,14 @@ public class RecycleBinChangesetApplyService {
 
       String beforeProjection = RecycleBinChangePlanService.project(entry, type);
       String advisory = null;
+      // Bug #76672 follow-up: RecycleUtils.restoreSheet/restoreWSFolder/restoreRepositoryFolder each
+      // open with their own source lookups that throw strictly before that method's own first
+      // mutating call, so a throw from one of them leaves nothing changed. Running the same lookups
+      // here surfaces them at a point this class owns and can gate on -- the same technique
+      // MvChangesetApplyService.applySetCycle uses for its own one-call-deeper freshness check. The
+      // gate cannot be pushed any deeper: validatePath/checkParentFolderExist, the very next
+      // statements in those methods, already mutate (repository.addFolder/registry.addFolder).
+      recycleBinService.requireRestorableSource(entry, user);
       mutationEntered.set(true);
 
       if(entry.isSheet()) {

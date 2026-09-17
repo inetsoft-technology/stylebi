@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
@@ -146,6 +147,14 @@ public class SelectionRuntimeService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+
+         // Only the values/deselect paths ever touch getConditionList()/getSelection() -- a
+         // sortOrder-only or singleSelect-only call never reaches them, so it must not be
+         // refused for a problem it does not have.
+         if(values != null || hasDeselect) {
+            requireBoundColumn(assembly, assemblyName);
+         }
+
          SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) assembly.getInfo();
 
          result.put("assembly", assemblyName);
@@ -273,7 +282,12 @@ public class SelectionRuntimeService {
             if(!targets.isEmpty()) {
                selections.applySelection(runtimeId, assemblyName, deselectEvent(targets), user,
                                          dispatcher, linkUri);
-               result.put("deselected", deselect.size());
+               // Not deselect.size() -- that would count every requested value regardless of
+               // whether it was ever actually selected (bug-76701). Report how many of them
+               // deselectTargets actually found a match for in currentPaths.
+               result.put("deselected",
+                          (int) deselect.stream().filter(path -> everSelected(currentPaths, path))
+                             .count());
             }
          }
       });
@@ -301,6 +315,7 @@ public class SelectionRuntimeService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+         requireBoundColumn(assembly, assemblyName);
 
          result.put("assembly", assemblyName);
          result.put("type", describe(assembly));
@@ -376,6 +391,8 @@ public class SelectionRuntimeService {
                "selection tree. Use set_selection for a list or a range slider.");
          }
 
+         requireBoundColumn(assembly, assemblyName);
+
          result.put("assembly", assemblyName);
          result.put("path", path);
          result.put("mode", select ? "select" : "clear");
@@ -429,6 +446,34 @@ public class SelectionRuntimeService {
       }
 
       return selection;
+   }
+
+   /**
+    * Refuses a selection list or tree that has no column bound. {@code SelectionListVSAssembly}'s
+    * {@code getConditionList()}/{@code getSelection()} and {@code SelectionTreeVSAssembly}'s
+    * (non-ID-mode) equivalents short-circuit to null/false whenever the column is unbound, so
+    * without this guard select/deselect/clear all report success while never actually writing a
+    * filter -- see bug-76701. {@code TimeSliderVSAssembly}'s column binding is a different
+    * mechanism (a range/composite time info, not a single {@code DataRef}) and is left alone.
+    */
+   private static void requireBoundColumn(SelectionVSAssembly assembly, String assemblyName) {
+      if(assembly instanceof SelectionListVSAssembly list && list.getDataRef() == null) {
+         throw new IllegalArgumentException(unboundColumnMessage(assemblyName));
+      }
+
+      if(assembly instanceof SelectionTreeVSAssembly tree) {
+         DataRef[] refs = tree.getDataRefs();
+
+         if(refs == null || refs.length == 0 || Arrays.stream(refs).allMatch(Objects::isNull)) {
+            throw new IllegalArgumentException(unboundColumnMessage(assemblyName));
+         }
+      }
+   }
+
+   private static String unboundColumnMessage(String assemblyName) {
+      return "'" + assemblyName + "' has no column bound -- select/deselect/clear would silently " +
+         "do nothing against it. Call set_selection_source first (or confirm its binding actually " +
+         "took effect via get_assembly_properties).";
    }
 
    private static int requireSortOrder(String sortOrder) {
@@ -618,6 +663,14 @@ public class SelectionRuntimeService {
     *
     * <p>A no-op for a flat {@code SelectionListVSAssembly}: every path there is already exactly
     * one segment, so the shortest-prefix search always lands on the path itself, unchanged.
+    *
+    * <p><b>A path absent from {@code current} entirely is skipped, not targeted.</b> The
+    * shortest-prefix search above only asks "is this prefix still covered by something REMAINING
+    * after the removal" — against an empty (or simply non-overlapping) {@code remaining}, that
+    * question is vacuously true at the very first, shortest prefix, so a value that was never
+    * actually selected would otherwise still manufacture a target and get reported as removed
+    * (bug-76701). {@link #everSelected} answers the question this method's own loop never asks:
+    * was {@code path} ever part of {@code current} to begin with.
     */
    static List<List<String>> deselectTargets(List<List<String>> current, List<List<String>> toRemove) {
       List<List<String>> remaining = new ArrayList<>(current);
@@ -626,6 +679,10 @@ public class SelectionRuntimeService {
       List<List<String>> targets = new ArrayList<>();
 
       for(List<String> path : toRemove) {
+         if(!everSelected(current, path)) {
+            continue;
+         }
+
          List<String> target = path;
 
          for(int len = 1; len <= path.size(); len++) {
@@ -645,6 +702,11 @@ public class SelectionRuntimeService {
       }
 
       return targets;
+   }
+
+   /** Whether {@code path} was ever actually part of {@code current} -- either is a prefix of the other. */
+   static boolean everSelected(List<List<String>> current, List<String> path) {
+      return current.stream().anyMatch(p -> startsWithPath(p, path) || startsWithPath(path, p));
    }
 
    private static boolean startsWithPath(List<String> path, List<String> prefix) {

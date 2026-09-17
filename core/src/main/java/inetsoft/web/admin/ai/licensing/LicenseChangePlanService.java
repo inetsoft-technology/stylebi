@@ -45,6 +45,13 @@ import java.util.*;
  * directly, never against {@code LicenseKeyModel} (whose {@code valid()} always returns
  * {@code true}, section 14 D2/D6, {@code stylebi#76344}).
  *
+ * <p><b>Redmine #76694:</b> {@code verb=update} resolves an explicit (oldKey, newKey) pair --
+ * unlike {@code updateKeys}'s own ambiguous set-diff heuristic, there is nothing to guess here.
+ * It maps to {@code LicenseKeySettingsService.replaceServerKey}, which calls
+ * {@link LicenseManager#replaceLicense} -- the same atomic (single in-memory swap, single
+ * persisted write) primitive the Enterprise Manager "Edit License Key" dialog's own single-key
+ * edit already resolves to via {@code updateKeys}, now reachable directly and deterministically.
+ *
  * <p><b>03-reconcile.md addition 2, confirmed by reading {@code EnterpriseLicenseStrategy
  * .addLicense} in full (04-build-java.md):</b> the method's only already-claimed check is
  * {@code claimedLicense == null} (this node's own claim state) -- it never compares the requested
@@ -116,9 +123,17 @@ public class LicenseChangePlanService {
             resolvedEntries.add(resolveAdd(label, key, byKey));
             addCount++;
          }
-         else {
+         else if(VERB_REMOVE.equals(verb)) {
             resolvedEntries.add(resolveRemove(label, key, byKey));
             removeCount++;
+         }
+         else {
+            String newKey = requireNewKey(label, change.getNewKey());
+            requireUnseen(label + ".newKey", newKey, seenKeys);
+            resolvedEntries.add(resolveUpdate(label, key, newKey, byKey));
+            // Net installed count is unchanged by an update (one removed, one added) -- not
+            // counted toward addCount/removeCount, matching computeDeLicensingWarning's own
+            // "only add/remove move the net count" contract.
          }
       }
 
@@ -184,6 +199,57 @@ public class LicenseChangePlanService {
       return new ResolvedEntry(VERB_REMOVE, change);
    }
 
+   // ---------------------------------------------------------------- update
+
+   /**
+    * Redmine #76694: resolves an explicit (oldKey, newKey) replace. {@code oldKey} must be
+    * currently installed (mirrors {@link #resolveRemove}'s own refusal) and {@code newKey} must
+    * resolve to a valid, not-already-installed license (mirrors {@link #resolveAdd}'s own
+    * refusals) -- both checks fire independently of each other so the error names exactly which
+    * side of the pair is the problem.
+    */
+   private ResolvedEntry resolveUpdate(String label, String oldKey, String newKey,
+                                       Map<String, License> byKey)
+   {
+      License current = byKey.get(oldKey);
+
+      if(current == null) {
+         throw new IllegalArgumentException(
+            label + ".key: \"" + oldKey + "\" is not currently installed -- there is nothing to " +
+            "update");
+      }
+
+      if(oldKey.equals(newKey)) {
+         throw new IllegalArgumentException(
+            label + ".newKey: must differ from the current key \"" + oldKey + "\" -- nothing to " +
+            "update");
+      }
+
+      if(byKey.containsKey(newKey)) {
+         throw new IllegalArgumentException(
+            label + ".newKey: \"" + newKey + "\" is already installed as a different key -- " +
+            "refused rather than silently colliding with it");
+      }
+
+      License resolved = licenseManager.parseLicense(newKey);
+
+      if(resolved.type() == LicenseType.INVALID || !resolved.valid()) {
+         throw new IllegalArgumentException(
+            label + ".newKey: \"" + newKey + "\" does not resolve to a valid license (type=" +
+            resolved.type() + ", valid=" + resolved.valid() + ") -- refused rather than " +
+            "installed as a permanently-broken replacement");
+      }
+
+      LicenseKeyProjection oldProjection = LicenseKeyProjection.of(current);
+      LicenseKeyProjection newProjection = LicenseKeyProjection.of(resolved);
+      PlanChange change = new PlanChange(oldKey, NOT_ORG_SCOPED, oldProjection.canonical(),
+                                         newProjection.canonical(), AdminChangeRecord.RISK_HIGH,
+                                         AdminChangeRecord.SCOPE_STORAGE, true,
+                                         "update license key " + oldKey + " -> " + newKey + " (" +
+                                         resolved.type() + ")");
+      return new ResolvedEntry(VERB_UPDATE, change);
+   }
+
    // ---------------------------------------------------------------- de-licensing warning
 
    /**
@@ -223,12 +289,13 @@ public class LicenseChangePlanService {
    // ---------------------------------------------------------------- validation helpers
 
    static String requireVerb(String label, String verb) {
-      if(VERB_ADD.equals(verb) || VERB_REMOVE.equals(verb)) {
+      if(VERB_ADD.equals(verb) || VERB_REMOVE.equals(verb) || VERB_UPDATE.equals(verb)) {
          return verb;
       }
 
       throw new IllegalArgumentException(
-         label + ".verb: must be \"" + VERB_ADD + "\" or \"" + VERB_REMOVE + "\", got " + verb);
+         label + ".verb: must be \"" + VERB_ADD + "\", \"" + VERB_REMOVE + "\", or \"" +
+         VERB_UPDATE + "\", got " + verb);
    }
 
    static String requireKey(String label, String key) {
@@ -237,6 +304,15 @@ public class LicenseChangePlanService {
       }
 
       return key.trim();
+   }
+
+   static String requireNewKey(String label, String newKey) {
+      if(newKey == null || newKey.trim().isEmpty()) {
+         throw new IllegalArgumentException(
+            label + ".newKey: required for verb \"" + VERB_UPDATE + "\"");
+      }
+
+      return newKey.trim();
    }
 
    private static void requireUnseen(String label, String key, Set<String> seenKeys) {
@@ -303,6 +379,7 @@ public class LicenseChangePlanService {
    private static final String NOT_ORG_SCOPED = null;
    static final String VERB_ADD = LicenseChangeRequest.VERB_ADD;
    static final String VERB_REMOVE = LicenseChangeRequest.VERB_REMOVE;
+   static final String VERB_UPDATE = LicenseChangeRequest.VERB_UPDATE;
    private final LicenseManager licenseManager;
 
    /** One resolved change plus the verb that produced it, so the de-licensing warning can be

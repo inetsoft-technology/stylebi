@@ -86,11 +86,27 @@ public class CheckBoxVSAScriptableTest {
 
    @Test
    void testGet() {
-      assertArrayEquals(new Object[0],
-                        (Object[]) checkBoxVSAScriptable.getMember("value"));
+      // no selection yet, so the live getter (mirroring selectedObjects) returns the same
+      // empty array a bare read of selectedObjects itself would.
+      assertArrayEquals(new Object[0], (Object[]) checkBoxVSAScriptable.getMember("value"));
+
+      // a per-cell dynamic-format iteration (setCellValue) still takes precedence over the
+      // live getter while it's set.
       checkBoxVSAScriptable.setCellValue(new Date(125, 1, 20));
       assert simpleDateFormat.format(checkBoxVSAScriptable.getMember("value")).equals("2025-02-20");
       assertEquals("CheckBox", checkBoxVSAScriptable.getMember("title"));
+   }
+
+   @Test
+   void testGetValueTracksSelectedObjectsLive() {
+      Object[] selected = new Object[]{ "itemA" };
+      checkBoxVSAssemblyInfo.setSelectedObjects(selected);
+
+      assertArrayEquals(selected, (Object[]) checkBoxVSAScriptable.getMember("value"));
+
+      checkBoxVSAssemblyInfo.setSelectedObjects(new Object[0]);
+
+      assertArrayEquals(new Object[0], (Object[]) checkBoxVSAScriptable.getMember("value"));
    }
 
    @Test
