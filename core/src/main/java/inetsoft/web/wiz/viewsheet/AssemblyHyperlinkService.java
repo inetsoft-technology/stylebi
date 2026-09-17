@@ -17,13 +17,25 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.graph.data.DataSet;
 import inetsoft.report.Hyperlink;
+import inetsoft.report.TableFilter;
+import inetsoft.report.TableLens;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.script.viewsheet.VSAScriptable;
+import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
@@ -152,7 +164,7 @@ public class AssemblyHyperlinkService {
             runtimeId, assemblyName, target.row(), target.col(), target.colName(),
             target.axis(), target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
-         apply(model, type, link, assetId);
+         apply(rvs, assemblyName, model, type, link, assetId);
          hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
@@ -391,8 +403,9 @@ public class AssemblyHyperlinkService {
       }
    }
 
-   private static void apply(HyperlinkDialogModel model, String type,
-                             Map<String, Object> link, String assetId)
+   private static void apply(RuntimeViewsheet rvs, String assemblyName, HyperlinkDialogModel model,
+                             String type, Map<String, Object> link, String assetId)
+      throws Exception
    {
       model.setLinkType(LINK_TYPES.get(type));
 
@@ -412,7 +425,10 @@ public class AssemblyHyperlinkService {
       }
 
       if(link.containsKey("webLink")) {
-         model.setWebLink(str(link, "webLink"));
+         String webLink = str(link, "webLink");
+         requireValidWebLinkField(rvs, assemblyName, webLink);
+         requireValidWebLinkExpression(rvs, assemblyName, webLink);
+         model.setWebLink(webLink);
       }
 
       if(link.containsKey("assetLinkPath")) {
@@ -468,6 +484,159 @@ public class AssemblyHyperlinkService {
       // the dialog's own free-text field.
       if(Boolean.TRUE.equals(link.get("self"))) {
          model.setTargetFrame("SELF");
+      }
+   }
+
+   private static final String FIELD_PREFIX = "hyperlink:";
+   private static final String EXPRESSION_PREFIX = "=";
+
+   /**
+    * A {@code "hyperlink:<field>"} webLink value is resolved by substituting the named field's
+    * value at click time -- {@code VSDataSet.getHyperlink0} for a chart, {@code
+    * Hyperlink.getColumnValue} (with its base-table fallback) for a table/crosstab cell. Neither
+    * of those reads {@code model.getFields()}/{@code getAvailableRefs}: that list is scoped for
+    * {@link #parseParamList}'s own, narrower purpose -- restricting a *parameter* to dimensions
+    * already fixed at the point the link fires -- and is demonstrably narrower than what actually
+    * resolves at click time (it truncates a dimension's own axis at the target field's position).
+    * Validating against it here would refuse a same-axis dimension positioned after the target, a
+    * dimension on the other axis, or a column reachable only through the base-table fallback --
+    * false rejections of field names that work. So this reads the same runtime column set those
+    * two click-time methods actually iterate, via the same {@code ViewsheetSandbox} the render
+    * path itself uses.
+    */
+   private static void requireValidWebLinkField(RuntimeViewsheet rvs, String assemblyName,
+                                                String webLink)
+      throws Exception
+   {
+      if(webLink == null || !webLink.startsWith(FIELD_PREFIX)) {
+         return;
+      }
+
+      String field = webLink.substring(FIELD_PREFIX.length());
+      Set<String> columns = runtimeColumnNames(rvs, assemblyName);
+
+      // No runtime data to check against yet (a sourceless assembly, or an assembly type this
+      // does not cover) -- nothing here refuses what it cannot verify.
+      if(columns == null) {
+         return;
+      }
+
+      if(!columns.contains(field)) {
+         throw new IllegalArgumentException(
+            "'webLink' value 'hyperlink:" + field + "' does not name a column this assembly's " +
+            "data actually returns at click time. Known columns: " + new TreeSet<>(columns));
+      }
+   }
+
+   /**
+    * The column names {@code VSDataSet.getHyperlink0} (chart) or {@code
+    * Hyperlink.getColumnValue} (table/crosstab, including its base-table fallback) actually
+    * iterate for this assembly right now, or {@code null} if there is no runtime data to check
+    * against yet (no sandbox, no resolved assembly, or an assembly type neither click-time path
+    * covers).
+    */
+   private static Set<String> runtimeColumnNames(RuntimeViewsheet rvs, String assemblyName)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(assembly == null || box.isEmpty()) {
+         return null;
+      }
+
+      Set<String> columns = new HashSet<>();
+
+      if(assembly instanceof TableDataVSAssembly) {
+         collectTableColumns(box.get().getVSTableLens(assemblyName, false), columns);
+      }
+      else if(assembly instanceof ChartVSAssembly) {
+         Object data = box.get().getData(assemblyName);
+
+         if(data instanceof DataSet ds) {
+            for(int i = 0; i < ds.getColCount(); i++) {
+               String header = ds.getHeader(i);
+
+               if(header != null) {
+                  columns.add(header);
+               }
+            }
+         }
+      }
+      else {
+         return null;
+      }
+
+      return columns.isEmpty() ? null : columns;
+   }
+
+   /**
+    * Walks into every base table the way {@code Hyperlink.getColumnValue}'s own fallback does
+    * when a field is not on the top-level table -- deliberately a superset of that fallback
+    * (every nested table's headers, not just the first match it would stop at), because the
+    * failure mode this class must avoid is refusing a field name that actually resolves, not
+    * admitting one extra name that does not.
+    */
+   private static void collectTableColumns(TableLens lens, Set<String> out) {
+      if(lens == null) {
+         return;
+      }
+
+      int cols = lens.getColCount();
+
+      for(int i = 0; i < cols; i++) {
+         Object header = lens.getObject(0, i);
+
+         if(header != null) {
+            out.add(String.valueOf(header));
+         }
+
+         String identifier = lens.getColumnIdentifier(i);
+
+         if(identifier != null) {
+            out.add(identifier);
+         }
+      }
+
+      if(lens instanceof TableFilter filter) {
+         collectTableColumns(filter.getTable(), out);
+      }
+   }
+
+   /**
+    * A {@code "=<expr>"} webLink value is otherwise only checked one layer downstream, at the
+    * next view refresh ({@code ViewsheetSandbox.executeDynamicValue}, which catches a script
+    * failure and surfaces it as a {@code hyperlinkScriptFailed} viewer message -- a check this
+    * tool's own {@code ok:true} write response never sees). This runs the identical
+    * script-execution call synchronously at write time instead, so a broken expression is
+    * refused here rather than silently persisting a write that only fails later, one render
+    * downstream, with no signal back to the caller that made it.
+    */
+   private static void requireValidWebLinkExpression(RuntimeViewsheet rvs, String assemblyName,
+                                                      String webLink)
+      throws Exception
+   {
+      if(webLink == null || !webLink.startsWith(EXPRESSION_PREFIX)) {
+         return;
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      String script = webLink.substring(EXPRESSION_PREFIX.length());
+      ViewsheetScope scope = box.get().getScope();
+      VSAScriptable scriptable = scope.getVSAScriptable(assemblyName);
+
+      try {
+         scope.execute(script, scriptable, false);
+      }
+      catch(Exception e) {
+         throw new IllegalArgumentException(
+            "'webLink' expression '" + webLink + "' failed to execute: " + e.getMessage());
       }
    }
 

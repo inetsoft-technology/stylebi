@@ -19,10 +19,18 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.report.script.viewsheet.VSAScriptable;
+import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
@@ -37,6 +45,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -989,7 +998,8 @@ class AssemblyHyperlinkServiceTest {
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(AssemblyHyperlinkService service, ViewsheetSessionService sessions,
-                          HyperlinkDialogService links, AssetRepository repository) {}
+                          HyperlinkDialogService links, AssetRepository repository,
+                          RuntimeViewsheet rvs) {}
 
    private static HyperlinkDialogModel capture(HyperlinkDialogService links) throws Exception {
       ArgumentCaptor<HyperlinkDialogModel> captor =
@@ -1030,10 +1040,215 @@ class AssemblyHyperlinkServiceTest {
       }
 
       return new Harness(new AssemblyHyperlinkService(sessions, links), sessions, links,
-                         repository);
+                         repository, rvs);
    }
 
    private static Principal principal() {
       return () -> "admin";
+   }
+
+   // ── VHL-005: webLink 'hyperlink:<field>'/'=<expr>' validation ──────────────
+
+   /**
+    * Wires {@code h.rvs} to resolve {@code assemblyName} to {@code assembly} and to hand back
+    * {@code sandbox} from {@code getViewsheetSandbox()} -- the same two things
+    * {@code runtimeColumnNames}/{@code requireValidWebLinkExpression} read.
+    */
+   private static ViewsheetSandbox wireRuntimeData(Harness h, String assemblyName,
+                                                   VSAssembly assembly) throws Exception
+   {
+      Viewsheet vs = h.rvs().getViewsheet();
+      when(vs.getAssembly(assemblyName)).thenReturn(assembly);
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      when(h.rvs().getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+      return sandbox;
+   }
+
+   private static VSDataSet chartDataset(String... headers) {
+      VSDataSet dataset = mock(VSDataSet.class);
+      when(dataset.getColCount()).thenReturn(headers.length);
+
+      for(int i = 0; i < headers.length; i++) {
+         when(dataset.getHeader(i)).thenReturn(headers[i]);
+      }
+
+      return dataset;
+   }
+
+   private static VSTableLens tableLens(String... headers) {
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getColCount()).thenReturn(headers.length);
+
+      for(int i = 0; i < headers.length; i++) {
+         when(lens.getObject(0, i)).thenReturn(headers[i]);
+      }
+
+      return lens;
+   }
+
+   @Test
+   void acceptsAHyperlinkFieldPrefixNamingARealChartColumn() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Chart1", chart);
+      VSDataSet dataset = chartDataset("STATE", "REVENUE");
+      when(sandbox.getData("Chart1")).thenReturn(dataset);
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "hyperlink:STATE"), ""));
+
+      assertEquals("hyperlink:STATE", capture(h.links).getWebLink());
+   }
+
+   @Test
+   void refusesAHyperlinkFieldPrefixNamingAColumnTheChartDataDoesNotReturn() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Chart1", chart);
+      VSDataSet dataset = chartDataset("STATE", "REVENUE");
+      when(sandbox.getData("Chart1")).thenReturn(dataset);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "web", "webLink", "hyperlink:TOTALLY_BOGUS"), ""));
+
+      assertTrue(thrown.getMessage().contains("TOTALLY_BOGUS"));
+      assertTrue(thrown.getMessage().contains("STATE"), "names the columns that do exist");
+   }
+
+   /**
+    * The whole point of VHL-005's corrected fix shape: {@code model.getFields()} (what
+    * {@code parseParamList} validates a 'field' paramList entry against) is narrower than the
+    * runtime dataset -- here, {@code STATE} is not in the paramList-scoped field list at all, yet
+    * it is a real column the chart's data actually returns and 'hyperlink:STATE' must be accepted.
+    * A validator that reused {@code model.getFields()} (the diagnosis's own original, refuted
+    * proposal) would have wrongly refused this.
+    */
+   @Test
+   void acceptsAFieldTheNarrowParamListFieldSetDoesNotCarryButTheRuntimeDatasetDoes()
+      throws Exception
+   {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      DataRefModel revenueOnly = mock(DataRefModel.class);
+      when(revenueOnly.getName()).thenReturn("REVENUE");
+      model.setFields(List.of(revenueOnly));
+      Harness h = harness(model);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Chart1", chart);
+      VSDataSet dataset = chartDataset("STATE", "REVENUE");
+      when(sandbox.getData("Chart1")).thenReturn(dataset);
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "hyperlink:STATE"), ""));
+   }
+
+   @Test
+   void acceptsAHyperlinkFieldPrefixNamingARealTableColumn() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", table);
+      VSTableLens lens = tableLens("STATE", "REVENUE");
+      when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Table1", null,
+         link("linkType", "web", "webLink", "hyperlink:REVENUE"), ""));
+   }
+
+   @Test
+   void refusesAHyperlinkFieldPrefixNamingAColumnTheTableLensDoesNotHave() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", table);
+      VSTableLens lens = tableLens("STATE", "REVENUE");
+      when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", null,
+                             link("linkType", "web", "webLink", "hyperlink:NOT_A_COLUMN"), ""));
+
+      assertTrue(thrown.getMessage().contains("NOT_A_COLUMN"));
+   }
+
+   /** No sandbox reachable (e.g. a sourceless assembly) -- nothing to check against, so no refusal. */
+   @Test
+   void doesNotRefuseAHyperlinkFieldPrefixWhenThereIsNoRuntimeDataYet() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.rvs().getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "hyperlink:ANYTHING"), ""));
+   }
+
+   @Test
+   void acceptsAValidExpressionWebLink() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Chart1", chart);
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(sandbox.getScope()).thenReturn(scope);
+      when(scope.getVSAScriptable("Chart1")).thenReturn(scriptable);
+      when(scope.execute(eq("\"https://x/\" + STATE"), eq(scriptable), eq(false)))
+         .thenReturn("https://x/NY");
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "=\"https://x/\" + STATE"), ""));
+
+      assertEquals("=\"https://x/\" + STATE", capture(h.links).getWebLink());
+   }
+
+   /**
+    * Otherwise this is only caught one layer downstream, at the next view refresh
+    * ({@code ViewsheetSandbox.executeDynamicValue}), as a viewer message the plugin tool itself
+    * never sees -- so a caller gets {@code ok:true} on a write that then silently fails to
+    * render a working link. This must be refused at write time instead.
+    */
+   @Test
+   void refusesASyntacticallyInvalidExpressionWebLinkAtWriteTime() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Chart1", chart);
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(sandbox.getScope()).thenReturn(scope);
+      when(scope.getVSAScriptable("Chart1")).thenReturn(scriptable);
+      when(scope.execute(eq("STATE +"), eq(scriptable), eq(false)))
+         .thenThrow(new RuntimeException("missing operand"));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", null,
+                             link("linkType", "web", "webLink", "=STATE +"), ""));
+
+      assertTrue(thrown.getMessage().contains("missing operand"));
+   }
+
+   @Test
+   void doesNotRefuseAnExpressionWebLinkWhenThereIsNoRuntimeDataYet() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.rvs().getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "=STATE +"), ""));
+   }
+
+   /** A plain URL is neither prefix -- neither validator ever reaches for the sandbox at all. */
+   @Test
+   void aPlainUrlWebLinkSkipsBothValidators() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+
+      assertDoesNotThrow(() -> h.service.set(
+         "tok", principal(), "Chart1", null,
+         link("linkType", "web", "webLink", "https://example.com"), ""));
+
+      verify(h.rvs(), never()).getViewsheetSandbox();
    }
 }
