@@ -59,6 +59,14 @@ cache, no purity constraint, and `getColor`'s `index % size` wrap stays exactly 
 | `fromFrameFallsBackWhenPaletteIsShort` | `VSChartPaletteDefaultsTest` | same |
 | `fromFrameFallsBackWhenPaletteHasNullHole` | `VSChartPaletteDefaultsTest` | same |
 | `tailMatchesLegacyPalette` | `ColorPalettesModernTest` | asserts CSS slots 9–40 equal the legacy tail |
+| `modernPaletteResolvesFromCss` | `VSChartPaletteDefaultsTest` | **missed by this table; found during Task 3.** Hardcodes `COLOR_PALETTE[8]`/`[39]` as a stand-in for "whatever CSS declares", true only while CSS held the legacy tail |
+| `darkPaletteResolvesFromCss` | `VSChartPaletteDefaultsTest` | same, dark |
+
+**The table above said seven; the real count was nine.** Both misses break in Task 3 rather than
+Task 2, and take the same treatment as the tests this table did list: re-point the expected value
+to the derived colour. Neither loses assertion power, because neither could ever distinguish "came
+from CSS" from "came from the Java fallback" — `cssMatchesTheJavaFallback` holds those two
+identical by design, so both paths always yield the same colour.
 
 **Must keep passing unchanged** — these are the regression anchors proving classic charts are
 untouched: `ColorPalettesModernTest.defaultPaletteIsUnchanged` and

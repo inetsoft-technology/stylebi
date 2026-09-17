@@ -54,7 +54,7 @@ class VSChartPaletteDefaultsTest {
       assertTrue(VizContext.ofGate().modern);
 
       Color[] modern = VSChartPaletteDefaults.modernPalette();
-      assertEquals(40, modern.length, "8 modern + 32 legacy tail = 40");
+      assertEquals(40, modern.length, "8 modern + 32 derived tail = 40");
       assertEquals(new Color(0x0490FF), modern[0]);
       assertEquals(new Color(0x8ED604), modern[7]);
       // index 9+ is now derived from the head, not taken from the legacy list
@@ -97,7 +97,7 @@ class VSChartPaletteDefaultsTest {
       SreeEnv.setProperty("viewsheet.darkMode", "true");
 
       Color[] dark = VSChartPaletteDefaults.darkPalette();
-      assertEquals(40, dark.length, "8 dark + 32 legacy tail = 40");
+      assertEquals(40, dark.length, "8 dark + 32 derived tail = 40");
       assertEquals(new Color(0x4FA5FF), dark[0]);
       assertEquals(new Color(0x9FEB28), dark[7]);
       assertEquals(new Color(0x008FA4), dark[8]);
@@ -197,8 +197,8 @@ class VSChartPaletteDefaultsTest {
       assertEquals(40, modern.length);
       assertEquals(new Color(0x0490FF), modern[0]);
       assertEquals(new Color(0x8ED604), modern[7]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], modern[8]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], modern[39]);
+      assertEquals(new Color(0x00788A), modern[8]);
+      assertEquals(new Color(0x9F35A1), modern[39]);
    }
 
    @Test
@@ -208,7 +208,7 @@ class VSChartPaletteDefaultsTest {
       assertEquals(40, dark.length);
       assertEquals(new Color(0x4FA5FF), dark[0]);
       assertEquals(new Color(0x9FEB28), dark[7]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], dark[8]);
+      assertEquals(new Color(0x008FA4), dark[8]);
    }
 
    // The memo must not hand out a shared array, or one caller mutating it would corrupt every
@@ -302,21 +302,21 @@ class VSChartPaletteDefaultsTest {
 
    // Guards against defaults.css and the Java fallback drifting apart.
    @Test
-   void cssHeadMatchesTheJavaFallback() throws Exception {
-      assertHeadMatches("MODERN_HEAD", "Modern");
-      assertHeadMatches("DARK_HEAD", "Modern Dark");
+   void cssMatchesTheJavaFallback() throws Exception {
+      assertPaletteMatches("MODERN_FALLBACK", "Modern");
+      assertPaletteMatches("DARK_FALLBACK", "Modern Dark");
    }
 
-   private void assertHeadMatches(String fieldName, String paletteName) throws Exception {
+   private void assertPaletteMatches(String fieldName, String paletteName) throws Exception {
       Field field = VSChartPaletteDefaults.class.getDeclaredField(fieldName);
       field.setAccessible(true);
-      Color[] head = (Color[]) field.get(null);
+      Color[] fallback = (Color[]) field.get(null);
       CategoricalColorFrame css = ColorPalettes.getPalette(paletteName);
 
-      assertEquals(8, head.length, fieldName + " must declare exactly the eight head colors");
+      assertEquals(40, fallback.length, fieldName + " must declare all forty slots");
 
-      for(int i = 0; i < head.length; i++) {
-         assertEquals(head[i], css.getDefaultColor(i),
+      for(int i = 0; i < fallback.length; i++) {
+         assertEquals(fallback[i], css.getDefaultColor(i),
                       paletteName + " index " + (i + 1) + " must match " + fieldName);
       }
    }
