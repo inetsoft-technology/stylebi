@@ -227,6 +227,10 @@ public class ProviderChangesetApplyService {
          builder.providerType(SecurityProviderType.LDAP)
             .ldapProviderModel(buildLdapModel(original.getSpec()));
       }
+      else if("DATABASE".equalsIgnoreCase(original.getProviderType())) {
+         builder.providerType(SecurityProviderType.DATABASE)
+            .dbProviderModel(buildDatabaseModel(original.getDatabaseSpec()));
+      }
       else {
          builder.providerType(SecurityProviderType.FILE);
       }
@@ -479,6 +483,37 @@ public class ProviderChangesetApplyService {
          .build();
    }
 
+   /** The DATABASE analog of {@link #buildLdapModel} (bug 76716). */
+   private static DatabaseAuthenticationProviderModel buildDatabaseModel(ProviderDatabaseSpec spec) {
+      return DatabaseAuthenticationProviderModel.builder()
+         .driver(spec.getDriver())
+         .url(spec.getUrl())
+         .requiresLogin(spec.getRequiresLogin() == null || spec.getRequiresLogin())
+         .useCredential(Boolean.TRUE.equals(spec.getUseCredential()))
+         .secretId(spec.getSecretId())
+         .user(spec.getUser())
+         .password(spec.getPassword())
+         .hashAlgorithm(spec.getHashAlgorithm())
+         .userQuery(spec.getUserQuery())
+         .userListQuery(spec.getUserListQuery())
+         .groupListQuery(spec.getGroupListQuery())
+         .groupUsersQuery(spec.getGroupUsersQuery())
+         .roleListQuery(spec.getRoleListQuery())
+         .userRolesQuery(spec.getUserRolesQuery())
+         .userRoleListQuery(spec.getUserRoleListQuery())
+         .organizationListQuery(spec.getOrganizationListQuery())
+         .organizationNameQuery(spec.getOrganizationNameQuery())
+         .organizationMembersQuery(spec.getOrganizationMembersQuery())
+         .organizationRolesQuery(spec.getOrganizationRolesQuery())
+         .userEmailsQuery(spec.getUserEmailsQuery())
+         .appendSalt(Boolean.TRUE.equals(spec.getAppendSalt()))
+         .sysAdminRoles(spec.getSysAdminRoles() == null ? null :
+                       String.join(", ", spec.getSysAdminRoles()))
+         .orgAdminRoles(spec.getOrgAdminRoles() == null ? null :
+                       String.join(", ", spec.getOrgAdminRoles()))
+         .build();
+   }
+
    // ---------------------------------------------------------------- update (bug 76686)
 
    /**
@@ -514,16 +549,48 @@ public class ProviderChangesetApplyService {
       try {
          ProviderChangePlanService.requireUpdatableAuthenticationType("apply." + key,
                                                                        before.providerType());
-         LdapAuthenticationProviderModel mergedLdap = ProviderChangePlanService.mergePartialLdapSpec(
-            "apply." + key, before.ldapProviderModel(), original.getSpec());
-         ProviderChangePlanService.requireLdapCredentialCrossValidation("apply." + key,
-                                                                        original.getSpec(), mergedLdap);
-         proposed = AuthenticationProviderModel.builder()
+         AuthenticationProviderModel.Builder proposedBuilder = AuthenticationProviderModel.builder()
             .providerName(name)
-            .oldName(name)
-            .providerType(SecurityProviderType.LDAP)
-            .ldapProviderModel(mergedLdap)
-            .build();
+            .oldName(name);
+
+         if(before.providerType() == SecurityProviderType.DATABASE) {
+            if(original.getSpec() != null) {
+               throw new IllegalArgumentException(
+                  "apply." + key + ".spec: not used to update provider \"" + name + "\" -- it is a " +
+                  "DATABASE provider, use databaseSpec instead");
+            }
+            if(original.getDatabaseSpec() == null) {
+               throw new IllegalArgumentException(
+                  "apply." + key + ".databaseSpec: required for verb=update (at least one field to " +
+                  "change)");
+            }
+
+            DatabaseAuthenticationProviderModel mergedDatabase =
+               ProviderChangePlanService.mergePartialDatabaseSpec(
+                  "apply." + key, before.dbProviderModel(), original.getDatabaseSpec());
+            ProviderChangePlanService.requireDatabaseCredentialCrossValidation(
+               "apply." + key, original.getDatabaseSpec(), mergedDatabase);
+            proposedBuilder.providerType(SecurityProviderType.DATABASE).dbProviderModel(mergedDatabase);
+         }
+         else {
+            if(original.getDatabaseSpec() != null) {
+               throw new IllegalArgumentException(
+                  "apply." + key + ".databaseSpec: not used to update provider \"" + name + "\" -- " +
+                  "it is an LDAP provider, use spec instead");
+            }
+            if(original.getSpec() == null) {
+               throw new IllegalArgumentException(
+                  "apply." + key + ".spec: required for verb=update (at least one field to change)");
+            }
+
+            LdapAuthenticationProviderModel mergedLdap = ProviderChangePlanService.mergePartialLdapSpec(
+               "apply." + key, before.ldapProviderModel(), original.getSpec());
+            ProviderChangePlanService.requireLdapCredentialCrossValidation("apply." + key,
+                                                                           original.getSpec(), mergedLdap);
+            proposedBuilder.providerType(SecurityProviderType.LDAP).ldapProviderModel(mergedLdap);
+         }
+
+         proposed = proposedBuilder.build();
          planService.requireAuthenticationEditPreflight("apply." + key, name, proposed, user);
       }
       catch(IllegalArgumentException e) {

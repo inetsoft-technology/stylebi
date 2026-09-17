@@ -95,6 +95,49 @@ final class ProviderProjection {
       return sb.toString();
    }
 
+   /** Used for a create's {@code proposedValue} (no live object yet) and mirrors
+    * {@link #projectDatabaseModel} field-for-field so the hash is comparable across preview and
+    * apply -- the same pairing convention {@link #projectLdapSpec}/{@link #projectLdapModel}
+    * already establishes for LDAP (bug 76716). */
+   static String projectDatabaseSpec(String name, ProviderDatabaseSpec spec) {
+      StringBuilder sb = new StringBuilder();
+      append(sb, "name", name);
+      append(sb, "type", "DATABASE");
+      append(sb, "driver", spec.getDriver());
+      append(sb, "url", spec.getUrl());
+      append(sb, "requiresLogin", String.valueOf(spec.getRequiresLogin() == null ||
+                                                 spec.getRequiresLogin()));
+      append(sb, "useCredential", String.valueOf(Boolean.TRUE.equals(spec.getUseCredential())));
+      append(sb, "secretId", spec.getSecretId());
+      append(sb, "user", spec.getUser());
+      append(sb, "password", isBlank(spec.getPassword()) ? "pw:unset" : "pw:set");
+      append(sb, "hashAlgorithm", spec.getHashAlgorithm());
+      append(sb, "userQuery", spec.getUserQuery());
+      append(sb, "userListQuery", spec.getUserListQuery());
+      append(sb, "groupListQuery", spec.getGroupListQuery());
+      append(sb, "groupUsersQuery", spec.getGroupUsersQuery());
+      append(sb, "roleListQuery", spec.getRoleListQuery());
+      append(sb, "userRolesQuery", spec.getUserRolesQuery());
+      append(sb, "userRoleListQuery", spec.getUserRoleListQuery());
+      append(sb, "organizationListQuery", spec.getOrganizationListQuery());
+      append(sb, "organizationNameQuery", spec.getOrganizationNameQuery());
+      append(sb, "organizationMembersQuery", spec.getOrganizationMembersQuery());
+      append(sb, "organizationRolesQuery", spec.getOrganizationRolesQuery());
+      append(sb, "appendSalt", String.valueOf(Boolean.TRUE.equals(spec.getAppendSalt())));
+      append(sb, "userEmailsQuery", spec.getUserEmailsQuery());
+      // Plain join, not appendSorted -- DatabaseAuthenticationProviderModel stores sysAdminRoles/
+      // orgAdminRoles as a single ", "-joined String (unlike LdapAuthenticationProviderModel's
+      // String[]), and projectDatabaseModel projects that stored string verbatim; joining the same
+      // way here keeps this function's output directly comparable to projectDatabaseModel's, the
+      // same "hash's unit and verification's unit can differ, but the two projections should still
+      // read the same way" intent projectLdapSpec/projectLdapModel already establish.
+      append(sb, "sysAdminRoles", spec.getSysAdminRoles() == null ? null :
+            String.join(", ", spec.getSysAdminRoles()));
+      append(sb, "orgAdminRoles", spec.getOrgAdminRoles() == null ? null :
+            String.join(", ", spec.getOrgAdminRoles()));
+      return sb.toString();
+   }
+
    /** The read-back model always carries {@code Util.PLACEHOLDER_PASSWORD} for password, never the
     * real value (section 9) -- projected as a presence token identically to {@link #projectLdapSpec},
     * not as literal placeholder text, so the two are comparable across preview/apply. */
