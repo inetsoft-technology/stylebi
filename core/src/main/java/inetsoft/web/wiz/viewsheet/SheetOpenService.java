@@ -442,8 +442,8 @@ public class SheetOpenService {
       Principal browserUser = actingSheet == null ? user : actingSheet.getUser();
       String runtimeId = viewsheetService.openTemporaryWorksheet(browserUser, null);
 
-      // Bug #76738: openTemporaryWorksheet(user, null) does NOT leave the runtime entry-less --
-      // WorksheetEngine.openTemporaryWorksheet falls back to
+      // Bug #76738: openTemporaryWorksheet(browserUser, null) does NOT leave the runtime
+      // entry-less -- WorksheetEngine.openTemporaryWorksheet falls back to
       // getTemporaryAssetEntry(user, WORKSHEET) internally when handed a null entry, exactly
       // mirroring openTemporaryViewsheet's own getTemporaryAssetEntry(user, VIEWSHEET) fallback.
       // The runtime already has a real (TEMPORARY_SCOPE, "Untitled-N") identity; fetch it back the
@@ -452,7 +452,17 @@ public class SheetOpenService {
       // literal null all the way down to OpenWorksheetEvent.id() -- a non-@Nullable field -- which
       // failed to even deserialize server-side (HttpMessageNotReadableException, 400) the moment
       // the browser tried to actually open the tab.
-      AssetEntry newWsEntry = worksheetService.getWorksheet(runtimeId, user).getEntry();
+      //
+      // Fetch with browserUser, not the raw agent user: the runtime was just registered under
+      // browserUser (immediately above), and WorksheetEngine.getSheet enforces rs.matches(user)
+      // -- full Principal equality -- before falling back to the pairedAgent bypass. Passing the
+      // raw agent principal would only happen to work because getSheetForPairing (above) already
+      // set that bypass flag as a side effect of resolving the ACTING session -- it would NOT work
+      // (Invalid user found, this bug's own mechanism, at this new call site) if that incidental
+      // flag were ever absent. createViewsheet's equivalent fetch
+      // (viewsheetService.getViewsheet(runtimeId, browserUser)) already uses browserUser for
+      // exactly this reason -- match that established, self-sufficient pattern.
+      AssetEntry newWsEntry = worksheetService.getWorksheet(runtimeId, browserUser).getEntry();
 
       // The acting session's own socket/owner, exactly like createViewsheet mints in the reverse
       // direction -- no new pairing code, and the new session is opened whole-sheet (null

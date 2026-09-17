@@ -710,6 +710,15 @@ class SheetOpenServiceTest {
     * principal, never for content. There is no "genuinely needs it" branch to fail loud on here:
     * fall back to the agent's own principal and proceed, exactly like createViewsheet's own
     * explicit-dataSource case.
+    *
+    * <p>The {@code verify(runtimeAccess).getSheetForPairing(...)} below is load-bearing, not
+    * decorative: without it, this test passes identically against the PRE-fix method too, since
+    * that version never calls {@code getSheetForPairing} at all -- the stubbed throw is simply
+    * never exercised, and asserting the fallback principal alone is trivially true either way
+    * (found empirically: reviewer-76636 built an isolated pre-fix worktree and confirmed this
+    * exact test passed there). Verifying the call was actually attempted is what makes this a
+    * genuine regression test for the SESSION_EXPIRED-tolerance behavior, not just for the
+    * fallback's end result.
     */
    @Test
    void createWorksheetToleratesExpiredActingRuntimeAndFallsBackToTheAgentPrincipal()
@@ -726,6 +735,8 @@ class SheetOpenServiceTest {
       JoinSession created = service.createWorksheet("tok-acting", agent);
 
       assertEquals(SheetType.WORKSHEET, created.sheetType());
+      verify(runtimeAccess).getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                               any(Principal.class));
       verify(viewsheetService).openTemporaryWorksheet(same(agent), isNull());
    }
 
@@ -795,6 +806,16 @@ class SheetOpenServiceTest {
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertEquals(newWsTempEntry.toIdentifier(), sent.assetId());
       assertNotNull(sent.assetId());
+
+      // Bug #76636 reconciliation: the runtime was just registered under the acting session's
+      // BROWSER principal (see createWorksheetOpensTheRuntimeAsTheActingSessionsBrowserPrincipalNotTheAgents),
+      // so fetching its own entry back must use that SAME principal, not the raw agent's -- or
+      // WorksheetEngine.getSheet's rs.matches(user) check would fail here too, the exact
+      // "Invalid user found" mechanism this whole bug is about, at this new call site.
+      ArgumentCaptor<Principal> fetchedAs = ArgumentCaptor.forClass(Principal.class);
+      verify(worksheetService).getWorksheet(eq("ws-runtime-new"), fetchedAs.capture());
+      assertEquals("browser-" + PRINCIPAL_NAME, fetchedAs.getValue().getName());
+      assertNotEquals(PRINCIPAL_NAME, fetchedAs.getValue().getName());
    }
 
    /**
