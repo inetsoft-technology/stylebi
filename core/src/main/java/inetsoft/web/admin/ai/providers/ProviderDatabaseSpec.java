@@ -44,7 +44,10 @@ public class ProviderDatabaseSpec {
 
    /** Default {@code true} -- mirrors {@link inetsoft.web.admin.security.DatabaseAuthenticationProviderModel#requiresLogin()}'s
     * own default. Orthogonal to {@link #getUseCredential()}: this controls whether a login is
-    * required to query the database at all, not which of secretId/user+password supplies it. */
+    * required to query the database at all, not which of secretId/user+password supplies it. An
+    * EXPLICIT {@code false} exempts the credential-mode requirement entirely (see
+    * {@code ProviderChangePlanService.requireDatabaseCredentialMode}'s own doc, bug 76716 review
+    * finding) -- an omitted value still requires credentials exactly as before. */
    public Boolean getRequiresLogin() { return requiresLogin; }
    public void setRequiresLogin(Boolean v) { this.requiresLogin = v; }
 

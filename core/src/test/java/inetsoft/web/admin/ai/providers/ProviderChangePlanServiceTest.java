@@ -304,6 +304,40 @@ class ProviderChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("useCredential"));
    }
 
+   // -------------------------------------------------------------------------
+   // requiresLogin=false exempts the whole credential-mode requirement (bug 76716 review finding,
+   // confirmed against the real EM dialog: database-provider-view.component.html's @if wraps the
+   // ENTIRE secretId/useCredential/user/password block on requiresLogin).
+   // -------------------------------------------------------------------------
+
+   @Test void resolveAllowsDatabaseCreateWithRequiresLoginFalseAndNoCredentialFields() throws Exception {
+      ProviderDatabaseSpec spec = new ProviderDatabaseSpec();
+      spec.setDriver("com.mysql.cj.jdbc.Driver");
+      spec.setUrl("jdbc:mysql://db1.example.com:3306/security");
+      spec.setHashAlgorithm("SHA-256");
+      spec.setRequiresLogin(false);
+      // Deliberately no useCredential/secretId/user/password at all.
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", spec);
+      stubEmptyAuthenticationChain(List.of());
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      assertEquals(1, plan.changes().size());
+   }
+
+   @Test void resolveDatabaseCreateStillRequiresCredentialsWhenRequiresLoginOmitted() {
+      ProviderDatabaseSpec spec = new ProviderDatabaseSpec();
+      spec.setDriver("com.mysql.cj.jdbc.Driver");
+      spec.setUrl("jdbc:mysql://db1.example.com:3306/security");
+      spec.setHashAlgorithm("SHA-256");
+      // requiresLogin left null (omitted) -- must default to true, same as before this fix.
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", spec);
+      stubEmptyAuthenticationChain(List.of());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("user"));
+   }
+
    @Test void resolveThrowsOnCustomProviderType() {
       ProviderChangeRequest change = new ProviderChangeRequest();
       change.setVerb("create");
@@ -693,6 +727,30 @@ class ProviderChangePlanServiceTest {
       assertTrue(proposed.contains("driver=com.mysql.cj.jdbc.Driver;")); // untouched field carried over
       verify(proposedProvider).tearDown();
       verify(authenticationProviderService, never()).requireProviderTypeLicensed(any());
+   }
+
+   @Test void resolveUpdateAllowsRequiresLoginFalseEvenWithOtherwiseContradictoryCredentialFields()
+      throws Exception
+   {
+      // bug 76716 review finding: requiresLogin=false in the update patch resolves the MERGED
+      // model's own requiresLogin() to false, which must skip requireDatabaseCredentialCrossValidation
+      // entirely -- proven here by deliberately sending secretId together with user/password (a
+      // combination that would otherwise be refused loud) and confirming it still succeeds.
+      stubHealthyAuthenticationChainOf("db1");
+      when(authenticationProviderService.getAuthenticationProvider("db1")).thenReturn(dbModel("db1"));
+      AuthenticationProvider proposedProvider = sysAdminProvider("db1");
+      when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenReturn(Optional.of(proposedProvider));
+
+      ProviderDatabaseSpec patch = new ProviderDatabaseSpec();
+      patch.setRequiresLogin(false);
+      patch.setSecretId("vault:1");
+      patch.setUser("would-be-contradictory");
+      patch.setPassword("would-be-contradictory");
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(updateAuthDatabase("db1", patch))), user);
+      assertEquals(1, plan.changes().size());
+      assertTrue(plan.changes().get(0).proposedValue().contains("requiresLogin=false;"));
    }
 
    @Test void resolveUpdateRejectsSpecWhenCurrentProviderIsDatabase() throws Exception {

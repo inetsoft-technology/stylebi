@@ -310,8 +310,10 @@ public class ProviderChangePlanService {
     * {@code hashAlgorithm} are the required base fields (mirroring
     * {@link inetsoft.web.admin.security.DatabaseAuthenticationProviderModel}'s own non-nullable
     * accessors); the query fields are all optional, same as the model itself declares them.
-    * {@code requiresLogin} is a separate, orthogonal boolean from {@code useCredential} -- it is
-    * never cross-validated against it. */
+    * {@code requiresLogin} is a separate, orthogonal boolean from {@code useCredential} -- see
+    * {@link #requireDatabaseCredentialMode}'s own doc for the one place they DO interact (review
+    * finding: an explicit {@code requiresLogin=false} exempts the credential-mode requirement
+    * entirely, it is not simply ignored). */
    private static void requireDatabaseSpec(String label, ProviderDatabaseSpec spec) {
       if(spec == null) {
          throw new IllegalArgumentException(label + ".databaseSpec: required for providerType=DATABASE");
@@ -326,8 +328,23 @@ public class ProviderChangePlanService {
    /** Structural mirror of the {@code useCredential} cross-validation embedded in
     * {@link #requireLdapSpec} -- extracted to its own method (unlike the LDAP version) so
     * {@link #mergePartialDatabaseSpec}'s caller can re-run it against a MERGED model too, the same
-    * two call sites {@link #requireLdapCredentialCrossValidation} already has for LDAP. */
+    * two call sites {@link #requireLdapCredentialCrossValidation} already has for LDAP.
+    *
+    * <p><b>An explicit {@code requiresLogin=false} skips this ENTIRE method</b> (bug 76716 review
+    * finding) -- confirmed directly against the real EM Database provider dialog
+    * ({@code database-provider-view.component.html}'s own {@code @if
+    * (dbForm.get('requiresLogin').value) {...}} wraps the WHOLE secretId/useCredential/user/
+    * password block, and {@code .component.ts}'s {@code requiresLogin} subscription calls
+    * {@code clearValidators()} on secretId/user/password when unchecked): when a login is not
+    * required at all, the real form neither renders nor requires any credential field. {@code
+    * requiresLogin} defaults to {@code true} (mirroring {@code DatabaseAuthenticationProviderModel
+    * .requiresLogin()}'s own {@code @Value.Default}), so an OMITTED value still requires
+    * credentials exactly as before -- this exemption fires only on an explicit {@code false}. */
    private static void requireDatabaseCredentialMode(String label, ProviderDatabaseSpec spec) {
+      if(Boolean.FALSE.equals(spec.getRequiresLogin())) {
+         return;
+      }
+
       boolean useCredential = Boolean.TRUE.equals(spec.getUseCredential());
 
       if(useCredential) {
@@ -652,10 +669,18 @@ public class ProviderChangePlanService {
     * the MERGED/proposed model, same reasoning: a caller rotating only {@code password} on a
     * provider currently in {@code useCredential=true}/{@code secretId} mode would pass a naive
     * per-field-if-present check cleanly while producing an internally contradictory merged model.
+    * Skips entirely when the MERGED model's own {@code requiresLogin()} resolves to {@code false}
+    * (bug 76716 review finding -- same reasoning as {@link #requireDatabaseCredentialMode}'s own
+    * doc) -- unlike the create-time check, this reads the fully-resolved model's own primitive
+    * {@code boolean}, so there is no "omitted vs. explicit false" ambiguity to worry about here.
     */
    static void requireDatabaseCredentialCrossValidation(String label, ProviderDatabaseSpec spec,
                                                         DatabaseAuthenticationProviderModel proposed)
    {
+      if(!proposed.requiresLogin()) {
+         return;
+      }
+
       if(proposed.useCredential()) {
          if(spec.getUser() != null || spec.getPassword() != null) {
             throw new IllegalArgumentException(
