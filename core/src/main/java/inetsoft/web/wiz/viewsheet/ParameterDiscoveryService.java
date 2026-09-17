@@ -96,13 +96,16 @@ public class ParameterDiscoveryService {
             continue;
          }
 
-         if(assembly instanceof InputVSAssembly input && input.isVariable() &&
-            input.getTableName() != null)
-         {
-            String tableName = input.getTableName();
-            // "$(name)" -- strip the $() wrapper, same substring math VSCollectParametersService
-            // uses for the reverse direction.
-            names.add(tableName.substring(2, tableName.length() - 1));
+         if(assembly instanceof InputVSAssembly input) {
+            // getVariableTableKey() already handles both a "$(name)"-wrapped and a bare
+            // (unwrapped) table name -- unwrapping by hand here (as VSCollectParametersService's
+            // own reverse-direction code does) would throw on a short bare name and silently
+            // truncate a longer one.
+            String key = input.getVariableTableKey();
+
+            if(key != null) {
+               names.add(key);
+            }
          }
       }
    }
