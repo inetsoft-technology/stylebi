@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.internal.OKLab;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -84,5 +85,102 @@ class ChartTailDerivationTest {
       Field field = VSChartPaletteDefaults.class.getDeclaredField(fieldName);
       field.setAccessible(true);
       return (Color[]) field.get(null);
+   }
+
+   // The companion rule's light-mode escape hatch: above this, getCompanionColor deepens instead of
+   // lifting, because a lift would land past white. Mirrors CategoricalColorFrame.LIGHT_MAX_L.
+   private static final double LIGHT_MAX_L = 0.96;
+
+   // The companion rule's anchor threshold in dark mode, from CategoricalColorFrame.
+   private static final double DARK_ANCHOR_MAX_L = 0.50;
+
+   // The whole point of the slice. Holding the tail inside the head's lightness band means the
+   // companion rule covers every generated slot by construction, so no slot recedes in the opposite
+   // direction from its neighbours. Today's legacy tail trips this three times by slot 16.
+   @Test
+   void noModernSlotNeedsTheLightEndException() throws Exception {
+      for(Color c : colorArray("MODERN_FALLBACK")) {
+         double l = OKLab.toLCH(OKLab.fromColor(c))[0];
+         assertTrue(l + 0.14 <= LIGHT_MAX_L,
+                    "no Modern slot may need the light-end exception, but " + hex(c)
+                       + " sits at L " + l);
+      }
+   }
+
+   // Dark's mirror. Exactly one slot may take the anchor branch - the anchor itself, #49447D, which
+   // is the set's darkest member and is meant to. Today's tail adds three more.
+   @Test
+   void onlyTheAnchorTakesTheDarkAnchorBranch() throws Exception {
+      int anchors = 0;
+
+      for(Color c : colorArray("DARK_FALLBACK")) {
+         if(OKLab.toLCH(OKLab.fromColor(c))[0] < DARK_ANCHOR_MAX_L) {
+            anchors++;
+         }
+      }
+
+      assertEquals(1, anchors, "only #49447D may take the dark anchor branch");
+   }
+
+   @Test
+   void everySlotSitsInsideTheHeadsLightnessBand() throws Exception {
+      for(Color c : colorArray("MODERN_FALLBACK")) {
+         double l = OKLab.toLCH(OKLab.fromColor(c))[0];
+         assertTrue(l >= 0.269 - 1e-3 && l <= 0.813 + 1e-3,
+                    hex(c) + " at L " + l + " sits outside the head's band 0.269-0.813");
+      }
+   }
+
+   // The measured separation figures. Asserted with a tolerance rather than as floors, so
+   // a change to the rule has to restate its cost instead of silently coasting under a round number.
+   @Test
+   void separationMatchesTheMeasuredFigures() throws Exception {
+      assertEquals(0.1311, minDeltaE("MODERN_FALLBACK", 12), 5e-4, "Modern at n=12");
+      assertEquals(0.1127, minDeltaE("MODERN_FALLBACK", 16), 5e-4, "Modern at n=16");
+      assertEquals(0.0319, minDeltaE("MODERN_FALLBACK", 40), 5e-4, "Modern at n=40");
+      assertEquals(0.1491, minDeltaE("DARK_FALLBACK", 12), 5e-4, "Modern Dark at n=12");
+      assertEquals(0.1079, minDeltaE("DARK_FALLBACK", 16), 5e-4, "Modern Dark at n=16");
+      assertEquals(0.0361, minDeltaE("DARK_FALLBACK", 40), 5e-4, "Modern Dark at n=40");
+   }
+
+   // A tail colour that reads as a head colour is the failure the aggregate figures hide, because it
+   // pairs slot 1 with slot 34. Modern beats the legacy tail's 0.0365 here; dark's 0.0405 is below
+   // the legacy tail's 0.0461 and is recorded in the design as the one axis that does not improve.
+   @Test
+   void worstHeadToTailPairMatchesTheMeasuredFigures() throws Exception {
+      assertEquals(0.0521, worstHeadToTail("MODERN_FALLBACK"), 5e-4, "Modern");
+      assertEquals(0.0405, worstHeadToTail("DARK_FALLBACK"), 5e-4, "Modern Dark");
+   }
+
+   private static double minDeltaE(String fieldName, int n) throws Exception {
+      Color[] palette = colorArray(fieldName);
+      double worst = Double.MAX_VALUE;
+
+      for(int i = 0; i < n; i++) {
+         for(int j = i + 1; j < n; j++) {
+            worst = Math.min(worst, ChartTailDerivation.deltaE(palette[i], palette[j]));
+         }
+      }
+
+      return worst;
+   }
+
+   private static double worstHeadToTail(String fieldName) throws Exception {
+      Color[] palette = colorArray(fieldName);
+      double worst = Double.MAX_VALUE;
+
+      for(int i = 0; i < 8; i++) {
+         for(int j = 8; j < palette.length; j++) {
+            worst = Math.min(worst, ChartTailDerivation.deltaE(palette[i], palette[j]));
+         }
+      }
+
+      return worst;
+   }
+
+   // colorArray(String) already exists from Task 2 — do not add a second copy.
+
+   private static String hex(Color c) {
+      return String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());
    }
 }
