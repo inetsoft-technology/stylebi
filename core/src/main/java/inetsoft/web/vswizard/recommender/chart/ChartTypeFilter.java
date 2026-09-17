@@ -72,13 +72,14 @@ public class ChartTypeFilter {
    /**
     * The context every seed in this filter resolves against. Set once by the factory that builds
     * the filter list, so a filter added later inherits it without a constructor change; a filter
-    * nobody sets keeps the legacy default and seeds exactly what it seeded before.
+    * nobody sets keeps the legacy default and seeds exactly what it seeded before. Package-private
+    * on purpose: only the filter factory may name a filter's context, and only before it runs.
     */
-   public void setVizContext(VizContext vizContext) {
+   void setVizContext(VizContext vizContext) {
       this.vizContext = vizContext == null ? VizContext.LEGACY : vizContext;
    }
 
-   public VizContext getVizContext() {
+   VizContext getVizContext() {
       return vizContext;
    }
 

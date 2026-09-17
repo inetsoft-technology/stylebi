@@ -17,6 +17,7 @@
  */
 package inetsoft.web.vswizard.recommender.chart;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.graph.aesthetic.VisualFrame;
@@ -32,15 +33,18 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.uql.viewsheet.internal.VizMark;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
+import inetsoft.web.vswizard.recommender.object.VSChartDefaultRecommendationFactory;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -48,6 +52,8 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * The object wizard's own seed path. The wizard builds its temp chart from the real runtime
@@ -62,8 +68,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class WizardSeededLinearFrameTest {
-   // no collaborator of VSWizardBindingHandler is touched by getTempChartContext, so nulls are
-   // safe here
+   /**
+    * getTempChartContext reads only its argument, so none of the thirteen injected collaborators
+    * is touched and every position can be null - including temporaryInfoService, the twelfth,
+    * which is the one a reader would expect to matter here and does not. Nothing below depends on
+    * which position is which, so a dependency added to the constructor shifts nothing meaningful:
+    * it would change the arity and fail this line at compile time rather than silently.
+    */
    private static final VSWizardBindingHandler HANDLER = new VSWizardBindingHandler(
       null, null, null, null, null, null, null, null, null, null, null, null, null);
 
@@ -86,6 +97,42 @@ class WizardSeededLinearFrameTest {
       assertSame(VizContext.LEGACY,
                  HANDLER.getTempChartContext(new VSWizardData(new AssetEntry[0],
                                                               new VSTemporaryInfo())));
+   }
+
+   /**
+    * The factory's own wiring, which is the shape of the defect this task fixes: a line that reads
+    * the context and one that passes it on, with nothing downstream to notice if either stops.
+    * Replacing the resolution with VizContext.LEGACY compiles and leaves every other test here
+    * green, so this is the only thing asserting the recommender is run with what the handler read.
+    *
+    * The chart-style permission gate that makes a full recommend() assertion vacuous sits inside
+    * getChartInfos, which never runs here.
+    */
+   @Test
+   void theFactoryRunsTheRecommenderWithTheHandlersContext() {
+      VizContext expected = VizContext.of(VizMark.MODERN_LIGHT);
+      VSWizardData wizardData = new VSWizardData(new AssetEntry[0], new VSTemporaryInfo());
+      VSWizardBindingHandler handler = mock(VSWizardBindingHandler.class);
+      when(handler.getTempChart(wizardData)).thenReturn(new VSChartInfo());
+      when(handler.getTempChartContext(wizardData)).thenReturn(expected);
+
+      // both collaborators serve isAutoOrder alone; a null runtime viewsheet takes its documented
+      // default, so no runtime sheet is needed
+      VSChartDefaultRecommendationFactory factory = new VSChartDefaultRecommendationFactory(
+         mock(RuntimeViewsheetRef.class), mock(ViewsheetService.class), handler, null);
+
+      try(MockedStatic<ChartCombinationUtil> util = mockStatic(ChartCombinationUtil.class)) {
+         util.when(() -> ChartCombinationUtil.getChartInfos(any(), any(), any(), anyBoolean(),
+                                                           any(VizContext.class)))
+            .thenReturn(List.of());
+
+         factory.recommend(wizardData, null);
+
+         // same(), not equals: the factory must forward the handler's own instance, so passing a
+         // freshly resolved legacy context would not satisfy this
+         util.verify(() -> ChartCombinationUtil.getChartInfos(any(), any(), any(), anyBoolean(),
+                                                             same(expected)));
+      }
    }
 
    /**
