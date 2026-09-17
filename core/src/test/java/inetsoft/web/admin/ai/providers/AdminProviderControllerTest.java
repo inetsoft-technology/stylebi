@@ -37,6 +37,7 @@ package inetsoft.web.admin.ai.providers;
  * handlePlanHashMismatch is load-bearing, not optional -- see handleTaskTokenMismatch* below.
  */
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -126,6 +127,27 @@ class AdminProviderControllerTest {
          () -> controller.testAuthenticationProviderConnection("missing", user));
       assertEquals(404, ex.getStatusCode().value());
       verify(authenticationProviderService, never()).testConnection(any());
+   }
+
+   // -------------------------------------------------------------------------
+   // getMultiTenantStatus() -- bug 76716 follow-up: a purpose-built read of SUtil.isMultiTenant()
+   // itself, added specifically because the generic properties-catalog path's "uncatalogued and
+   // never explicitly set" response is genuinely indistinguishable from a misspelled property
+   // name -- this endpoint calls the real method directly instead.
+   // -------------------------------------------------------------------------
+
+   @Test void getMultiTenantStatus_reflectsTrue() {
+      try(MockedStatic<SUtil> sUtil = mockStatic(SUtil.class)) {
+         sUtil.when(SUtil::isMultiTenant).thenReturn(true);
+         assertTrue(controller.getMultiTenantStatus(user).isMultiTenant());
+      }
+   }
+
+   @Test void getMultiTenantStatus_reflectsFalse() {
+      try(MockedStatic<SUtil> sUtil = mockStatic(SUtil.class)) {
+         sUtil.when(SUtil::isMultiTenant).thenReturn(false);
+         assertFalse(controller.getMultiTenantStatus(user).isMultiTenant());
+      }
    }
 
    // Bug 76655 (F1): a FILE provider has no failure mode getProviderFromModel's FILE branch could
