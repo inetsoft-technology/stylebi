@@ -243,6 +243,42 @@ class SelectionBindingServiceTest {
          eq("rt1"), eq("List1"), any(), eq(""), any(), any());
    }
 
+   // ── additionalTables resolution (regression for Bug #76747) ─────────────────
+
+   @Test
+   void resolvesAMixedCaseAdditionalTableToItsCanonicalName() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(new SelectionListPropertyDialogModel());
+
+      Map<String, Object> result = harness(assembly, listService, null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                   List.of("customers"), null, false, "");
+
+      ArgumentCaptor<SelectionListPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
+      verify(listService).setSelectionListPropertyModel(
+         eq("rt1"), eq("List1"), captor.capture(), eq(""), any(), any());
+      SelectionListPaneModel pane = captor.getValue().getSelectionListPaneModel();
+      assertEquals(List.of("CUSTOMERS"), pane.getAdditionalTables());
+      assertEquals("ORDERS", result.get("table"));
+   }
+
+   @Test
+   void refusesAnUnknownAdditionalTableNamingWhatIsAvailable() {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, mock(SelectionListPropertyDialogService.class), null, null, null)
+            .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                      List.of("NOPE"), null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("List1"));
+      assertTrue(thrown.getMessage().contains("NOPE"));
+      assertTrue(thrown.getMessage().contains("ORDERS"));
+   }
+
    // ── Logical Model column resolution (regression for Bug #76700) ────────────
 
    /**
