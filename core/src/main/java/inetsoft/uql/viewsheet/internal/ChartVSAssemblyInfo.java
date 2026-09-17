@@ -17,7 +17,11 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.LinearColorFrame;
+import inetsoft.graph.aesthetic.TealColorFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GDefaults;
@@ -260,8 +264,27 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
                // palette have to go or they keep rendering for the rest of the session
                ccf.clearDerivedColors();
             }
+            else if(ref != null && isOtherMarkSeededLinearFrame(ref.getVisualFrame(), ctx)) {
+               ref.setVisualFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx));
+            }
          }
       }
+   }
+
+   /**
+    * Whether frame is exactly the linear ramp the *other* mark seeds by default - Blues on a
+    * chart becoming modern, Teal on a chart becoming legacy. A ramp the author picked deliberately
+    * is some other class (Spectral, Amber, Variance, a gradient, ...) and is left alone, whatever
+    * its changed flag says: linear-color-pane never sets that flag, so keying on it would discard
+    * real choices on the first revert after upgrade.
+    */
+   private static boolean isOtherMarkSeededLinearFrame(VisualFrame frame, VizContext ctx) {
+      if(!(frame instanceof LinearColorFrame)) {
+         return false;
+      }
+
+      Class<?> otherMarkDefault = ctx.modern ? BluesColorFrame.class : TealColorFrame.class;
+      return frame.getClass() == otherMarkDefault;
    }
 
    /**
