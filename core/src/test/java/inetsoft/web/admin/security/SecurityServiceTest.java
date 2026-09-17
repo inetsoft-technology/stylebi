@@ -116,11 +116,12 @@ class SecurityServiceTest {
       when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>());
       themeService = new IdentityThemeService(customThemesManager);
 
+      userTreeService = mock(UserTreeService.class, withSettings().lenient());
+
       service = new SecurityService(
          securityEngine, identityService, actionPermissionService,
          mock(LocalizationSettingsService.class), themeService,
-         systemAdminService, mock(UserTreeService.class),
-         mock(LocaleService.class), customThemesManager);
+         systemAdminService, userTreeService, customThemesManager);
    }
 
    @AfterEach
@@ -999,6 +1000,81 @@ class SecurityServiceTest {
       verify(customThemesManager, never()).setOrgSelectedTheme(anyString(), anyString());
    }
 
+   // ────────── createOrganization locale ──────────
+   //
+   // createOrganization resolved its locale through LocaleService.getLocale(), a different source
+   // of truth from every other locale path in this API: LocaleService's map is built only from the
+   // SreeEnv property "locale.available", while createUser/updateUser/updateOrganization validate
+   // against the data-space file locale.properties. "locale.available" is unset by default, so the
+   // map is empty and the lookup returned null for *every* input -- silently dropping even a
+   // perfectly valid code that updateOrganization accepts. Fixed to use validateLocale(), matching
+   // createUser: store a known code verbatim, throw loudly for anything else.
+   //
+   // LocaleService itself was deliberately left alone: its three other callers
+   // (AuthenticationService's login and updateLocale paths, SUtil.getSessionRecord) all treat a
+   // null return as the normal "no locale configured" outcome, so making it throw would raise on
+   // essentially every login on a default deployment.
+
+   @Test
+   void createOrganization_validLocaleCode_persistsVerbatim() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      Properties localeProperties = new Properties();
+      localeProperties.setProperty("en_US", "English(America)");
+      sUtilStatic.when(SUtil::loadLocaleProperties).thenReturn(localeProperties);
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId("neworg-id");
+      request.setName("New Organization");
+      request.setLocale("en_US");
+
+      service.createOrganization(request, null, principal);
+
+      ArgumentCaptor<FSOrganization> captor = ArgumentCaptor.forClass(FSOrganization.class);
+      verify(editableProvider).addOrganization(captor.capture());
+      // Before the fix this resolved through LocaleService, whose map is empty unless the
+      // "locale.available" SreeEnv property is set -- so even this valid code persisted as null.
+      assertEquals("en_US", captor.getValue().getLocale());
+   }
+
+   @Test
+   void createOrganization_copyFromOrg_unrecognizedLocale_throwsOnThatPathToo() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      Properties localeProperties = new Properties();
+      localeProperties.setProperty("en_US", "English(America)");
+      sUtilStatic.when(SUtil::loadLocaleProperties).thenReturn(localeProperties);
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId("neworg-id");
+      request.setName("New Organization");
+      request.setLocale("English(America)");
+
+      // The copyFrom branch returns before the locale is ever used, so validation is hoisted above
+      // it: an identical body must not be accepted here and rejected on the ordinary create path.
+      assertThrows(InvalidResourceException.class,
+                   () -> service.createOrganization(request, "source-org", principal));
+      verify(userTreeService, never())
+         .createOrganization(any(), any(), any(), any(), any(), any());
+   }
+
+   @Test
+   void createOrganization_unrecognizedLocale_throwsInsteadOfSilentlyDroppingIt() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      Properties localeProperties = new Properties();
+      localeProperties.setProperty("en_US", "English(America)");
+      sUtilStatic.when(SUtil::loadLocaleProperties).thenReturn(localeProperties);
+
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId("neworg-id");
+      request.setName("New Organization");
+      // A display label, not a code -- same rejected input shape as the createUser/updateUser
+      // and updateOrganization cases above.
+      request.setLocale("English(America)");
+
+      assertThrows(InvalidResourceException.class,
+                   () -> service.createOrganization(request, null, principal));
+      verify(editableProvider, never()).addOrganization(any());
+   }
+
    // ── updateOrganization locale (Bug #76678) ─────────────────────────────
    //
    // updateOrganization passed request.getLocale() (a code, per the Public API's documented
@@ -1502,6 +1578,7 @@ class SecurityServiceTest {
    private OrganizationManager orgManager;
    private IdentityService identityService;
    private SystemAdminService systemAdminService;
+   private UserTreeService userTreeService;
    private ActionPermissionService actionPermissionService;
    private Principal principal;
    private SecurityService service;

@@ -26,6 +26,8 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.sync.DependenciesInfo;
+import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -43,6 +45,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +77,8 @@ class ViewsheetChangesetApplyServiceTest {
    private ViewsheetChangesetApplyService service;
    private MockedStatic<OrganizationManager> orgManagerStatic;
    private MockedStatic<DependencyTool> dependencyToolStatic;
+   @Mock private DependencyStorageService dependencyStorageService;
+   private MockedStatic<DependencyStorageService> dependencyStorageServiceStatic;
    private MockedStatic<Tool> tool;
    private MockedStatic<SUtil> sutil;
 
@@ -103,6 +108,14 @@ class ViewsheetChangesetApplyServiceTest {
       dependencyToolStatic = mockStatic(DependencyTool.class, withSettings().lenient());
       dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
          .thenReturn(List.of());
+
+      // Bug #76728: the apply-time delete advisory now bypasses DependencyTool.getDependencies and
+      // calls DependencyStorageService directly (findDependenciesForAdvisory), so it needs its own
+      // mock independent of dependencyToolStatic above -- default: no dependencies found.
+      dependencyStorageServiceStatic = mockStatic(DependencyStorageService.class, withSettings().lenient());
+      dependencyStorageServiceStatic.when(DependencyStorageService::getInstance)
+         .thenReturn(dependencyStorageService);
+      lenient().when(dependencyStorageService.getWithOrg(anyString(), anyString())).thenReturn(null);
 
       tool = mockStatic(Tool.class, withSettings().strictness(Strictness.LENIENT)
          .defaultAnswer(Answers.CALLS_REAL_METHODS));
@@ -222,6 +235,7 @@ class ViewsheetChangesetApplyServiceTest {
    @AfterEach void tearDown() {
       orgManagerStatic.close();
       dependencyToolStatic.close();
+      dependencyStorageServiceStatic.close();
       tool.close();
       sutil.close();
    }
@@ -299,7 +313,11 @@ class ViewsheetChangesetApplyServiceTest {
       ViewsheetApplyRequest req = applyRequest("delete", true, change);
       // Simulates a concurrent change adding a dependency between the original preview (whose hash
       // is embedded in `req`) and this apply call -- apply() re-resolves fresh, re-running section
-      // 0.2's own preflight, so the addition is caught here too, not only at preview time.
+      // 0.2's own preflight, so the addition is caught here too, not only at preview time. This
+      // exercises ViewsheetChangePlanService's own findDependencies/DependencyTool path (still
+      // unchanged by bug #76728's fix -- that fix only touches the apply-time advisory
+      // construction, not this preview-layer re-resolve), so stub DependencyTool, not
+      // DependencyStorageService.
       var dep = dependency("Examples/Census Query");
       dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
          .thenReturn(List.of(dep));
@@ -312,8 +330,7 @@ class ViewsheetChangesetApplyServiceTest {
 
    @Test void deleteAdvisoryNamesTheDependentsWhenForced() throws Exception {
       var dep = dependency("Examples/Census Query");
-      dependencyToolStatic.when(() -> DependencyTool.getDependencies(anyString()))
-         .thenReturn(List.of(dep));
+      stubDependencyLookup(List.of(dep));
       ViewsheetChangeRequest change = deleteViewsheetChange(VS_ASSET_ID);
       change.setForce(true);
 
@@ -322,6 +339,33 @@ class ViewsheetChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertNotNull(result.results().get(0).advisory());
       assertTrue(result.results().get(0).advisory().contains("Census Query"));
+   }
+
+   /** Bug #76728: when the apply-time dependency lookup itself fails (as opposed to genuinely
+    * finding zero dependents), the advisory must say so distinctly rather than silently reading the
+    * same as "no dependents" (a null advisory). Uses {@code force: true} since, unchanged from
+    * before this fix, a failed lookup is swallowed to an empty dependency array for the force-gate
+    * itself (out of scope for this bug -- see 03b-fix-enterprise.md). */
+   @Test void deleteAdvisoryDiffersWhenDependencyLookupFails() throws Exception {
+      lenient().when(dependencyStorageService.getWithOrg(anyString(), anyString()))
+         .thenThrow(new RuntimeException("storage unavailable"));
+      ViewsheetChangeRequest change = deleteViewsheetChange(VS_ASSET_ID);
+      change.setForce(true);
+
+      var result = service.apply(applyRequest("force delete", true, change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      String advisory = result.results().get(0).advisory();
+      assertNotNull(advisory, "a failed lookup must not read the same as a confirmed-zero result");
+      assertTrue(advisory.contains("dependency check failed"));
+      assertFalse(advisory.contains("dependent asset(s)"),
+         "must not claim a dependent count it never actually confirmed");
+   }
+
+   private void stubDependencyLookup(List<AssetEntry> dependencies) throws Exception {
+      DependenciesInfo info = new DependenciesInfo();
+      info.setDependencies(new ArrayList<>(dependencies));
+      lenient().when(dependencyStorageService.getWithOrg(anyString(), anyString())).thenReturn(info);
    }
 
    @Test void deleteIsNeverRolledBackWhenAnotherChangeInTheSamePlanFails() throws Exception {

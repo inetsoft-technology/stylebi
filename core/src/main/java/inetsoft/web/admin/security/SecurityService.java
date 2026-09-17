@@ -65,7 +65,7 @@ public class SecurityService {
                           LocalizationSettingsService localizationSettingsService,
                           IdentityThemeService themeService,
                           SystemAdminService systemAdminService,
-                          UserTreeService userTreeService, LocaleService localeService,
+                          UserTreeService userTreeService,
                           CustomThemesManager customThemesManager)
    {
       this.securityEngine = securityEngine;
@@ -75,7 +75,6 @@ public class SecurityService {
       this.themeService = themeService;
       this.systemAdminService = systemAdminService;
       this.userTreeService = userTreeService;
-      this.localeService = localeService;
       this.customThemesManager = customThemesManager;
    }
 
@@ -817,6 +816,12 @@ public class SecurityService {
             throw new ResourceExistsException(request.getName());
          }
 
+         // Validated ahead of both branches so an invalid code is rejected consistently whether or
+         // not copyFrom was supplied, and before the ActionRecord exists -- this method's finally
+         // block stamps ACTION_STATUS_SUCCESS unconditionally, so a throw after that point would
+         // be audited as a successful create.
+         String orgLocale = validateLocale(request.getLocale());
+
          if(!Tool.isEmptyString(copyFromOrgID)) {
             userTreeService.createOrganization(
                copyFromOrgID, provider.getProviderName(), request.getId(), request.getName(), principal, request.getDefaultPassword());
@@ -851,7 +856,6 @@ public class SecurityService {
          FSOrganization organization = new FSOrganization(oid);
          organization.setName(name);
          organization.setMembers(members.toArray(new String[0]));
-         String orgLocale = localeService.getLocale(request.getLocale(), principal);
          organization.setLocale(orgLocale);
          Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
          CustomTheme currentTheme = themes.stream()
@@ -2079,6 +2083,5 @@ public class SecurityService {
    private final IdentityThemeService themeService;
    private final SystemAdminService systemAdminService;
    private final UserTreeService userTreeService;
-   private final LocaleService localeService;
    private final CustomThemesManager customThemesManager;
 }

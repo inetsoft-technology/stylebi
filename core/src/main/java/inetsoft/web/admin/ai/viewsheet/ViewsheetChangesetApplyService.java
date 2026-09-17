@@ -22,6 +22,10 @@ import inetsoft.web.admin.sheet.vs.ViewsheetService;
 import inetsoft.web.admin.sheet.ws.WorksheetService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetObject;
+import inetsoft.uql.asset.sync.DependenciesInfo;
+import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.asset.sync.RenameTransformObject;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.ai.*;
@@ -346,13 +350,17 @@ public class ViewsheetChangesetApplyService {
       boolean force = Boolean.TRUE.equals(original.getForce());
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
       // Section 0.2 step 2a: re-run the dependency preflight against live state AT APPLY TIME too
-      // -- a concurrent change since preview could have added a new dependency.
-      AssetEntry[] dependencies = planService.findDependencies(entry, user);
+      // -- a concurrent change since preview could have added a new dependency. Uses
+      // findDependenciesForAdvisory (bug #76728), not ViewsheetChangePlanService.findDependencies,
+      // so a lookup failure here can be told apart from a genuine zero-dependents result; the
+      // force-gate's own tolerance of a failed lookup is unchanged (still passes an empty array
+      // through to requireForceIfDependent either way -- that gate's behavior on lookup failure is
+      // a separate, out-of-scope question, see 03b-fix-enterprise.md).
+      DependencyLookupResult lookup = findDependenciesForAdvisory(entry);
+      AssetEntry[] dependencies = lookup.dependencies();
       ViewsheetChangePlanService.requireForceIfDependent(
          "apply." + assetId, assetId, dependencies, force);
-      String advisory = dependencies.length == 0 ? null :
-         "deleted with force: true despite " + dependencies.length + " dependent asset(s) still " +
-         "referencing this viewsheet: " + ViewsheetProjection.projectDependencies(dependencies);
+      String advisory = buildDeleteAdvisory(lookup, "viewsheet");
 
       String beforeProjection = ViewsheetProjection.projectViewsheet(current);
       viewsheetApiService.deleteViewsheet(assetId, user);
@@ -480,12 +488,12 @@ public class ViewsheetChangesetApplyService {
 
       boolean force = Boolean.TRUE.equals(original.getForce());
       AssetEntry entry = AssetEntry.createAssetEntry(assetId);
-      AssetEntry[] dependencies = planService.findDependencies(entry, user);
+      // Same rationale as applyViewsheetDelete's use of findDependenciesForAdvisory (bug #76728).
+      DependencyLookupResult lookup = findDependenciesForAdvisory(entry);
+      AssetEntry[] dependencies = lookup.dependencies();
       ViewsheetChangePlanService.requireForceIfDependent(
          "apply." + assetId, assetId, dependencies, force);
-      String advisory = dependencies.length == 0 ? null :
-         "deleted with force: true despite " + dependencies.length + " dependent asset(s) still " +
-         "referencing this worksheet: " + ViewsheetProjection.projectDependencies(dependencies);
+      String advisory = buildDeleteAdvisory(lookup, "worksheet");
 
       String beforeProjection = ViewsheetProjection.projectWorksheet(current);
       worksheetApiService.deleteWorksheet(assetId, user);
@@ -501,6 +509,66 @@ public class ViewsheetChangesetApplyService {
 
       // Delete has NO live inverse in this cut, same as viewsheet delete -- never added to
       // `undoable`.
+   }
+
+   /**
+    * Bug #76728: {@code ViewsheetChangePlanService.findDependencies} goes through {@code
+    * DependencyTool.getDependencies}, which silently swallows any lookup exception and returns an
+    * empty list -- so a force-delete's advisory could not tell "confirmed zero dependents" apart
+    * from "the lookup itself failed after the delete already happened," and silently read as the
+    * former. This calls {@code DependencyStorageService.getWithOrg} directly, with its own
+    * try/catch, so the two cases can be told apart at the one call site (apply-time advisory
+    * construction) where that distinction is safety-relevant. Deliberately does not replicate
+    * {@code DependencyTool.getDependencies}'s {@code SCHEDULE_TASK} branch -- a viewsheet/
+    * worksheet {@code AssetEntry} is never that type.
+    */
+   private static DependencyLookupResult findDependenciesForAdvisory(AssetEntry entry) {
+      try {
+         DependencyStorageService service = DependencyStorageService.getInstance();
+         RenameTransformObject obj = service.getWithOrg(entry.toIdentifier(), entry.getOrgID());
+         List<AssetObject> raw = new ArrayList<>();
+
+         if(obj instanceof DependenciesInfo info) {
+            if(info.getDependencies() != null) {
+               raw.addAll(info.getDependencies());
+            }
+
+            if(info.getEmbedDependencies() != null) {
+               raw.addAll(info.getEmbedDependencies());
+            }
+         }
+
+         AssetEntry[] dependencies = raw.stream()
+            .filter(AssetEntry.class::isInstance)
+            .map(AssetEntry.class::cast)
+            .toArray(AssetEntry[]::new);
+         return new DependencyLookupResult(dependencies, false);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to look up dependencies for delete advisory on {}", entry.toIdentifier(), e);
+         return new DependencyLookupResult(new AssetEntry[0], true);
+      }
+   }
+
+   /** Bug #76728: the advisory text this delete surfaces to the operator -- distinct wording when
+    * the dependency lookup itself failed, rather than silently reading the same as "confirmed zero
+    * dependents." */
+   private static String buildDeleteAdvisory(DependencyLookupResult lookup, String unitLabel) {
+      if(lookup.lookupFailed()) {
+         return "deleted with force: true, but the dependency check failed after the delete was " +
+            "already applied -- unable to confirm whether other assets still reference this " +
+            unitLabel + "; check server logs and verify manually";
+      }
+
+      AssetEntry[] dependencies = lookup.dependencies();
+      return dependencies.length == 0 ? null :
+         "deleted with force: true despite " + dependencies.length + " dependent asset(s) still " +
+         "referencing this " + unitLabel + ": " + ViewsheetProjection.projectDependencies(dependencies);
+   }
+
+   /** Result of {@link #findDependenciesForAdvisory} -- distinguishes a confirmed-empty lookup from
+    * one that failed and was swallowed to empty for the (unchanged, out-of-scope) force-gate. */
+   private record DependencyLookupResult(AssetEntry[] dependencies, boolean lookupFailed) {
    }
 
    // ---------------------------------------------------------------- worksheet update
