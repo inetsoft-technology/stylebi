@@ -109,7 +109,7 @@ public final class VSChartPaletteDefaults {
     * Amber and Teal succeed the single hues and Heat; Variance succeeds the diverging set. Multi-hue
     * has no house member and survives whole, and so does Custom, kept for brand matching. Greys and
     * Purples go with their family and have no individual successor - the linear analogue of the
-    * categorical Gray, which the handoff also retires with none.
+    * categorical Gray, which likewise has no individual successor and is retired the same way.
     *
     * Hiding is a display concern. Nothing here is removed from resolution, so a chart already on any
     * of these keeps rendering it and keeps showing it selected.

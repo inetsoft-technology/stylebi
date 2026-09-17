@@ -175,20 +175,32 @@ two attributes in the template.
 - **Hide, never omit from resolution.** A modern chart already on `Spectral` keeps rendering
   Spectral, still shows it selected, and does not repaint on a no-op OK. Resolution by class stays
   unfiltered unconditionally.
-- **One authority, gate as the absent-assembly default.** `visual-dropdown-pane` and the
-  date-comparison pane supply no assembly and land on `VizContext.ofGate()`. Neither component
-  changes.
+- **One authority, gate as the absent-assembly default.** `visual-dropdown-pane` supplies no
+  assembly and lands on `VizContext.ofGate()`. The component doesn't change; an absent-assembly
+  host must still resolve to something sane rather than fail.
 
 ## 4. Re-seeding the modern default
 
-Eight literals become `defaultLinearFrame(ctx)` calls, across three signatures that each gain a
+Seven literals become `defaultLinearFrame(ctx)` calls, across two signatures that each gain a
 `VizContext`:
 
 | Site | Count | Change |
 |---|---|---|
 | `ChangeChartTypeProcessor` 166, 863, 1176, 1250, 1344, 1420 | 6 | a context-taking overload on each constructor; the existing overloads keep `LEGACY` |
-| `ChangeChartProcessor.fixColorField(ChartBindable, int)` :234 | 1 | context parameter |
 | `GraphUtil.fixVisualFrame(AestheticRef, int, int, ChartInfo)` :951 | 1 | context parameter, public static |
+
+**`ChangeChartProcessor.fixColorField` was going to be the eighth and is not.** An earlier revision
+gave it a context overload; that was withdrawn. The method has no caller anywhere in community or
+enterprise, so the overload was dead API on dead API — and worse, the base would have taken the
+context as a *parameter* where both subclasses hold it as a *field*, so a future caller inside a
+subclass would have made the natural two-argument call and seeded the legacy ramp with a correct
+context sitting beside it. `ChangeChartProcessor` is untouched by this slice.
+
+The real threading is wider than this table implies. `fixVisualFrame` is reached from
+`ChangeChartTypeProcessor.process()` only through `GraphUtil.fixVisualFrames` and
+`fixVisualFrames0`, which a grep for `fixVisualFrame(` does not match — so the count of *call sites*
+that needed a context is 34, not the seven literals above. The object wizard's recommender adds a
+further eight seeds on its own path — recorded in §7, where it is closed rather than deferred.
 
 The ten `ChangeChartTypeProcessor` construction sites each have an answer:
 
@@ -245,12 +257,14 @@ derived stop that violates a constraint fails the drift guard at build time rath
 
 | Item | Trigger |
 |---|---|
+| **The vswizard recommender's measure→colour seed — closed, not deferred.** | Believing no assembly was reachable from the recommender was wrong, not a scope decision. `VSWizardTemporaryInfoService:69` builds the wizard's temp chart as `new ChartVSAssembly(vs, TEMP_CHART_NAME)` against the real runtime viewsheet, and `AbstractVSAssembly:136` stamps that new assembly with the viewsheet's own `VizMark`. `VSWizardBindingHandler.getTempChart` held that marked assembly all along and returned only its `ChartInfo`, discarding the mark on the way out — so every recommender seed read legacy regardless of the host's mark. `getTempChartContext(VSWizardData)` now reads the mark off the held assembly instead, and the context is threaded through `VSChartDefaultRecommendationFactory.recommend`, `ChartCombinationUtil.createFilters`/`getChartInfos`, and every `ChartTypeFilter` subclass, so a chart created through the object wizard is born on Teal exactly like one built in the composer. No trigger — done. |
 | **Designer ratification of the derived stops** | Especially Variance's inversion — chroma carrying magnitude from a grey midpoint is a departure from the source's intent, not a re-tune of it. Trigger: the next sync of the external design set. The constraint and the reasoning must live in a sibling file, never inside `chart-card-design3/`, which is regenerated wholesale. |
 | **A house multi-hue ramp** | Multi-hue is the only family left with twelve legacy ramps and no successor, so decision 4 leaves it fully visible to modern charts. Trigger: a decision to author one, at which point the twelve become hideable on the same rule. |
 | **`DensityForm:127`** | A contour chart's default stays Blues. Trigger: the density contour colour item the brushing slice deferred is taken up — both are the same structural problem, a graph-level form with no assembly context. |
 | **`GradientColorFrame` interpolation** | ENGINE §4 also asks that the two-endpoint generator interpolate in OKLCH along the short hue arc with an optional midpoint, measured at `#8A646F` chroma 0.05 versus `#B850B1` at 0.18. Custom survives this slice untouched. Trigger: a report that a custom two-colour ramp goes muddy through its middle. |
 | **Dark-specific ramps** | Closed by decision 2, not open. Trigger: the dual-surface compromise is measured as weak on one surface, which would reopen decision 2 rather than add a variant quietly. |
 | **`VisualFrameWrapper:258` `"BluesColorFrameW"`** | Recorded, not fixed. Trigger: any change to that switch for another reason. |
+| **`VizContext.LEGACY`'s identity is overloaded with a second meaning.** | Every no-context overload in this slice defaults to the `VizContext.LEGACY` *singleton*, and seven descriptor sites separately compare identity against that exact instance to mean "this is a report chart": `AxisDescriptor:69`, `LegendDescriptor:75`, `LegendsDescriptor:101`, `PlotDescriptor:74`, `TitleDescriptor:71`, `ChartRefImpl:62`, `GraphTarget:83`. Inert today — no context this slice builds ever reaches a descriptor constructor, and `VizContext.of(VSAssemblyInfo)` on an unmarked assembly returns a freshly constructed instance rather than the `LEGACY` sentinel, so a missed seed site cannot masquerade as a report chart through this path. Trigger: a caller ever hands a filter's or seed site's context to a descriptor constructor — an unmarked real viewsheet chart would then satisfy `ctx == VizContext.LEGACY` and be misclassified as a report chart, losing its viewsheet-specific default formatting. |
 
 ## Files touched
 
@@ -261,23 +275,36 @@ derived stop that violates a constraint fails the drift guard at build time rath
 | `core/.../graph/aesthetic/VarianceColorFrame.java` | **new** |
 | `core/.../uql/viewsheet/graph/aesthetic/{Amber,Teal,Variance}ColorFrameWrapper.java` | **new** ×3 |
 | `core/.../uql/viewsheet/graph/aesthetic/VisualFrameWrapper.java` | three switch cases |
+| `core/.../web/binding/model/graph/aesthetic/{Amber,Teal,Variance}ColorModel.java` | **new** ×3 — the server-side picker model per ramp |
 | `core/.../web/binding/service/graph/aesthetic/ColorFrameModelFactory.java` | three factory inner classes |
+| `core/.../web/binding/service/ChartInfoModelBuilder.java` | recognizes the three new frame classes when building a chart's binding model |
+| `core/.../web/binding/service/VSChartInfoModelBuilder.java` | same, on the viewsheet-specific builder |
 | `core/.../uql/viewsheet/internal/VSChartPaletteDefaults.java` | `defaultLinearFrame(VizContext)`, `hiddenLinearFrames(VizContext)` |
+| `core/.../web/binding/VSChartBindingController.java` | **new** `GET /api/composer/chart/hiddenlinearframes` endpoint; shared `pickerContext(vsId, assemblyName, principal)` helper |
 | `core/.../report/internal/graph/ChangeChartTypeProcessor.java` | `VizContext` on constructors; six seed sites |
-| `core/.../report/internal/graph/ChangeChartProcessor.java` | `fixColorField` context; one seed site |
 | `core/.../report/internal/graph/ChangeChartDataProcessor.java` | context passed through |
-| `core/.../report/composition/graph/GraphUtil.java` | `fixVisualFrame` context; one seed site |
+| `core/.../report/composition/graph/GraphUtil.java` | `fixVisualFrame`/`fixVisualFrames` context; one seed site |
 | `core/.../uql/viewsheet/internal/ChartVSAssemblyInfo.java` | pass `VizContext.of(this)` ×2 |
+| `core/.../uql/viewsheet/ChartVSAssembly.java` | pass `VizContext.of(getVSAssemblyInfo())` into `GraphUtil.fixVisualFrames` |
 | `core/.../web/binding/controller/ChangeChartTypeService.java` | pass the assembly's context ×2 |
+| `core/.../web/binding/controller/{ChangeChartAestheticService,ChangeChartDataService,ChangeChartRefService,ConvertChartRefService}.java` | thread the assembly's context to the shared seed helper |
+| `core/.../web/binding/handler/{ChartDndHandler,VSChartBindingHandler,VSChartDataHandler}.java` | thread the context through the drag/drop and data-change seed paths |
+| `core/.../report/script/AbstractChartBindingScriptable.java`, `.../script/viewsheet/VSChartBindingScriptable.java` | thread the context through the scripting API's chart-binding mutators |
 | `core/.../uql/viewsheet/graph/ChartDcProcessor.java` | pass the assembly's context ×2 |
 | `core/.../web/composer/vs/dialog/DateComparisonDialogService.java` | pass the assembly's context |
+| `core/.../web/composer/vs/dialog/ChartPropertyDialogService.java` | pass `VizContext.of(assemblyInfo)` into `GraphUtil.fixVisualFrames` |
 | `core/.../report/internal/ChartElementDef.java` | pass `VizContext.LEGACY` ×2 |
+| `core/.../web/vswizard/handler/VSWizardBindingHandler.java` | **new** `getTempChartContext(VSWizardData)`, reading the mark off the held temp-chart assembly |
+| `core/.../web/vswizard/recommender/object/VSChartDefaultRecommendationFactory.java` | resolves and threads the context into the recommender |
+| `core/.../web/vswizard/recommender/chart/ChartCombinationUtil.java` | threads the context through `createFilters`/`getChartInfos` into every `ChartTypeFilter` |
+| `core/.../web/vswizard/recommender/chart/ChartTypeFilter.java` | context field and constructors |
+| `core/.../web/vswizard/recommender/chart/{CirclePackingChartFilter,ContourMapChartFilter,ContourScatterChartFilter,MekkoChartFilter,ScatterChartFilter,WordCloudFilter}.java` | pass the context through to `super()` — the seven sites that were seeding Blues unconditionally from the wizard |
 | `web/.../binding/editor/chart/aesthetic/linear-color-dropdown.component.ts` | three `getSrc()` cases |
 | `web/projects/portal/src/assets/{Amber,Teal,Variance}.png` | **new** ×3 — 80×19 swatches |
-| `web/.../binding/editor/chart/aesthetic/linear-color-pane.component.ts` | `vsId`/`assemblyName` inputs; filter the group arrays |
+| `web/.../binding/editor/chart/aesthetic/linear-color-pane.component.ts` | `vsId`/`assemblyName` inputs; `AmberColorModel`/`TealColorModel`/`VarianceColorModel` instance properties; `singleHueModels` gains Amber and Teal, `divergingModels` gains Variance; fetches `hiddenlinearframes` and filters the group arrays, keeping a hidden-but-selected frame visible |
 | `web/.../binding/editor/chart/aesthetic/linear-color-pane.component.html` | Heat row conditional |
 | `web/.../binding/editor/chart/aesthetic/color-field-mc.component.html` | pass `vsId`/`assemblyName` to the linear pane |
 | `web/.../common/data/visual-frame-model.ts` | three models |
-| tests | derivation + drift guard, `defaultLinearFrame`, `hiddenLinearFrames`, wrap/parse round-trip, extended `linear-color-pane.component.tl.spec.ts` |
+| tests | `ChartRampDerivation`/`ChartRampDerivationTest`/`HouseRampTest` (derivation, drift guard, wrapper round-trip), `SeededLinearFrameTest` (`defaultLinearFrame` and composer threading), `VSChartPaletteDefaultsTest` (`hiddenLinearFrames`), `WizardSeededLinearFrameTest` (**new** — the wizard recommender threading), extended `linear-color-pane.component.tl.spec.ts` |
 
 Every path is inside the `community` submodule, so this ships as a community PR.

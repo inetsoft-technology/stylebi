@@ -447,7 +447,7 @@ class VSChartPaletteDefaultsTest {
       assertFalse(hidden.contains("AmberColorModel"));
       assertFalse(hidden.contains("TealColorModel"));
       assertFalse(hidden.contains("VarianceColorModel"));
-      // Custom is retained by ENGINE §4
+      // Custom has no house successor and is kept for brand matching and one-offs
       assertFalse(hidden.contains("GradientColorModel"));
    }
 }

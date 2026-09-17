@@ -5,9 +5,10 @@ import inetsoft.graph.internal.OKLab;
 import java.awt.Color;
 
 /**
- * Derives the house ramps' stops from the design's source colours. Lives in test sources because
- * nothing derives a ramp at runtime - the three house ramps are fixed, authored literally, and this
- * class exists to prove the authored hexes are still what the rule produces.
+ * Derives the house ramps' stops from each ramp's fixed source hues below, keeping hue and relative
+ * chroma while remapping lightness onto a band that clears both chart surfaces. Lives in test
+ * sources because nothing derives a ramp at runtime - the three house ramps are fixed, authored
+ * literally, and this class exists to prove the authored hexes are still what the rule produces.
  */
 public final class ChartRampDerivation {
    public enum Kind { SEQUENTIAL, DIVERGING }
