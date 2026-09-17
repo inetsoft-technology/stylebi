@@ -43,7 +43,7 @@ import java.util.Comparator;
  * caller's current organization -- there is no organization-switching concept here, that is an
  * enterprise-only capability layered on top by {@code WorksheetApiService}.
  */
-@Service
+@Service("adminSheetWorksheetService")
 public class WorksheetService {
    @Autowired
    public WorksheetService(AssetRepository assetRepository,
