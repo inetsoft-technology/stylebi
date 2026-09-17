@@ -420,6 +420,62 @@ class WorksheetEditServiceTest {
       assertEquals(2, ws.getAssemblies().length);
    }
 
+   /**
+    * Bug #76744 (WBS-053): {@code add_join} named the same as one of its own source tables (e.g.
+    * re-joining onto an existing "Query1" join, naming the new join "Query1" again) used to reach
+    * {@link Worksheet#addAssembly}, which silently evicts and replaces the existing same-named
+    * assembly. Because {@link CompositeTableAssembly} resolves its sources by name lazily on every
+    * call, the new join's own name then resolves to itself, and any recursive traversal over
+    * sources (e.g. {@code checkValidity()}) recurses forever, terminating only in an uncaught
+    * {@link StackOverflowError} — with the original assembly already permanently evicted and
+    * unrecoverable. Must be rejected before {@code ws.addAssembly} ever runs.
+    */
+   @Test
+   void addJoinRejectsSelfReferencingNameAndDoesNotPoisonAssemblyLookup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly customers = TestWorksheets.tableWithColumns(
+         ws, "CUSTOMERS1", "REGION_ID");
+      EmbeddedTableAssembly orders = TestWorksheets.tableWithColumns(ws, "ORDERS1", "REGION_ID");
+      ws.addAssembly(customers);
+      ws.addAssembly(orders);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      // First build the pre-existing "Query1" join the reporter's repro joins onto.
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("Query1", "CUSTOMERS1", "REGION_ID",
+                                 "ORDERS1", "REGION_ID", "INNER", null, null));
+      TableAssembly originalQuery1 = (TableAssembly) ws.getAssembly("Query1");
+      assertNotNull(originalQuery1);
+
+      // Naming the new join "Query1" again, with "Query1" itself as one of its own sources.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin("Query1", "Query1", "REGION_ID",
+                                          "ORDERS1", "REGION_ID", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("Query1"));
+
+      // The pre-existing join must never have been evicted/replaced.
+      assertSame(originalQuery1, ws.getAssembly("Query1"));
+      assertEquals(3, ws.getAssemblies().length);
+
+      // The corrupted-state symptom this fix prevents: checkValidity() must not stack-overflow.
+      assertDoesNotThrow(() -> originalQuery1.checkValidity(true));
+   }
+
    @Test
    void addNamedGroupRejectsMissingNameAndDoesNotPoisonAssemblyLookup() throws Exception {
       Worksheet ws = new Worksheet();
@@ -922,6 +978,60 @@ class WorksheetEditServiceTest {
    }
 
    /**
+    * Bug #76744 (WBS-053): the multi-table {@code joinPaths} overload bypasses
+    * {@code placeAssembly} entirely and calls {@code ws.addAssembly(join)} directly, so it needs
+    * its own self-reference check — the existing {@code catch(Exception e)} guard around
+    * {@code editExistingJoinTable} runs too late; by then {@code ws.addAssembly} has already
+    * evicted the original same-named assembly. Uses a real {@link InnerJoinService} (not a mock)
+    * so the test cannot pass merely because a mocked {@code editExistingJoinTable} never touches
+    * the worksheet.
+    */
+   @Test
+   void addJoinWithPathsRejectsSelfReferencingNameAndDoesNotPoisonAssemblyLookup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly customers = TestWorksheets.tableWithColumns(
+         ws, "CUSTOMERS1", "REGION_ID");
+      EmbeddedTableAssembly orders = TestWorksheets.tableWithColumns(ws, "ORDERS1", "REGION_ID");
+      ws.addAssembly(customers);
+      ws.addAssembly(orders);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
+         new InnerJoinService(null, null));
+
+      // Pre-existing "Query1" join, built via the joinPaths overload itself.
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("Query1", List.of(new WorksheetMutationSupport.JoinPathSpec(
+                   "CUSTOMERS1", "REGION_ID", "ORDERS1", "REGION_ID", "INNER"))));
+      TableAssembly originalQuery1 = (TableAssembly) ws.getAssembly("Query1");
+      assertNotNull(originalQuery1);
+
+      List<WorksheetMutationSupport.JoinPathSpec> selfReferencingPaths = List.of(
+         new WorksheetMutationSupport.JoinPathSpec(
+            "Query1", "REGION_ID", "ORDERS1", "REGION_ID", "INNER"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addJoin("Query1", selfReferencingPaths)));
+      assertTrue(ex.getMessage().contains("Query1"));
+
+      assertSame(originalQuery1, ws.getAssembly("Query1"));
+      assertEquals(3, ws.getAssemblies().length);
+      assertDoesNotThrow(() -> originalQuery1.checkValidity(true));
+   }
+
+   /**
     * The star-join shape from the original repro (hub table joined to two others, not a linear
     * left-to-right chain) must work — this is exactly why {@code editExistingJoinTable} is used
     * instead of hand-rolling positional pairing.
@@ -1304,5 +1414,86 @@ class WorksheetEditServiceTest {
       assertTrue(ex.getMessage().contains("MERGE"));
       assertTrue(ex.getMessage().contains("position"));
       assertFalse(ex.getMessage().contains("not found"));
+   }
+
+   /**
+    * Bug #76744 (WBS-053): the self-reference collision check lives in {@code placeAssembly}, the
+    * shared single-assembly registration helper used by every {@code add*} creator besides the
+    * {@code joinPaths} overload (which has its own check) — {@code addCrossJoin} is one of those
+    * shared callers, so it must be protected too, confirming the fix is not join-overload-specific.
+    */
+   @Test
+   void addCrossJoinRejectsSelfReferencingName() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), eq(ResourceType.CROSS_JOIN), anyString(), any()))
+         .thenReturn(true);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), securityEngine, mock(InnerJoinService.class));
+
+      // "A" naming itself as the new cross join's own leftTable.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addCrossJoin("A", "A", "B")));
+      assertTrue(ex.getMessage().contains("A"));
+
+      assertSame(a, ws.getAssembly("A"));
+      assertSame(b, ws.getAssembly("B"));
+      assertEquals(2, ws.getAssemblies().length);
+   }
+
+   /**
+    * Regression guard for the WBS-053 self-reference fix: an ordinary, non-colliding
+    * {@code add_join} call (the ordinary case that check must not reject) must still succeed.
+    */
+   @Test
+   void addJoinSucceedsWithNonCollidingName() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly customers = TestWorksheets.tableWithColumns(
+         ws, "CUSTOMERS1", "REGION_ID");
+      EmbeddedTableAssembly orders = TestWorksheets.tableWithColumns(ws, "ORDERS1", "REGION_ID");
+      ws.addAssembly(customers);
+      ws.addAssembly(orders);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
+                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      svc.apply("TOK", agent,
+                ed -> ed.addJoin("Query1", "CUSTOMERS1", "REGION_ID",
+                                 "ORDERS1", "REGION_ID", "INNER", null, null));
+
+      RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) ws.getAssembly("Query1");
+      assertNotNull(join);
+      assertEquals(2, join.getTableAssemblies().length);
+      assertEquals(3, ws.getAssemblies().length);
    }
 }
