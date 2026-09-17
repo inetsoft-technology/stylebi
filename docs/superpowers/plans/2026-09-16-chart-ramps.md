@@ -1396,3 +1396,73 @@ frame is present.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```
+
+---
+
+### Task 11: Keep the linear ramp in step with the mark
+
+Found by the user's manual pass: reverting a modern chart whose measure is bound to Teal leaves Teal on the now-legacy chart. It fails symmetrically — modernizing a legacy chart leaves it on Blues.
+
+`ChartVSAssemblyInfo.seedColorPalette(VizContext)` (`:247`, called at `:199`) exists for exactly this. Its Javadoc says it writes "the mark-appropriate categorical palette onto every bound colour aesthetic, so Modernize and Revert keep the chart's colours in step with the rest of its chrome." But it filters `instanceof CategoricalColorFrame` at `:256`, and `TealColorFrame` is a `LinearColorFrame`. Before this slice a chart had one mark-tracking colour surface and that hook covered it; the slice added a second and never extended the hook.
+
+**Files:**
+- Modify: `core/src/main/java/inetsoft/uql/viewsheet/internal/ChartVSAssemblyInfo.java` — `seedColorPalette`
+- Test: `core/src/test/java/inetsoft/uql/viewsheet/internal/ChartVSAssemblyInfoSeedTest.java` if one exists, otherwise a new test beside the existing chart-info tests
+
+**Interfaces:**
+- Consumes: `VSChartPaletteDefaults.defaultLinearFrame(VizContext)`.
+- Produces: nothing later tasks call. This is the last task.
+
+- [ ] **Step 1: Decide the guard, and understand why it is narrow**
+
+Re-seed a linear frame **only when it is the other mark's seeded default** — Blues on a chart becoming modern, Teal on a chart becoming legacy. Leave every other frame class untouched.
+
+Do **not** key this on `VisualFrameWrapper.isChanged()`, tempting as it looks. That flag exists, persists, and round-trips (`ColorFrameModel:28`, `ColorFrameModelFactory:59,131`, `VisualFrameWrapper:123,156`), and four sibling panes set it on user edit — `static-color-pane:33`, `binding-size-pane:63,68`, `static-size-pane:57`, `static-texture-pane:60`. But **`linear-color-pane` never sets it**, so every chart saved before this slice carries `changed=false` on its linear frame even where the author chose the ramp deliberately. Keying on the flag would overwrite real user choices the first time anyone reverts after upgrade.
+
+The class check has no such hazard: a chart on Spectral, Amber, Variance, a gradient, or anything else is never touched, whatever its flag says. The narrow case it gets wrong — an author who deliberately picked the *other* mark's default — resolves to the colour they would have got anyway.
+
+- [ ] **Step 2: Write the failing tests**
+
+Four cases, in the file named above:
+
+1. A modern-marked chart whose colour aesthetic holds `TealColorFrame`, reverted to an unmarked context, ends on `BluesColorFrame`.
+2. An unmarked chart holding `BluesColorFrame`, modernized, ends on `TealColorFrame`.
+3. A modern-marked chart holding `SpectralColorFrame`, reverted, **still holds `SpectralColorFrame`** — the author's choice survives.
+4. The existing categorical behaviour is unchanged: a chart with a `CategoricalColorFrame` still gets its palette re-seeded.
+
+Case 3 is the one that matters most; it is what stops this fix from becoming a data-loss bug.
+
+- [ ] **Step 3: Run them and watch them fail**
+
+Run: `./mvnw test -pl core -Dtest=<your test class>`
+Expected: cases 1 and 2 fail, 3 and 4 pass. **If 1 and 2 pass before you change anything, stop and report** — the test is not reaching `seedColorPalette`.
+
+- [ ] **Step 4: Extend the hook**
+
+In `seedColorPalette`, alongside the existing `CategoricalColorFrame` branch, handle a `LinearColorFrame` whose class is the other mark's default by replacing it with `VSChartPaletteDefaults.defaultLinearFrame(ctx)`. Keep the categorical branch exactly as it is.
+
+Mind the runtime/design loop the method already runs — both passes need the same treatment, as the categorical branch gets.
+
+- [ ] **Step 5: Verify**
+
+Run: `./mvnw test -pl core -Dtest=<your test class>` → all four pass
+Run: `./mvnw test -pl core` → compare against 5811 / 0 / 0 / 69 plus your new tests; report exact counts.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add core/src/main/java/inetsoft/uql/viewsheet/internal/ChartVSAssemblyInfo.java core/src/test/java/inetsoft/uql/viewsheet/internal
+git commit -m "Keep the linear ramp in step with the chart's mark
+
+seedColorPalette exists so Modernize and Revert move a chart's colours with
+the rest of its chrome, but it only ever knew about categorical frames. This
+slice gave a chart a second colour surface and did not extend it, so a
+reverted chart kept Teal and a modernized one kept Blues.
+
+Only the two seeded defaults swap. A ramp the author picked is left alone,
+whatever its changed flag says - linear-color-pane never set that flag, so
+every chart saved before this slice reads as unchanged and keying on it
+would discard real choices on the first revert after upgrade.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
+```
