@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.awt.Color;
+import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -56,5 +57,32 @@ class ChartTailDerivationTest {
    @Test
    void theShippingConfigurationProducesThirtyTwoSlots() {
       assertEquals(32, ChartTailDerivation.derive(MODERN_HEAD).length);
+   }
+
+   private static final Color[] DARK_HEAD = {
+      new Color(0x4FA5FF), new Color(0xFF8367), new Color(0x49447D), new Color(0x2DEEC6),
+      new Color(0xAE41F5), new Color(0xFFCB82), new Color(0xFE3290), new Color(0x9FEB28)
+   };
+
+   // The drift guard. If the head is ever re-tuned again, the tail fails loudly here instead of
+   // silently belonging to the previous head.
+   @Test
+   void shippedTailsMatchTheRule() throws Exception {
+      assertArrayEquals(ChartTailDerivation.derive(MODERN_HEAD), colorArray("MODERN_TAIL"),
+                        "MODERN_TAIL must be what the rule derives from MODERN_HEAD");
+      assertArrayEquals(ChartTailDerivation.derive(DARK_HEAD), colorArray("DARK_TAIL"),
+                        "DARK_TAIL must be what the rule derives from DARK_HEAD");
+   }
+
+   @Test
+   void shippedTailsAreThirtyTwoSlotsEach() throws Exception {
+      assertEquals(32, colorArray("MODERN_TAIL").length);
+      assertEquals(32, colorArray("DARK_TAIL").length);
+   }
+
+   private static Color[] colorArray(String fieldName) throws Exception {
+      Field field = VSChartPaletteDefaults.class.getDeclaredField(fieldName);
+      field.setAccessible(true);
+      return (Color[]) field.get(null);
    }
 }

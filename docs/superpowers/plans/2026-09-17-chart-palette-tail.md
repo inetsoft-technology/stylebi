@@ -510,11 +510,20 @@ fallback, keeping its existing first two entries and padding the rest:
 - [ ] **Step 6: Run the palette tests**
 
 Run: `./mvnw test -pl core -Dtest=VSChartPaletteDefaultsTest`
-Expected: PASS. `darkInertWithoutModern` must still pass untouched — that is the classic-chart
-regression anchor.
+Expected: **27 of 29 pass, with exactly two known failures** —
+`gateOnSwapsToModernHeadAndDerivedTail` and `darkPaletteSwapsToDarkHeadAndDerivedTail`.
 
-`ColorPalettesModernTest.tailMatchesLegacyPalette` is still expected to FAIL at this point, because
-CSS has not moved yet. That is Task 3. Do not "fix" it here by weakening it.
+**This was a defect in an earlier revision of this plan, which said "Expected: PASS".** Those two
+tests call `modernPalette()` / `darkPalette()`, and `resolve()` reads CSS *first* — the Java
+fallback is only reached when the CSS declaration is absent, short, or holed. `defaults.css` still
+declares the legacy tail until Task 3, so both tests see `#9368be` at slot 9 where they now expect
+the derived colour. They cannot be green before Task 3, and making them green here would mean
+either weakening them or doing Task 3's work early. **Do neither.**
+
+`darkInertWithoutModern` must still pass untouched — that is the classic-chart regression anchor.
+
+`ColorPalettesModernTest.tailMatchesLegacyPalette` is likewise still expected to FAIL here, for the
+same reason. Task 3 turns all three green in one move.
 
 - [ ] **Step 7: Commit**
 
@@ -642,8 +651,17 @@ add or remove rules.
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `./mvnw test -pl core -Dtest=ColorPalettesModernTest,VSChartPaletteDefaultsTest`
-Expected: PASS. `ColorPalettesModernTest.defaultPaletteIsUnchanged` must still pass — it is the
-proof that classic charts did not move.
+Expected: PASS — **all of it**, including the three tests that were red when Task 2 ended.
+
+Task 2 necessarily left three failures behind, because they read CSS and CSS had not moved yet:
+`ColorPalettesModernTest.tailMatchesLegacyPalette` (which you replace in Step 1) and
+`VSChartPaletteDefaultsTest.gateOnSwapsToModernHeadAndDerivedTail` /
+`darkPaletteSwapsToDarkHeadAndDerivedTail` (which you do **not** touch — writing the CSS is what
+turns them green). If either of those two is still red after Step 3, the CSS is wrong; do not edit
+the tests to match it.
+
+`ColorPalettesModernTest.defaultPaletteIsUnchanged` must still pass — it is the proof that classic
+charts did not move.
 
 - [ ] **Step 5: Verify the rule count did not change**
 
@@ -726,7 +744,7 @@ Append to `ChartTailDerivationTest.java`. Add `import inetsoft.graph.internal.OK
       }
    }
 
-   // The measured figures from the design's §2. Asserted with a tolerance rather than as floors, so
+   // The measured separation figures. Asserted with a tolerance rather than as floors, so
    // a change to the rule has to restate its cost instead of silently coasting under a round number.
    @Test
    void separationMatchesTheMeasuredFigures() throws Exception {

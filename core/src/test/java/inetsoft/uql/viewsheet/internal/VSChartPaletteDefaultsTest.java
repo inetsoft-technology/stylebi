@@ -49,7 +49,7 @@ class VSChartPaletteDefaultsTest {
    }
 
    @Test
-   void gateOnSwapsToModernHeadButKeepsLegacyTail() {
+   void gateOnSwapsToModernHeadAndDerivedTail() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       assertTrue(VizContext.ofGate().modern);
 
@@ -57,9 +57,9 @@ class VSChartPaletteDefaultsTest {
       assertEquals(40, modern.length, "8 modern + 32 legacy tail = 40");
       assertEquals(new Color(0x0490FF), modern[0]);
       assertEquals(new Color(0x8ED604), modern[7]);
-      // index 9+ preserves the legacy tail unchanged
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], modern[8]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], modern[39]);
+      // index 9+ is now derived from the head, not taken from the legacy list
+      assertEquals(new Color(0x00788A), modern[8]);
+      assertEquals(new Color(0x9F35A1), modern[39]);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
@@ -92,7 +92,7 @@ class VSChartPaletteDefaultsTest {
    }
 
    @Test
-   void darkPaletteSwapsToDarkHeadKeepsLegacyTail() {
+   void darkPaletteSwapsToDarkHeadAndDerivedTail() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
 
@@ -100,8 +100,8 @@ class VSChartPaletteDefaultsTest {
       assertEquals(40, dark.length, "8 dark + 32 legacy tail = 40");
       assertEquals(new Color(0x4FA5FF), dark[0]);
       assertEquals(new Color(0x9FEB28), dark[7]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], dark[8]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], dark[39]);
+      assertEquals(new Color(0x008FA4), dark[8]);
+      assertEquals(new Color(0xB352B4), dark[39]);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
@@ -120,15 +120,15 @@ class VSChartPaletteDefaultsTest {
    }
 
    @Test
-   void spliceLegacyKeepsHeadAndTail() {
+   void spliceJoinsHeadAndTail() {
       Color[] head = { new Color(0x010203), new Color(0x040506) };
-      Color[] result = VSChartPaletteDefaults.spliceLegacy(head);
+      Color[] tail = { new Color(0x070809) };
+      Color[] result = VSChartPaletteDefaults.splice(head, tail);
 
-      assertEquals(40, result.length);
+      assertEquals(3, result.length);
       assertEquals(new Color(0x010203), result[0]);
       assertEquals(new Color(0x040506), result[1]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[2], result[2]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], result[39]);
+      assertEquals(new Color(0x070809), result[2]);
    }
 
    @Test
@@ -148,7 +148,7 @@ class VSChartPaletteDefaultsTest {
    @Test
    void fromFrameFallsBackWhenFrameIsNull() {
       Color[] result = VSChartPaletteDefaults.fromFrame(null, MODERN_HEAD_FIXTURE);
-      assertArrayEquals(VSChartPaletteDefaults.spliceLegacy(MODERN_HEAD_FIXTURE), result);
+      assertArrayEquals(MODERN_HEAD_FIXTURE, result);
    }
 
    @Test
@@ -158,7 +158,7 @@ class VSChartPaletteDefaultsTest {
 
       Color[] result = VSChartPaletteDefaults.fromFrame(frame, MODERN_HEAD_FIXTURE);
 
-      assertArrayEquals(VSChartPaletteDefaults.spliceLegacy(MODERN_HEAD_FIXTURE), result);
+      assertArrayEquals(MODERN_HEAD_FIXTURE, result);
    }
 
    // A format.css declaring only indices 1-8 and 40 yields a 40-length array with null holes.
@@ -173,13 +173,22 @@ class VSChartPaletteDefaultsTest {
 
       Color[] result = VSChartPaletteDefaults.fromFrame(frame, MODERN_HEAD_FIXTURE);
 
-      assertArrayEquals(VSChartPaletteDefaults.spliceLegacy(MODERN_HEAD_FIXTURE), result);
+      assertArrayEquals(MODERN_HEAD_FIXTURE, result);
    }
 
-   private static final Color[] MODERN_HEAD_FIXTURE = {
-      new Color(0x0490FF), new Color(0xFF5A35), new Color(0x241C4F), new Color(0x03D9B3),
-      new Color(0x9A2DDC), new Color(0xFFB020), new Color(0xE5197E), new Color(0x8ED604)
-   };
+   private static final Color[] MODERN_HEAD_FIXTURE = fixture();
+
+   private static Color[] fixture() {
+      Color[] colors = new Color[40];
+      colors[0] = new Color(0x0490FF);
+      colors[1] = new Color(0xFF5A35);
+
+      for(int i = 2; i < colors.length; i++) {
+         colors[i] = new Color(0x100000 + i);
+      }
+
+      return colors;
+   }
 
    @Test
    void modernPaletteResolvesFromCss() {
