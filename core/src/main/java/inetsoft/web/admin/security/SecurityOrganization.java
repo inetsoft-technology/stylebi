@@ -169,6 +169,29 @@ public class SecurityOrganization {
    }
 
    /**
+    * Gets the organization-scoped property overrides. These write into the same global
+    * server-property store the Properties area manages, namespaced per-organization -- not inert
+    * metadata.
+    *
+    * @return the properties.
+    */
+   @Schema(description = "Organization-scoped property overrides, written into the shared global " +
+      "server-property namespace (the same store the Properties area manages), not inert " +
+      "per-organization metadata.")
+   public List<PropertyModel> getProperties() {
+      return properties;
+   }
+
+   /**
+    * Sets the organization-scoped property overrides.
+    *
+    * @param properties the properties.
+    */
+   public void setProperties(List<PropertyModel> properties) {
+      this.properties = properties;
+   }
+
+   /**
     * Sets the identities with admin permission over the organization
     *
     * @return the identities.
@@ -204,13 +227,14 @@ public class SecurityOrganization {
          (memberUsers == null || memberUsers.equals(that.memberUsers)) &&
          (memberGroups == null || memberGroups.equals(that.memberGroups)) &&
          (roles == null || roles.equals(that.roles)) &&
-         (adminIdentities == null || adminIdentities.equals(that.adminIdentities));
+         (adminIdentities == null || adminIdentities.equals(that.adminIdentities)) &&
+         (properties == null || properties.equals(that.properties));
    }
 
    @Override
    public int hashCode() {
       return Objects.hash(name, theme, locale, memberUsers,
-                          memberGroups, roles, adminIdentities);
+                          memberGroups, roles, adminIdentities, properties);
    }
 
    @Override
@@ -224,6 +248,7 @@ public class SecurityOrganization {
          ", memberGroups=" + memberGroups +
          ", roles=" + roles +
          ", adminIdentities=" + adminIdentities +
+         ", properties=" + properties +
          '}';
    }
 
@@ -258,4 +283,5 @@ public class SecurityOrganization {
    private List<String> roles;
    private AdminIdentities adminIdentities;
    private String defaultPassword;
+   private List<PropertyModel> properties;
 }

@@ -145,6 +145,60 @@ class IdentityChangePlanServiceTest {
          () -> service.resolve(request("task", List.of(change)), user));
    }
 
+   // bug-76715 assertion 5: defaultRole/sysAdmin/properties must be refused loud, naming the field
+   // and suggesting the correct unitType, if sent on a unitType they don't belong to.
+
+   @Test void resolveThrowsOnDefaultRoleFieldOnUserSpec() {
+      IdentityChangeRequest change = createUser("bob");
+      change.getSpec().setDefaultRole(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("defaultRole"));
+      assertTrue(ex.getMessage().contains("role"));
+   }
+
+   @Test void resolveThrowsOnSysAdminFieldOnUserSpec() {
+      IdentityChangeRequest change = createUser("bob");
+      change.getSpec().setSysAdmin(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("sysAdmin"));
+      assertTrue(ex.getMessage().contains("role"));
+   }
+
+   @Test void resolveThrowsOnPropertiesFieldOnRoleSpec() {
+      IdentityChangeRequest change = createRole("Analyst");
+      change.getSpec().setProperties(List.of(PropertyModel.builder().name("k").value("v").build()));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("properties"));
+      assertTrue(ex.getMessage().contains("organization"));
+   }
+
+   @Test void resolveAllowsDefaultRoleAndSysAdminOnRoleCreate() throws Exception {
+      when(securityService.getRole(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"));
+      IdentityChangeRequest change = createRole("Analyst");
+      change.getSpec().setDefaultRole(true);
+      change.getSpec().setSysAdmin(false);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      assertEquals(1, plan.changes().size());
+   }
+
+   @Test void resolveAllowsPropertiesOnOrganizationCreate() throws Exception {
+      when(securityService.getOrganization(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such organization"));
+      IdentityChangeRequest change = createOrganization("org1", "Org One");
+      change.getSpec().setProperties(List.of(PropertyModel.builder().name("k").value("v").build()));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      assertEquals(1, plan.changes().size());
+   }
+
    @Test void resolveAllowsMemberFieldsOnGroupCreate() throws Exception {
       // spec section 2's correction: memberUsers/memberGroups ARE legal on group create.
       when(securityService.getGroup(any(), eq(user)))
@@ -490,6 +544,59 @@ class IdentityChangePlanServiceTest {
       ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
       PlanChange planChange = plan.changes().get(0);
       assertTrue(planChange.proposedValue().contains("name=New Org Name"));
+   }
+
+   @Test void resolveUpdateRoleDefaultRoleAndSysAdminProducesAMergedProposal() throws Exception {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole existing = existingRole(id);
+      existing.setDefaultRole(false);
+      existing.setSysAdmin(false);
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(existing);
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDefaultRole(true);
+      IdentityChangeRequest change = updateRole("Viewer", spec);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      PlanChange planChange = plan.changes().get(0);
+      assertTrue(planChange.proposedValue().contains("defaultRole=true"));
+      // sysAdmin was never mentioned -- must be preserved (false), not tripped to true as a
+      // side-effect of the defaultRole change.
+      assertTrue(planChange.proposedValue().contains("sysAdmin=false"));
+   }
+
+   @Test void resolveUpdateOrganizationPropertiesProducesAMergedProposal() throws Exception {
+      SecurityOrganization existing = existingOrganization("org1");
+      existing.setProperties(List.of(PropertyModel.builder().name("custom.key").value("old").build()));
+      when(securityService.getOrganization(eq("org1"), eq(user))).thenReturn(existing);
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(List.of(PropertyModel.builder().name("custom.key").value("new").build()));
+      IdentityChangeRequest change = updateOrganization("org1", spec);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      PlanChange planChange = plan.changes().get(0);
+      assertTrue(planChange.proposedValue().contains("custom.key=new"));
+   }
+
+   @Test void resolveUpdateAcceptsDefaultRoleAsTheOnlyPopulatedFieldOnRole() throws Exception {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(existingRole(id));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDefaultRole(true);
+      IdentityChangeRequest change = updateRole("Viewer", spec);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      assertEquals(1, plan.changes().size());
+   }
+
+   @Test void resolveUpdateAcceptsPropertiesAsTheOnlyPopulatedFieldOnOrganization() throws Exception {
+      when(securityService.getOrganization(eq("org1"), eq(user)))
+         .thenReturn(existingOrganization("org1"));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(List.of());
+      IdentityChangeRequest change = updateOrganization("org1", spec);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      assertEquals(1, plan.changes().size());
    }
 
    // Counter-assertion 3 (charter): update must NOT reuse delete's default/self-org protection --

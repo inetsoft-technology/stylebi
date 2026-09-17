@@ -338,6 +338,8 @@ public class IdentityChangesetApplyService {
       request.setAssignedGroups(spec.getAssignedGroups());
       request.setInheritedRoles(IdentityMerge.toIdentityIds(spec.getInheritedRoles(), orgId));
       request.setTheme(spec.getTheme());
+      request.setDefaultRole(spec.getDefaultRole());
+      request.setSysAdmin(spec.getSysAdmin());
 
       securityService.createRole(request, orgId, user);
 
@@ -367,6 +369,7 @@ public class IdentityChangesetApplyService {
       request.setName(spec.getOrgName());
       request.setLocale(spec.getLocale());
       request.setTheme(spec.getTheme());
+      request.setProperties(spec.getProperties());
 
       // No member pre-population and no copyFromOrgID -- spec section 1/2: an org create in this
       // cut is always empty, so `createOrganization`'s member-creation branch is never reached.

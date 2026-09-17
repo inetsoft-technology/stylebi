@@ -165,6 +165,47 @@ class IdentityChangesetApplyServiceTest {
       assertTrue(result.results().get(0).advisory().contains("nightly-refresh"));
    }
 
+   // bug-76715: defaultRole/sysAdmin (role) and properties (organization) must actually reach
+   // SecurityService.createRole/createOrganization, not just be accepted by the schema.
+
+   @Test void appliesACreateRoleAndPassesDefaultRoleAndSysAdminThrough() throws Exception {
+      IdentityID id = new IdentityID("Analyst", "host-org");
+      when(securityService.getRole(eq(id), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"))
+         .thenThrow(new MissingResourceException("no such role"))
+         .thenReturn(existingRole(id));
+
+      IdentityChangeRequest change = createRole("Analyst");
+      change.getSpec().setDefaultRole(true);
+      change.getSpec().setSysAdmin(true);
+
+      var result = service.apply(applyRequest("create Analyst", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).createRole(argThat(req ->
+         Boolean.TRUE.equals(req.getDefaultRole()) && Boolean.TRUE.equals(req.getSysAdmin())
+      ), eq("host-org"), eq(user));
+   }
+
+   @Test void appliesACreateOrganizationAndPassesPropertiesThrough() throws Exception {
+      String orgId = "neworg";
+      when(securityService.getOrganization(eq(orgId), eq(user)))
+         .thenThrow(new MissingResourceException("no such organization"))
+         .thenThrow(new MissingResourceException("no such organization"))
+         .thenReturn(existingOrganization(orgId));
+
+      IdentityChangeRequest change = createOrganization(orgId, "New Org");
+      change.getSpec().setProperties(List.of(PropertyModel.builder().name("k").value("v").build()));
+
+      var result = service.apply(applyRequest("create org", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).createOrganization(argThat(req ->
+         req.getProperties() != null && req.getProperties().size() == 1 &&
+         "k".equals(req.getProperties().get(0).name()) && "v".equals(req.getProperties().get(0).value())
+      ), isNull(), eq(user));
+   }
+
    // -------------------------------------------------------------------------
    // rollback
    // -------------------------------------------------------------------------
@@ -358,6 +399,53 @@ class IdentityChangesetApplyServiceTest {
       ), eq(user));
    }
 
+   // bug-76715: the single most important regression test in this whole build (design/reconcile's
+   // own sequencing warning) -- updating a field UNRELATED to defaultRole/sysAdmin on an existing
+   // defaultRole:true/sysAdmin:true role must not silently un-default/un-sysAdmin it. This exercises
+   // the full apply path (SecurityService.getRole -> IdentityMerge.mergeRole ->
+   // SecurityService.updateRole), not just IdentityMergeTest's unit-level version.
+   @Test void appliesAnUpdateRolePreservesDefaultRoleAndSysAdminWhenUpdatingAnUnrelatedField()
+      throws Exception
+   {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole before = existingRole(id);
+      before.setDefaultRole(true);
+      before.setSysAdmin(true);
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(before);
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDescription("New description"); // unrelated; defaultRole/sysAdmin left absent
+      IdentityChangeRequest change = updateRole("Viewer", spec);
+
+      var result = service.apply(applyRequest("update Viewer", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).updateRole(eq(id), argThat(req ->
+         Boolean.TRUE.equals(req.getDefaultRole()) && Boolean.TRUE.equals(req.getSysAdmin())
+      ), eq(user));
+   }
+
+   @Test void appliesAnUpdateOrganizationPreservesQuotaKeyWhenUpdatingAnUnrelatedProperty()
+      throws Exception
+   {
+      SecurityOrganization before = existingOrganization("org1");
+      before.setProperties(List.of(PropertyModel.builder().name("max.row.count").value("1000").build()));
+      when(securityService.getOrganization(eq("org1"), eq(user))).thenReturn(before);
+
+      IdentitySpec spec = new IdentitySpec();
+      // Caller updates an unrelated property, never mentions max.row.count.
+      spec.setProperties(List.of(PropertyModel.builder().name("other").value("y").build()));
+      IdentityChangeRequest change = updateOrganization("org1", spec);
+
+      var result = service.apply(applyRequest("update org1 properties", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).updateOrganization(eq("org1"), argThat(req ->
+         req.getProperties().stream().anyMatch(p -> "max.row.count".equals(p.name()) && "1000".equals(p.value())) &&
+         req.getProperties().stream().anyMatch(p -> "other".equals(p.name()) && "y".equals(p.value()))
+      ), eq(user));
+   }
+
    @Test void rollsBackAnEarlierUpdateRenameWhenALaterEntryFails() throws Exception {
       IdentityID aliceOld = new IdentityID("alice", "host-org");
       IdentityID aliceNew = new IdentityID("alice2", "host-org");
@@ -443,6 +531,42 @@ class IdentityChangesetApplyServiceTest {
       // (unlike organization-delete, declared permanently non-compensable), design section 8.
       verify(securityService).updateOrganization(eq("org1"),
          argThat(req -> "Org One".equals(req.getName())), eq(user));
+   }
+
+   // bug-76715: confirms defaultRole/sysAdmin round-trip through Undo.updatedRole's replay-
+   // captured-`before`-object rollback machinery "for free" (design's own claim) -- not assumed,
+   // verified with a test per the design's own instruction.
+   @Test void rollsBackAnEarlierUpdateRoleAndRestoresDefaultRoleAndSysAdmin() throws Exception {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole before = existingRole(id);
+      before.setDefaultRole(true);
+      before.setSysAdmin(true);
+      IdentityID carol = new IdentityID("carol", "host-org");
+
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(before);
+      when(securityService.getRole(eq(carol), eq(user)))
+         .thenThrow(new MissingResourceException("free"));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDefaultRole(false);
+      spec.setSysAdmin(false);
+      IdentityChangeRequest updateViewer = updateRole("Viewer", spec);
+      IdentityChangeRequest createCarolRole = createRole("carol");
+
+      var result = service.apply(applyRequest("update then failing create", updateViewer,
+                                               createCarolRole), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      // Forward: sets defaultRole/sysAdmin to false.
+      verify(securityService).updateRole(eq(id), argThat(req ->
+         Boolean.FALSE.equals(req.getDefaultRole()) && Boolean.FALSE.equals(req.getSysAdmin())
+      ), eq(user));
+      // Rollback: replays the captured `before` (defaultRole/sysAdmin still true) back through
+      // updateRole.
+      verify(securityService).updateRole(eq(id), argThat(req ->
+         Boolean.TRUE.equals(req.getDefaultRole()) && Boolean.TRUE.equals(req.getSysAdmin())
+      ), eq(user));
    }
 
    // -------------------------------------------------------------------------
@@ -727,6 +851,17 @@ class IdentityChangesetApplyServiceTest {
       change.setUnitType("role");
       IdentitySpec spec = new IdentitySpec();
       spec.setName(name);
+      change.setSpec(spec);
+      return change;
+   }
+
+   private static IdentityChangeRequest createOrganization(String id, String name) {
+      IdentityChangeRequest change = new IdentityChangeRequest();
+      change.setVerb("create");
+      change.setUnitType("organization");
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId(id);
+      spec.setOrgName(name);
       change.setSpec(spec);
       return change;
    }

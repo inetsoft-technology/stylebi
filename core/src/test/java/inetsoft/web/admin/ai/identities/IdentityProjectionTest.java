@@ -17,6 +17,9 @@
  */
 package inetsoft.web.admin.ai.identities;
 
+import inetsoft.web.admin.security.PropertyModel;
+import inetsoft.web.admin.security.SecurityOrganization;
+import inetsoft.web.admin.security.SecurityRole;
 import inetsoft.web.admin.security.SecurityUser;
 import inetsoft.sree.security.IdentityID;
 import org.junit.jupiter.api.Tag;
@@ -101,6 +104,97 @@ class IdentityProjectionTest {
       assertNull(IdentityProjection.projectGroup(null, new IdentityID("g", "host-org")));
       assertNull(IdentityProjection.projectRole(null, new IdentityID("r", "host-org")));
       assertNull(IdentityProjection.projectOrganization(null, "org1"));
+   }
+
+   // bug-76715: defaultRole/sysAdmin must be part of the hash/preview-diff projection, or a plan
+   // whose ONLY change is one of these 2 fields would go undetected between preview and apply.
+
+   @Test void projectRoleChangesWhenOnlyDefaultRoleChanges() {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole a = role(id, false, false);
+      SecurityRole b = role(id, true, false);
+
+      assertNotEquals(IdentityProjection.projectRole(a, id), IdentityProjection.projectRole(b, id));
+   }
+
+   @Test void projectRoleChangesWhenOnlySysAdminChanges() {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole a = role(id, false, false);
+      SecurityRole b = role(id, false, true);
+
+      assertNotEquals(IdentityProjection.projectRole(a, id), IdentityProjection.projectRole(b, id));
+   }
+
+   @Test void projectRoleTreatsNullDefaultRoleAndSysAdminAsFalse() {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole withNulls = new SecurityRole();
+      withNulls.setIdentityID(id);
+      SecurityRole withFalse = role(id, false, false);
+
+      assertEquals(IdentityProjection.projectRole(withNulls, id),
+                  IdentityProjection.projectRole(withFalse, id));
+   }
+
+   @Test void projectRoleSpecChangesWhenOnlyDefaultRoleOrSysAdminChanges() {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      IdentitySpec a = new IdentitySpec();
+      a.setDefaultRole(false);
+      IdentitySpec b = new IdentitySpec();
+      b.setDefaultRole(true);
+
+      assertNotEquals(IdentityProjection.projectRoleSpec(id, a),
+                      IdentityProjection.projectRoleSpec(id, b));
+   }
+
+   // bug-76715: properties must be part of the hash/preview-diff projection too, sorted by name so
+   // list order never perturbs the hash.
+
+   @Test void projectOrganizationIsStableAcrossPropertyOrder() {
+      SecurityOrganization a = organization(
+         List.of(property("b", "2"), property("a", "1")));
+      SecurityOrganization b = organization(
+         List.of(property("a", "1"), property("b", "2")));
+
+      assertEquals(IdentityProjection.projectOrganization(a, "org1"),
+                  IdentityProjection.projectOrganization(b, "org1"));
+   }
+
+   @Test void projectOrganizationChangesWhenAPropertyValueChanges() {
+      SecurityOrganization a = organization(List.of(property("custom.key", "1")));
+      SecurityOrganization b = organization(List.of(property("custom.key", "2")));
+
+      assertNotEquals(IdentityProjection.projectOrganization(a, "org1"),
+                      IdentityProjection.projectOrganization(b, "org1"));
+   }
+
+   @Test void projectOrganizationSpecChangesWhenPropertiesChange() {
+      IdentitySpec a = new IdentitySpec();
+      a.setProperties(List.of(property("custom.key", "1")));
+      IdentitySpec b = new IdentitySpec();
+      b.setProperties(List.of(property("custom.key", "2")));
+
+      assertNotEquals(IdentityProjection.projectOrganizationSpec("org1", a),
+                      IdentityProjection.projectOrganizationSpec("org1", b));
+   }
+
+   private static SecurityRole role(IdentityID id, boolean defaultRole, boolean sysAdmin) {
+      SecurityRole r = new SecurityRole();
+      r.setIdentityID(id);
+      r.setDefaultRole(defaultRole);
+      r.setSysAdmin(sysAdmin);
+      return r;
+   }
+
+   private static SecurityOrganization organization(List<PropertyModel> properties) {
+      SecurityOrganization o = new SecurityOrganization();
+      o.setId("org1");
+      o.setName("Org One");
+      o.setProperties(properties);
+      return o;
+   }
+
+   private static PropertyModel property(String name, String value) {
+      return PropertyModel.builder().name(name).value(value).build();
    }
 
    private static SecurityUser user(List<String> groups, List<IdentityID> roles) {

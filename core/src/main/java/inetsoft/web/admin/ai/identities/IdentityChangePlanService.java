@@ -427,6 +427,12 @@ public class IdentityChangePlanService {
                 IdentityUnitType.ROLE);
       checkField(label, "assignedGroups", spec.getAssignedGroups(), unitType == IdentityUnitType.ROLE,
                 IdentityUnitType.ROLE);
+      checkField(label, "defaultRole", spec.getDefaultRole(), unitType == IdentityUnitType.ROLE,
+                IdentityUnitType.ROLE);
+      checkField(label, "sysAdmin", spec.getSysAdmin(), unitType == IdentityUnitType.ROLE,
+                IdentityUnitType.ROLE);
+      checkField(label, "properties", spec.getProperties(), unitType == IdentityUnitType.ORGANIZATION,
+                IdentityUnitType.ORGANIZATION);
       // "roles" is legal on both USER (assign existing roles) and GROUP (assign existing roles to
       // the group) -- spec section 11 -- so it gets its own check rather than the single-unit
       // pattern above.
@@ -530,11 +536,12 @@ public class IdentityChangePlanService {
       case ROLE:
          anyPresent = spec.getName() != null || spec.getDescription() != null ||
             spec.getInheritedRoles() != null || spec.getAssignedUsers() != null ||
-            spec.getAssignedGroups() != null || spec.getTheme() != null;
+            spec.getAssignedGroups() != null || spec.getTheme() != null ||
+            spec.getDefaultRole() != null || spec.getSysAdmin() != null;
          break;
       default:
          anyPresent = spec.getOrgName() != null || spec.getLocale() != null ||
-            spec.getTheme() != null;
+            spec.getTheme() != null || spec.getProperties() != null;
          break;
       }
 

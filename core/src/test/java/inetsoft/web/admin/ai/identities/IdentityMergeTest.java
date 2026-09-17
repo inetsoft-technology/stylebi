@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -198,6 +199,8 @@ class IdentityMergeTest {
       assertEquals(current.getAssignedUsers(), merged.getAssignedUsers());
       assertEquals(current.getAssignedGroups(), merged.getAssignedGroups());
       assertEquals(current.getInheritedRoles(), merged.getInheritedRoles());
+      assertEquals(current.getDefaultRole(), merged.getDefaultRole());
+      assertEquals(current.getSysAdmin(), merged.getSysAdmin());
    }
 
    @Test void mergeRoleExplicitEmptyAssignedUsersClearsWhileOtherFieldsSurvive() {
@@ -223,6 +226,40 @@ class IdentityMergeTest {
       SecurityRole merged = IdentityMerge.mergeRole(current, spec, id);
 
       assertEquals(List.of(new IdentityID("BaseRole", "host-org")), merged.getInheritedRoles());
+   }
+
+   // bug-76715: the single most important regression test in this whole build (design's own
+   // sequencing warning) -- updating a field UNRELATED to defaultRole/sysAdmin on an existing
+   // defaultRole:true/sysAdmin:true role must not silently un-default/un-sysAdmin it. Landing the
+   // read-path fix (SecurityService.getRoleModel) before this merge fix is what makes
+   // current.getDefaultRole()/getSysAdmin() non-null here in the first place.
+   @Test void mergeRoleOmittedDefaultRoleAndSysAdminSurviveAnUnrelatedFieldUpdate() {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole current = fullRole(id);
+      current.setDefaultRole(true);
+      current.setSysAdmin(true);
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDescription("New description"); // unrelated field; defaultRole/sysAdmin left absent
+
+      SecurityRole merged = IdentityMerge.mergeRole(current, spec, id);
+
+      assertEquals(Boolean.TRUE, merged.getDefaultRole());
+      assertEquals(Boolean.TRUE, merged.getSysAdmin());
+   }
+
+   @Test void mergeRoleExplicitDefaultRoleAndSysAdminOverrideCurrent() {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole current = fullRole(id);
+      current.setDefaultRole(true);
+      current.setSysAdmin(true);
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDefaultRole(false);
+      spec.setSysAdmin(false);
+
+      SecurityRole merged = IdentityMerge.mergeRole(current, spec, id);
+
+      assertEquals(Boolean.FALSE, merged.getDefaultRole());
+      assertEquals(Boolean.FALSE, merged.getSysAdmin());
    }
 
    // -------------------------------------------------------------------------
@@ -269,6 +306,80 @@ class IdentityMergeTest {
       assertEquals(current.getMemberUsers(), merged.getMemberUsers());
       assertEquals(current.getMemberGroups(), merged.getMemberGroups());
       assertEquals(current.getRoles(), merged.getRoles());
+   }
+
+   @Test void mergeOrganizationOmittedPropertiesKeepsCurrentPropertiesUntouched() {
+      SecurityOrganization current = fullOrganization("org1");
+      current.setProperties(List.of(property("custom.key", "custom-value")));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setLocale("fr_FR"); // unrelated field; properties left absent
+
+      SecurityOrganization merged = IdentityMerge.mergeOrganization(current, spec, "org1");
+
+      assertEquals(current.getProperties(), merged.getProperties());
+   }
+
+   @Test void mergeOrganizationExplicitPropertiesDeduplicatesByLastWriteWinsPerName() {
+      SecurityOrganization current = fullOrganization("org1");
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(List.of(property("custom.key", "first"), property("custom.key", "second")));
+
+      SecurityOrganization merged = IdentityMerge.mergeOrganization(current, spec, "org1");
+
+      assertEquals(List.of(property("custom.key", "second")), merged.getProperties());
+   }
+
+   // bug-76715 human decision 4: wiz's identities path must NOT replicate EM's own 4-named-quota-
+   // key clear-on-omission asymmetry -- an update that touches an unrelated property must not
+   // silently clear a previously-set quota key it never mentioned.
+   @Test void mergeOrganizationPropertiesReIncludesOmittedQuotaKeysFromCurrent() {
+      SecurityOrganization current = fullOrganization("org1");
+      current.setProperties(List.of(property("max.row.count", "1000"), property("other", "x")));
+      IdentitySpec spec = new IdentitySpec();
+      // Caller lists only "other" with a new value; quota key max.row.count is unmentioned.
+      spec.setProperties(List.of(property("other", "y")));
+
+      SecurityOrganization merged = IdentityMerge.mergeOrganization(current, spec, "org1");
+
+      assertEquals(
+         Set.of(property("other", "y"), property("max.row.count", "1000")),
+         Set.copyOf(merged.getProperties()));
+   }
+
+   @Test void mergeOrganizationPropertiesExplicitQuotaKeyOverridesCurrent() {
+      SecurityOrganization current = fullOrganization("org1");
+      current.setProperties(List.of(property("max.row.count", "1000")));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(List.of(property("max.row.count", "2000")));
+
+      SecurityOrganization merged = IdentityMerge.mergeOrganization(current, spec, "org1");
+
+      assertEquals(List.of(property("max.row.count", "2000")), merged.getProperties());
+   }
+
+   @Test void mergeOrganizationExplicitEmptyPropertiesClearsNonQuotaProperties() {
+      SecurityOrganization current = fullOrganization("org1");
+      current.setProperties(List.of(property("custom.key", "value")));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(List.of());
+
+      SecurityOrganization merged = IdentityMerge.mergeOrganization(current, spec, "org1");
+
+      assertEquals(List.of(), merged.getProperties());
+   }
+
+   // Decision 4's quota-key protection is not carved out for the empty-list case: even an explicit
+   // "clear everything" properties:[] must not silently drop a previously-set quota key the caller
+   // never named -- the whole point is that a quota key is only ever cleared by naming it.
+   @Test void mergeOrganizationExplicitEmptyPropertiesStillReIncludesQuotaKeys() {
+      SecurityOrganization current = fullOrganization("org1");
+      current.setProperties(List.of(property("max.row.count", "1000")));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setProperties(List.of());
+
+      SecurityOrganization merged = IdentityMerge.mergeOrganization(current, spec, "org1");
+
+      assertEquals(List.of(property("max.row.count", "1000")), merged.getProperties());
    }
 
    // -------------------------------------------------------------------------
@@ -333,5 +444,9 @@ class IdentityMergeTest {
       o.setMemberGroups(List.of("Analysts"));
       o.setRoles(List.of("Viewer"));
       return o;
+   }
+
+   private static PropertyModel property(String name, String value) {
+      return PropertyModel.builder().name(name).value(value).build();
    }
 }

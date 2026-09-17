@@ -115,6 +115,8 @@ final class IdentityProjection {
       appendSorted(sb, "assignedUsers", r.getAssignedUsers());
       appendSorted(sb, "assignedGroups", r.getAssignedGroups());
       appendSortedIds(sb, "inheritedRoles", r.getInheritedRoles());
+      append(sb, "defaultRole", String.valueOf(Boolean.TRUE.equals(r.getDefaultRole())));
+      append(sb, "sysAdmin", String.valueOf(Boolean.TRUE.equals(r.getSysAdmin())));
       return sb.toString();
    }
 
@@ -126,6 +128,8 @@ final class IdentityProjection {
       appendSorted(sb, "assignedUsers", spec.getAssignedUsers());
       appendSorted(sb, "assignedGroups", spec.getAssignedGroups());
       appendSorted(sb, "inheritedRoles", spec.getInheritedRoles());
+      append(sb, "defaultRole", String.valueOf(Boolean.TRUE.equals(spec.getDefaultRole())));
+      append(sb, "sysAdmin", String.valueOf(Boolean.TRUE.equals(spec.getSysAdmin())));
       return sb.toString();
    }
 
@@ -139,6 +143,7 @@ final class IdentityProjection {
       append(sb, "name", o.getName());
       append(sb, "locale", o.getLocale());
       append(sb, "theme", o.getTheme());
+      appendProperties(sb, "properties", o.getProperties());
       return sb.toString();
    }
 
@@ -148,6 +153,7 @@ final class IdentityProjection {
       append(sb, "name", spec.getOrgName());
       append(sb, "locale", spec.getLocale());
       append(sb, "theme", spec.getTheme());
+      appendProperties(sb, "properties", spec.getProperties());
       return sb.toString();
    }
 
@@ -158,6 +164,30 @@ final class IdentityProjection {
    private static void appendSorted(StringBuilder sb, String field, List<String> values) {
       TreeSet<String> sorted = values == null ? new TreeSet<>() : new TreeSet<>(values);
       sb.append(field).append('=').append(String.join(",", sorted)).append(';');
+   }
+
+   /** {@code properties} isn't a flat {@code List<String>}, so it gets its own sorted-by-name
+    * {@code name=value} rendering rather than reusing {@link #appendSorted}. */
+   private static void appendProperties(StringBuilder sb, String field, List<PropertyModel> properties) {
+      TreeMap<String, String> sorted = new TreeMap<>();
+
+      if(properties != null) {
+         for(PropertyModel property : properties) {
+            sorted.put(property.name(), property.value());
+         }
+      }
+
+      StringBuilder rendered = new StringBuilder();
+
+      for(Map.Entry<String, String> entry : sorted.entrySet()) {
+         if(rendered.length() > 0) {
+            rendered.append(',');
+         }
+
+         rendered.append(entry.getKey()).append('=').append(entry.getValue());
+      }
+
+      sb.append(field).append('=').append(rendered).append(';');
    }
 
    private static void appendSortedIds(StringBuilder sb, String field, List<IdentityID> ids) {
