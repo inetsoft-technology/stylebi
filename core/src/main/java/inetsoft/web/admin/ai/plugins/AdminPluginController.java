@@ -22,6 +22,7 @@ import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.content.plugins.model.DriverList;
 import inetsoft.web.admin.content.plugins.model.PluginsModel;
+import inetsoft.web.admin.upload.MavenUploadRequest;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.util.Map;
 
@@ -80,6 +82,18 @@ public class AdminPluginController {
    {
       requireSiteAdmin(user);
       return pluginService.upload(file, user);
+   }
+
+   /**
+    * Same rationale as {@link #upload} -- checked against {@link ResourceType#UPLOAD_DRIVERS}
+    * inside {@link AdminPluginService#uploadMaven} instead of a {@code @Secured} annotation.
+    */
+   @PostMapping("/api/wiz/v1/admin/plugins/upload/maven")
+   public Map<String, Object> uploadMaven(@RequestBody MavenUploadRequest request, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      return pluginService.uploadMaven(request.gav(), user);
    }
 
    @Secured(@RequiredPermission(
@@ -134,6 +148,18 @@ public class AdminPluginController {
    @ResponseBody
    public Map<String, String> handleIllegalArgument(IllegalArgumentException ex) {
       return Map.of("status", "failed", "error", String.valueOf(ex.getMessage()));
+   }
+
+   /**
+    * {@link inetsoft.web.admin.upload.UploadService#add(String)} throws this when the given GAV
+    * does not resolve to any file -- surfaced as a clear, field-named 400 rather than the
+    * generic wrapped MCP tool error.
+    */
+   @ExceptionHandler(FileNotFoundException.class)
+   @ResponseStatus(HttpStatus.BAD_REQUEST)
+   @ResponseBody
+   public Map<String, String> handleFileNotFound(FileNotFoundException ex) {
+      return Map.of("status", "failed", "error", "gav: could not resolve " + ex.getMessage());
    }
 
    @ExceptionHandler(SecurityException.class)

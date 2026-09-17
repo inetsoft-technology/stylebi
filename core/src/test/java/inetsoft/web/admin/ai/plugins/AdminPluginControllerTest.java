@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.plugins;
 
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.web.admin.content.plugins.model.PluginsModel;
+import inetsoft.web.admin.upload.MavenUploadRequest;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -30,6 +31,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
@@ -115,6 +117,28 @@ class AdminPluginControllerTest {
       verifyNoInteractions(pluginService);
    }
 
+   @Test void uploadMavenDelegatesToService() throws Exception {
+      MavenUploadRequest request =
+         MavenUploadRequest.builder().gav("org.postgresql:postgresql:42.7.3").build();
+      when(pluginService.uploadMaven("org.postgresql:postgresql:42.7.3", principal))
+         .thenReturn(Map.of("uploadId", "upload-456", "fileNames", List.of("postgresql-42.7.3.jar")));
+
+      Map<String, Object> result = controller.uploadMaven(request, principal);
+
+      assertEquals("upload-456", result.get("uploadId"));
+      assertEquals(List.of("postgresql-42.7.3.jar"), result.get("fileNames"));
+      verify(pluginService).uploadMaven("org.postgresql:postgresql:42.7.3", principal);
+   }
+
+   @Test void uploadMavenThrowsForbiddenForNonSiteAdminBeforeReachingService() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+      MavenUploadRequest request =
+         MavenUploadRequest.builder().gav("org.postgresql:postgresql:42.7.3").build();
+
+      assertThrows(ResponseStatusException.class, () -> controller.uploadMaven(request, principal));
+      verifyNoInteractions(pluginService);
+   }
+
    @Test void scanDelegatesToService() throws Exception {
       when(pluginService.scan("upload-123", principal))
          .thenReturn(inetsoft.web.admin.content.plugins.model.DriverList.builder()
@@ -163,5 +187,14 @@ class AdminPluginControllerTest {
 
       assertEquals("failed", actual.get("status"));
       assertEquals("uploadId: required", actual.get("error"));
+   }
+
+   @Test void handleFileNotFoundReturnsFailedStatusWithMessage() {
+      Map<String, String> actual = controller.handleFileNotFound(
+         new FileNotFoundException("org.postgresql:postgresql:999.999.999"));
+
+      assertEquals("failed", actual.get("status"));
+      assertEquals("gav: could not resolve org.postgresql:postgresql:999.999.999",
+                   actual.get("error"));
    }
 }
