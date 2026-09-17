@@ -509,6 +509,14 @@ public class WorksheetAgentController {
          return;
       }
 
+      // edit_table rewrites an existing TabularTableAssembly's own query in place -- needs
+      // RuntimeWorksheet for the same live-call + column-reload dance add_table's tabular forms
+      // use, so it is dispatched here rather than through the plain Editor.
+      if("edit_table".equals(req.op())) {
+         editTabularTable(sessionToken, req, user);
+         return;
+      }
+
       // update_mirror needs AssetRepository + Principal for the refresh.
       if("update_mirror".equals(req.op())) {
          updateMirror(sessionToken, req, user);
@@ -1032,6 +1040,280 @@ public class WorksheetAgentController {
                applied + ". Check the parameter values and datasource credentials -- see the " +
                "server log for the cause.");
          }
+
+         return null;
+      });
+   }
+
+   /**
+    * Rewrites an existing {@link TabularTableAssembly}'s own query in place -- the
+    * {@code edit_table} counterpart of {@link #addTabularTable}/{@link #addQueryParamsTable},
+    * mirroring the in-place-edit shape {@link #editSqlQuery} already provides for SQL-bound
+    * tables (bug #76777: previously the only way to change a tabular table's endpoint/lookup/
+    * suffix/queryParams was delete_table + add_table, discarding the assembly's identity and
+    * refusing outright if anything depended on it).
+    *
+    * <p>Accepts exactly one of the same three source forms {@code add_table} does --
+    * {@code endpoint} (+ optional {@code parameters}/{@code lookup}/{@code lookupExpandArrays}/
+    * {@code lookupTopLevelOnly}), {@code suffix} (+ optional {@code customLookups}), or
+    * {@code queryParams} -- plus optional {@code extraProperties}/{@code maxRows}. The target's
+    * bound datasource is read from the table's own already-bound query and cannot be changed by
+    * this op; a caller wanting a different datasource still has to delete_table + add_table.</p>
+    *
+    * <p>Everything runs against a scratch clone of the live query and a scratch, never-
+    * {@code ws.addAssembly}'d {@link TabularTableAssembly} (so the live one's own column
+    * reload is never touched) until the live call has actually returned at least one column and
+    * the column-dependency check has passed -- mirrors {@link #editSqlQuery}'s scratch-clone
+    * pattern, which exists because {@code applyOnRuntime} mutates the live worksheet with no
+    * rollback on a thrown exception.</p>
+    */
+   private void editTabularTable(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String tableName = req.table();
+
+      if(tableName == null || tableName.isBlank()) {
+         throw new PairingException("table is required for edit_table.");
+      }
+
+      boolean hasQueryParams = req.queryParams() != null && !req.queryParams().isEmpty();
+      boolean hasEndpoint = req.endpoint() != null && !req.endpoint().isBlank();
+      boolean hasSuffix = req.suffix() != null && !req.suffix().isBlank();
+      boolean hasExtraProperties = req.extraProperties() != null && !req.extraProperties().isEmpty();
+
+      if(!hasQueryParams && !hasEndpoint && !hasSuffix) {
+         throw new PairingException("edit_table requires one of queryParams, endpoint, or " +
+            "suffix -- nothing to change was supplied.");
+      }
+
+      if(hasQueryParams && (hasEndpoint || hasSuffix)) {
+         throw new PairingException("edit_table cannot carry queryParams together with " +
+            "endpoint or suffix -- choose exactly one edit_table form.");
+      }
+
+      if(hasQueryParams && req.parameters() != null && !req.parameters().isEmpty()) {
+         throw new PairingException("edit_table cannot carry queryParams together with " +
+            "parameters -- parameters only applies to the endpoint form.");
+      }
+
+      if(hasQueryParams && req.lookup() != null && !req.lookup().isEmpty()) {
+         throw new PairingException("edit_table cannot carry queryParams together with " +
+            "lookup -- lookup only applies to the endpoint form.");
+      }
+
+      if(hasQueryParams && req.customLookups() != null && !req.customLookups().isEmpty()) {
+         throw new PairingException("edit_table cannot carry queryParams together with " +
+            "customLookups -- customLookups only applies to the suffix form.");
+      }
+
+      if(hasEndpoint && hasSuffix) {
+         throw new PairingException("edit_table cannot carry both endpoint and suffix -- " +
+            "choose the named-connector form (endpoint) or the custom form (suffix), not both.");
+      }
+
+      if(hasExtraProperties && hasQueryParams) {
+         throw new PairingException("edit_table cannot carry extraProperties together with " +
+            "queryParams -- queryParams is already its own complete, self-sufficient form.");
+      }
+
+      if(hasExtraProperties && !hasEndpoint && !hasSuffix) {
+         throw new PairingException("edit_table's extraProperties requires endpoint or " +
+            "suffix -- use queryParams instead for a datasource addressed without an " +
+            "endpoint/suffix identity.");
+      }
+
+      if(hasSuffix && req.lookup() != null && !req.lookup().isEmpty()) {
+         throw new PairingException("edit_table's 'lookup' is only for the named-connector " +
+            "form (endpoint) -- for a custom suffix, use customLookups instead.");
+      }
+
+      if(hasEndpoint && req.customLookups() != null && !req.customLookups().isEmpty()) {
+         throw new PairingException("edit_table's 'customLookups' is only for the custom form " +
+            "(suffix) -- for a named-connector endpoint, use lookup instead.");
+      }
+
+      if(req.lookup() != null && req.lookup().size() > 5) {
+         throw new PairingException("lookup has " + req.lookup().size() +
+            " entries; a chain can be at most 5 levels deep.");
+      }
+
+      if(req.customLookups() != null && req.customLookups().size() > 5) {
+         throw new PairingException("customLookups has " + req.customLookups().size() +
+            " entries; a chain can be at most 5 levels deep.");
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(tableName);
+
+         if(!(a instanceof TabularTableAssembly liveAssembly)) {
+            throw new PairingException("Not a tabular (REST/JSON connector) table: " + tableName);
+         }
+
+         TabularTableAssemblyInfo liveInfo = (TabularTableAssemblyInfo) liveAssembly.getTableInfo();
+         TabularQuery liveQuery = liveInfo.getQuery();
+
+         if(liveQuery == null) {
+            throw new PairingException("Table has no query: " + tableName);
+         }
+
+         XDataSource boundDs = liveQuery.getDataSource();
+         String dsName = boundDs != null ? boundDs.getFullName() : null;
+
+         if(dsName == null) {
+            throw new PairingException("Table '" + tableName + "' has no bound datasource.");
+         }
+
+         // Mirrors editSqlQuery: re-check READ on the datasource already bound to the assembly,
+         // rather than trusting whatever permission gate ran when the table was first created.
+         if(!dataSourceService.checkPermission(dsName, ResourceAction.READ, user)) {
+            throw new PairingException(
+               "Access denied: no READ permission on datasource " + dsName);
+         }
+
+         XDataSource dataSource = xrepository.getDataSource(dsName);
+
+         if(dataSource == null) {
+            throw new PairingException("Data source not found: " + dsName);
+         }
+
+         // Work on a scratch clone of the live query -- never assigned to the live assembly
+         // until every check below has passed.
+         TabularQuery scratchQuery = liveQuery.clone();
+         Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(scratchQuery.getClass());
+         boolean namedConnector = pmap.get("endpoint") != null;
+         String target;
+         String resolvedSuffix = null;
+         String applied = null;
+
+         if(hasQueryParams) {
+            TabularQuerySchema schema =
+               new TabularSchemaExtractor().extract(scratchQuery, dataSource.getType());
+            applied = TabularQueryContractSupport.applyQueryContract(
+               scratchQuery, pmap, schema, req.queryParams(), dsName);
+            target = dsName;
+
+            if(req.maxRows() != null) {
+               scratchQuery.setMaxRows(req.maxRows());
+            }
+
+            TabularEndpointBindingSupport.requireRowCapWhenPaged(scratchQuery, null, dsName);
+         }
+         else if(hasEndpoint) {
+            if(!namedConnector) {
+               throw new PairingException("'" + dsName + "' has no predefined endpoint " +
+                  "catalogue -- use suffix (+ optional customLookups) instead of endpoint.");
+            }
+
+            resolvedSuffix = TabularEndpointBindingSupport.applyEndpointContract(
+               scratchQuery, pmap, req.endpoint(), req.parameters(), null, null, null, dsName);
+
+            if(req.maxRows() != null) {
+               scratchQuery.setMaxRows(req.maxRows());
+            }
+
+            TabularEndpointBindingSupport.requireRowCapWhenPaged(
+               scratchQuery, req.endpoint(), dsName);
+
+            if(req.lookup() != null && !req.lookup().isEmpty()) {
+               TabularEndpointBindingSupport.applyLookupChain(scratchQuery, pmap, req.lookup(),
+                  req.lookupExpandArrays(), req.lookupTopLevelOnly(), req.endpoint(), dsName);
+            }
+
+            target = req.endpoint();
+         }
+         else {
+            if(namedConnector) {
+               throw new PairingException("'" + dsName + "' has a predefined endpoint " +
+                  "catalogue -- use endpoint (+ optional lookup) instead of suffix; see " +
+                  "list_endpoint_lookups.");
+            }
+
+            resolvedSuffix = TabularEndpointBindingSupport.applyCustomSuffix(
+               scratchQuery, pmap, req.suffix(), null, dsName);
+
+            if(req.maxRows() != null) {
+               scratchQuery.setMaxRows(req.maxRows());
+            }
+
+            TabularEndpointBindingSupport.requireRowCapWhenPaged(
+               scratchQuery, req.suffix(), dsName);
+
+            if(req.customLookups() != null && !req.customLookups().isEmpty()) {
+               TabularEndpointBindingSupport.applyCustomLookupChain(
+                  scratchQuery, pmap, req.customLookups(), dsName);
+            }
+
+            target = req.suffix();
+         }
+
+         if(hasExtraProperties) {
+            if(req.extraProperties().containsKey("endpoint") ||
+               req.extraProperties().containsKey("suffix"))
+            {
+               throw new PairingException("edit_table's extraProperties cannot set 'endpoint' " +
+                  "or 'suffix' -- their identity is already established by the endpoint/suffix " +
+                  "field on this call.");
+            }
+
+            String identityKey = namedConnector ? "endpoint" : "suffix";
+            Map<String, Object> contractParams = new java.util.LinkedHashMap<>(req.extraProperties());
+            contractParams.put(identityKey, namedConnector ? req.endpoint() : req.suffix());
+
+            TabularQuerySchema extraSchema =
+               new TabularSchemaExtractor().extract(scratchQuery, dataSource.getType());
+            String rawApplied = TabularQueryContractSupport.applyQueryContract(
+               scratchQuery, pmap, extraSchema, contractParams, dsName);
+
+            applied = java.util.Arrays.stream(rawApplied.split(", "))
+               .filter(entry -> !entry.startsWith(identityKey + "="))
+               .collect(java.util.stream.Collectors.joining(", "));
+
+            TabularEndpointBindingSupport.requireRowCapWhenPaged(scratchQuery, target, dsName);
+
+            PropertyMeta suffixProp = pmap.get("suffix");
+            Object refreshedSuffix = suffixProp == null ? null : suffixProp.getValue(scratchQuery);
+            resolvedSuffix = refreshedSuffix == null ? resolvedSuffix : refreshedSuffix.toString();
+         }
+
+         // Detached scratch assembly, never registered via ws.addAssembly -- loadColumnSelection
+         // reads/writes only its OWN info/column-selection, so this is a pure, side-effect-free
+         // test of the new query against the live connector; the live assembly is untouched if
+         // anything below still rejects the edit.
+         TabularTableAssembly scratchAssembly = new TabularTableAssembly(ws, tableName);
+         TabularTableAssemblyInfo scratchInfo =
+            (TabularTableAssemblyInfo) scratchAssembly.getTableInfo();
+         scratchInfo.setQuery(scratchQuery);
+         scratchAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+         ColumnSelection newColumns = scratchAssembly.getColumnSelection(false);
+
+         if(newColumns == null || newColumns.getAttributeCount() == 0) {
+            Object loadError = scratchQuery.getProperty("wizLoadColumnsError");
+            throw new PairingException("The request to '" + target + "' of '" + dsName +
+               "' returned no columns" + (loadError == null ? "" : " (" + loadError + ")") +
+               (resolvedSuffix == null ? "" : ". URL suffix sent: " + resolvedSuffix) +
+               (applied == null || applied.isBlank() ? "" : ". Properties sent: " + applied) +
+               ". Check the parameter values and datasource credentials -- see the server log " +
+               "for the cause.");
+         }
+
+         // Refuse an edit that drops a column a dependent join/composite table still keys on --
+         // mirrors editSqlQuery's assertSqlEditAllowsColumnRemoval. Everything above ran against
+         // scratchQuery/scratchAssembly (never attached to ws); nothing has been committed to
+         // the live assembly yet.
+         assertSqlEditAllowsColumnRemoval(
+            ws, liveAssembly, liveAssembly.getColumnSelection(false), newColumns);
+
+         // Commit: only now does the live assembly's own query/columns actually change.
+         liveInfo.setQuery(scratchQuery);
+         liveAssembly.setColumnSelection(newColumns, false);
+
+         RenderWaitSupport.awaitOrRetry(() -> {
+            WorksheetEventUtil.refreshColumnSelection(rws, tableName, true);
+            return null;
+         }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+            (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
 
          return null;
       });
