@@ -1214,7 +1214,7 @@ public final class TableBindingMutator {
       // the literal-vocabulary parse below nor the shelf-populated checks that follow it can be
       // evaluated now -- passed through unresolved, matching percentageByValue's own
       // DynamicValue nature and the UI's VALUE|VARIABLE|EXPRESSION dynamic-combo-box.
-      if(isDynamicReference(token)) {
+      if(DateLevels.isDynamicValue(token)) {
          return token;
       }
 
@@ -1269,7 +1269,7 @@ public final class TableBindingMutator {
          return text.toLowerCase();
       }
 
-      if(allowDynamic && isDynamicReference(text)) {
+      if(allowDynamic && DateLevels.isDynamicValue(text)) {
          return text;
       }
 
@@ -1278,18 +1278,6 @@ public final class TableBindingMutator {
             ", a \"$(variable)\" reference, or an \"=expression\"" : "") + ", got '" + raw +
          "'. This setting is stored as a string that StyleBI reads as a boolean, so a spelling " +
          "like \"yes\" would read as false and silently turn the setting off.");
-   }
-
-   /**
-    * A {@code $(name)} variable reference or an {@code =expression} — the two non-literal shapes
-    * a {@code DynamicValue} field resolves at render time, matching {@code VSUtil.
-    * isVariableValue()}/{@code isScriptValue()}'s own rule. Reimplemented as a literal check
-    * rather than calling {@code VSUtil} itself, for the same reason {@link
-    * #MULTI_ARG_FORMULA_NAMES} avoids {@code AggregateFormula}: a general-purpose utility class
-    * this large is not safe to assume side-effect-free to touch from a plain JUnit context.
-    */
-   private static boolean isDynamicReference(String text) {
-      return (text.startsWith("$(") && text.endsWith(")")) || text.startsWith("=");
    }
 
    private static void requireKnown(Map<String, Object> options, List<String> known) {
