@@ -3298,6 +3298,28 @@ public class WorksheetAgentController {
                DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
                assetDataCache.remove(key);
 
+               // Bug #76711 round 4: every real reader of this table's data outside the Composer
+               // UI itself -- preview_worksheet_data (WorksheetPreviewService.java), the CSV
+               // export and sample-probe services (RawDataService, WorksheetTableService) -- reads
+               // it under a hardcoded AssetQuerySandbox.RUNTIME_MODE, regardless of the table's own
+               // design-time isRuntime()/isLiveData()/isEditMode() flags that getMode(table) above
+               // is based on. An ordinary add_table'd table has none of those flags set, so mode is
+               // DESIGN_MODE here and the invalidation above never touches the RUNTIME_MODE slot in
+               // either AssetQuerySandbox.tmap or AssetDataCache -- both keyed by mode -- leaving it
+               // to keep serving pre-refresh data indefinitely no matter how many times this table
+               // is refreshed. Invalidate the RUNTIME_MODE slot too, in addition to (not instead of)
+               // the table's own computed mode: the next real read under either mode is a genuine
+               // cache miss and lazily re-executes (AssetQuerySandbox.getTableLens0/executeQuery),
+               // reading whatever refreshColumnSelection below just wrote into the deeper,
+               // mode-independent XSessionManager.dataCache layer -- no proactive RUNTIME_MODE
+               // reload is needed here.
+               if(mode != AssetQuerySandbox.RUNTIME_MODE) {
+                  box.resetTableLens(req.table(), AssetQuerySandbox.RUNTIME_MODE);
+                  DataKey runtimeKey = AssetDataCache.getCacheKey(
+                     table, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
+                  assetDataCache.remove(runtimeKey);
+               }
+
                // WSQueryService.runQuery discovers a not-yet-run tabular query's columns before
                // reloading; without it, refresh_data on a query that has never executed in this
                // runtime loads against an empty column selection.

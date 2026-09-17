@@ -1498,7 +1498,63 @@ class WorksheetAgentControllerTest {
          ctrl.edit("TOK-RD3", refreshDataRequest("Table1"), agent);
       }
 
-      verify(assetDataCache).remove(any());
+      // Bug #76711 round 4 also clears the RUNTIME_MODE slot for this DESIGN_MODE table (see
+      // refreshDataAlsoInvalidatesTheRuntimeModeSlotForADesignModeTable), so this is now 2 calls.
+      verify(assetDataCache, atLeastOnce()).remove(any());
+   }
+
+   /**
+    * Bug #76711 round 4: for an ordinary table (not runtime, not live-data -- the state an
+    * {@code add_table}'d table is left in, per {@code WorksheetEventUtil.getMode}), refreshData's
+    * own computed {@code mode} is DESIGN_MODE, but every real reader of this table's data
+    * (preview_worksheet_data's WorksheetPreviewService, RawDataService, WorksheetTableService)
+    * always reads under a hardcoded RUNTIME_MODE. Round 3's fix only invalidated the DESIGN_MODE
+    * slot in AssetQuerySandbox.tmap/AssetDataCache, leaving RUNTIME_MODE's slot stale forever.
+    * This test would FAIL against round 3's code, which calls resetTableLens/assetDataCache.remove
+    * exactly once, for DESIGN_MODE only.
+    */
+   @Test
+   void refreshDataAlsoInvalidatesTheRuntimeModeSlotForADesignModeTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD10"), any())).thenReturn(session("TOK-RD10"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      inetsoft.report.composition.execution.AssetDataCache assetDataCache =
+         mock(inetsoft.report.composition.execution.AssetDataCache.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD10", refreshDataRequest("Table1"), agent);
+      }
+
+      verify(box).resetTableLens("Table1", AssetQuerySandbox.DESIGN_MODE);
+      verify(box).resetTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+      verify(assetDataCache, times(2)).remove(any());
    }
 
    /**
