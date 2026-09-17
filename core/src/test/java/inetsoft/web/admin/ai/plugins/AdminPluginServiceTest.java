@@ -177,7 +177,9 @@ class AdminPluginServiceTest {
                                            ResourceAction.ACCESS)).thenReturn(true);
 
       for(String badGav : new String[]{null, "", "  ", "org.postgresql", "org.postgresql:postgresql",
-                                        "org.postgresql:postgresql:42.7.3:extra"})
+                                        "org.postgresql:postgresql:42.7.3:extra",
+                                        "org.postgresql::42.7.3", ":postgresql:42.7.3",
+                                        "org.postgresql:postgresql:"})
       {
          IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
             () -> service.uploadMaven(badGav, principal));

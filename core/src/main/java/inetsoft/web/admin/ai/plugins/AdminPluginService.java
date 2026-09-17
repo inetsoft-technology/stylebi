@@ -106,7 +106,14 @@ public class AdminPluginService {
    public Map<String, Object> uploadMaven(String gav, Principal principal) throws Exception {
       requireUploadDriversPermission(principal);
 
-      if(gav == null || gav.isBlank() || gav.split(":").length != 3) {
+      if(gav == null || gav.isBlank()) {
+         throw new IllegalArgumentException(
+            "gav: required, must be in group:artifact:version form, got: " + gav);
+      }
+
+      String[] gavParts = gav.split(":", -1);
+
+      if(gavParts.length != 3 || Arrays.stream(gavParts).anyMatch(String::isBlank)) {
          throw new IllegalArgumentException(
             "gav: required, must be in group:artifact:version form, got: " + gav);
       }
