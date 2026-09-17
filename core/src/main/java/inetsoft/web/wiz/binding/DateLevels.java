@@ -51,6 +51,20 @@ public final class DateLevels {
          return null;
       }
 
+      // A "$(ComponentName)" reference to a Form component's live value, or a "=script" dynamic
+      // value -- StyleBI's own dynamic-value convention, already handled this way for
+      // VSAggregateRef.setFormulaValue's formula via VSUtil.isDynamicValue. That check is
+      // reimplemented here rather than called directly: VSUtil's static init reaches Spring's
+      // ApplicationContext through ConfigurationContext.getSpringBean, which is unavailable to
+      // this class's plain-unit-test callers (no Spring context), so importing it would make
+      // every existing DateLevels test require a Spring-backed test harness.
+      // The receiving BDimensionRefModel.setDateLevel/VSDimensionRef.setDateLevelValue is itself
+      // dynamic-value-aware, so this string must reach it unresolved rather than being run through
+      // the name/number lookup below, which has no notion of a component reference.
+      if(isDynamicValue(dateLevel)) {
+         return dateLevel;
+      }
+
       String token = dateLevel.trim().toLowerCase();
 
       // StyleBI's own sentinel for "no date level": VSDimensionRef.setDateLevel maps -1 to null.
@@ -110,6 +124,14 @@ public final class DateLevels {
    /** The accepted names, for a vocabulary listing — not the numbers they resolve to. */
    public static List<String> names() {
       return new ArrayList<>(BY_NAME.keySet());
+   }
+
+   /**
+    * Mirrors {@code VSUtil.isDynamicValue}/{@code isVariableValue}/{@code isScriptValue}'s exact
+    * predicate, not {@code VSUtil} itself — see the comment at this method's one call site.
+    */
+   private static boolean isDynamicValue(String val) {
+      return (val.startsWith("$(") && val.endsWith(")")) || val.startsWith("=");
    }
 
    /** StyleBI's sentinel for an unset level — see {@code VSDimensionRef.setDateLevel}. */

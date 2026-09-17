@@ -114,6 +114,25 @@ class FieldRefFactoryTest {
    }
 
    /**
+    * A "$(ComponentName)" reference to a Form component's live value -- the same dynamic-value
+    * convention #76641 already confirmed live for a chart field's column -- must reach the
+    * dynamic-value-aware VSDimensionRef.setDateLevelValue unresolved rather than being refused as
+    * an unrecognized date-level name.
+    */
+   @Test
+   void passesADynamicComponentReferenceThrough() {
+      assertEquals("$(RadioButton1)", DateLevels.normalize("$(RadioButton1)"));
+   }
+
+   @Test
+   void stillRefusesAGarbageValueShapedLikeAReference() {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> DateLevels.normalize("$(unterminated"));
+
+      assertTrue(thrown.getMessage().contains("$(unterminated"));
+   }
+
+   /**
     * The "part" levels — {@code n | PART_DATE_GROUP} — extract a component instead of truncating
     * to one, and they are on the Composer's own date-level menu as "Month of Year", "Day of Week"
     * and so on. They were deliberately left out of this table at first. That was wrong, and the
