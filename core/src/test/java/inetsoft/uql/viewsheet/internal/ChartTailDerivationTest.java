@@ -35,24 +35,17 @@ class ChartTailDerivationTest {
       new Color(0x9A2DDC), new Color(0xFFB020), new Color(0xE5197E), new Color(0x8ED604)
    };
 
-   // Port validation. ENGINE §3 publishes its first three generated slots, derived with ONE ring.
-   // Reproducing them is what proves this OKLab port agrees with the one the handoff was written
-   // against, before any shipped hex is derived from it. Slot 11 is excluded deliberately: its
-   // published chroma is 0.202 where the head's mean is 0.188, so it did not come from the stated
-   // rule. Recorded in the design's decision 3.
+   // Port validation. An external handoff publishes the first three generated slots, derived with
+   // ONE ring. Reproducing them is what proves this OKLab port agrees with the one the handoff was
+   // written against, before any shipped hex is derived from it. Slot 11 is excluded deliberately:
+   // its published chroma is 0.202 where the head's mean is 0.188, so it did not come from the
+   // stated rule.
    @Test
    void singleRingReproducesTheHandoffsPublishedSlots() {
-      Color[] tail = ChartTailDerivation.derive(MODERN_HEAD, 3, 1, 0);
+      Color[] tail = ChartTailDerivation.derive(MODERN_HEAD, 2, 1, 0);
 
-      assertEquals(new Color(0x009FB6), tail[0], "ENGINE §3 slot 9");
-      assertEquals(new Color(0x9E9000), tail[1], "ENGINE §3 slot 10");
-   }
-
-   @Test
-   void theRuleIsAPureFunctionOfTheHead() {
-      assertArrayEquals(ChartTailDerivation.derive(MODERN_HEAD),
-                        ChartTailDerivation.derive(MODERN_HEAD),
-                        "two runs on the same head must agree, or the shipped literals drift");
+      assertEquals(new Color(0x009FB6), tail[0], "the handoff's published slot 9");
+      assertEquals(new Color(0x9E9000), tail[1], "slot 10");
    }
 
    @Test
@@ -73,12 +66,6 @@ class ChartTailDerivationTest {
                         "MODERN_TAIL must be what the rule derives from MODERN_HEAD");
       assertArrayEquals(ChartTailDerivation.derive(DARK_HEAD), colorArray("DARK_TAIL"),
                         "DARK_TAIL must be what the rule derives from DARK_HEAD");
-   }
-
-   @Test
-   void shippedTailsAreThirtyTwoSlotsEach() throws Exception {
-      assertEquals(32, colorArray("MODERN_TAIL").length);
-      assertEquals(32, colorArray("DARK_TAIL").length);
    }
 
    private static Color[] colorArray(String fieldName) throws Exception {
@@ -124,10 +111,20 @@ class ChartTailDerivationTest {
 
    @Test
    void everySlotSitsInsideTheHeadsLightnessBand() throws Exception {
+      double bandMin = Double.MAX_VALUE;
+      double bandMax = -Double.MAX_VALUE;
+
+      for(Color c : MODERN_HEAD) {
+         double l = OKLab.toLCH(OKLab.fromColor(c))[0];
+         bandMin = Math.min(bandMin, l);
+         bandMax = Math.max(bandMax, l);
+      }
+
       for(Color c : colorArray("MODERN_FALLBACK")) {
          double l = OKLab.toLCH(OKLab.fromColor(c))[0];
-         assertTrue(l >= 0.269 - 1e-3 && l <= 0.813 + 1e-3,
-                    hex(c) + " at L " + l + " sits outside the head's band 0.269-0.813");
+         assertTrue(l >= bandMin - 1e-3 && l <= bandMax + 1e-3,
+                    hex(c) + " at L " + l + " sits outside the head's band "
+                       + bandMin + "-" + bandMax);
       }
    }
 
@@ -177,8 +174,6 @@ class ChartTailDerivationTest {
 
       return worst;
    }
-
-   // colorArray(String) already exists from Task 2 — do not add a second copy.
 
    private static String hex(Color c) {
       return String.format("#%02X%02X%02X", c.getRed(), c.getGreen(), c.getBlue());

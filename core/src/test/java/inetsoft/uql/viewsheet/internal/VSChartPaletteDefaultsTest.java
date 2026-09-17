@@ -138,7 +138,7 @@ class VSChartPaletteDefaultsTest {
       Arrays.fill(declared, new Color(0x123456));
       frame.setDefaultColors(declared);
 
-      Color[] result = VSChartPaletteDefaults.fromFrame(frame, MODERN_HEAD_FIXTURE);
+      Color[] result = VSChartPaletteDefaults.fromFrame(frame, FALLBACK_FIXTURE);
 
       assertEquals(40, result.length);
       assertEquals(new Color(0x123456), result[0]);
@@ -147,8 +147,8 @@ class VSChartPaletteDefaultsTest {
 
    @Test
    void fromFrameFallsBackWhenFrameIsNull() {
-      Color[] result = VSChartPaletteDefaults.fromFrame(null, MODERN_HEAD_FIXTURE);
-      assertArrayEquals(MODERN_HEAD_FIXTURE, result);
+      Color[] result = VSChartPaletteDefaults.fromFrame(null, FALLBACK_FIXTURE);
+      assertArrayEquals(FALLBACK_FIXTURE, result);
    }
 
    @Test
@@ -156,9 +156,9 @@ class VSChartPaletteDefaultsTest {
       CategoricalColorFrame frame = new CategoricalColorFrame();
       frame.setDefaultColors(new Color[] { new Color(0x111111), new Color(0x222222) });
 
-      Color[] result = VSChartPaletteDefaults.fromFrame(frame, MODERN_HEAD_FIXTURE);
+      Color[] result = VSChartPaletteDefaults.fromFrame(frame, FALLBACK_FIXTURE);
 
-      assertArrayEquals(MODERN_HEAD_FIXTURE, result);
+      assertArrayEquals(FALLBACK_FIXTURE, result);
    }
 
    // A format.css declaring only indices 1-8 and 40 yields a 40-length array with null holes.
@@ -171,14 +171,36 @@ class VSChartPaletteDefaultsTest {
       declared[11] = null;
       frame.setDefaultColors(declared);
 
-      Color[] result = VSChartPaletteDefaults.fromFrame(frame, MODERN_HEAD_FIXTURE);
+      Color[] result = VSChartPaletteDefaults.fromFrame(frame, FALLBACK_FIXTURE);
 
-      assertArrayEquals(MODERN_HEAD_FIXTURE, result);
+      assertArrayEquals(FALLBACK_FIXTURE, result);
    }
 
-   private static final Color[] MODERN_HEAD_FIXTURE = fixture();
+   // fromFrame's javadoc calls the clone load-bearing - the fallback is a shared static constant,
+   // so handing it out by reference would let one caller's mutation corrupt every other caller's
+   // fallback. assertArrayEquals alone would pass with or without the clone; this is what would
+   // actually catch its removal.
+   @Test
+   void fromFrameFallbackIsNotTheSameArrayAsTheFallbackItWasHanded() {
+      CategoricalColorFrame shortFrame = new CategoricalColorFrame();
+      shortFrame.setDefaultColors(new Color[] { new Color(0x111111), new Color(0x222222) });
 
-   private static Color[] fixture() {
+      CategoricalColorFrame holedFrame = new CategoricalColorFrame();
+      Color[] declared = new Color[40];
+      Arrays.fill(declared, new Color(0x123456));
+      declared[11] = null;
+      holedFrame.setDefaultColors(declared);
+
+      assertNotSame(FALLBACK_FIXTURE, VSChartPaletteDefaults.fromFrame(null, FALLBACK_FIXTURE));
+      assertNotSame(FALLBACK_FIXTURE,
+                    VSChartPaletteDefaults.fromFrame(shortFrame, FALLBACK_FIXTURE));
+      assertNotSame(FALLBACK_FIXTURE,
+                    VSChartPaletteDefaults.fromFrame(holedFrame, FALLBACK_FIXTURE));
+   }
+
+   private static final Color[] FALLBACK_FIXTURE = fallbackFixture();
+
+   private static Color[] fallbackFixture() {
       Color[] colors = new Color[40];
       colors[0] = new Color(0x0490FF);
       colors[1] = new Color(0xFF5A35);

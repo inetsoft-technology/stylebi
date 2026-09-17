@@ -30,7 +30,16 @@ import java.util.List;
  * This lives in test sources on purpose. Nothing derives a tail at runtime - the palettes ship
  * literal hexes in defaults.css and VSChartPaletteDefaults, and ChartTailDerivationTest re-derives
  * and compares. Keeping the rule out of main means the frame stays free of the purity, caching and
- * CSS-reachability constraints that ENGINE §3's runtime generator would have carried.
+ * CSS-reachability constraints that a runtime generator would have carried.
+ *
+ * This rule reproduces the shipped literals under HotSpot's Math.pow on x86-64, verified on
+ * Temurin 17 and 21. widestGapMidpoint contains exact ties - bisecting a hue gap of width W
+ * produces two halves of width exactly W/2, which compare equal - and a 1-ulp difference in
+ * Math.pow upstream, inside OKLab, resolves that tie the other way. A JVM without HotSpot's
+ * x86-64 _dpow intrinsic (fdlibm instead) therefore derives a different tail from the same rule.
+ * The symptom is ChartTailDerivationTest.shippedTailsMatchTheRule failing with what looks like
+ * corrupted constants. Reproduce it with
+ * -XX:+UnlockDiagnosticVMOptions -XX:-UseLibmIntrinsic.
  */
 final class ChartTailDerivation {
    private ChartTailDerivation() {
@@ -45,11 +54,11 @@ final class ChartTailDerivation {
     * Bisect the widest remaining hue gap, count times, seeded with the head's hues. Each generated
     * hue joins the circle for the next round, so the gaps close evenly.
     *
-    * Lightness is the interesting part. ENGINE §3 puts every generated slot at the ring's mean
-    * lightness, which collapses at 32 slots - hue alone cannot carry forty categories. So there are
-    * three rings, and each slot takes whichever ring separates it furthest from everything already
-    * placed, head included. Ties break on the interleave order, which keeps the walk deterministic
-    * and therefore keeps the shipped literals reproducible.
+    * Lightness is the interesting part. A single ring at the mean lightness collapses at 32 slots -
+    * hue alone cannot carry forty categories. So there are three rings, and each slot takes
+    * whichever ring separates it furthest from everything already placed, head included. Ties
+    * break on the interleave order, which keeps the walk deterministic and therefore keeps the
+    * shipped literals reproducible.
     */
    static Color[] derive(Color[] head, int count, int rings, double lSpread) {
       List<Double> hues = new ArrayList<>();

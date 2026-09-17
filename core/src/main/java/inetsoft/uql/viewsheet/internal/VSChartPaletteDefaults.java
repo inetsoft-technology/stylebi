@@ -240,8 +240,8 @@ public final class VSChartPaletteDefaults {
 
    /**
     * A palette's head followed by its tail. The tail is derived from the head rather than taken
-    * from the legacy list - see the palette tail design. ChartTailDerivation, in test sources, is
-    * the authority on the values, and ChartTailDerivationTest re-derives and compares.
+    * from the legacy list. ChartTailDerivation, in test sources, is the authority on the values,
+    * and ChartTailDerivationTest re-derives and compares.
     */
    static Color[] splice(Color[] head, Color[] tail) {
       List<Color> palette = new ArrayList<>(Arrays.asList(head));

@@ -84,7 +84,8 @@ three rather than solving them.
 
 ## 1. The derivation rule
 
-A pure function of the eight head colours. Deterministic, no state, no runtime input.
+A pure function of the eight head colours. Deterministic, no state, no runtime input — though not
+invariant across `Math.pow` implementations; see §5.
 
 Convert the head to OKLCH and take its mean lightness and mean chroma. Then, 32 times:
 
@@ -214,6 +215,14 @@ with twelve series will look different the morning after an upgrade.
 from `MODERN_HEAD` / `DARK_HEAD` and compare against the shipped literals, in both `defaults.css`
 and `VSChartPaletteDefaults`. If the head is ever re-tuned again, the tail fails loudly instead of
 silently belonging to the previous head.
+
+**The guard holds on the build toolchain, not on the rule in the abstract.** It is verified against
+HotSpot's `Math.pow` on x86-64, on Temurin 17 and 21. `widestGapMidpoint` contains exact ties that a
+1-ulp difference in `Math.pow` resolves the other way, so a JVM without the `_dpow` intrinsic
+derives a different tail from the same rule. That is a toolchain assumption recorded in
+`ChartTailDerivation`'s javadoc, not a hidden defect: a toolchain change would make
+`shippedTailsMatchTheRule` fail loudly with what looks like corrupted constants, not silently ship
+a wrong tail.
 
 The §2 table becomes assertions rather than prose:
 
