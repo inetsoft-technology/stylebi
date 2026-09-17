@@ -22,7 +22,9 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
+import inetsoft.web.composer.model.vs.TableStylePaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.VSInputService;
@@ -248,6 +250,11 @@ public class AssemblyPropertyService {
          // instance and the original reference silently stops reflecting the write.
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
             Object value = canonicalShowType(type, entry.getValue(), patch.get(entry.getKey()));
+
+            if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
+               requireKnownTableStyle(model, entry.getValue(), value);
+            }
+
             model = PropertyPath.set(model, entry.getValue(), value);
          }
 
@@ -572,6 +579,72 @@ public class AssemblyPropertyService {
                : "Set 'dataInputPaneModel.table' (or 'columnValue') to a non-variable binding " +
                  "instead, or leave 'dataInputPaneModel.variable' out of the patch."));
       }
+   }
+
+   /**
+    * Refuses a {@code tableStyle} write that does not match any real table style (bug
+    * #76764/VTS-003). {@code PropertyPath}'s {@code CONSTRAINED_STRINGS} gate does not cover
+    * {@code tableStyle} -- its domain is dynamic and per-organization, unlike the closed enums
+    * that gate handles -- so an unresolvable name/ID was written through unchanged. At render
+    * time, {@code DataVSAQuery}/{@code VSUtil.getTableStyle} resolve that to {@code null} and
+    * silently fall back to CSS-only formatting: no error anywhere, and the bogus value is
+    * echoed back on read, indistinguishable from a table that never had a style set.
+    *
+    * <p>Matches against both {@link TreeNodeModel#data()} (the style's internal ID -- what the
+    * interactive Composer UI itself writes/matches) and {@link TreeNodeModel#label()} (the
+    * folder-stripped display name -- what this plugin's own {@code tableStyleTools.ts} tells
+    * callers to write). Both are genuinely resolvable at render time via
+    * {@code LibManager.getTableStyle} (exact-ID lookup, then fuzzy name lookup); a validator
+    * that accepted only one field would falsely refuse the other's real, currently-legitimate
+    * calling convention.
+    *
+    * <p>Walks the model's own {@code tableStylePaneModel.styleTree}, already populated by
+    * {@code readModel()} before this patch loop runs, rather than re-fetching it -- {@code
+    * TableStylePaneModel} is a plain mutable POJO, so this reference is guaranteed unchanged
+    * regardless of what else in the same patch has already been applied.
+    */
+   private void requireKnownTableStyle(Object model, String path, Object value) {
+      if(value == null) {
+         return;
+      }
+
+      String text = String.valueOf(value).trim();
+
+      if(text.isEmpty()) {
+         return;
+      }
+
+      String panePath = path.substring(0, path.length() - ".tableStyle".length());
+      Object pane = PropertyPath.get(model, panePath);
+
+      if(!(pane instanceof TableStylePaneModel styleModel) || styleModel.getStyleTree() == null) {
+         return;
+      }
+
+      if(!styleTreeHasStyle(styleModel.getStyleTree(), text)) {
+         throw new IllegalArgumentException(
+            "'" + path + "' ('" + text + "') does not match any table style's id or name. " +
+            "StyleBI resolves an unrecognised tableStyle to no style at render time with no " +
+            "error -- the table just renders unstyled -- so this write would report success " +
+            "and leave the table unchanged. Use a value from list_table_styles, or this " +
+            "assembly's own current 'tableStyle' read via get_assembly_properties(raw:true).");
+      }
+   }
+
+   private static boolean styleTreeHasStyle(TreeNodeModel node, String value) {
+      if(node.leaf() &&
+         (value.equals(String.valueOf(node.data())) || value.equals(node.label())))
+      {
+         return true;
+      }
+
+      for(TreeNodeModel child : node.children()) {
+         if(styleTreeHasStyle(child, value)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
