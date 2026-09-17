@@ -1089,14 +1089,19 @@ public class ViewsheetAssemblyAgentController {
     * <p>{@code equal} turns {@code less_than}/{@code greater_than} into their "or equal to" form.
     * {@code level} is the clause's nesting depth for parenthesization — omitted or {@code null}
     * means flat (level 0), matching the historical behavior.
+    *
+    * <p>{@code junctionLevel} is the level of the junction to the next clause; see
+    * {@link ConditionVocabulary.Clause#junctionLevel()} for when it's needed.
     */
    public record ConditionClause(String field, String operator, List<Object> values,
-                                 String junction, Boolean negated, Boolean equal, Integer level) {
+                                 String junction, Boolean negated, Boolean equal, Integer level,
+                                 Integer junctionLevel) {
       ConditionVocabulary.Clause toClause() {
          return new ConditionVocabulary.Clause(field, operator, values, junction,
                                                Boolean.TRUE.equals(negated),
                                                Boolean.TRUE.equals(equal),
-                                               level == null ? 0 : level);
+                                               level == null ? 0 : level,
+                                               junctionLevel);
       }
    }
 

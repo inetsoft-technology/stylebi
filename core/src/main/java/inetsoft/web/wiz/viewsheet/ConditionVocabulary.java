@@ -63,9 +63,23 @@ public final class ConditionVocabulary {
    private ConditionVocabulary() {
    }
 
-   /** One condition in the flat vocabulary. {@code junction} points at the *next* condition. */
+   /**
+    * One condition in the flat vocabulary. {@code junction} points at the *next* condition.
+    *
+    * <p>{@code junctionLevel} is the level of the junction to the next condition, not of this
+    * condition itself; it is nullable, and when absent defaults to
+    * {@code Math.min(this clause's level, the next clause's level)}. It only needs to be set
+    * explicitly to express two independent, side-by-side groups joined at a shallower level than
+    * either group's own conditions (e.g. {@code (A OR B) AND (C OR D)}), a shape the default
+    * cannot infer because both flanking conditions sit at the same level.
+    */
    public record Clause(String field, String operator, List<Object> values, String junction,
-                        boolean negated, boolean equal, int level) {}
+                        boolean negated, boolean equal, int level, Integer junctionLevel) {
+      public Clause(String field, String operator, List<Object> values, String junction,
+                    boolean negated, boolean equal, int level) {
+         this(field, operator, values, junction, negated, equal, level, null);
+      }
+   }
 
    /**
     * Builds the alternating array.
@@ -92,7 +106,7 @@ public final class ConditionVocabulary {
          out.add(condition(clause, i, fields));
 
          if(!last) {
-            out.add(junction(clause.junction(), i));
+            out.add(junction(clause, clauses.get(i + 1), i));
          }
       }
 
@@ -370,7 +384,8 @@ public final class ConditionVocabulary {
       return fields.isEmpty() ? "(none)" : String.join(", ", new TreeSet<>(names(fields)));
    }
 
-   private static JunctionOperatorModel junction(String token, int index) {
+   private static JunctionOperatorModel junction(Clause clause, Clause nextClause, int index) {
+      String token = clause.junction();
       String name = token.trim().toLowerCase();
       int type = switch(name) {
          case "and", "&&" -> JunctionOperator.AND;
@@ -381,7 +396,9 @@ public final class ConditionVocabulary {
 
       JunctionOperatorModel junction = new JunctionOperatorModel();
       junction.setType(type);
-      junction.setLevel(0);
+      junction.setLevel(clause.junctionLevel() != null
+         ? clause.junctionLevel()
+         : Math.min(clause.level(), nextClause.level()));
       return junction;
    }
 
