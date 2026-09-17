@@ -28,6 +28,7 @@ import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import inetsoft.util.script.*;
@@ -64,6 +65,14 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * Get chart info.
     */
    protected abstract ChartInfo getInfo();
+
+   /**
+    * The context a frame seeded from script is born on. The report scriptable has no assembly to
+    * ask, so it keeps LEGACY; the viewsheet scriptable answers from its assembly's mark.
+    */
+   protected VizContext getVizContext() {
+      return VizContext.LEGACY;
+   }
 
    /**
     * Set top n for a dimension column.
@@ -1171,7 +1180,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
                      ? info.getRTChartType() : info.getChartType();
                }
 
-               GraphUtil.fixVisualFrame(tfield, type, ctype, getInfo());
+               GraphUtil.fixVisualFrame(tfield, type, ctype, getInfo(), getVizContext());
             }
          }
       }
@@ -1193,7 +1202,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
       // if script is executed during export, the runtime may not be initialized
       // again, so avoid if not necessary. (54088)
       if(changed) {
-         new ChangeChartDataProcessor(getInfo(), false).process();
+         new ChangeChartDataProcessor(getInfo(), false, getVizContext()).process();
       }
    }
 
@@ -1817,7 +1826,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
       }
 
       //bug1347519674702, change field need process.
-      new ChangeChartDataProcessor(getInfo(), false).process();
+      new ChangeChartDataProcessor(getInfo(), false, getVizContext()).process();
    }
 
    /**
@@ -1896,7 +1905,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
       if(flds != null && flds.length > 0) {
          flds[0].setTimeSeries(timeSeries);
          getInfo().updateChartType(!getInfo().isMultiStyles());
-         new ChangeChartDataProcessor(getInfo(), false).process();
+         new ChangeChartDataProcessor(getInfo(), false, getVizContext()).process();
       }
       else {
          LOG.warn("Dimension column not found: {}", field);
@@ -2349,7 +2358,8 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
       argObj2 = ScriptUtil.unwrap(argObj2);
 
       if(argObj1 instanceof AestheticRef) {
-         setter.accept(info, getAestheticRef((AestheticRef) argObj1, info, aesType));
+         setter.accept(info, getAestheticRef((AestheticRef) argObj1, info, aesType,
+                                             getVizContext()));
          return;
       }
 
@@ -2361,7 +2371,8 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
       ChartBindable bindable = ChartProcessor.getChartBindable(info, aggr ? arg1 : null);
 
       if(argObj2 instanceof AestheticRef) {
-         setter.accept(bindable, getAestheticRef((AestheticRef) argObj2, info, aesType));
+         setter.accept(bindable, getAestheticRef((AestheticRef) argObj2, info, aesType,
+                                                 getVizContext()));
          return;
       }
 
@@ -2381,7 +2392,8 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
             ((VSChartInfo) info).setNeedResetShape(true);
          }
 
-         GraphUtil.fixVisualFrame(aestheticRef, aesType, info.getRTChartType(), info);
+         GraphUtil.fixVisualFrame(aestheticRef, aesType, info.getRTChartType(), info,
+                                  getVizContext());
          setter.accept(bindable, aestheticRef);
 
          // design time ref changed, clear runtime so aesthetic takes effect
@@ -2396,9 +2408,11 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
       }
    }
 
-   private static AestheticRef getAestheticRef(AestheticRef argObj1, ChartInfo info, int aesType) {
+   private static AestheticRef getAestheticRef(AestheticRef argObj1, ChartInfo info, int aesType,
+                                              VizContext ctx)
+   {
       AestheticRef nfield = (AestheticRef) argObj1.clone();
-      GraphUtil.fixVisualFrame(nfield, aesType, info.getRTChartType(), info);
+      GraphUtil.fixVisualFrame(nfield, aesType, info.getRTChartType(), info, ctx);
       return nfield;
    }
 

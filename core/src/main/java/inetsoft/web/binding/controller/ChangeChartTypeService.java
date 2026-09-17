@@ -149,8 +149,8 @@ public class ChangeChartTypeService {
       cinfo.clearRuntime();
 
       if(oldType == newType) {
-         new ChangeChartTypeProcessor(oldType, newType,
-                                      omulti, nmulti, ref, cinfo, false, desc).processMultiChanged();
+         new ChangeChartTypeProcessor(oldType, newType, omulti, nmulti, ref, cinfo, false, desc,
+                                      VizContext.of(ninfo)).processMultiChanged();
          handleMulti(name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
 
          if(ostackMeasures == nstackMeasures) {
@@ -167,8 +167,9 @@ public class ChangeChartTypeService {
          chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo);
       }
 
-      cinfo = (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType,
-                                                         omulti, nmulti, ref, cinfo, false, desc).process();
+      cinfo = (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType, omulti, nmulti, ref,
+                                                         cinfo, false, desc,
+                                                         VizContext.of(ninfo)).process();
       SourceInfo sourceInfo = ninfo.getSourceInfo();
       new ChangeChartProcessor().fixParetoSorting(cinfo);
 

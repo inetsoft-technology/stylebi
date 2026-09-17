@@ -841,7 +841,16 @@ public class GraphUtil {
     * @return true if visual frames are changed.
     */
    public static boolean fixVisualFrames(ChartInfo cinfo) {
-      return fixVisualFrames(cinfo, false);
+      return fixVisualFrames(cinfo, false, VizContext.LEGACY);
+   }
+
+   /** Legacy overload: a caller with no chart context in reach seeds the pre-modern ramp. */
+   public static boolean fixVisualFrames(ChartInfo cinfo, boolean rt) {
+      return fixVisualFrames(cinfo, rt, VizContext.LEGACY);
+   }
+
+   public static boolean fixVisualFrames(ChartInfo cinfo, VizContext ctx) {
+      return fixVisualFrames(cinfo, false, ctx);
    }
 
    /**
@@ -849,53 +858,65 @@ public class GraphUtil {
     *
     * @return true if visual frames are changed.
     */
-   public static boolean fixVisualFrames(ChartInfo cinfo, boolean rt) {
+   public static boolean fixVisualFrames(ChartInfo cinfo, boolean rt, VizContext ctx) {
       boolean rc = false;
 
       if(cinfo.isMultiAesthetic()) {
          for(ChartAggregateRef aggr : cinfo.getAestheticAggregateRefs(rt)) {
-            rc = fixVisualFrames0(aggr, cinfo) || rc;
+            rc = fixVisualFrames0(aggr, cinfo, ctx) || rc;
          }
       }
       else {
-         rc = fixVisualFrames0(cinfo, cinfo);
+         rc = fixVisualFrames0(cinfo, cinfo, ctx);
       }
 
       return rc;
    }
 
+   /** Legacy overload: a caller with no chart context in reach seeds the pre-modern ramp. */
    public static boolean fixVisualFrames0(ChartBindable bindable, ChartInfo cinfo) {
+      return fixVisualFrames0(bindable, cinfo, VizContext.LEGACY);
+   }
+
+   public static boolean fixVisualFrames0(ChartBindable bindable, ChartInfo cinfo, VizContext ctx) {
       boolean rc = false;
 
       rc = GraphUtil.fixVisualFrame(bindable.getColorField(),
                                     ChartConstants.AESTHETIC_COLOR,
-                                    bindable.getRTChartType(), cinfo) || rc;
+                                    bindable.getRTChartType(), cinfo, ctx) || rc;
       rc = GraphUtil.fixVisualFrame(bindable.getShapeField(),
                                     ChartConstants.AESTHETIC_SHAPE,
-                                    bindable.getRTChartType(), cinfo) || rc;
+                                    bindable.getRTChartType(), cinfo, ctx) || rc;
       rc = GraphUtil.fixVisualFrame(bindable.getSizeField(),
                                     ChartConstants.AESTHETIC_SIZE,
-                                    bindable.getRTChartType(), cinfo) || rc;
+                                    bindable.getRTChartType(), cinfo, ctx) || rc;
       rc = GraphUtil.fixVisualFrame(bindable.getTextField(),
                                     ChartConstants.AESTHETIC_TEXT,
-                                    bindable.getRTChartType(), cinfo) || rc;
+                                    bindable.getRTChartType(), cinfo, ctx) || rc;
 
       if(bindable instanceof RelationChartInfo) {
          rc = GraphUtil.fixVisualFrame(((RelationChartInfo) bindable).getNodeColorField(),
                                        ChartConstants.AESTHETIC_COLOR,
-                                       bindable.getRTChartType(), cinfo) || rc;
+                                       bindable.getRTChartType(), cinfo, ctx) || rc;
          rc = GraphUtil.fixVisualFrame(((RelationChartInfo) bindable).getNodeSizeField(),
                                        ChartConstants.AESTHETIC_SIZE,
-                                       bindable.getRTChartType(), cinfo) || rc;
+                                       bindable.getRTChartType(), cinfo, ctx) || rc;
       }
 
       return rc;
+   }
+
+   /** Legacy overload: a caller with no chart context in reach seeds the pre-modern ramp. */
+   public static boolean fixVisualFrame(AestheticRef ref, int type, int chartType, ChartInfo info) {
+      return fixVisualFrame(ref, type, chartType, info, VizContext.LEGACY);
    }
 
    /**
     * Fix legend frame of VSAestheticRef.
     */
-   public static boolean fixVisualFrame(AestheticRef ref, int type, int chartType, ChartInfo info) {
+   public static boolean fixVisualFrame(AestheticRef ref, int type, int chartType, ChartInfo info,
+                                        VizContext ctx)
+   {
       if(ref == null) {
          return false;
       }
@@ -948,7 +969,7 @@ public class GraphUtil {
          }
          else if(dref instanceof XAggregateRef) {
             if(!(frame instanceof LinearColorFrame)) {
-               frame = new BluesColorFrame();
+               frame = VSChartPaletteDefaults.defaultLinearFrame(ctx);
             }
          }
       }

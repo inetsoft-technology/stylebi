@@ -33,6 +33,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticShapeFrameWrapper;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.*;
 import inetsoft.web.binding.dnd.*;
 import inetsoft.web.binding.model.graph.*;
@@ -241,8 +242,15 @@ public final class ChartDndHandler {
       return removeRefs;
    }
 
+   /** Legacy overload: a caller with no chart assembly in reach seeds the pre-modern ramp. */
    public void dropToAesthetic(ChartRef ref, ChartInfo cinfo, ChartTransfer transfer,
                                ChartAestheticDropTarget target)
+   {
+      dropToAesthetic(ref, cinfo, transfer, target, VizContext.LEGACY);
+   }
+
+   public void dropToAesthetic(ChartRef ref, ChartInfo cinfo, ChartTransfer transfer,
+                               ChartAestheticDropTarget target, VizContext ctx)
    {
       ChartBindable bindable = null;
 
@@ -320,7 +328,7 @@ public final class ChartDndHandler {
          aesRef.setDataRef(ref);
       }
 
-      setAestheticRef(dropType, bindable, aesRef, cinfo, target.getTargetField());
+      setAestheticRef(dropType, bindable, aesRef, cinfo, target.getTargetField(), ctx);
 
       if(dropType == ChartConstants.DROP_REGION_SIZE &&
          GraphUtil.isNil(cinfo) && GraphTypeUtil.isMap(cinfo))
@@ -334,8 +342,15 @@ public final class ChartDndHandler {
       removeDragFields(transfer, cinfo, target);
    }
 
+   /** Legacy overload: a caller with no chart assembly in reach seeds the pre-modern ramp. */
    public ChartRef dropToChartView(ChartRef ref, ChartInfo cinfo, ChartTransfer transfer,
                                    BindingDropTarget target)
+   {
+      return dropToChartView(ref, cinfo, transfer, target, VizContext.LEGACY);
+   }
+
+   public ChartRef dropToChartView(ChartRef ref, ChartInfo cinfo, ChartTransfer transfer,
+                                   BindingDropTarget target, VizContext ctx)
    {
       int dropType = Integer.parseInt(target.getDropType());
 
@@ -343,13 +358,13 @@ public final class ChartDndHandler {
          int atype = getAestheticDropType(ref, cinfo);
 
          if(atype > 0) {
-            dropAesthetic(atype, ref, cinfo);
+            dropAesthetic(atype, ref, cinfo, ctx);
          }
 
          return null;
       }
       else if(isAestheticRegion(target.getDropType())) {
-         dropAesthetic(dropType, ref, cinfo);
+         dropAesthetic(dropType, ref, cinfo, ctx);
          return null;
       }
 
@@ -507,14 +522,14 @@ public final class ChartDndHandler {
    /**
     * Drop a ref to an aesthetic field.
     */
-   private void dropAesthetic(int dropType, ChartRef ref, ChartInfo cinfo) {
+   private void dropAesthetic(int dropType, ChartRef ref, ChartInfo cinfo, VizContext ctx) {
       fixChartRef(ref, null);
       AestheticRef aesRef = createAestheticRef(cinfo);
       aesRef.setDataRef(ref);
       List<ChartBindable> bindables = getChartInfoBindables(cinfo);
 
       for(ChartBindable bindable: bindables) {
-         setAestheticRef(dropType, bindable, aesRef, cinfo, null);
+         setAestheticRef(dropType, bindable, aesRef, cinfo, null, ctx);
       }
    }
 
@@ -842,7 +857,7 @@ public final class ChartDndHandler {
    }
 
    private void setAestheticRef(int dropType, ChartBindable bindable,
-         AestheticRef ref, ChartInfo cinfo, String targetField)
+         AestheticRef ref, ChartInfo cinfo, String targetField, VizContext ctx)
    {
       if(bindable instanceof RelationChartInfo && "nodeColorField".equals(targetField)) {
          ((RelationChartInfo) bindable).setNodeColorField(ref);
@@ -871,11 +886,11 @@ public final class ChartDndHandler {
          }
       }
 
-      fixVisualFrame(dropType, bindable, cinfo, ref);
+      fixVisualFrame(dropType, bindable, cinfo, ref, ctx);
    }
 
    private void fixVisualFrame(int dropType, ChartBindable bindable, ChartInfo cinfo,
-                               AestheticRef aesRef)
+                               AestheticRef aesRef, VizContext ctx)
    {
       int atype = getAestheticType(dropType);
 
@@ -883,11 +898,11 @@ public final class ChartDndHandler {
          for(Object aggr : ((AllChartAggregateRef) bindable).getChartAggregateRefs()) {
             ChartAggregateRef aref = (ChartAggregateRef) aggr;
             AestheticRef ref = getAestheticRef(dropType, aref, null);
-            GraphUtil.fixVisualFrame(ref, atype, getChartType(aref), cinfo);
+            GraphUtil.fixVisualFrame(ref, atype, getChartType(aref), cinfo, ctx);
          }
       }
       else {
-         GraphUtil.fixVisualFrame(aesRef, atype, getChartType(bindable), cinfo);
+         GraphUtil.fixVisualFrame(aesRef, atype, getChartType(bindable), cinfo, ctx);
       }
    }
 

@@ -2573,7 +2573,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       if(getChartStyle() != value && !cinfo.isMultiStyles()) {
          this.cinfo = (VSChartInfo) new ChangeChartTypeProcessor(
             getChartStyle(), value, false, false, null, getVSChartInfo(),
-       true, getChartDescriptor()).process();
+       true, getChartDescriptor(), VizContext.of(this)).process();
       }
 
       if(!cinfo.isMultiStyles()) {
@@ -2584,7 +2584,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          ChartRef[] yrefs = cinfo.getRTYFields();
          ChangeChartProcessor processor = new ChangeChartTypeProcessor(
             getChartStyle(), value, true, true, null, getVSChartInfo(),
-            true, getChartDescriptor());
+            true, getChartDescriptor(), VizContext.of(this));
 
          for(ChartRef[] refs : new ChartRef[][] {yrefs, xrefs}) {
             for(ChartRef ref : refs) {

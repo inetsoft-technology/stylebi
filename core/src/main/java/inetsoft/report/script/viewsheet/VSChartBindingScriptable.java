@@ -34,6 +34,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DrillFilterInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JSObject;
 import org.slf4j.Logger;
@@ -99,6 +100,12 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
    @Override
    protected AbstractChartInfo getInfo() {
       return script.getChartInfo();
+   }
+
+   @Override
+   protected VizContext getVizContext() {
+      ChartVSAssembly assembly = getChartAssembly();
+      return assembly == null ? VizContext.LEGACY : VizContext.of(assembly.getVSAssemblyInfo());
    }
 
    protected ChartVSAssembly getChartAssembly() {
@@ -263,7 +270,8 @@ public class VSChartBindingScriptable extends AbstractChartBindingScriptable {
 
                   if(cinfo.getDateComparisonInfo() != null) {
                      ChartDcProcessor processor = new ChartDcProcessor(
-                        cinfo.getVSChartInfo(), cinfo.getDateComparisonInfo());
+                        cinfo.getVSChartInfo(), cinfo.getDateComparisonInfo(),
+                        VizContext.of(cinfo));
                      processor.updateDateComparisonChartType(cinfo.getVSChartInfo());
                   }
                }

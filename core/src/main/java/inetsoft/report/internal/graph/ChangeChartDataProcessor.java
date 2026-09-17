@@ -19,6 +19,7 @@ package inetsoft.report.internal.graph;
 
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 
 import java.util.*;
 
@@ -31,23 +32,42 @@ public class ChangeChartDataProcessor extends ChangeChartProcessor {
     */
    public ChangeChartDataProcessor() {
       super();
+      this.vizContext = VizContext.LEGACY;
    }
 
    /**
     * Constructor.
     */
    public ChangeChartDataProcessor(ChartInfo info) {
-      this(info, true);
+      this(info, true, VizContext.LEGACY);
+   }
+
+   /**
+    * Constructor.
+    */
+   public ChangeChartDataProcessor(ChartInfo info, VizContext ctx) {
+      this(info, true, ctx);
    }
 
    /**
     * Constructor.
     */
    public ChangeChartDataProcessor(ChartInfo info, boolean fixSorting) {
+      this(info, fixSorting, VizContext.LEGACY);
+   }
+
+   /**
+    * Constructor.
+    *
+    * @param ctx the context the chart's measure-to-colour frames are born on. A chart whose
+    *            assembly is in reach should pass VizContext.of(it); the report path is LEGACY.
+    */
+   public ChangeChartDataProcessor(ChartInfo info, boolean fixSorting, VizContext ctx) {
       super();
 
       this.info = info;
       this.fixSorting = fixSorting;
+      this.vizContext = ctx;
    }
 
    /**
@@ -58,7 +78,7 @@ public class ChangeChartDataProcessor extends ChangeChartProcessor {
       // this is same as changing dim/measure to dim/dim and swith to auto
       if(!isXYSupported() && GraphTypeUtil.isXYChart(info)) {
          info = (new ChangeChartTypeProcessor(
-            info.getChartType(), GraphTypes.CHART_AUTO, null, info)).process();
+            info.getChartType(), GraphTypes.CHART_AUTO, null, info, vizContext)).process();
       }
 
       sortRefs(info);
@@ -143,4 +163,5 @@ public class ChangeChartDataProcessor extends ChangeChartProcessor {
 
    private ChartInfo info;
    private boolean fixSorting = true;
+   private final VizContext vizContext;
 }

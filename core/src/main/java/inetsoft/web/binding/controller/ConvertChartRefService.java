@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.ConvertChartRefEvent;
@@ -208,7 +209,8 @@ public class ConvertChartRefService {
             // in update() of VSChartInfo
             vsChartInfo.clearRuntime();
 
-            vsChartInfo = (VSChartInfo) new ChangeChartDataProcessor(vsChartInfo).process();
+            vsChartInfo = (VSChartInfo)
+               new ChangeChartDataProcessor(vsChartInfo, VizContext.of(ninfo)).process();
             ninfo.setVSChartInfo(vsChartInfo);
             hint |= chartHandler.createCommands(oinfo, ninfo);
             boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==

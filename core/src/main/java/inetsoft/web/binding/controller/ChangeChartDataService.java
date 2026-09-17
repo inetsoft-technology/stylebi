@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSSelection;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.handler.*;
@@ -113,7 +114,7 @@ public class ChangeChartDataService {
 
       ninfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
       VSChartInfo cinfo = ninfo.getVSChartInfo();
-      cinfo = (VSChartInfo) new ChangeChartDataProcessor(cinfo).process();
+      cinfo = (VSChartInfo) new ChangeChartDataProcessor(cinfo, VizContext.of(ninfo)).process();
       ChangeChartProcessor.fixGroupOption(cinfo);
       ninfo.setVSChartInfo(cinfo);
       chartHandler.fixShapeField(ninfo.getVSChartInfo(),

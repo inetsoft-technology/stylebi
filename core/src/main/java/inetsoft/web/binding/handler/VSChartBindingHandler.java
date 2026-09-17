@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.dnd.*;
 import inetsoft.web.viewsheet.handler.VSDrillHandler;
@@ -230,7 +231,7 @@ public class VSChartBindingHandler {
       RuntimeViewsheet rvs) throws Exception
    {
       VSChartInfo cinfo = info.getVSChartInfo();
-      dndHandler.dropToAesthetic(ref, cinfo, transfer, target);
+      dndHandler.dropToAesthetic(ref, cinfo, transfer, target, VizContext.of(info));
       ChartDndHandler.fixLegendFormats(info.getChartDescriptor(), transfer, target);
       cinfo.clearRuntime();
       dataHandler.changeChartAesthetic(rvs, info);
@@ -281,7 +282,8 @@ public class VSChartBindingHandler {
                                     RuntimeViewsheet rvs) throws Exception
    {
       VSChartInfo cinfo = info.getVSChartInfo();
-      ChartRef removeRef = dndHandler.dropToChartView(ref, cinfo, transfer, target);
+      ChartRef removeRef = dndHandler.dropToChartView(ref, cinfo, transfer, target,
+                                                      VizContext.of(info));
 
       if(ChartDndHandler.isAestheticRegion(target.getDropType())) {
          dataHandler.changeChartAesthetic(rvs, info);

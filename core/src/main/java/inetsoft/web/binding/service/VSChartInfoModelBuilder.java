@@ -21,6 +21,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.service.graph.ChartAestheticService;
 import inetsoft.web.binding.service.graph.ChartRefModelFactoryService;
@@ -39,6 +40,11 @@ public class VSChartInfoModelBuilder extends ChartInfoModelBuilder{
 
       this.assembly = assembly;
       initColumnSelection(assembly);
+   }
+
+   @Override
+   protected VizContext getVizContext() {
+      return assembly == null ? VizContext.LEGACY : VizContext.of(assembly.getVSAssemblyInfo());
    }
 
    @Override

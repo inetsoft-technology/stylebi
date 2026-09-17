@@ -24,6 +24,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.*;
@@ -46,6 +47,14 @@ public abstract class ChartInfoModelBuilder {
       this.aesService = aesService;
       this.dataRefService = dataRefService;
       this.visualService = visualService;
+   }
+
+   /**
+    * The context a frame seeded while rebuilding a chart from its binding model is born on. The
+    * viewsheet builder answers from its assembly's mark; a builder with no assembly keeps LEGACY.
+    */
+   protected VizContext getVizContext() {
+      return VizContext.LEGACY;
    }
 
    public ChartBindingModel createChartBinding(ChartInfo cinfo, PlotDescriptor plot, boolean wizard)
@@ -370,7 +379,7 @@ public abstract class ChartInfoModelBuilder {
       ncinfo.setPathField(refService.pasteChartRef(ocinfo, model.getPathField()));
       ncinfo.updateChartType(!model.isMultiStyles());
       aesService.updateVisualFrames(model, ocinfo, ncinfo);
-      GraphUtil.fixVisualFrames(ncinfo);
+      GraphUtil.fixVisualFrames(ncinfo, getVizContext());
       AestheticInfo ainfo = model.getColorField();
 
       if(ainfo != null) {

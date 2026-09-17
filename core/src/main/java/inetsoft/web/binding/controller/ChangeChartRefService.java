@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DrillFilterInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -136,7 +137,7 @@ public class ChangeChartRefService {
             box.get().updateAssembly(name);
             // update chart type after refreshing runtime refs.
             ncinfo.updateChartType(!ncinfo.isMultiStyles());
-            GraphUtil.fixVisualFrames(ncinfo);
+            GraphUtil.fixVisualFrames(ncinfo, VizContext.of(assembly.getVSAssemblyInfo()));
             new ChangeChartDataProcessor().sortRefs(assembly.getVSChartInfo());
             ChangeChartProcessor process = new ChangeChartProcessor();
             process.fixMapFrame(ocinfo, ncinfo);

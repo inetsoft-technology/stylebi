@@ -323,7 +323,7 @@ public class VGraphPair {
 
          if(info.isNeedResetShape()) {
             GraphUtil.fixVisualFrame(info.getShapeField(),
-               ChartConstants.AESTHETIC_SHAPE, info.getRTChartType(), info);
+               ChartConstants.AESTHETIC_SHAPE, info.getRTChartType(), info, VizContext.of(ainfo));
             info.setNeedResetShape(false);
          }
 
@@ -425,7 +425,8 @@ public class VGraphPair {
                   if(tinfo.isNeedResetShape()) {
                      GraphUtil.fixVisualFrame(tinfo.getShapeField(),
                                               ChartConstants.AESTHETIC_SHAPE,
-                                              tinfo.getRTChartType(), tinfo);
+                                              tinfo.getRTChartType(), tinfo,
+                                              VizContext.of(ainfo));
                      tinfo.setNeedResetShape(false);
                   }
 
