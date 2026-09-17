@@ -19,9 +19,7 @@ package inetsoft.report.composition.graph;
 
 import inetsoft.graph.geometry.ElementGeometry;
 import inetsoft.graph.visual.PointVO;
-import inetsoft.uql.viewsheet.graph.aesthetic.BrushingColor;
 
-import java.awt.*;
 import java.util.Comparator;
 
 /**
@@ -37,32 +35,13 @@ public class BrushingComparator implements Comparator {
          return 0;
       }
 
-      PointVO p1 = (PointVO) v1;
-      PointVO p2 = (PointVO) v2;
-
-      ElementGeometry gobj1 = (ElementGeometry) p1.getGeometry();
-      ElementGeometry gobj2 = (ElementGeometry) p2.getGeometry();
+      ElementGeometry gobj1 = (ElementGeometry) ((PointVO) v1).getGeometry();
+      ElementGeometry gobj2 = (ElementGeometry) ((PointVO) v2).getGeometry();
 
       if(gobj1.getElement() != gobj2.getElement()) {
          return 0;
       }
 
-      Color c1 = gobj1.getColor(0);
-      Color c2 = gobj2.getColor(0);
-
-      if(c1.equals(c2)) {
-         return 0;
-      }
-
-      if(c1.equals(hlcolor)) {
-         return 1;
-      }
-      else if(c2.equals(hlcolor)) {
-         return -1;
-      }
-
-      return 0;
+      return BrushedMarks.order(BrushedMarks.isBrushed(gobj1), BrushedMarks.isBrushed(gobj2));
    }
-
-   private Color hlcolor = BrushingColor.getHighlightColor();
 }

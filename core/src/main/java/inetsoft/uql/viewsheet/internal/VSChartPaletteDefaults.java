@@ -124,6 +124,31 @@ public final class VSChartPaletteDefaults {
    }
 
    /**
+    * The companion of a colour rather than of a slot: the authored companion when the colour is a
+    * member of the active palette, otherwise the rule applied to the colour itself. Keying on
+    * colour rather than index lets a caller that holds only a resolved colour - a brushed mark, a
+    * target band - reach the same answer a slot lookup would give.
+    */
+   public static Color companionOf(Color base, VizContext ctx) {
+      if(base == null) {
+         return null;
+      }
+
+      CategoricalColorFrame active = new CategoricalColorFrame();
+      active.setDefaultColors(activePalette(ctx));
+
+      for(int i = 0; i < active.getColorCount(); i++) {
+         if(base.equals(active.getDefaultColor(i))) {
+            return companionColor(active, ctx.dark ? DARK_NAME : MODERN_NAME, i, ctx.dark);
+         }
+      }
+
+      CategoricalColorFrame holder = new CategoricalColorFrame();
+      holder.setDefaultColor(0, base);
+      return companionColor(holder, null, 0, ctx.dark);
+   }
+
+   /**
     * Authored companion colors by index, memoized per org until the CSS changes - empty when the
     * set declares no companion. Shares resolve()'s memo for the same two reasons: getPalette locks
     * on its own class, and a broken format.css must not fail the render.
