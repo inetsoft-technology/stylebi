@@ -1,7 +1,8 @@
 # Chart palette tail — design
 
 **Date:** 2026-09-17
-**Status:** approved, not implemented
+**Status:** implemented on `feature-chart-palette-tail`; automated suite green, **manual browser
+pass outstanding** — see "What the implementation found".
 **Branch:** `epic-74519` (base). Community-only.
 **Source:** ENGINE §3 of the external design set `SBI Color and Type Pairings.dc.html` and its
 `design_handoff_chart_palettes/` folder, at
@@ -243,3 +244,66 @@ trigger.
 
 Five files, listed in §3. Every path is inside the `community` submodule, so this ships as a
 community PR against `epic-74519`.
+
+## What the implementation found
+
+**Automated verification.** `./mvnw test -pl core` reports `Tests run: 5867, Failures: 0,
+Errors: 22, Skipped: 69` — BUILD FAILURE. All three of this slice's own test classes pass in
+full and are not among the 22 errors: `ChartTailDerivationTest` (10/10), `VSChartPaletteDefaultsTest`
+(29/29), `ColorPalettesModernTest` (11/11). Every one of the 22 errors is a `NoSuchMethodError` in
+five classes — `SeededLinearFrameTest`, `ChartVSAssemblyInfoSeedTest`,
+`WizardSeededLinearFrameTest`, `ChartRampDerivationTest`, `HouseRampTest` — that do not exist
+anywhere in this branch's source tree; they appear only inside
+`.superpowers/sdd/2026-09-16-chart-ramps/`'s review diffs, the still-open ramps PR #5345 this
+design's "What this is" section names. They are orphaned `.class` files left in
+`core/target/test-classes` from an earlier local build of that unrelated branch, picked up by
+Surefire because `./mvnw test` without `clean` does not remove stale compiled test classes. A
+`./mvnw clean install -pl core -am -DskipTests` (Step 2) clears `target/` and reports
+BUILD SUCCESS across all six reactor modules touched (`StyleBI`, `build-tools-parent`,
+`Antlr 2 Maven Plugin`, `tern-annotations`, `cluster-proxy-annotations`, `inetsoft-core`) —
+confirming the `fromFrame` signature change and the `spliceLegacy` removal left no other module
+stale. A confirmatory `./mvnw test -pl core` re-run after that clean reports
+`Tests run: 5833, Failures: 0, Errors: 0, Skipped: 69` — BUILD SUCCESS, and none of the five
+orphaned classes are even discovered. The 34-test gap (5867 − 5833) is exactly the five orphaned
+classes' own test counts (6 + 6 + 14 + 5 + 3), confirmed by diffing the two runs' class lists.
+Nothing in this slice's own code or tests is implicated.
+
+**Every new test class needs `@Tag("core")`, or it silently doesn't run.**
+`core/pom.xml:996` hardcodes Surefire's `<groups>core</groups>`, so a JUnit 5 class with no
+`@Tag("core")` is excluded from the suite entirely and reports `Tests run: 0` — a false pass, not
+a green run. The plan's Task 1 code block, copied verbatim from the brief, carried no such tag;
+running it as written produced exactly that false "Tests run: 0" before the tag was added.
+
+**The plan told Task 2 to expect `VSChartPaletteDefaultsTest` to pass, which was impossible.**
+`modernPalette()`/`darkPalette()` resolve through `resolve()`, which reads a CSS-declared frame
+before ever consulting the Java fallback — and CSS did not move until Task 3. Between Task 2's
+commit and Task 3's, `gateOnSwapsToModernHeadAndDerivedTail` and
+`darkPaletteSwapsToDarkHeadAndDerivedTail` were necessarily red: both call `modernPalette()`/
+`darkPalette()`, both got the still-legacy CSS value back, and no code change inside Task 2's
+scope could have made them pass. The plan was amended in place to accept this as an expected
+intermediate state, the same way `ColorPalettesModernTest.tailMatchesLegacyPalette` already was.
+
+**The plan's "known-breaking tests" table listed seven tests; the real number was nine.**
+`modernPaletteResolvesFromCss` and `darkPaletteResolvesFromCss` — both pre-existing, from commit
+`ca3c9d647`, unrelated to this slice's own file list — hardcoded `COLOR_PALETTE[8]`/`COLOR_PALETTE[39]`
+as a stand-in for "whatever CSS currently declares." That stand-in was only ever true because CSS
+happened to still carry the legacy tail; once Task 3 wrote the derived tail into `defaults.css`,
+both tests broke as a direct, foreseeable consequence of the change the table was supposed to be
+enumerating. Neither test installs a CSS override or otherwise distinguishes CSS resolution from
+the Java fallback, so re-pointing their hardcoded expectations to the derived colours cost no
+assertion power.
+
+**The manual browser pass has not been run.** Nothing below is confirmed against a rendered
+chart. The five cases from the brief's Step 3 remain outstanding:
+
+1. A twelve-series bar chart in light mode, on a modern-marked dashboard.
+2. The same chart in dark mode.
+3. An eleven-category tree chart, brushed — the exact case that raised the original trigger.
+4. A classic (unmarked) chart with twelve series, confirming pixel-identical output to before.
+5. A chart on the `Contrast` palette with nine categories, confirming the deferred tail is
+   unchanged.
+
+The automated suite proves the derivation rule, the constants, and the CSS declarations agree
+with each other and with the acceptance constraints in §2. It does not prove any of these five
+charts read as one set on screen. This slice should not be treated as visually verified until
+that pass runs and its outcome is recorded here with a date.
