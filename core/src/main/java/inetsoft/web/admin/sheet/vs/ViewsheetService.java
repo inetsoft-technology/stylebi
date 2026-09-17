@@ -56,7 +56,7 @@ import java.util.Arrays;
  * caller's current organization -- there is no organization-switching concept here, that is an
  * enterprise-only capability layered on top by {@code ViewsheetApiService}.
  */
-@Service
+@Service("adminSheetViewsheetService")
 public class ViewsheetService {
    @Autowired
    public ViewsheetService(AssetRepository assetRepository,
