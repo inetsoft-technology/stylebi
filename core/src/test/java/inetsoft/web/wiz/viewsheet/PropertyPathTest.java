@@ -174,6 +174,49 @@ class PropertyPathTest {
                    "existence of the named assembly is checked elsewhere, not by this gate");
    }
 
+   /**
+    * The other half of the same {@code DynamicValue} convention: StyleBI's Composer offers an
+    * "Expression" button beside the "Variable" one on {@code visible}, and
+    * {@code VSUtil.isScriptValue} is simply a leading {@code "="}. An expression is the only way to
+    * express a DERIVED value -- {@code $(Name)} can only substitute one component's value verbatim
+    * -- so this gate must let it through unresolved for the same reason it lets a variable through.
+    */
+   @Test
+   void acceptsAnExpressionForVisible() {
+      StringVisible target = new StringVisible();
+
+      PropertyPath.set(target, "visible", "=Gauge1 > 20");
+
+      assertEquals("=Gauge1 > 20", target.getVisible(),
+                   "an expression passes through unresolved, not one of the enum tokens");
+   }
+
+   /**
+    * The gate is opened by the property being {@code DynamicValue}-backed, not by the value's
+    * shape: {@code trendLineType} resolves once, design-time, into an index that no
+    * {@code executeDynamicValue} path ever touches, so an expression there would be stored and
+    * never resolved -- exactly the silent-success failure this gate exists to prevent.
+    */
+   @Test
+   void refusesAnExpressionForAPropertyThatIsNotDynamicValueBacked() {
+      ChartLine target = new ChartLine();
+
+      IllegalArgumentException thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "trendLineType", "=Gauge1 > 20"));
+
+      assertTrue(thrown.getMessage().contains("trendLineType"), "name the property");
+   }
+
+   /** A String-typed closed domain that is NOT DynamicValue-backed, mirroring
+    *  {@code ChartLinePaneModel.trendLineType}. */
+   public static final class ChartLine {
+      public String getTrendLineType() { return trendLineType; }
+      public void setTrendLineType(String value) { this.trendLineType = value; }
+
+      private String trendLineType = "NONE";
+   }
+
    // ── Immutables support ────────────────────────────────────────────────────
    //
    // Five dialog models are Immutables: accessors are bare (imageGeneralPaneModel(), no "get")
