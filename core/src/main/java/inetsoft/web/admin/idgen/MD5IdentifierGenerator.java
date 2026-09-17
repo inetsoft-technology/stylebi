@@ -158,6 +158,10 @@ public class MD5IdentifierGenerator {
 
    private String generateId(String name) {
       try {
+         // MD5 is used only to derive a short, deterministic, non-persisted, in-memory cache key
+         // for a name -- not for any cryptographic, password-hashing, or signature purpose -- so
+         // its known collision weaknesses do not apply here.
+         // nosemgrep: java.lang.security.audit.crypto.use-of-md5.use-of-md5
          MessageDigest digest = MessageDigest.getInstance("MD5");
          StringBuilder buffer = new StringBuilder();
 
