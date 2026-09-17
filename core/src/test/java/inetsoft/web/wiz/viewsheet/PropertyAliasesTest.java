@@ -562,6 +562,8 @@ class PropertyAliasesTest {
                    PropertyAliases.resolveForWrite("table", "insert"));
       assertEquals("crosstabAdvancedPaneModel.enableAdhoc",
                    PropertyAliases.resolveForWrite("crosstab", "enableAdhoc"));
+      assertEquals("tableViewGeneralPaneModel.tableStylePaneModel.tableStyle",
+                   PropertyAliases.resolveForWrite("calctable", "tableStyle"));
 
       inetsoft.web.composer.model.vs.TableViewPropertyDialogModel model =
          new inetsoft.web.composer.model.vs.TableViewPropertyDialogModel();
