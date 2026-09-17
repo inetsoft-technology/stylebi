@@ -22,6 +22,7 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.web.adhoc.model.property.TargetInfo;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.model.vs.TableStylePaneModel;
@@ -284,8 +285,45 @@ public class AssemblyPropertyService {
             model = deriveEmbeddedFromStaticList(model, resolved.values());
          }
 
+         if("chart".equals(type)) {
+            markTargetsUnchanged(model);
+         }
+
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
+   }
+
+   /**
+    * Clears {@code changed} on the chart's existing target lines before the model goes back.
+    *
+    * <p>Nothing in this class writes a target -- {@code chartTargets} is a {@code TargetInfo[]}
+    * that {@code PropertyPath} cannot build, and {@code PropertyAliases} refuses the whole pane
+    * (use {@code add_chart_target_line}). But every chart patch, however unrelated -- a title, a
+    * tooltip, {@code showValues} -- reads the whole dialog model and writes it back, and
+    * {@code ChartPropertyService.updateAllTargets} re-derives every target whose {@code changed}
+    * flag is set. {@code getTargetInfo} never clears it and its default is {@code true}, so
+    * every read-modify-write round trip re-derives all of them, and that round trip is lossy: a
+    * statistics target's several labels are joined with commas on read and come back through
+    * {@code updateStatLabel} as one escaped label, and a band's default fill is re-applied as an
+    * explicit user colour. {@code updateAllTargets} skips an unchanged entry outright, so
+    * clearing the flag is exactly a no-op for the write the caller asked for.
+    *
+    * <p>In place: the pane is mutable and the array is its own, so there is no rebuilt model to
+    * hand back.
+    */
+   private static void markTargetsUnchanged(Object model) {
+      Object targets = PropertyPath.get(
+         model, "chartAdvancedPaneModel.chartTargetLinesPaneModel.chartTargets");
+
+      if(!(targets instanceof TargetInfo[] existing)) {
+         return;
+      }
+
+      for(TargetInfo target : existing) {
+         if(target != null) {
+            target.setChanged(false);
+         }
+      }
    }
 
    /**

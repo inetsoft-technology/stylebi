@@ -486,6 +486,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -529,6 +530,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -575,6 +577,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -611,6 +614,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -651,6 +655,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           conditionService,
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -690,6 +695,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -729,6 +735,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           hyperlinkService,
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -896,6 +903,50 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("normal", built.getFontStrikethrough());
    }
 
+   /**
+    * The target-line routes. Worth pinning at this layer because the whole point of the tool
+    * family is that the field has no other way in: a route that bound its request record wrongly
+    * would put the caller back where VCG-007 found them, with no path at all.
+    */
+   @Test
+   void listChartTargetLinesCallsThrough() throws Exception {
+      ChartTargetLineService targetService = mock(ChartTargetLineService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(targetService);
+
+      controller.listChartTargetLines("tok", "Chart1", principal());
+
+      verify(targetService).list(eq("tok"), any(Principal.class), eq("Chart1"));
+   }
+
+   @Test
+   void addChartTargetLineForwardsEveryField() throws Exception {
+      ChartTargetLineService targetService = mock(ChartTargetLineService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(targetService);
+
+      controller.addChartTargetLine(
+         "tok",
+         new ViewsheetAssemblyAgentController.TargetLineRequest(
+            "Chart1", "Sum(Total)", "50000", "Goal {0}", "dashed", "#cc0000"),
+         "", principal());
+
+      verify(targetService).add(eq("tok"), any(Principal.class), eq("Chart1"), eq("Sum(Total)"),
+                                eq("50000"), eq("Goal {0}"), eq("dashed"), eq("#cc0000"), eq(""));
+   }
+
+   @Test
+   void removeChartTargetLineForwardsItsIndexes() throws Exception {
+      ChartTargetLineService targetService = mock(ChartTargetLineService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(targetService);
+
+      controller.removeChartTargetLine(
+         "tok",
+         new ViewsheetAssemblyAgentController.TargetLineDeleteRequest("Chart1", List.of(0, 2)),
+         "", principal());
+
+      verify(targetService).remove(eq("tok"), any(Principal.class), eq("Chart1"),
+                                   eq(List.of(0, 2)), eq(""));
+   }
+
    /** Feature enabled, only {@code highlightService} wired -- for the highlight-region tests. */
    private static ViewsheetAssemblyAgentController controllerWith(
       AssemblyHighlightService highlightService)
@@ -915,8 +966,49 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           highlightService,
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
+   }
+
+   /** Feature enabled, only {@code targetService} wired -- for the target-line route tests. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      ChartTargetLineService targetService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          targetService,
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
                                           mock(AssemblyConvertService.class),
                                           mock(SelectionRuntimeService.class),
@@ -956,6 +1048,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -997,6 +1090,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -2614,6 +2708,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -2766,6 +2861,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -3150,6 +3246,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -3433,6 +3530,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(ChartTargetLineService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
