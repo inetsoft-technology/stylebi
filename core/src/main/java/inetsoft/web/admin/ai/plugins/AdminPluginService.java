@@ -25,6 +25,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.plugins.PluginsService;
 import inetsoft.web.admin.content.plugins.model.*;
+import inetsoft.web.admin.upload.UploadFilesResponse;
 import inetsoft.web.admin.upload.UploadService;
 import inetsoft.web.admin.upload.UploadedFile;
 import org.slf4j.Logger;
@@ -94,6 +95,19 @@ public class AdminPluginService {
       String uploadId = uploadService.add(List.of(uploadedFile));
 
       return Map.of("uploadId", uploadId, "fileName", fileName);
+   }
+
+   /**
+    * Resolves a Maven coordinate ({@code group:artifact:version}) to a JDBC driver and its
+    * transitive dependency jars via the same {@link UploadService#add(String)} the EM UI's own
+    * {@code /api/em/upload/maven} path uses. Unlike {@link #upload}, this can produce more than
+    * one file, so the response carries {@code fileNames} (a list), not a singular {@code fileName}.
+    */
+   public Map<String, Object> uploadMaven(String gav, Principal principal) throws Exception {
+      requireUploadDriversPermission(principal);
+
+      UploadFilesResponse response = uploadService.add(gav);
+      return Map.of("uploadId", response.identifier(), "fileNames", response.files());
    }
 
    /**

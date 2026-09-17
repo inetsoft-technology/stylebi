@@ -24,6 +24,7 @@ import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.plugins.PluginsService;
 import inetsoft.web.admin.content.plugins.model.*;
+import inetsoft.web.admin.upload.UploadFilesResponse;
 import inetsoft.web.admin.upload.UploadService;
 import inetsoft.web.admin.upload.UploadedFile;
 import org.junit.jupiter.api.*;
@@ -126,6 +127,48 @@ class AdminPluginServiceTest {
 
       assertThrows(IllegalArgumentException.class, () -> service.upload(file, principal));
       verifyNoInteractions(uploadService);
+   }
+
+   // -------------------------------------------------------------------------
+   // uploadMaven
+   // -------------------------------------------------------------------------
+
+   @Test
+   void uploadMavenChecksUploadDriversPermissionAndDelegatesToUploadServiceAdd() throws Exception {
+      when(securityEngine.checkPermission(principal, ResourceType.UPLOAD_DRIVERS, "*",
+                                           ResourceAction.ACCESS)).thenReturn(true);
+      UploadFilesResponse response = UploadFilesResponse.builder()
+         .identifier("upload-456")
+         .files(List.of("postgresql-42.7.3.jar", "checker-qual-3.42.0.jar"))
+         .build();
+      when(uploadService.add("org.postgresql:postgresql:42.7.3")).thenReturn(response);
+
+      Map<String, Object> result = service.uploadMaven("org.postgresql:postgresql:42.7.3", principal);
+
+      assertEquals("upload-456", result.get("uploadId"));
+      assertEquals(List.of("postgresql-42.7.3.jar", "checker-qual-3.42.0.jar"),
+                   result.get("fileNames"));
+   }
+
+   @Test
+   void uploadMavenRefusesWithoutUploadDriversPermission() throws Exception {
+      when(securityEngine.checkPermission(principal, ResourceType.UPLOAD_DRIVERS, "*",
+                                           ResourceAction.ACCESS)).thenReturn(false);
+
+      assertThrows(SecurityException.class,
+         () -> service.uploadMaven("org.postgresql:postgresql:42.7.3", principal));
+      verifyNoInteractions(uploadService);
+   }
+
+   @Test
+   void uploadMavenPropagatesFileNotFoundExceptionForAnUnresolvableGav() throws Exception {
+      when(securityEngine.checkPermission(principal, ResourceType.UPLOAD_DRIVERS, "*",
+                                           ResourceAction.ACCESS)).thenReturn(true);
+      when(uploadService.add("does.not:exist:1.0"))
+         .thenThrow(new java.io.FileNotFoundException("does.not:exist:1.0"));
+
+      assertThrows(java.io.FileNotFoundException.class,
+         () -> service.uploadMaven("does.not:exist:1.0", principal));
    }
 
    // -------------------------------------------------------------------------
