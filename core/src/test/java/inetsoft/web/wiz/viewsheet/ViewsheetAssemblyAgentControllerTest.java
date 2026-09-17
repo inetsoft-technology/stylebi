@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -53,6 +54,7 @@ import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -1540,6 +1542,8 @@ class ViewsheetAssemblyAgentControllerTest {
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getAssetRepository()).thenReturn(rep);
       when(rvs.getID()).thenReturn("rt-vs-3");
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
@@ -1559,9 +1563,12 @@ class ViewsheetAssemblyAgentControllerTest {
       ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
       // Order matters: reloadBaseWorksheet(...) reads the wentry field setBaseEntry(...) sets, on
       // the same Viewsheet instance -- verified explicitly, not just that both were called.
-      InOrder order = inOrder(vs);
+      InOrder order = inOrder(vs, sandbox);
       order.verify(vs).setBaseEntry(entryCaptor.capture());
       order.verify(vs).reloadBaseWorksheet(eq(rep), eq(agent));
+      // Called unconditionally on a successful attach/repoint, even the baseless-first-attach
+      // case -- see the method's own javadoc for why gating this on hasBaseNow was rejected.
+      order.verify(sandbox).resetRuntime();
 
       assertEquals(AssetRepository.GLOBAL_SCOPE, entryCaptor.getValue().getScope());
       assertEquals(AssetEntry.Type.WORKSHEET, entryCaptor.getValue().getType());
@@ -1763,6 +1770,8 @@ class ViewsheetAssemblyAgentControllerTest {
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getAssetRepository()).thenReturn(rep);
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
@@ -1780,11 +1789,12 @@ class ViewsheetAssemblyAgentControllerTest {
          agent);
 
       ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
-      InOrder order = inOrder(vs, viewsheetPropertyDialogService);
+      InOrder order = inOrder(vs, viewsheetPropertyDialogService, sandbox);
       order.verify(vs).setBaseEntry(entryCaptor.capture());
       order.verify(vs).reloadBaseWorksheet(eq(rep), eq(agent));
       order.verify(viewsheetPropertyDialogService)
          .updateBoundAssemblies(eq(existing), eq(oldWs), eq(vs));
+      order.verify(sandbox).resetRuntime();
 
       assertEquals("New WS", entryCaptor.getValue().getPath());
    }
@@ -1837,6 +1847,62 @@ class ViewsheetAssemblyAgentControllerTest {
       // Rolled back to the ORIGINAL base, not null -- see javadoc above.
       assertSame(existing, entryCaptor.getAllValues().get(1));
       verifyNoInteractions(viewsheetPropertyDialogService);
+   }
+
+   /**
+    * setBaseEntry only restores wentry, not ws/originalWs/wnames -- if reloadBaseWorksheet already
+    * succeeded before updateBoundAssemblies throws, the rollback must also re-reload the OLD entry
+    * so the worksheet content matches the restored entry too, not just the wentry field.
+    */
+   @Test
+   void attachBaseWorksheetRepointRestoresOldWorksheetWhenUpdateBoundAssembliesFails()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry existing = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Existing WS", null);
+      inetsoft.uql.asset.Worksheet oldWs = mock(inetsoft.uql.asset.Worksheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(existing);
+      when(vs.getBaseWorksheet()).thenReturn(oldWs);
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
+
+      inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService viewsheetPropertyDialogService =
+         mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class);
+      doThrow(new RuntimeException("binding repair failed"))
+         .when(viewsheetPropertyDialogService)
+         .updateBoundAssemblies(any(), any(), any());
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class), viewsheetPropertyDialogService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               "New WS", null, null, null, null, true),
+            agent));
+      assertTrue(ex.getMessage().contains("Failed to attach base worksheet"));
+      assertFalse(ex.getMessage().contains("additionally failed to restore"));
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(vs, times(2)).setBaseEntry(entryCaptor.capture());
+      assertEquals("New WS", entryCaptor.getAllValues().get(0).getPath());
+      assertSame(existing, entryCaptor.getAllValues().get(1));
+      // Repointed once, then restored to the OLD entry once -- the restore-reload is what actually
+      // repopulates ws/originalWs/wnames, since setBaseEntry alone only touches wentry.
+      verify(vs, times(2)).reloadBaseWorksheet(eq(rep), eq(agent));
    }
 
    @Test

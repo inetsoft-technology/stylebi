@@ -38,6 +38,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.XPrincipal;
@@ -1842,6 +1843,14 @@ public class ViewsheetAssemblyAgentController {
     * every other mutating endpoint here. The hasBase-and-not-forced refusal is a pure no-op and
     * deliberately stays outside {@code mutate} so it does not itself create a checkpoint.</p>
     *
+    * <p>On failure this rolls back {@code setBaseEntry}/{@code reloadBaseWorksheet} to the previous
+    * base so a failed attach ordinarily leaves the session as it was before this call -- except in
+    * the rare case where the restore-reload itself also fails (e.g. a repository-wide outage), in
+    * which case the thrown message says so explicitly rather than claiming a clean rollback. This
+    * also cannot undo a partial {@link ViewsheetPropertyDialogService#updateBoundAssemblies} run if
+    * it throws partway through several assemblies -- that non-atomicity is shared with the Composer
+    * UI's own datasource-swap path and tracked separately.</p>
+    *
     * @param sessionToken the token obtained at join time
     * @param body         the worksheet path to attach, and whether to force a repoint
     * @param user         the authenticated agent principal
@@ -1885,6 +1894,13 @@ public class ViewsheetAssemblyAgentController {
          rvsHolder[0] = rvs;
          Viewsheet vs = rvs.getViewsheet();
 
+         // Recomputed from the actual mutate() target rather than reusing the outer pre-mutate
+         // probe's hasBase/oldEntry/oldWs -- those are only valid for the no-op refusal check
+         // above (which must stay outside mutate()), not for the write/rollback below.
+         boolean hasBaseNow = vs.getBaseEntry() != null;
+         AssetEntry oldEntry = hasBaseNow ? vs.getBaseEntry() : null;
+         Worksheet oldWs = hasBaseNow ? vs.getBaseWorksheet() : null;
+
          // The caret check on 'path' lives in resolveDataSourceEntry itself (shared with
          // create_viewsheet), not here -- see that method's javadoc. rep is resolved lazily
          // (only once resolveDataSourceEntry's own field checks pass) so a refusal on a bad field
@@ -1907,31 +1923,62 @@ public class ViewsheetAssemblyAgentController {
          }
 
          AssetRepository rep = repHolder[0];
-         AssetEntry oldEntry = hasBase ? vs.getBaseEntry() : null;
-         Worksheet oldWs = hasBase ? vs.getBaseWorksheet() : null;
+         boolean reloadSucceeded = false;
 
          try {
             vs.setBaseEntry(entry);
             vs.reloadBaseWorksheet(rep, xp);
+            reloadSucceeded = true;
 
-            if(hasBase) {
+            if(hasBaseNow) {
                // Embedded VIEWSHEET_ASSET child-viewsheet assemblies are out of scope here --
                // they bind to their own separate base, unaffected by the outer sheet's repoint.
                viewsheetPropertyDialogService.updateBoundAssemblies(oldEntry, oldWs, vs);
             }
+
+            // Mirrors the Composer UI's own datasource-swap (ViewsheetPropertyDialogService
+            // #setViewsheetInfo): viewsheet.update()'s extra clearCache()/embedded-viewsheet work
+            // is unrelated to binding repair and is skipped in favor of the lighter
+            // reloadBaseWorksheet(), but ViewsheetSandbox#resetRuntime() is still called since it
+            // clears table-metadata caching and script scope that reloadBaseWorksheet() does not
+            // touch. Called unconditionally (not gated on hasBaseNow) since it is cheap and a
+            // stale sandbox from an earlier, since-cleared base cannot be ruled out.
+            rvs.getViewsheetSandbox().ifPresent(ViewsheetSandbox::resetRuntime);
          }
          catch(Exception e) {
             // reloadBaseWorksheet performs its own independent getSheet call and can fail even
             // after the probe above succeeded (a permission change, storage error, or corrupt
             // worksheet XML in the narrow window between the two fetches). Roll back setBaseEntry
-            // so a failed attach leaves the session exactly as it was before this call -- without
-            // this, wentry would stay set while the worksheet (ws) never got populated, reproducing
-            // this bug's own broken state, and the guard above would then refuse every retry with a
-            // misleading "already has a base worksheet" message. For a failed repoint of an
-            // already-based viewsheet, roll back to the ORIGINAL base, not null -- otherwise a failed
-            // repoint would leave a previously-working viewsheet baseless.
-            vs.setBaseEntry(hasBase ? oldEntry : null);
-            throw new PairingException("Failed to attach base worksheet: " + e.getMessage(), e);
+            // so a failed attach ordinarily leaves the session as it was before this call --
+            // without this, wentry would stay set while the worksheet (ws) never got populated,
+            // reproducing this bug's own broken state, and the guard above would then refuse every
+            // retry with a misleading "already has a base worksheet" message. For a failed repoint
+            // of an already-based viewsheet, roll back to the ORIGINAL base, not null -- otherwise
+            // a failed repoint would leave a previously-working viewsheet baseless.
+            vs.setBaseEntry(hasBaseNow ? oldEntry : null);
+
+            // setBaseEntry only restores wentry -- if reloadBaseWorksheet had already succeeded
+            // before updateBoundAssemblies (or the sandbox reset) threw, ws/originalWs/wnames
+            // still point at the NEW worksheet's content. Re-reload the old entry to restore those
+            // too. This must never suppress or replace the original exception -- a failure here
+            // only appends to the message thrown below.
+            String restoreFailureSuffix = "";
+
+            if(hasBaseNow && reloadSucceeded) {
+               try {
+                  vs.reloadBaseWorksheet(rep, xp);
+               }
+               catch(Exception restoreEx) {
+                  LOG.warn("Failed to restore previous base worksheet (\"{}\") after a failed " +
+                           "attach_base_worksheet repoint", oldEntry, restoreEx);
+                  restoreFailureSuffix = "; additionally failed to restore the previous base " +
+                     "worksheet (\"" + oldEntry + "\") -- this viewsheet's base worksheet " +
+                     "reference may not match its cached content until repaired";
+               }
+            }
+
+            throw new PairingException(
+               "Failed to attach base worksheet: " + e.getMessage() + restoreFailureSuffix, e);
          }
       });
 
