@@ -22,6 +22,7 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
+import inetsoft.uql.viewsheet.SubmitVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
@@ -596,6 +597,79 @@ class ScriptImageServiceTest {
       assertTrue(img.note().contains("Dropdown1"));
       assertFalse(img.note().contains("ListMode1"));
       assertTrue(img.note().contains("is a dropdown-mode selection list"));
+   }
+
+   /**
+    * Bug #76717 / VOF-006: every export format's {@code writeSubmit} is a deliberate no-op — a
+    * Submit assembly's reserved footprint renders as an empty area in every format, including
+    * StyleBI's own Export toolbar button. Note the gap rather than let it pass as a plausible
+    * result, mirroring the dropdown-selection-list disclosure above.
+    */
+   @Test
+   void attachesANoteWhenTheViewsheetHasASubmitAssembly() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addAssembly(new SubmitVSAssembly(vs, "Submit1"));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("Submit1"));
+      assertTrue(img.note().contains("is a Submit assembly"));
+   }
+
+   /**
+    * Regression guard: a viewsheet with no Submit assembly at all must not get a spurious note.
+    */
+   @Test
+   void doesNotAttachANoteWhenTheViewsheetHasNoSubmitAssembly() throws Exception {
+      RuntimeViewsheet rvs = viewsheetWithChart("Chart1");
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNull(img.note());
+   }
+
+   /**
+    * The dropdown-selection-list note and the Submit note are independent checks over the same
+    * viewsheet — when both apply, neither should silently overwrite the other.
+    */
+   @Test
+   void combinesTheDropdownAndSubmitNotesWhenBothApply() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      SelectionListVSAssembly dropdown = new SelectionListVSAssembly(vs, "Dropdown1");
+      ((SelectionListVSAssemblyInfo) dropdown.getVSAssemblyInfo())
+         .setShowType(SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      vs.addAssembly(dropdown);
+      vs.addAssembly(new SubmitVSAssembly(vs, "Submit1"));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExport(exportService, fakePng(400, 300));
+
+      ScriptImageService svc = new ScriptImageService(
+         mock(AssemblyImageService.class), mock(BinaryTransferService.class), exportService);
+      ScriptImageService.ChartImage img = svc.getViewsheetImage(
+         rvs, null, null, TestPrincipals.user("alice", "host-org"));
+
+      assertNotNull(img.note());
+      assertTrue(img.note().contains("Dropdown1"));
+      assertTrue(img.note().contains("Submit1"));
    }
 
    @Test

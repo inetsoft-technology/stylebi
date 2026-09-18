@@ -43,9 +43,74 @@ import static org.mockito.Mockito.*;
  * {@code ScriptLibraryController}: {@code delete()}'s safety check was built against the wrong
  * {@code AssetEntry} scope (so it could never find a real dependent), and {@code update()} never
  * refreshed the dependency graph at all.
+ *
+ * <p>Also covers the Redmine #76765 SSL-001 mitigation: a Script Library function is installed as
+ * a global JS binding once when a viewsheet session's script runtime is built, and nothing
+ * currently rebuilds that for an already-open session when LibManager changes -- see
+ * docs/teams/2026-09-18-bugs-76765-script-library/bug-ssl-001/03-fix.md. Until that staleness is
+ * fixed at the runtime level, create/update/delete surface a {@code resyncWarning} so a caller
+ * isn't left to discover the staleness by getting a stale/ReferenceError result elsewhere.
  */
 @Tag("core")
 class ScriptLibraryControllerTest {
+   @Test
+   void create_returnsAResyncWarning() throws Exception {
+      Fixture fixture = new Fixture();
+
+      ScriptLibraryController.ScriptLibraryFunctionDetail result = fixture.controller.create(
+         new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
+            "helper", "return 1;", null),
+         fixture.principal);
+
+      assertNotNull(result.resyncWarning());
+   }
+
+   @Test
+   void update_returnsAResyncWarning() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+
+      DependencyHandler dependencyHandler = mock(DependencyHandler.class);
+
+      try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class)) {
+         handler.when(DependencyHandler::getInstance).thenReturn(dependencyHandler);
+
+         ScriptLibraryController.ScriptLibraryFunctionDetail result = fixture.controller.update(
+            "helper",
+            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("return 2;", null),
+            fixture.principal);
+
+         assertNotNull(result.resyncWarning());
+      }
+   }
+
+   @Test
+   void delete_returnsAResyncWarning() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+         transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
+            .thenReturn(List.of());
+
+         ScriptLibraryController.DeleteScriptLibraryFunctionResult result =
+            fixture.controller.delete("helper", false, fixture.principal);
+
+         assertNotNull(result.resyncWarning());
+      }
+   }
+
+   @Test
+   void read_doesNotReturnAResyncWarning() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+
+      ScriptLibraryController.ScriptLibraryFunctionDetail result =
+         fixture.controller.read("helper", fixture.principal);
+
+      assertNull(result.resyncWarning());
+   }
+
    @Test
    void delete_refusesWhenAComponentScopedDependentExists() throws Exception {
       Fixture fixture = new Fixture();
@@ -124,6 +189,110 @@ class ScriptLibraryControllerTest {
       }
 
       verify(fixture.lib).setScript("helper", "return 1;");
+   }
+
+   @Test
+   void create_rejectsBlankText() throws Exception {
+      Fixture fixture = new Fixture();
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
+         new ScriptLibraryController.CreateScriptLibraryFunctionRequest("newFn", "   ", null),
+         fixture.principal));
+
+      verify(fixture.lib, never()).setScript(anyString(), anyString());
+   }
+
+   @Test
+   void create_rejectsNullText() throws Exception {
+      Fixture fixture = new Fixture();
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
+         new ScriptLibraryController.CreateScriptLibraryFunctionRequest("newFn", null, null),
+         fixture.principal));
+
+      verify(fixture.lib, never()).setScript(anyString(), anyString());
+   }
+
+   @Test
+   void update_rejectsBlankText() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "helper",
+         new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("", null),
+         fixture.principal));
+
+      verify(fixture.lib, never()).setScript(anyString(), anyString());
+   }
+
+   @Test
+   void rename_rejectsWhenNewNameAlreadyExists() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("oldFn")).thenReturn("function oldFn(x) { return x; }");
+      when(fixture.lib.getScript("existingFn")).thenReturn("function existingFn(x) { return x; }");
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.rename(
+         "oldFn",
+         new ScriptLibraryController.RenameScriptLibraryFunctionRequest("existingFn"),
+         fixture.principal));
+
+      verify(fixture.lib, never()).renameScript(anyString(), anyString());
+      // the pre-existing function under newName must not be clobbered
+      assertEquals("function existingFn(x) { return x; }", fixture.lib.getScript("existingFn"));
+   }
+
+   @Test
+   void rename_rejectsWhenOldNameDoesNotExist() throws Exception {
+      Fixture fixture = new Fixture();
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.rename(
+         "missingFn",
+         new ScriptLibraryController.RenameScriptLibraryFunctionRequest("newFn"),
+         fixture.principal));
+
+      verify(fixture.lib, never()).renameScript(anyString(), anyString());
+   }
+
+   @Test
+   void rename_rejectsBlankNewName() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("oldFn")).thenReturn("function oldFn(x) { return x; }");
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.rename(
+         "oldFn",
+         new ScriptLibraryController.RenameScriptLibraryFunctionRequest("   "),
+         fixture.principal));
+
+      verify(fixture.lib, never()).renameScript(anyString(), anyString());
+   }
+
+   /**
+    * The regression this fix is actually about: renameScript() alone only moves the registry key
+    * and patches the derived signature (ScriptLogicalLibrary.renameEntry) -- it never touches the
+    * function's own declaration text, which is what GraalJavaScriptEngine.installLibraryFunctions
+    * actually binds as the JS global. Without the follow-up setScript() rewriting the declaration
+    * itself, the renamed entry would still read "function oldFn(...)" and every caller (already
+    * rewritten by RenameTransformHandler to call newFn(...)) would break with a ReferenceError.
+    *
+    * <p>Note: Util.renameScriptDepended is a dot/bracket-bounded substring replace, not an
+    * identifier-exact-match rename -- this test's fixture avoids any substring-collision (e.g. a
+    * sibling local variable containing "oldFn" as a substring) since that's a known pre-existing
+    * limitation of the shared utility, not something this fix is expected to solve.
+    */
+   @Test
+   void rename_rewritesTheFunctionsOwnDeclarationText() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("oldFn")).thenReturn("function oldFn(x) { return x * 2; }");
+
+      fixture.controller.rename(
+         "oldFn",
+         new ScriptLibraryController.RenameScriptLibraryFunctionRequest("newFn"),
+         fixture.principal);
+
+      verify(fixture.lib).renameScript("oldFn", "newFn");
+      verify(fixture.lib).setScript("newFn", "function newFn(x) { return x * 2; }");
+      verify(fixture.lib).save();
    }
 
    private static String componentScopedId(String name) {

@@ -718,6 +718,23 @@ public class AuthenticationProviderService extends BaseSubscribeChangeHandler {
       }
    }
 
+   /**
+    * Exposes {@link #checkProviderTypeLicensed} for a brand-new provider (no existing provider to
+    * grandfather against) so {@code inetsoft.web.admin.ai.providers.ProviderChangePlanService}'s own
+    * PREVIEW-time resolution (bug 76716) can surface the identical refusal before any human review,
+    * rather than a plan that looks clean at {@code preview_provider_changes} and only fails once
+    * {@code apply_provider_changes} reaches {@link #addAuthenticationProvider}'s own internal call.
+    * Not needed for an {@code update} entry: this area's {@code update} verb never changes a
+    * provider's type (bug 76686), so {@code checkProviderTypeLicensed}'s own
+    * {@code introducingUnlicensedType} condition is always {@code false} for it -- editing an
+    * already-existing DATABASE/CUSTOM provider's OTHER fields is the grandfathered case bug 76359
+    * deliberately leaves unlicensed-safe, and re-deriving that here would only risk drifting from
+    * the one real definition inside {@link #checkProviderTypeLicensed} itself.
+    */
+   public void requireProviderTypeLicensed(SecurityProviderType newType) {
+      checkProviderTypeLicensed(newType, null);
+   }
+
    private Optional<AuthenticationProvider> getProviderFromModel(AuthenticationProviderModel model)
       throws Exception {
       AuthenticationProvider provider;

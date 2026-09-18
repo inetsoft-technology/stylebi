@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -81,6 +82,12 @@ class SheetOpenServiceTest {
     * dataSource's own identifier.
     */
    private AssetEntry newVsTempEntry;
+
+   /**
+    * Populated by {@code createWorksheetService} -- the freshly-minted worksheet runtime's own
+    * real, TEMPORARY_SCOPE entry (Bug #76738), mirroring {@link #newVsTempEntry}.
+    */
+   private AssetEntry newWsTempEntry;
 
    /**
     * The principal that owns the paired viewsheet runtime — i.e. the user's browser session.
@@ -296,7 +303,8 @@ class SheetOpenServiceTest {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService realBroadcast = new SheetAgentBroadcastService(
          dispatcher, mock(VSObjectModelFactoryService.class),
-         mock(inetsoft.web.binding.service.VSBindingTreeService.class));
+         mock(inetsoft.web.binding.service.VSBindingTreeService.class),
+         mock(inetsoft.web.viewsheet.service.CoreLifecycleService.class));
       SheetOpenService service =
          serviceWithBase(worksheetEntry(), true, null, "sock-1", realBroadcast);
 
@@ -668,6 +676,90 @@ class SheetOpenServiceTest {
       verify(viewsheetService).openTemporaryWorksheet(any(Principal.class), isNull());
    }
 
+   /**
+    * The bug this whole fix is for (Redmine #76636, reopened): {@code createWorksheet} used to
+    * open the new runtime as the raw agent principal instead of the acting session's browser
+    * principal, unlike its siblings {@code openBaseWorksheet} and {@code createViewsheet} -- so
+    * the browser's later attach (directly, or via a {@code create_viewsheet} built from this
+    * worksheet) died on "Invalid user found". Before this fix, the only assertion touching this
+    * argument used a loose {@code any(Principal.class)} matcher that could not tell the two
+    * principals apart; this test can, by stubbing them as distinct objects (see
+    * {@code createWorksheetService}'s own {@code browserPrincipal} stub) and asserting on the
+    * captured value's name.
+    */
+   @Test
+   void createWorksheetOpensTheRuntimeAsTheActingSessionsBrowserPrincipalNotTheAgents()
+      throws Exception
+   {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+
+      service.createWorksheet("tok-acting", principal());
+
+      ArgumentCaptor<Principal> openedAs = ArgumentCaptor.forClass(Principal.class);
+      verify(viewsheetService).openTemporaryWorksheet(openedAs.capture(), isNull());
+      assertEquals("browser-" + PRINCIPAL_NAME, openedAs.getValue().getName());
+      assertNotEquals(PRINCIPAL_NAME, openedAs.getValue().getName());
+   }
+
+   /**
+    * The acting session (a JoinSession, its own 30-minute-TTL store) can outlive its own
+    * underlying runtime, which has an independent cache lifecycle -- so getSheetForPairing can
+    * throw SESSION_EXPIRED even though nothing is wrong with the request itself. Unlike
+    * createViewsheet, createWorksheet has no dataSource to default from the acting runtime -- the
+    * new worksheet is always blank -- so actingSheet is used here ONLY to resolve the browser
+    * principal, never for content. There is no "genuinely needs it" branch to fail loud on here:
+    * fall back to the agent's own principal and proceed, exactly like createViewsheet's own
+    * explicit-dataSource case.
+    *
+    * <p>The {@code verify(runtimeAccess).getSheetForPairing(...)} below is load-bearing, not
+    * decorative: without it, this test passes identically against the PRE-fix method too, since
+    * that version never calls {@code getSheetForPairing} at all -- the stubbed throw is simply
+    * never exercised, and asserting the fallback principal alone is trivially true either way
+    * (found empirically: reviewer-76636 built an isolated pre-fix worktree and confirmed this
+    * exact test passed there). Verifying the call was actually attempted is what makes this a
+    * genuine regression test for the SESSION_EXPIRED-tolerance behavior, not just for the
+    * fallback's end result.
+    */
+   @Test
+   void createWorksheetToleratesExpiredActingRuntimeAndFallsBackToTheAgentPrincipal()
+      throws Exception
+   {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+      Principal agent = principal();
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                            any(Principal.class)))
+         .thenThrow(new inetsoft.web.wiz.pairing.PairingException(
+            inetsoft.web.wiz.pairing.PairingException.Kind.SESSION_EXPIRED,
+            "Worksheet runtime not found or expired: acting-runtime-1"));
+
+      JoinSession created = service.createWorksheet("tok-acting", agent);
+
+      assertEquals(SheetType.WORKSHEET, created.sheetType());
+      verify(runtimeAccess).getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                               any(Principal.class));
+      verify(viewsheetService).openTemporaryWorksheet(same(agent), isNull());
+   }
+
+   /**
+    * Only SESSION_EXPIRED is tolerated -- every other PairingException kind (bad argument, user
+    * mismatch, feature disabled, rate limited, internal error) names a real problem with the
+    * request itself, not a benignly-stale runtime cache, and must still fail loud.
+    */
+   @Test
+   void createWorksheetPropagatesANonSessionExpiredPairingException() throws Exception {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq("acting-runtime-1"),
+                                            any(Principal.class)))
+         .thenThrow(new inetsoft.web.wiz.pairing.PairingException(
+            inetsoft.web.wiz.pairing.PairingException.Kind.USER_MISMATCH,
+            "Pairing code belongs to a different user"));
+
+      assertThrows(inetsoft.web.wiz.pairing.PairingException.class,
+         () -> service.createWorksheet("tok-acting", principal()));
+
+      verify(viewsheetService, never()).openTemporaryWorksheet(any(Principal.class), any());
+   }
+
    @Test
    void theNewWorksheetSessionCarriesTheActingSessionsSocketIdentifiers() throws Exception {
       SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
@@ -690,6 +782,40 @@ class SheetOpenServiceTest {
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertEquals("ws-runtime-new", sent.runtimeId());
       assertFalse(sent.viewsheet());
+   }
+
+   /**
+    * Bug #76738: create_worksheet used to send {@code assetId(null)} on the theory that a
+    * freshly-minted worksheet has no identity at all yet. It does -- openTemporaryWorksheet
+    * already generates a real (TEMPORARY_SCOPE, "Untitled-N") entry when handed a null one,
+    * mirroring openTemporaryViewsheet's own fallback. A literal {@code null} assetId instead fed
+    * all the way down to {@code OpenWorksheetEvent.id()} (a non-@Nullable field), which failed to
+    * even deserialize server-side the moment the browser tried to open the tab
+    * (HttpMessageNotReadableException, 400) -- so the new worksheet's tab never actually opened,
+    * confirmed live.
+    */
+   @Test
+   void pushesTheRuntimesOwnRealTempEntryAsAssetIdNotNull() throws Exception {
+      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
+
+      service.createWorksheet("tok-acting", principal());
+
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertEquals(newWsTempEntry.toIdentifier(), sent.assetId());
+      assertNotNull(sent.assetId());
+
+      // Bug #76636 reconciliation: the runtime was just registered under the acting session's
+      // BROWSER principal (see createWorksheetOpensTheRuntimeAsTheActingSessionsBrowserPrincipalNotTheAgents),
+      // so fetching its own entry back must use that SAME principal, not the raw agent's -- or
+      // WorksheetEngine.getSheet's rs.matches(user) check would fail here too, the exact
+      // "Invalid user found" mechanism this whole bug is about, at this new call site.
+      ArgumentCaptor<Principal> fetchedAs = ArgumentCaptor.forClass(Principal.class);
+      verify(worksheetService).getWorksheet(eq("ws-runtime-new"), fetchedAs.capture());
+      assertEquals("browser-" + PRINCIPAL_NAME, fetchedAs.getValue().getName());
+      assertNotEquals(PRINCIPAL_NAME, fetchedAs.getValue().getName());
    }
 
    /**
@@ -829,6 +955,19 @@ class SheetOpenServiceTest {
 
          runtimeAccess = mock(inetsoft.web.wiz.pairing.SheetRuntimeAccess.class);
 
+         // createWorksheet fetches the acting session's own RuntimeSheet to open the new runtime
+         // as the BROWSER's principal rather than the agent's (see SheetOpenService's own
+         // comment) -- stubbed for every actingType, mirroring createViewsheetService's own
+         // unconditional stub, since createWorksheet has no dataSource-defaulting special case
+         // that would ever leave this unresolved.
+         Principal browserPrincipal = () -> "browser-" + PRINCIPAL_NAME;
+         inetsoft.report.composition.RuntimeSheet actingSheet =
+            mock(inetsoft.report.composition.RuntimeSheet.class);
+         when(actingSheet.getUser()).thenReturn(browserPrincipal);
+         when(runtimeAccess.getSheetForPairing(eq(actingType), eq("acting-runtime-1"),
+                                               any(Principal.class)))
+            .thenReturn(actingSheet);
+
          viewsheetService = mock(inetsoft.analytic.composition.ViewsheetService.class);
          when(viewsheetService.openTemporaryWorksheet(any(Principal.class), isNull()))
             .thenReturn("ws-runtime-new");
@@ -840,6 +979,16 @@ class SheetOpenServiceTest {
 
          broadcast = mock(SheetAgentBroadcastService.class);
          worksheetService = mock(WorksheetService.class);
+
+         // Bug #76738: createWorksheet fetches the runtime's own temp entry back (mirroring
+         // createViewsheet) instead of assuming the freshly-minted worksheet has none.
+         newWsTempEntry = new AssetEntry(
+            inetsoft.uql.asset.AssetRepository.TEMPORARY_SCOPE, AssetEntry.Type.WORKSHEET,
+            "Untitled-1", null);
+         RuntimeWorksheet newWsRuntime = mock(RuntimeWorksheet.class);
+         when(newWsRuntime.getEntry()).thenReturn(newWsTempEntry);
+         when(worksheetService.getWorksheet(eq("ws-runtime-new"), any(Principal.class)))
+            .thenReturn(newWsRuntime);
 
          return new SheetOpenService(mock(ViewsheetSessionService.class), sheetSessions,
                                      worksheetService, securityProvider, broadcast,

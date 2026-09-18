@@ -22,12 +22,16 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.CalcTablePropertyDialogModel;
 import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
+import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
+import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
@@ -316,6 +320,199 @@ class AssemblyPropertyServiceTest {
                    "the unrelated property must still have been written");
    }
 
+   // ── monotonicity/min/color-count (Redmine #76717, VOF-001) ────────────────
+   //
+   // requireNoInteriorGapInGaugeRangeValues only ever caught an interior blank gap; none of
+   // these three shapes reached DefaultVSGauge.fillRanges0 rejected, they just rendered
+   // plausible-but-wrong (a band silently skipped, or falling through to a default color).
+
+   /**
+    * fillRanges0's own band-skip loop compares each boundary against every earlier one
+    * ({@code ranges[i] < ranges[k]}), so a later boundary lower than an earlier one silently
+    * drops that band instead of erroring.
+    */
+   @Test
+   void refusesANonMonotonicGaugeRangeValue() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1",
+            Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                   java.util.List.of("90", "60", "150")),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("rangeValues[1]"),
+                 "must name the offending index: " + thrown.getMessage());
+   }
+
+   @Test
+   void allowsMonotonicNonDecreasingGaugeRangeValues() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "40", "60"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1", patch, ""));
+   }
+
+   /**
+    * fillRanges0 skips any boundary {@code <= info.getMin()}, so a boundary at or below the
+    * gauge's own min (default 0 when unset, matching {@code RangeOutputVSAssemblyInfo.getMin()})
+    * silently drops that band.
+    */
+   @Test
+   void refusesAGaugeRangeValueAtOrBelowTheGaugesMin() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("-10", "60", "90"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("rangeValues[0]"),
+                 "must name the offending index: " + thrown.getMessage());
+   }
+
+   /**
+    * Confirms the check reads the gauge's own {@code min} rather than hard-coding 0 -- a
+    * boundary that would fail against the default is allowed once a lower min is set in the
+    * same patch.
+    */
+   @Test
+   void allowsAGaugeRangeValueAboveACustomMin() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("min", "-20");
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("-10", "10", "30"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1", patch, ""));
+   }
+
+   /**
+    * Scenario 3 from the report: 4 populated boundaries but only 3 populated colors.
+    * RangePaneModel does not pad either array to a fixed length -- {@code set_assembly_properties}
+    * writes them at exactly the caller's length -- so this must be a bounds check
+    * ({@code i >= rangeColorValues.length}), not an index into an array assumed to already be
+    * length 5/6; a naturally-sized 3-element array is the realistic shape, not a padded one.
+    */
+   @Test
+   void refusesAGaugeRangeColorCountMismatch() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "40", "60", "80"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("rangeColorValues[3]"),
+                 "must name the missing color index: " + thrown.getMessage());
+   }
+
+   /**
+    * Leaving {@code rangeColorValues} entirely unset is its own legitimate state -- every band
+    * paints with {@code fillRanges0}'s default color -- not the reported defect, which is a
+    * caller who has started coloring some boundaries and silently not others. The count-parity
+    * check must not turn "no colors configured at all" into a forced requirement.
+    */
+   @Test
+   void allowsGaugeRangeValuesWithNoColorsConfiguredAtAll() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "40", "60")),
+         ""));
+   }
+
+   @Test
+   void allowsMatchingGaugeRangeValueAndColorCounts() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "40", "60"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1", patch, ""));
+   }
+
+   /**
+    * A trailing blank {@code rangeValues} entry (the VBM-006 "extend to max" shape) is one
+    * boundary short of the array's own length -- the color-count check must not demand a color
+    * for that implicit slot, only for the populated boundaries before it.
+    */
+   @Test
+   void allowsATrailingAutoExtendBandWithOneFewerColorThanRangeValuesSlots() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("60", "90", "100", ""));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("red", "yellow", "green"));
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1", patch, ""));
+   }
+
+   /**
+    * Same guard as {@code ignoresAPreExistingInteriorGapWhenThePatchDoesNotTouchRanges}, for each
+    * new check: a gauge can already have a non-monotonic/negative/count-mismatched config saved
+    * from a source these checks don't cover (the human Composer GUI, or a call made before this
+    * guard existed); an unrelated later patch must not be blocked by state it never touched.
+    */
+   @Test
+   void ignoresAPreExistingNonMonotonicRangeWhenThePatchDoesNotTouchRanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeValues(new String[]{ "90", "60", "150" });
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("max", "999"), ""));
+   }
+
+   @Test
+   void ignoresAPreExistingBelowMinRangeWhenThePatchDoesNotTouchRanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeValues(new String[]{ "-10", "60", "90" });
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("max", "999"), ""));
+   }
+
+   @Test
+   void ignoresAPreExistingColorCountMismatchWhenThePatchDoesNotTouchRanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeValues(new String[]{ "20", "40", "60", "80" });
+      model.getGaugeAdvancedPaneModel().getRangePaneModel()
+         .setRangeColorValues(new String[]{ "red", "yellow", "green" });
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("max", "999"), ""));
+   }
+
    /**
     * The exact reported repro (bug #76530): {@code columnValue} carries the reference,
     * {@code table} never set. Must resolve and go through, not be refused.
@@ -575,6 +772,181 @@ class AssemblyPropertyServiceTest {
          Map.of("dataInputPaneModel.variable", false), ""));
    }
 
+   // ── static list "embedded" auto-derivation (Redmine #76699/VFO-016) ───────
+   //
+   // labels/values have no short name (still raw-path-only), but VSInputService.setListValues
+   // always writes them while sourceType (which gates whether they are ever read back) is
+   // derived from embedded/query alone, defaulting to NONE_SOURCE. Writing labels/values with no
+   // query/table/column in the same patch has unambiguous static-list intent, so embedded is
+   // implied true; a caller who also sets query/table/column, or embedded itself, is left alone.
+
+   private static final String CHECKBOX_LABELS =
+      "checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.labels";
+   private static final String CHECKBOX_VALUES =
+      "checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.values";
+   private static final String COMBOBOX_LABELS =
+      "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.labels";
+   private static final String COMBOBOX_VALUES =
+      "comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+      "variableListDialogModel.values";
+
+   @Test
+   void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertTrue(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isEmbedded(),
+                 "embedded must be implied true so labels/values are not silently inert");
+   }
+
+   /**
+    * A patch that ALSO sets {@code table}/{@code column} alongside the static labels/values
+    * intends a real, distinct configuration ({@code embedded=false, query=true} ==
+    * {@code BOUND_SOURCE}) -- embedded must not be silently forced true, which would reclassify
+    * it into {@code MERGE_SOURCE} instead.
+    */
+   @Test
+   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+      patch.put("table", "SalesTable");
+      patch.put("column", "SalesColumn");
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "a query/table/column binding in the same patch must not be reclassified " +
+                  "into MERGE_SOURCE by forcing embedded true");
+   }
+
+   /**
+    * Same guard, exercised via {@code query} alone (no {@code table}/{@code column}) --
+    * {@code embedded=false, query=true} is itself a complete, real {@code BOUND_SOURCE}
+    * configuration, so this disjunct of the guard must trip on {@code query} by itself, not only
+    * when {@code table}/{@code column} are also present.
+    */
+   @Test
+   void leavesEmbeddedAloneWhenQueryAloneIsAlsoSetForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+      patch.put("query", true);
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "query set alone in the same patch must not be reclassified into " +
+                  "MERGE_SOURCE by forcing embedded true");
+   }
+
+   /** A caller who sets {@code embedded} explicitly is never overridden, even to {@code false}. */
+   @Test
+   void leavesEmbeddedAloneWhenCallerSetsItExplicitlyForCheckbox() throws Exception {
+      CheckboxPropertyDialogModel model = new CheckboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCheckbox(mock(CheckBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(CHECKBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(CHECKBOX_VALUES, java.util.List.of("show"));
+      patch.put("embedded", false);
+
+      service.set("tok", principal(), "ShowSalesChartToggle", patch, "");
+
+      assertFalse(model.getCheckboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "an explicit embedded must not be overridden by the labels/values implication");
+   }
+
+   /** Same shape, RadioButton -- confirms the derivation is not CheckBox-specific. */
+   @Test
+   void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForRadioButton() throws Exception {
+      RadioButtonPropertyDialogModel model = new RadioButtonPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRadioButton(mock(RadioButtonVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("radioButtonGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+                "variableListDialogModel.labels", java.util.List.of("Show Sales Chart"));
+      patch.put("radioButtonGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel." +
+                "variableListDialogModel.values", java.util.List.of("show"));
+
+      service.set("tok", principal(), "StartDateRadio", patch, "");
+
+      assertTrue(model.getRadioButtonGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isEmbedded(),
+                 "embedded must be implied true for RadioButton too, same shared listInput() " +
+                 "gap as CheckBox");
+   }
+
+   /**
+    * Same shape, ComboBox -- confirms the derivation is not CheckBox/RadioButton-only either.
+    * ComboBox's registration ({@code register(registry, "combobox", ..., listInput(...))}) goes
+    * through the identical {@code listInput()} helper as the other two, with no separate
+    * {@code dataInput()} merge -- {@code comboboxTableAliasIsTheListValuesQueryNotTheWriteBackTarget}
+    * in {@code PropertyAliasesTest} already pins that ComboBox's short {@code table} alias
+    * resolves to the list-values query path, not the unrelated {@code dataInputPaneModel.table}
+    * row/column write-back target -- so the guard's {@code table}/{@code column} disjunct is
+    * reachable via ComboBox's own short aliases too, not raw-path-only.
+    */
+   @Test
+   void impliesEmbeddedWhenLabelsAndValuesAreSetAloneForCombobox() throws Exception {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(COMBOBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(COMBOBOX_VALUES, java.util.List.of("show"));
+
+      service.set("tok", principal(), "ShowSalesChartDropdown", patch, "");
+
+      assertTrue(model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+                    .getComboBoxEditorModel().isEmbedded(),
+                 "embedded must be implied true for ComboBox too, same shared listInput() gap " +
+                 "as CheckBox/RadioButton");
+   }
+
+   /**
+    * The guard case for ComboBox, using its own short {@code table}/{@code column} aliases (not
+    * a raw path) -- proves the guard's table/column disjunct is actually reachable for ComboBox
+    * through the vocabulary a caller would really use, not just in theory.
+    */
+   @Test
+   void leavesEmbeddedAloneWhenTableAndColumnAreAlsoSetForCombobox() throws Exception {
+      ComboboxPropertyDialogModel model = new ComboboxPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCombobox(mock(ComboBoxVSAssembly.class), model, new Worksheet());
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put(COMBOBOX_LABELS, java.util.List.of("Show Sales Chart"));
+      patch.put(COMBOBOX_VALUES, java.util.List.of("show"));
+      patch.put("table", "SalesTable");
+      patch.put("column", "SalesColumn");
+
+      service.set("tok", principal(), "ShowSalesChartDropdown", patch, "");
+
+      assertFalse(model.getComboboxGeneralPaneModel().getListValuesPaneModel()
+                     .getComboBoxEditorModel().isEmbedded(),
+                  "ComboBox's own short table/column aliases must trip the guard just like the " +
+                  "raw path would, not be silently unreachable");
+   }
+
    /**
     * {@code ChartPropertyDialogService.setChartPropertyModel} only calls {@code setAlphaValue}
     * inside the {@code tipOption == true} branch, so {@code tipAlpha} set alone -- without
@@ -753,6 +1125,112 @@ class AssemblyPropertyServiceTest {
       assertEquals(1, model.getSelectionGeneralPaneModel().getShowType());
    }
 
+   // ── tableStyle write-time validation (bug #76764/VTS-003) ────────────────
+   //
+   // PropertyPath's CONSTRAINED_STRINGS gate doesn't cover tableStyle (a dynamic, per-library
+   // domain), so a raw-path write of a name that matches no real style was silently accepted,
+   // stored verbatim, and resolved to null at render time (DataVSAQuery/VSUtil.getTableStyle),
+   // falling back to CSS-only formatting with no error anywhere. These exercise both leaf
+   // fields a real style tree node carries -- data() (the ID, what the interactive Composer UI
+   // itself writes/matches) and label() (the folder-stripped name, what this plugin's own
+   // tableStyleTools.ts tells callers to write) -- since a validator that accepted only one
+   // would falsely refuse the other's real, currently-legitimate calling convention.
+
+   private static final String TABLE_STYLE_PATH =
+      "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle";
+
+   private static TreeNodeModel sampleStyleTree() {
+      TreeNodeModel style = TreeNodeModel.builder()
+         .label("Default Style")
+         .data("4611686018437387905")
+         .type("style")
+         .leaf(true)
+         .build();
+      TreeNodeModel folder = TreeNodeModel.builder()
+         .label("Styles")
+         .type("folder")
+         .leaf(false)
+         .children(java.util.List.of(style))
+         .build();
+
+      return TreeNodeModel.builder().children(java.util.List.of(folder)).build();
+   }
+
+   @Test
+   void refusesADanglingTableStyleNameOnATable() {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Table1",
+            Map.of(TABLE_STYLE_PATH, "No Such Style"), ""));
+
+      assertTrue(thrown.getMessage().contains("No Such Style"),
+                 "must name the bad value: " + thrown.getMessage());
+   }
+
+   @Test
+   void refusesADanglingTableStyleNameOnACalcTable() {
+      CalcTablePropertyDialogModel model = new CalcTablePropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service =
+         serviceWithCalcTable(mock(CalcTableVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "CalcTable1",
+            Map.of(TABLE_STYLE_PATH, "No Such Style"), ""));
+
+      assertTrue(thrown.getMessage().contains("No Such Style"),
+                 "must name the bad value: " + thrown.getMessage());
+   }
+
+   /** The plugin's own documented convention (tableStyleTools.ts): write the style's name. */
+   @Test
+   void allowsATableStyleWriteMatchingARealStylesLabel() throws Exception {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      service.set("tok", principal(), "Table1", Map.of(TABLE_STYLE_PATH, "Default Style"), "");
+
+      assertEquals("Default Style", model.getTableViewGeneralPaneModel()
+         .getTableStylePaneModel().getTableStyle());
+   }
+
+   /**
+    * The interactive Composer UI's own convention (table-style-pane.component.ts): write the
+    * style's ID, not its name. A validator that only matched label() would wrongly refuse this.
+    */
+   @Test
+   void allowsATableStyleWriteMatchingARealStylesId() throws Exception {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      service.set("tok", principal(), "Table1",
+                  Map.of(TABLE_STYLE_PATH, "4611686018437387905"), "");
+
+      assertEquals("4611686018437387905", model.getTableViewGeneralPaneModel()
+         .getTableStylePaneModel().getTableStyle());
+   }
+
+   /** Clearing the style (empty string) is a legitimate "no style" request, not a dangling name. */
+   @Test
+   void allowsClearingTableStyleToEmpty() throws Exception {
+      TableViewPropertyDialogModel model = new TableViewPropertyDialogModel();
+      model.getTableViewGeneralPaneModel().getTableStylePaneModel()
+         .setStyleTree(sampleStyleTree());
+      AssemblyPropertyService service = serviceWithTable(mock(TableVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Table1",
+         Map.of(TABLE_STYLE_PATH, ""), ""));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
@@ -777,6 +1255,12 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, model, baseWorksheet);
    }
 
+   private static AssemblyPropertyService serviceWithCombobox(
+      VSAssembly assembly, ComboboxPropertyDialogModel model, Worksheet baseWorksheet)
+   {
+      return serviceWith(assembly, model, model, baseWorksheet);
+   }
+
    private static AssemblyPropertyService serviceWithSelectionList(
       VSAssembly assembly, SelectionListPropertyDialogModel model)
    {
@@ -785,6 +1269,18 @@ class AssemblyPropertyServiceTest {
 
    private static AssemblyPropertyService serviceWithCalendar(
       VSAssembly assembly, CalendarPropertyDialogModel model)
+   {
+      return serviceWith(assembly, model, null, null);
+   }
+
+   private static AssemblyPropertyService serviceWithTable(
+      VSAssembly assembly, TableViewPropertyDialogModel model)
+   {
+      return serviceWith(assembly, model, null, null);
+   }
+
+   private static AssemblyPropertyService serviceWithCalcTable(
+      VSAssembly assembly, CalcTablePropertyDialogModel model)
    {
       return serviceWith(assembly, model, null, null);
    }
@@ -873,6 +1369,11 @@ class AssemblyPropertyServiceTest {
                                                            any(Principal.class)))
                .thenReturn(radioButtonModel);
          }
+         else if(inputModel instanceof ComboboxPropertyDialogModel comboboxModel) {
+            when(inputService.getComboboxPropertyDialogModel(anyString(), anyString(),
+                                                              any(Principal.class)))
+               .thenReturn(comboboxModel);
+         }
       }
       catch(Exception e) {
          throw new IllegalStateException(e);
@@ -891,17 +1392,43 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      TableViewPropertyDialogService table = mock(TableViewPropertyDialogService.class);
+
+      if(model instanceof TableViewPropertyDialogModel tableModel) {
+         try {
+            when(table.getTableViewPropertyDialogModel(anyString(), anyString(),
+                                                        any(Principal.class)))
+               .thenReturn(tableModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
+      CalcTablePropertyDialogService calcTable = mock(CalcTablePropertyDialogService.class);
+
+      if(model instanceof CalcTablePropertyDialogModel calcTableModel) {
+         try {
+            when(calcTable.getCalcTablePropertyDialogModel(anyString(), anyString(), anyDouble(),
+                                                            any(Principal.class)))
+               .thenReturn(calcTableModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       return new AssemblyPropertyService(
          sessions, gauge, mock(ImagePropertyDialogService.class),
          mock(TextPropertyDialogService.class),
-         chart, mock(TableViewPropertyDialogService.class),
+         chart, table,
          mock(CrosstabPropertyDialogService.class),
          selectionList,
          mock(SelectionTreePropertyDialogService.class),
          inputService,
          mock(RangeSliderPropertyDialogService.class),
          calendar, mock(TabPropertyDialogService.class),
-         mock(CalcTablePropertyDialogService.class),
+         calcTable,
          mock(GroupContainerPropertyDialogService.class),
          mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
          mock(RectanglePropertyDialogService.class),

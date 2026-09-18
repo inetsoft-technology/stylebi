@@ -22,7 +22,9 @@ import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
+import inetsoft.web.composer.model.vs.TableStylePaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.VSInputService;
@@ -248,6 +250,11 @@ public class AssemblyPropertyService {
          // instance and the original reference silently stops reflecting the write.
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
             Object value = canonicalShowType(type, entry.getValue(), patch.get(entry.getKey()));
+
+            if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
+               requireKnownTableStyle(model, entry.getValue(), value);
+            }
+
             model = PropertyPath.set(model, entry.getValue(), value);
          }
 
@@ -272,6 +279,10 @@ public class AssemblyPropertyService {
                                  "tipPaneModel.tipOption", true);
          model = impliedSibling(model, resolved.values(), "customTip", "customRB",
                                  TipCustomizeDialogModel.TipFormat.CUSTOM);
+
+         if(PropertyAliases.isListInputType(type)) {
+            model = deriveEmbeddedFromStaticList(model, resolved.values());
+         }
 
          writeModel(runtimeId, type, assemblyName, model, linkUri, user, dispatcher);
       });
@@ -328,6 +339,64 @@ public class AssemblyPropertyService {
    }
 
    /**
+    * CheckBox/ComboBox/RadioButton's {@code VSInputService.setListValues} always writes the
+    * static {@code variableListDialogModel.labels}/{@code .values} to the assembly, but only
+    * <i>uses</i> them at render/bind time when {@code comboBoxEditorModel.embedded} (or
+    * {@code .query}) is set -- with both false (the default), {@code sourceType} stays
+    * {@code NONE_SOURCE} and the write is silently inert (Redmine #76699/VFO-016). A patch that
+    * sets {@code labels}/{@code values} with no {@code query}/{@code table}/{@code column} in
+    * the same call has unambiguous static-list intent, so {@code embedded} is implied true for
+    * it, the same "forgiving where intent is unambiguous" shape {@link #impliedSibling} already
+    * covers for the Tip panes.
+    *
+    * <p>A patch that ALSO sets {@code query}/{@code table}/{@code column} is left alone --
+    * {@code embedded=false, query=true} is a real, distinct configuration ({@code BOUND_SOURCE},
+    * driven purely by the query binding); silently forcing {@code embedded=true} there would
+    * reclassify it into {@code MERGE_SOURCE} instead, a different, surprising outcome. A caller
+    * who sets {@code embedded} explicitly (either value) is likewise always left alone.
+    */
+   private static Object deriveEmbeddedFromStaticList(Object model,
+                                                       Collection<String> resolvedPaths)
+   {
+      for(String path : resolvedPaths) {
+         String suffix;
+
+         if(path.endsWith(".variableListDialogModel.labels")) {
+            suffix = ".variableListDialogModel.labels";
+         }
+         else if(path.endsWith(".variableListDialogModel.values")) {
+            suffix = ".variableListDialogModel.values";
+         }
+         else {
+            continue;
+         }
+
+         String editorPrefix = path.substring(0, path.length() - suffix.length());
+         String embeddedPath = editorPrefix + ".embedded";
+
+         if(resolvedPaths.contains(embeddedPath)) {
+            continue;
+         }
+
+         String queryPath = editorPrefix + ".query";
+         String tablePath =
+            editorPrefix + ".selectionListDialogModel.selectionListEditorModel.table";
+         String columnPath =
+            editorPrefix + ".selectionListDialogModel.selectionListEditorModel.column";
+
+         if(resolvedPaths.contains(queryPath) || resolvedPaths.contains(tablePath) ||
+            resolvedPaths.contains(columnPath))
+         {
+            continue;
+         }
+
+         model = PropertyPath.set(model, embeddedPath, true);
+      }
+
+      return model;
+   }
+
+   /**
     * A trailing blank {@code rangeValues} entry (e.g. {@code ["60","90","",""]}) is an
     * unambiguous "extend the last band to the gauge's own max" request -- the renderer
     * (fillRanges0) now handles that correctly on its own, so it is left to pass through
@@ -335,6 +404,13 @@ public class AssemblyPropertyService {
     * is genuinely ambiguous -- the renderer has no principled way to resolve it and would
     * silently collapse that band to nothing -- so that shape is refused here instead of
     * being allowed to reach a plausible-but-wrong render.
+    *
+    * <p>Also validates, against the same {@code fillRanges0} mechanics (Redmine #76717/VOF-001):
+    * every populated boundary must be non-decreasing relative to the one before it (a
+    * non-monotonic pair makes {@code fillRanges0} silently skip that band), must be strictly
+    * greater than the gauge's own min (its skip condition is {@code ranges[i] <= info.getMin()}),
+    * and must have a matching {@code rangeColorValues} entry (a missing one falls through to
+    * {@code fillRanges0}'s default paint instead of erroring).
     *
     * <p>Only invoked by the caller when this call's own patch touches
     * {@code gaugeAdvancedPaneModel.rangePaneModel}. The human Composer GUI has no equivalent
@@ -365,6 +441,96 @@ public class AssemblyPropertyService {
                "only have a blank trailing entry (meaning \"extend to the gauge's own max\"), " +
                "not a gap in the middle.");
          }
+      }
+
+      double[] parsed = new double[lastPopulated + 1];
+
+      for(int i = 0; i <= lastPopulated; i++) {
+         try {
+            parsed[i] = Double.parseDouble(rangeValues[i]);
+         }
+         catch(NumberFormatException e) {
+            throw new IllegalArgumentException(
+               "rangeValues[" + i + "] ('" + rangeValues[i] + "') is not a number.");
+         }
+
+         if(i > 0 && parsed[i] < parsed[i - 1]) {
+            throw new IllegalArgumentException(
+               "rangeValues[" + i + "] (" + rangeValues[i] + ") must be >= rangeValues[" +
+               (i - 1) + "] (" + rangeValues[i - 1] + ") -- boundaries must be non-decreasing.");
+         }
+      }
+
+      Double min = gaugeMin(model);
+
+      if(min != null) {
+         for(int i = 0; i <= lastPopulated; i++) {
+            if(parsed[i] <= min) {
+               throw new IllegalArgumentException(
+                  "rangeValues[" + i + "] (" + rangeValues[i] + ") must be greater than the " +
+                  "gauge's min (" + min + ").");
+            }
+         }
+      }
+
+      String[] rangeColorValues = range.getRangeColorValues();
+      boolean anyColorPopulated = false;
+
+      for(String color : rangeColorValues) {
+         if(color != null && !color.isEmpty()) {
+            anyColorPopulated = true;
+            break;
+         }
+      }
+
+      // Only enforced once the caller has started customizing colors at all -- leaving
+      // rangeColorValues entirely unset is its own legitimate state (every band paints with
+      // fillRanges0's default color), not the reported defect. The reported defect is a
+      // *partial* list: some boundaries colored, a later one silently not, which is genuinely
+      // ambiguous the same way an interior rangeValues gap is.
+      //
+      // Bounds-checked, not indexed as if rangeColorValues were always padded to a fixed
+      // length: set_assembly_properties writes both arrays at exactly the caller's length (no
+      // padding), so "i >= rangeColorValues.length" is the normal way a missing color shows up,
+      // not an unreachable edge case. The window stops at lastPopulated (not lastPopulated + 1)
+      // so it does not demand a color for the implicit trailing auto-extend band -- any
+      // rangeValues slot beyond lastPopulated is already forgiven by the gap check above, and
+      // fillRanges0 itself tolerates a missing color there (falls through to its default paint),
+      // consistent with that same forgiveness.
+      if(anyColorPopulated) {
+         for(int i = 0; i <= lastPopulated; i++) {
+            if(i >= rangeColorValues.length || rangeColorValues[i] == null ||
+               rangeColorValues[i].isEmpty())
+            {
+               throw new IllegalArgumentException(
+                  "rangeColorValues[" + i + "] is required because rangeValues[" + i +
+                  "] is set -- every populated boundary needs a matching color.");
+            }
+         }
+      }
+   }
+
+   /**
+    * The gauge's own min, read the same place {@code GaugePropertyDialogService} does
+    * ({@code gaugeGeneralPaneModel.numberRangePaneModel.min}), falling back to {@code 0} when
+    * unset to match {@code RangeOutputVSAssemblyInfo.getMin()}'s own default. Returns
+    * {@code null} -- skip the check rather than block an unrelated write -- when the field holds
+    * something this can't compare against (e.g. an unresolved {@code "$(...)"} variable
+    * reference); that resolution only happens at render time, never here.
+    */
+   private static Double gaugeMin(Object model) {
+      Object min = PropertyPath.get(model, "gaugeGeneralPaneModel.numberRangePaneModel.min");
+      String text = min == null ? null : String.valueOf(min);
+
+      if(text == null || text.isEmpty()) {
+         return 0.0;
+      }
+
+      try {
+         return Double.parseDouble(text);
+      }
+      catch(NumberFormatException e) {
+         return null;
       }
    }
 
@@ -413,6 +579,72 @@ public class AssemblyPropertyService {
                : "Set 'dataInputPaneModel.table' (or 'columnValue') to a non-variable binding " +
                  "instead, or leave 'dataInputPaneModel.variable' out of the patch."));
       }
+   }
+
+   /**
+    * Refuses a {@code tableStyle} write that does not match any real table style (bug
+    * #76764/VTS-003). {@code PropertyPath}'s {@code CONSTRAINED_STRINGS} gate does not cover
+    * {@code tableStyle} -- its domain is dynamic and per-organization, unlike the closed enums
+    * that gate handles -- so an unresolvable name/ID was written through unchanged. At render
+    * time, {@code DataVSAQuery}/{@code VSUtil.getTableStyle} resolve that to {@code null} and
+    * silently fall back to CSS-only formatting: no error anywhere, and the bogus value is
+    * echoed back on read, indistinguishable from a table that never had a style set.
+    *
+    * <p>Matches against both {@link TreeNodeModel#data()} (the style's internal ID -- what the
+    * interactive Composer UI itself writes/matches) and {@link TreeNodeModel#label()} (the
+    * folder-stripped display name -- what this plugin's own {@code tableStyleTools.ts} tells
+    * callers to write). Both are genuinely resolvable at render time via
+    * {@code LibManager.getTableStyle} (exact-ID lookup, then fuzzy name lookup); a validator
+    * that accepted only one field would falsely refuse the other's real, currently-legitimate
+    * calling convention.
+    *
+    * <p>Walks the model's own {@code tableStylePaneModel.styleTree}, already populated by
+    * {@code readModel()} before this patch loop runs, rather than re-fetching it -- {@code
+    * TableStylePaneModel} is a plain mutable POJO, so this reference is guaranteed unchanged
+    * regardless of what else in the same patch has already been applied.
+    */
+   private void requireKnownTableStyle(Object model, String path, Object value) {
+      if(value == null) {
+         return;
+      }
+
+      String text = String.valueOf(value).trim();
+
+      if(text.isEmpty()) {
+         return;
+      }
+
+      String panePath = path.substring(0, path.length() - ".tableStyle".length());
+      Object pane = PropertyPath.get(model, panePath);
+
+      if(!(pane instanceof TableStylePaneModel styleModel) || styleModel.getStyleTree() == null) {
+         return;
+      }
+
+      if(!styleTreeHasStyle(styleModel.getStyleTree(), text)) {
+         throw new IllegalArgumentException(
+            "'" + path + "' ('" + text + "') does not match any table style's id or name. " +
+            "StyleBI resolves an unrecognised tableStyle to no style at render time with no " +
+            "error -- the table just renders unstyled -- so this write would report success " +
+            "and leave the table unchanged. Use a value from list_table_styles, or this " +
+            "assembly's own current 'tableStyle' read via get_assembly_properties(raw:true).");
+      }
+   }
+
+   private static boolean styleTreeHasStyle(TreeNodeModel node, String value) {
+      if(node.leaf() &&
+         (value.equals(String.valueOf(node.data())) || value.equals(node.label())))
+      {
+         return true;
+      }
+
+      for(TreeNodeModel child : node.children()) {
+         if(styleTreeHasStyle(child, value)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

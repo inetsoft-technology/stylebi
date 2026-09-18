@@ -23,7 +23,9 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.report.composition.execution.DataKey;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
@@ -57,6 +59,7 @@ import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.util.DefaultMetaDataProvider;
+import inetsoft.uql.util.EmptyTableToEmbeddedException;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.util.filereader.CSVLoader;
@@ -80,6 +83,8 @@ import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.RawDataService;
+import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
 import inetsoft.web.wiz.service.TabularQueryContractSupport;
@@ -87,9 +92,11 @@ import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.viewsheet.SheetOpenService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -139,7 +146,8 @@ public class WorksheetAgentController {
                                    RenameTransformHandler renameTransformHandler,
                                    SheetOpenService openService,
                                    AssetDataCache assetDataCache,
-                                   AssemblyConditionDialogServiceProxy dialogServiceProxy)
+                                   AssemblyConditionDialogServiceProxy dialogServiceProxy,
+                                   RawDataService rawDataService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -160,6 +168,7 @@ public class WorksheetAgentController {
       this.openService = openService;
       this.assetDataCache = assetDataCache;
       this.dialogServiceProxy = dialogServiceProxy;
+      this.rawDataService = rawDataService;
    }
 
    // ---------------------------------------------------------------------------
@@ -257,18 +266,30 @@ public class WorksheetAgentController {
     * @param sessionToken the token obtained at join time
     * @param req          the edit operation and its parameters
     * @param user         the authenticated agent principal
+    * @return {@code 200} with an {@link EditResponse} carrying the resolved assembly name for
+    *         ops whose result assembly may be named other than what the caller requested (e.g.
+    *         {@code add_table}, {@code convert_to_embedded}; see {@link EditResponse});
+    *         {@code 204 No Content} for every other op, matching this endpoint's response before
+    *         {@link EditResponse} existed
     * @throws PairingException if the session is invalid/expired, the runtime is not found,
     *                          or the requested operation is unknown
     */
    @PostMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/edit")
-   public void edit(@PathVariable String sessionToken,
+   public ResponseEntity<EditResponse> edit(@PathVariable String sessionToken,
                     @RequestBody EditRequest req,
                     Principal user)
       throws Exception
    {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
-      editOp(sessionToken, req, user);
+      String[] resolvedNameHolder = new String[1];
+      editOp(sessionToken, req, user, resolvedNameHolder);
+
+      if(resolvedNameHolder[0] == null) {
+         return ResponseEntity.noContent().build();
+      }
+
+      return ResponseEntity.ok(new EditResponse(resolvedNameHolder[0]));
    }
 
    /**
@@ -286,6 +307,19 @@ public class WorksheetAgentController {
     * its one caller is scoped tighter than {@link #edit} is, not looser.
     */
    public void editOp(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      editOp(sessionToken, req, user, null);
+   }
+
+   /**
+    * Same as {@link #editOp(String, EditRequest, Principal)}, plus an optional out-param that
+    * {@code add_table}'s branches fill with the resolved assembly name (see {@link EditResponse}).
+    * {@code null} for every other op, and accepted as {@code null} here too (the 3-arg overload
+    * above passes {@code null} for its one in-process caller, which has no use for the name).
+    */
+   private void editOp(String sessionToken, EditRequest req, Principal user,
+                       String[] resolvedNameHolder)
       throws Exception
    {
       requireEnabled();
@@ -358,7 +392,7 @@ public class WorksheetAgentController {
                "property map instead.");
          }
 
-         addQueryParamsTable(sessionToken, req, user);
+         addQueryParamsTable(sessionToken, req, user, resolvedNameHolder);
          return;
       }
 
@@ -397,7 +431,7 @@ public class WorksheetAgentController {
                " has no schema/catalog.");
          }
 
-         addTabularTable(sessionToken, req, user);
+         addTabularTable(sessionToken, req, user, resolvedNameHolder);
          return;
       }
 
@@ -415,10 +449,10 @@ public class WorksheetAgentController {
          && !req.datasource().isBlank())
       {
          if(req.logicalModel() != null && !req.logicalModel().isBlank()) {
-            addLogicalModelTable(sessionToken, req, user);
+            addLogicalModelTable(sessionToken, req, user, resolvedNameHolder);
          }
          else {
-            addBoundTable(sessionToken, req, user);
+            addBoundTable(sessionToken, req, user, resolvedNameHolder);
          }
          return;
       }
@@ -472,7 +506,7 @@ public class WorksheetAgentController {
 
       // convert_to_embedded needs AssetQuerySandbox for data population.
       if("convert_to_embedded".equals(req.op())) {
-         convertToEmbedded(sessionToken, req, user);
+         convertToEmbedded(sessionToken, req, user, resolvedNameHolder);
          return;
       }
 
@@ -530,7 +564,8 @@ public class WorksheetAgentController {
     * {@link SourceInfo#PHYSICAL_TABLE} is created, the assembly is added to the worksheet,
     * and {@link AssetEventUtil#initColumnSelection} populates the column metadata.</p>
     */
-   private void addBoundTable(String sessionToken, EditRequest req, Principal user)
+   private void addBoundTable(String sessionToken, EditRequest req, Principal user,
+                              String[] resolvedNameHolder)
       throws Exception
    {
       String datasourceName = req.datasource();
@@ -598,6 +633,10 @@ public class WorksheetAgentController {
          String assemblyName = AssetUtil.normalizeTable(tablePath);
          assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = assemblyName;
+         }
+
          PhysicalBoundTableAssembly assembly =
             new PhysicalBoundTableAssembly(ws, assemblyName);
 
@@ -623,7 +662,8 @@ public class WorksheetAgentController {
     * A {@link SourceInfo} of type {@link SourceInfo#MODEL} is created and the column
     * selection is populated from the entity's attributes.</p>
     */
-   private void addLogicalModelTable(String sessionToken, EditRequest req, Principal user)
+   private void addLogicalModelTable(String sessionToken, EditRequest req, Principal user,
+                                     String[] resolvedNameHolder)
       throws Exception
    {
       String datasourceName = req.datasource();
@@ -691,6 +731,10 @@ public class WorksheetAgentController {
          String assemblyName = AssetUtil.normalizeTable(entityName);
          assemblyName = AssetUtil.getNextName(ws, assemblyName, assemblyName);
 
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = assemblyName;
+         }
+
          BoundTableAssembly assembly = new BoundTableAssembly(ws, assemblyName);
 
          SourceInfo sinfo = new SourceInfo(
@@ -723,7 +767,8 @@ public class WorksheetAgentController {
     * path), which already builds the same kind of {@code TabularTableAssembly} from its own
     * {@code TabularSource} request shape.</p>
     */
-   private void addTabularTable(String sessionToken, EditRequest req, Principal user)
+   private void addTabularTable(String sessionToken, EditRequest req, Principal user,
+                                String[] resolvedNameHolder)
       throws Exception
    {
       String dsName = req.datasource();
@@ -866,6 +911,11 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          String normalizedTableName = AssetUtil.normalizeTable(tableName);
          String assemblyName = AssetUtil.getNextName(ws, normalizedTableName, normalizedTableName);
+
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = assemblyName;
+         }
+
          TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
          TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
          info.setQuery(query);
@@ -911,7 +961,8 @@ public class WorksheetAgentController {
     * ...), FILE (OneDrive, ServerFile), and Rest.XML, none of which have an
     * {@code endpoint}/{@code suffix} property on their query class.
     */
-   private void addQueryParamsTable(String sessionToken, EditRequest req, Principal user)
+   private void addQueryParamsTable(String sessionToken, EditRequest req, Principal user,
+                                    String[] resolvedNameHolder)
       throws Exception
    {
       String dsName = req.datasource();
@@ -962,6 +1013,11 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          String normalizedTableName = AssetUtil.normalizeTable(tableName);
          String assemblyName = AssetUtil.getNextName(ws, normalizedTableName, normalizedTableName);
+
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = assemblyName;
+         }
+
          TabularTableAssembly assembly = new TabularTableAssembly(ws, assemblyName);
          TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
          info.setQuery(query);
@@ -1165,6 +1221,7 @@ public class WorksheetAgentController {
          assembly.setAttachedSource(sinfo);
          assembly.setAttachedAttribute(ref);
 
+         WorksheetEditService.Editor.requireNoNameCollision(assembly, ws);
          positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
@@ -1208,7 +1265,9 @@ public class WorksheetAgentController {
     * @param user         the authenticated agent principal
     * @return the preview rows (each keyed by column name) plus any warning raised while
     *         producing them — notably, the organization's column-count limit silently
-    *         dropping trailing columns from a wide result
+    *         dropping trailing columns from a wide result, or (WBS-059) a condition bound to a
+    *         declared-but-session-value-less variable having been silently dropped from this
+    *         query entirely
     * @throws PairingException if the session is invalid/expired, the sandbox is absent,
     *                          or the query fails
     */
@@ -1224,7 +1283,125 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
-      return previewService.preview(rws, table, offset, Math.min(limit, 200));
+      WorksheetPreviewService.PreviewResult result =
+         previewService.preview(rws, table, offset, Math.min(limit, 200));
+
+      List<String> droppedConditionWarnings = detectDroppedConditionWarnings(rws, table);
+
+      if(droppedConditionWarnings.isEmpty()) {
+         return result;
+      }
+
+      List<String> warnings = new ArrayList<>(result.warnings());
+      warnings.addAll(droppedConditionWarnings);
+      return new WorksheetPreviewService.PreviewResult(result.rows(), warnings);
+   }
+
+   /**
+    * Warns when the previewed table's own query references a variable that IS declared (a
+    * {@link DefaultVariableAssembly} exists) but has no explicit session value yet -- i.e. one of
+    * {@link #detectVariablesNeedingSessionValue}'s names. Live-JVM-debugger-confirmed mechanism
+    * (WBS-059): {@code JDBCHandler.execute}'s call into {@code XUtil.validateConditions} /
+    * {@code removeNoParamConditions} deliberately calls {@code usql.setWhere(null)} -- the
+    * condition using that variable is silently dropped from the query entirely, not merely left
+    * unfiltered -- whenever the variable resolves to a null parameter. That is intentional,
+    * shared product behavior (the same convention as an interactive BI filter showing everything
+    * when nothing is selected) and is not changed here; this only surfaces, after the fact, that
+    * it happened for this specific preview, so the result isn't mistaken for a genuinely-filtered
+    * answer. Best-effort: any failure computing this signal (e.g. the table not resolving to a
+    * {@link TableAssembly}) is treated as "nothing to warn about" rather than failing the whole
+    * preview, since the preview's own rows were already successfully produced by the time this
+    * runs.
+    */
+   private List<String> detectDroppedConditionWarnings(RuntimeWorksheet rws, String tableName) {
+      try {
+         Worksheet ws = rws.getWorksheet();
+         Assembly assembly = ws.getAssembly(tableName);
+
+         if(!(assembly instanceof TableAssembly table)) {
+            return List.of();
+         }
+
+         UserVariable[] tableVars = table.getAllVariables();
+
+         if(tableVars == null || tableVars.length == 0) {
+            return List.of();
+         }
+
+         Set<String> tableVarNames = new LinkedHashSet<>();
+
+         for(UserVariable var : tableVars) {
+            if(var != null && var.getName() != null) {
+               tableVarNames.add(var.getName());
+            }
+         }
+
+         List<String> affected = new ArrayList<>();
+
+         for(String name : detectVariablesNeedingSessionValue(rws)) {
+            if(tableVarNames.contains(name)) {
+               affected.add(name);
+            }
+         }
+
+         if(affected.isEmpty()) {
+            return List.of();
+         }
+
+         boolean plural = affected.size() > 1;
+
+         return List.of(
+            "Variable" + (plural ? "s " : " ") + String.join(", ", affected)
+            + (plural ? " have" : " has") + " no session value yet, so the condition"
+            + (plural ? "s" : "") + " referencing " + (plural ? "them" : "it")
+            + " " + (plural ? "were" : "was") + " dropped from this query entirely (not applied) "
+            + "-- these rows are NOT filtered by " + (plural ? "these variables" : "this variable")
+            + ". Call set_variable_values first if you want the filter applied.");
+      }
+      catch(RuntimeException e) {
+         return List.of();
+      }
+   }
+
+   /**
+    * Exports a single worksheet table's full data as a downloadable CSV file, streamed directly
+    * to {@code response} (same direct-servlet-write pattern
+    * {@link inetsoft.web.wiz.viewsheet.ViewsheetAssemblyAgentController#export} uses). Unlike
+    * {@link #preview}, which is capped at 200 rows for verifying a query before saving, this
+    * exports every row (up to the server's row cap).
+    *
+    * <p>Resolves the table against THIS session's live {@link RuntimeWorksheet} -- via
+    * {@link RawDataService#writeLiveWorksheetTableCsvStream} -- so the export reflects the
+    * table's CURRENT state, including any unsaved edits made in this session, rather than
+    * {@code RawDataController}'s existing worksheet-export endpoint, which resolves a persisted
+    * asset by identifier and would silently return a stale copy of any worksheet edited (or
+    * never saved at all) since its last save.
+    *
+    * <p>Deliberately does not carry over
+    * {@link inetsoft.web.wiz.viewsheet.ViewsheetAssemblyAgentController#export}'s extra
+    * {@code VIEWSHEET_TOOLBAR_ACTION}/{@code "Export"} permission check -- there is no
+    * worksheet-side equivalent permission primitive to reuse (grepping the codebase for a
+    * {@code WORKSHEET_TOOLBAR_ACTION} resource type turns up nothing); this endpoint instead
+    * inherits the same {@link #requireWholeSheetSession}/{@code editService.resolve} auth/scope
+    * gate every other worksheet-agent endpoint (including {@link #preview}) already uses.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param table        the table assembly name to export
+    * @param user         the authenticated agent principal
+    * @throws PairingException if the session is invalid/expired or the sandbox is absent
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/export")
+   public void exportTable(@PathVariable String sessionToken, @RequestParam String table,
+                           Principal user, HttpServletResponse response)
+      throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
+      response.setContentType("text/csv");
+      response.setHeader("Content-Disposition",
+         ContentDisposition.attachment().filename(table + ".csv").build().toString());
+      rawDataService.writeLiveWorksheetTableCsvStream(rws, table, response.getOutputStream());
    }
 
    /**
@@ -1691,7 +1868,7 @@ public class WorksheetAgentController {
       return new CsvSettings(encode, delim,
                              detectType == null || detectType,
                              firstRowAsHeader == null || firstRowAsHeader,
-                             Boolean.TRUE.equals(removeQuotes),
+                             removeQuotes == null || removeQuotes,
                              pivot, hcol);
    }
 
@@ -2298,6 +2475,7 @@ public class WorksheetAgentController {
          WorksheetEditService.Editor.requireStorableName(tableName, "A table name");
 
          EmbeddedTableAssembly assembly = new EmbeddedTableAssembly(ws, tableName);
+         WorksheetEditService.Editor.requireNoNameCollision(assembly, ws);
 
          Assembly[] existing = ws.getAssemblies();
          int maxY = 0;
@@ -2652,6 +2830,8 @@ public class WorksheetAgentController {
             editor.addConcatSubtable(req.table(), req.name());
          case "remove_concat_subtable" ->
             editor.removeConcatSubtable(req.table(), req.name());
+         case "edit_concatenation" ->
+            editor.editConcatenation(req.table(), req.concatType(), req.concatDistinct());
          case "add_named_group" ->
             editor.addNamedGroup(req.name(), req.table(), req.column(), req.type(),
                req.groupMappings(),
@@ -3057,7 +3237,8 @@ public class WorksheetAgentController {
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
             (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
 
-         return new SqlQueryResponse(table, detectUndeclaredVariables(rws));
+         return new SqlQueryResponse(table, detectUndeclaredVariables(rws),
+            detectVariablesNeedingSessionValue(rws));
       });
    }
 
@@ -3215,6 +3396,14 @@ public class WorksheetAgentController {
                throw new PairingException("Table not found: " + req.table());
             }
 
+            // Bug #76711 round 6: computed here, outside the instanceof-pattern block below, so
+            // it stays in scope (and effectively final) for the shared reload lambda further down
+            // -- the RUNTIME_MODE-forcing call added there needs it too, and that lambda runs
+            // after the block below has already closed. -1 for a non-TableAssembly assembly,
+            // which the RUNTIME_MODE-forcing call below is guarded to skip anyway.
+            final int mode = assembly instanceof TableAssembly modeAssembly
+               ? WorksheetEventUtil.getMode(modeAssembly) : -1;
+
             if(assembly instanceof TableAssembly table) {
                // WSQueryService.runQuery (the UI's own "Run Query" action this tool mirrors) reaches
                // this same validity gate via WorksheetEventUtil.refreshAssembly, which this agent
@@ -3235,33 +3424,77 @@ public class WorksheetAgentController {
                   LOG.warn("Failed to check the worksheet assembly validity: " + req.table(), e);
                }
 
-               int mode = WorksheetEventUtil.getMode(table);
-
-               // WSQueryService.runQuery removes the row cap in RUNTIME_MODE before re-running the
-               // query; without this, refresh_data could return a still row-limited preview where a
-               // real "Run Query" click would not.
-               if(mode == AssetQuerySandbox.RUNTIME_MODE) {
-                  box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
-               }
+               // Bug #76711 round 5: XSessionManager.dataCache's key is built from the XQuery's
+               // own serialized XML (XHandler.getQueryKey), which includes <maxrows>/<timeout> --
+               // so a query built WITH the row-cap hint present and one built with it removed are
+               // two DIFFERENT cache entries, confirmed live by printing both keys side by side
+               // (docs/teams/.../bug-76711/07-idea-debug-r4.md). preview_worksheet_data (and any
+               // other RUNTIME_MODE reader) always executes with the hint removed (maxrows=0). This
+               // used to only remove the hint when mode == RUNTIME_MODE (matching WSQueryService.
+               // runQuery, which is correct there since the UI's "Run Query" always operates on a
+               // table already in RUNTIME_MODE) -- but an ordinary add_table'd table's own mode is
+               // DESIGN_MODE (getMode above), so that guard never fired here, and refreshData's own
+               // reload kept writing fresh data into the WRONG (row-capped) cache entry -- one
+               // preview_worksheet_data never reads -- no matter how thoroughly every other cache
+               // layer was invalidated. Remove the hint unconditionally so the reload always targets
+               // the same query shape RUNTIME_MODE readers actually consult.
+               box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
 
                box.resetTableLens(req.table(), mode);
 
                // WSQueryService.runQuery also clears the cached query result from AssetDataCache
                // before re-executing -- resetTableLens alone leaves that cache holding the
                // pre-refresh result, so a caller reading the table right after refresh_data could
-               // still observe stale data. (WSQueryService additionally
-               // clears AssetQueryCacheNormalizer's and a live BoundQuery's own cache via a fresh
-               // AssetQuery.createAssetQuery(...) call -- both reach into repository/datasource
-               // resolution that needs a real Spring context, so they're deliberately left for a
-               // follow-up once that's live-verifiable rather than shipped unverified here.)
+               // still observe stale data.
                DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
                assetDataCache.remove(key);
+
+               // Bug #76711 round 4: every real reader of this table's data outside the Composer
+               // UI itself -- preview_worksheet_data (WorksheetPreviewService.java), the CSV
+               // export and sample-probe services (RawDataService, WorksheetTableService) -- reads
+               // it under a hardcoded AssetQuerySandbox.RUNTIME_MODE, regardless of the table's own
+               // design-time isRuntime()/isLiveData()/isEditMode() flags that getMode(table) above
+               // is based on. An ordinary add_table'd table has none of those flags set, so mode is
+               // DESIGN_MODE here and the invalidation above never touches the RUNTIME_MODE slot in
+               // either AssetQuerySandbox.tmap or AssetDataCache -- both keyed by mode -- leaving it
+               // to keep serving pre-refresh data indefinitely no matter how many times this table
+               // is refreshed. Invalidate the RUNTIME_MODE slot too, in addition to (not instead of)
+               // the table's own computed mode: the next real read under either mode is a genuine
+               // cache miss and lazily re-executes (AssetQuerySandbox.getTableLens0/executeQuery),
+               // reading whatever refreshColumnSelection below just wrote into the deeper,
+               // mode-independent XSessionManager.dataCache layer -- no proactive RUNTIME_MODE
+               // reload is needed here.
+               if(mode != AssetQuerySandbox.RUNTIME_MODE) {
+                  box.resetTableLens(req.table(), AssetQuerySandbox.RUNTIME_MODE);
+                  DataKey runtimeKey = AssetDataCache.getCacheKey(
+                     table, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
+                  assetDataCache.remove(runtimeKey);
+               }
 
                // WSQueryService.runQuery discovers a not-yet-run tabular query's columns before
                // reloading; without it, refresh_data on a query that has never executed in this
                // runtime loads against an empty column selection.
                if(table instanceof TabularTableAssembly tabular) {
                   tabular.loadColumnSelection(box.getVariableTable(), true, box.getQueryManager());
+               }
+
+               // WSQueryService.runQuery also drops a BoundQuery/TabularBoundQuery's own
+               // XSessionManager cache entry via a fresh AssetQuery.createAssetQuery(...) +
+               // BoundQuery.clearQueryCache(...); do it here too, best-effort. NOTE: confirmed
+               // live (see bug #76711 archive, 05-idea-debug-r2.md) that this call is a silent
+               // no-op in deployments where XSessionManager's underlying service is a JDK dynamic
+               // proxy rather than a concrete XEngine -- removeQueryCacheData's `instanceof
+               // XEngine` guard can never pass a proxy, so removeQueryCache is never actually
+               // invoked. Do NOT rely on this call alone to invalidate the cache; the
+               // __refresh_report__ flag below is the mechanism this method's correctness
+               // actually depends on. Best-effort per its own description above -- wrapped so a
+               // failure here (bug #76711 review, round 6 re-review finding 2) can't fail the
+               // whole refresh, matching the bulk branch's own handling of the identical call.
+               try {
+                  clearBoundQueryCache(box, table, mode);
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to clear the bound query cache for table: " + req.table(), e);
                }
             }
             else {
@@ -3276,24 +3509,153 @@ public class WorksheetAgentController {
             // this is an explicit, caller-requested op, so a timeout throws RenderNotReadyException
             // (mapped to 503/RENDER_NOT_READY by WizControllerErrorHandler) rather than being
             // swallowed — the caller gets a live "not ready, retry" signal instead of a raw hang.
-            RenderWaitSupport.awaitOrRetry(() -> {
-               WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
-               WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
-               return null;
-            }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
-               (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            // WSQueryService.runQuery also sets this flag before reloading, and it is the ONLY
+            // mechanism this method's correctness actually depends on (see clearBoundQueryCache's
+            // comment above). It must stay set for as long as the reload is actually running, not
+            // just for as long as the caller waits: RenderWaitSupport does not cancel the reload
+            // on timeout, so removing the flag in a finally scoped to awaitOrRetry's own return
+            // (bug #76711, rounds 1 and 2) clears it while that background work is still running,
+            // reintroducing the exact stale-read bug. Remove it inside the callable instead, right
+            // after the work it guards actually finishes, on whichever thread that turns out to be.
+            box.getVariableTable().put("__refresh_report__", "true");
+
+            try {
+               RenderWaitSupport.awaitOrRetry(() -> {
+                  try {
+                     WorksheetEventUtil.refreshColumnSelection(rws, req.table(), true);
+                     WorksheetEventUtil.loadTableData(rws, req.table(), true, true);
+
+                     // Bug #76711 round 6: loadTableData above only ever actually EXECUTES the
+                     // query under this table's OWN mode (DESIGN_MODE for an ordinary add_table'd
+                     // table -- confirmed live via a logged executeQuery(mode=...) call site, see
+                     // bug-76711/08-idea-debug-r5.md). Round 4's RUNTIME_MODE cache invalidation
+                     // only clears the OUTER AssetQuerySandbox.tmap/AssetDataCache slots for
+                     // RUNTIME_MODE -- it never itself runs a query, so it only helps if SOME
+                     // later caller's own lazy re-execution reaches a fresh XSessionManager.dataCache
+                     // entry. But DESIGN_MODE and RUNTIME_MODE queries are structurally different
+                     // XQuery shapes (confirmed live: <maxrows>/<timeout> differ, e.g. 5000/30 vs
+                     // 0/0), which XHandler.getQueryKey folds into the XSessionManager.dataCache
+                     // key itself -- so the DESIGN_MODE execution above never refreshes the
+                     // RUNTIME_MODE-shaped entry preview_worksheet_data (and any other RUNTIME_MODE
+                     // reader) actually consults; that entry is only ever populated by whichever
+                     // caller FIRST executes under RUNTIME_MODE, and nothing thereafter re-executes
+                     // it fresh. Force a real RUNTIME_MODE execution here too, still inside this
+                     // __refresh_report__-protected block, so the RUNTIME_MODE-shaped
+                     // XSessionManager.dataCache entry is genuinely refreshed, not just the outer
+                     // caches around it invalidated and left to some later caller's lazy reload.
+                     if(mode >= 0 && mode != AssetQuerySandbox.RUNTIME_MODE) {
+                        box.getTableLens(req.table(), AssetQuerySandbox.RUNTIME_MODE);
+                     }
+                  }
+                  finally {
+                     box.getVariableTable().remove("__refresh_report__");
+                  }
+
+                  return null;
+               }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
+                  (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
+            }
+            catch(RenderNotReadyException e) {
+               // Timed out waiting, not failed: the reload above is still running in the
+               // background and removes the flag itself once it finishes. Do not remove it here,
+               // or the flag can go missing while that work -- and the __refresh_report__-gated
+               // cache read it exists to suppress -- is still in flight.
+               throw e;
+            }
+            catch(Exception e) {
+               // Any other failure means the callable either already ran (its own finally above
+               // already removed the flag -- this is then a harmless no-op) or never ran at all,
+               // e.g. rejected before being submitted -- the only case this remove is load-bearing.
+               box.getVariableTable().remove("__refresh_report__");
+               throw e;
+            }
          }
          else {
-            // Refresh all table assemblies.
+            // Refresh all table assemblies. Mirrors the single-assembly branch's cache
+            // invalidation (AssetDataCache + the BoundQuery/XSessionManager layer -- bug #76711
+            // review Finding 2) for every table, so a later read of ANY table after a bulk
+            // refresh_data is a genuine cache miss too, not just resetTableLens's
+            // AssetQuerySandbox.tmap layer, which used to be the only thing this branch touched.
+            //
+            // Bug #76711 round 6 (bulk branch): confirmed live that this branch had the exact
+            // same gap as the single-assembly branch did before round 6 -- invalidating the
+            // outer AssetQuerySandbox.tmap/AssetDataCache slots alone leaves the deep
+            // XSessionManager.dataCache entry preview_worksheet_data (and any other RUNTIME_MODE
+            // reader) actually consults untouched, since nothing here ever forced a real
+            // RUNTIME_MODE execution. Mirror the single-assembly branch's HINT_MAX_ROWS removal,
+            // RUNTIME_MODE slot invalidation, and __refresh_report__-protected forced RUNTIME_MODE
+            // read for every table. Deliberately does NOT also wrap each table's forced read in
+            // RenderWaitSupport.awaitOrRetry: that would be new behavior this branch never had (up
+            // to N sequential timeout-and-retry windows for N tables) -- a plain synchronous call
+            // is enough here since this branch was never bounded to begin with.
+            //
+            // Bug #76711 round 6 re-review finding 1: unlike the single-assembly branch, this
+            // branch never calls loadTableData/refreshColumnSelection to execute a query under
+            // the table's own mode first -- resetTableLens/AssetDataCache.remove only clear the
+            // cache shell, they never run anything. So a table whose own mode is ALREADY
+            // RUNTIME_MODE had nothing here that actually re-executes its query: the forced
+            // RUNTIME_MODE read below must run unconditionally, not only when
+            // mode != RUNTIME_MODE (that guard is correct in the single-assembly branch only
+            // because loadTableData there already covers the mode == RUNTIME_MODE case).
+            box.getVariableTable().remove(XQuery.HINT_MAX_ROWS);
+
             for(Assembly a : ws.getAssemblies()) {
-               if(a instanceof TableAssembly) {
-                  box.resetTableLens(a.getName());
+               if(a instanceof TableAssembly table) {
+                  int mode = WorksheetEventUtil.getMode(table);
+                  box.resetTableLens(table.getName(), mode);
+
+                  DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
+                  assetDataCache.remove(key);
+
+                  if(mode != AssetQuerySandbox.RUNTIME_MODE) {
+                     box.resetTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
+                     DataKey runtimeKey = AssetDataCache.getCacheKey(
+                        table, box, null, AssetQuerySandbox.RUNTIME_MODE, true);
+                     assetDataCache.remove(runtimeKey);
+                  }
+
+                  try {
+                     clearBoundQueryCache(box, table, mode);
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to clear the bound query cache for table: " +
+                        table.getName(), e);
+                  }
+
+                  box.getVariableTable().put("__refresh_report__", "true");
+
+                  try {
+                     box.getTableLens(table.getName(), AssetQuerySandbox.RUNTIME_MODE);
+                  }
+                  finally {
+                     box.getVariableTable().remove("__refresh_report__");
+                  }
                }
             }
          }
 
          return null;
       });
+   }
+
+   /**
+    * Synchronously drops the {@code XSessionManager.dataCache} entry a {@link BoundQuery}
+    * (e.g. a SERVER_FILE tabular table's {@code TabularBoundQuery}) would otherwise keep
+    * serving indefinitely -- no time-based expiry in practice, see bug #76711 -- mirroring
+    * {@code WSQueryService.runQuery}'s own {@code AssetQuery.createAssetQuery(...)} +
+    * {@code BoundQuery.clearQueryCache(...)} call.
+    */
+   private void clearBoundQueryCache(AssetQuerySandbox box, TableAssembly table, int mode)
+      throws Exception
+   {
+      TableAssembly clone = (TableAssembly) table.clone();
+      AssetQuery query = AssetQuery.createAssetQuery(clone, mode, box, false, -1L, true, false);
+
+      if(query instanceof BoundQuery boundQuery) {
+         VariableTable vars = box.getVariableTable().clone();
+         vars.put(XQuery.HINT_PREVIEW, AssetQuerySandbox.isLiveMode(mode) + "");
+         boundQuery.clearQueryCache(vars);
+      }
    }
 
    // ---------------------------------------------------------------------------
@@ -3495,7 +3857,8 @@ public class WorksheetAgentController {
     * Converts a bound table assembly to an embedded table by executing the query
     * and storing the result data inline.
     */
-   private void convertToEmbedded(String sessionToken, EditRequest req, Principal user)
+   private void convertToEmbedded(String sessionToken, EditRequest req, Principal user,
+                                  String[] resolvedNameHolder)
       throws Exception
    {
       if(req.table() == null || req.table().isBlank()) {
@@ -3506,15 +3869,27 @@ public class WorksheetAgentController {
          Worksheet ws = rws.getWorksheet();
          Assembly a = ws.getAssembly(req.table());
 
-         if(!(a instanceof BoundTableAssembly)) {
+         if(!(a instanceof TableAssembly)) {
             throw new PairingException("Not a bound table: " + req.table());
          }
 
-         // replace=true keeps the same name; the returned assembly must be
-         // explicitly added to replace the old bound table in the worksheet.
-         EmbeddedTableAssembly embedded = AssetEventUtil.convertEmbeddedTable(
-            rws.getAssetQuerySandbox(), (BoundTableAssembly) a,
-            true, false, false);
+         // replace=false adds the embedded snapshot as a new sibling assembly, leaving
+         // the original bound table untouched — matching the Composer UI's own "Convert
+         // to Embedded Table" action (ConvertEmbeddedService.convertEmbedded). forceLive=true
+         // preserves the RUNTIME_MODE query guarantee that replace=true used to provide
+         // implicitly, so the snapshot still freezes the table's live query result rather
+         // than a DESIGN_MODE query.
+         EmbeddedTableAssembly embedded;
+
+         try {
+            embedded = AssetEventUtil.convertEmbeddedTable(
+               rws.getAssetQuerySandbox(), (TableAssembly) a,
+               false, false, false, true);
+         }
+         catch(EmptyTableToEmbeddedException e) {
+            throw new PairingException(
+               "Could not convert '" + req.table() + "' — table has no data to convert.");
+         }
 
          if(embedded == null) {
             throw new PairingException(
@@ -3522,6 +3897,11 @@ public class WorksheetAgentController {
          }
 
          ws.addAssembly(embedded);
+
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = embedded.getName();
+         }
+
          return null;
       });
    }
@@ -3827,16 +4207,28 @@ public class WorksheetAgentController {
    /**
     * Response from creating a SQL query table.
     *
-    * @param tableName            the assembly name of the newly created table
-    * @param undeclaredVariables  {@code $(name)} references found in the SQL text that the
-    *                             worksheet has no matching variable for yet (L2 parity finding:
-    *                             the native SQL Query dialog surfaces these via
-    *                             {@code refreshVariables}' collect-variables prompt; this agent
-    *                             path has no dialog to prompt, so it reports them here instead).
-    *                             Empty when the SQL has none, or when every referenced name is
-    *                             already a worksheet variable.
+    * @param tableName               the assembly name of the newly created table
+    * @param undeclaredVariables     {@code $(name)} references found in the SQL text that the
+    *                                worksheet has no matching variable for yet (L2 parity
+    *                                finding: the native SQL Query dialog surfaces these via
+    *                                {@code refreshVariables}' collect-variables prompt; this
+    *                                agent path has no dialog to prompt, so it reports them here
+    *                                instead). Empty when the SQL has none, or when every
+    *                                referenced name is already a worksheet variable.
+    * @param variablesNeedingValues  {@code $(name)} references that ARE declared worksheet
+    *                                variables but have no explicit session value yet (WBS-059,
+    *                                live-JVM-debugger-confirmed): a condition bound to one of
+    *                                these is silently dropped entirely from the query -- not
+    *                                merely left unfiltered -- until {@code set_variable_values}
+    *                                is called for it. Distinct from {@code undeclaredVariables},
+    *                                which is a real gap (no matching variable exists at all);
+    *                                this is expected state for a brand-new variable, but still
+    *                                worth surfacing so a subsequent {@code preview_worksheet_data}
+    *                                call on this table isn't mistaken for a genuinely-filtered
+    *                                result.
     */
-   public record SqlQueryResponse(String tableName, List<String> undeclaredVariables) {}
+   public record SqlQueryResponse(String tableName, List<String> undeclaredVariables,
+                                   List<String> variablesNeedingValues) {}
 
    /**
     * Create a new SQL query table assembly in the worksheet.
@@ -3913,6 +4305,7 @@ public class WorksheetAgentController {
          WorksheetEditService.Editor.requireStorableName(tableName, "A table name");
 
          SQLBoundTableAssembly assembly = new SQLBoundTableAssembly(ws, tableName);
+         WorksheetEditService.Editor.requireNoNameCollision(assembly, ws);
 
          // Build the JDBCQuery with freeform SQL.
          JDBCQuery query = new JDBCQuery();
@@ -3993,7 +4386,8 @@ public class WorksheetAgentController {
          assembly.setColumnSelection(columns);
          ws.addAssembly(assembly);
 
-         return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws));
+         return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws),
+            detectVariablesNeedingSessionValue(rws));
       });
    }
 
@@ -4050,10 +4444,53 @@ public class WorksheetAgentController {
          return List.of();
       }
 
+      Worksheet ws = rws.getWorksheet();
       List<String> names = new ArrayList<>();
 
       for(VariableAssemblyModelInfo info : command.varInfos()) {
-         names.add(info.getName());
+         String name = info.getName();
+
+         // WSCollectVariablesCommand also lists variables that ARE declared (a
+         // DefaultVariableAssembly exists, possibly with a default value) but simply have no
+         // explicit value yet in this session's AssetQuerySandbox VariableTable -- that's a
+         // "needs set_variable_values before a non-default value is desired" signal, not
+         // "undeclared". Only a name with no matching assembly at all is genuinely undeclared
+         // (e.g. a typo'd $(name) with no add_variable call behind it).
+         if(!(ws.getAssembly(name) instanceof DefaultVariableAssembly)) {
+            names.add(name);
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Names of variables referenced by SQL-bound tables that ARE declared (a
+    * {@link DefaultVariableAssembly} exists) but have no explicit session value yet in this
+    * runtime's {@code AssetQuerySandbox}. Unlike {@link #detectUndeclaredVariables}, these are
+    * not reported as an error -- they are the exact opposite half of the same
+    * {@link WSCollectVariablesCommand#varInfos()} list. Callers use this to warn that a query
+    * condition bound to one of these variables will be silently dropped (not applied) by
+    * {@code JDBCHandler}/{@code XUtil.validateConditions} until {@code set_variable_values} is
+    * called, rather than falling back to the variable's declared default.
+    */
+   private List<String> detectVariablesNeedingSessionValue(RuntimeWorksheet rws) {
+      WSCollectVariablesCommand command = WorksheetEventUtil.refreshVariables(
+         rws, worksheetService, false);
+
+      if(command == null) {
+         return List.of();
+      }
+
+      Worksheet ws = rws.getWorksheet();
+      List<String> names = new ArrayList<>();
+
+      for(VariableAssemblyModelInfo info : command.varInfos()) {
+         String name = info.getName();
+
+         if(ws.getAssembly(name) instanceof DefaultVariableAssembly) {
+            names.add(name);
+         }
       }
 
       return names;
@@ -4150,6 +4587,7 @@ public class WorksheetAgentController {
    private final SheetOpenService openService;
    private final AssetDataCache assetDataCache;
    private final AssemblyConditionDialogServiceProxy dialogServiceProxy;
+   private final RawDataService rawDataService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 
    // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same

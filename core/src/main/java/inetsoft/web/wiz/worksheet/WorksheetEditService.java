@@ -366,6 +366,14 @@ public class WorksheetEditService {
    private static final long REFRESH_ASSEMBLIES_BUDGET_MS =
       TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS;
 
+   /**
+    * Fills a null socket session only -- deliberately not unconditional. See
+    * {@code ViewsheetSessionService.applySocketSession}'s doc comment: {@code SheetJoinService
+    * .join} is the one place that may apply a grant's socket values unconditionally, exactly
+    * once per pairing, because that is the one moment they are provably fresh. Reapplying this
+    * session's own frozen value on every later call would silently undo a human's own later
+    * recovery (a manual Refresh unconditionally re-stamps the runtime from a live dispatcher).
+    */
    private void applySocketSession(RuntimeWorksheet rws, JoinSession session) {
       if(session.socketSessionId() != null && rws.getSocketSessionId() == null) {
          rws.setSocketSessionId(session.socketSessionId());
@@ -885,6 +893,9 @@ public class WorksheetEditService {
 
          RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
             ws, name, tableSet.toArray(new TableAssembly[0]), new TableAssemblyOperator[0]);
+
+         requireNoSelfReferencingSource(join);
+         requireNoNameCollision(join, ws);
 
          // Position + register before wiring the edges (matching placeAssembly's order for
          // every other join creator here), since editExistingJoinTable needs the assembly
@@ -1584,11 +1595,12 @@ public class WorksheetEditService {
          // surfaced as concatenationWarning); this path previously checked only the count.
          //
          // Comparing every table against the first rather than against its predecessor (which is
-         // what ConcatenatedTableAssembly.areCompatible does) is equivalent, since isMergeable
-         // partitions types into disjoint classes — string {string, char}, number {float, double,
-         // byte, short, integer, long}, date {date, timeInstant}, identity otherwise — and is
-         // therefore transitive. Anchoring on the first also matches getDefaultColumnSelection,
-         // which takes the resulting column list from subtables[0].
+         // what ConcatenatedTableAssembly.areCompatible does) is equivalent, since
+         // isMergeableForConcat partitions types into disjoint classes — string {string, char},
+         // number {float, double, byte, short, integer, long}, date and timeInstant each their own
+         // singleton class, identity otherwise — and is therefore transitive. Anchoring on the
+         // first also matches getDefaultColumnSelection, which takes the resulting column list
+         // from subtables[0].
          //
          // Both counts and positions come from the PUBLIC column selection, so hidden columns are
          // excluded — exactly what the server itself concatenates.
@@ -1660,13 +1672,13 @@ public class WorksheetEditService {
             String atype = anchor.getDataType();
             String otype = other.getDataType();
 
-            // isMergeable dereferences both arguments; a ref with no type at all is not
+            // isMergeableForConcat dereferences both arguments; a ref with no type at all is not
             // something this check can speak to, so leave it to the server.
             if(atype == null || otype == null) {
                continue;
             }
 
-            if(!AssetUtil.isMergeable(atype, otype)) {
+            if(!AssetUtil.isMergeableForConcat(atype, otype)) {
                throw new PairingException(
                   "Columns are concatenated by position, and position " + (c + 1) +
                   " does not line up: \"" + anchorName + "\" has \"" + anchor.getAttribute() +
@@ -2054,6 +2066,13 @@ public class WorksheetEditService {
       {
          Assembly a = ws.getAssembly(name);
 
+         if(a instanceof MergeJoinTableAssembly) {
+            throw new PairingException(
+               "\"" + name + "\" is a MERGE join -- rows are paired by position, not by key, " +
+               "so it has no join keys to edit (the native Composer UI has no such action " +
+               "either). Remove it and rebuild with addMergeJoin instead.");
+         }
+
          if(!(a instanceof RelationalJoinTableAssembly join)) {
             throw new PairingException("Join assembly not found: " + name);
          }
@@ -2122,6 +2141,16 @@ public class WorksheetEditService {
                newOp.setOperation(operation);
                newTop.addOperator(newOp);
             }
+         }
+
+         if(leftTable == null || rightTable == null) {
+            // Every join-creating path (addJoin/addCrossJoin/addMergeJoin) must set both
+            // table names on each operator it builds; a null here means that invariant broke
+            // upstream, and writing to (null, null) would silently discard this edit instead
+            // of applying it to the real join edge (see bug-76730-WBS-050).
+            throw new PairingException(
+               "Join assembly \"" + name + "\" has an operator with no left/right table name " +
+               "recorded -- refusing to edit rather than silently discarding the change.");
          }
 
          join.setOperator(leftTable, rightTable, newTop);
@@ -2454,6 +2483,8 @@ public class WorksheetEditService {
 
          TableAssemblyOperator top = new TableAssemblyOperator();
          TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setLeftTable(leftTable);
+         op.setRightTable(rightTable);
          op.setOperation(TableAssemblyOperator.CROSS_JOIN);
          top.addOperator(op);
 
@@ -2495,6 +2526,8 @@ public class WorksheetEditService {
          for(int i = 0; i < operators.length; i++) {
             TableAssemblyOperator top = new TableAssemblyOperator();
             TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setLeftTable(tableNames[i]);
+            op.setRightTable(tableNames[i + 1]);
             op.setOperation(TableAssemblyOperator.MERGE_JOIN);
             top.addOperator(op);
             operators[i] = top;
@@ -2728,6 +2761,73 @@ public class WorksheetEditService {
 
          if(invalid) {
             ws.removeAssembly(concatName);
+         }
+      }
+
+      /**
+       * Changes the concatenation type and/or duplicate-row setting of an existing
+       * concatenation assembly, applied uniformly across every adjacent pair -- matching
+       * how addConcatenation itself always builds a concatenation (one operation for the
+       * whole assembly) and how read_worksheet_model's concatType reports it back (a single
+       * value, or "MIXED" if per-pair values genuinely disagree -- see
+       * WorksheetReadService#readConcatType's own doc comment on why per-pair values are
+       * not otherwise exposed or settable).
+       *
+       * <p>WARNING -- this collapses mixed state. {@code A UNION B MINUS C} is a legal
+       * assembly (Composer can set the operator per adjacent pair), and this method has no
+       * way to retarget a single pair the way the native Composer "Edit Concatenation"
+       * dialog's default (non-"apply to all") mode does. Calling this on a concatenation
+       * that already has genuinely different operations/distinct flags per pair silently
+       * overwrites every pair with the single value(s) given here -- there is no read-back
+       * warning beforehand and no way to undo the flattening except rebuilding the
+       * concatenation. This is a deliberate, disclosed scope decision (matching
+       * addConcatenation's own creation-time convention of one setting for the whole
+       * assembly), not an oversight.</p>
+       *
+       * @param concatName the concatenation assembly name
+       * @param opType     new concatenation type ("UNION"/"INTERSECT"/"MINUS",
+       *                   case-insensitive); null leaves every pair's existing
+       *                   operation unchanged (NOT defaulted to UNION -- unlike
+       *                   addConcatenation's create-time default, an edit must not
+       *                   silently reset the type when the caller only wants to
+       *                   change concatDistinct)
+       * @param distinct   new duplicate-row setting; null leaves every pair's existing
+       *                   distinct flag unchanged
+       * @throws PairingException if the assembly is not found, or if both opType and
+       *                          distinct are null (nothing to do)
+       */
+      public void editConcatenation(String concatName, String opType, Boolean distinct)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(concatName);
+
+         if(!(a instanceof ConcatenatedTableAssembly ctbl)) {
+            throw new PairingException("Concatenation not found: " + concatName);
+         }
+
+         if(opType == null && distinct == null) {
+            throw new PairingException(
+               "editConcatenation requires at least one of concatType or concatDistinct.");
+         }
+
+         String[] names = ctbl.getTableNames();
+         int pairs = names == null ? 0 : names.length - 1;
+
+         for(int i = 0; i < pairs; i++) {
+            TableAssemblyOperator existingTop = ctbl.getOperator(i);
+            TableAssemblyOperator.Operator existing =
+               existingTop == null ? null : existingTop.getKeyOperator();
+
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setOperation(opType != null ? parseConcatType(opType)
+                                            : existing != null ? existing.getOperation()
+                                                                : TableAssemblyOperator.UNION);
+            op.setDistinct(distinct != null ? distinct
+                                             : existing != null && existing.isDistinct());
+
+            TableAssemblyOperator top = new TableAssemblyOperator();
+            top.addOperator(op);
+            ctbl.setOperator(i, top);
          }
       }
 
@@ -3158,6 +3258,30 @@ public class WorksheetEditService {
          }
 
          nga.setNamedGroupInfo(ngi);
+
+         // A GroupRef bound to this named group holds a one-time clone of its mapping
+         // (GroupRef.update(Worksheet)), taken at set_group_aggregate time and never
+         // invalidated here otherwise -- leaving dependent tables silently stale until
+         // something else (e.g. a composite table's own sub-table resolution) happens to
+         // re-run update() on them. Sweep every referencing GroupRef so all dependents
+         // pick up the new mapping immediately, regardless of worksheet graph shape.
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(!(assembly instanceof TableAssembly table)) {
+               continue;
+            }
+
+            AggregateInfo ainfo = table.getAggregateInfo();
+
+            if(ainfo == null) {
+               continue;
+            }
+
+            for(GroupRef group : ainfo.getGroups()) {
+               if(name.equals(group.getNamedGroupAssembly())) {
+                  group.update(ws);
+               }
+            }
+         }
       }
 
       // -----------------------------------------------------------------------
@@ -3319,9 +3443,67 @@ public class WorksheetEditService {
        */
       private void placeAssembly(WSAssembly assembly) throws PairingException {
          requireStorableName(assembly.getName(), "An assembly name");
+         requireNoSelfReferencingSource(assembly);
+         requireNoNameCollision(assembly, ws);
          assembly.setPixelOffset(new Point(25, 25));
          AssetEventUtil.adjustAssemblyPosition(assembly, ws);
          ws.addAssembly(assembly);
+      }
+
+      /**
+       * Refuses an assembly whose own name collides with one of its own source tables.
+       *
+       * <p>{@link Worksheet#addAssembly} silently evicts and replaces any existing assembly that
+       * already has that name (see its own doc there). A {@link ComposedTableAssembly} only
+       * stores its sources by name ({@code getTableNames()}), re-resolved against the worksheet
+       * lazily on every call -- so if {@code assembly}'s own name matches one of those source
+       * names, resolving that source after registration returns {@code assembly} itself. Every
+       * recursive traversal over sources (e.g. {@code checkValidity()}, {@code
+       * getAllVariables()}) then recurses into itself with no cycle guard, terminating only in an
+       * uncaught {@link StackOverflowError} -- and the original, evicted assembly has no
+       * in-memory path back. Must run before {@link Worksheet#addAssembly}, since by then the
+       * eviction has already happened and cannot be undone.</p>
+       */
+      static void requireNoSelfReferencingSource(WSAssembly assembly) throws PairingException {
+         if(!(assembly instanceof ComposedTableAssembly composed)) {
+            return;
+         }
+
+         String[] sourceNames = composed.getTableNames();
+
+         if(sourceNames == null) {
+            return;
+         }
+
+         for(String sourceName : sourceNames) {
+            if(assembly.getName().equals(sourceName)) {
+               throw new PairingException(
+                  "\"" + assembly.getName() + "\" collides with one of its own source tables. " +
+                  "Registering it under that name would silently replace and permanently corrupt " +
+                  "the existing \"" + sourceName + "\" assembly. Choose a different name for the " +
+                  "new assembly, or edit \"" + sourceName + "\" in place instead.");
+            }
+         }
+      }
+
+      /**
+       * Refuses an assembly name that already identifies a different, existing assembly in the
+       * worksheet. {@link Worksheet#addAssembly} silently evicts and replaces whatever already
+       * has that name -- this guards the general case; {@link #requireNoSelfReferencingSource}
+       * already refuses (with a more specific message) the narrower case where the collision is
+       * with one of the new assembly's own declared sources.
+       *
+       * <p>Package-private (not {@code private}) so {@link WorksheetAgentController} can reuse
+       * the same check for the assembly-creation paths it builds directly against
+       * {@code Worksheet}/{@code RuntimeWorksheet} rather than through this {@code Editor}.
+       */
+      static void requireNoNameCollision(WSAssembly assembly, Worksheet ws) throws PairingException {
+         if(ws.getAssembly(assembly.getName()) != null) {
+            throw new PairingException(
+               "\"" + assembly.getName() + "\" already names an existing assembly in this " +
+               "worksheet. Registering a new assembly under that name would silently replace and " +
+               "discard it. Choose a different name for the new assembly.");
+         }
       }
 
       /**

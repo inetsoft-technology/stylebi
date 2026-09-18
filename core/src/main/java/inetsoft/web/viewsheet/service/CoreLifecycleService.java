@@ -242,6 +242,17 @@ public class CoreLifecycleService {
    public void setViewsheetInfo(RuntimeViewsheet rvs, String linkUri,
                                 CommandDispatcher dispatcher)
    {
+      dispatcher.sendCommand(buildViewsheetInfoCommand(rvs, linkUri));
+   }
+
+   /**
+    * Builds the same fully-populated {@link SetViewsheetInfoCommand} {@link #setViewsheetInfo}
+    * sends, without requiring a {@link CommandDispatcher} -- callers that need to deliver it
+    * through a different mechanism (e.g. {@code SheetAgentBroadcastService}'s unsolicited pairing
+    * pushes) can build it here and send it themselves, rather than hand-rolling a partial copy of
+    * this field set that drifts from this method over time.
+    */
+   public SetViewsheetInfoCommand buildViewsheetInfoCommand(RuntimeViewsheet rvs, String linkUri) {
       SetViewsheetInfoCommand command = new SetViewsheetInfoCommand();
 
       if(rvs.getViewsheet() != null) {
@@ -340,7 +351,7 @@ public class CoreLifecycleService {
          command.setChatSessionId(vs.getChatSessionId());
       }
 
-      dispatcher.sendCommand(command);
+      return command;
    }
 
    public void sendMessage(String message, MessageCommand.Type type,

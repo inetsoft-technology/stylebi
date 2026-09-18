@@ -137,6 +137,7 @@ public class PresentationChangePlanService {
 
          if(subModel == PresentationSubModel.LOOK_AND_FEEL) {
             spec = sanitizeLookAndFeelFileNames(label, spec);
+            requireNoDerivedLookAndFeelNameFields(label, spec);
          }
 
          requireNoSecretFields(label, subModel, spec);
@@ -159,9 +160,12 @@ public class PresentationChangePlanService {
             PresentationChangeRequest.SCOPE_ORGANIZATION;
          String property = subModel.key() + ":" + scopeLabel;
 
+         JsonNode readbackNode = subModel == PresentationSubModel.LOOK_AND_FEEL
+            ? simulateLookAndFeelReadback(mergedNode, global, orgId) : mergedNode;
+
          PlanChange planChange = new PlanChange(
             property, orgId, projectedValue(subModel, currentNode),
-            projectedValue(subModel, mergedNode), subModel.risk(), subModel.scope(), true,
+            projectedValue(subModel, readbackNode), subModel.risk(), subModel.scope(), true,
             "update " + subModel.key() + " (" + scopeLabel + " scope)");
 
          result.add(new ResolvedChange(subModel, global, currentModel, proposedModel, planChange));
@@ -307,6 +311,109 @@ public class PresentationChangePlanService {
       }
 
       return copy;
+   }
+
+   /** PR #5298 {@code claude-review} bot finding, same bug axis as the class javadoc below:
+    * {@code logoName}/{@code faviconName}/{@code viewsheetName} are pure derived read-back output --
+    * {@code LookAndFeelService.getModel} is their only reader (lines 120/122/124), and {@code
+    * setModel}'s real write path never reads any of the three (confirmed by reading the source, not
+    * just the bot's claim). Setting one directly in a spec is a silent no-op for the actual write,
+    * yet with no paired {@code *File} upload {@link #simulateLookAndFeelReadback}'s {@code isDefault}/
+    * {@code hasContent} branches both miss and the caller's raw value is projected verbatim --
+    * reproducing bug #76729's exact false "value did not read back as written" symptom through this
+    * second trigger. Refused outright rather than simulated: there is no real capability lost, since
+    * the corresponding {@code *File} field (or {@code default*} to reset) is the only way any of
+    * these three names is ever actually written. */
+   private static void requireNoDerivedLookAndFeelNameFields(String label, JsonNode spec) {
+      requireNotDirectlySettable(label, spec, "logoName", "logoFile", "defaultLogo");
+      requireNotDirectlySettable(label, spec, "faviconName", "faviconFile", "defaultFavicon");
+      requireNotDirectlySettable(label, spec, "viewsheetName", "viewsheetFile", "defaultViewsheet");
+   }
+
+   private static void requireNotDirectlySettable(String label, JsonNode spec, String nameField,
+                                                  String fileField, String defaultField)
+   {
+      if(spec.has(nameField)) {
+         throw new IllegalArgumentException(
+            label + ".spec." + nameField + ": not directly settable -- " + nameField + " is " +
+            "derived from the server's own persisted filename when " + fileField + " is uploaded; " +
+            "submit " + fileField + " instead, or " + defaultField + ":true to reset it");
+      }
+   }
+
+   /** Bug #76729: {@code lookAndFeel}'s four {@code FileData} fields ({@code logoFile}/
+    * {@code faviconFile}/{@code viewsheetFile}/{@code userformatFile}) are write-only upload
+    * triggers, not round-tripped state -- {@code LookAndFeelService.getModel} never populates any
+    * of them, and {@code setLogo}/{@code setFavicon}/global-scope {@code setViewsheet} persist under
+    * a server-derived name ("logo"/"favicon" + the submitted extension, or a fixed "format.css"),
+    * never the caller's raw submitted name. A plain field-overlay merge (as {@link #resolveEntries}
+    * otherwise does for every other sub-model) therefore predicts a value a real post-write read
+    * would never return, which is exactly bug #76729's false "value did not read back as written".
+    * This mirrors {@code LookAndFeelService.setModel}'s own gating (mirrored, not shared -- see this
+    * class's own javadoc on replicating rather than sharing across sibling areas) to predict what a
+    * real read-back will actually show, for the {@code proposedValue} projection only -- the
+    * unmodified {@code mergedNode} is still what gets deserialized into the object that is actually
+    * written ({@link #resolveEntries}'s {@code proposedModel}). */
+   private static JsonNode simulateLookAndFeelReadback(JsonNode merged, boolean global, String orgId) {
+      ObjectNode node = merged.deepCopy();
+      applyFileFieldReadback(node, "logo", "logoFile", "defaultLogo", global, orgId);
+      applyFileFieldReadback(node, "favicon", "faviconFile", "defaultFavicon", global, orgId);
+      applyViewsheetReadback(node, global, orgId);
+      // userformatFile has no corresponding *Name field and no default-* gate at all -- setModel
+      // applies it unconditionally whenever content is present, and getModel never round-trips it.
+      node.putNull("userformatFile");
+      return node;
+   }
+
+   /** Shared shape of {@code logoFile}/{@code faviconFile}: cleared to {@code ""} when the
+    * corresponding {@code default*} flag is set, else renamed to the server-derived
+    * "portal/[org/]<baseName><ext>" only when a real file with content was submitted (matching
+    * {@code LookAndFeelService.setLogo}/{@code setFavicon}'s own gating) -- otherwise left as
+    * whatever the merge already produced, since no real write happens for that field in that case.
+    * The FileData field itself is always nulled, matching {@code getModel} never populating it. */
+   private static void applyFileFieldReadback(ObjectNode node, String baseName, String fileField,
+                                              String defaultField, boolean global, String orgId)
+   {
+      boolean isDefault = node.path(defaultField).asBoolean(false);
+      JsonNode file = node.get(fileField);
+      boolean hasContent = file != null && file.isObject() && file.hasNonNull("content");
+
+      if(!isDefault && hasContent) {
+         String submittedName = file.path("name").asText("");
+         int dot = submittedName.lastIndexOf('.');
+         String ext = dot >= 0 ? submittedName.substring(dot) : ".gif";
+         String persistedName = global
+            ? "portal/" + baseName + ext : "portal/" + orgId + "/" + baseName + ext;
+         node.put(baseName + "Name", persistedName);
+      }
+      else if(isDefault) {
+         node.put(baseName + "Name", "");
+      }
+
+      node.putNull(fileField);
+   }
+
+   /** {@code viewsheetFile}'s own variant of {@link #applyFileFieldReadback}: global scope ignores
+    * the submitted name entirely (persisted as the fixed "portal/format.css",
+    * {@code LookAndFeelService.setViewsheet}), while organization scope keeps the caller's own
+    * (already path-sanitized, see {@link #sanitizeLookAndFeelFileNames}) name under
+    * "<orgId>/<name>" -- deliberately not "portal/<orgId>/<name>" like logo/favicon, matching
+    * {@code setViewsheet}'s own {@code manager.addCSSEntry(orgID, orgID + "/" + cssName)}. */
+   private static void applyViewsheetReadback(ObjectNode node, boolean global, String orgId) {
+      boolean isDefault = node.path("defaultViewsheet").asBoolean(false);
+      JsonNode file = node.get("viewsheetFile");
+      boolean hasContent = file != null && file.isObject() && file.hasNonNull("content");
+
+      if(!isDefault && hasContent) {
+         String persistedName = global
+            ? "portal/format.css" : orgId + "/" + file.path("name").asText("");
+         node.put("viewsheetName", persistedName);
+      }
+      else if(isDefault) {
+         node.put("viewsheetName", "");
+      }
+
+      node.putNull("viewsheetFile");
    }
 
    private static String sanitizeBaseName(String label, String raw) {

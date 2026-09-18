@@ -41,6 +41,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Bug #75751: two organizations with independently-scoped tabular data sources that happen to
  * share the same name must not collide on the same tabular query cache key.
+ *
+ * Bug #76658: a data source whose result depends on the user executing the query must not have
+ * its result served to another user from the process wide cache.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -76,11 +79,63 @@ class TabularHandlerTest {
          "the same user re-running the same query must still hit the cache");
    }
 
+   @Test
+   void getQueryKeyDistinguishesUsersWhenTheResultIsUserDependent() throws Exception {
+      TabularHandler handler = new TabularHandler();
+      Principal user = principal("admin", "orgA");
+
+      // the same query against the same data source, run by users that resolve to different
+      // impersonated identities. Bug #76658: with kerberos constrained delegation the endpoint
+      // applies its own per-user authorization, so these two results are not interchangeable.
+      String key1 = handler.getQueryKey(newQuery("PRINCIPAL|5|user1"), newVars(), user);
+      String key2 = handler.getQueryKey(newQuery("PRINCIPAL|5|user2"), newVars(), user);
+
+      assertNotEquals(key1, key2,
+         "cache keys for a user dependent data source must not collide across users");
+   }
+
+   @Test
+   void getQueryKeyIsUnchangedWhenTheResultIsNotUserDependent() throws Exception {
+      TabularHandler handler = new TabularHandler();
+      Principal user = principal("admin", "orgA");
+
+      String baseKey = handler.getQueryKey(newQuery(null), newVars(), user);
+      String discriminatedKey = handler.getQueryKey(newQuery("PRINCIPAL|5|user1"), newVars(), user);
+
+      // every data source that is not user dependent returns a null discriminator, and must
+      // therefore produce exactly the key it produced before Bug #76658 was fixed
+      assertTrue(discriminatedKey.startsWith(baseKey),
+         "the discriminator must only be appended, leaving the key of a data source that is " +
+         "not user dependent unchanged");
+      assertNotEquals(baseKey, discriminatedKey,
+         "a non-null discriminator must change the key");
+   }
+
+   @Test
+   void getQueryKeyIsSharedByUsersThatResolveToTheSameDiscriminator() throws Exception {
+      TabularHandler handler = new TabularHandler();
+
+      // two separate callers in the same organization whose data source resolves them to the
+      // same identity, e.g. STATIC impersonation
+      String key1 = handler.getQueryKey(
+         newQuery("STATIC|4|svc1"), newVars(), principal("user1", "orgA"));
+      String key2 = handler.getQueryKey(
+         newQuery("STATIC|4|svc1"), newVars(), principal("user2", "orgA"));
+
+      assertEquals(key1, key2,
+         "users that resolve to the same identity must still share a cache entry");
+   }
+
    private static TestTabularQuery newQuery() {
+      return newQuery(null);
+   }
+
+   private static TestTabularQuery newQuery(String cacheDiscriminator) {
       TestTabularQuery query = new TestTabularQuery();
       query.addVariable(new UserVariable("param"));
       TestTabularDataSource ds = new TestTabularDataSource();
       ds.setName("Tabular1");
+      ds.cacheDiscriminator = cacheDiscriminator;
       query.setDataSource(ds);
       return query;
    }
@@ -146,6 +201,13 @@ class TabularHandlerTest {
       protected CredentialType getCredentialType() {
          return null;
       }
+
+      @Override
+      public String getCacheDiscriminator() {
+         return cacheDiscriminator;
+      }
+
+      private String cacheDiscriminator;
    }
 
    private static final class TestTabularQuery extends TabularQuery {

@@ -339,13 +339,22 @@ public class SchedulerConfigurationService {
                      pathInfo.append(path).append("|").append(label);
 
                      if(username != null) {
-                        pathInfo.append("|").append(username).append("|").append(password);
+                        // an absent password must be written as an empty field, not the literal
+                        // string "null", which would be read back as a real password
+                        pathInfo.append("|").append(username).append("|")
+                           .append(password == null ? "" : password);
                      }
                   }
                }
                else {
                   pathInfo.append(path).append("|").append(label);
                }
+            }
+            else {
+               // without this a location that carries no path info is written as an empty entry,
+               // which silently drops it from the ";"-joined property (and can leave a segment
+               // that getServerLocations() cannot parse)
+               pathInfo.append(path).append("|").append(label);
             }
 
             paths.add(pathInfo.toString());

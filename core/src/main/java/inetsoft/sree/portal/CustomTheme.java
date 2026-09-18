@@ -126,6 +126,25 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
    }
 
    /**
+    * Gets whether a jar file was actually uploaded for this theme, as opposed to a jar-shaped
+    * artifact synthesized from CSS variables alone.
+    *
+    * @return {@code true} if a jar was uploaded.
+    */
+   public boolean isJarUploaded() {
+      return jarUploaded;
+   }
+
+   /**
+    * Sets whether a jar file was actually uploaded for this theme.
+    *
+    * @param jarUploaded the jar-uploaded flag.
+    */
+   public void setJarUploaded(boolean jarUploaded) {
+      this.jarUploaded = jarUploaded;
+   }
+
+   /**
     * Gets whether EM is in dark mode
     *
     * @return true if em is in dark mode else false.
@@ -290,6 +309,7 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
       }
 
       writer.format("<emDark><![CDATA[%s]]></emDark>%n", emDark);
+      writer.format("<jarUploaded><![CDATA[%s]]></jarUploaded>%n", jarUploaded);
 
       if(portalScript != null) {
          writer.format("<portalScript><![CDATA[%s]]></portalScript>%n", portalScript.name());
@@ -340,6 +360,7 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
       orgID = Tool.getChildValueByTagName(tag, "orgID");
       jarPath = Tool.getChildValueByTagName(tag, "jarPath");
       emDark = "true".equals(Tool.getChildValueByTagName(tag, "emDark"));
+      jarUploaded = "true".equals(Tool.getChildValueByTagName(tag, "jarUploaded"));
 
       String script = Tool.getChildValueByTagName(tag, "portalScript");
       portalScript = script != null ? ScriptTheme.valueOf(script) : ScriptTheme.ECLIPSE;
@@ -394,6 +415,7 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
          Objects.equals(id, that.id) &&
          Objects.equals(orgID, that.orgID) &&
          Objects.equals(jarPath, that.jarPath) &&
+         jarUploaded == that.jarUploaded &&
          emDark == that.emDark &&
          portalScript == that.portalScript &&
          emScript == that.emScript &&
@@ -404,7 +426,7 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
 
    @Override
    public int hashCode() {
-      return Objects.hash(name, id, orgID, jarPath, emDark, portalScript, emScript,
+      return Objects.hash(name, id, orgID, jarPath, jarUploaded, emDark, portalScript, emScript,
                           users, groups, roles);
    }
 
@@ -415,6 +437,7 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
          ", id='" + id + '\'' +
          ", orgID='" + orgID + '\'' +
          ", jarPath='" + jarPath + '\'' +
+         ", jarUploaded='" + jarUploaded + '\'' +
          ", emDark='" + emDark + '\'' +
          ", portalScript='" + portalScript + '\'' +
          ", emScript='" + emScript + '\'' +
@@ -431,6 +454,7 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
       clone.id = id;
       clone.orgID = orgID;
       clone.jarPath = jarPath;
+      clone.jarUploaded = jarUploaded;
       clone.emDark = emDark;
       clone.portalScript = portalScript;
       clone.emScript = emScript;
@@ -445,6 +469,7 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
    private String id;
    private String orgID;
    private String jarPath;
+   private boolean jarUploaded;
    private boolean emDark;
    private ScriptTheme portalScript;
    private ScriptTheme emScript;

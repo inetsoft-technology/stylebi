@@ -23,6 +23,7 @@ import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.schedule.model.TaskListModel;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +32,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,11 +47,17 @@ public class AdminScheduleController {
    @Autowired
    public AdminScheduleController(AdminScheduleGateway scheduleGateway,
                                   ScheduleChangePlanService planService,
-                                  ScheduleChangesetApplyService applyService)
+                                  ScheduleChangesetApplyService applyService,
+                                  AdminScheduleFolderGateway folderGateway,
+                                  ScheduleFolderChangePlanService folderPlanService,
+                                  ScheduleFolderChangesetApplyService folderApplyService)
    {
       this.scheduleGateway = scheduleGateway;
       this.planService = planService;
       this.applyService = applyService;
+      this.folderGateway = folderGateway;
+      this.folderPlanService = folderPlanService;
+      this.folderApplyService = folderApplyService;
    }
 
    @Secured(@RequiredPermission(
@@ -106,6 +115,101 @@ public class AdminScheduleController {
       return applyService.apply(req, user);
    }
 
+   /**
+    * Triggers each named task's next run immediately (bug 76687). Unlike {@link #preview}/{@link
+    * #apply}, this is not a changeset -- there is nothing to preview and no rollback: each task's
+    * run is independent and self-inverse (a run cannot be un-run once its actions fire), matching
+    * how Cluster's own pause/resume actions are also applied immediately with no rollback
+    * machinery. See {@link AdminScheduleGateway#runTask} for how the scheduler-down/task-disabled
+    * conditions are surfaced as a field-named {@link ScheduleActionOutcome#status} rather than a
+    * bare localized message.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/run-tasks")
+   public ScheduleActionResult runTasks(@RequestBody TaskListModel req, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      List<ScheduleActionOutcome> outcomes = new ArrayList<>();
+
+      for(String taskName : req.taskNames()) {
+         outcomes.add(scheduleGateway.runTask(taskName, user));
+      }
+
+      return new ScheduleActionResult(outcomes);
+   }
+
+   /**
+    * Stops each named task's currently-executing run, if any (bug 76687). See {@link #runTasks}
+    * for why this is not a changeset, and {@link AdminScheduleGateway#stopTask} for why a stop is
+    * not preconditioned on the task's current run status client-side.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/stop-tasks")
+   public ScheduleActionResult stopTasks(@RequestBody TaskListModel req, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      List<ScheduleActionOutcome> outcomes = new ArrayList<>();
+
+      for(String taskName : req.taskNames()) {
+         outcomes.add(scheduleGateway.stopTask(taskName, user));
+      }
+
+      return new ScheduleActionResult(outcomes);
+   }
+
+   /**
+    * Resolves a schedule-task FOLDER change plan without mutating anything (design
+    * track-folder/01-design.md §2). Same shape as {@link #preview}.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/folders/preview")
+   public ResolvedPlan previewFolders(@RequestBody ScheduleFolderChangePlanRequest req, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      return folderPlanService.resolve(req, user);
+   }
+
+   /**
+    * Applies a reviewed schedule-task FOLDER change plan, all-or-nothing. Same status contract as
+    * {@link #apply}.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/folders/apply")
+   public ApplyResult applyFolders(@RequestBody ScheduleFolderApplyRequest req, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      return folderApplyService.apply(req, user);
+   }
+
+   /**
+    * Reads one schedule-task folder. {@code found: false} for a non-existent path is a normal 200
+    * answer, not an error (mirrors {@code get_viewsheet_folder}'s own convention, design §2) --
+    * deliberately NOT a reuse of EM's own whole-tree {@code GET /api/em/schedule/folder/get}
+    * response shape.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/tasks",
+      actions = ResourceAction.ACCESS))
+   @GetMapping("/api/wiz/v1/admin/schedule/folders")
+   public ScheduleFolderView getFolder(@RequestParam("path") String path, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      return folderGateway.getFolder(path, user);
+   }
+
    /** Same rationale and shape as {@code AdminAiController#requireSiteAdmin} -- see there. */
    private void requireSiteAdmin(Principal user) {
       AdminAiCallerGuard.requireBearerAuthenticatedRequest();
@@ -152,4 +256,7 @@ public class AdminScheduleController {
    private final AdminScheduleGateway scheduleGateway;
    private final ScheduleChangePlanService planService;
    private final ScheduleChangesetApplyService applyService;
+   private final AdminScheduleFolderGateway folderGateway;
+   private final ScheduleFolderChangePlanService folderPlanService;
+   private final ScheduleFolderChangesetApplyService folderApplyService;
 }

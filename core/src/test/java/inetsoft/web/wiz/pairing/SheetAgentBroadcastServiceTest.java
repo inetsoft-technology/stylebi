@@ -31,6 +31,7 @@ import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -54,11 +55,16 @@ class SheetAgentBroadcastServiceTest {
       return mock(VSBindingTreeService.class);
    }
 
+   private static CoreLifecycleService noopCoreLifecycleService() {
+      return mock(CoreLifecycleService.class);
+   }
+
    @Test
    void worksheetBroadcastTargetsSocketSessionWithoutClientId() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
 
       RuntimeWorksheet rs = mock(RuntimeWorksheet.class);
       when(rs.getSocketSessionId()).thenReturn("stomp-1");
@@ -87,7 +93,8 @@ class SheetAgentBroadcastServiceTest {
    void nullSocketSessionSkipsBroadcast() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
 
       RuntimeSheet rs = mock(RuntimeSheet.class);
       when(rs.getSocketSessionId()).thenReturn(null);
@@ -110,7 +117,8 @@ class SheetAgentBroadcastServiceTest {
    void pairingJoinedNoticeAddressesTheMintingBrowser() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
       EditorContext context = new EditorContext("assemblyMain", "Chart1", null, null);
       JoinSession session = new JoinSession("tok-1", "vs-9", "alice~;~host-org",
                                             SheetType.VIEWSHEET, 0L, 0L,
@@ -140,7 +148,8 @@ class SheetAgentBroadcastServiceTest {
    void focusChangedNoticeReusesTheJoinedTopicWithTheFlagSet() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
       EditorContext context = new EditorContext("viewsheetOnInit", null, null, null);
       JoinSession session = new JoinSession("tok-1", "vs-9", "alice~;~host-org",
                                             SheetType.VIEWSHEET, 0L, 0L,
@@ -166,7 +175,8 @@ class SheetAgentBroadcastServiceTest {
    void pairingJoinedNoticeSkippedWithoutADestinationUser() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
       JoinSession session = new JoinSession("tok-1", "vs-9", "alice~;~host-org",
                                             SheetType.VIEWSHEET, 0L, 0L,
                                             JoinSession.ConnectionMode.PAIRED,
@@ -182,7 +192,8 @@ class SheetAgentBroadcastServiceTest {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       VSObjectModelFactoryService modelFactory = mock(VSObjectModelFactoryService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, modelFactory, noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, modelFactory, noopBindingTreeService(),
+                                        noopCoreLifecycleService());
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getSocketSessionId()).thenReturn("stomp-vs-1");
@@ -214,7 +225,8 @@ class SheetAgentBroadcastServiceTest {
    void fallsBackToOwnerNameWhenSocketUserNameIsNull() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
 
       RuntimeWorksheet rs = mock(RuntimeWorksheet.class);
       when(rs.getSocketSessionId()).thenReturn("stomp-2");
@@ -232,7 +244,8 @@ class SheetAgentBroadcastServiceTest {
    void broadcastRefreshSendsUpdateUndoStateCommandWithRuntimeUndoPosition() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
 
       RuntimeWorksheet rs = mock(RuntimeWorksheet.class);
       when(rs.getSocketSessionId()).thenReturn("stomp-1");
@@ -265,7 +278,8 @@ class SheetAgentBroadcastServiceTest {
    void broadcastSaveSendsUpdateUndoStateCommandSoIndicatorClears() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        noopCoreLifecycleService());
 
       RuntimeWorksheet rs = mock(RuntimeWorksheet.class);
       when(rs.getSocketSessionId()).thenReturn("stomp-1");
@@ -315,8 +329,10 @@ class SheetAgentBroadcastServiceTest {
    @Test
    void broadcastSaveSendsSetViewsheetInfoCommandForAViewsheetRuntime() {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService());
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        coreLifecycleService);
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getSocketSessionId()).thenReturn("stomp-2");
@@ -329,6 +345,12 @@ class SheetAgentBroadcastServiceTest {
       when(entry.toIdentifier()).thenReturn("1^128^__NULL__^bugfix-test-vs");
       when(rvs.getEntry()).thenReturn(entry);
       Principal owner = TestPrincipals.user("alice", "host-org");
+
+      inetsoft.web.viewsheet.command.SetViewsheetInfoCommand builtCommand =
+         new inetsoft.web.viewsheet.command.SetViewsheetInfoCommand();
+      builtCommand.setAssemblyInfo(java.util.Map.of("name", "bugfix-test-vs"));
+      when(coreLifecycleService.buildViewsheetInfoCommand(eq(rvs), isNull()))
+         .thenReturn(builtCommand);
 
       svc.broadcastSave(rvs, "Viewsheet/vs-1", owner);
 
@@ -345,9 +367,61 @@ class SheetAgentBroadcastServiceTest {
          .findFirst()
          .orElseThrow(() -> new AssertionError("No SetViewsheetInfoCommand was sent"));
 
+      assertSame(builtCommand, labelCommand);
       inetsoft.web.viewsheet.command.SetViewsheetInfoCommand command =
          (inetsoft.web.viewsheet.command.SetViewsheetInfoCommand) labelCommand;
       assertEquals("bugfix-test-vs", command.getAssemblyInfo().get("name"));
+   }
+
+   /**
+    * Bug #76637 (reopen): broadcastSave used to hand-roll a SetViewsheetInfoCommand carrying only
+    * assemblyInfo, leaving info/baseEntry at their Java null defaults --
+    * processSetViewsheetInfoCommand unconditionally assigns command.baseEntry into
+    * this.vs.baseEntry client-side with no null guard, so every save silently re-nulled the
+    * Composer's bottom-bar worksheet-path chip, including right after attach_base_worksheet
+    * populated it. Confirms broadcastSave now delegates to the same fully-populated builder
+    * CoreLifecycleService.setViewsheetInfo uses, so baseEntry survives a subsequent save.
+    */
+   @Test
+   void broadcastSaveDelegatesToCoreLifecycleServiceForAFullyPopulatedBaseEntry() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        coreLifecycleService);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("stomp-2");
+      when(rvs.getSocketUserName()).thenReturn("alice~;~host-org");
+      when(rvs.size()).thenReturn(1);
+      when(rvs.getCurrent()).thenReturn(0);
+      when(rvs.getSavePoint()).thenReturn(0);
+      inetsoft.uql.asset.AssetEntry entry = mock(inetsoft.uql.asset.AssetEntry.class);
+      when(entry.toView()).thenReturn("bugfix-test-vs");
+      when(entry.toIdentifier()).thenReturn("1^128^__NULL__^bugfix-test-vs");
+      when(rvs.getEntry()).thenReturn(entry);
+      Principal owner = TestPrincipals.user("alice", "host-org");
+
+      inetsoft.uql.asset.AssetEntry baseEntry = mock(inetsoft.uql.asset.AssetEntry.class);
+      inetsoft.web.viewsheet.command.SetViewsheetInfoCommand builtCommand =
+         new inetsoft.web.viewsheet.command.SetViewsheetInfoCommand();
+      builtCommand.setBaseEntry(baseEntry);
+      when(coreLifecycleService.buildViewsheetInfoCommand(eq(rvs), isNull()))
+         .thenReturn(builtCommand);
+
+      svc.broadcastSave(rvs, "Viewsheet/vs-1", owner);
+
+      ArgumentCaptor<Object> commandCap = ArgumentCaptor.forClass(Object.class);
+      verify(dispatcher, times(3)).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), commandCap.capture(), any());
+
+      inetsoft.web.viewsheet.command.SetViewsheetInfoCommand sentCommand =
+         (inetsoft.web.viewsheet.command.SetViewsheetInfoCommand) commandCap.getAllValues().stream()
+            .filter(c -> c instanceof inetsoft.web.viewsheet.command.SetViewsheetInfoCommand)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("No SetViewsheetInfoCommand was sent"));
+
+      assertSame(baseEntry, sentCommand.getBaseEntry());
    }
 
    /**
@@ -360,7 +434,8 @@ class SheetAgentBroadcastServiceTest {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       VSBindingTreeService bindingTreeService = mock(VSBindingTreeService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService);
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService,
+                                        noopCoreLifecycleService());
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getSocketSessionId()).thenReturn("stomp-vs-1");
@@ -386,7 +461,8 @@ class SheetAgentBroadcastServiceTest {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       VSBindingTreeService bindingTreeService = mock(VSBindingTreeService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService);
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService,
+                                        noopCoreLifecycleService());
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getSocketSessionId()).thenReturn("stomp-vs-1");
@@ -405,7 +481,8 @@ class SheetAgentBroadcastServiceTest {
       CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
       VSBindingTreeService bindingTreeService = mock(VSBindingTreeService.class);
       SheetAgentBroadcastService svc =
-         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService);
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), bindingTreeService,
+                                        noopCoreLifecycleService());
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getSocketSessionId()).thenReturn(null);
@@ -414,5 +491,80 @@ class SheetAgentBroadcastServiceTest {
                                       TestPrincipals.user("alice", "host-org"));
 
       verifyNoInteractions(dispatcher, bindingTreeService);
+   }
+
+   /**
+    * Bug #76637: this is the only broadcast that writes VSPane's this.vs.baseEntry client-side
+    * (the Composer's bottom-bar worksheet-path chip) -- confirms it sends exactly the command
+    * CoreLifecycleService.buildViewsheetInfoCommand built, baseEntry included, not a hand-rolled
+    * partial copy.
+    */
+   @Test
+   void broadcastViewsheetInfoRefreshSendsTheFullyPopulatedCommand() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        coreLifecycleService);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("stomp-vs-1");
+      when(rvs.getSocketUserName()).thenReturn("alice~;~host-org");
+      Principal owner = TestPrincipals.user("alice", "host-org");
+
+      inetsoft.uql.asset.AssetEntry baseEntry = mock(inetsoft.uql.asset.AssetEntry.class);
+      inetsoft.web.viewsheet.command.SetViewsheetInfoCommand builtCommand =
+         new inetsoft.web.viewsheet.command.SetViewsheetInfoCommand();
+      builtCommand.setBaseEntry(baseEntry);
+      when(coreLifecycleService.buildViewsheetInfoCommand(eq(rvs), isNull()))
+         .thenReturn(builtCommand);
+
+      svc.broadcastViewsheetInfoRefresh(rvs, "ViewsheetRuntime/bar-9", owner);
+
+      ArgumentCaptor<Object> payloadCap = ArgumentCaptor.forClass(Object.class);
+      verify(dispatcher).convertAndSendToUser(
+         eq("alice~;~host-org"), eq(CommandDispatcher.COMMANDS_TOPIC), payloadCap.capture(), any());
+      assertSame(builtCommand, payloadCap.getValue());
+      assertSame(baseEntry,
+         ((inetsoft.web.viewsheet.command.SetViewsheetInfoCommand) payloadCap.getValue())
+            .getBaseEntry());
+   }
+
+   @Test
+   void broadcastViewsheetInfoRefreshSkippedWithoutASocketSession() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        coreLifecycleService);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn(null);
+
+      svc.broadcastViewsheetInfoRefresh(rvs, "ViewsheetRuntime/bar-9",
+                                        TestPrincipals.user("alice", "host-org"));
+
+      verifyNoInteractions(dispatcher, coreLifecycleService);
+   }
+
+   /** A build failure is a paper cut (stale status bar), not lost data -- must not propagate. */
+   @Test
+   void broadcastViewsheetInfoRefreshSwallowsBuildFailures() {
+      CommandDispatcherService dispatcher = mock(CommandDispatcherService.class);
+      CoreLifecycleService coreLifecycleService = mock(CoreLifecycleService.class);
+      SheetAgentBroadcastService svc =
+         new SheetAgentBroadcastService(dispatcher, noopModelFactory(), noopBindingTreeService(),
+                                        coreLifecycleService);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getSocketSessionId()).thenReturn("stomp-vs-1");
+      when(rvs.getSocketUserName()).thenReturn("alice~;~host-org");
+      when(coreLifecycleService.buildViewsheetInfoCommand(eq(rvs), isNull()))
+         .thenThrow(new RuntimeException("boom"));
+
+      assertDoesNotThrow(() -> svc.broadcastViewsheetInfoRefresh(rvs, "ViewsheetRuntime/bar-9",
+                                                                 TestPrincipals.user("alice", "host-org")));
+
+      verifyNoInteractions(dispatcher);
    }
 }

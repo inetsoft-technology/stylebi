@@ -58,11 +58,20 @@ public class ProviderChangeRequest {
    public void setProviderType(String v) { this.providerType = v; }
 
    /** Required for {@code providerType: "LDAP"} on {@code create} (every field); required, partial
-    * (at least one field), for {@code update} (bug 76686 -- only the fields actually present are
-    * changed, every other field is carried over from the existing provider unchanged); rejected
-    * otherwise, including for {@code delete}/{@code duplicate}. */
+    * (at least one field), for {@code update} when the target provider is LDAP (bug 76686 -- only
+    * the fields actually present are changed, every other field is carried over from the existing
+    * provider unchanged); rejected otherwise, including for {@code delete}/{@code duplicate}. */
    public ProviderLdapSpec getSpec() { return spec; }
    public void setSpec(ProviderLdapSpec v) { this.spec = v; }
+
+   /** Required for {@code providerType: "DATABASE"} on {@code create} (every required field);
+    * required, partial (at least one field), for {@code update} when the target provider is
+    * DATABASE (bug 76716 -- same partial-merge semantics {@link #getSpec()} uses for LDAP); rejected
+    * otherwise. A separate, strongly-typed field rather than reusing {@link #getSpec()} -- that
+    * field is bound to {@link ProviderLdapSpec} specifically, so a DATABASE-shaped payload sent
+    * through it would silently lose every field {@link ProviderLdapSpec} does not itself declare. */
+   public ProviderDatabaseSpec getDatabaseSpec() { return databaseSpec; }
+   public void setDatabaseSpec(ProviderDatabaseSpec v) { this.databaseSpec = v; }
 
    /** Optional, {@code duplicate} only: the copy's name. When omitted, the copy's name is
     * auto-generated the same way the real EM "Duplicate" action does ({@code Util.getCopyName}/
@@ -76,5 +85,6 @@ public class ProviderChangeRequest {
    private String name;
    private String providerType;
    private ProviderLdapSpec spec;
+   private ProviderDatabaseSpec databaseSpec;
    private String newName;
 }

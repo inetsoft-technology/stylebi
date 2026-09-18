@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -53,6 +54,7 @@ import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -484,6 +486,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -491,6 +494,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           openService,
@@ -498,7 +503,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -524,6 +530,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -531,6 +538,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -538,7 +547,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    private static ViewsheetAssemblyAgentController controllerWith(SheetAgentFeature feature,
@@ -567,6 +577,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -574,6 +585,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -581,7 +594,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    /** Overload that exposes {@code broadcast} -- for the detach tab-bar-notification test. */
@@ -600,6 +614,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -607,6 +622,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           broadcast,
                                           mock(SheetOpenService.class),
@@ -614,7 +631,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    /** Feature enabled, {@code sessions} and {@code conditionService} wired -- for the
@@ -637,6 +655,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           conditionService,
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -644,6 +663,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -651,7 +672,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    /** Feature enabled, only {@code propertyService} wired -- for the property-trio tests. */
@@ -673,6 +695,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -680,6 +703,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -687,7 +712,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    /** Feature enabled, only {@code hyperlinkService} wired -- for the hyperlink-targets test. */
@@ -709,6 +735,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           hyperlinkService,
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -716,6 +743,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -723,7 +752,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    /**
@@ -873,6 +903,50 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("normal", built.getFontStrikethrough());
    }
 
+   /**
+    * The hierarchy-dimension routes. Worth pinning at this layer for the same reason as the
+    * target-line routes (bug #76770): the field has no other way in, so a route that bound its
+    * request record wrongly would put the caller back where bug #76771 found them.
+    */
+   @Test
+   void listHierarchyDimensionsCallsThrough() throws Exception {
+      HierarchyDimensionService hierarchyService = mock(HierarchyDimensionService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(hierarchyService);
+
+      controller.listHierarchyDimensions("tok", "Chart1", principal());
+
+      verify(hierarchyService).list(eq("tok"), any(Principal.class), eq("Chart1"));
+   }
+
+   @Test
+   void addHierarchyDimensionForwardsEveryField() throws Exception {
+      HierarchyDimensionService hierarchyService = mock(HierarchyDimensionService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(hierarchyService);
+
+      controller.addHierarchyDimension(
+         "tok",
+         new ViewsheetAssemblyAgentController.HierarchyDimensionRequest(
+            "Chart1", List.of("Country", "State", "City"), List.of("", "", "")),
+         "", principal());
+
+      verify(hierarchyService).add(eq("tok"), any(Principal.class), eq("Chart1"),
+                                   eq(List.of("Country", "State", "City")),
+                                   eq(List.of("", "", "")), eq(""));
+   }
+
+   @Test
+   void removeHierarchyDimensionForwardsItsIndex() throws Exception {
+      HierarchyDimensionService hierarchyService = mock(HierarchyDimensionService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(hierarchyService);
+
+      controller.removeHierarchyDimension(
+         "tok",
+         new ViewsheetAssemblyAgentController.HierarchyDimensionDeleteRequest("Chart1", 1),
+         "", principal());
+
+      verify(hierarchyService).remove(eq("tok"), any(Principal.class), eq("Chart1"), eq(1), eq(""));
+   }
+
    /** Feature enabled, only {@code highlightService} wired -- for the highlight-region tests. */
    private static ViewsheetAssemblyAgentController controllerWith(
       AssemblyHighlightService highlightService)
@@ -892,6 +966,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           highlightService,
                                           mock(DateComparisonService.class),
@@ -899,6 +974,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -906,7 +983,49 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
+   }
+
+   /** Feature enabled, only {@code hierarchyDimensionService} wired -- for the hierarchy-dimension
+    *  route tests. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      HierarchyDimensionService hierarchyDimensionService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          hierarchyDimensionService,
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    /** Feature enabled, {@code sessions}/{@code viewsheetService}/{@code broadcast} wired -- for the save tests. */
@@ -930,6 +1049,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -937,6 +1057,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           viewsheetService,
                                           broadcast,
                                           mock(SheetOpenService.class),
@@ -944,7 +1066,50 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
+   }
+
+   private static ViewsheetAssemblyAgentController controllerWith(
+      ViewsheetSessionService sessions,
+      inetsoft.analytic.composition.ViewsheetService viewsheetService,
+      SheetAgentBroadcastService broadcast,
+      inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService viewsheetPropertyDialogService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
+                                          viewsheetService,
+                                          broadcast,
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          viewsheetPropertyDialogService);
    }
 
    // ---------------------------------------------------------------------------
@@ -1492,9 +1657,12 @@ class ViewsheetAssemblyAgentControllerTest {
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getAssetRepository()).thenReturn(rep);
       when(rvs.getID()).thenReturn("rt-vs-3");
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
       inetsoft.analytic.composition.ViewsheetService viewsheetService =
@@ -1510,9 +1678,12 @@ class ViewsheetAssemblyAgentControllerTest {
       ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
       // Order matters: reloadBaseWorksheet(...) reads the wentry field setBaseEntry(...) sets, on
       // the same Viewsheet instance -- verified explicitly, not just that both were called.
-      InOrder order = inOrder(vs);
+      InOrder order = inOrder(vs, sandbox);
       order.verify(vs).setBaseEntry(entryCaptor.capture());
       order.verify(vs).reloadBaseWorksheet(eq(rep), eq(agent));
+      // Called unconditionally on a successful attach/repoint, even the baseless-first-attach
+      // case -- see the method's own javadoc for why gating this on hasBaseNow was rejected.
+      order.verify(sandbox).resetRuntime();
 
       assertEquals(AssetRepository.GLOBAL_SCOPE, entryCaptor.getValue().getScope());
       assertEquals(AssetEntry.Type.WORKSHEET, entryCaptor.getValue().getType());
@@ -1520,7 +1691,10 @@ class ViewsheetAssemblyAgentControllerTest {
 
       // Never persisted -- attach only mutates the paired session's in-memory Viewsheet.
       verifyNoInteractions(viewsheetService);
-      verify(broadcast).broadcastRefresh(eq(rvs), eq(SheetType.VIEWSHEET), eq("rt-vs-3"), eq(agent));
+      // The write now routes through sessions.mutate(...), whose own finally block (not this
+      // mocked path) is responsible for the checkpoint and broadcastRefresh -- see
+      // attachBaseWorksheetChecksPointsSoItCanBeUndone for the dedicated regression test.
+      verify(sessions).mutate(eq("tok"), eq(agent), any());
    }
 
    /**
@@ -1545,6 +1719,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
@@ -1556,6 +1731,43 @@ class ViewsheetAssemblyAgentControllerTest {
          agent);
 
       verify(broadcast).broadcastBindingTreeRefresh(eq(rvs), eq("rt-vs-3"), eq(agent));
+   }
+
+   /**
+    * Bug #76637 (reopen): neither broadcastRefresh nor broadcastBindingTreeRefresh ever writes
+    * VSPane's this.vs.baseEntry client-side -- only a SetViewsheetInfoCommand does -- so the
+    * Composer's bottom status-bar worksheet-path chip stayed blank after attach_base_worksheet
+    * until a manual refresh. A third, separate broadcast is required.
+    */
+   @Test
+   void attachBaseWorksheetAlsoBroadcastsAViewsheetInfoRefresh() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rvs.getID()).thenReturn("rt-vs-3");
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
+
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class), broadcast);
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Sample Queries/customers", null),
+         agent);
+
+      verify(broadcast).broadcastViewsheetInfoRefresh(eq(rvs), eq("rt-vs-3"), eq(agent));
    }
 
    /** Permission is actually enforced (getSheet's permission arg is true), not skipped. */
@@ -1574,6 +1786,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1619,6 +1832,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1641,34 +1855,206 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    @Test
-   void attachBaseWorksheetRefusesWhenAlreadyBased() throws Exception {
+   void attachBaseWorksheetStillRefusesWhenAlreadyBasedAndNotForced() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      // Covers both force omitted (existing 2-arg request form) and force:false explicitly --
+      // neither should repoint.
+      for(ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest request : List.of(
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("Other WS", null),
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Other WS", null, null, null, null, false)))
+      {
+         AssetEntry existing = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+            AssetEntry.Type.WORKSHEET, "Existing WS", null);
+         Viewsheet vs = mock(Viewsheet.class);
+         when(vs.getBaseEntry()).thenReturn(existing);
+
+         RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+         when(rvs.getViewsheet()).thenReturn(vs);
+         AssetRepository rep = mock(AssetRepository.class);
+         when(rvs.getAssetRepository()).thenReturn(rep);
+
+         ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+         when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+
+         inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService viewsheetPropertyDialogService =
+            mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class);
+         ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+            mock(inetsoft.analytic.composition.ViewsheetService.class),
+            mock(SheetAgentBroadcastService.class), viewsheetPropertyDialogService);
+
+         PairingException ex = assertThrows(PairingException.class, () ->
+            controller.attachBaseWorksheet("tok", request, agent));
+         assertTrue(ex.getMessage().contains("Existing WS"));
+
+         verifyNoInteractions(rep);
+         verifyNoInteractions(viewsheetPropertyDialogService);
+         verify(vs, never()).setBaseEntry(any());
+         // The no-op refusal must never enter the checkpoint path -- a call that changes
+         // nothing must not create an undo step or broadcast a refresh.
+         verify(sessions, never()).mutate(any(), any(), any());
+      }
+   }
+
+   /**
+    * force:true on an already-based viewsheet must repoint (setBaseEntry then reloadBaseWorksheet,
+    * same order as the baseless path) and then repair existing assembly bindings via
+    * ViewsheetPropertyDialogService.updateBoundAssemblies -- a naive "just add force" patch that
+    * merely skips the refusal, without calling updateBoundAssemblies, would leave assemblies bound
+    * to fields/tables from the old source.
+    */
+   @Test
+   void attachBaseWorksheetRepointsWhenForced() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry existing = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Existing WS", null);
+      inetsoft.uql.asset.Worksheet oldWs = mock(inetsoft.uql.asset.Worksheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(existing);
+      when(vs.getBaseWorksheet()).thenReturn(oldWs);
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      ViewsheetSandbox sandbox = mock(ViewsheetSandbox.class);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
+
+      inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService viewsheetPropertyDialogService =
+         mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class), viewsheetPropertyDialogService);
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "New WS", null, null, null, null, true),
+         agent);
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      InOrder order = inOrder(vs, viewsheetPropertyDialogService, sandbox);
+      order.verify(vs).setBaseEntry(entryCaptor.capture());
+      order.verify(vs).reloadBaseWorksheet(eq(rep), eq(agent));
+      order.verify(viewsheetPropertyDialogService)
+         .updateBoundAssemblies(eq(existing), eq(oldWs), eq(vs));
+      order.verify(sandbox).resetRuntime();
+
+      assertEquals("New WS", entryCaptor.getValue().getPath());
+   }
+
+   /**
+    * A repoint that fails partway (reloadBaseWorksheet throws) must roll back to the viewsheet's
+    * ORIGINAL base entry, not null -- an unconditional null rollback (correct only for the
+    * baseless-attach case) would leave a previously-working viewsheet baseless.
+    */
+   @Test
+   void attachBaseWorksheetRepointRollsBackToOldEntryNotNullOnReloadFailure() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
 
       AssetEntry existing = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
          AssetEntry.Type.WORKSHEET, "Existing WS", null);
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getBaseEntry()).thenReturn(existing);
+      when(vs.getBaseWorksheet()).thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+      doThrow(new java.io.IOException("worksheet XML corrupt"))
+         .when(vs).reloadBaseWorksheet(any(), any());
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
-      AssetRepository rep = mock(AssetRepository.class);
       when(rvs.getAssetRepository()).thenReturn(rep);
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
+      inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService viewsheetPropertyDialogService =
+         mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class);
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
-         mock(SheetAgentBroadcastService.class));
+         mock(SheetAgentBroadcastService.class), viewsheetPropertyDialogService);
 
       PairingException ex = assertThrows(PairingException.class, () ->
          controller.attachBaseWorksheet("tok",
-            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest("Other WS", null),
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               "New WS", null, null, null, null, true),
             agent));
-      assertTrue(ex.getMessage().contains("Existing WS"));
+      assertTrue(ex.getMessage().contains("Failed to attach base worksheet"));
 
-      verifyNoInteractions(rep);
-      verify(vs, never()).setBaseEntry(any());
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(vs, times(2)).setBaseEntry(entryCaptor.capture());
+      assertEquals("New WS", entryCaptor.getAllValues().get(0).getPath());
+      // Rolled back to the ORIGINAL base, not null -- see javadoc above.
+      assertSame(existing, entryCaptor.getAllValues().get(1));
+      verifyNoInteractions(viewsheetPropertyDialogService);
+   }
+
+   /**
+    * setBaseEntry only restores wentry, not ws/originalWs/wnames -- if reloadBaseWorksheet already
+    * succeeded before updateBoundAssemblies throws, the rollback must also re-reload the OLD entry
+    * so the worksheet content matches the restored entry too, not just the wentry field.
+    */
+   @Test
+   void attachBaseWorksheetRepointRestoresOldWorksheetWhenUpdateBoundAssembliesFails()
+      throws Exception
+   {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      AssetEntry existing = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.WORKSHEET, "Existing WS", null);
+      inetsoft.uql.asset.Worksheet oldWs = mock(inetsoft.uql.asset.Worksheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(existing);
+      when(vs.getBaseWorksheet()).thenReturn(oldWs);
+
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
+
+      inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService viewsheetPropertyDialogService =
+         mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class);
+      doThrow(new RuntimeException("binding repair failed"))
+         .when(viewsheetPropertyDialogService)
+         .updateBoundAssemblies(any(), any(), any());
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class), viewsheetPropertyDialogService);
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         controller.attachBaseWorksheet("tok",
+            new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+               "New WS", null, null, null, null, true),
+            agent));
+      assertTrue(ex.getMessage().contains("Failed to attach base worksheet"));
+      assertFalse(ex.getMessage().contains("additionally failed to restore"));
+
+      ArgumentCaptor<AssetEntry> entryCaptor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(vs, times(2)).setBaseEntry(entryCaptor.capture());
+      assertEquals("New WS", entryCaptor.getAllValues().get(0).getPath());
+      assertSame(existing, entryCaptor.getAllValues().get(1));
+      // Repointed once, then restored to the OLD entry once -- the restore-reload is what actually
+      // repopulates ws/originalWs/wnames, since setBaseEntry alone only touches wentry.
+      verify(vs, times(2)).reloadBaseWorksheet(eq(rep), eq(agent));
    }
 
    @Test
@@ -1686,6 +2072,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1716,6 +2103,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1740,6 +2128,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1773,6 +2162,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1805,6 +2195,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1842,6 +2233,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1893,6 +2285,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1931,6 +2324,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -1968,6 +2362,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2028,6 +2423,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2069,6 +2465,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2094,6 +2491,7 @@ class ViewsheetAssemblyAgentControllerTest {
 
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
 
       ViewsheetAssemblyAgentController controller = controllerWith(sessions,
          mock(inetsoft.analytic.composition.ViewsheetService.class),
@@ -2105,6 +2503,44 @@ class ViewsheetAssemblyAgentControllerTest {
                "x", null, "query", null, null),
             agent));
       assertTrue(ex.getMessage().contains("worksheet"));
+   }
+
+   /**
+    * Follow-up to bug 76724: a successful attach/repoint must go through
+    * {@link ViewsheetSessionService#mutate} rather than {@link ViewsheetSessionService#resolve} for
+    * its write, so it gets a checkpoint (undo step) and the write-revision bump every other mutating
+    * endpoint on this controller gets -- {@code mutate}'s own {@code finally} block is what actually
+    * adds the checkpoint, so this test pins that {@code attachBaseWorksheet} reaches {@code mutate}
+    * at all (re-testing {@code mutate}'s own internals is out of scope here).
+    */
+   @Test
+   void attachBaseWorksheetChecksPointsSoItCanBeUndone() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getBaseEntry()).thenReturn(null);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rep.getSheet(any(), eq(agent), eq(true), eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(inetsoft.uql.asset.Worksheet.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(eq("tok"), eq(agent))).thenReturn(rvs);
+      wireMutate(sessions, rvs);
+
+      ViewsheetAssemblyAgentController controller = controllerWith(sessions,
+         mock(inetsoft.analytic.composition.ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      controller.attachBaseWorksheet("tok",
+         new ViewsheetAssemblyAgentController.AttachBaseWorksheetRequest(
+            "Sample Queries/customers", null),
+         agent);
+
+      verify(sessions).mutate(eq("tok"), eq(agent), any());
    }
 
    // ---------------------------------------------------------------------------
@@ -2273,6 +2709,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -2280,6 +2717,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -2287,7 +2726,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           layoutReadService, printDeviceLayoutPropertyService,
                                           layoutMutationService, layoutUndoService,
                                           mock(VSBookmarkService.class), mock(VSExportService.class),
-                                          mock(SecurityEngine.class));
+                                          mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    private static Principal principal() {
@@ -2405,6 +2845,59 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals(2, thrown.getRetryAfter());
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug 76765 (SSL-004) -- a ScriptException from a broken assembly script must not be
+   // swallowed behind WizControllerErrorHandler's generic 500.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void imageWrapsAScriptExceptionFromGetViewsheetImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getViewsheetImage(eq(rvs), any(), any(), any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: TotalRevenueText\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.image("tok", null, null, null, principal()));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
+   @Test
+   void imageWrapsAScriptExceptionFromGetAssemblyImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), any(), any(), any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: Chart1\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.image("tok", "Chart1", null, null, principal()));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
    /** Feature enabled, only {@code imageService} (and a fixed {@code sessions.resolve}) wired. */
    private static ViewsheetAssemblyAgentController controllerWith(
       SheetAgentFeature feature, ViewsheetSessionService sessions,
@@ -2422,6 +2915,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -2429,6 +2923,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -2437,7 +2933,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class),
-                                          mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    // ---------------------------------------------------------------------------
@@ -2803,6 +3300,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -2810,6 +3308,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -2818,7 +3318,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), vsBookmarkService,
-                                          mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    // ---------------------------------------------------------------------------
@@ -3065,6 +3566,72 @@ class ViewsheetAssemblyAgentControllerTest {
       verifyNoInteractions(exportService);
    }
 
+   @Test
+   void exportWrapsAScriptExceptionFromGetAssemblyImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), isNull(), isNull(),
+         any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: Chart1\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "PNG", "Chart1", null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+      verifyNoInteractions(exportService);
+   }
+
+   /**
+    * The whole-sheet branch (no {@code target}, any format) drives
+    * {@code exportService.exportViewsheet} directly -- a distinct exposure point from
+    * {@code getAssemblyImage}'s target+PNG branch above, both funneling into the same unguarded
+    * {@code AbstractVSExporter.prepareSheet()} script loop.
+    */
+   @Test
+   void exportWrapsAScriptExceptionFromExportViewsheetAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      doThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: TotalRevenueText\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"))
+         .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+            anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
+            any(ExportResponse.class), any(Principal.class));
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "PDF", null, null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
    /** Feature enabled, only {@code sessions}/{@code exportService}/{@code securityEngine}/
     *  {@code imageService} wired -- for the export() tests. */
    private static ViewsheetAssemblyAgentController controllerForExport(
@@ -3083,6 +3650,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -3090,6 +3658,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -3098,7 +3668,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), mock(VSBookmarkService.class),
-                                          exportService, securityEngine);
+                                          exportService, securityEngine,
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
 }

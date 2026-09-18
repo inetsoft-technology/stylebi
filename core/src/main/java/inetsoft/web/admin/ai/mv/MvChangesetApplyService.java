@@ -217,7 +217,13 @@ public class MvChangesetApplyService {
       }
 
       boolean noData = fc.source.getNoData() == null || fc.source.getNoData();
-      boolean background = fc.source.getRunInBackground() == null || fc.source.getRunInBackground();
+      // noData:true is documented (plugin/admin mvTools.ts) as "the fast, no-background-job path" --
+      // runInBackground only controls how a real materialization job runs, so it must not apply when
+      // there is no materialization job. Passing it through unconditionally sent the request's default
+      // (noData:true, runInBackground:true) down MVSupportService.createMV0's async remoteCreatePool
+      // dispatch, racing this method's own existsInOrg check below in any scheduler-less deployment.
+      boolean background = !noData &&
+         (fc.source.getRunInBackground() == null || fc.source.getRunInBackground());
       String exception = mvGateway.createMV(List.of(fc.mvName), mvStatusList, background, noData,
                                             user);
       boolean verified = exception == null && mvGateway.existsInOrg(fc.mvName, orgId);

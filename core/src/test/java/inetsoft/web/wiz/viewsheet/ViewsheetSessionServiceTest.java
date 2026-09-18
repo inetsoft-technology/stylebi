@@ -164,6 +164,53 @@ class ViewsheetSessionServiceTest {
    }
 
    /**
+    * Review finding on the join-time-stamp fix: {@link JoinSession#socketSessionId()} is frozen
+    * at pairing-mint time forever ({@code SheetSessionService.resolve()} copies the same value
+    * forward on every call, never re-derives it). If {@code mutate} reapplied this session's own
+    * frozen value unconditionally, it would silently UNDO a human's own later recovery -- a
+    * manual Composer Refresh unconditionally re-stamps the runtime's socket from a live
+    * dispatcher (see {@code CoreLifecycleService}/{@code VSLifecycleControllerService}), and the
+    * very next agent call on the same un-re-paired token would stomp that fresh value right back
+    * to the stale one this session has always carried. This is the exact scenario the
+    * unconditional-overwrite version of this fix regressed: confirmed here that a runtime's
+    * current (possibly human-healed) socket survives an agent mutation under a token whose own
+    * recorded socket differs. The join-time fix instead lives in
+    * {@code SheetJoinService.join} -- see {@code SheetJoinServiceTest}'s matching regression
+    * test for the case this method's fill-only-if-null guard is deliberately NOT responsible for.
+    */
+   @Test
+   void mutateNeverOvewritesTheRuntimesCurrentSocketSessionIdWithThisSessionsOwnFrozenValue()
+      throws Exception
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      // Simulates a human's manual Refresh having just healed the runtime to the browser's
+      // CURRENT live socket -- newer than anything this pairing token has ever recorded.
+      when(rvs.getSocketSessionId()).thenReturn("human-healed-live-socket");
+      when(rvs.getSocketUserName()).thenReturn("alice");
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      // This token's OWN socket, frozen at its mint -- stale relative to the runtime's current,
+      // human-healed value.
+      JoinSession s = new JoinSession("TOK", "Viewsheet/foo-7", "alice~;~host-org",
+                                      SheetType.VIEWSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED,
+                                      "stale-frozen-at-mint", "alice", null);
+      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.VIEWSHEET), eq("Viewsheet/foo-7"), eq(agent)))
+         .thenReturn(rvs);
+
+      ViewsheetSessionService svc = new ViewsheetSessionService(sessions, runtimeAccess, broadcast);
+      svc.mutate("TOK", agent, (r, runtimeId, dispatcher) -> {});
+
+      verify(rvs, never()).setSocketSessionId(any());
+   }
+
+   /**
     * {@code isSessionLive} is a bare passthrough to {@code SheetSessionService.isLive} -- no
     * owner/pane-scope check of its own -- for {@code LayoutSessionService}'s scheduled cleanup
     * sweep, which has no {@code Principal} and needs none: it is deciding whether to free a

@@ -152,6 +152,35 @@ class ProviderChangesetApplyServiceTest {
       assertEquals(SecurityProviderType.LDAP, authModels.get("ldap1").providerType());
    }
 
+   @Test void appliesADatabaseAuthenticationCreateBuildingTheModelFromDatabaseSpec() throws Exception {
+      // bug 76710/76716: the mocked authenticationProviderService never enforces the real license
+      // gate here (that gate lives inside the real addAuthenticationProvider, not this fake), so
+      // this test covers this area's own build/apply/verify plumbing for DATABASE, not the license
+      // check itself (which ProviderChangePlanServiceTest covers via requireProviderTypeLicensed).
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", databaseSpec());
+
+      var result = service.apply(applyRequest("create db1", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      DatabaseAuthenticationProviderModel dbModel = authModels.get("db1").dbProviderModel();
+      assertEquals(SecurityProviderType.DATABASE, authModels.get("db1").providerType());
+      assertEquals("com.mysql.cj.jdbc.Driver", dbModel.driver());
+      assertEquals("jdbc:mysql://db1.example.com:3306/security", dbModel.url());
+      assertEquals("svc_auth", dbModel.user());
+   }
+
+   @Test void rollbackOfADatabaseCreateDeletesTheProvider() throws Exception {
+      doThrow(new RuntimeException("boom"))
+         .when(authenticationProviderService).getAuthenticationProvider(eq("boom"));
+
+      var result = service.apply(applyRequest("create db1 then create boom",
+         createDatabase(ProviderChain.AUTHENTICATION, "db1", databaseSpec()),
+         createFile(ProviderChain.AUTHENTICATION, "boom")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertFalse(authChainNames.contains("db1")); // rolled back
+   }
+
    @Test void nChangePlanSpanningBothChainsAppliesAllAndReportsTwoOutcomes() throws Exception {
       var result = service.apply(applyRequest("create both",
          createFile(ProviderChain.AUTHENTICATION, "a1"), createFile(ProviderChain.AUTHORIZATION, "z1")),
@@ -254,6 +283,23 @@ class ProviderChangesetApplyServiceTest {
       // ORIGINAL position (index 0 is "keep") -- not appended, the way a rolled-back delete would be.
       assertEquals(1, authChainNames.indexOf("victim"));
       assertEquals("ldap.example.com", authModels.get("victim").ldapProviderModel().hostName());
+   }
+
+   @Test void appliesAnUpdateDatabaseAuthenticationProviderChangingOnlyOneFieldAndPreservesChainIndex()
+      throws Exception
+   {
+      seedDatabaseAuthentication("x", "victim", "y"); // victim at index 1, not the end
+      ProviderDatabaseSpec patch = new ProviderDatabaseSpec();
+      patch.setUrl("jdbc:mysql://rotated-host.example.com:3306/security");
+
+      var result = service.apply(applyRequest("update victim", updateAuthDatabase("victim", patch)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(List.of("x", "victim", "y"), authChainNames); // same index, not moved to the end
+      DatabaseAuthenticationProviderModel after = authModels.get("victim").dbProviderModel();
+      assertEquals("jdbc:mysql://rotated-host.example.com:3306/security", after.url());
+      assertEquals("com.mysql.cj.jdbc.Driver", after.driver()); // untouched field carried over unchanged
+      assertEquals("svc_auth", after.user()); // untouched field carried over unchanged
    }
 
    @Test void applyUpdateReRunsThePreflightFreshNotTrustedFromPreview() throws Exception {
@@ -622,6 +668,19 @@ class ProviderChangesetApplyServiceTest {
       }
    }
 
+   private void seedDatabaseAuthentication(String... names) {
+      for(String name : names) {
+         authChainNames.add(name);
+         authModels.put(name, AuthenticationProviderModel.builder()
+            .providerName(name).providerType(SecurityProviderType.DATABASE)
+            .dbProviderModel(DatabaseAuthenticationProviderModel.builder()
+               .driver("com.mysql.cj.jdbc.Driver").url("jdbc:mysql://db1.example.com:3306/security")
+               .hashAlgorithm("SHA-256").requiresLogin(true).useCredential(false)
+               .user("svc_auth").password("initial-password").build())
+            .build());
+      }
+   }
+
    private AuthenticationProvider sysAdminProvider(String name) {
       AuthenticationProvider p = mock(AuthenticationProvider.class);
       lenient().when(p.getProviderName()).thenReturn(name);
@@ -773,6 +832,37 @@ class ProviderChangesetApplyServiceTest {
       change.setChain("authentication");
       change.setName(name);
       change.setSpec(spec);
+      return change;
+   }
+
+   private static ProviderDatabaseSpec databaseSpec() {
+      ProviderDatabaseSpec spec = new ProviderDatabaseSpec();
+      spec.setDriver("com.mysql.cj.jdbc.Driver");
+      spec.setUrl("jdbc:mysql://db1.example.com:3306/security");
+      spec.setHashAlgorithm("SHA-256");
+      spec.setUser("svc_auth");
+      spec.setPassword("initial-password");
+      return spec;
+   }
+
+   private static ProviderChangeRequest createDatabase(ProviderChain chain, String name,
+                                                        ProviderDatabaseSpec spec)
+   {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("create");
+      change.setChain(chain.label());
+      change.setName(name);
+      change.setProviderType("DATABASE");
+      change.setDatabaseSpec(spec);
+      return change;
+   }
+
+   private static ProviderChangeRequest updateAuthDatabase(String name, ProviderDatabaseSpec spec) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("update");
+      change.setChain("authentication");
+      change.setName(name);
+      change.setDatabaseSpec(spec);
       return change;
    }
 

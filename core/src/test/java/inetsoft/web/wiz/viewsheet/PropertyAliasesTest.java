@@ -495,6 +495,28 @@ class PropertyAliasesTest {
    }
 
    /**
+    * {@code embedded}/{@code query} gate whether the static labels/values are ever used at
+    * render/bind time (Redmine #76699/VFO-016) -- previously reachable only via
+    * {@code get_assembly_properties(raw: true)}.
+    */
+   @Test
+   void exposesEmbeddedAndQueryForCheckboxComboboxAndRadioButton() {
+      for(String type : java.util.List.of("checkbox", "combobox", "radiobutton")) {
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("embedded"),
+                    type + " should expose 'embedded'");
+         assertTrue(PropertyAliases.forType(type).aliases().containsKey("query"),
+                    type + " should expose 'query'");
+      }
+
+      assertEquals("checkboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.embedded",
+                   PropertyAliases.resolve("checkbox", "embedded"));
+      assertEquals("comboboxGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.query",
+                   PropertyAliases.resolve("combobox", "query"));
+      assertEquals("radioButtonGeneralPaneModel.listValuesPaneModel.comboBoxEditorModel.embedded",
+                   PropertyAliases.resolve("radiobutton", "embedded"));
+   }
+
+   /**
     * Combobox alone has two distinct fields literally named {@code table}:
     * {@code selectionListEditorModel.table} (the dropdown's own choices query -- what "table"
     * means for every other list-input type too) and a completely separate top-level
@@ -540,6 +562,8 @@ class PropertyAliasesTest {
                    PropertyAliases.resolveForWrite("table", "insert"));
       assertEquals("crosstabAdvancedPaneModel.enableAdhoc",
                    PropertyAliases.resolveForWrite("crosstab", "enableAdhoc"));
+      assertEquals("tableViewGeneralPaneModel.tableStylePaneModel.tableStyle",
+                   PropertyAliases.resolveForWrite("calctable", "tableStyle"));
 
       inetsoft.web.composer.model.vs.TableViewPropertyDialogModel model =
          new inetsoft.web.composer.model.vs.TableViewPropertyDialogModel();
@@ -709,5 +733,41 @@ class PropertyAliasesTest {
                       "the 'enabled' alias must still resolve to, and stay writable at, the " +
                       "live field for " + entry.getKey());
       }
+   }
+
+   /**
+    * Bug #76771 (VCG-008): {@code hierarchyPropertyPaneModel.dimensions} is a
+    * {@code VSDimensionModel[]} that {@link PropertyPath#coerce} cannot build -- no bean-array
+    * branch exists at all -- so the raw dotted path, the only way in (the field is not
+    * registered as an alias anywhere), must be refused by name rather than left to the generic
+    * coercion error, on BOTH chart and crosstab: the field and the failure are identical on both.
+    */
+   @Test
+   void theHierarchyDimensionsFieldIsRefusedForWriteOnChartAndCrosstab() {
+      for(String assemblyType : java.util.List.of("chart", "crosstab")) {
+         for(String path : java.util.List.of(
+            "hierarchyPropertyPaneModel.dimensions",
+            "hierarchyPropertyPaneModel.dimensions.members"))
+         {
+            IllegalArgumentException thrown = assertThrows(
+               IllegalArgumentException.class,
+               () -> PropertyAliases.resolveForWrite(assemblyType, path),
+               assemblyType + "/" + path + " must be refused");
+            assertTrue(thrown.getMessage().contains("add_hierarchy_dimension"),
+                       "the refusal must point at the tool that works: " + thrown.getMessage());
+         }
+      }
+   }
+
+   /** The refusal is scoped to {@code dimensions}; sibling hierarchy-pane fields are untouched. */
+   @Test
+   void theHierarchyDimensionsRefusalDoesNotReachItsSiblingFields() {
+      assertDoesNotThrow(
+         () -> PropertyAliases.resolveForWrite("chart", "hierarchyPropertyPaneModel.columnList"));
+      assertDoesNotThrow(
+         () -> PropertyAliases.resolveForWrite("chart", "hierarchyPropertyPaneModel.cube"));
+      assertDoesNotThrow(
+         () -> PropertyAliases.resolveForWrite("crosstab",
+            "hierarchyPropertyPaneModel.grayedOutFields"));
    }
 }

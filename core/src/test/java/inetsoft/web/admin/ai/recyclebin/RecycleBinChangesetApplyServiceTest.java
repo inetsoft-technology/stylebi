@@ -48,6 +48,14 @@ import static org.mockito.Mockito.*;
  * mutating call. The fix threads a per-iteration {@code AtomicBoolean mutationEntered} through
  * {@code applyOne} -> {@code applyRestore}/{@code applyPurge}, gating {@code
  * unknownStateFailures.add(...)} on it.
+ *
+ * <p>Follow-up: that first fix set {@code mutationEntered} in {@code applyRestore} before
+ * dispatching into {@code RecycleUtils.restoreSheet}/{@code restoreWSFolder}/{@code
+ * restoreRepositoryFolder}, each of which opens with its OWN source lookup that throws strictly
+ * before that method's first mutating statement ({@code validatePath}/{@code
+ * checkParentFolderExist}, both of which already call {@code addFolder}). {@code applyRestore} now
+ * runs the same lookups first, via {@code RecycleBinService.requireRestorableSource}, and only then
+ * sets the flag.
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -254,6 +262,101 @@ class RecycleBinChangesetApplyServiceTest {
       assertNotNull(result.rollbackFailures());
       assertTrue(result.rollbackFailures().stream()
          .anyMatch(f -> f.property().endsWith("Recycle Bin/uuid3") &&
+                        f.error().contains("state unknown")));
+      verify(recycleBin, never()).removeEntry(anyString());
+   }
+
+   // -------------------------------------------------------------------------
+   // applyRestore: RecycleUtils' OWN pre-mutation lookups, now gated on via
+   // RecycleBinService.requireRestorableSource (bug #76672 follow-up)
+   // -------------------------------------------------------------------------
+
+   @Test void applyRestoreRollsBackCleanlyWhenTheSourceAssetVanishedBeforeAnyMutation()
+      throws Exception
+   {
+      RecycleBin.Entry entry = sheetEntry("Recycle Bin/uuid4", "folder1/ws3", "ws3");
+      String hash = hashFor("restore ws3", entry, false, restore("Recycle Bin/uuid4"));
+
+      when(recycleBinService.requireEntry("Recycle Bin/uuid4", user)).thenReturn(entry);
+      when(recycleBinService.wouldCollide(entry)).thenReturn(false);
+      // The concurrent-purge race: the trashed asset itself is gone by the time
+      // RecycleUtils.restoreSheet's own getSheetEntry lookup would have run -- strictly before
+      // validatePath, that method's first mutating statement.
+      doThrow(new MissingResourceException(
+         "path: the recycled asset at \"folder1/ws3\" could not be found"))
+         .when(recycleBinService).requireRestorableSource(entry, user);
+
+      RecycleBinApplyRequest req = applyRequest("restore ws3", hash, restore("Recycle Bin/uuid4"));
+      RecycleBinApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(recycleBin, never()).removeEntry(anyString());
+      verifyNoInteractions(assetRepository);
+   }
+
+   @Test void applyRestoreRepositoryFolderRollsBackCleanlyWhenThePrecheckThrowsBeforeAnyMutation()
+      throws Exception
+   {
+      RecycleBin.Entry entry = repositoryFolderEntry("Recycle Bin/uuid5", "dashboards/folder2",
+         "folder2");
+      String hash = hashFor("restore folder2", entry, false, restore("Recycle Bin/uuid5"));
+
+      when(recycleBinService.requireEntry("Recycle Bin/uuid5", user)).thenReturn(entry);
+      when(recycleBinService.wouldCollide(entry)).thenReturn(false);
+      // Mirrors RecycleUtils.restoreRepositoryFolder's opening getRegistry load, which precedes
+      // checkParentFolderExist -- the first statement there that mutates.
+      doThrow(new Exception("simulated registry load failure"))
+         .when(recycleBinService).requireRestorableSource(entry, user);
+
+      RecycleBinApplyRequest req = applyRequest("restore folder2", hash,
+                                                restore("Recycle Bin/uuid5"));
+      RecycleBinApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(recycleBin, never()).removeEntry(anyString());
+   }
+
+   // -------------------------------------------------------------------------
+   // correct-behavior guard: once the precheck passes, a throw out of the restore itself still
+   // forces STATUS_ROLLBACK_FAILED -- the gate was narrowed, not removed
+   // -------------------------------------------------------------------------
+
+   @Test void applyRestoreStillReportsRollbackFailedWhenRestoreSheetItselfThrows() throws Exception {
+      RecycleBin.Entry entry = sheetEntry("Recycle Bin/uuid6", "folder1/ws4", "ws4");
+      String hash = hashFor("restore ws4", entry, false, restore("Recycle Bin/uuid6"));
+
+      when(recycleBinService.requireEntry("Recycle Bin/uuid6", user)).thenReturn(entry);
+      when(recycleBinService.wouldCollide(entry)).thenReturn(false);
+      // requireRestorableSource passes (mock default no-op), so mutationEntered is set before the
+      // restore call below throws from somewhere at or past validatePath.
+      RecycleBinApplyRequest req = applyRequest("restore ws4", hash, restore("Recycle Bin/uuid6"));
+      RecycleBinApplyResult result;
+
+      try(MockedStatic<RecycleUtils> recycleUtils = mockStatic(RecycleUtils.class,
+         Answers.CALLS_REAL_METHODS))
+      {
+         recycleUtils.when(() -> RecycleUtils.restoreSheet(entry, false, user, recycleBin))
+            .thenThrow(new RuntimeException("simulated storage failure"));
+
+         try(MockedStatic<Audit> audit = mockAudit()) {
+            result = service.apply(req, user);
+         }
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertTrue(result.rollbackFailures().stream()
+         .anyMatch(f -> f.property().endsWith("Recycle Bin/uuid6") &&
                         f.error().contains("state unknown")));
       verify(recycleBin, never()).removeEntry(anyString());
    }

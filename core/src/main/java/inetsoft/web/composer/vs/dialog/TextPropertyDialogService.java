@@ -198,6 +198,16 @@ public class TextPropertyDialogService {
          rvs = engine.getViewsheet(runtimeId, principal);
          vs = rvs.getViewsheet();
          TextVSAssembly textAssembly = (TextVSAssembly) vs.getAssembly(objectId);
+
+         if(textAssembly == null) {
+            // objectId doesn't resolve -- e.g. a stale reference after the assembly was
+            // renamed or removed (same shape as Redmine #76759 VCG-001's chart write-side
+            // gap, ChartPropertyDialogService.setChartPropertyModel). Nothing to apply this
+            // patch to; degrade to a no-op rather than NPE on the next line. Mirrors this
+            // same class's own read-side null check in getTextPropertyDialogModel.
+            return null;
+         }
+
          textAssemblyInfo = (TextVSAssemblyInfo) Tool.clone(textAssembly.getVSAssemblyInfo());
       }
       catch(Exception e) {

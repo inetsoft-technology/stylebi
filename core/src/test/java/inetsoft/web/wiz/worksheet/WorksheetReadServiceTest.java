@@ -859,6 +859,7 @@ class WorksheetReadServiceTest {
 
       assertTrue(t.sources().isEmpty());
       assertNull(t.concatType());
+      assertNull(t.concatDistinct());
       assertNull(t.concatCompatible());
       assertNull(t.autoUpdate());
    }
@@ -878,6 +879,7 @@ class WorksheetReadServiceTest {
          .writeValueAsString(read(ws));
 
       assertFalse(json.contains("concatType"), json);
+      assertFalse(json.contains("concatDistinct"), json);
       assertFalse(json.contains("concatCompatible"), json);
       assertFalse(json.contains("autoUpdate"), json);
       assertFalse(json.contains("aggregates"), json);
@@ -946,6 +948,61 @@ class WorksheetReadServiceTest {
    }
 
    /**
+    * Mirrors {@link #concatenationReportsItsSubtablesInOrder} for the {@code concatDistinct} field:
+    * one value per adjacent pair, reported when every pair agrees.
+    */
+   @Test
+   void concatenationReportsConcatDistinctWhenPairsAgree() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      ws.addAssembly(concatWithDistinct(ws, "U", new boolean[]{ true, true }, a, b, c));
+
+      assertEquals(Boolean.TRUE, tableNamed(read(ws), "U").concatDistinct());
+   }
+
+   /**
+    * Unlike {@code concatType}, there is no {@code "MIXED"} sentinel for a boolean field --
+    * disagreement reads the same as "not present": {@code null}.
+    */
+   @Test
+   void concatenationReportsNullConcatDistinctWhenPairsDisagree() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      ws.addAssembly(concatWithDistinct(ws, "X", new boolean[]{ true, false }, a, b, c));
+
+      assertNull(tableNamed(read(ws), "X").concatDistinct());
+   }
+
+   /** One distinct flag per adjacent pair, so a mixed concatenation can be built. */
+   private static ConcatenatedTableAssembly concatWithDistinct(Worksheet ws, String name,
+                                                               boolean[] distinctFlags,
+                                                               TableAssembly... sources)
+   {
+      TableAssemblyOperator[] operators = new TableAssemblyOperator[sources.length - 1];
+
+      for(int i = 0; i < operators.length; i++) {
+         TableAssemblyOperator top = new TableAssemblyOperator();
+         TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setOperation(TableAssemblyOperator.UNION);
+         op.setDistinct(distinctFlags[i]);
+         top.addOperator(op);
+         operators[i] = top;
+      }
+
+      return new ConcatenatedTableAssembly(ws, name, sources, operators);
+   }
+
+   /**
     * Sources are combined by position, so a pair that lines up numerically but not by type produces
     * a column carrying two unrelated kinds of value. Composer computes exactly this predicate into
     * a non-blocking warning ({@code ConcatenatedTableAssemblyModel.concatenationWarning}); without
@@ -974,6 +1031,41 @@ class WorksheetReadServiceTest {
 
       assertEquals(Boolean.TRUE, tableNamed(m, "OK").concatCompatible());
       assertEquals(Boolean.FALSE, tableNamed(m, "BAD").concatCompatible());
+   }
+
+   /**
+    * {@code date} and {@code timeInstant} used to be folded into one "date bucket" by
+    * {@code AssetUtil.isMergeable}, so a concatenation pairing them read back as compatible even
+    * though a later source's time-of-day is silently lost through the concatenation's declared
+    * column type (there is no date-widening step the way {@code XSchema.mergeNumericType} widens
+    * numeric pairs). {@code concatCompatible} must report {@code FALSE} for such a pairing, while
+    * still reporting {@code TRUE} for a same-type pairing.
+    */
+   @Test
+   void concatenationReportsDateAndTimeInstantAsIncompatible() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ((ColumnRef) a.getColumnSelection(false).getAttribute("col"))
+         .setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      a.setColumnSelection(a.getColumnSelection(false), false);
+      ((ColumnRef) b.getColumnSelection(false).getAttribute("col"))
+         .setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      b.setColumnSelection(b.getColumnSelection(false), false);
+      ((ColumnRef) c.getColumnSelection(false).getAttribute("col"))
+         .setDataType(inetsoft.uql.schema.XSchema.DATE);
+      c.setColumnSelection(c.getColumnSelection(false), false);
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      ws.addAssembly(concat(ws, "SAME_TYPE", TableAssemblyOperator.UNION, a, b));
+      ws.addAssembly(concat(ws, "MIXED_TYPE", TableAssemblyOperator.UNION, a, c));
+
+      WorksheetModel m = read(ws);
+
+      assertEquals(Boolean.TRUE, tableNamed(m, "SAME_TYPE").concatCompatible());
+      assertEquals(Boolean.FALSE, tableNamed(m, "MIXED_TYPE").concatCompatible());
    }
 
    @Test
@@ -1302,5 +1394,150 @@ class WorksheetReadServiceTest {
       assertNull(ng.groupMappings().get(0).operation(),
          "a negated STARTING_WITH has no round-trippable operation string and must not be " +
             "reported as the plain positive one");
+   }
+
+   // Bug #76730 WBS-050: readJoins() skips any operator whose leftTable/rightTable is null,
+   // which is exactly what addCrossJoin()/addMergeJoin() left unset before that fix, so both
+   // join subtypes reported an empty joins list with no way to tell them apart. No change was
+   // needed in this class — op.getName() already distinguishes "CROSS_JOIN"/"MERGE_JOIN" — so
+   // these tests build the join assembly directly with the table names populated on the
+   // operator, matching what the fixed WorksheetEditService now produces.
+
+   @Test
+   void readJoinsReportsCrossJoinEdgeWithSubtype() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setLeftTable("A");
+      op.setRightTable("B");
+      op.setOperation(TableAssemblyOperator.CROSS_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+
+      RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+         ws, "CJ", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      ws.addAssembly(join);
+
+      WorksheetModel.TableModel tm = read(ws).tables().stream()
+         .filter(t -> "CJ".equals(t.name())).findFirst().orElseThrow();
+      assertEquals(1, tm.joins().size());
+      WorksheetModel.JoinModel jm = tm.joins().get(0);
+      assertEquals("A", jm.leftTable());
+      assertEquals("B", jm.rightTable());
+      assertNull(jm.leftKey());
+      assertNull(jm.rightKey());
+      assertEquals("CROSS_JOIN", jm.op());
+   }
+
+   @Test
+   void readJoinsReportsMergeJoinEdgeWithSubtype() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setLeftTable("A");
+      op.setRightTable("B");
+      op.setOperation(TableAssemblyOperator.MERGE_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+
+      MergeJoinTableAssembly join = new MergeJoinTableAssembly(
+         ws, "MJ", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      ws.addAssembly(join);
+
+      WorksheetModel.TableModel tm = read(ws).tables().stream()
+         .filter(t -> "MJ".equals(t.name())).findFirst().orElseThrow();
+      assertEquals(1, tm.joins().size());
+      WorksheetModel.JoinModel jm = tm.joins().get(0);
+      assertEquals("A", jm.leftTable());
+      assertEquals("B", jm.rightTable());
+      assertNull(jm.leftKey());
+      assertNull(jm.rightKey());
+      assertEquals("MERGE_JOIN", jm.op());
+   }
+
+   // Bug #76788 WBS-067: unlike WBS-050's addCrossJoin()/addMergeJoin() (the plugin's own
+   // join-creation paths, which do call setLeftTable/setRightTable), the native Composer UI's
+   // MergeJoinService/CrossJoinService never populate an Operator's own leftTable/rightTable
+   // fields -- they rely entirely on the assembly's operator map key, which the Operator object
+   // itself never sees. readJoins() silently dropped every such join. The fix falls back to the
+   // assembly's own getTableNames() only when both fields are null AND there are exactly 2
+   // source tables -- the only case where that positional guess cannot mismatch a non-adjacent
+   // edge (see bug-76788-WBS-067's diagnosis/refutation).
+
+   @Test
+   void readJoinsFallsBackToTableNamesForNativeUiMergeJoinWithNullOperatorFields() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      // Matches what MergeJoinService.concatenateTable actually builds: setOperation() only,
+      // leftTable/rightTable left null.
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.MERGE_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+
+      MergeJoinTableAssembly join = new MergeJoinTableAssembly(
+         ws, "MJ", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      ws.addAssembly(join);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "MJ");
+      assertEquals(1, tm.joins().size());
+      WorksheetModel.JoinModel jm = tm.joins().get(0);
+      assertEquals("A", jm.leftTable());
+      assertEquals("B", jm.rightTable());
+      assertEquals("MERGE_JOIN", jm.op());
+   }
+
+   @Test
+   void readJoinsReportsBothEdgesForThreeTableJoinWithNonAdjacentPairing() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+
+      // InnerJoinService always populates leftTable/rightTable on every Operator it builds, so
+      // both pairs here are fully populated -- this must pass identically before and after the
+      // fix, since canFallbackByPosition is false for a 3-source assembly.
+      RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+         ws, "J", new TableAssembly[]{ a, b, c },
+         new TableAssemblyOperator[]{
+            innerJoinOperator("A", "B"), innerJoinOperator("B", "C") });
+      // Table C is actually joined to A, not to B: re-key the second pair to (A, C), matching
+      // how InnerJoinService.concatenateTable can attach a new table to any existing table, not
+      // just the most-recently-added one.
+      join.removeOperator("B", "C");
+      join.setOperator("A", "C", innerJoinOperator("A", "C"));
+      ws.addAssembly(join);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "J");
+      assertEquals(2, tm.joins().size());
+      assertTrue(tm.joins().stream()
+         .anyMatch(j -> "A".equals(j.leftTable()) && "B".equals(j.rightTable())));
+      assertTrue(tm.joins().stream()
+         .anyMatch(j -> "A".equals(j.leftTable()) && "C".equals(j.rightTable())));
+   }
+
+   private static TableAssemblyOperator innerJoinOperator(String left, String right) {
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setLeftTable(left);
+      op.setRightTable(right);
+      op.setOperation(TableAssemblyOperator.INNER_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+      return top;
    }
 }

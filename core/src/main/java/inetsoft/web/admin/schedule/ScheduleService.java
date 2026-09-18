@@ -1828,6 +1828,16 @@ public class ScheduleService {
       }
    }
 
+   /**
+    * Reports whether the scheduler is reachable, without attempting a run/stop -- lets a caller
+    * (e.g. {@code AdminScheduleGateway}) distinguish "scheduler not running" from other failures
+    * up front instead of parsing the localized message {@link #runScheduledTask}/{@link
+    * #stopScheduledTask} throw for that same condition.
+    */
+   public boolean isSchedulerReady() {
+      return scheduleClient.isReady();
+   }
+
    public void runScheduledTask(String taskName, Principal principal)
       throws Exception
    {
@@ -1917,6 +1927,7 @@ public class ScheduleService {
    public void stopScheduledTask(String taskName, Principal principal)
       throws Exception
    {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       taskName = Tool.byteDecode(taskName);
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMsg = null;
@@ -1925,7 +1936,9 @@ public class ScheduleService {
          errorMsg = catalog.getString("em.scheduler.notStarted");
       }
       else {
-         ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+         // Org-qualified, matching runScheduledTask's lookup -- an unqualified lookup here would
+         // resolve against the calling thread's ambient org rather than principal's own (76687).
+         ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
 
          if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
             throw new SecurityException(String.format(

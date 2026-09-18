@@ -1435,6 +1435,23 @@ public class AssetUtil {
    }
 
    /**
+    * Like isMergeable, but for concatenation: the date bucket has no type-widening step the way
+    * the number bucket does (see ConcatenatedTableAssembly.getDefaultColumnSelection), so treating
+    * DATE and TIME_INSTANT as interchangeable there is unsound -- require an exact match instead.
+    *
+    * @param dtype1 the specified data type a.
+    * @param dtype2 the specified data type b.
+    * @return <tt>true</tt> if mergeable for concatenation, <tt>false</tt> otherwise.
+    */
+   public static boolean isMergeableForConcat(String dtype1, String dtype2) {
+      if(isDateType(dtype1) || isDateType(dtype2)) {
+         return dtype1.equals(dtype2);
+      }
+
+      return isMergeable(dtype1, dtype2);
+   }
+
+   /**
     * Check if is a string type.
     *
     * @param dtype the specified data type.

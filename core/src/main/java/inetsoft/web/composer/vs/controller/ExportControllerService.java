@@ -117,16 +117,23 @@ public class ExportControllerService {
       BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
       DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
 
-      writeViewsheetExport(rvs, out, principal, format, previewPrintLayout, print, match,
-                           expandSelections, current, bookmarks, onlyDataComponents,
-                           csvConfig, null, false, exportAllTabbedTables);
-      binaryTransferService.closeOutputStream(data, out);
-
-      String fileName = VSExportService.getViewsheetFileName(rvs.getEntry());
-      String suffix = VSExportService.getSuffix(format);
-      String mime = VSExportService.getMime(format);
+      // Bug #76576: guard the real export work with __EXPORTING__ so that
+      // ViewsheetEngine.closeViewsheet() (called below, and possibly by a concurrent request
+      // for the same runtime viewsheet) defers disposing this rvs via _CLOSE_AFTER_EXPORT_
+      // instead of closing it out from under an export still in the synchronized(rvs) block
+      // in writeViewsheetExport(), which otherwise NPEs on the now-null viewsheet.
+      rvs.setProperty("__EXPORTING__", "true");
 
       try {
+         writeViewsheetExport(rvs, out, principal, format, previewPrintLayout, print, match,
+                              expandSelections, current, bookmarks, onlyDataComponents,
+                              csvConfig, null, false, exportAllTabbedTables);
+         binaryTransferService.closeOutputStream(data, out);
+
+         String fileName = VSExportService.getViewsheetFileName(rvs.getEntry());
+         String suffix = VSExportService.getSuffix(format);
+         String mime = VSExportService.getMime(format);
+
          return new ViewsheetExportResult(data, fileName, mime, suffix, disposition);
       }
       catch(Exception ex) {
@@ -134,8 +141,10 @@ public class ExportControllerService {
          throw ex;
       }
       finally {
+         rvs.setProperty("__EXPORTING__", null);
+
          if(!previewPrintLayout && (matchesAssetIdFormat ||
-            rvs != null && "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_"))))
+            "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_"))))
          {
             viewsheetService.closeViewsheet(runtimeId, principal);
          }
@@ -269,7 +278,15 @@ public class ExportControllerService {
             }
             finally {
                rbox.get().setViewsheet(originalViewsheet, false);
+               // See VSExportService.writeViewsheetExport's identical fix (Redmine #76699
+               // VFO-017 mechanism 2): rvs.setViewsheet() unconditionally forces
+               // ViewsheetSandbox.resetRuntime(), clearing parametersApplied even though the
+               // sandbox-level setViewsheet() call directly above was deliberately passed
+               // resetRuntime=false. Left alone, the next input-assembly refresh would let
+               // applyParameterToInput() silently reapply a stale VariableTable snapshot over a
+               // selection change that already landed correctly -- same class of bug as #74220.
                rvs.setViewsheet(originalViewsheet);
+               rbox.get().markParametersApplied();
             }
          }
       }

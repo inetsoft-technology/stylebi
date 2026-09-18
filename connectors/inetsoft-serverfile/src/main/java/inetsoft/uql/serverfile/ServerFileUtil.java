@@ -393,6 +393,13 @@ public class ServerFileUtil {
       return filePath.endsWith(".xlsx") || filePath.endsWith(".xls");
    }
 
+   // Microsoft Office's own lock/temp-file naming convention (~$<original name>) -- created
+   // automatically by Word/Excel/PowerPoint whenever the real file is open elsewhere, and
+   // never real data.
+   public static boolean isOfficeLockFile(String filePath) {
+      return new File(filePath).getName().startsWith("~$");
+   }
+
    public static FileType getFileType(File file) {
       if(isText(file.getAbsolutePath())) {
          return FileType.TEXT;
@@ -412,6 +419,9 @@ public class ServerFileUtil {
 
          if(file.isDirectory()) {
             list.addAll(getFileList(file, type));
+         }
+         else if(isOfficeLockFile(path)) {
+            continue;
          }
          else if(type == FileType.TEXT && isText(path)) {
             list.add(file);

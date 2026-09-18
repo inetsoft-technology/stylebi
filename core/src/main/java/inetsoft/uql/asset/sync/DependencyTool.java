@@ -86,8 +86,8 @@ public class DependencyTool {
             return ScheduleManager.getScheduleManager().getDependentTasks(entryId, orgId);
          }
       }
-      catch(Exception ignored) {
-         // ignored
+      catch(Exception e) {
+         LOG.warn("Failed to get dependencies for {}", entryId, e);
       }
 
       return Collections.emptyList();

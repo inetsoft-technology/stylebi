@@ -21,6 +21,7 @@ package inetsoft.web.wiz.service;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.request.ExportDatabaseTableToCsvRequest;
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.lens.xnode.XNodeTableLens;
@@ -73,6 +74,58 @@ public class RawDataService {
       Assembly targetTable = null;
 
       for(Assembly assembly : sheet.getAssemblies()) {
+         if(assembly instanceof TableAssembly tableAssembly &&
+            Tool.equals(tableName, tableAssembly.getAbsoluteName()))
+         {
+            targetTable = tableAssembly;
+            break;
+         }
+      }
+
+      if(targetTable == null) {
+         throw new RuntimeException("Table " + tableName + " not found.");
+      }
+
+      TableLens lens;
+
+      try {
+         lens = box.getTableLens(targetTable.getAbsoluteName(), AssetQuerySandbox.RUNTIME_MODE);
+
+         if(lens == null) {
+            throw new RuntimeException("Table " + tableName + " produced no data.");
+         }
+
+         writeCsvContent(lens, outputStream);
+      }
+      catch(RuntimeException e) {
+         throw new RuntimeException(
+            "Failed to export worksheet table '" + tableName + "': " + e.getMessage(), e);
+      }
+   }
+
+   /**
+    * Streams a worksheet table's CURRENT LIVE data (including any unsaved edits made in this
+    * session) as CSV, keyed off an already-resolved {@link RuntimeWorksheet} rather than a
+    * persisted asset identifier. Unlike {@link #writeWorksheetTableCsvStream}, which reloads a
+    * persisted snapshot of the worksheet from the asset repository (so it cannot see edits made
+    * since the last save, and has no callable identifier at all for a never-saved worksheet),
+    * this reuses the live session's own {@link AssetQuerySandbox} via
+    * {@link RuntimeWorksheet#getAssetQuerySandbox()} -- the same sandbox
+    * {@code WorksheetPreviewService#preview} reads from.
+    */
+   public void writeLiveWorksheetTableCsvStream(RuntimeWorksheet rws, String tableName,
+                                                OutputStream outputStream)
+      throws Exception
+   {
+      AssetQuerySandbox box = rws.getAssetQuerySandbox();
+
+      if(box == null) {
+         throw new RuntimeException("Worksheet query sandbox is not available.");
+      }
+
+      Assembly targetTable = null;
+
+      for(Assembly assembly : rws.getWorksheet().getAssemblies()) {
          if(assembly instanceof TableAssembly tableAssembly &&
             Tool.equals(tableName, tableAssembly.getAbsoluteName()))
          {

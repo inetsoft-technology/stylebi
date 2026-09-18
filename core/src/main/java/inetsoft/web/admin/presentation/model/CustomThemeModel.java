@@ -44,6 +44,7 @@ public interface CustomThemeModel {
 //   @Nullable List<String> groups();
 //   @Nullable List<String> roles();
    @Nullable FileData jar();
+   @Nullable Boolean hasJar();
    @Nullable ThemeCssModel portalCss();
    @Nullable ThemeCssModel emCss();
 

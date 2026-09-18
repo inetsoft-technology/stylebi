@@ -243,6 +243,124 @@ class SelectionBindingServiceTest {
          eq("rt1"), eq("List1"), any(), eq(""), any(), any());
    }
 
+   // ── additionalTables resolution (regression for Bug #76747) ─────────────────
+
+   @Test
+   void resolvesAMixedCaseAdditionalTableToItsCanonicalName() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(new SelectionListPropertyDialogModel());
+
+      Map<String, Object> result = harness(assembly, listService, null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                   List.of("customers"), null, false, "");
+
+      ArgumentCaptor<SelectionListPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
+      verify(listService).setSelectionListPropertyModel(
+         eq("rt1"), eq("List1"), captor.capture(), eq(""), any(), any());
+      SelectionListPaneModel pane = captor.getValue().getSelectionListPaneModel();
+      assertEquals(List.of("CUSTOMERS"), pane.getAdditionalTables());
+      assertEquals("ORDERS", result.get("table"));
+   }
+
+   @Test
+   void refusesAnUnknownAdditionalTableNamingWhatIsAvailable() {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, mock(SelectionListPropertyDialogService.class), null, null, null)
+            .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"),
+                      List.of("NOPE"), null, false, ""));
+
+      assertTrue(thrown.getMessage().contains("List1"));
+      assertTrue(thrown.getMessage().contains("NOPE"));
+      assertTrue(thrown.getMessage().contains("ORDERS"));
+   }
+
+   // ── Logical Model column resolution (regression for Bug #76700) ────────────
+
+   /**
+    * {@code SelectionListPaneModel.selectedColumn} used to be built by splitting a folded
+    * Logical-Model column ({@code "Customer:Region"}) into {@code entity}/{@code attribute}. But
+    * the property dialog's own read-back tree ({@code getSelectionTablesTree}) represents that
+    * same column with {@code entity} left {@code null} and the whole compound string as
+    * {@code attribute} — the shape every logical-model column entry uses server-side. The
+    * mismatch meant the read-back match ({@code SelectionDialogService.
+    * findSelectedOutputColumnRefModel}) never found the column back, so {@code selectedColumn}
+    * read back {@code null} and the rendered list stayed empty on every affected assembly (Bug
+    * #76700 / VFL-001, confirmed live against Examples/Orders' "Order Model").
+    */
+   @Test
+   void doesNotSplitAFoldedLogicalModelColumnIntoEntityAndAttribute() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(new SelectionListPropertyDialogModel());
+
+      BindableTable orderModel = new BindableTable("Order Model", null, List.of(
+         new BindableField("Customer:Region", "string", "dimension")));
+      BindableFieldsService fieldsService = mock(BindableFieldsService.class);
+      when(fieldsService.list(eq("rt1"), isNull(), any())).thenReturn(List.of(orderModel));
+
+      SelectionBindingService service = new SelectionBindingService(
+         sessionsFor(assembly), fieldsService, listService,
+         mock(SelectionTreePropertyDialogService.class), mock(RangeSliderPropertyDialogService.class),
+         mock(CalendarPropertyDialogService.class));
+
+      service.setSource("tok", principal(), "List1", "Order Model", List.of("Customer:Region"),
+                        null, null, false, "");
+
+      ArgumentCaptor<SelectionListPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
+      verify(listService).setSelectionListPropertyModel(
+         eq("rt1"), eq("List1"), captor.capture(), eq(""), any(), any());
+      OutputColumnRefModel selectedColumn =
+         captor.getValue().getSelectionListPaneModel().getSelectedColumn();
+      assertNull(selectedColumn.getEntity(),
+         "entity must stay null, matching the read-back tree's own shape for a logical-model " +
+         "column");
+      assertEquals("Customer:Region", selectedColumn.getAttribute(),
+         "the whole compound column name is the attribute — splitting it broke the read-back " +
+         "match");
+   }
+
+   /** Same fix, exercised through {@code columnRefs()} — the array form a selection tree uses. */
+   @Test
+   void doesNotSplitFoldedLogicalModelColumnsOnASelectionTree() throws Exception {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(new SelectionTreePropertyDialogModel());
+
+      BindableTable orderModel = new BindableTable("Order Model", null, List.of(
+         new BindableField("Customer:Region", "string", "dimension"),
+         new BindableField("Customer:City", "string", "dimension")));
+      BindableFieldsService fieldsService = mock(BindableFieldsService.class);
+      when(fieldsService.list(eq("rt1"), isNull(), any())).thenReturn(List.of(orderModel));
+
+      SelectionBindingService service = new SelectionBindingService(
+         sessionsFor(assembly), fieldsService, mock(SelectionListPropertyDialogService.class),
+         treeService, mock(RangeSliderPropertyDialogService.class),
+         mock(CalendarPropertyDialogService.class));
+
+      service.setSource("tok", principal(), "Tree1", "Order Model",
+                        List.of("Customer:Region", "Customer:City"), null, null, false, "");
+
+      ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionTreePropertyDialogModel.class);
+      verify(treeService).setSelectionTreePropertyModel(
+         eq("rt1"), eq("Tree1"), captor.capture(), eq(""), any(), any());
+      OutputColumnRefModel[] levels =
+         captor.getValue().getSelectionTreePaneModel().getSelectedColumns();
+      assertEquals(2, levels.length);
+      assertNull(levels[0].getEntity());
+      assertEquals("Customer:Region", levels[0].getAttribute());
+      assertNull(levels[1].getEntity());
+      assertEquals("Customer:City", levels[1].getAttribute());
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static SelectionBindingService harness(VSAssembly assembly,

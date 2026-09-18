@@ -106,6 +106,14 @@ class LicenseChangesetApplyServiceTest {
          installed.removeIf(l -> Objects.equals(l.key(), key));
          return null;
       }).when(licenseKeySettingsService).removeServerKey(anyString());
+
+      lenient().doAnswer(inv -> {
+         String oldKey = inv.getArgument(0);
+         String newKey = inv.getArgument(1);
+         installed.removeIf(l -> Objects.equals(l.key(), oldKey));
+         installed.add(licenseManager.parseLicense(newKey));
+         return null;
+      }).when(licenseKeySettingsService).replaceServerKey(anyString(), anyString());
    }
 
    @AfterEach
@@ -132,6 +140,14 @@ class LicenseChangesetApplyServiceTest {
       LicenseChangeRequest r = new LicenseChangeRequest();
       r.setVerb(LicenseChangeRequest.VERB_REMOVE);
       r.setKey(key);
+      return r;
+   }
+
+   private static LicenseChangeRequest update(String oldKey, String newKey) {
+      LicenseChangeRequest r = new LicenseChangeRequest();
+      r.setVerb(LicenseChangeRequest.VERB_UPDATE);
+      r.setKey(oldKey);
+      r.setNewKey(newKey);
       return r;
    }
 
@@ -329,6 +345,162 @@ class LicenseChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertTrue(installed.stream().noneMatch(l -> "K1".equals(l.key())));
       assertTrue(installed.stream().anyMatch(l -> "K2".equals(l.key())));
+   }
+
+   // -------------------------------------------------------------------------
+   // update (Redmine #76694)
+   // -------------------------------------------------------------------------
+
+   @Test void appliesAnUpdateAndReportsApplied() throws Exception {
+      installed.add(valid("K1"));
+      when(licenseManager.parseLicense("K2")).thenReturn(valid("K2"));
+      String hash = planService.resolve(request("task", List.of(update("K1", "K2")))).planHash();
+      LicenseApplyRequest req = applyRequest("task", hash, "looks good", null, update("K1", "K2"));
+      LicenseApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      assertEquals(1, result.results().size());
+      assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+      assertEquals("K1", result.results().get(0).property());
+      assertTrue(installed.stream().noneMatch(l -> "K1".equals(l.key())));
+      assertTrue(installed.stream().anyMatch(l -> "K2".equals(l.key())));
+      verify(licenseKeySettingsService).replaceServerKey("K1", "K2");
+      verify(licenseKeySettingsService, never()).addServerKey(anyString());
+      verify(licenseKeySettingsService, never()).removeServerKey(anyString());
+   }
+
+   /** Round-1 review finding 1: {@code applyOne} was passing the raw, untrimmed request field
+    * ({@code original.getNewKey()}) straight to {@code applyUpdate} instead of the trimmed value
+    * both the preview-time hash and the apply-time fresh re-resolve validate against. A
+    * whitespace-padded {@code newKey} must still resolve/apply against the trimmed key -- if the
+    * raw value leaked through, {@code parseLicense} would be called with the padded string, which
+    * is unstubbed here and would NPE on the default mock return. */
+   @Test void appliesAnUpdateTrimmingWhitespaceFromNewKeyAtApplyTime() throws Exception {
+      installed.add(valid("K1"));
+      when(licenseManager.parseLicense("K2")).thenReturn(valid("K2"));
+      String hash = planService.resolve(request("task", List.of(update("K1", "K2")))).planHash();
+      LicenseApplyRequest req = applyRequest(
+         "task", hash, "looks good", null, update("K1", "  K2\n"));
+      LicenseApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(licenseKeySettingsService).replaceServerKey("K1", "K2");
+      assertTrue(installed.stream().anyMatch(l -> "K2".equals(l.key())));
+      assertTrue(installed.stream().noneMatch(l -> "K1".equals(l.key())));
+   }
+
+   /** Round-1 review finding 2, UPDATE-verb variant of
+    * {@code midApplyFailureRollsBackThePreviouslyAppliedAddButReportsRollbackFailedForTheUnknownState}:
+    * the throw is injected AT {@code update}'s own mutating call ({@code replaceServerKey}, after
+    * {@code mutationEntered} is set), so this item's own state must be classified "unknown" and
+    * force {@code rollback-failed} even though the earlier {@code add}'s own rollback succeeds
+    * cleanly. */
+   @Test void midApplyFailureAtUpdatesOwnMutatingCallReportsRollbackFailedForTheUnknownState()
+      throws Exception
+   {
+      installed.add(valid("K1"));
+      when(licenseManager.parseLicense("K3")).thenReturn(valid("K3"));
+      when(licenseManager.parseLicense("K2")).thenReturn(valid("K2"));
+      String hash = planService.resolve(
+         request("task", List.of(add("K3"), update("K1", "K2")))).planHash();
+      doThrow(new RuntimeException("simulated failure replacing K1 with K2"))
+         .when(licenseKeySettingsService).replaceServerKey("K1", "K2");
+
+      LicenseApplyRequest req = applyRequest("task", hash, "looks good", null,
+                                             add("K3"), update("K1", "K2"));
+      LicenseApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertTrue(result.rollbackFailures().stream()
+         .anyMatch(f -> "K1".equals(f.property()) && f.error().contains("state unknown")));
+      // K3's own add was rolled back cleanly even though the overall status is rollback-failed.
+      assertTrue(installed.stream().anyMatch(l -> "K1".equals(l.key())));
+      assertTrue(installed.stream().noneMatch(l -> "K3".equals(l.key())));
+      assertTrue(installed.stream().noneMatch(l -> "K2".equals(l.key())));
+      verify(licenseKeySettingsService).replaceServerKey("K1", "K2");
+      verify(licenseKeySettingsService).removeServerKey("K3");
+   }
+
+   /** Round-1 review finding 2, UPDATE-verb variant of
+    * {@code unknownStateBeforeMutationDoesNotForceRollbackFailedWhenRollbackIsClean}: the throw is
+    * injected via {@code parseLicense("K2")}'s own re-verification call inside {@code applyUpdate}
+    * (strictly before {@code mutationEntered} is set), so unlike the previous test, this must NOT
+    * by itself force {@code rollback-failed} when the earlier {@code add}'s own rollback is
+    * independently verified clean. */
+   @Test void unknownStateBeforeUpdatesOwnMutatingCallDoesNotForceRollbackFailedWhenRollbackIsClean()
+      throws Exception
+   {
+      installed.add(valid("K1"));
+      when(licenseManager.parseLicense("K3")).thenReturn(valid("K3"));
+      when(licenseManager.parseLicense("K2"))
+         .thenReturn(valid("K2"))
+         .thenReturn(valid("K2"))
+         .thenThrow(new RuntimeException("simulated resolve failure for K2"));
+      String hash = planService.resolve(
+         request("task", List.of(add("K3"), update("K1", "K2")))).planHash();
+
+      LicenseApplyRequest req = applyRequest("task", hash, "looks good", null,
+                                             add("K3"), update("K1", "K2"));
+      LicenseApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(licenseKeySettingsService, never()).replaceServerKey(anyString(), anyString());
+      verify(licenseKeySettingsService).addServerKey("K3");
+      verify(licenseKeySettingsService).removeServerKey("K3");
+      assertTrue(installed.stream().anyMatch(l -> "K1".equals(l.key())));
+      assertTrue(installed.stream().noneMatch(l -> "K3".equals(l.key())));
+   }
+
+   /** Undo of update is update-back, exact, via the same atomic primitive -- unlike a plain
+    * remove's own rollback, there is no claiming-node-drift advisory to carry. */
+   @Test void rollbackOfUpdateRevertsViaReplaceServerKeyWithNoAdvisory() throws Exception {
+      installed.add(valid("K1"));
+      // K1's rollback (replaceServerKey("K2", "K1")) re-parses "K1" via the mocked
+      // replaceServerKey answer, mirroring rollbackOfRemoveCarriesClaimingNodeDriftAdvisory's own
+      // precedent of stubbing the rollback-time re-parse rather than leaving it a Mockito default
+      // null.
+      when(licenseManager.parseLicense("K1")).thenReturn(valid("K1"));
+      when(licenseManager.parseLicense("K2")).thenReturn(valid("K2"));
+      when(licenseManager.parseLicense("K3")).thenReturn(valid("K3"));
+      String hash = planService.resolve(
+         request("task", List.of(update("K1", "K2"), add("K3")))).planHash();
+      doThrow(new RuntimeException("simulated failure adding K3"))
+         .when(licenseKeySettingsService).addServerKey("K3");
+
+      LicenseApplyRequest req = applyRequest("task", hash, "looks good", null,
+                                             update("K1", "K2"), add("K3"));
+      LicenseApplyResult result;
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         result = service.apply(req, user);
+      }
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      verify(licenseKeySettingsService).replaceServerKey("K2", "K1");
+      assertTrue(installed.stream().anyMatch(l -> "K1".equals(l.key())));
+      assertTrue(installed.stream().noneMatch(l -> "K2".equals(l.key())));
+
+      LicenseApplyOutcome k1Outcome = result.results().stream()
+         .filter(o -> "K1".equals(o.property())).findFirst().orElseThrow();
+      assertNull(k1Outcome.advisory());
    }
 
    // -------------------------------------------------------------------------

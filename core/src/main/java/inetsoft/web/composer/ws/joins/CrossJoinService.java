@@ -211,6 +211,8 @@ public class CrossJoinService extends WorksheetControllerService {
       RelationalJoinTableAssembly jointbl;
       boolean newtbl = false;
 
+      op.setLeftTable(fromName);
+      op.setRightTable(toName);
       op.setOperation(TableAssemblyOperator.CROSS_JOIN);
       operator.addOperator(op);
 
@@ -239,12 +241,16 @@ public class CrossJoinService extends WorksheetControllerService {
          if(jointbl == from) {
             System.arraycopy(arr, 0, narr, 0, arr.length);
             narr[arr.length] = (TableAssembly) to;
+            op.setLeftTable(narr[narr.length - 2].getName());
+            op.setRightTable(narr[narr.length - 1].getName());
             jointbl.setOperator(narr[narr.length - 2].getName(),
                                 narr[narr.length - 1].getName(), operator);
          }
          else {
             System.arraycopy(arr, 0, narr, 1, arr.length);
             narr[0] = (TableAssembly) from;
+            op.setLeftTable(narr[0].getName());
+            op.setRightTable(narr[1].getName());
             jointbl.setOperator(narr[0].getName(), narr[1].getName(),
                                 operator);
          }

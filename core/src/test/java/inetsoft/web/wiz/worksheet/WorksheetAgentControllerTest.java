@@ -18,12 +18,17 @@
 package inetsoft.web.wiz.worksheet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletResponse;
 import inetsoft.web.WebConfig;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.BoundQuery;
 import inetsoft.uql.VariableTable;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
@@ -55,6 +60,7 @@ import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.web.wiz.model.DatabaseTableMeta;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.tabular.RestParameter;
 import inetsoft.uql.tabular.TabularDataSource;
@@ -72,6 +78,7 @@ import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.FakeCustomRestQuery;
 import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
 import inetsoft.web.wiz.service.MetadataApiService;
+import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
@@ -90,15 +97,20 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -197,7 +209,8 @@ class WorksheetAgentControllerTest {
                                           renameTransformHandler,
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code dependents} test control the
@@ -223,7 +236,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code refresh_data} test observe/stub the
@@ -250,7 +264,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           assetDataCache,
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code preview} test control the
@@ -276,7 +291,35 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
+   }
+
+   /** Like the 6-arg {@code controller}, but lets an {@code export} (worksheet table CSV export)
+    *  test control the {@link RawDataService} instead of getting an unstubbed mock. */
+   private static WorksheetAgentController controller(SheetAgentFeature feature,
+                                                       SheetJoinService join,
+                                                       SheetSessionService sessions,
+                                                       WorksheetReadService read,
+                                                       WorksheetEditService edit,
+                                                       WorksheetService ws,
+                                                       RawDataService rawDataService)
+   {
+      return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
+                                          mock(WorksheetPreviewService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(inetsoft.uql.XRepository.class),
+                                          mock(inetsoft.uql.asset.AssetRepository.class),
+                                          mock(inetsoft.web.wiz.service.MetadataApiService.class),
+                                          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+                                          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
+                                          mock(inetsoft.sree.security.SecurityEngine.class),
+                                          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class),
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          rawDataService);
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code condition/date-ranges} test control
@@ -303,7 +346,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          dialogServiceProxy);
+                                          dialogServiceProxy,
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    private static SheetAgentFeature featureOn() {
@@ -340,7 +384,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
-         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /**
@@ -826,6 +871,272 @@ class WorksheetAgentControllerTest {
 
       assertEquals(expected, result);
       verify(previewSvc).preview(rws, "T", 200, 50);
+   }
+
+   /**
+    * WBS-059 part 2 (live-JVM-debugger-confirmed): {@code preview_worksheet_data} must warn when
+    * the previewed table's own query references a variable that IS declared but has no explicit
+    * session value yet -- because {@code JDBCHandler.execute}'s call into
+    * {@code XUtil.validateConditions}/{@code removeNoParamConditions} silently drops the whole
+    * condition using that variable ({@code usql.setWhere(null)}), not merely leaves it
+    * unfiltered. Before this fix, {@code preview}'s response had no signal of this at all
+    * ({@code warnings: []}), even though the rows returned were NOT filtered by that condition.
+    */
+   @Test
+   void previewWarnsWhenReferencedVariableHasNoSessionValueYet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "declaredVar");
+      ws.addAssembly(declaredVar);
+
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn("T");
+      when(table.getAssemblyType()).thenReturn(AbstractSheet.TABLE_ASSET);
+      when(table.isVisible()).thenReturn(true);
+      when(table.getAllVariables())
+         .thenReturn(new UserVariable[]{new UserVariable("declaredVar")});
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      WorksheetPreviewService.PreviewResult unfiltered =
+         new WorksheetPreviewService.PreviewResult(
+            List.of(Map.of("x", "unfiltered-row")), List.of());
+      when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(unfiltered);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      VariableAssemblyModelInfo needsValue = new VariableAssemblyModelInfo();
+      needsValue.setName("declaredVar");
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(List.of(needsValue))
+         .build();
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 0, 50, agent);
+
+         assertEquals(unfiltered.rows(), result.rows());
+         assertEquals(1, result.warnings().size());
+         assertTrue(result.warnings().get(0).contains("declaredVar"),
+            "warning must name the specific variable: " + result.warnings());
+      }
+   }
+
+   /**
+    * Positive-case counterpart: once {@code set_variable_values} has given "declaredVar" a
+    * session value, {@code WSCollectVariablesCommand.varInfos()} no longer lists it (the whole
+    * point of {@code AssetQuerySandbox.getAllVariables}'s "still needs a value" filter) -- so no
+    * dropped-condition warning should be added.
+    */
+   @Test
+   void previewDoesNotWarnWhenVariableAlreadyHasSessionValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "declaredVar");
+      ws.addAssembly(declaredVar);
+
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn("T");
+      when(table.getAssemblyType()).thenReturn(AbstractSheet.TABLE_ASSET);
+      when(table.isVisible()).thenReturn(true);
+      when(table.getAllVariables())
+         .thenReturn(new UserVariable[]{new UserVariable("declaredVar")});
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      WorksheetPreviewService.PreviewResult filtered =
+         new WorksheetPreviewService.PreviewResult(
+            List.of(Map.of("x", "filtered-row")), List.of());
+      when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(filtered);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      // No pending "needs a value" entries at all -- refreshVariables returns null exactly like
+      // WorksheetEventUtil.refreshVariables does once every referenced variable already has an
+      // explicit session value (WorksheetEventUtil.java:150-153).
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(null);
+
+         WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 0, 50, agent);
+
+         assertEquals(filtered, result);
+      }
+   }
+
+   /**
+    * A variable can be "declared but no session value yet" for a DIFFERENT table in the same
+    * worksheet without affecting this preview -- the warning must only fire for variables the
+    * PREVIEWED table itself references, not every such variable anywhere in the worksheet.
+    */
+   @Test
+   void previewDoesNotWarnAboutAnUnrelatedTablesVariable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "otherTableVar");
+      ws.addAssembly(declaredVar);
+
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn("T");
+      when(table.getAssemblyType()).thenReturn(AbstractSheet.TABLE_ASSET);
+      when(table.isVisible()).thenReturn(true);
+      when(table.getAllVariables()).thenReturn(new UserVariable[0]);
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      WorksheetPreviewService.PreviewResult unrelated =
+         new WorksheetPreviewService.PreviewResult(
+            List.of(Map.of("x", "row")), List.of());
+      when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(unrelated);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      VariableAssemblyModelInfo needsValue = new VariableAssemblyModelInfo();
+      needsValue.setName("otherTableVar");
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(List.of(needsValue))
+         .build();
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 0, 50, agent);
+
+         assertEquals(unrelated, result);
+      }
+   }
+
+   // ---------------------------------------------------------------------------
+   // export (WBS-057) -- exports a worksheet table's CURRENT LIVE data (including any unsaved
+   // edits made in this session) as a downloadable CSV file, streamed directly to a mocked
+   // HttpServletResponse. Mirrors ViewsheetAssemblyAgentControllerTest's own
+   // capturingOutputStream/mockServletResponse helpers for the same direct-servlet-write pattern.
+   // ---------------------------------------------------------------------------
+
+   /** A ServletOutputStream backed by a plain ByteArrayOutputStream so tests can capture what
+    *  the controller writes -- mirrors ViewsheetAssemblyAgentControllerTest's own helper of the
+    *  same shape, for the same direct-servlet-write pattern. */
+   private static ServletOutputStream capturingOutputStream(ByteArrayOutputStream sink) {
+      return new ServletOutputStream() {
+         @Override
+         public boolean isReady() {
+            return true;
+         }
+
+         @Override
+         public void setWriteListener(WriteListener writeListener) {
+         }
+
+         @Override
+         public void write(int b) {
+            sink.write(b);
+         }
+      };
+   }
+
+   private static HttpServletResponse mockServletResponse(ByteArrayOutputStream written) throws Exception {
+      HttpServletResponse response = mock(HttpServletResponse.class);
+      when(response.getOutputStream()).thenReturn(capturingOutputStream(written));
+      return response;
+   }
+
+   @Test
+   void exportTableStreamsLiveWorksheetTableCsvToTheResponse() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      RawDataService rawDataService = mock(RawDataService.class);
+      byte[] fakeCsv = "a,b\n1,2\n".getBytes(StandardCharsets.UTF_8);
+      doAnswer(invocation -> {
+         OutputStream out = invocation.getArgument(2);
+         out.write(fakeCsv);
+         return null;
+      }).when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         rawDataService);
+
+      ByteArrayOutputStream written = new ByteArrayOutputStream();
+      HttpServletResponse servletResponse = mockServletResponse(written);
+
+      ctrl.exportTable("TOK", "T", agent, servletResponse);
+
+      verify(servletResponse).setContentType("text/csv");
+      verify(servletResponse).setHeader(eq("Content-Disposition"), contains("T.csv"));
+      verify(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+      assertArrayEquals(fakeCsv, written.toByteArray());
+   }
+
+   /**
+    * A table name absent from the live worksheet must fail loudly (the same
+    * {@code RawDataService} error, naming the table) rather than silently produce an empty or
+    * wrong file -- mirroring {@code preview_worksheet_data}'s own "Table not found" failure shape.
+    */
+   @Test
+   void exportTableFailsLoudlyWhenTableNotFound() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      RawDataService rawDataService = mock(RawDataService.class);
+      doThrow(new RuntimeException("Table missing not found."))
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("missing"), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         rawDataService);
+
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> ctrl.exportTable("TOK", "missing", agent, servletResponse));
+      assertTrue(ex.getMessage().contains("missing"));
    }
 
    // ---------------------------------------------------------------------------
@@ -1399,8 +1710,14 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      assertThrows(RenderNotReadyException.class,
-         () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+      // clearBoundQueryCache (bug #76711 round 2) reaches AssetQuery.createAssetQuery, which
+      // needs live Spring beans (XRepository/XSessionManager) this lightweight test context
+      // doesn't wire -- mock it away to a no-op default (null, not a BoundQuery) since this test
+      // isn't about that mechanism.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD", refreshDataRequest("Crosstab1"), agent));
+      }
    }
 
    /** A table whose data is already warm (or warms within the bound) refreshes normally. */
@@ -1435,7 +1752,10 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
+      // See the sibling "Slow" test above for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD2", refreshDataRequest("Crosstab1"), agent);
+      }
 
       verify(box, atLeastOnce()).refreshColumnSelection(eq("Crosstab1"), anyBoolean());
    }
@@ -1479,9 +1799,269 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
 
-      ctrl.edit("TOK-RD3", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD3", refreshDataRequest("Table1"), agent);
+      }
 
-      verify(assetDataCache).remove(any());
+      // Bug #76711 round 4 also clears the RUNTIME_MODE slot for this DESIGN_MODE table (see
+      // refreshDataAlsoInvalidatesTheRuntimeModeSlotForADesignModeTable), so this is now 2 calls.
+      verify(assetDataCache, atLeastOnce()).remove(any());
+   }
+
+   /**
+    * Bug #76711 round 4: for an ordinary table (not runtime, not live-data -- the state an
+    * {@code add_table}'d table is left in, per {@code WorksheetEventUtil.getMode}), refreshData's
+    * own computed {@code mode} is DESIGN_MODE, but every real reader of this table's data
+    * (preview_worksheet_data's WorksheetPreviewService, RawDataService, WorksheetTableService)
+    * always reads under a hardcoded RUNTIME_MODE. Round 3's fix only invalidated the DESIGN_MODE
+    * slot in AssetQuerySandbox.tmap/AssetDataCache, leaving RUNTIME_MODE's slot stale forever.
+    * This test would FAIL against round 3's code, which calls resetTableLens/assetDataCache.remove
+    * exactly once, for DESIGN_MODE only.
+    */
+   @Test
+   void refreshDataAlsoInvalidatesTheRuntimeModeSlotForADesignModeTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD10"), any())).thenReturn(session("TOK-RD10"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      inetsoft.report.composition.execution.AssetDataCache assetDataCache =
+         mock(inetsoft.report.composition.execution.AssetDataCache.class);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetDataCache);
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD10", refreshDataRequest("Table1"), agent);
+      }
+
+      verify(box).resetTableLens("Table1", AssetQuerySandbox.DESIGN_MODE);
+      verify(box).resetTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+      verify(assetDataCache, times(2)).remove(any());
+   }
+
+   /**
+    * Bug #76711 round 5: XSessionManager.dataCache's key includes the query's own
+    * maxrows/timeout, so a reload executed WITH the row-cap hint present writes into a
+    * different cache entry than the one RUNTIME_MODE readers (preview_worksheet_data, etc.)
+    * consult -- they always execute with the hint removed. The row-cap hint used to only be
+    * removed when mode == RUNTIME_MODE (mirroring WSQueryService.runQuery), but an ordinary
+    * add_table'd table's own mode is DESIGN_MODE, so that guard never fired and the hint stayed
+    * set through the whole reload. This test would FAIL against round 4's code, which leaves
+    * the hint in place for a DESIGN_MODE table.
+    */
+   @Test
+   void refreshDataRemovesRowCapEvenInDesignMode() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      vars.put(inetsoft.uql.XQuery.HINT_MAX_ROWS, "100");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD11"), any())).thenReturn(session("TOK-RD11"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD11", refreshDataRequest("Table1"), agent);
+      }
+
+      assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
+         "the row-cap hint must be removed even for a DESIGN_MODE table, not only RUNTIME_MODE");
+   }
+
+   /**
+    * Bug #76711 round 6: resetTableLens/AssetDataCache.remove only clear the RUNTIME_MODE slot's
+    * stale entry -- they never themselves run a query, so the RUNTIME_MODE-shaped
+    * XSessionManager.dataCache entry any real RUNTIME_MODE reader consults is only ever
+    * repopulated by whichever caller happens to read under RUNTIME_MODE next. refresh_data itself
+    * never does, so a table that's never independently read under RUNTIME_MODE stays stuck
+    * serving pre-refresh data forever. This test would FAIL against round 5's code, which never
+    * calls getTableLens(table, RUNTIME_MODE) at all.
+    */
+   @Test
+   void refreshDataForcesARuntimeModeExecutionForADesignModeTable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD12"), any())).thenReturn(session("TOK-RD12"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD12", refreshDataRequest("Table1"), agent);
+      }
+
+      verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+   }
+
+   /**
+    * Bug #76711 round 6 (bulk branch): the "refresh all tables" branch (no table name given) had
+    * the exact same gap as the single-assembly branch did before round 6 -- it invalidated the
+    * outer AssetQuerySandbox.tmap/AssetDataCache slots but never forced a real RUNTIME_MODE
+    * execution, so it never actually refreshed the XSessionManager.dataCache entry RUNTIME_MODE
+    * readers consult, confirmed live. This test would FAIL against the pre-round-6 bulk branch,
+    * which never calls getTableLens(table, RUNTIME_MODE) or removes the row-cap hint.
+    */
+   @Test
+   void refreshDataAllTablesAlsoForcesARuntimeModeExecution() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      // Deliberately not runtime, not live-data: WorksheetEventUtil.getMode(table) returns
+      // DESIGN_MODE here, matching an ordinary add_table'd table.
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      vars.put(inetsoft.uql.XQuery.HINT_MAX_ROWS, "100");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD13"), any())).thenReturn(session("TOK-RD13"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD13", refreshDataRequest(null), agent);
+      }
+
+      verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
+      assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
+         "the bulk refresh-all branch must also remove the row-cap hint unconditionally");
+   }
+
+   /**
+    * Bug #76711 round 6 re-review finding 1: unlike the single-assembly branch, the bulk branch
+    * never calls loadTableData/refreshColumnSelection to execute a query under the table's own
+    * mode first -- resetTableLens/AssetDataCache.remove only clear the cache shell, they never
+    * run anything. So a table whose own mode is ALREADY RUNTIME_MODE (e.g. one interactively
+    * open in the Composer canvas) had nothing in the bulk branch that actually re-executes its
+    * query, reproducing bug #76711 for that specific table/mode combination. This test would
+    * FAIL against the first round-6 bulk-branch fix, which guarded the forced read with
+    * {@code mode != RUNTIME_MODE} -- correct for the single-assembly branch (loadTableData there
+    * already covers the RUNTIME_MODE case) but wrong here, where there is no such fallback.
+    */
+   @Test
+   void refreshDataAllTablesForcesRuntimeModeExecutionEvenWhenAlreadyRuntimeMode() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      table.setRuntime(true);
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(new VariableTable());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD14"), any())).thenReturn(session("TOK-RD14"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD14", refreshDataRequest(null), agent);
+      }
+
+      verify(box).getTableLens("Table1", AssetQuerySandbox.RUNTIME_MODE);
    }
 
    /**
@@ -1559,7 +2139,10 @@ class WorksheetAgentControllerTest {
 
       assertNotNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS), "sanity: cap set before refresh");
 
-      ctrl.edit("TOK-RD5", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD5", refreshDataRequest("Table1"), agent);
+      }
 
       assertNull(vars.get(inetsoft.uql.XQuery.HINT_MAX_ROWS),
          "Run Query's own row-cap removal must be mirrored for RUNTIME_MODE tables");
@@ -1595,9 +2178,230 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      ctrl.edit("TOK-RD6", refreshDataRequest("Table1"), agent);
+      // See refreshDataThrowsRenderNotReadyWhenColumnSelectionIsSlow for why this is needed now.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         ctrl.edit("TOK-RD6", refreshDataRequest("Table1"), agent);
+      }
 
       verify(table).loadColumnSelection(any(), eq(true), any());
+   }
+
+   /**
+    * Bug #76711: a table whose {@code XSessionManager.dataCache} entry is already populated
+    * (e.g. a SERVER_FILE/tabular {@code BoundQuery}) must have {@code __refresh_report__} set for
+    * the duration of the reload, same as {@code WSQueryService.runQuery} -- otherwise
+    * {@code resetTableLens}/{@code AssetDataCache} above still leave that deeper, key-stable cache
+    * serving pre-refresh rows forever, silently, even though {@code refresh_data} reports
+    * {@code {"ok":true}}.
+    */
+   @Test
+   void refreshDataSetsRefreshReportFlagAroundReload() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD7"), any())).thenReturn(session("TOK-RD7"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // clearBoundQueryCache (bug #76711 round 2) reaches AssetQuery.createAssetQuery, which
+      // needs live Spring beans this lightweight test context doesn't wire -- mock it away to a
+      // no-op default (null, not a BoundQuery) since this test isn't about that mechanism.
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         eventUtil.when(() ->
+               WorksheetEventUtil.loadTableData(eq(rws), eq("Table1"), anyBoolean(), anyBoolean()))
+            .thenAnswer(invocation -> {
+               assertEquals("true", vars.get("__refresh_report__"),
+                  "flag must be set for the duration of the reload, same as Run Query");
+               return null;
+            });
+
+         ctrl.edit("TOK-RD7", refreshDataRequest("Table1"), agent);
+      }
+
+      assertNull(vars.get("__refresh_report__"),
+         "flag must be removed again after the reload, same as Run Query's finally block");
+   }
+
+   /**
+    * Bug #76711, review round 2: {@code RenderWaitSupport.awaitOrRetry}'s reload work runs on a
+    * separate virtual thread that is NOT cancelled on timeout (see its own doc comment) -- so a
+    * reload slower than the timeout keeps running after {@code refreshData}'s own {@code finally}
+    * block has already removed {@code __refresh_report__}, which can race that still-running
+    * thread and silently fall back to the stale {@code XSessionManager} cache (this is exactly
+    * what a {@code claude-review} CI bot caught, and the lead independently reproduced live, in
+    * this bug's round-1 fix). The actual fix is {@code clearBoundQueryCache} -- a synchronous
+    * {@code AssetQuery.createAssetQuery(...)} + {@code BoundQuery.clearQueryCache(...)} call made
+    * BEFORE the bounded reload is even submitted, so its correctness cannot depend on winning that
+    * race. This test simulates a reload slower than the 2000ms timeout (same technique as
+    * {@code insertColumnThrowsRenderNotReadyWhenColumnSelectionIsSlow} -- an instance stub on
+    * {@code box}, not a static mock, since {@code MockedStatic} is thread-confined and
+    * {@code RenderWaitSupport} runs the reload on a different (virtual) thread) and asserts
+    * clearQueryCache was already invoked -- in order, before the slow reload started -- by the
+    * time {@code RenderNotReadyException} propagates out, proving the invalidation does not
+    * depend on the reload finishing in time.
+    */
+   @Test
+   void refreshDataClearsBoundQueryCacheBeforeSlowReload() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      List<String> callOrder = Collections.synchronizedList(new ArrayList<>());
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+      doAnswer(invocation -> {
+         callOrder.add("reload");
+         // Slower than RenderWaitSupport's 2000ms timeout -- keeps running in the background
+         // (not cancelled) after awaitOrRetry has already thrown. An instance stub (not a static
+         // mock) so it fires correctly from RenderWaitSupport's virtual worker thread.
+         Thread.sleep(3_000);
+         return null;
+      }).when(box).refreshColumnSelection(eq("Table1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD8"), any())).thenReturn(session("TOK-RD8"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      BoundQuery boundQuery = mock(BoundQuery.class);
+
+      doAnswer(invocation -> {
+         callOrder.add("clearQueryCache");
+         return null;
+      }).when(boundQuery).clearQueryCache(any());
+
+      // clearBoundQueryCache runs synchronously on this (the test) thread, before awaitOrRetry
+      // submits the reload -- a MockedStatic registered here is visible for that call, unlike the
+      // reload work above which runs on a different thread.
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assetQuery.when(() -> AssetQuery.createAssetQuery(
+               any(), anyInt(), eq(box), eq(false), eq(-1L), eq(true), eq(false)))
+            .thenReturn(boundQuery);
+
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD8", refreshDataRequest("Table1"), agent));
+      }
+
+      assertEquals(List.of("clearQueryCache", "reload"), callOrder,
+         "the query cache must be cleared synchronously before the reload is even submitted, " +
+         "not merely before/after it happens to finish within the timeout");
+   }
+
+   /**
+    * Bug #76711, round 3: rounds 1 and 2 both removed {@code __refresh_report__} in a
+    * {@code finally} scoped to {@code RenderWaitSupport.awaitOrRetry}'s own return -- which fires
+    * the instant the caller's bounded wait gives up (2000ms here), NOT when the reload it wraps
+    * actually finishes running on its own, uncancelled virtual thread. A live IDEA debugger session
+    * confirmed round 2's {@code clearBoundQueryCache} is a silent no-op in deployments where
+    * {@code XSessionManager}'s {@code service} is a dynamic proxy rather than a concrete
+    * {@code XEngine}, so the flag's own lifetime is the only thing this method's correctness
+    * depends on. Same slow-reload technique as {@code refreshDataClearsBoundQueryCacheBeforeSlowReload}
+    * (an instance stub on {@code box}, since the reload runs on a different thread than a
+    * {@code MockedStatic} would be visible from) -- but this test asserts on the flag's own state,
+    * from inside the stubbed slow call itself and immediately after the caller times out, not on
+    * {@code clearQueryCache}'s call order.
+    */
+   @Test
+   void refreshDataKeepsRefreshReportFlagSetUntilSlowReloadActuallyFinishes() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = TestWorksheets.nonEmbeddedTableWithColumns(
+         ws, "Table1", "cust", "amount");
+      table.setSourceInfo(new SourceInfo(SourceInfo.ASSET, "ds", "Query1"));
+      ws.addAssembly(table);
+
+      VariableTable vars = new VariableTable();
+      AtomicBoolean flagSetDuringSlowReload = new AtomicBoolean(false);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      when(box.getWorksheet()).thenReturn(ws);
+      when(box.getVariableTable()).thenReturn(vars);
+      doAnswer(invocation -> {
+         // Slower than RenderWaitSupport's 2000ms timeout -- runs on its own virtual thread well
+         // past the point the caller below has already given up and thrown RenderNotReadyException.
+         Thread.sleep(3_000);
+         flagSetDuringSlowReload.set("true".equals(vars.get("__refresh_report__")));
+         return null;
+      }).when(box).refreshColumnSelection(eq("Table1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-RD9"), any())).thenReturn(session("TOK-RD9"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      try(MockedStatic<AssetQuery> assetQuery = mockStatic(AssetQuery.class)) {
+         assertThrows(RenderNotReadyException.class,
+            () -> ctrl.edit("TOK-RD9", refreshDataRequest("Table1"), agent));
+
+         assertEquals("true", vars.get("__refresh_report__"),
+            "flag must still be set immediately after the caller times out -- the reload is " +
+            "still running in the background, not finished");
+
+         long deadline = System.currentTimeMillis() + 5_000;
+
+         while(vars.get("__refresh_report__") != null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+         }
+      }
+
+      assertTrue(flagSetDuringSlowReload.get(),
+         "flag must still have been set at the moment the slow reload actually ran, well past " +
+         "the caller's own 2000ms timeout");
+      assertNull(vars.get("__refresh_report__"),
+         "flag must finally be removed once the background reload actually completes, not " +
+         "merely once the caller stops waiting for it");
    }
 
    /**
@@ -2995,6 +3799,33 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #76788 (WBS-065): {@code createEmbeddedTable}'s caller-supplied {@code name} is used
+    * verbatim and, like {@code addJoin}, never checked against an existing, unrelated assembly
+    * before {@link Worksheet#addAssembly} silently evicts and replaces it. A second, non-replace
+    * {@code import_csv_table} call naming a pre-existing table must be rejected rather than
+    * silently destroying it -- this is distinct from the intentional in-place {@code replaceTable}
+    * path exercised by {@code importCsvReplaceTableOverwritesAnExistingEmbeddedTableInPlace}.
+    */
+   @Test
+   void importCsvRejectsNameCollisionWithUnrelatedExistingAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-CSV-COLLIDE");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      ctrl.importCsv("TOK-CSV-COLLIDE",
+         new WorksheetAgentController.ImportCsvRequest("Existing", "a,b\n1,x\n2,y"), agent);
+      EmbeddedTableAssembly original = importedTable(ws, "Existing");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.importCsv("TOK-CSV-COLLIDE",
+            new WorksheetAgentController.ImportCsvRequest("Existing", "a,b\n9,z"), agent));
+      assertTrue(ex.getMessage().contains("Existing"), ex.getMessage());
+
+      assertSame(original, ws.getAssembly("Existing"));
+      assertEquals(1, ws.getAssemblies().length);
+   }
+
+   /**
     * The import settings the Composer's Import Data File dialog exposes, now reachable through the
     * agent too. Before this, the CSV route had its own hand-rolled parser that could honour none of
     * them -- the origin of a cluster of L2 findings. These assert the settings actually reach
@@ -3169,6 +4000,61 @@ class WorksheetAgentControllerTest {
 
       assertNotEquals(XSchema.STRING, ((ColumnRef) typed.getAttribute(0)).getDataType(),
          "detectType=true must still detect a numeric column when every value shares one format");
+   }
+
+   /**
+    * Bug #76753/WBS-056: removeQuotes left unset silently mis-parsed a standard, fully-quoted
+    * CSV -- literal quote characters landed in both column names and values, and the numeric
+    * columns were left as strings because CSVLoader's cached Format never matched a
+    * quote-wrapped value. csvSettings() resolved the unset case to false, unlike its sibling
+    * detectType/firstRowAsHeader fields (both default true) and unlike the native "Import Data
+    * File" dialog's own default of true for the identical CSVLoader.readCSV call.
+    */
+   @Test
+   void importCsvDefaultsToStrippingQuotesOnAFullyQuotedFile() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-RQ1");
+
+      ctrl.importCsv("TOK-RQ1",
+         new WorksheetAgentController.ImportCsvRequest("Quoted",
+            "\"STATE\",\"2020\",\"2021\"\n\"AZ\",\"120\",\"140\"\n\"CA\",\"300\",\"310\""),
+         TestPrincipals.user("alice", "host-org"));
+
+      EmbeddedTableAssembly t = importedTable(ws, "Quoted");
+      ColumnSelection cols = t.getColumnSelection(false);
+
+      assertNotNull(cols.getAttribute("STATE"),
+         "column names must not carry literal quote characters when removeQuotes is left unset");
+      assertNull(cols.getAttribute("\"STATE\""),
+         "the raw quoted header must not survive as a column name");
+      assertNotEquals(XSchema.STRING, ((ColumnRef) cols.getAttribute("2020")).getDataType(),
+         "a numeric column's type detection must not be defeated by quote wrapping");
+      assertEquals("AZ", String.valueOf(t.getEmbeddedData().getObject(1, 0)),
+         "values must have their literal quotes stripped by default");
+   }
+
+   /**
+    * Companion to the default-flip test above: an explicit removeQuotes:false caller must keep
+    * seeing quotes preserved, proving the fix only changes the unset/null default.
+    */
+   @Test
+   void importCsvRemoveQuotesFalseKeepsLiteralQuotesWhenExplicitlyRequested() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-RQ2");
+
+      ctrl.importCsv("TOK-RQ2",
+         csvRequest("Quoted",
+            "\"STATE\",\"2020\",\"2021\"\n\"AZ\",\"120\",\"140\"\n\"CA\",\"300\",\"310\"",
+            null, null, null, null, null, false, null, null),
+         TestPrincipals.user("alice", "host-org"));
+
+      EmbeddedTableAssembly t = importedTable(ws, "Quoted");
+      ColumnSelection cols = t.getColumnSelection(false);
+
+      assertNotNull(cols.getAttribute("\"STATE\""),
+         "an explicit removeQuotes:false must still preserve literal quotes in column names");
+      assertEquals("\"AZ\"", String.valueOf(t.getEmbeddedData().getObject(1, 0)),
+         "an explicit removeQuotes:false must still preserve literal quotes in values");
    }
 
    // ---------------------------------------------------------------------------
@@ -3674,7 +4560,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
-         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.wiz.service.RawDataService.class));
 
       ctrl.detach("TOK-D", agent);
 
@@ -3713,7 +4600,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          openService,
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
-         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    @Test
@@ -3987,6 +4875,73 @@ class WorksheetAgentControllerTest {
 
       assertNotNull(ws.getAssembly("ORDERS1"),
          "with a real collision on 'ORDERS' the new table must fall back to 'ORDERS1'");
+   }
+
+   /**
+    * Regression for WBT-009 (#76691): {@code add_table} used to silently rename on a name
+    * collision (see {@link #addBoundTableStillSuffixesOnRealCollision}) with nothing in the
+    * {@code edit} response disclosing it -- {@code edit} returned {@code void}, so there was no
+    * wire response to read regardless of what the caller did. {@code edit}'s response now carries
+    * the resolved assembly name for {@code add_table}; this proves it for {@code addBoundTable}'s
+    * collision path specifically.
+    */
+   @Test
+   void addBoundTableEditResponseDisclosesResolvedNameOnCollision() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      MetadataApiService metadataApiService = mock(MetadataApiService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.PHYSICAL_TABLE),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(metadataApiService.getJDBCDatasource("MyDatasource")).thenReturn(jdbcDs);
+
+      XNode tableMetaData = new XNode("ORDERS");
+      tableMetaData.setAttribute("type", "TABLE");
+      when(metadataApiService.getTableMetaData(eq(jdbcDs), isNull(), isNull(), eq("ORDERS")))
+         .thenReturn(tableMetaData);
+
+      DatabaseTableMeta tableMeta = new DatabaseTableMeta();
+      tableMeta.setColumns(new ArrayList<>());
+      when(metadataApiService.getTableDetails(eq("MyDatasource"), eq("ORDERS"), isNull(), isNull(),
+                                              eq(agent)))
+         .thenReturn(tableMeta);
+
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new PhysicalBoundTableAssembly(ws, "ORDERS"));
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-BT6"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, metadataApiService,
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = addBoundTableRequest("ORDERS", "MyDatasource");
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<SQLTypes> sqlTypes = mockStatic(SQLTypes.class)) {
+         SQLTypes types = mock(SQLTypes.class);
+         sqlTypes.when(() -> SQLTypes.getSQLTypes(jdbcDs)).thenReturn(types);
+         when(types.getQualifiedName(eq(tableMetaData), eq(jdbcDs))).thenReturn("ORDERS");
+
+         response = ctrl.edit("TOK-BT6", req, agent);
+      }
+
+      assertNotNull(response.getBody(),
+         "add_table's response must disclose the resolved assembly name");
+      assertEquals("ORDERS1", response.getBody().assemblyName(),
+         "the response must report the ACTUAL resolved name, not the requested 'ORDERS'");
    }
 
    // ---------------------------------------------------------------------------
@@ -5173,6 +6128,80 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Regression for WBT-009 (#76691): {@code addQueryParamsTable} shares the same
+    * {@code AssetUtil.getNextName} collision-suffixing as {@code addBoundTable} (see
+    * {@link #addBoundTableEditResponseDisclosesResolvedNameOnCollision}), and its {@code edit}
+    * response must disclose the resolved name too. Unlike
+    * {@link #addQueryParamsTableThreadsQueryParamsIntoTheSharedHelper}, {@code editSvc} is
+    * stubbed to actually invoke the {@code applyOnRuntime} lambda against a real
+    * {@link Worksheet} (a pre-existing "Products" assembly forces the collision), and the fake
+    * query is staged with a non-empty output column so the empty-column check does not throw
+    * before the assembly is added -- none of the existing {@code addQueryParamsTable*} tests
+    * drive it this far.
+    */
+   @Test
+   void addQueryParamsTableEditResponseDisclosesResolvedNameOnCollision() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+      query.setOutputColumns(new XTypeNode[] { new XTypeNode("id") });
+
+      EditRequest req = addQueryParamsTableRequest("Products", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(new TabularTableAssembly(ws, "Products"));
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-QP8"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      ResponseEntity<EditResponse> response;
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         response = ctrl.edit("TOK-QP8", req, agent);
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertNotNull(ws.getAssembly("Products1"),
+         "with a real collision on 'Products' the new table must fall back to 'Products1'");
+      assertNotNull(response.getBody(),
+         "add_table's response must disclose the resolved assembly name");
+      assertEquals("Products1", response.getBody().assemblyName(),
+         "the response must report the ACTUAL resolved name, not the requested 'Products'");
+   }
+
+   /**
     * Regression for round-1 review finding 2 on the row-cap PR: proves
     * {@code TabularEndpointBindingSupport.requireRowCapWhenPaged} is actually wired into
     * {@code addQueryParamsTable} too, not just {@code addTabularTable}'s two branches.
@@ -5706,6 +6735,64 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #76788 (WBS-065): {@code addDatasourceScopedNamedGroup} builds a
+    * {@code DefaultNamedGroupAssembly} and adds it to the worksheet without ever checking whether
+    * that name already identifies a different, existing assembly -- {@link Worksheet#addAssembly}
+    * would silently evict and replace it. The check must run inside the {@code applyOnRuntime}
+    * callback (where {@code ws} first comes into scope), after the assembly is built and before
+    * {@code ws.addAssembly}.
+    */
+   @Test
+   void addNamedGroupRejectsNameCollisionWithUnrelatedExistingAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      XAttribute stateAttr = new XAttribute("State", "SA.CUSTOMERS", "STATE", XSchema.STRING);
+      XEntity customerEntity = new XEntity("Customer");
+      customerEntity.addAttribute(stateAttr);
+      XLogicalModel orderModel = new XLogicalModel("Order Model");
+      orderModel.addEntity(customerEntity);
+
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModel("Order Model")).thenReturn(orderModel);
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("Examples/Orders"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(dataSourceService.getDataModel("Examples/Orders")).thenReturn(dataModel);
+      when(dataSourceService.getModelAssetEntry(any())).thenAnswer(inv -> inv.getArgument(0));
+      when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly preExisting = TestWorksheets.tableWithColumns(ws, "State N Group", "id");
+      ws.addAssembly(preExisting);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-NGD-COLLIDE"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = namedGroupDatasourceRequest(
+         "State N Group", "Examples/Orders", "Order Model", null, null,
+         "Customer", "State", List.of(), false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-NGD-COLLIDE", req, agent));
+      assertTrue(ex.getMessage().contains("State N Group"), ex.getMessage());
+
+      assertSame(preExisting, ws.getAssembly("State N Group"));
+      assertEquals(1, ws.getAssemblies().length);
+   }
+
+   /**
     * PR #4901 round-2 review follow-up: {@code addDatasourceScopedNamedGroup} builds a
     * {@code DefaultNamedGroupAssembly} and adds it directly, the same unescaped-CDATA write path
     * {@code createVariable} and the round-1 sites ({@code addJoin}/{@code duplicateAssembly}/
@@ -5976,6 +7063,81 @@ class WorksheetAgentControllerTest {
 
          assertEquals("SqlTable1", response.tableName());
          assertEquals(List.of("MV.ORDER_DATE.Max"), response.undeclaredVariables());
+         assertEquals(List.of(), response.variablesNeedingValues());
+      }
+   }
+
+   /**
+    * WBS-059 regression: a variable that IS declared (a {@code DefaultVariableAssembly} exists)
+    * but has no explicit session value yet must NOT be reported as undeclared -- it is a
+    * different signal ({@code variablesNeedingValues}), not an error. Before this fix,
+    * {@code detectUndeclaredVariables} returned every name in {@code varInfos()} verbatim,
+    * regardless of whether a matching assembly existed.
+    */
+   @Test
+   void editSqlQueryEndpointDoesNotReportDeclaredVariableAsUndeclared() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "declaredVar");
+      ws.addAssembly(declaredVar);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doNothing().when(box).refreshColumnSelection(eq("SqlTable1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ES6"), any())).thenReturn(session("TOK-ES6"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(newColumns);
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      // Simulates WSCollectVariablesCommand reporting "declaredVar" because it has no explicit
+      // session value yet in AssetQuerySandbox.vars -- even though a DefaultVariableAssembly for
+      // it already exists in the worksheet (added above).
+      VariableAssemblyModelInfo needsValue = new VariableAssemblyModelInfo();
+      needsValue.setName("declaredVar");
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(List.of(needsValue))
+         .build();
+
+      WorksheetAgentController.EditSqlQueryRequest body =
+         new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1");
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         WorksheetAgentController.SqlQueryResponse response =
+            ctrl.editSqlQuery("TOK-ES6", body, agent);
+
+         assertEquals("SqlTable1", response.tableName());
+         assertEquals(List.of(), response.undeclaredVariables());
+         assertEquals(List.of("declaredVar"), response.variablesNeedingValues());
       }
    }
 
@@ -6292,6 +7454,62 @@ class WorksheetAgentControllerTest {
          () -> ctrl.addSqlQuery("TOK-SQ-CDATA", body, agent));
       assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
       assertNull(ws.getAssembly("bad]]>name"));
+   }
+
+   /**
+    * Bug #76788 (WBS-065): {@code addSqlQuery}'s caller-supplied {@code name} is used verbatim,
+    * like {@code createEmbeddedTable}, and was never checked against an existing, unrelated
+    * assembly before {@link Worksheet#addAssembly} silently evicts and replaces it. The check must
+    * run immediately after constructing {@code SQLBoundTableAssembly} -- before the {@code
+    * JDBCQuery}/{@code UniformSQL} construction, the up-to-10s synchronous parse wait, and the real
+    * {@code QueryManagerService.getColumnSelection} JDBC round-trip -- so a doomed call fails fast.
+    * {@code queryManagerService} must never be touched: that is the proof the check runs before
+    * those expensive steps, not merely somewhere before {@code ws.addAssembly}.
+    */
+   @Test
+   void addSqlQueryRejectsNameCollisionWithUnrelatedExistingAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly preExisting = TestWorksheets.tableWithColumns(ws, "MyTable", "id");
+      ws.addAssembly(preExisting);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-COLLIDE"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      WorksheetAgentController.SqlQueryRequest body =
+         new WorksheetAgentController.SqlQueryRequest("MyDatasource", "SELECT 1", "MyTable");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.addSqlQuery("TOK-SQ-COLLIDE", body, agent));
+      assertTrue(ex.getMessage().contains("MyTable"), ex.getMessage());
+
+      assertSame(preExisting, ws.getAssembly("MyTable"));
+      verifyNoInteractions(queryManagerService);
    }
 
    // ---------------------------------------------------------------------------

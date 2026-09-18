@@ -109,4 +109,22 @@ class ServerFileCatalogFailureTest {
 
       assertThrows(Exception.class, () -> ServerFileCatalog.listDatasets(ds));
    }
+
+   // WBT-008: a Microsoft Office lock file (~$<original name>, created automatically whenever
+   // the real file is open elsewhere) must be skipped by the enumeration whitelist rather than
+   // reaching readSheetNames -- unlike corrupt.xlsx above, which is a genuinely unreadable
+   // candidate file and must still abort the whole catalog.
+   @Test
+   void officeLockFileIsSkipped_otherFilesStillEnumerate() throws Exception {
+      Files.writeString(new File(root, "CSV Data.csv").toPath(), "a,b\n1,2\n");
+      Files.write(new File(root, "~$Excel Data.xlsx").toPath(), "not a real workbook".getBytes());
+
+      ServerFileDataSource ds = new ServerFileDataSource();
+      ds.setName("failure-test-ds-lockfile-skip");
+      ds.setFile(root);
+
+      TabularCatalog catalog = ServerFileCatalog.listDatasets(ds);
+      assertEquals(1, catalog.datasets().size());
+      assertEquals("CSV Data.csv", catalog.datasets().get(0).id());
+   }
 }

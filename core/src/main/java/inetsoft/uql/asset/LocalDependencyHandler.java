@@ -1335,6 +1335,11 @@ public class LocalDependencyHandler implements DependencyHandler {
                AssetEntry scriptEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
                   AssetEntry.Type.SCRIPT, token.val,
                   IdentityID.getIdentityIDFromKey(principal.getName()), null);
+
+               if(scriptEntry.equals(entry)) {
+                  return;
+               }
+
                String id = scriptEntry.toIdentifier();
 
                if(add) {

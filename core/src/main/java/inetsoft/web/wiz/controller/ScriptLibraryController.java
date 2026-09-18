@@ -19,6 +19,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -65,15 +66,36 @@ public class ScriptLibraryController {
 
    public record ScriptLibraryFunction(String name, String comment) {}
 
-   public record ScriptLibraryFunctionDetail(String name, String text, String comment) {}
+   /**
+    * {@code resyncWarning} is non-null only on {@link #create}/{@link #update}/{@link #delete} --
+    * {@link #read} leaves it null. A Script Library function is installed as a global JS binding
+    * once, when a viewsheet session's script runtime (GraalJavaScriptEnv/Context) is first built;
+    * nothing currently rebuilds that binding set for an already-open session when LibManager
+    * changes (Redmine #76765 SSL-001). Until that staleness is fixed at the runtime level, the
+    * mutating endpoints surface the caveat here so a caller doesn't have to discover it by getting
+    * a stale/ReferenceError result from execute_script/run_script_live against a session that was
+    * open before this call.
+    */
+   public record ScriptLibraryFunctionDetail(String name, String text, String comment,
+                                              String resyncWarning) {}
 
    public record CreateScriptLibraryFunctionRequest(String name, String text, String comment) {}
 
    public record UpdateScriptLibraryFunctionRequest(String text, String comment) {}
 
+   public record DeleteScriptLibraryFunctionResult(String resyncWarning) {}
+
+   public record RenameScriptLibraryFunctionRequest(String newName) {}
+
    public record CheckScriptSyntaxResult(boolean ok, String message, Integer line, Integer column) {}
 
    public record CheckScriptSyntaxRequest(String script) {}
+
+   private static final String RESYNC_WARNING =
+      "Viewsheet sessions that were already open before this call may not see this change in " +
+      "execute_script/run_script_live until they resync (e.g. via refresh_viewsheet) -- a " +
+      "session's script runtime only picks up the current Script Library contents when it is " +
+      "(re)built, not on every call.";
 
    @GetMapping
    public List<ScriptLibraryFunction> list(Principal principal) {
@@ -100,7 +122,7 @@ public class ScriptLibraryController {
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
       requirePermission(principal, name, ResourceAction.READ);
-      return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name));
+      return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name), null);
    }
 
    @PostMapping
@@ -111,6 +133,10 @@ public class ScriptLibraryController {
 
       if(name == null || name.isBlank()) {
          throw new IllegalArgumentException("create_script_library_function requires 'name'.");
+      }
+
+      if(request.text() == null || request.text().isBlank()) {
+         throw new IllegalArgumentException("create_script_library_function requires 'text'.");
       }
 
       LibManager lib = libManagerProvider.getManager(principal);
@@ -129,7 +155,8 @@ public class ScriptLibraryController {
       }
 
       lib.save();
-      return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name));
+      return new ScriptLibraryFunctionDetail(
+         name, lib.getScript(name), lib.getScriptComment(name), RESYNC_WARNING);
    }
 
    @PutMapping("/{name}")
@@ -140,8 +167,12 @@ public class ScriptLibraryController {
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
       requirePermission(principal, name, ResourceAction.WRITE);
+      if(request.text() == null || request.text().isBlank()) {
+         throw new IllegalArgumentException("update_script_library_function requires 'text'.");
+      }
+
       String oldText = lib.getScript(name);
-      String newText = request.text() == null ? "" : request.text();
+      String newText = request.text();
       // Keeps the outgoing dependency graph in sync with the new body, the same way
       // OpenScriptController.saveScript does for a per-sheet script save -- otherwise delete()'s
       // dependency-safety check above is only as accurate as the last create/update wrote.
@@ -153,7 +184,64 @@ public class ScriptLibraryController {
       }
 
       lib.save();
-      return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name));
+      return new ScriptLibraryFunctionDetail(
+         name, lib.getScript(name), lib.getScriptComment(name), RESYNC_WARNING);
+   }
+
+   /**
+    * Renames a function AND rewrites its own declaration text so the new name is what
+    * {@code GraalJavaScriptEngine.installLibraryFunctions} actually binds as the JS global --
+    * {@code LibManager.renameScript} alone only relocates the registry key and the derived
+    * signature (see {@code ScriptLogicalLibrary.renameEntry}), leaving the stored source still
+    * declaring {@code function <oldName>(...)}. Left alone, that would strand every caller
+    * (which {@code RenameTransformHandler} has already, asynchronously, rewritten to call
+    * {@code newName(...)}) with a {@code ReferenceError} once the engine next installs library
+    * functions -- worse than not renaming at all.
+    *
+    * <p>Reuses {@code Util.renameScriptDepended}, the same utility {@code
+    * AssetScriptDependencyTransformer} already uses to rewrite callers' scripts. It is a
+    * dot/bracket-bounded substring replace, not an identifier-exact-match rename (contrast {@code
+    * renameScriptRefDepended}, which does check for an exact reference-token match) -- a sibling
+    * identifier that merely contains {@code oldName} as a substring (e.g. renaming
+    * {@code formatShortDollar} while a local variable is named {@code formatShortDollarBackup})
+    * could also get corrupted. This is a pre-existing property of the shared utility, not
+    * something newly introduced here.
+    */
+   @PostMapping("/{name}/rename")
+   public ScriptLibraryFunctionDetail rename(@PathVariable String name,
+                                             @RequestBody RenameScriptLibraryFunctionRequest request,
+                                             Principal principal) throws Exception
+   {
+      String newName = request.newName();
+
+      if(newName == null || newName.isBlank()) {
+         throw new IllegalArgumentException("rename_script_library_function requires 'newName'.");
+      }
+
+      LibManager lib = libManagerProvider.getManager(principal);
+      requireExists(lib, name);
+      requirePermission(principal, name, ResourceAction.WRITE);
+
+      if(lib.getScript(newName) != null) {
+         throw new IllegalArgumentException(
+            "A script library function named '" + newName + "' already exists. Choose a " +
+            "different name, or delete_script_library_function('" + newName + "') first.");
+      }
+
+      requirePermission(principal, newName, ResourceAction.WRITE);
+
+      String oldText = lib.getScript(name);
+      lib.renameScript(name, newName);
+
+      String newText = Util.renameScriptDepended(name, newName, oldText);
+
+      if(!Objects.equals(oldText, newText)) {
+         lib.setScript(newName, newText);
+      }
+
+      lib.save();
+      return new ScriptLibraryFunctionDetail(
+         newName, lib.getScript(newName), lib.getScriptComment(newName), RESYNC_WARNING);
    }
 
    /**
@@ -164,9 +252,10 @@ public class ScriptLibraryController {
     * referenced this function.
     */
    @DeleteMapping("/{name}")
-   public void delete(@PathVariable String name,
-                      @RequestParam(required = false, defaultValue = "false") boolean force,
-                      Principal principal) throws Exception
+   public DeleteScriptLibraryFunctionResult delete(
+      @PathVariable String name,
+      @RequestParam(required = false, defaultValue = "false") boolean force,
+      Principal principal) throws Exception
    {
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
@@ -190,6 +279,7 @@ public class ScriptLibraryController {
 
       lib.removeScript(name);
       lib.save();
+      return new DeleteScriptLibraryFunctionResult(RESYNC_WARNING);
    }
 
    @PostMapping("/check")

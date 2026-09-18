@@ -17,11 +17,12 @@
  */
 package inetsoft.uql.rest.datasource.remedyforce;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.test.*;
+import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.util.Tool;
-import inetsoft.util.credential.CredentialService;
-import inetsoft.util.credential.CredentialType;
-import inetsoft.util.credential.LocalPasswordAndOAuth2WithFlagCredentialsGrant;
+import inetsoft.util.credential.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.context.annotation.Bean;
@@ -36,7 +37,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -90,6 +91,83 @@ class RemedyforceDataSourceTest {
       assertEquals("myuser", dataSource.getUser());
       assertEquals("mypassword", dataSource.getPassword());
       assertEquals("mytoken", dataSource.getSecurityToken());
+   }
+
+   /**
+    * Data sources that used "Use Secret ID" before the shared base class switched to
+    * {@code PASSWORD_OAUTH2_WITH_FLAGS} stored the security token inside the vault secret's own
+    * JSON, under the legacy {@code CloudSecurityTokenCredential} schema ({@code security_token}).
+    * The new cloud credential type never reads that key, so it must be migrated by reading the
+    * raw vault secret directly instead.
+    */
+   @Test
+   void legacySecurityTokenIsMigratedFromCloudSecret() throws Exception {
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode vaultSecret = mapper.readTree(
+         "{\"user\":\"myuser\",\"password\":\"mypassword\",\"security_token\":\"mytoken\"}");
+
+      RemedyforceDataSource dataSource = new RemedyforceDataSource() {
+         @Override
+         protected JsonNode loadCloudSecurityToken(String credentialId) {
+            assertEquals("secret-123", credentialId);
+            return vaultSecret;
+         }
+      };
+      dataSource.setCredential(new FakeCloudCredential("secret-123"));
+
+      // no <PasswordCredential> node at all: the data source's own local XML never carried the
+      // security token when it was backed by a cloud secret.
+      Element root = parse("<ds_" + RemedyforceDataSource.TYPE + " name=\"test\"/>");
+      dataSource.parseXML(root);
+
+      assertEquals("mytoken", dataSource.getSecurityToken());
+   }
+
+   /**
+    * OAuth-mode data sources never had a security token to migrate, and the vault fallback
+    * reaches a live, billed-per-call secrets manager API — it must not fire for them.
+    */
+   @Test
+   void oauthModeNeverConsultsTheVaultForALegacySecurityToken() throws Exception {
+      RemedyforceDataSource dataSource = new RemedyforceDataSource() {
+         @Override
+         protected JsonNode loadCloudSecurityToken(String credentialId) {
+            fail("OAuth-mode data sources must not query the vault for a legacy security token");
+            return null;
+         }
+      };
+      dataSource.setAuthType(AuthType.OAUTH);
+      dataSource.setCredential(new FakeCloudCredential("secret-123"));
+
+      Element root = parse("<ds_" + RemedyforceDataSource.TYPE + " name=\"test\"/>");
+      dataSource.parseXML(root);
+
+      assertNull(dataSource.getSecurityToken());
+   }
+
+   @Test
+   void securityTokenStaysVisibleInLegacyModeRegardlessOfCredentialSource() {
+      RemedyforceDataSource dataSource = new RemedyforceDataSource();
+      dataSource.setAuthType(AuthType.NONE);
+      assertTrue(dataSource.showSecurityToken());
+
+      dataSource.setAuthType(AuthType.OAUTH);
+      assertFalse(dataSource.showSecurityToken());
+   }
+
+   private static final class FakeCloudCredential extends AbstractCloudCredential {
+      FakeCloudCredential(String id) {
+         setId(id);
+      }
+
+      @Override
+      public Credential createLocal() {
+         return null;
+      }
+
+      @Override
+      public void copyToLocal(Credential credential) {
+      }
    }
 
    private Element parse(String xml) throws Exception {

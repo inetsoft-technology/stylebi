@@ -192,6 +192,18 @@ public class TabularHandler extends XHandler {
          if(!values.isEmpty()) {
             key = key + "__" + values;
          }
+
+         // when the data source is configured so that the result of the query depends on
+         // the user executing it (currently only REST with kerberos constrained delegation
+         // impersonating a per-user identity), append a discriminator so that one user's
+         // result is not served to another from the process wide cache (Bug #76658). Data
+         // sources whose results are not user dependent return null here, so their keys are
+         // unchanged.
+         String discriminator = ((TabularDataSource<?>) source).getCacheDiscriminator();
+
+         if(discriminator != null) {
+            key = key + "__" + discriminator;
+         }
       }
 
       return key;

@@ -154,16 +154,21 @@ public class PresentationChangesetApplyService {
                writeAudit(txId, reviewedTask, key, entry, AdminChangeRecord.ACTION_APPLY, before, actualAfter, status,
                          backupRef, reviewOutcome, user);
 
-               if(!verified) {
-                  failed = true;
-                  break;
-               }
-
+               // Classify unconditionally once access.write has succeeded (regardless of `verified`)
+               // -- the write already happened above, so an entry whose own read-back verification
+               // fails still needs to be reported as an unconditional RollbackFailure (storage-scope)
+               // or attempted for rollback (value-scope), not silently excluded from both lists as if
+               // nothing had been written (bug #76729's "rolled-back" mislabel).
                if(entry.subModel().isStorageScope()) {
                   appliedStorage.add(entry);
                }
                else {
                   undoableValue.add(entry);
+               }
+
+               if(!verified) {
+                  failed = true;
+                  break;
                }
             }
             catch(Exception e) {

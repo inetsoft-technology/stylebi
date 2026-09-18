@@ -126,6 +126,15 @@ public final class PropertyAliases {
       Set.of("textinput", "combobox", "slider", "spinner", "checkbox", "radiobutton");
 
    /**
+    * The three types registered through the shared {@link #listInput} helper -- used by
+    * {@code AssemblyPropertyService} to scope its {@code embedded} auto-derivation (Redmine
+    * #76699/VFO-016) to exactly the types whose {@code labels}/{@code values}/{@code embedded}
+    * path shape {@code listInput} produces.
+    */
+   private static final Set<String> LIST_INPUT_TYPES =
+      Set.of("checkbox", "combobox", "radiobutton");
+
+   /**
     * {@code refresh} is aliased through the shared {@link #basicGeneral} helper because it is
     * genuinely applied for the input assemblies (checkbox/combobox/radiobutton/slider/spinner/
     * textinput, via {@code VSInputService}) and for submit (via
@@ -200,6 +209,11 @@ public final class PropertyAliases {
       return VARIABLE_FLAG_DERIVED_TYPES.contains(normalize(assemblyType));
    }
 
+   /** Whether {@code assemblyType} is one of the three types {@link #listInput} registers. */
+   public static boolean isListInputType(String assemblyType) {
+      return LIST_INPUT_TYPES.contains(normalize(assemblyType));
+   }
+
    /**
     * Resolves a key for a <b>write</b>, on top of {@link #resolve}.
     *
@@ -239,6 +253,12 @@ public final class PropertyAliases {
     */
    private static String writeRefusal(String normalizedType, String pathOrKey) {
       String refusal = viewsheetWriteRefusal(normalizedType, pathOrKey);
+
+      if(refusal != null) {
+         return refusal;
+      }
+
+      refusal = hierarchyDimensionsWriteRefusal(normalizedType, pathOrKey);
 
       if(refusal != null) {
          return refusal;
@@ -295,6 +315,42 @@ public final class PropertyAliases {
       }
 
       return null;
+   }
+
+   /** The one hierarchy field with no scalar write path; see {@link #hierarchyDimensionsWriteRefusal}. */
+   private static final String HIERARCHY_DIMENSIONS_FIELD = "hierarchyPropertyPaneModel.dimensions";
+
+   /**
+    * Refuses a write to {@code hierarchyPropertyPaneModel.dimensions} on chart or crosstab -- a
+    * {@code VSDimensionModel[]} that {@link PropertyPath#coerce} cannot build (bug #76771,
+    * mirroring {@code chartTargetLinesPaneModel} on bug #76770). Checked for both assembly types
+    * since the field, and the failure, are identical on both -- {@code hierarchyPropertyPaneModel}
+    * is not registered here at all, so both fall through to the same raw-dotted-path escape hatch
+    * and the same {@code coerce} gap. See {@link HierarchyDimensionService}'s class doc for why a
+    * hand-built bean is dangerous here specifically (a column can silently double as a measure, or
+    * the write can throw, depending on whether the column happens to be found).
+    *
+    * <p>Sibling fields on the same pane -- {@code columnList}, {@code grayedOutFields}, {@code cube}
+    * -- are deliberately NOT refused here: nothing writes them today, so they are out of this
+    * bug's scope, and refusing a field with no replacement tool would just be a worse error
+    * message than the generic coercion failure they already get.
+    */
+   private static String hierarchyDimensionsWriteRefusal(String normalizedType, String pathOrKey) {
+      if(pathOrKey == null ||
+         !("chart".equals(normalizedType) || "crosstab".equals(normalizedType)) ||
+         !isOrUnder(pathOrKey, HIERARCHY_DIMENSIONS_FIELD))
+      {
+         return null;
+      }
+
+      return "'" + HIERARCHY_DIMENSIONS_FIELD + "' is not settable through " +
+         "set_assembly_properties. Its entries are VSDimensionModel objects, not scalars -- " +
+         "PropertyPath builds arrays of primitives, String and enums and nothing else -- and " +
+         "hand-writing one is how a column ends up silently double-booked as a measure, or the " +
+         "write throws outright, depending on whether the column happens to be found in the " +
+         "pane's own column list. Use add_hierarchy_dimension / remove_hierarchy_dimension, " +
+         "which build the dimension from the pane's own column catalog. Reading is fine -- call " +
+         "get_assembly_properties with raw=true, or list_hierarchy_dimensions.";
    }
 
    /**
@@ -894,8 +950,17 @@ public final class PropertyAliases {
          aliases.put("labelText", "inputLabelPaneModel.labelText");
       }
 
-      String editor = prefix + ".listValuesPaneModel.comboBoxEditorModel." +
-         "selectionListDialogModel.selectionListEditorModel";
+      // "embedded"/"query" gate whether the static labels/values below (still raw-path-only --
+      // VariableListDialogModel.labels/.values are not aliased here) are ever read at
+      // render/bind time: VSInputService's setListValues derives sourceType from these two
+      // flags alone, defaulting to NONE_SOURCE (labels/values stored but never used) when
+      // neither is set. Without a short name, the only way to discover/set "embedded" was
+      // get_assembly_properties(raw: true) (Redmine #76699/VFO-016).
+      String comboBoxEditor = prefix + ".listValuesPaneModel.comboBoxEditorModel";
+      aliases.put("embedded", comboBoxEditor + ".embedded");
+      aliases.put("query", comboBoxEditor + ".query");
+
+      String editor = comboBoxEditor + ".selectionListDialogModel.selectionListEditorModel";
       aliases.put("table", editor + ".table");
       aliases.put("column", editor + ".column");
 
@@ -1003,6 +1068,7 @@ public final class PropertyAliases {
       dataGeneral(aliases, "tableViewGeneralPaneModel");
       sizePosition(aliases, "tableViewGeneralPaneModel");
       title(aliases, "tableViewGeneralPaneModel");
+      aliases.put("tableStyle", "tableViewGeneralPaneModel.tableStylePaneModel.tableStyle");
       aliases.put("shrink", "calcTableAdvancedPaneModel.shrink");
       aliases.put("fillBlankWithZero", "calcTableAdvancedPaneModel.fillBlankWithZero");
       aliases.put("sortOthersLast", "calcTableAdvancedPaneModel.sortOthersLast");

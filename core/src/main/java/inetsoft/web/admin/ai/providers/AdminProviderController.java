@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.ai.providers;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -88,6 +89,26 @@ public class AdminProviderController {
       requireSiteAdmin(user);
       requireExists(name, authenticationProviderService.getProviderListModel().providers());
       return authenticationProviderService.getAuthenticationProvider(name);
+   }
+
+   /**
+    * A purpose-built read of {@code SUtil.isMultiTenant()} itself (bug 76716 follow-up) --
+    * added specifically so a caller constructing a DATABASE provider's {@code databaseSpec}
+    * query fields (whose expected SQL shape genuinely differs by this flag, see
+    * {@code AuthenticationDAO}) does not have to go through the generic properties
+    * catalog/echo path to learn it. That path's own "uncatalogued and never explicitly set"
+    * response is genuinely indistinguishable from a misspelled property name (this deployment's
+    * own {@code security.users.multiTenant} has never been touched, so it reads exactly that way
+    * today) -- this endpoint has no such ambiguity, it calls the real method directly and returns
+    * its real answer, {@code false} default included.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/security/provider",
+      actions = ResourceAction.ACCESS))
+   @GetMapping("/api/wiz/v1/admin/providers/multi-tenant")
+   public MultiTenantStatus getMultiTenantStatus(Principal user) {
+      requireSiteAdmin(user);
+      return new MultiTenantStatus(SUtil.isMultiTenant());
    }
 
    @Secured(@RequiredPermission(

@@ -113,6 +113,7 @@ public class SelectionBindingService {
          String resolvedTable = resolveTable(tables, assemblyName, table);
          List<BindableField> resolvedColumns =
             resolveColumns(tables, assemblyName, resolvedTable, columns);
+         List<String> resolvedAdditional = resolveAdditionalTables(tables, assemblyName, additional);
 
          if(assembly instanceof SelectionListVSAssembly) {
             requireArity(assemblyName, "a selection list", resolvedColumns, 1, 1);
@@ -121,7 +122,7 @@ public class SelectionBindingService {
             SelectionListPaneModel pane = model.getSelectionListPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(additional);
+            pane.setAdditionalTables(resolvedAdditional);
             pane.setSelectedColumn(columnRef(resolvedTable, resolvedColumns.get(0)));
 
             if(measure != null && !measure.isBlank()) {
@@ -139,7 +140,7 @@ public class SelectionBindingService {
             SelectionTreePaneModel pane = model.getSelectionTreePaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(additional);
+            pane.setAdditionalTables(resolvedAdditional);
             // Hierarchy levels, not the id/parent-id/label mode — the shape set_selection_source
             // exposes is an ordered column list, matching TimeSlider's own SingleTimeInfo/
             // CompositeTimeInfo choice below rather than the ID-hierarchy alternative.
@@ -156,7 +157,7 @@ public class SelectionBindingService {
             RangeSliderDataPaneModel pane = model.getRangeSliderDataPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(additional);
+            pane.setAdditionalTables(resolvedAdditional);
             boolean composite = resolvedColumns.size() > 1;
             pane.setComposite(composite);
             pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
@@ -181,7 +182,7 @@ public class SelectionBindingService {
             CalendarDataPaneModel pane = model.getCalendarDataPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(additional);
+            pane.setAdditionalTables(resolvedAdditional);
             pane.setSelectedColumn(columnRef(resolvedTable, resolvedColumns.get(0)));
             calendarService.setCalendarPropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
@@ -254,21 +255,79 @@ public class SelectionBindingService {
    private static String resolveTable(List<BindableTable> tables, String assemblyName,
                                       String table)
    {
+      String resolved = findByName(tables, table);
+
+      if(resolved != null) {
+         return resolved;
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " +
+         availableNames(tables) + ". A source the assembly cannot see binds nothing and " +
+         "renders an empty assembly.");
+   }
+
+   /**
+    * Case-insensitive lookup shared by {@link #resolveTable} and {@link #resolveAdditionalTable}
+    * — both need the same "does this name match a bindable table" match, just with different
+    * error messages on a miss.
+    */
+   private static String findByName(List<BindableTable> tables, String name) {
+      for(BindableTable candidate : tables) {
+         if(candidate.name() != null && candidate.name().equalsIgnoreCase(name)) {
+            return candidate.name();
+         }
+      }
+
+      return null;
+   }
+
+   private static List<String> availableNames(List<BindableTable> tables) {
       List<String> names = new ArrayList<>();
 
       for(BindableTable candidate : tables) {
          if(candidate.name() != null) {
             names.add(candidate.name());
-
-            if(candidate.name().equalsIgnoreCase(table)) {
-               return candidate.name();
-            }
          }
       }
 
+      return names;
+   }
+
+   /**
+    * Canonicalizes each {@code additionalTables} entry the same way {@link #resolveTable} does
+    * for {@code table}, instead of writing the raw caller-supplied strings straight onto the
+    * pane model. Without this, an entry that does not match a real worksheet table-assembly name
+    * (including a correctly-spelled one in the wrong case) reaches
+    * {@code Viewsheet.createSelectionTables()}, which silently skips building the composite
+    * selection table for the whole union with no error surfaced back to the caller.
+    */
+   private static List<String> resolveAdditionalTables(List<BindableTable> tables,
+                                                        String assemblyName,
+                                                        List<String> additionalTables)
+   {
+      List<String> resolved = new ArrayList<>(additionalTables.size());
+
+      for(String additionalTable : additionalTables) {
+         resolved.add(resolveAdditionalTable(tables, assemblyName, additionalTable));
+      }
+
+      return resolved;
+   }
+
+   private static String resolveAdditionalTable(List<BindableTable> tables, String assemblyName,
+                                                String additionalTable)
+   {
+      String resolved = findByName(tables, additionalTable);
+
+      if(resolved != null) {
+         return resolved;
+      }
+
       throw new IllegalArgumentException(
-         "'" + assemblyName + "' cannot bind to '" + table + "'. Available: " + names + ". " +
-         "A source the assembly cannot see binds nothing and renders an empty assembly.");
+         "'" + assemblyName + "' cannot add 'additionalTables' entry '" + additionalTable +
+         "': it does not match a bindable table for this viewsheet. Available: " +
+         availableNames(tables) + ". See list_bindable_fields.");
    }
 
    private static List<BindableField> resolveColumns(List<BindableTable> tables,
@@ -328,25 +387,28 @@ public class SelectionBindingService {
 
    /**
     * Builds the same {@code OutputColumnRefModel} shape the property dialogs read a selection's
-    * column back into — entity/attribute split on ':', matching
-    * {@code BindableFieldsService.fieldOf}'s own "Customer:Region" convention for a logical
-    * model's entities, and a bare attribute for a plain table column.
+    * column back into.
+    *
+    * <p>Bug #76700: this used to split a logical-model column on {@code ':'} into
+    * {@code entity}/{@code attribute}, matching {@code BindableFieldsService.fieldOf}'s own
+    * "Customer:Region" convention for naming the column. But the tree
+    * {@code getSelectionTablesTree} (and the interactive property dialog's own read-back,
+    * {@code SelectionDialogService.findSelectedOutputColumnRefModel}) builds for a logical-model
+    * column leaves {@code entity} {@code null} and puts the whole compound string
+    * ({@code "Customer:Region"}) in {@code attribute} — the same shape
+    * {@code AssetEventUtil}/{@code VSEventUtil} use for every logical-model column entry
+    * server-side. Splitting here produced an {@code AttributeRef("Customer", "Region")} whose bare
+    * {@code getAttribute()} ({@code "Region"}) never equals the tree's {@code "Customer:Region"},
+    * so the read-back match always failed and {@code selectedColumn} came back {@code null} on
+    * every affected assembly. Never split: the full column string is the attribute, matching what
+    * a human's own selection binding round-trips through this same tree.
     */
    private static OutputColumnRefModel columnRef(String table, BindableField field) {
       OutputColumnRefModel ref = new OutputColumnRefModel();
       ref.setTable(table);
       String column = field.column();
-      int colon = column.indexOf(':');
-
-      if(colon >= 0) {
-         ref.setEntity(column.substring(0, colon));
-         ref.setAttribute(column.substring(colon + 1));
-      }
-      else {
-         ref.setAttribute(column);
-      }
-
-      ref.setName(field.column());
+      ref.setAttribute(column);
+      ref.setName(column);
       ref.setDataType(field.dataType() == null ? XSchema.STRING : field.dataType());
       return ref;
    }

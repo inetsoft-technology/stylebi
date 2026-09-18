@@ -332,6 +332,300 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // Filter tests -- post-aggregate (HAVING) routing (Bug #76752 / WBS-055)
+   //
+   // add_filter/edit_condition/remove_filter used to be architecturally incapable of ever
+   // reaching postConditionList: an aggregate alias like "total_quantity" resolved via the
+   // private column selection's alias-fallback scan (the same ColumnRef set_group_aggregate
+   // aliased in place) instead of via AggregateInfo, silently writing/editing/removing a
+   // preConditionList entry against the aggregate's raw base column instead.
+   // =========================================================================
+
+   /**
+    * Cold-start repro from the live bug report: an aggregate ALIAS with no pre-existing
+    * post-condition at all must route straight to {@code postConditionList} -- not silently
+    * create a stray {@code preConditionList} entry against the aggregate's raw underlying
+    * column.
+    */
+   @Test
+   void addFilterOnAggregateAliasRoutesToPostConditionList() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "quantity", "SUM", "total_quantity")));
+         ed.addFilter("T", "total_quantity", ">=", "1000");
+      });
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty(),
+         "an aggregate-alias filter must not create a stray pre-aggregate (WHERE) condition");
+      assertNotNull(t.getPostConditionList());
+      assertFalse(t.getPostConditionList().isEmpty());
+      assertEquals(1, t.getPostConditionList().getConditionList().getSize());
+      assertTrue(t.getPostConditionList().getConditionItem(0).getAttribute() instanceof AggregateRef,
+         "the HAVING condition must reference the AggregateRef, not a plain column");
+   }
+
+   /**
+    * Round-2 review finding: {@link WorksheetMutationSupport#resolveUnambiguousAggregateAlias}
+    * matches on TWO arms -- {@code ar.toView()} OR {@code cr.getAlias()} -- but every test above
+    * only exercises the alias arm. An UNALIASED aggregate ({@code AggregateSpec.alias() == null},
+    * a normal, documented-nullable call shape) never gets its {@code ColumnRef}'s alias set at
+    * all ({@code applyAggregateInfo} only calls {@code colRef.setAlias(...)} when
+    * {@code spec.alias() != null}), so its ONLY reachable name other than the raw base attribute
+    * is its view string (e.g. {@code "Sum(quantity)"}) -- the {@code toView()} arm is the sole
+    * path an unaliased aggregate can ever match through, not a rarely-hit fallback.
+    *
+    * <p>Calls {@link WorksheetMutationSupport#addFilter} directly (mirroring how
+    * {@code WorksheetReadServiceTest} already exercises this method directly) rather than through
+    * {@link WorksheetEditService.Editor#addFilter}, since that service method's own
+    * {@code requireColumn(t, field)} guard checks only the private column selection and would
+    * reject a view-format field name before ever reaching this fix's routing logic -- a
+    * pre-existing, out-of-scope limitation documented in 03-fix.md's "Left alone" section, not
+    * something this test needs to route around differently than the view-string case actually
+    * requires.</p>
+    */
+   @Test
+   void addFilterOnUnaliasedAggregateViewNameRoutesToPostConditionList() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("quantity", "SUM", null))));
+
+      AggregateRef ar = t.getAggregateInfo().getAggregate(0);
+      assertNull(((ColumnRef) ar.getDataRef()).getAlias(),
+         "sanity check: an unaliased aggregate must not have picked up an alias by accident");
+      String view = ar.toView();
+
+      WorksheetMutationSupport.addFilter(t, view, ">", "100");
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty(),
+         "the toView() match arm must route to postConditionList too, not create a stray WHERE " +
+         "condition");
+      assertNotNull(t.getPostConditionList());
+      assertEquals(1, t.getPostConditionList().getConditionList().getSize());
+      assertTrue(t.getPostConditionList().getConditionItem(0).getAttribute() instanceof AggregateRef,
+         "the HAVING condition must reference the AggregateRef, not a plain column");
+   }
+
+   /**
+    * {@code edit_condition} on an existing HAVING condition's alias must mutate
+    * {@code postConditionList} in place -- not leave the stale HAVING condition untouched while
+    * writing an unrelated {@code preConditionList} entry.
+    */
+   @Test
+   void editConditionOnAggregateAliasMutatesPostConditionListInPlace() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "quantity", "SUM", "total_quantity")));
+         ed.setPostConditions("T", List.of(conditionNode("total_quantity", ">", "500")));
+      });
+
+      svc.apply("TOK", agent, ed -> ed.editCondition("T", "total_quantity", ">=", "1000"));
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty(),
+         "edit_condition on a HAVING alias must not touch preConditionList");
+      assertNotNull(t.getPostConditionList());
+      assertEquals(1, t.getPostConditionList().getConditionList().getSize());
+      assertEquals("1000.0", firstConditionValue(t.getPostConditionList()),
+         "the HAVING condition must actually be replaced, not left at its stale value");
+   }
+
+   /**
+    * {@code remove_filter} on that same alias must remove the HAVING condition -- not a phantom
+    * WHERE condition, leaving the stale HAVING filter behind as it did before this fix.
+    */
+   @Test
+   void removeFilterOnAggregateAliasRemovesFromPostConditionList() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "quantity", "SUM", "total_quantity")));
+         ed.setPostConditions("T", List.of(conditionNode("total_quantity", ">", "500")));
+      });
+
+      svc.apply("TOK", agent, ed -> ed.removeFilter("T", "total_quantity"));
+
+      assertTrue(t.getPostConditionList() == null || t.getPostConditionList().isEmpty(),
+         "remove_filter on a HAVING alias must actually clear postConditionList");
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty(),
+         "remove_filter must not have touched preConditionList either");
+   }
+
+   /**
+    * A {@link GroupRef} match is genuinely ambiguous (a group-by value is the same before and
+    * after aggregation) -- {@code add_filter}/{@code remove_filter} must keep today's pre-fix
+    * behavior for it: private-column-selection resolution, {@code preConditionList} only. This
+    * pins the "unchanged for the common case" half of the fix's own design decision.
+    */
+   @Test
+   void addFilterOnGroupByColumnStaysOnPreConditionList() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "quantity", "SUM", "total_quantity")));
+         ed.addFilter("T", "category", "=", "Games");
+      });
+
+      assertTrue(t.getPostConditionList() == null || t.getPostConditionList().isEmpty(),
+         "a group-by column match must not be auto-routed to postConditionList");
+      assertNotNull(t.getPreConditionList());
+      assertEquals(1, t.getPreConditionList().getConditionList().getSize());
+   }
+
+   /**
+    * Symmetric guard for {@code remove_filter}: a {@link GroupRef}-matched field must only ever
+    * be scanned out of {@code preConditionList}, never {@code postConditionList} -- refute.md's
+    * flagged over-removal risk of a naive "scan both lists" default for the ambiguous case.
+    */
+   @Test
+   void removeFilterOnGroupByColumnOnlyScansPreConditionList() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "quantity", "SUM", "total_quantity")));
+         ed.setPostConditions("T", List.of(conditionNode("category", "=", "Games")));
+         ed.addFilter("T", "category", "=", "Games");
+         ed.removeFilter("T", "category");
+      });
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty(),
+         "the pre-aggregate condition on the group-by column must be removed");
+      assertNotNull(t.getPostConditionList(),
+         "a same-named HAVING condition the caller never asked to touch must survive");
+      assertFalse(t.getPostConditionList().isEmpty());
+   }
+
+   /**
+    * The aggregate's own underlying BASE column name (e.g. {@code "quantity"} under
+    * {@code SUM(quantity) AS total_quantity}) is deliberately NOT treated as an unambiguous
+    * HAVING-only name: unlike the alias, the base column still names a real, filterable
+    * pre-aggregate column (a WHERE filter can run on the raw rows before the SUM is computed).
+    * Routing it to postConditionList by matching {@link AggregateRef#getDataRef}'s base
+    * attribute would be a regression for that legitimate use, not a fix.
+    */
+   @Test
+   void addFilterOnAggregateBaseColumnNameStaysOnPreConditionList() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec(
+               "quantity", "SUM", "total_quantity")));
+         ed.addFilter("T", "quantity", ">", "0");
+      });
+
+      assertTrue(t.getPostConditionList() == null || t.getPostConditionList().isEmpty(),
+         "the aggregate's raw base column name must not be auto-routed to postConditionList");
+      assertNotNull(t.getPreConditionList());
+      assertEquals(1, t.getPreConditionList().getConditionList().getSize());
+   }
+
+   /**
+    * L11 refute.md watch item: a table with a SECOND aggregate on the same base column (e.g.
+    * {@code MIN(quantity) AS min_q}, {@code MAX(quantity) AS max_q}) converts the secondary
+    * aggregate into its own expression column + primary {@link AggregateRef} via
+    * {@code applyAggregateInfo}'s {@code secondaryAggs} branch, which also regenerates the
+    * table's public column selection as a side effect. Confirms the fix is unaffected: routing
+    * is decided purely from {@link AggregateInfo} (never from either column-selection copy), so
+    * the secondary alias resolves to its own {@link AggregateRef} and routes to
+    * {@code postConditionList} independently of the first aggregate's alias.
+    */
+   @Test
+   void addFilterOnSecondaryAggregateAliasRoutesToPostConditionListIndependently() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("quantity", "MIN", "min_q"),
+                    new WorksheetMutationSupport.AggregateSpec("quantity", "MAX", "max_q")));
+         ed.addFilter("T", "max_q", ">", "100");
+      });
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty(),
+         "the secondary aggregate's alias must not create a stray pre-aggregate condition");
+      assertNotNull(t.getPostConditionList());
+      assertEquals(1, t.getPostConditionList().getConditionList().getSize());
+
+      svc.apply("TOK", agent, ed -> ed.addFilter("T", "min_q", "<", "5"));
+
+      // Both aggregates' HAVING conditions must coexist -- the second add_filter must not have
+      // clobbered or been confused with the first aggregate's own alias/condition.
+      assertEquals(3, t.getPostConditionList().getConditionList().getSize(),
+         "two ConditionItems + one AND junction");
+   }
+
+   /**
+    * Fail-loud consideration (this repo's CLAUDE.md "tool-misuse is a plugin gap" principle,
+    * applied here at the StyleBI layer): a field name that resolves to NEITHER a pre-aggregate
+    * column NOR an aggregate/group reference at all must throw, not silently create a
+    * {@code new AttributeRef(null, field)} condition and report success. Reached through
+    * {@code edit_condition} specifically because, unlike {@code add_filter},
+    * {@link WorksheetEditService.Editor#editCondition} calls straight through to
+    * {@link WorksheetMutationSupport#removeFilter}/{@link WorksheetMutationSupport#addFilter}
+    * with no {@code requireColumn} guard of its own.
+    */
+   @Test
+   void editConditionOnAnUnresolvableFieldThrowsInsteadOfSilentlyCreatingACondition()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      assertThrows(IllegalArgumentException.class, () -> svc.apply(
+         "TOK", agent, ed -> ed.editCondition("T", "no_such_field", "=", "1")));
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
+      assertTrue(t.getPostConditionList() == null || t.getPostConditionList().isEmpty());
+   }
+
+   // =========================================================================
    // Aggregate tests
    // =========================================================================
 
@@ -4248,6 +4542,35 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * {@code date} and {@code timeInstant} used to be folded into the same "date bucket" by
+    * {@code AssetUtil.isMergeable}, so this pairing was silently accepted even though there is no
+    * date-widening step (unlike {@code XSchema.mergeNumericType} for numbers) — a later
+    * {@code timeInstant} source's time-of-day would be silently lost through the concatenation's
+    * declared column type. This must now be refused at write time, naming the position and both
+    * types, just like the existing string/number-bucket mismatch case above.
+    */
+   @Test
+   void addConcatenationRejectsDateAndTimeInstantColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("id", XSchema.INTEGER), col("d", XSchema.DATE));
+      EmbeddedTableAssembly b =
+         table(ws, "B", col("id", XSchema.INTEGER), col("d", XSchema.TIME_INSTANT));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION")));
+
+      assertTrue(ex.getMessage().contains("position 2"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(XSchema.DATE), ex.getMessage());
+      assertTrue(ex.getMessage().contains(XSchema.TIME_INSTANT), ex.getMessage());
+      assertNull(ws.getAssembly("U"), "nothing may be added when the sources do not line up");
+   }
+
+   /**
     * ws.removeAssembly does not clean up what depended on the deleted table: its removeMirrors call
     * returns immediately unless the assembly BEING deleted is itself an outer mirror. So the
     * dependent survived pointing at a name that was gone, every query against it failed, and no
@@ -4906,6 +5229,100 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ws.getAssembly("U") instanceof ConcatenatedTableAssembly);
    }
 
+   @Test
+   void editConcatenationChangesTypeOnA2TableUnionToIntersect() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      svc.apply("TOK", agent, ed -> ed.editConcatenation("U", "INTERSECT", null));
+
+      ConcatenatedTableAssembly ctbl = (ConcatenatedTableAssembly) ws.getAssembly("U");
+      assertEquals(TableAssemblyOperator.INTERSECT,
+         ctbl.getOperator(0).getKeyOperator().getOperation());
+   }
+
+   /**
+    * Regression test for the {@code parseConcatType(null)}-defaults-to-UNION trap: an edit that only
+    * asks to change {@code distinct} must not silently reset the pair's operation back to UNION.
+    */
+   @Test
+   void editConcatenationChangesOnlyDistinctLeavesTheOperationAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "INTERSECT"));
+
+      svc.apply("TOK", agent, ed -> ed.editConcatenation("U", null, true));
+
+      ConcatenatedTableAssembly ctbl = (ConcatenatedTableAssembly) ws.getAssembly("U");
+      assertEquals(TableAssemblyOperator.INTERSECT,
+         ctbl.getOperator(0).getKeyOperator().getOperation(),
+         "opType=null must preserve the existing operation, not reset it to UNION");
+      assertTrue(ctbl.getOperator(0).isDistinct());
+   }
+
+   @Test
+   void editConcatenationOnAThreeTableConcatenationAppliesToEveryPair() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly c = table(ws, "C", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B", "C"), "UNION"));
+
+      svc.apply("TOK", agent, ed -> ed.editConcatenation("U", "MINUS", true));
+
+      ConcatenatedTableAssembly ctbl = (ConcatenatedTableAssembly) ws.getAssembly("U");
+
+      for(int i = 0; i < 2; i++) {
+         assertEquals(TableAssemblyOperator.MINUS,
+            ctbl.getOperator(i).getKeyOperator().getOperation(),
+            "pair " + i + " must be updated, not just the first");
+         assertTrue(ctbl.getOperator(i).isDistinct(), "pair " + i + " must be updated");
+      }
+   }
+
+   @Test
+   void editConcatenationOnANonExistentAssemblyThrows() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editConcatenation("MISSING", "UNION", null)));
+
+      assertTrue(ex.getMessage().contains("MISSING"), ex.getMessage());
+   }
+
+   @Test
+   void editConcatenationWithBothFieldsNullThrows() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editConcatenation("U", null, null)));
+   }
+
    // =========================================================================
    // Mirror auto-update tests
    // =========================================================================
@@ -5285,6 +5702,30 @@ class WorksheetEditServiceMutatorsTest {
                     "the refusal must offer " + op + " -- a caller reading it to self-correct "
                     + "cannot discover an operator the message leaves out");
       }
+   }
+
+   /**
+    * PC-010 residual gap (Redmine #76692, filed against PC-008's own residual-gap note): the
+    * short-form spellings a caller naturally reaches for -- "greater than or equal" without the
+    * "_OR_", "not equal" without the "_TO" -- were refused before this, loudly and correctly
+    * naming the rejected token, but there was no reason to keep refusing the obvious guess once
+    * noticed. Each must resolve to the SAME XCondition as its already-accepted long form, and
+    * isEqualInclusive/isNegatedOperation must recognise them too -- parseOperation alone
+    * resolving the constant is not enough, since addFilter/buildGroupConditionList call all three
+    * independently off the same raw operation string.
+    */
+   @Test
+   void theNaturalShortFormOperatorAliasesAreNowAccepted() {
+      assertEquals(XCondition.GREATER_THAN, WorksheetMutationSupport.parseOperation("GREATER_THAN_EQUAL"));
+      assertEquals(XCondition.LESS_THAN, WorksheetMutationSupport.parseOperation("LESS_THAN_EQUAL"));
+      assertEquals(XCondition.EQUAL_TO, WorksheetMutationSupport.parseOperation("NOT_EQUAL"));
+
+      assertTrue(WorksheetMutationSupport.isEqualInclusive("GREATER_THAN_EQUAL"));
+      assertTrue(WorksheetMutationSupport.isEqualInclusive("LESS_THAN_EQUAL"));
+      assertTrue(WorksheetMutationSupport.isNegatedOperation("NOT_EQUAL"));
+
+      // Case-insensitive and space-tolerant the same way every other operator token already is.
+      assertEquals(XCondition.GREATER_THAN, WorksheetMutationSupport.parseOperation("greater than equal"));
    }
 
    /**

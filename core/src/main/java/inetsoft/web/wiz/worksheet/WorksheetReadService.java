@@ -132,7 +132,8 @@ public class WorksheetReadService {
 
       return new WorksheetModel.TableModel(
          name, type, columns, joins,
-         readSources(t), readConcatType(t), readConcatCompatible(t), readAutoUpdate(t),
+         readSources(t), readConcatType(t), readConcatDistinct(t), readConcatCompatible(t),
+         readAutoUpdate(t),
          preConditions, postConditions, rankingConditions,
          aggregates, sorts, primary,
          t.getDescription(),
@@ -230,9 +231,11 @@ public class WorksheetReadService {
     * connection, so {@code A UNION B MINUS C} is a legal assembly. Reporting the first pair's
     * operation as though it described the whole thing would hand the caller a confidently wrong
     * answer, which is worse than none — hence {@code "MIXED"}. The individual per-pair operations
-    * are deliberately not exposed: no agent tool can set them separately
-    * ({@code add_concatenation} applies one operation to every pair), so naming which pair is which
-    * would not let a caller act on it.</p>
+    * are deliberately not exposed: no agent tool sets them separately — both
+    * {@code add_concatenation} and {@code edit_concatenation} (see
+    * {@code WorksheetEditService.Editor#editConcatenation}) apply one operation to every pair,
+    * the latter silently flattening a pre-existing {@code "MIXED"} assembly to a single value —
+    * so naming which pair is which would not let a caller act on it.</p>
     */
    private String readConcatType(TableAssembly t) {
       if(!(t instanceof ConcatenatedTableAssembly concat)) {
@@ -279,6 +282,39 @@ public class WorksheetReadService {
          case TableAssemblyOperator.MINUS -> "MINUS";
          default -> null;
       };
+   }
+
+   /**
+    * Whether a concatenation's pairs de-duplicate rows ({@code UNION} vs. {@code UNION ALL}), or
+    * {@code null} if it is not a concatenation, has no pairs, or its pairs disagree.
+    *
+    * <p>Mirrors {@link #readConcatType}'s exact shape: one value is held per adjacent pair, and
+    * {@code null} on disagreement rather than guessing from the first pair, for the same reason —
+    * {@code editConcatenation} (see {@code WorksheetEditService.Editor#editConcatenation}) sets one
+    * value across every pair, so a caller cannot act on which pair disagrees even if this reported
+    * it. Unlike {@code concatType}, there is no {@code "MIXED"} sentinel here: {@code Boolean} has
+    * no three-state slot, so disagreement reads the same as "not present" — {@code null} — matching
+    * the nullable-when-ambiguous convention this model already uses elsewhere (e.g.
+    * {@link #readConcatCompatible}).</p>
+    */
+   private Boolean readConcatDistinct(TableAssembly t) {
+      if(!(t instanceof ConcatenatedTableAssembly concat)) {
+         return null;
+      }
+
+      Set<Boolean> distinctFlags = new LinkedHashSet<>();
+      String[] names = concat.getTableNames();
+      int pairs = names == null ? 0 : names.length - 1;
+
+      for(int i = 0; i < pairs; i++) {
+         TableAssemblyOperator operator = concat.getOperator(i);
+
+         if(operator != null) {
+            distinctFlags.add(operator.getKeyOperator().isDistinct());
+         }
+      }
+
+      return distinctFlags.size() == 1 ? distinctFlags.iterator().next() : null;
    }
 
    /**
@@ -649,6 +685,13 @@ public class WorksheetReadService {
          return Collections.emptyList();
       }
 
+      String[] tnames = joinTable.getTableNames();
+      // Only safe when there are exactly 2 source tables: with 2 tables there is exactly one
+      // possible (ltable, rtable) pair, so this cannot mismatch a non-adjacent edge the way a
+      // positional guess could for 3+ table joins/merges (see bug-76788-WBS-067's refutation) --
+      // not even across a later "reorder subtables" action.
+      boolean canFallbackByPosition = tnames != null && tnames.length == 2;
+
       List<WorksheetModel.JoinModel> joins = new ArrayList<>();
 
       while(operators.hasMoreElements()) {
@@ -665,6 +708,15 @@ public class WorksheetReadService {
 
             String leftTable = op.getLeftTable();
             String rightTable = op.getRightTable();
+
+            // Tightened per refutation recheck: only fall back when BOTH fields are null --
+            // every producer actually seen (MergeJoinService/CrossJoinService) always nulls
+            // them together, so this avoids ever clobbering an already-valid field from some
+            // future producer that leaves only one side null.
+            if(leftTable == null && rightTable == null && canFallbackByPosition) {
+               leftTable = tnames[0];
+               rightTable = tnames[1];
+            }
 
             if(leftTable == null || rightTable == null) {
                continue;

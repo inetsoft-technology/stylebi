@@ -239,9 +239,26 @@ public class ViewsheetSessionService {
    }
 
    /**
-    * Carry the browser's socket session onto the runtime. Without this
-    * {@code SheetAgentBroadcastService} finds no socket session and skips the broadcast, so
-    * the human's Composer never reflects the agent's edits.
+    * Carry the browser's socket session onto the runtime, filling it in ONLY when the runtime
+    * does not already have one. Without this at all, a runtime opened by a path with no live
+    * browser socket (e.g. {@code open_composer_asset}) would leave
+    * {@code SheetAgentBroadcastService} with no socket session to address, silently skipping
+    * every broadcast.
+    *
+    * <p>Deliberately NOT unconditional. {@link JoinSession#socketSessionId()} is captured once
+    * at pairing-mint time and never refreshed for the rest of that token's life --
+    * {@code SheetSessionService.resolve()} (called on every single agent call under this
+    * session) copies the same frozen value forward, it never re-derives it from anywhere live.
+    * If this method re-applied that frozen value on every call, it would silently UNDO a
+    * human's own later recovery: a manual Composer Refresh re-stamps the runtime's socket
+    * unconditionally from a live dispatcher (see {@code CoreLifecycleService}/
+    * {@code VSLifecycleControllerService}), and the very next agent call on the same
+    * un-re-paired token would stomp that fresh value right back to the stale one this session
+    * has always carried -- re-breaking the broadcast, now caused by the agent's own call rather
+    * than the original staleness. {@link SheetJoinService#join} is the one place allowed to
+    * apply a grant's socket values unconditionally, exactly once per pairing, because that is
+    * the one moment those values are provably fresh (captured from the live STOMP mint request
+    * that is happening right now, not replayed from an old one).
     */
    private void applySocketSession(RuntimeViewsheet rvs, JoinSession session) {
       if(session.socketSessionId() != null && rvs.getSocketSessionId() == null) {

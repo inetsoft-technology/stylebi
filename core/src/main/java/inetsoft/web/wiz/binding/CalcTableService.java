@@ -1150,6 +1150,18 @@ public class CalcTableService {
 
       if(dateLevel != null) {
          String normalized = DateLevels.normalize(dateLevel);
+
+         // Unlike a chart/table dimension's dlevelValue, OrderModel/OrderInfo's date option is a
+         // plain int with no DynamicValue counterpart -- there is nowhere to put a dynamic value
+         // here. normalize() now returns a well-formed "$(...)"/"=script" value unchanged instead
+         // of throwing, so that case has to be rejected here instead, with a clean field-named
+         // error rather than letting it fall into Integer.parseInt as a raw NumberFormatException.
+         if(DateLevels.isDynamicValue(normalized)) {
+            throw new IllegalArgumentException(
+               "'field.dateLevel' does not support a dynamic value on a calc-table cell: '" +
+               normalized + "'. Use a literal date-level name or number instead.");
+         }
+
          info.getOrder().setOption(Integer.parseInt(normalized));
       }
 

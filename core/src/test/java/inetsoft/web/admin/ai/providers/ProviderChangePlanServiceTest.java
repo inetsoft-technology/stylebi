@@ -230,16 +230,112 @@ class ProviderChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("providerType"));
    }
 
-   @Test void resolveThrowsOnDatabaseProviderType() {
-      ProviderChangeRequest change = new ProviderChangeRequest();
-      change.setVerb("create");
-      change.setChain("authentication");
-      change.setName("p1");
-      change.setProviderType("DATABASE");
+   // -------------------------------------------------------------------------
+   // DATABASE create (bug 76710/76716) -- the blanket client-side exclusion is gone; the real
+   // license gate (AuthenticationProviderService.checkProviderTypeLicensed, bug 76359) is reused
+   // via requireProviderTypeLicensed rather than re-derived, so these tests verify THIS service
+   // calls that reused gate and propagates its refusal, not the gate's own internal logic (that
+   // belongs to AuthenticationProviderServiceTest).
+   // -------------------------------------------------------------------------
+
+   @Test void resolveAllowsDatabaseProviderTypeCreateOnceLicensed() throws Exception {
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", databaseSpec());
       stubEmptyAuthenticationChain(List.of());
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+
+      assertEquals(1, plan.changes().size());
+      assertTrue(plan.changes().get(0).proposedValue().contains("type=DATABASE;"));
+      verify(authenticationProviderService).requireProviderTypeLicensed(SecurityProviderType.DATABASE);
+   }
+
+   @Test void resolveDatabaseCreatePropagatesTheReusedLicenseRefusal() {
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", databaseSpec());
+      stubEmptyAuthenticationChain(List.of());
+      doThrow(new RuntimeException("em.securityProvider.databaseNotLicensed"))
+         .when(authenticationProviderService)
+         .requireProviderTypeLicensed(SecurityProviderType.DATABASE);
+
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("databaseNotLicensed"));
+   }
+
+   @Test void resolveThrowsOnMissingDatabaseSpecForDatabaseCreate() {
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", null);
+      stubEmptyAuthenticationChain(List.of());
+
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(change)), user));
-      assertTrue(ex.getMessage().contains("excluded"));
+      assertTrue(ex.getMessage().contains("databaseSpec"));
+   }
+
+   @Test void resolveThrowsOnSpecInsteadOfDatabaseSpecForDatabaseCreate() {
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", databaseSpec());
+      change.setSpec(ldapSpec());
+      stubEmptyAuthenticationChain(List.of());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("spec"));
+      assertTrue(ex.getMessage().contains("databaseSpec"));
+   }
+
+   @Test void resolveThrowsOnDatabaseForAuthorizationChain() {
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHORIZATION, "db1", databaseSpec());
+      stubProviderList(authorizationProviderService, List.of());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("DATABASE"));
+      verifyNoInteractions(authenticationProviderService);
+   }
+
+   @Test void resolveThrowsOnDatabaseUseCredentialTrueWithUserPresent() {
+      ProviderDatabaseSpec spec = databaseSpec();
+      spec.setUseCredential(true);
+      spec.setSecretId("vault:1");
+      // user still set alongside useCredential=true -- illegal combination
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", spec);
+      stubEmptyAuthenticationChain(List.of());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("useCredential"));
+   }
+
+   // -------------------------------------------------------------------------
+   // requiresLogin=false exempts the whole credential-mode requirement (bug 76716 review finding,
+   // confirmed against the real EM dialog: database-provider-view.component.html's @if wraps the
+   // ENTIRE secretId/useCredential/user/password block on requiresLogin).
+   // -------------------------------------------------------------------------
+
+   @Test void resolveAllowsDatabaseCreateWithRequiresLoginFalseAndNoCredentialFields() throws Exception {
+      ProviderDatabaseSpec spec = new ProviderDatabaseSpec();
+      spec.setDriver("com.mysql.cj.jdbc.Driver");
+      spec.setUrl("jdbc:mysql://db1.example.com:3306/security");
+      spec.setHashAlgorithm("SHA-256");
+      spec.setRequiresLogin(false);
+      // Deliberately no useCredential/secretId/user/password at all.
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", spec);
+      stubEmptyAuthenticationChain(List.of());
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      assertEquals(1, plan.changes().size());
+   }
+
+   @Test void resolveDatabaseCreateStillRequiresCredentialsWhenRequiresLoginOmitted() {
+      ProviderDatabaseSpec spec = new ProviderDatabaseSpec();
+      spec.setDriver("com.mysql.cj.jdbc.Driver");
+      spec.setUrl("jdbc:mysql://db1.example.com:3306/security");
+      spec.setHashAlgorithm("SHA-256");
+      // requiresLogin left null (omitted) -- must default to true, same as before this fix.
+      ProviderChangeRequest change = createDatabase(ProviderChain.AUTHENTICATION, "db1", spec);
+      stubEmptyAuthenticationChain(List.of());
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("user"));
    }
 
    @Test void resolveThrowsOnCustomProviderType() {
@@ -453,15 +549,28 @@ class ProviderChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("lock the calling session out"));
    }
 
-   @Test void resolveRefusesDeleteOfDatabaseTypedAuthenticationProvider() throws Exception {
+   @Test void resolveAllowsDeleteOfDatabaseTypedAuthenticationProvider() throws Exception {
+      // bug 76716: DATABASE delete's own rollback-recreate risk is no longer excluded once create
+      // supports it -- the same checkProviderTypeLicensed gate that guards a genuine new DATABASE
+      // creation already guards a rollback-recreate too (addAuthenticationProvider is the single
+      // entry point both go through), so this area's own delete-target restriction no longer needs
+      // to exclude DATABASE independently.
+      stubHealthyAuthenticationChainOf("keep", "victim");
+      when(authenticationProviderService.getAuthenticationProvider("victim")).thenReturn(dbModel("victim"));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(deleteAuth("victim"))), user);
+      assertEquals(1, plan.changes().size());
+   }
+
+   @Test void resolveRefusesDeleteOfCustomTypedAuthenticationProvider() throws Exception {
       stubHealthyAuthenticationChainOf("victim");
-      AuthenticationProviderModel dbModel = AuthenticationProviderModel.builder()
-         .providerName("victim").providerType(SecurityProviderType.DATABASE).build();
-      when(authenticationProviderService.getAuthenticationProvider("victim")).thenReturn(dbModel);
+      AuthenticationProviderModel customModel = AuthenticationProviderModel.builder()
+         .providerName("victim").providerType(SecurityProviderType.CUSTOM).build();
+      when(authenticationProviderService.getAuthenticationProvider("victim")).thenReturn(customModel);
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(deleteAuth("victim"))), user));
-      assertTrue(ex.getMessage().contains("DATABASE"));
+      assertTrue(ex.getMessage().contains("CUSTOM"));
    }
 
    // -------------------------------------------------------------------------
@@ -591,6 +700,103 @@ class ProviderChangePlanServiceTest {
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(updateAuth("p1", patch))), user));
       assertTrue(ex.getMessage().contains("useCredential"));
+   }
+
+   // -------------------------------------------------------------------------
+   // update verb, DATABASE target (bug 76716) -- no license check needed here at all:
+   // checkProviderTypeLicensed's introducingUnlicensedType is always false for update (it never
+   // changes a provider's type), so editing an already-existing DATABASE provider's other fields
+   // is the grandfathered case bug 76359 deliberately leaves unlicensed-safe.
+   // -------------------------------------------------------------------------
+
+   @Test void resolveUpdateMergesPartialDatabaseSpecPreservingOtherFieldsAndSucceeds() throws Exception {
+      stubHealthyAuthenticationChainOf("db1");
+      when(authenticationProviderService.getAuthenticationProvider("db1")).thenReturn(dbModel("db1"));
+      AuthenticationProvider proposedProvider = sysAdminProvider("db1");
+      when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenReturn(Optional.of(proposedProvider));
+
+      ProviderDatabaseSpec patch = new ProviderDatabaseSpec();
+      patch.setUrl("jdbc:mysql://rotated-host.example.com:3306/security");
+
+      ResolvedPlan plan = service.resolve(request("update", List.of(updateAuthDatabase("db1", patch))), user);
+
+      String proposed = plan.changes().get(0).proposedValue();
+      assertTrue(proposed.contains("type=DATABASE;"));
+      assertTrue(proposed.contains("url=jdbc:mysql://rotated-host.example.com:3306/security;"));
+      assertTrue(proposed.contains("driver=com.mysql.cj.jdbc.Driver;")); // untouched field carried over
+      verify(proposedProvider).tearDown();
+      verify(authenticationProviderService, never()).requireProviderTypeLicensed(any());
+   }
+
+   @Test void resolveUpdateAllowsRequiresLoginFalseEvenWithOtherwiseContradictoryCredentialFields()
+      throws Exception
+   {
+      // bug 76716 review finding: requiresLogin=false in the update patch resolves the MERGED
+      // model's own requiresLogin() to false, which must skip requireDatabaseCredentialCrossValidation
+      // entirely -- proven here by deliberately sending secretId together with user/password (a
+      // combination that would otherwise be refused loud) and confirming it still succeeds.
+      stubHealthyAuthenticationChainOf("db1");
+      when(authenticationProviderService.getAuthenticationProvider("db1")).thenReturn(dbModel("db1"));
+      AuthenticationProvider proposedProvider = sysAdminProvider("db1");
+      when(authenticationProviderService.buildProviderForPreflightSimulation(any()))
+         .thenReturn(Optional.of(proposedProvider));
+
+      ProviderDatabaseSpec patch = new ProviderDatabaseSpec();
+      patch.setRequiresLogin(false);
+      patch.setSecretId("vault:1");
+      patch.setUser("would-be-contradictory");
+      patch.setPassword("would-be-contradictory");
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(updateAuthDatabase("db1", patch))), user);
+      assertEquals(1, plan.changes().size());
+      assertTrue(plan.changes().get(0).proposedValue().contains("requiresLogin=false;"));
+   }
+
+   @Test void resolveUpdateRejectsSpecWhenCurrentProviderIsDatabase() throws Exception {
+      stubHealthyAuthenticationChainOf("db1");
+      when(authenticationProviderService.getAuthenticationProvider("db1")).thenReturn(dbModel("db1"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateAuth("db1", ldapSpec()))), user));
+      assertTrue(ex.getMessage().contains("databaseSpec"));
+   }
+
+   @Test void resolveUpdateRejectsDatabaseSpecWhenCurrentProviderIsLdap() throws Exception {
+      stubHealthyAuthenticationChainOf("p1");
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(ldapModel("p1"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateAuthDatabase("p1", databaseSpec()))), user));
+      assertTrue(ex.getMessage().contains("spec"));
+   }
+
+   @Test void resolveUpdateRejectsCustomCurrentType() throws Exception {
+      stubHealthyAuthenticationChainOf("p1");
+      AuthenticationProviderModel custom = AuthenticationProviderModel.builder()
+         .providerName("p1").providerType(SecurityProviderType.CUSTOM).build();
+      when(authenticationProviderService.getAuthenticationProvider("p1")).thenReturn(custom);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateAuthDatabase("p1", databaseSpec()))), user));
+      assertTrue(ex.getMessage().contains("LDAP or DATABASE"));
+   }
+
+   @Test void resolveUpdateRejectsDatabaseSecretIdWhenMergedUseCredentialIsFalse() throws Exception {
+      // Mirrors resolveUpdateRejectsPasswordOnlyChangeWhenCurrentUsesCredential's LDAP precedent,
+      // inverse direction: dbModel("db1")'s stored config has useCredential=false, the patch omits
+      // useCredential (so the MERGED model still resolves to false) but adds secretId -- a field
+      // belonging to the other mode. This is requireDatabaseCredentialCrossValidation running
+      // against the MERGED/proposed model, not a stateless pre-merge check.
+      stubHealthyAuthenticationChainOf("db1");
+      when(authenticationProviderService.getAuthenticationProvider("db1")).thenReturn(dbModel("db1"));
+
+      ProviderDatabaseSpec patch = new ProviderDatabaseSpec();
+      patch.setSecretId("vault:1");
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(updateAuthDatabase("db1", patch))), user));
+      assertTrue(ex.getMessage().contains("secretId"));
    }
 
    @Test void resolveUpdateRefusesWhenEditWouldStripCallersOwnSysAdminRole() throws Exception {
@@ -769,6 +975,47 @@ class ProviderChangePlanServiceTest {
             .hostPort(389).rootDN("dc=example,dc=com").adminID("cn=admin")
             .password("initial-password").build())
          .build();
+   }
+
+   private static AuthenticationProviderModel dbModel(String name) {
+      return AuthenticationProviderModel.builder()
+         .providerName(name).providerType(SecurityProviderType.DATABASE)
+         .dbProviderModel(DatabaseAuthenticationProviderModel.builder()
+            .driver("com.mysql.cj.jdbc.Driver").url("jdbc:mysql://db1.example.com:3306/security")
+            .hashAlgorithm("SHA-256").requiresLogin(true).useCredential(false)
+            .user("svc_auth").password("initial-password").build())
+         .build();
+   }
+
+   private static ProviderDatabaseSpec databaseSpec() {
+      ProviderDatabaseSpec spec = new ProviderDatabaseSpec();
+      spec.setDriver("com.mysql.cj.jdbc.Driver");
+      spec.setUrl("jdbc:mysql://db1.example.com:3306/security");
+      spec.setHashAlgorithm("SHA-256");
+      spec.setUser("svc_auth");
+      spec.setPassword("initial-password");
+      return spec;
+   }
+
+   private static ProviderChangeRequest createDatabase(ProviderChain chain, String name,
+                                                        ProviderDatabaseSpec spec)
+   {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("create");
+      change.setChain(chain.label());
+      change.setName(name);
+      change.setProviderType("DATABASE");
+      change.setDatabaseSpec(spec);
+      return change;
+   }
+
+   private static ProviderChangeRequest updateAuthDatabase(String name, ProviderDatabaseSpec spec) {
+      ProviderChangeRequest change = new ProviderChangeRequest();
+      change.setVerb("update");
+      change.setChain("authentication");
+      change.setName(name);
+      change.setDatabaseSpec(spec);
+      return change;
    }
 
    private static AuthorizationProviderModel authzFileModel(String name) {
