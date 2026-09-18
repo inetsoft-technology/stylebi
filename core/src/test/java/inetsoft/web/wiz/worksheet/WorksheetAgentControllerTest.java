@@ -18,6 +18,9 @@
 package inetsoft.web.wiz.worksheet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletResponse;
 import inetsoft.web.WebConfig;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -75,6 +78,7 @@ import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.FakeCustomRestQuery;
 import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
 import inetsoft.web.wiz.service.MetadataApiService;
+import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
@@ -93,10 +97,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -202,7 +209,8 @@ class WorksheetAgentControllerTest {
                                           renameTransformHandler,
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code dependents} test control the
@@ -228,7 +236,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code refresh_data} test observe/stub the
@@ -255,7 +264,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           assetDataCache,
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code preview} test control the
@@ -281,7 +291,35 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
+   }
+
+   /** Like the 6-arg {@code controller}, but lets an {@code export} (worksheet table CSV export)
+    *  test control the {@link RawDataService} instead of getting an unstubbed mock. */
+   private static WorksheetAgentController controller(SheetAgentFeature feature,
+                                                       SheetJoinService join,
+                                                       SheetSessionService sessions,
+                                                       WorksheetReadService read,
+                                                       WorksheetEditService edit,
+                                                       WorksheetService ws,
+                                                       RawDataService rawDataService)
+   {
+      return new WorksheetAgentController(feature, join, sessions, read, edit, ws,
+                                          mock(WorksheetPreviewService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(inetsoft.uql.XRepository.class),
+                                          mock(inetsoft.uql.asset.AssetRepository.class),
+                                          mock(inetsoft.web.wiz.service.MetadataApiService.class),
+                                          mock(inetsoft.web.portal.controller.database.QueryManagerService.class),
+                                          mock(inetsoft.web.composer.ws.LayoutGraphService.class),
+                                          mock(inetsoft.web.portal.controller.database.DataSourceService.class),
+                                          mock(inetsoft.sree.security.SecurityEngine.class),
+                                          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
+                                          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
+                                          mock(inetsoft.report.composition.execution.AssetDataCache.class),
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          rawDataService);
    }
 
    /** Like the 6-arg {@code controller}, but lets a {@code condition/date-ranges} test control
@@ -308,7 +346,8 @@ class WorksheetAgentControllerTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          dialogServiceProxy);
+                                          dialogServiceProxy,
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    private static SheetAgentFeature featureOn() {
@@ -345,7 +384,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
-         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /**
@@ -831,6 +871,103 @@ class WorksheetAgentControllerTest {
 
       assertEquals(expected, result);
       verify(previewSvc).preview(rws, "T", 200, 50);
+   }
+
+   // ---------------------------------------------------------------------------
+   // export (WBS-057) -- exports a worksheet table's CURRENT LIVE data (including any unsaved
+   // edits made in this session) as a downloadable CSV file, streamed directly to a mocked
+   // HttpServletResponse. Mirrors ViewsheetAssemblyAgentControllerTest's own
+   // capturingOutputStream/mockServletResponse helpers for the same direct-servlet-write pattern.
+   // ---------------------------------------------------------------------------
+
+   /** A ServletOutputStream backed by a plain ByteArrayOutputStream so tests can capture what
+    *  the controller writes -- mirrors ViewsheetAssemblyAgentControllerTest's own helper of the
+    *  same shape, for the same direct-servlet-write pattern. */
+   private static ServletOutputStream capturingOutputStream(ByteArrayOutputStream sink) {
+      return new ServletOutputStream() {
+         @Override
+         public boolean isReady() {
+            return true;
+         }
+
+         @Override
+         public void setWriteListener(WriteListener writeListener) {
+         }
+
+         @Override
+         public void write(int b) {
+            sink.write(b);
+         }
+      };
+   }
+
+   private static HttpServletResponse mockServletResponse(ByteArrayOutputStream written) throws Exception {
+      HttpServletResponse response = mock(HttpServletResponse.class);
+      when(response.getOutputStream()).thenReturn(capturingOutputStream(written));
+      return response;
+   }
+
+   @Test
+   void exportTableStreamsLiveWorksheetTableCsvToTheResponse() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      RawDataService rawDataService = mock(RawDataService.class);
+      byte[] fakeCsv = "a,b\n1,2\n".getBytes(StandardCharsets.UTF_8);
+      doAnswer(invocation -> {
+         OutputStream out = invocation.getArgument(2);
+         out.write(fakeCsv);
+         return null;
+      }).when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         rawDataService);
+
+      ByteArrayOutputStream written = new ByteArrayOutputStream();
+      HttpServletResponse servletResponse = mockServletResponse(written);
+
+      ctrl.exportTable("TOK", "T", agent, servletResponse);
+
+      verify(servletResponse).setContentType("text/csv");
+      verify(servletResponse).setHeader(eq("Content-Disposition"), contains("T.csv"));
+      verify(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("T"), any());
+      assertArrayEquals(fakeCsv, written.toByteArray());
+   }
+
+   /**
+    * A table name absent from the live worksheet must fail loudly (the same
+    * {@code RawDataService} error, naming the table) rather than silently produce an empty or
+    * wrong file -- mirroring {@code preview_worksheet_data}'s own "Table not found" failure shape.
+    */
+   @Test
+   void exportTableFailsLoudlyWhenTableNotFound() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      RawDataService rawDataService = mock(RawDataService.class);
+      doThrow(new RuntimeException("Table missing not found."))
+         .when(rawDataService).writeLiveWorksheetTableCsvStream(eq(rws), eq("missing"), any());
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         rawDataService);
+
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+
+      RuntimeException ex = assertThrows(RuntimeException.class,
+         () -> ctrl.exportTable("TOK", "missing", agent, servletResponse));
+      assertTrue(ex.getMessage().contains("missing"));
    }
 
    // ---------------------------------------------------------------------------
@@ -4172,7 +4309,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
-         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.wiz.service.RawDataService.class));
 
       ctrl.detach("TOK-D", agent);
 
@@ -4211,7 +4349,8 @@ class WorksheetAgentControllerTest {
          mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
          openService,
          mock(inetsoft.report.composition.execution.AssetDataCache.class),
-         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+         mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+         mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    @Test
