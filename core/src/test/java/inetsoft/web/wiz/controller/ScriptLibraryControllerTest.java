@@ -126,6 +126,41 @@ class ScriptLibraryControllerTest {
       verify(fixture.lib).setScript("helper", "return 1;");
    }
 
+   @Test
+   void create_rejectsBlankText() throws Exception {
+      Fixture fixture = new Fixture();
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
+         new ScriptLibraryController.CreateScriptLibraryFunctionRequest("newFn", "   ", null),
+         fixture.principal));
+
+      verify(fixture.lib, never()).setScript(anyString(), anyString());
+   }
+
+   @Test
+   void create_rejectsNullText() throws Exception {
+      Fixture fixture = new Fixture();
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.create(
+         new ScriptLibraryController.CreateScriptLibraryFunctionRequest("newFn", null, null),
+         fixture.principal));
+
+      verify(fixture.lib, never()).setScript(anyString(), anyString());
+   }
+
+   @Test
+   void update_rejectsBlankText() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.update(
+         "helper",
+         new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("", null),
+         fixture.principal));
+
+      verify(fixture.lib, never()).setScript(anyString(), anyString());
+   }
+
    private static String componentScopedId(String name) {
       return new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null)
          .toIdentifier();

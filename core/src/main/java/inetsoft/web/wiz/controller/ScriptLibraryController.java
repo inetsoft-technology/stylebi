@@ -113,6 +113,10 @@ public class ScriptLibraryController {
          throw new IllegalArgumentException("create_script_library_function requires 'name'.");
       }
 
+      if(request.text() == null || request.text().isBlank()) {
+         throw new IllegalArgumentException("create_script_library_function requires 'text'.");
+      }
+
       LibManager lib = libManagerProvider.getManager(principal);
 
       if(lib.getScript(name) != null) {
@@ -140,8 +144,12 @@ public class ScriptLibraryController {
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
       requirePermission(principal, name, ResourceAction.WRITE);
+      if(request.text() == null || request.text().isBlank()) {
+         throw new IllegalArgumentException("update_script_library_function requires 'text'.");
+      }
+
       String oldText = lib.getScript(name);
-      String newText = request.text() == null ? "" : request.text();
+      String newText = request.text();
       // Keeps the outgoing dependency graph in sync with the new body, the same way
       // OpenScriptController.saveScript does for a per-sheet script save -- otherwise delete()'s
       // dependency-safety check above is only as accurate as the last create/update wrote.
