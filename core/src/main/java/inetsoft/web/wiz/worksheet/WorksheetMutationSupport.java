@@ -36,6 +36,7 @@ import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
+import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.wiz.pairing.PairingException;
 
 import java.util.*;
@@ -1004,6 +1005,27 @@ public final class WorksheetMutationSupport {
          t.setColumnSelection(cs2);
       }
 
+      // Guard against the same "aggregate-only retention silently breaks a downstream
+      // join key" gap the Composer's Group and Aggregate dialog already blocks (Bug
+      // #76787): a column that keeps its NAME but is reduced to a per-group aggregate
+      // output no longer holds row-level identity, so if some other table still joins
+      // on it, that join would silently start matching against aggregated values.
+      Worksheet mutationWs = t.getWorksheet();
+
+      if(mutationWs != null) {
+         ColumnRef conflict =
+            WorksheetControllerService.findAggregateIdentityLossConflict(mutationWs, t, ainfo);
+
+         if(conflict != null) {
+            String dependentName = findDependentJoinName(mutationWs, t, conflict);
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "Column '" + conflict.getName() + "' cannot be reduced to an aggregate " +
+               "output -- it is still used as a join key" +
+               (dependentName != null ? " by '" + dependentName + "'" : " by a downstream table") +
+               ". Remove it from aggregates, or update the join first.");
+         }
+      }
+
       // Always set the property (empty string when no output aliases were applied):
       // its PRESENCE tells the next clearAggregateAliases() call that this
       // AggregateInfo came through here, so only the recorded aliases are cleared and
@@ -1035,6 +1057,29 @@ public final class WorksheetMutationSupport {
             "'" + percentageOf + "' is not a percentage-of option. Accepted: none, group, " +
             "grand_total.");
       });
+   }
+
+   /**
+    * Names the direct downstream {@link CompositeTableAssembly} (join/concat/etc.)
+    * that relies on {@code ref} as a join key, for a more actionable
+    * {@link PairingException} message. Walks only {@code table}'s direct dependents
+    * the same way {@link WorksheetControllerService#allowsDeletion}'s own first-level
+    * check does; returns {@code null} (rather than recursing further) if no direct
+    * dependent is the blocker -- the column name alone is still reported in that case.
+    */
+   private static String findDependentJoinName(Worksheet ws, TableAssembly table, ColumnRef ref) {
+      AssemblyRef[] arr = ws.getDependings(table.getAssemblyEntry());
+
+      for(AssemblyRef assemblyRef : arr) {
+         String assemblyName = assemblyRef.getEntry().getName();
+         Assembly tmp = ws.getAssembly(assemblyName);
+
+         if(tmp instanceof CompositeTableAssembly composite && composite.isColumnUsed(table, ref)) {
+            return assemblyName;
+         }
+      }
+
+      return null;
    }
 
    /**

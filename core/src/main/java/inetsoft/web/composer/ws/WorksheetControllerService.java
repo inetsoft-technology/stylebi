@@ -95,6 +95,54 @@ public class WorksheetControllerService {
       return true;
    }
 
+   /**
+    * Finds a column that would be reduced from row-level identity to an aggregate
+    * output by {@code newInfo}, while still being relied on elsewhere as a
+    * downstream JOIN's key column. Returns the offending column, or {@code null} if
+    * none. Unlike {@link #allowsDeletion}, this also catches a column that survives
+    * BY NAME as an aggregate field — {@code allowsDeletion} alone only catches a
+    * column dropped from the table entirely.
+    */
+   public static ColumnRef findAggregateIdentityLossConflict(
+      Worksheet ws, TableAssembly table, AggregateInfo newInfo)
+   {
+      if(newInfo == null || newInfo.isEmpty()) {
+         return null;
+      }
+
+      ColumnSelection cols = table.getColumnSelection();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+         String col = ref.getName();
+
+         if(newInfo.getGroup(col) != null) {
+            continue;
+         }
+
+         if(!(ref instanceof ColumnRef)) {
+            continue;
+         }
+
+         ColumnRef colRef = (ColumnRef) ref;
+
+         if(colRef.getDataRef() instanceof DateRangeRef) {
+            DateRangeRef dateRangeRef = (DateRangeRef) colRef.getDataRef();
+            String innerRef = dateRangeRef.getDataRef().getName();
+
+            if(newInfo.getGroup(innerRef) != null) {
+               continue;
+            }
+         }
+
+         if(!allowsDeletion(ws, table, colRef)) {
+            return colRef;
+         }
+      }
+
+      return null;
+   }
+
    protected boolean isBeDepend(ColumnSelection columns, DataRef target) {
       boolean depend = false;
 
