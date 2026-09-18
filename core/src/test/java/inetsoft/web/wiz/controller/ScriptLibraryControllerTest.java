@@ -43,9 +43,74 @@ import static org.mockito.Mockito.*;
  * {@code ScriptLibraryController}: {@code delete()}'s safety check was built against the wrong
  * {@code AssetEntry} scope (so it could never find a real dependent), and {@code update()} never
  * refreshed the dependency graph at all.
+ *
+ * <p>Also covers the Redmine #76765 SSL-001 mitigation: a Script Library function is installed as
+ * a global JS binding once when a viewsheet session's script runtime is built, and nothing
+ * currently rebuilds that for an already-open session when LibManager changes -- see
+ * docs/teams/2026-09-18-bugs-76765-script-library/bug-ssl-001/03-fix.md. Until that staleness is
+ * fixed at the runtime level, create/update/delete surface a {@code resyncWarning} so a caller
+ * isn't left to discover the staleness by getting a stale/ReferenceError result elsewhere.
  */
 @Tag("core")
 class ScriptLibraryControllerTest {
+   @Test
+   void create_returnsAResyncWarning() throws Exception {
+      Fixture fixture = new Fixture();
+
+      ScriptLibraryController.ScriptLibraryFunctionDetail result = fixture.controller.create(
+         new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
+            "helper", "return 1;", null),
+         fixture.principal);
+
+      assertNotNull(result.resyncWarning());
+   }
+
+   @Test
+   void update_returnsAResyncWarning() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+
+      DependencyHandler dependencyHandler = mock(DependencyHandler.class);
+
+      try(MockedStatic<DependencyHandler> handler = mockStatic(DependencyHandler.class)) {
+         handler.when(DependencyHandler::getInstance).thenReturn(dependencyHandler);
+
+         ScriptLibraryController.ScriptLibraryFunctionDetail result = fixture.controller.update(
+            "helper",
+            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("return 2;", null),
+            fixture.principal);
+
+         assertNotNull(result.resyncWarning());
+      }
+   }
+
+   @Test
+   void delete_returnsAResyncWarning() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+
+      try(MockedStatic<DependencyTransformer> transformer = mockStatic(DependencyTransformer.class)) {
+         transformer.when(() -> DependencyTransformer.getDependencies(anyString()))
+            .thenReturn(List.of());
+
+         ScriptLibraryController.DeleteScriptLibraryFunctionResult result =
+            fixture.controller.delete("helper", false, fixture.principal);
+
+         assertNotNull(result.resyncWarning());
+      }
+   }
+
+   @Test
+   void read_doesNotReturnAResyncWarning() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("helper")).thenReturn("return 1;");
+
+      ScriptLibraryController.ScriptLibraryFunctionDetail result =
+         fixture.controller.read("helper", fixture.principal);
+
+      assertNull(result.resyncWarning());
+   }
+
    @Test
    void delete_refusesWhenAComponentScopedDependentExists() throws Exception {
       Fixture fixture = new Fixture();
