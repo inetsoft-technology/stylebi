@@ -108,6 +108,7 @@ public class ViewsheetAssemblyAgentController {
                                    SelectionRuntimeService selectionService,
                                    CalendarDisplayService calendarService,
                                    InputValueService inputService,
+                                   FormTableRowService formTableRowService,
                                    ParameterCollectionService parameterCollectionService,
                                    ParameterValueService parameterValueService,
                                    ViewsheetService viewsheetService,
@@ -144,6 +145,7 @@ public class ViewsheetAssemblyAgentController {
       this.selectionService = selectionService;
       this.calendarService = calendarService;
       this.inputService = inputService;
+      this.formTableRowService = formTableRowService;
       this.parameterCollectionService = parameterCollectionService;
       this.parameterValueService = parameterValueService;
       this.viewsheetService = viewsheetService;
@@ -1013,6 +1015,58 @@ public class ViewsheetAssemblyAgentController {
       return inputService.setValue(sessionToken, user, request.assembly(), request.value(), linkUri);
    }
 
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/insert-row")
+   public Map<String, Object> formTableInsertRow(@PathVariable String sessionToken,
+                                                 @RequestBody FormTableInsertRowRequest request,
+                                                 @RequestParam(required = false, defaultValue = "")
+                                                 String linkUri,
+                                                 Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      boolean append = "append".equalsIgnoreCase(request.mode());
+      return formTableRowService.insertRow(sessionToken, user, request.assembly(), request.index(),
+                                           append, linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/delete-rows")
+   public Map<String, Object> formTableDeleteRows(@PathVariable String sessionToken,
+                                                  @RequestBody FormTableDeleteRowsRequest request,
+                                                  @RequestParam(required = false, defaultValue = "")
+                                                  String linkUri,
+                                                  Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formTableRowService.deleteRows(sessionToken, user, request.assembly(), request.rows(),
+                                            linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/set-cell")
+   public Map<String, Object> formTableSetCell(@PathVariable String sessionToken,
+                                               @RequestBody FormTableSetCellRequest request,
+                                               @RequestParam(required = false, defaultValue = "")
+                                               String linkUri,
+                                               Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formTableRowService.setCell(sessionToken, user, request.assembly(), request.row(),
+                                         request.col(), request.value(), linkUri);
+   }
+
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/apply")
+   public Map<String, Object> formTableApply(@PathVariable String sessionToken,
+                                             @RequestBody FormTableApplyRequest request,
+                                             @RequestParam(required = false, defaultValue = "")
+                                             String linkUri,
+                                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return formTableRowService.apply(sessionToken, user, request.assembly(), linkUri);
+   }
+
    public record SetParametersRequest(Map<String, List<Object>> values) {}
 
    /**
@@ -1050,6 +1104,13 @@ public class ViewsheetAssemblyAgentController {
                                         Boolean rangeComparison) {}
    public record CalendarDatesRequest(String assembly, java.util.List<String> dates) {}
    public record InputValueRequest(String assembly, java.util.List<Object> value) {}
+
+   /** {@code mode}: "insert" (the default -- shifts {@code index} and after down one) or
+    *  "append" (inserts after {@code index} instead). Anything else is treated as "insert". */
+   public record FormTableInsertRowRequest(String assembly, int index, String mode) {}
+   public record FormTableDeleteRowsRequest(String assembly, java.util.List<Integer> rows) {}
+   public record FormTableSetCellRequest(String assembly, int row, int col, String value) {}
+   public record FormTableApplyRequest(String assembly) {}
 
    public record SubtreeRequest(String assembly, java.util.List<String> path, String mode) {}
 
@@ -2230,6 +2291,7 @@ public class ViewsheetAssemblyAgentController {
    private final SelectionRuntimeService selectionService;
    private final CalendarDisplayService calendarService;
    private final InputValueService inputService;
+   private final FormTableRowService formTableRowService;
    private final ParameterCollectionService parameterCollectionService;
    private final ParameterValueService parameterValueService;
    private final ViewsheetService viewsheetService;
