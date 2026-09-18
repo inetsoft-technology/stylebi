@@ -36,7 +36,7 @@ import java.util.function.Predicate;
 public class SheetSessionService {
    private static final Logger LOG = LoggerFactory.getLogger(SheetSessionService.class);
 
-   public static final long TTL_MILLIS = 30 * 60_000L;
+   public static final long TTL_MILLIS = 2 * 60 * 60_000L;
    private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
    private final ConcurrentHashMap<String, JoinSession> sessions;
