@@ -1756,7 +1756,8 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   its `design_handoff_chart_palettes/` folder): that handoff is wrong against this branch in four ways,
   two of which fail silently — its CSS block is 0-based where `ColorPalettes` drops any index below 1,
   and the 8-slot `Default` it proposes is discarded by `VSChartPaletteDefaults.fromFrame()`, which
-  falls back to `spliceLegacy()` below 40 colours. It also predates `Modern`/`Modern Dark` existing
+  falls back to `splice(head, tail)` below 40 colours — the derived tail, not the legacy list. It
+  also predates `Modern`/`Modern Dark` existing
 - [2026-09-16-chart-ramps-design.md](./2026-09-16-chart-ramps-design.md) — **implemented, in
   review.** The other half of the chart's colour: the *measure*→colour ramp, which the categorical
   re-tune above never touched. Authors the three house ramps `Amber`, `Teal` and `Variance`, hides
@@ -1767,6 +1768,17 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   read `VizContext.transition` or it fires on every bookmark restore. §4a also records why the
   wrapper's `changed` flag cannot serve as that guard, and the decision that a classic chart may
   deliberately hold a house ramp — retirements are gated on the mark, additions ship to everyone
+- [2026-09-17-chart-palette-tail-design.md](./2026-09-17-chart-palette-tail-design.md) —
+  **implemented on `feature-chart-palette-tail`; automated suite green and the manual browser
+  pass verified 2026-09-18.** Slots 9-40 of `Modern` and `Modern Dark`, which every slice above
+  left as the 2010-era legacy list while re-tuning, companioning and gating the first eight.
+  Replaces them with a tail derived from each palette's own head, authored as literal hexes with a
+  drift guard rather than generated at runtime. **Read its "Why the source needed correcting"
+  before taking ENGINE §3 from the handoff**: §3 argues the `index % size` wrap is the defect, and
+  on this branch `Modern` is 40 slots, so that wrap engages only past 40 — the defect is the seam,
+  not the wrap, and the re-tune design had already recorded this. Note also that it changes what a
+  modern chart with nine or more categories looks like, with no migration: `applyModernPalette`
+  re-resolves all forty slots from live CSS on every render
 - [chart-card-slice1-design.md](./chart-card-slice1-design.md) ·
   [chart-card-slice2-tables-design.md](./chart-card-slice2-tables-design.md) ·
   [chart-card-slice3-selection-design.md](./chart-card-slice3-selection-design.md) — how each shipped slice

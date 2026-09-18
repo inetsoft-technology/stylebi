@@ -49,11 +49,11 @@ public final class VSChartPaletteDefaults {
    }
 
    public static Color[] modernPalette() {
-      return resolve(MODERN_NAME, MODERN_HEAD);
+      return resolve(MODERN_NAME, MODERN_FALLBACK);
    }
 
    public static Color[] darkPalette() {
-      return resolve(DARK_NAME, DARK_HEAD);
+      return resolve(DARK_NAME, DARK_FALLBACK);
    }
 
    /**
@@ -239,30 +239,51 @@ public final class VSChartPaletteDefaults {
    }
 
    /**
-    * Head colors followed by the legacy tail, so high-cardinality charts keep 40 distinct
-    * colors and do not wrap early.
+    * A palette's head followed by its tail. The tail is derived from the head rather than taken
+    * from the legacy list. ChartTailDerivation, in test sources, is the authority on the values,
+    * and ChartTailDerivationTest re-derives and compares.
+    *
+    * Unlike the legacy splice this replaced, the result is only as long as what it is handed, and
+    * fromFrame silently returns a short palette below COLOR_PALETTE.length - so the callers below
+    * check the length rather than leaving the invariant to cssMatchesTheJavaFallback alone.
     */
-   static Color[] spliceLegacy(Color[] head) {
+   static Color[] splice(Color[] head, Color[] tail) {
       List<Color> palette = new ArrayList<>(Arrays.asList(head));
-      Color[] legacy = CategoricalColorFrame.COLOR_PALETTE;
-      palette.addAll(Arrays.asList(legacy).subList(head.length, legacy.length));
+      palette.addAll(Arrays.asList(tail));
       return palette.toArray(new Color[0]);
    }
 
    /**
-    * Colors copied out of a palette frame by index, or the legacy splice when the frame is
-    * absent, short, or has undeclared holes. Copies rather than aliases - the frame is a shared
-    * per-org cached instance.
+    * splice, with the full-palette length pinned at class-init. A head or tail edited to the wrong
+    * length fails here, next to the constants, rather than as a short palette much later.
     */
-   static Color[] fromFrame(CategoricalColorFrame frame, Color[] head) {
+   private static Color[] spliceFull(Color[] head, Color[] tail) {
+      Color[] palette = splice(head, tail);
+
+      if(palette.length != CategoricalColorFrame.COLOR_PALETTE.length) {
+         throw new IllegalStateException(
+            "a modern palette must declare " + CategoricalColorFrame.COLOR_PALETTE.length
+               + " colors, got " + palette.length);
+      }
+
+      return palette;
+   }
+
+   /**
+    * Colors copied out of a palette frame by index, or the given fallback when the frame is
+    * absent, short, or has undeclared holes. Copies rather than aliases - the frame is a shared
+    * per-org cached instance, and the fallback is a shared static constant that legacyPalette()
+    * hands straight to a caller without resolve()'s clone.
+    */
+   static Color[] fromFrame(CategoricalColorFrame frame, Color[] fallback) {
       if(frame == null) {
-         return spliceLegacy(head);
+         return fallback.clone();
       }
 
       int count = frame.getColorCount();
 
       if(count < CategoricalColorFrame.COLOR_PALETTE.length) {
-         return spliceLegacy(head);
+         return fallback.clone();
       }
 
       Color[] colors = new Color[count];
@@ -271,7 +292,7 @@ public final class VSChartPaletteDefaults {
          colors[i] = frame.getDefaultColor(i);
 
          if(colors[i] == null) {
-            return spliceLegacy(head);
+            return fallback.clone();
          }
       }
 
@@ -282,7 +303,7 @@ public final class VSChartPaletteDefaults {
     * Named palette colors, memoized per org until the CSS changes. ColorPalettes.getPalette
     * locks on its own class, so memoizing keeps concurrent chart renders off that monitor.
     */
-   private static Color[] resolve(String name, Color[] head) {
+   private static Color[] resolve(String name, Color[] fallback) {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       long ts = CSSDictionary.getOrgScopedCSSLastModified(CSSDictionary.getDictionary());
       String memoKey = orgID + "|" + name;
@@ -293,7 +314,7 @@ public final class VSChartPaletteDefaults {
          return memo.colors().clone();
       }
 
-      Color[] resolved = fromFrame(getPaletteSafely(name), head);
+      Color[] resolved = fromFrame(getPaletteSafely(name), fallback);
       MEMO.put(memoKey, new Memo(stamp, resolved));
       return resolved.clone();
    }
@@ -352,4 +373,30 @@ public final class VSChartPaletteDefaults {
       new Color(0x4FA5FF), new Color(0xFF8367), new Color(0x49447D), new Color(0x2DEEC6),
       new Color(0xAE41F5), new Color(0xFFCB82), new Color(0xFE3290), new Color(0x9FEB28)
    };
+
+   private static final Color[] MODERN_TAIL = {
+      new Color(0x00788A), new Color(0x9E9000), new Color(0xF77FE4), new Color(0x00A956),
+      new Color(0xA25100), new Color(0x00A2A0), new Color(0x2FC1FF), new Color(0xFF8B93),
+      new Color(0x405CD4), new Color(0x836600), new Color(0xAEBF00), new Color(0xBF60D1),
+      new Color(0xB02B80), new Color(0xBC9FFF), new Color(0x1C8000), new Color(0x007E57),
+      new Color(0xFF915F), new Color(0xC87800), new Color(0x007B70), new Color(0x00CAD7),
+      new Color(0x009DC2), new Color(0x0071AB), new Color(0xBF272B), new Color(0xE65078),
+      new Color(0x86B3FF), new Color(0x757CFC), new Color(0xE4A700), new Color(0xD1B000),
+      new Color(0x706F00), new Color(0x7C9C00), new Color(0x913DB3), new Color(0x9F35A1)
+   };
+
+   private static final Color[] DARK_TAIL = {
+      new Color(0x008FA4), new Color(0x8E8100), new Color(0xFFA7EF), new Color(0x2FC16A),
+      new Color(0xC06200), new Color(0x00BBB9), new Color(0x84D5FF), new Color(0xD2485A),
+      new Color(0x5575E5), new Color(0xC99D00), new Color(0x9FAF00), new Color(0xD37BE5),
+      new Color(0xC44B94), new Color(0x8C63D8), new Color(0x369725), new Color(0x009668),
+      new Color(0xFFB596), new Color(0xE78A00), new Color(0x009386), new Color(0x00E4F2),
+      new Color(0x00B5DF), new Color(0x0087CB), new Color(0xFD716A), new Color(0xFFB0BE),
+      new Color(0xABCBFF), new Color(0x8D98FF), new Color(0xFFBD1F), new Color(0xECC700),
+      new Color(0xD2D226), new Color(0x6F8C00), new Color(0xA459C5), new Color(0xB352B4)
+   };
+
+   // Declared after the four arrays above on purpose - spliceFull reads them at class-init.
+   private static final Color[] MODERN_FALLBACK = spliceFull(MODERN_HEAD, MODERN_TAIL);
+   private static final Color[] DARK_FALLBACK = spliceFull(DARK_HEAD, DARK_TAIL);
 }

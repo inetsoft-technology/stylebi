@@ -49,17 +49,17 @@ class VSChartPaletteDefaultsTest {
    }
 
    @Test
-   void gateOnSwapsToModernHeadButKeepsLegacyTail() {
+   void gateOnSwapsToModernHeadAndDerivedTail() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       assertTrue(VizContext.ofGate().modern);
 
       Color[] modern = VSChartPaletteDefaults.modernPalette();
-      assertEquals(40, modern.length, "8 modern + 32 legacy tail = 40");
+      assertEquals(40, modern.length, "8 modern + 32 derived tail = 40");
       assertEquals(new Color(0x0490FF), modern[0]);
       assertEquals(new Color(0x8ED604), modern[7]);
-      // index 9+ preserves the legacy tail unchanged
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], modern[8]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], modern[39]);
+      // index 9+ is now derived from the head, not taken from the legacy list
+      assertEquals(new Color(0x00788A), modern[8]);
+      assertEquals(new Color(0x9F35A1), modern[39]);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
@@ -92,16 +92,16 @@ class VSChartPaletteDefaultsTest {
    }
 
    @Test
-   void darkPaletteSwapsToDarkHeadKeepsLegacyTail() {
+   void darkPaletteSwapsToDarkHeadAndDerivedTail() {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.darkMode", "true");
 
       Color[] dark = VSChartPaletteDefaults.darkPalette();
-      assertEquals(40, dark.length, "8 dark + 32 legacy tail = 40");
+      assertEquals(40, dark.length, "8 dark + 32 derived tail = 40");
       assertEquals(new Color(0x4FA5FF), dark[0]);
       assertEquals(new Color(0x9FEB28), dark[7]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], dark[8]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], dark[39]);
+      assertEquals(new Color(0x008FA4), dark[8]);
+      assertEquals(new Color(0xB352B4), dark[39]);
 
       CategoricalColorFrame frame = new CategoricalColorFrame();
       VSChartPaletteDefaults.applyModernPalette(frame, VizContext.ofGate());
@@ -120,15 +120,15 @@ class VSChartPaletteDefaultsTest {
    }
 
    @Test
-   void spliceLegacyKeepsHeadAndTail() {
+   void spliceJoinsHeadAndTail() {
       Color[] head = { new Color(0x010203), new Color(0x040506) };
-      Color[] result = VSChartPaletteDefaults.spliceLegacy(head);
+      Color[] tail = { new Color(0x070809) };
+      Color[] result = VSChartPaletteDefaults.splice(head, tail);
 
-      assertEquals(40, result.length);
+      assertEquals(3, result.length);
       assertEquals(new Color(0x010203), result[0]);
       assertEquals(new Color(0x040506), result[1]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[2], result[2]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], result[39]);
+      assertEquals(new Color(0x070809), result[2]);
    }
 
    @Test
@@ -138,7 +138,7 @@ class VSChartPaletteDefaultsTest {
       Arrays.fill(declared, new Color(0x123456));
       frame.setDefaultColors(declared);
 
-      Color[] result = VSChartPaletteDefaults.fromFrame(frame, MODERN_HEAD_FIXTURE);
+      Color[] result = VSChartPaletteDefaults.fromFrame(frame, FALLBACK_FIXTURE);
 
       assertEquals(40, result.length);
       assertEquals(new Color(0x123456), result[0]);
@@ -147,8 +147,8 @@ class VSChartPaletteDefaultsTest {
 
    @Test
    void fromFrameFallsBackWhenFrameIsNull() {
-      Color[] result = VSChartPaletteDefaults.fromFrame(null, MODERN_HEAD_FIXTURE);
-      assertArrayEquals(VSChartPaletteDefaults.spliceLegacy(MODERN_HEAD_FIXTURE), result);
+      Color[] result = VSChartPaletteDefaults.fromFrame(null, FALLBACK_FIXTURE);
+      assertArrayEquals(FALLBACK_FIXTURE, result);
    }
 
    @Test
@@ -156,9 +156,9 @@ class VSChartPaletteDefaultsTest {
       CategoricalColorFrame frame = new CategoricalColorFrame();
       frame.setDefaultColors(new Color[] { new Color(0x111111), new Color(0x222222) });
 
-      Color[] result = VSChartPaletteDefaults.fromFrame(frame, MODERN_HEAD_FIXTURE);
+      Color[] result = VSChartPaletteDefaults.fromFrame(frame, FALLBACK_FIXTURE);
 
-      assertArrayEquals(VSChartPaletteDefaults.spliceLegacy(MODERN_HEAD_FIXTURE), result);
+      assertArrayEquals(FALLBACK_FIXTURE, result);
    }
 
    // A format.css declaring only indices 1-8 and 40 yields a 40-length array with null holes.
@@ -171,15 +171,46 @@ class VSChartPaletteDefaultsTest {
       declared[11] = null;
       frame.setDefaultColors(declared);
 
-      Color[] result = VSChartPaletteDefaults.fromFrame(frame, MODERN_HEAD_FIXTURE);
+      Color[] result = VSChartPaletteDefaults.fromFrame(frame, FALLBACK_FIXTURE);
 
-      assertArrayEquals(VSChartPaletteDefaults.spliceLegacy(MODERN_HEAD_FIXTURE), result);
+      assertArrayEquals(FALLBACK_FIXTURE, result);
    }
 
-   private static final Color[] MODERN_HEAD_FIXTURE = {
-      new Color(0x0490FF), new Color(0xFF5A35), new Color(0x241C4F), new Color(0x03D9B3),
-      new Color(0x9A2DDC), new Color(0xFFB020), new Color(0xE5197E), new Color(0x8ED604)
-   };
+   // fromFrame's javadoc calls the clone load-bearing - the fallback is a shared static constant,
+   // so handing it out by reference would let one caller's mutation corrupt every other caller's
+   // fallback. assertArrayEquals alone would pass with or without the clone; this is what would
+   // actually catch its removal.
+   @Test
+   void fromFrameFallbackIsNotTheSameArrayAsTheFallbackItWasHanded() {
+      CategoricalColorFrame shortFrame = new CategoricalColorFrame();
+      shortFrame.setDefaultColors(new Color[] { new Color(0x111111), new Color(0x222222) });
+
+      CategoricalColorFrame holedFrame = new CategoricalColorFrame();
+      Color[] declared = new Color[40];
+      Arrays.fill(declared, new Color(0x123456));
+      declared[11] = null;
+      holedFrame.setDefaultColors(declared);
+
+      assertNotSame(FALLBACK_FIXTURE, VSChartPaletteDefaults.fromFrame(null, FALLBACK_FIXTURE));
+      assertNotSame(FALLBACK_FIXTURE,
+                    VSChartPaletteDefaults.fromFrame(shortFrame, FALLBACK_FIXTURE));
+      assertNotSame(FALLBACK_FIXTURE,
+                    VSChartPaletteDefaults.fromFrame(holedFrame, FALLBACK_FIXTURE));
+   }
+
+   private static final Color[] FALLBACK_FIXTURE = fallbackFixture();
+
+   private static Color[] fallbackFixture() {
+      Color[] colors = new Color[40];
+      colors[0] = new Color(0x0490FF);
+      colors[1] = new Color(0xFF5A35);
+
+      for(int i = 2; i < colors.length; i++) {
+         colors[i] = new Color(0x100000 + i);
+      }
+
+      return colors;
+   }
 
    @Test
    void modernPaletteResolvesFromCss() {
@@ -188,8 +219,8 @@ class VSChartPaletteDefaultsTest {
       assertEquals(40, modern.length);
       assertEquals(new Color(0x0490FF), modern[0]);
       assertEquals(new Color(0x8ED604), modern[7]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], modern[8]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[39], modern[39]);
+      assertEquals(new Color(0x00788A), modern[8]);
+      assertEquals(new Color(0x9F35A1), modern[39]);
    }
 
    @Test
@@ -199,7 +230,7 @@ class VSChartPaletteDefaultsTest {
       assertEquals(40, dark.length);
       assertEquals(new Color(0x4FA5FF), dark[0]);
       assertEquals(new Color(0x9FEB28), dark[7]);
-      assertEquals(CategoricalColorFrame.COLOR_PALETTE[8], dark[8]);
+      assertEquals(new Color(0x008FA4), dark[8]);
    }
 
    // The memo must not hand out a shared array, or one caller mutating it would corrupt every
@@ -293,21 +324,21 @@ class VSChartPaletteDefaultsTest {
 
    // Guards against defaults.css and the Java fallback drifting apart.
    @Test
-   void cssHeadMatchesTheJavaFallback() throws Exception {
-      assertHeadMatches("MODERN_HEAD", "Modern");
-      assertHeadMatches("DARK_HEAD", "Modern Dark");
+   void cssMatchesTheJavaFallback() throws Exception {
+      assertPaletteMatches("MODERN_FALLBACK", "Modern");
+      assertPaletteMatches("DARK_FALLBACK", "Modern Dark");
    }
 
-   private void assertHeadMatches(String fieldName, String paletteName) throws Exception {
+   private void assertPaletteMatches(String fieldName, String paletteName) throws Exception {
       Field field = VSChartPaletteDefaults.class.getDeclaredField(fieldName);
       field.setAccessible(true);
-      Color[] head = (Color[]) field.get(null);
+      Color[] fallback = (Color[]) field.get(null);
       CategoricalColorFrame css = ColorPalettes.getPalette(paletteName);
 
-      assertEquals(8, head.length, fieldName + " must declare exactly the eight head colors");
+      assertEquals(40, fallback.length, fieldName + " must declare all forty slots");
 
-      for(int i = 0; i < head.length; i++) {
-         assertEquals(head[i], css.getDefaultColor(i),
+      for(int i = 0; i < fallback.length; i++) {
+         assertEquals(fallback[i], css.getDefaultColor(i),
                       paletteName + " index " + (i + 1) + " must match " + fieldName);
       }
    }

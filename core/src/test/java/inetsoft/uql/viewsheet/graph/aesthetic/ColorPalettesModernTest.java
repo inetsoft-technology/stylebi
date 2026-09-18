@@ -53,18 +53,26 @@ class ColorPalettesModernTest {
       assertEquals(new Color(0x9FEB28), dark.getDefaultColor(7));
    }
 
-   // Drift guard: the CSS tail and the Java spliceLegacy fallback must agree, or swapping between
-   // them (which happens whenever the fallback triggers) would silently change rendered colors.
+   // The tail is no longer the legacy list. The exhaustive CSS-to-Java comparison lives in
+   // VSChartPaletteDefaultsTest.cssMatchesTheJavaFallback, which is in the same package as the
+   // constants and already reflects into them; this file keeps literal spot-checks in its own
+   // style, and guards the thing that would be easy to half-do - leaving some slots behind.
    @Test
-   void tailMatchesLegacyPalette() {
+   void tailIsDerivedRatherThanLegacy() {
       CategoricalColorFrame modern = ColorPalettes.getPalette("Modern");
       CategoricalColorFrame dark = ColorPalettes.getPalette("Modern Dark");
 
+      assertEquals(new Color(0x00788a), modern.getDefaultColor(8), "Modern index 9");
+      assertEquals(new Color(0x9f35a1), modern.getDefaultColor(39), "Modern index 40");
+      assertEquals(new Color(0x008fa4), dark.getDefaultColor(8), "Modern Dark index 9");
+      assertEquals(new Color(0xb352b4), dark.getDefaultColor(39), "Modern Dark index 40");
+
+      // no slot may still hold the legacy value it replaced
       for(int i = 8; i < CategoricalColorFrame.COLOR_PALETTE.length; i++) {
-         assertEquals(CategoricalColorFrame.COLOR_PALETTE[i], modern.getDefaultColor(i),
-                      "Modern index " + (i + 1) + " must match the legacy tail");
-         assertEquals(CategoricalColorFrame.COLOR_PALETTE[i], dark.getDefaultColor(i),
-                      "Modern Dark index " + (i + 1) + " must match the legacy tail");
+         assertNotEquals(CategoricalColorFrame.COLOR_PALETTE[i], modern.getDefaultColor(i),
+                         "Modern index " + (i + 1) + " is still the legacy colour");
+         assertNotEquals(CategoricalColorFrame.COLOR_PALETTE[i], dark.getDefaultColor(i),
+                         "Modern Dark index " + (i + 1) + " is still the legacy colour");
       }
    }
 
