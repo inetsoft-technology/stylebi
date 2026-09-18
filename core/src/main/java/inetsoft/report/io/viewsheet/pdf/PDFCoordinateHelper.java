@@ -84,8 +84,19 @@ public class PDFCoordinateHelper extends CoordinateHelper {
                           Math.min(size.height + 1, 200 * printer.RESOLUTION));
       printer.setColor(printer.getBackground());
 
-      if(size.height > 200 * printer.RESOLUTION) {
+      // Report either axis. Only height used to be flagged, so a viewsheet that
+      // overflowed the 200in limit sideways was clipped in complete silence --
+      // no warning on the page and nothing in the log -- and the result was a
+      // structurally valid PDF that gave no sign anything was wrong. (#76780)
+      final int max = 200 * printer.RESOLUTION;
+      outOfMaxPageWidth = size.width > max;
+
+      if(outOfMaxPageWidth || size.height > max) {
          printer.setOutOfMaxPageSize(true);
+         LOG.warn("Viewsheet does not fit the maximum PDF page size: requested {}x{}pt, " +
+                     "clamped to {}x{}pt. Content beyond the limit is clipped.",
+                  size.width, size.height, printer.getPageSize().width * printer.RESOLUTION,
+                  printer.getPageSize().height * printer.RESOLUTION);
       }
 
       printer.fillRect(0, 0, printer.getPageSize().width * printer.RESOLUTION,
@@ -245,6 +256,15 @@ public class PDFCoordinateHelper extends CoordinateHelper {
          savedClip = null;
          roundCornerClipped = false;
       }
+   }
+
+   /**
+    * Whether the page width -- not just the height -- was clamped at the 200 inch
+    * PDF maximum by {@link #createPage}. Lets the exporter show a message that
+    * names the axis that actually overflowed.
+    */
+   public boolean isOutOfMaxPageWidth() {
+      return outOfMaxPageWidth;
    }
 
    /**
@@ -417,6 +437,7 @@ public class PDFCoordinateHelper extends CoordinateHelper {
    private PDFPrinter printer;
    private Shape savedClip;
    private boolean roundCornerClipped;
+   private boolean outOfMaxPageWidth;
    private int page = -1;
    private static final Logger LOG =
       LoggerFactory.getLogger(PDFCoordinateHelper.class);

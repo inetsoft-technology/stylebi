@@ -287,6 +287,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       applyShrunkBottomTabsShift(assemblies, box);
       addTableMaxRowMessage(assemblies, box);
+      addScriptErrorMessage(box);
       TextVSAssembly warningText = viewsheet.getWarningTextAssembly(false);
 
       if(warningText != null) {
@@ -336,6 +337,39 @@ public abstract class AbstractVSExporter implements VSExporter {
             LOG.debug("Failed to apply bottom-tabs shrink shift for {}",
                tableAssembly.getAbsoluteName(), ex);
          }
+      }
+   }
+
+   /**
+    * Put a failed sheet onLoad script on the exported document itself.
+    *
+    * <p>{@link ViewsheetSandbox#prepareForExport()} catches that failure so the
+    * export still produces a file, but an onLoad script commonly computes the
+    * query parameters the sheet is filtered by. Without this the result is a
+    * well-formed export of unfiltered data that looks entirely normal -- the case
+    * that produced a 200 inch PDF page with no error anywhere. Reuse the warning
+    * text assembly the table row-limit messages already use so the message travels
+    * with the document, including to the recipient of a scheduled export. (#76780)
+    */
+   private void addScriptErrorMessage(ViewsheetSandbox box) {
+      if(box == null || box.getExportScriptError() == null) {
+         return;
+      }
+
+      TextVSAssembly warningText = viewsheet.getWarningTextAssembly();
+
+      if(warningText == null) {
+         return;
+      }
+
+      String message = Catalog.getCatalog().getString("vs.export.onLoadScriptFailed");
+      String text = warningText.getTextValue();
+
+      if(text == null || text.isEmpty()) {
+         warningText.setTextValue(message);
+      }
+      else if(!text.contains(message)) {
+         warningText.setTextValue(text + "\n" + message);
       }
    }
 

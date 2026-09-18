@@ -2425,12 +2425,34 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * process onload script for export thread.
     */
    public void prepareForExport() {
+      exportScriptError = null;
+
       try {
          processOnLoad(new ChangedAssemblyList(), false);
       }
       catch(Exception ex) {
-         LOG.warn("Failed to process onLoad script for export: " + ex, ex);
+         // An onLoad script routinely sets the query parameters the whole sheet is
+         // filtered by, so swallowing this quietly is not a cosmetic loss: every
+         // query then runs unfiltered and the export is a structurally valid file
+         // of the wrong data, sized to whatever the unfiltered result turned out to
+         // be. Nothing downstream can tell it apart from a good export. Record it
+         // so the exporter can say so on the document, and log it at ERROR -- the
+         // export is wrong, not merely suspect. (#76780)
+         exportScriptError = ex;
+         LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
+                      "content will not reflect anything that script sets, including any " +
+                      "query parameters it computes", getSheetName(), ex);
       }
+   }
+
+   /**
+    * The exception from the onLoad script run by {@link #prepareForExport()}, or
+    * {@code null} if it succeeded or has not run. Read by the exporters so a
+    * failed sheet script is visible on the exported document rather than only in
+    * the server log.
+    */
+   public Exception getExportScriptError() {
+      return exportScriptError;
    }
 
    /**
@@ -8402,6 +8424,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private Map<String, String> limitMessages; //record the asselby limit message.
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
+   private Exception exportScriptError; // onLoad failure from prepareForExport()
    private boolean parametersApplied = false;
    // Accessed only while the write lock is held (resetRuntime → reset → applyParameterToInput),
    // so a plain HashSet is safe here; no concurrent access occurs outside that path.

@@ -210,6 +210,13 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    set model(m: VSChartModel) {
       this._model = m;
 
+      // The server never sends this transient scroll state, so a freshly-received model
+      // always starts with it undefined. Restore it from this component's own scroll
+      // tracking (unaffected by the model swap) so the annotation overlay doesn't
+      // misposition/hide data annotations after a refresh while the chart is scrolled.
+      this._model.annotationScrollLeft = this.scrollLeft;
+      this._model.annotationScrollTop = this.scrollTop;
+
       if(this.vsWizardPreview) {
          this.detectChanges();
       }

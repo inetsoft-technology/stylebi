@@ -1443,6 +1443,7 @@ public final class VSUtil {
       else if(calc instanceof RunningTotalCalc) {
          RunningTotalCalc rcalc = (RunningTotalCalc) calc;
          String breakBy = rcalc.getBreakBy();
+         boolean breakByWasUnset = Tool.isEmptyString(breakBy);
 
          //add row
          if(CrosstabConstants.ROW_HEADERS.equals(dropType) && !findColumn) {
@@ -1468,11 +1469,12 @@ public final class VSUtil {
                : hasCol ? AbstractCalc.COLUMN_INNER : breakBy);
          }
 
-         // if break by changed or
+         // if break by changed (but not just defaulted from unset to its
+         // first-time sentinel within this same call) or
          // rows changed while break by is set to ROW_INNER or
          // columns changed while break by is set to COLUMN_INNER
          // then update the reset level to NONE
-         if(!Tool.equals(breakBy, rcalc.getBreakBy()) ||
+         if((!breakByWasUnset && !Tool.equals(breakBy, rcalc.getBreakBy())) ||
             (AbstractCalc.ROW_INNER.equals(breakBy) &&
                CrosstabConstants.ROW_HEADERS.equals(dropType)) ||
             (AbstractCalc.COLUMN_INNER.equals(breakBy) &&

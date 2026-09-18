@@ -209,6 +209,34 @@ public final class ScriptHostAccess {
                   .targetTypeMapping(Instant.class, Double.class,
                                      inst -> inst != null,
                                      inst -> (double) inst.toEpochMilli())
+                  // Rhino parity: a script value bound to a String parameter was
+                  // coerced via ScriptRuntime.toString, so scripts pass a number or
+                  // boolean where a String is declared -- e.g.
+                  // XFormatInfo.setFormat(StyleConstant.NUMBER). GraalJS refuses it
+                  // ("Cannot convert '3'(java.lang.Integer) to Java type
+                  // 'java.lang.String': Invalid or lossy primitive coercion"), which
+                  // broke a chart script on export. ScriptFunction already restores
+                  // this for our own scriptable dispatch (#75693), but a call on a
+                  // *raw host object* (`new inetsoft.uql.XFormatInfo` then
+                  // `setFormat(...)`) goes through GraalJS invokeMember and never
+                  // reaches ScriptFunction, so the same coercion is declared here and
+                  // shares ScriptFunction.toStringValue so both paths agree -- notably
+                  // on "3" rather than "3.0", and on not clamping a whole double
+                  // outside the long range.
+                  //
+                  // LOWEST precedence is deliberate: it is not consulted during
+                  // overload selection, so a type with both setX(int) and
+                  // setX(String) still binds a number to the int overload and only a
+                  // method whose sole candidate takes a String gets the conversion.
+                  // (#76778)
+                  .targetTypeMapping(Number.class, String.class,
+                                     n -> n != null,
+                                     ScriptFunction::toStringValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(Boolean.class, String.class,
+                                     b -> b != null,
+                                     ScriptFunction::toStringValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
                   .build();
             }
          }

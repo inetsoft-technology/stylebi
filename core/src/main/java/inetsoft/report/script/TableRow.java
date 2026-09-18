@@ -280,9 +280,52 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
 
    @Override
    public boolean hasMember(String id) {
+      if(id == null) {
+         return false;
+      }
+
+      if("length".equals(id) || members.containsKey(id)) {
+         return true;
+      }
+
+      // Unlike Rhino (whose get() was always invoked on read), GraalJS only calls
+      // getMember when hasMember reports the member present. getMember resolves a
+      // column that lives in a base table of the filter chain through findColumn(),
+      // a path this method did not take, so such a reference read as undefined --
+      // e.g. field['Col'].substring(...) threw "Cannot read property 'substring' of
+      // undefined". getColMap() is also intentionally left empty for row 0 (see the
+      // recursion guard there), and row 0 is the default row for an assembly-level
+      // script, so findColumn() is the *only* path that can resolve a header-named
+      // column in that case. Mirror getMember's resolution here. (#75423)
+      if(notfound.contains(id)) {
+         return false;
+      }
+
       Map colmap = getColMap();
-      return id.equals("length") || getColFromColMap(id, colmap) != null ||
-         members.containsKey(id);
+      Object col = getColFromColMap(id, colmap);
+
+      if(col != null) {
+         return !"not found".equals(col);
+      }
+
+      // getMember excludes "field" from the base-table search; stay consistent so a
+      // reference reported present here is one getMember can actually resolve.
+      if("field".equals(id)) {
+         return false;
+      }
+
+      if(findColumn(id) != null) {
+         return true;
+      }
+
+      // GraalJS probes hasMember for keys that are never columns (toString,
+      // valueOf, ...) on every read, and a miss here is never followed by a
+      // getMember call that would record it, so cache the miss -- otherwise each
+      // probe re-walks the base-table chain. Only the notfound set is used; the
+      // "not found" sentinel getMember writes into colmap would also show up in
+      // getMemberKeys(), which enumerates that map.
+      notfound.add(id);
+      return false;
    }
 
    @Override
@@ -309,14 +352,29 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
          else if(!"not found".equals(col) && !"field".equals(id)) {
             TableCol tcol = findColumn(id);
 
-            if(tcol != null && tcol.getMethod != null && tcol.row >= 0) {
-               try {
-                  return get(tcol.table, tcol.getMethod, tcol.row, tcol.column);
+            if(tcol != null && tcol.getMethod != null) {
+               int brow = baseRow(tcol);
+
+               if(brow >= 0) {
+                  try {
+                     return get(tcol.table, tcol.getMethod, brow, tcol.column);
+                  }
+                  catch(Exception e) {
+                     LOG.error("Failed to get table row property " +
+                        id + " in base table at row " + brow +
+                        " and column " + tcol.column, e);
+                  }
                }
-               catch(Exception e) {
-                  LOG.error("Failed to get table row property " +
-                     id + " in base table at row " + tcol.row +
-                     " and column " + tcol.column, e);
+               else {
+                  // The column exists, but *this* row has no counterpart in the
+                  // base table -- SummaryFilter.getBaseRowIndex() returns -1 for
+                  // every row past the header count, for instance. That is a
+                  // row-dependent miss, so it must not fall through to
+                  // notfound.add(id) below: a TableRow is reused across rows via
+                  // setRow() and hasMember() consults notfound, so one such row
+                  // would make the column read undefined on every later row too,
+                  // silently reverting the fix this method exists for. (#76779)
+                  return members.get(id);
                }
             }
             else {
@@ -439,15 +497,17 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
          TableCol tcol = findColumn(id);
 
          if(tcol != null && tcol.setMethod != null) {
+            int brow = baseRow(tcol);
+
             try {
-               tcol.setMethod.invoke(tcol.table, tcol.row, tcol.column,
+               tcol.setMethod.invoke(tcol.table, brow, tcol.column,
                                      PropertyDescriptor.convert(value, pType));
                notfound.remove(id);
                return true;
             }
             catch(Exception e) {
                LOG.error("Failed to set table row property " + id +
-                  " in base tabel at row " + tcol.row + " and column " +
+                  " in base tabel at row " + brow + " and column " +
                   tcol.column + " to " + value, e);
             }
          }
@@ -492,12 +552,24 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
    }
 
    /**
+    * Map this row into the row space of the base table {@code tcol} was resolved
+    * from. Computed on each read rather than cached on the TableCol, because a
+    * TableCol outlives the row it was resolved on: it is stored in colmap0, a
+    * TableRow is reused across rows via setRow(), and getArrayElement() hands the
+    * same colmap0 to the previous-row object while giving it a fresh colcache --
+    * so a cached row index would make field[-1]['col'] read *this* row's cell.
+    * (#76779)
+    */
+   private int baseRow(TableCol tcol) {
+      return tcol.parent == null ? row : tcol.parent.getBaseRowIndex(row);
+   }
+
+   /**
     * Find column in base tables.
     */
    private TableCol findColumn(String hdr) {
       Map colmap = getColMap();
       Object col = getColFromColMap(hdr, colmap);
-      int brow = -1;
 
       if(col != null) {
          return (col instanceof TableCol) ? (TableCol) col : null;
@@ -524,12 +596,7 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
                tcol.table = tbl;
                tcol.column = i;
 
-               if(brow != -1) {
-                  tcol.row = brow;
-               }
-               else {
-                  tcol.row = ptbl.getBaseRowIndex(row);
-               }
+               tcol.parent = ptbl;
 
                try {
                   tcol.getMethod = tbl.getClass().getMethod("get" + property, int.class, int.class);
@@ -568,6 +635,13 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
                   }
                }
 
+               // Deliberately not cached in colcache: TableCol.row is derived from
+               // the current row via getBaseRowIndex(), and a TableRow is reused
+               // across rows through setRow(), which clears no cache. The NULL
+               // sentinel getColFromColMap() already wrote for this header masks the
+               // colmap entry above, so the TableCol is rebuilt against the current
+               // row on every read. That re-walk is what keeps a row-permuting
+               // filter (SortFilter, DefaultSortedTable, ...) correct.
                colmap.put(hdr, tcol);
                return tcol;
             }
@@ -612,10 +686,13 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
     */
    static class TableCol {
       XTable table;
+      // The filter that maps this TableRow's row into table's row space. Stored
+      // instead of a resolved row index because a TableCol is cached in colmap0,
+      // which outlives the row it was resolved on -- see baseRow(). (#76779)
+      TableFilter parent;
       Method setMethod = null;
       Method getMethod = null;
       int column = 0;
-      int row = 0;
 
       public String toString() {
          return table + "[" + column + "]";
