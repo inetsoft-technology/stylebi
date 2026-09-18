@@ -22,6 +22,8 @@ import inetsoft.sree.SreeEnv;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -85,6 +87,8 @@ public final class LegacyJavaShim {
    private static final Map<String, Boolean> NEGATIVE_CACHE =
       Caffeine.newBuilder().maximumSize(NEGATIVE_CACHE_MAX).<String, Boolean>build().asMap();
 
+   private static final Logger LOG = LoggerFactory.getLogger(LegacyJavaShim.class);
+
    private LegacyJavaShim() {
    }
 
@@ -112,6 +116,123 @@ public final class LegacyJavaShim {
     * {@code Java.type} and the current {@code __scope__} located, without relying
     * on {@code Context.getCurrent()}.
     */
+   /**
+    * Name of the internal helper the {@code .length()} rewrite emits; see
+    * {@link #installStringCompat} and
+    * {@code GraalJavaScriptEngine.rewriteJavaLengthCalls}.
+    */
+   public static final String LENGTH_HELPER = "__jlen";
+
+   /**
+    * Java {@code String} instance methods that JS has no equivalent for. Rhino
+    * handed script a wrapped {@code java.lang.String} (its {@code WrapFactory}
+    * default {@code javaPrimitiveWrap} is {@code true}), so these resolved to the
+    * Java methods; GraalJS surfaces a host {@code java.lang.String} as a guest
+    * string, where they are simply absent. (#76780)
+    *
+    * <p>Deliberately NOT redefined, although Java and JS disagree about them:
+    * {@code replace} (Java replaces every occurrence of a literal, JS only the
+    * first) and {@code replaceAll} (Java takes a regex, JS a literal). Both exist
+    * on {@code String.prototype} and are in current use with JS semantics, so
+    * redefining them would break working scripts to fix Rhino-era ones. They are
+    * called out in the migration notes instead.
+    */
+   private static final String STRING_COMPAT_JS =
+      // equals / equalsIgnoreCase
+      "d('equals', function(o){ return o != null && String(this) === String(o); });" +
+      "d('equalsIgnoreCase', function(o){ return o != null &&" +
+      "   String(this).toLowerCase() === String(o).toLowerCase(); });" +
+      // compareTo / compareToIgnoreCase - java.lang.String's exact algorithm, so a
+      // script comparing the magnitude (not just the sign) sees the Java number
+      "d('compareTo', function(o){ return c(String(this), String(o)); });" +
+      "d('compareToIgnoreCase', function(o){" +
+      "   return c(String(this).toLowerCase(), String(o).toLowerCase()); });" +
+      "d('contains', function(o){ return String(this).indexOf(String(o)) >= 0; });" +
+      "d('isEmpty', function(){ return String(this).length === 0; });" +
+      "d('isBlank', function(){ return String(this).trim().length === 0; });" +
+      // java matches() anchors the whole string; JS RegExp.test() does not
+      "d('matches', function(re){" +
+      "   return new RegExp('^(?:' + re + ')$').test(String(this)); });" +
+      "d('replaceFirst', function(re, rep){" +
+      "   return String(this).replace(new RegExp(re), rep); });" +
+      "d('subSequence', function(a, b){ return String(this).substring(a, b); });";
+
+   /**
+    * Install the Rhino-parity string interop on a freshly built context.
+    *
+    * <p>Two separate things, with deliberately different gating:
+    *
+    * <ul>
+    * <li>{@link #STRING_COMPAT_JS} — the Java {@code String} methods JS lacks.
+    *     User-visible, so it follows {@link #isEnabled()}. Unlike the rest of the
+    *     shim the check happens once per context rather than per call, because
+    *     these are prototype members; a live toggle therefore applies to contexts
+    *     built afterwards.</li>
+    * <li>{@value #LENGTH_HELPER} — internal, installed unconditionally. A
+    *     {@code Source} rewritten while the gate was on may be executed after it
+    *     is turned off (compiled scripts are cached), and a helper that vanished
+    *     underneath such a source would turn a working script into a
+    *     {@code TypeError}. It is inert unless a rewritten source calls it.</li>
+    * </ul>
+    *
+    * <p>Every member is defined only when absent, so a real JS built-in is never
+    * shadowed, and non-enumerable, so {@code for...in} over a string is unchanged.
+    */
+   public static void installStringCompat(Context context) {
+      if(context == null) {
+         return;
+      }
+
+      try {
+         // .length() cannot be restored as a String.prototype method: every string
+         // has an own, non-configurable `length` property that shadows the
+         // prototype, and `s.length` must keep returning the number. The rewrite
+         // emits `s.length.__jlen()` instead, which works for all three receiver
+         // kinds a script can hold: a guest string (`length` is a number), a host
+         // CharSequence such as StringBuilder (`length` is the bound Java method),
+         // and an array (`length` is a number).
+         context.eval("js",
+            "(function(){" +
+            "  var dn = function(proto, name, fn){" +
+            "     if(!(name in proto)) {" +
+            "        Object.defineProperty(proto, name," +
+            "           {value: fn, writable: true, configurable: true, enumerable: false});" +
+            "     }" +
+            "  };" +
+            "  dn(Number.prototype, '" + LENGTH_HELPER + "', function(){ return this.valueOf(); });" +
+            "  dn(Function.prototype, '" + LENGTH_HELPER + "', function(){ return this(); });" +
+            "})();");
+
+         if(!isEnabled()) {
+            return;
+         }
+
+         context.eval("js",
+            "(function(){" +
+            "  var d = function(name, fn){" +
+            "     if(!(name in String.prototype)) {" +
+            "        Object.defineProperty(String.prototype, name," +
+            "           {value: fn, writable: true, configurable: true, enumerable: false});" +
+            "     }" +
+            "  };" +
+            "  var c = function(a, b){" +
+            "     var n = Math.min(a.length, b.length);" +
+            "     for(var i = 0; i < n; i++) {" +
+            "        if(a.charCodeAt(i) !== b.charCodeAt(i)) {" +
+            "           return a.charCodeAt(i) - b.charCodeAt(i);" +
+            "        }" +
+            "     }" +
+            "     return a.length - b.length;" +
+            "  };" +
+            STRING_COMPAT_JS +
+            "})();");
+      }
+      catch(Exception ex) {
+         // never let the compatibility layer abort engine init
+         LOG.warn("Failed to install the legacy string compatibility layer", ex);
+      }
+   }
+
    public static void install(Context context, Value bindings, Predicate<String> filter) {
       for(String root : ROOTS) {
          bindings.putMember(root, new JavaPackageProxy(root, filter, context));

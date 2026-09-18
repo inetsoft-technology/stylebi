@@ -714,8 +714,11 @@ public class PDFVSExporter extends AbstractVSExporter {
          format.getUserDefinedFormat().setForeground(Color.RED);
          Font font0 = printer.getFont();
          printer.setFont(VSFontHelper.getDefaultFont());
-         helper.drawTextBox(bounds, format,
-                            Catalog.getCatalog().getString("vs.export.pdftable.outOfLength"));
+         // name the axis that actually overflowed; the long-standing message only
+         // speaks of height, which is wrong for a viewsheet that is too wide (#76780)
+         String key = helper.isOutOfMaxPageWidth()
+            ? "vs.export.pdftable.outOfWidth" : "vs.export.pdftable.outOfLength";
+         helper.drawTextBox(bounds, format, Catalog.getCatalog().getString(key));
          printer.setFont(font0);
       }
    }
