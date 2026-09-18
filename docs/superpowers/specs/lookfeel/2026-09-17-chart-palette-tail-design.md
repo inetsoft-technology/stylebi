@@ -277,6 +277,10 @@ orphaned classes are even discovered. The 34-test gap (5867 − 5833) is exactly
 classes' own test counts (6 + 6 + 14 + 5 + 3), confirmed by diffing the two runs' class lists.
 Nothing in this slice's own code or tests is implicated.
 
+Those are the figures as this section was first written. The review's fix wave then deleted two
+tests and added one, so the branch settles at **5832 tests, 0 failures, 0 errors, 69 skipped**,
+which is the figure to quote.
+
 **Every new test class needs `@Tag("core")`, or it silently doesn't run.**
 `core/pom.xml:996` hardcodes Surefire's `<groups>core</groups>`, so a JUnit 5 class with no
 `@Tag("core")` is excluded from the suite entirely and reports `Tests run: 0` — a false pass, not
