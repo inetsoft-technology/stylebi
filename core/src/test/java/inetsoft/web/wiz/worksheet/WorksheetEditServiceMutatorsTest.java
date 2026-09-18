@@ -134,6 +134,38 @@ class WorksheetEditServiceMutatorsTest {
          mock(InnerJoinService.class), expressionDialogService);
    }
 
+   /**
+    * Same as {@link #service(RuntimeWorksheet, String, Principal, String)} but wires a real
+    * {@link InnerJoinService} (not a mock), so add_join's extend-in-place branch -- which calls
+    * {@code getOperatorsOfJoinTable}/{@code editExistingJoinTable} -- is actually exercised
+    * end to end, not just invoked against a no-op mock. Mirrors the direct-construction
+    * pattern already used by {@code WorksheetEditServiceTest}'s
+    * {@code addJoinWithPathsBuildsSingleAssemblyOverThreeTables}.
+    */
+   private WorksheetEditService serviceWithRealInnerJoinService(
+      RuntimeWorksheet rws, String runtimeId, Principal agent, String token)
+      throws PairingException, inetsoft.sree.security.SecurityException
+   {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(
+         any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
+         .thenReturn(true);
+
+      SheetSessionService sessions       = mock(SheetSessionService.class);
+      SheetRuntimeAccess  runtimeAccess  = mock(SheetRuntimeAccess.class);
+      SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
+
+      JoinSession s = new JoinSession(token, runtimeId, "alice~;~host-org",
+                                      SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
+                                      JoinSession.ConnectionMode.PAIRED, null, null, null);
+      when(sessions.resolve(eq(token), any())).thenReturn(s);
+      when(runtimeAccess.getSheetForPairing(eq(SheetType.WORKSHEET), eq(runtimeId), eq(agent)))
+         .thenReturn(rws);
+
+      return new WorksheetEditService(sessions, runtimeAccess, broadcast, securityEngine,
+         new InnerJoinService(null, null));
+   }
+
    private RuntimeWorksheet rws(Worksheet ws) {
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
       when(rws.getWorksheet()).thenReturn(ws);
@@ -2698,6 +2730,281 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ex.getMessage().contains("built on it"), ex.getMessage());
       assertNotNull(ws.getAssembly("J"), "the join must still be there");
       assertNotNull(ws.getAssembly("M"), "and so must the mirror that depends on it");
+   }
+
+   // =========================================================================
+   // Bug #76786 (WBS-063): add_join extends an existing named join in place, symmetrically,
+   // instead of always nesting it as a member of a brand-new assembly. Every test here uses
+   // distinctly-named join keys across L/M ("l_id"/"m_id") so a key given while extending
+   // resolves to exactly one direct member -- this is what exercises resolveMemberOwningColumn
+   // rather than accidentally matching both original members.
+   // =========================================================================
+
+   @Test
+   void addJoinExtendsExistingJoinWhenItIsTheLeftTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id", "l_name");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id", "m_val");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "m_id", "n_val");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(original);
+      assertEquals(2, original.getTableAssemblies().length);
+
+      // existing join "J" as leftTable, plain table "N" as rightTable -- must extend, not nest.
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "J", "m_id", "N", "m_id", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "the join must still be registered under the same name");
+      assertSame(original, joined, "extending in place must reuse the same assembly instance");
+      assertEquals(3, joined.getTableAssemblies().length,
+         "L/M/N must all be direct members of the SAME assembly, not a new nesting wrapper");
+
+      TableAssemblyOperator lm = joined.getOperator("L", "M");
+      assertNotNull(lm, "the original L/M operator must survive the extend");
+      assertEquals(1, lm.getOperatorCount());
+      assertEquals(TableAssemblyOperator.INNER_JOIN, lm.getOperator(0).getOperation());
+      assertEquals("l_id", lm.getOperator(0).getLeftAttribute().getAttribute());
+      assertEquals("m_id", lm.getOperator(0).getRightAttribute().getAttribute());
+
+      TableAssemblyOperator mn = joined.getOperator("M", "N");
+      assertNotNull(mn, "a new operator must wire N against M -- the direct member owning m_id");
+      assertEquals(1, mn.getOperatorCount());
+      assertEquals(TableAssemblyOperator.INNER_JOIN, mn.getOperator(0).getOperation());
+   }
+
+   /** Proves symmetry: naming the existing join as rightTable must ALSO extend, not nest. */
+   @Test
+   void addJoinExtendsExistingJoinWhenItIsTheRightTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id", "l_name");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id", "m_val");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "m_id", "n_val");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      // plain table "N" as leftTable, existing join "J" as rightTable -- must ALSO extend.
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "N", "m_id", "J", "m_id", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertSame(original, joined, "extending in place must reuse the same assembly instance");
+      assertEquals(3, joined.getTableAssemblies().length);
+
+      TableAssemblyOperator lm = joined.getOperator("L", "M");
+      assertNotNull(lm, "the original L/M operator must survive the extend");
+      assertEquals(TableAssemblyOperator.INNER_JOIN, lm.getOperator(0).getOperation());
+
+      TableAssemblyOperator nm = joined.getOperator("N", "M");
+      assertNotNull(nm, "a new operator must wire N against M -- the direct member owning m_id");
+   }
+
+   @Test
+   void addJoinExtendingInPlaceWithSameNameDoesNotRename() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "m_id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "J", "m_id", "N", "m_id", "INNER", null, null));
+
+      assertNotNull(ws.getAssembly("J"), "same name as the existing join is a no-op rename");
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertEquals(3, joined.getTableAssemblies().length);
+   }
+
+   @Test
+   void addJoinExtendingInPlaceWithDifferentNameRenamesTheJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "m_id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J2", "J", "m_id", "N", "m_id", "INNER", null, null));
+
+      assertNull(ws.getAssembly("J"), "the old name must no longer resolve after the rename");
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J2");
+      assertNotNull(joined, "the join must be addressable under its new name");
+      assertEquals(3, joined.getTableAssemblies().length, "and still extended, not just renamed");
+
+      // Proves the rename really took (not just a second, differently-named assembly): a
+      // follow-up call against the OLD name must fail "not found", not silently succeed.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin("J3", "J", "m_id", "N", "m_id", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("not found") || ex.getMessage().contains("Table not found"),
+         ex.getMessage());
+   }
+
+   @Test
+   void addJoinExtendingInPlaceRefusesARecursiveJoin() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      // "L" is already a direct member of "J" -- joining it in again must be refused.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin("J", "J", "m_id", "L", "l_id", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("L"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("J"), ex.getMessage());
+
+      RelationalJoinTableAssembly unchanged = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertSame(original, unchanged);
+      assertEquals(2, unchanged.getTableAssemblies().length, "no mutation on the refused call");
+   }
+
+   @Test
+   void addJoinExtendingInPlaceRefusesAMissingKeyColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "no_such_col");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      // Neither L nor M has a column named "does_not_exist" -- must fail loud, not silently
+      // guess a member to wire the new table's operator against.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+            ed -> ed.addJoin("J", "J", "does_not_exist", "N", "no_such_col", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("does_not_exist"), ex.getMessage());
+
+      RelationalJoinTableAssembly unchanged = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertSame(original, unchanged);
+      assertEquals(2, unchanged.getTableAssemblies().length, "no mutation on the refused call");
+   }
+
+   @Test
+   void addJoinExtendingInPlaceRefusesAnAmbiguousKeyColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      // Both direct members share a column literally named "id" (unlike this file's other
+      // extend tests, which use distinctly-named keys precisely to avoid this).
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "id", "l_val");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "id", "m_val");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "n_key");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "M", "id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      // "id" matches BOTH L and M -- must fail loud rather than silently picking one.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin("J", "J", "id", "N", "n_key", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+
+      RelationalJoinTableAssembly unchanged = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertSame(original, unchanged);
+      assertEquals(2, unchanged.getTableAssemblies().length, "no mutation on the refused call");
+   }
+
+   /** Regression guard: both sides already existing joins must still nest, unchanged. */
+   @Test
+   void addJoinWithBothSidesExistingJoinsStillNests() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a1 = TestWorksheets.tableWithColumns(ws, "A1", "id");
+      EmbeddedTableAssembly a2 = TestWorksheets.tableWithColumns(ws, "A2", "id");
+      EmbeddedTableAssembly b1 = TestWorksheets.tableWithColumns(ws, "B1", "id");
+      EmbeddedTableAssembly b2 = TestWorksheets.tableWithColumns(ws, "B2", "id");
+      ws.addAssembly(a1);
+      ws.addAssembly(a2);
+      ws.addAssembly(b1);
+      ws.addAssembly(b2);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> {
+         ed.addJoin("JA", "A1", "id", "A2", "id", "INNER", null, null);
+         ed.addJoin("JB", "B1", "id", "B2", "id", "INNER", null, null);
+      });
+      RelationalJoinTableAssembly ja = (RelationalJoinTableAssembly) ws.getAssembly("JA");
+      RelationalJoinTableAssembly jb = (RelationalJoinTableAssembly) ws.getAssembly("JB");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("JAB", "JA", "id", "JB", "id", "INNER", null, null));
+
+      RelationalJoinTableAssembly jab = (RelationalJoinTableAssembly) ws.getAssembly("JAB");
+      assertNotNull(jab);
+      assertEquals(2, jab.getTableAssemblies().length,
+         "a brand-new assembly nesting JA and JB, not a 4-member extension of either");
+      assertNotNull(ws.getAssembly("JA"), "JA must be unchanged and still separately addressable");
+      assertNotNull(ws.getAssembly("JB"), "JB must be unchanged and still separately addressable");
+      assertEquals(2, ja.getTableAssemblies().length, "JA itself must not have been extended");
+      assertEquals(2, jb.getTableAssemblies().length, "JB itself must not have been extended");
+   }
+
+   /** Regression guard: the ordinary two-plain-table case must still create a new assembly. */
+   @Test
+   void addJoinWithNeitherSideExistingJoinStillCreatesNewAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "M", "id", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined);
+      assertEquals(2, joined.getTableAssemblies().length);
+      assertNotNull(joined.getOperator("L", "M"));
    }
 
    // =========================================================================
