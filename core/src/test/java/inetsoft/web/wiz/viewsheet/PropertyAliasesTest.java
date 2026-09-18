@@ -734,4 +734,40 @@ class PropertyAliasesTest {
                       "live field for " + entry.getKey());
       }
    }
+
+   /**
+    * Bug #76771 (VCG-008): {@code hierarchyPropertyPaneModel.dimensions} is a
+    * {@code VSDimensionModel[]} that {@link PropertyPath#coerce} cannot build -- no bean-array
+    * branch exists at all -- so the raw dotted path, the only way in (the field is not
+    * registered as an alias anywhere), must be refused by name rather than left to the generic
+    * coercion error, on BOTH chart and crosstab: the field and the failure are identical on both.
+    */
+   @Test
+   void theHierarchyDimensionsFieldIsRefusedForWriteOnChartAndCrosstab() {
+      for(String assemblyType : java.util.List.of("chart", "crosstab")) {
+         for(String path : java.util.List.of(
+            "hierarchyPropertyPaneModel.dimensions",
+            "hierarchyPropertyPaneModel.dimensions.members"))
+         {
+            IllegalArgumentException thrown = assertThrows(
+               IllegalArgumentException.class,
+               () -> PropertyAliases.resolveForWrite(assemblyType, path),
+               assemblyType + "/" + path + " must be refused");
+            assertTrue(thrown.getMessage().contains("add_hierarchy_dimension"),
+                       "the refusal must point at the tool that works: " + thrown.getMessage());
+         }
+      }
+   }
+
+   /** The refusal is scoped to {@code dimensions}; sibling hierarchy-pane fields are untouched. */
+   @Test
+   void theHierarchyDimensionsRefusalDoesNotReachItsSiblingFields() {
+      assertDoesNotThrow(
+         () -> PropertyAliases.resolveForWrite("chart", "hierarchyPropertyPaneModel.columnList"));
+      assertDoesNotThrow(
+         () -> PropertyAliases.resolveForWrite("chart", "hierarchyPropertyPaneModel.cube"));
+      assertDoesNotThrow(
+         () -> PropertyAliases.resolveForWrite("crosstab",
+            "hierarchyPropertyPaneModel.grayedOutFields"));
+   }
 }

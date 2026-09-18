@@ -99,6 +99,7 @@ public class ViewsheetAssemblyAgentController {
                                    AssemblyHyperlinkService hyperlinkService,
                                    ChartElementService chartElementService,
                                    ChartRegionPropertyService chartRegionService,
+                                   HierarchyDimensionService hierarchyDimensionService,
                                    AssemblyConditionService conditionService,
                                    AssemblyHighlightService highlightService,
                                    DateComparisonService comparisonService,
@@ -134,6 +135,7 @@ public class ViewsheetAssemblyAgentController {
       this.hyperlinkService = hyperlinkService;
       this.chartElementService = chartElementService;
       this.chartRegionService = chartRegionService;
+      this.hierarchyDimensionService = hierarchyDimensionService;
       this.conditionService = conditionService;
       this.highlightService = highlightService;
       this.comparisonService = comparisonService;
@@ -1080,6 +1082,58 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return chartElementService.readPlotSize(sessionToken, user, assembly);
+   }
+
+   public record HierarchyDimensionRequest(String assembly, List<String> columns,
+                                           List<String> dateLevels) {}
+
+   public record HierarchyDimensionDeleteRequest(String assembly, int index) {}
+
+   /**
+    * {@code list_hierarchy_dimensions}. A chart or crosstab's custom drill hierarchy dimensions,
+    * with the index each one is removed by, plus the columns still free to build one from.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hierarchy/dimensions")
+   public Map<String, Object> listHierarchyDimensions(@PathVariable String sessionToken,
+                                                       @RequestParam String assembly,
+                                                       Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return hierarchyDimensionService.list(sessionToken, user, assembly);
+   }
+
+   /**
+    * {@code add_hierarchy_dimension}. Appends a dimension whose levels are the given columns, in
+    * order -- the write path {@code hierarchyPropertyPaneModel.dimensions} has no other way to
+    * reach (bug #76771).
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hierarchy/dimensions")
+   public Map<String, Object> addHierarchyDimension(
+      @PathVariable String sessionToken,
+      @RequestBody HierarchyDimensionRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return hierarchyDimensionService.add(sessionToken, user, request.assembly(),
+                                           request.columns(), request.dateLevels(), linkUri);
+   }
+
+   /**
+    * {@code remove_hierarchy_dimension}. Removes the dimension at the index
+    * {@code list_hierarchy_dimensions} reports.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/hierarchy/dimensions/delete")
+   public Map<String, Object> removeHierarchyDimension(
+      @PathVariable String sessionToken,
+      @RequestBody HierarchyDimensionDeleteRequest request,
+      @RequestParam(required = false, defaultValue = "") String linkUri,
+      Principal user) throws Exception
+   {
+      requireEnabled();
+      return hierarchyDimensionService.remove(sessionToken, user, request.assembly(),
+                                              request.index(), linkUri);
    }
 
    /**
@@ -2146,6 +2200,7 @@ public class ViewsheetAssemblyAgentController {
    private final AssemblyHyperlinkService hyperlinkService;
    private final ChartElementService chartElementService;
    private final ChartRegionPropertyService chartRegionService;
+   private final HierarchyDimensionService hierarchyDimensionService;
    private final AssemblyConditionService conditionService;
    private final AssemblyHighlightService highlightService;
    private final DateComparisonService comparisonService;
