@@ -862,4 +862,49 @@ class PropertyAliasesTest {
       assertNull(PropertyAliases.labelFor("visible"));
       assertNull(PropertyAliases.labelFor("name"));
    }
+
+   /**
+    * The inverse of {@link #everyDeclaredAliasResolvesOnItsDialogModel}, and the gap that let
+    * VOF-008 ship: that test proves every DECLARED alias resolves, which says nothing about a
+    * real, applied property that was never declared at all. {@code submitOnChange} was genuinely
+    * written by {@code VSInputService} and genuinely reachable by its raw dotted path on all six
+    * input assemblies, but because {@code list_assembly_properties} and
+    * {@code get_assembly_properties} iterate the alias map alone, it was invisible — findable
+    * only by reverse-engineering {@code get_assembly_properties(raw: true)}.
+    *
+    * <p>The seven types here are exactly the ones whose dialog service turns the checkbox on
+    * ({@code generalPropPaneModel.setShowSubmitCheckbox(true)}, six call sites in
+    * {@code VSInputService}, plus the range slider's own copy on
+    * {@code RangeSliderSizePaneModel}). Nothing else should gain the alias: on a chart, table or
+    * gauge the field is inherited from the shared model, never read and never applied.
+    */
+   @Test
+   void everyInputAssemblyExposesSubmitOnChange() {
+      for(String type : java.util.List.of("checkbox", "combobox", "radiobutton", "slider",
+                                          "spinner", "textinput", "timeslider"))
+      {
+         PropertyAliases.TypeAliases entry = PropertyAliases.forType(type);
+         String path = entry.aliases().get("submitOnChange");
+
+         assertNotNull(path, type + " applies submitOnChange but does not alias it, so " +
+                             "list_assembly_properties cannot show it");
+         assertDoesNotThrow(() -> PropertyPath.typeOf(entry.modelClass(), path),
+                            "submitOnChange on " + type + " points at '" + path +
+                            "', which does not exist on " + entry.modelClass().getSimpleName());
+      }
+   }
+
+   /**
+    * ...and the types that merely inherit the field keep it out of their vocabulary. Aliasing it
+    * on an assembly whose dialog never reads it back would report a setting as available and
+    * then silently do nothing — the trap {@code shadow} and {@code sliderLabelPaneModel.showLabel}
+    * are deliberately excluded for.
+    */
+   @Test
+   void submitOnChangeIsNotExposedOnAssembliesThatIgnoreIt() {
+      for(String type : java.util.List.of("chart", "gauge", "text", "image", "crosstab")) {
+         assertNull(PropertyAliases.forType(type).aliases().get("submitOnChange"),
+                    type + " does not apply submitOnChange and must not advertise it");
+      }
+   }
 }
