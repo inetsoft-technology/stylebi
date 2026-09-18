@@ -3669,6 +3669,61 @@ class WorksheetAgentControllerTest {
          "detectType=true must still detect a numeric column when every value shares one format");
    }
 
+   /**
+    * Bug #76753/WBS-056: removeQuotes left unset silently mis-parsed a standard, fully-quoted
+    * CSV -- literal quote characters landed in both column names and values, and the numeric
+    * columns were left as strings because CSVLoader's cached Format never matched a
+    * quote-wrapped value. csvSettings() resolved the unset case to false, unlike its sibling
+    * detectType/firstRowAsHeader fields (both default true) and unlike the native "Import Data
+    * File" dialog's own default of true for the identical CSVLoader.readCSV call.
+    */
+   @Test
+   void importCsvDefaultsToStrippingQuotesOnAFullyQuotedFile() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-RQ1");
+
+      ctrl.importCsv("TOK-RQ1",
+         new WorksheetAgentController.ImportCsvRequest("Quoted",
+            "\"STATE\",\"2020\",\"2021\"\n\"AZ\",\"120\",\"140\"\n\"CA\",\"300\",\"310\""),
+         TestPrincipals.user("alice", "host-org"));
+
+      EmbeddedTableAssembly t = importedTable(ws, "Quoted");
+      ColumnSelection cols = t.getColumnSelection(false);
+
+      assertNotNull(cols.getAttribute("STATE"),
+         "column names must not carry literal quote characters when removeQuotes is left unset");
+      assertNull(cols.getAttribute("\"STATE\""),
+         "the raw quoted header must not survive as a column name");
+      assertNotEquals(XSchema.STRING, ((ColumnRef) cols.getAttribute("2020")).getDataType(),
+         "a numeric column's type detection must not be defeated by quote wrapping");
+      assertEquals("AZ", String.valueOf(t.getEmbeddedData().getObject(1, 0)),
+         "values must have their literal quotes stripped by default");
+   }
+
+   /**
+    * Companion to the default-flip test above: an explicit removeQuotes:false caller must keep
+    * seeing quotes preserved, proving the fix only changes the unset/null default.
+    */
+   @Test
+   void importCsvRemoveQuotesFalseKeepsLiteralQuotesWhenExplicitlyRequested() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-RQ2");
+
+      ctrl.importCsv("TOK-RQ2",
+         csvRequest("Quoted",
+            "\"STATE\",\"2020\",\"2021\"\n\"AZ\",\"120\",\"140\"\n\"CA\",\"300\",\"310\"",
+            null, null, null, null, null, false, null, null),
+         TestPrincipals.user("alice", "host-org"));
+
+      EmbeddedTableAssembly t = importedTable(ws, "Quoted");
+      ColumnSelection cols = t.getColumnSelection(false);
+
+      assertNotNull(cols.getAttribute("\"STATE\""),
+         "an explicit removeQuotes:false must still preserve literal quotes in column names");
+      assertEquals("\"AZ\"", String.valueOf(t.getEmbeddedData().getObject(1, 0)),
+         "an explicit removeQuotes:false must still preserve literal quotes in values");
+   }
+
    // ---------------------------------------------------------------------------
    // stringColumns / stringColumnIndexes (L2-Group6 flagship finding)
    // ---------------------------------------------------------------------------

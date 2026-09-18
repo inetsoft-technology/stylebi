@@ -1738,7 +1738,7 @@ public class WorksheetAgentController {
       return new CsvSettings(encode, delim,
                              detectType == null || detectType,
                              firstRowAsHeader == null || firstRowAsHeader,
-                             Boolean.TRUE.equals(removeQuotes),
+                             removeQuotes == null || removeQuotes,
                              pivot, hcol);
    }
 
