@@ -2762,6 +2762,73 @@ public class WorksheetEditService {
          }
       }
 
+      /**
+       * Changes the concatenation type and/or duplicate-row setting of an existing
+       * concatenation assembly, applied uniformly across every adjacent pair -- matching
+       * how addConcatenation itself always builds a concatenation (one operation for the
+       * whole assembly) and how read_worksheet_model's concatType reports it back (a single
+       * value, or "MIXED" if per-pair values genuinely disagree -- see
+       * WorksheetReadService#readConcatType's own doc comment on why per-pair values are
+       * not otherwise exposed or settable).
+       *
+       * <p>WARNING -- this collapses mixed state. {@code A UNION B MINUS C} is a legal
+       * assembly (Composer can set the operator per adjacent pair), and this method has no
+       * way to retarget a single pair the way the native Composer "Edit Concatenation"
+       * dialog's default (non-"apply to all") mode does. Calling this on a concatenation
+       * that already has genuinely different operations/distinct flags per pair silently
+       * overwrites every pair with the single value(s) given here -- there is no read-back
+       * warning beforehand and no way to undo the flattening except rebuilding the
+       * concatenation. This is a deliberate, disclosed scope decision (matching
+       * addConcatenation's own creation-time convention of one setting for the whole
+       * assembly), not an oversight.</p>
+       *
+       * @param concatName the concatenation assembly name
+       * @param opType     new concatenation type ("UNION"/"INTERSECT"/"MINUS",
+       *                   case-insensitive); null leaves every pair's existing
+       *                   operation unchanged (NOT defaulted to UNION -- unlike
+       *                   addConcatenation's create-time default, an edit must not
+       *                   silently reset the type when the caller only wants to
+       *                   change concatDistinct)
+       * @param distinct   new duplicate-row setting; null leaves every pair's existing
+       *                   distinct flag unchanged
+       * @throws PairingException if the assembly is not found, or if both opType and
+       *                          distinct are null (nothing to do)
+       */
+      public void editConcatenation(String concatName, String opType, Boolean distinct)
+         throws PairingException
+      {
+         Assembly a = ws.getAssembly(concatName);
+
+         if(!(a instanceof ConcatenatedTableAssembly ctbl)) {
+            throw new PairingException("Concatenation not found: " + concatName);
+         }
+
+         if(opType == null && distinct == null) {
+            throw new PairingException(
+               "editConcatenation requires at least one of concatType or concatDistinct.");
+         }
+
+         String[] names = ctbl.getTableNames();
+         int pairs = names == null ? 0 : names.length - 1;
+
+         for(int i = 0; i < pairs; i++) {
+            TableAssemblyOperator existingTop = ctbl.getOperator(i);
+            TableAssemblyOperator.Operator existing =
+               existingTop == null ? null : existingTop.getKeyOperator();
+
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setOperation(opType != null ? parseConcatType(opType)
+                                            : existing != null ? existing.getOperation()
+                                                                : TableAssemblyOperator.UNION);
+            op.setDistinct(distinct != null ? distinct
+                                             : existing != null && existing.isDistinct());
+
+            TableAssemblyOperator top = new TableAssemblyOperator();
+            top.addOperator(op);
+            ctbl.setOperator(i, top);
+         }
+      }
+
       // -----------------------------------------------------------------------
       // Named group assembly
       // -----------------------------------------------------------------------

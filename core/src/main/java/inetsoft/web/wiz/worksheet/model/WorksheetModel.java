@@ -71,6 +71,11 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                           operation per adjacent pair of {@code sources} and they need not
     *                           agree, so {@code "MIXED"} is reported when they differ (the
     *                           per-pair operations are not exposed).
+    * @param concatDistinct     for a {@code CONCAT}, whether its pairs de-duplicate rows
+    *                           ({@code UNION} vs. {@code UNION ALL}); {@code null} otherwise, or
+    *                           when its pairs disagree. Unlike {@code concatType} there is no
+    *                           {@code "MIXED"} sentinel — {@code Boolean} has no three-state slot —
+    *                           so disagreement reads the same as "not present".
     * @param concatCompatible   for a {@code CONCAT}, whether its sources line up by type as well as
     *                           by count; {@code null} otherwise. Sources are combined by position,
     *                           so a pair that lines up numerically but not by type produces a
@@ -135,6 +140,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       List<JoinModel> joins,
       List<String> sources,
       String concatType,
+      Boolean concatDistinct,
       Boolean concatCompatible,
       Boolean autoUpdate,
       List<FilterModel> preConditions,

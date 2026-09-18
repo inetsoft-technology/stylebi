@@ -4906,6 +4906,100 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(ws.getAssembly("U") instanceof ConcatenatedTableAssembly);
    }
 
+   @Test
+   void editConcatenationChangesTypeOnA2TableUnionToIntersect() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      svc.apply("TOK", agent, ed -> ed.editConcatenation("U", "INTERSECT", null));
+
+      ConcatenatedTableAssembly ctbl = (ConcatenatedTableAssembly) ws.getAssembly("U");
+      assertEquals(TableAssemblyOperator.INTERSECT,
+         ctbl.getOperator(0).getKeyOperator().getOperation());
+   }
+
+   /**
+    * Regression test for the {@code parseConcatType(null)}-defaults-to-UNION trap: an edit that only
+    * asks to change {@code distinct} must not silently reset the pair's operation back to UNION.
+    */
+   @Test
+   void editConcatenationChangesOnlyDistinctLeavesTheOperationAlone() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "INTERSECT"));
+
+      svc.apply("TOK", agent, ed -> ed.editConcatenation("U", null, true));
+
+      ConcatenatedTableAssembly ctbl = (ConcatenatedTableAssembly) ws.getAssembly("U");
+      assertEquals(TableAssemblyOperator.INTERSECT,
+         ctbl.getOperator(0).getKeyOperator().getOperation(),
+         "opType=null must preserve the existing operation, not reset it to UNION");
+      assertTrue(ctbl.getOperator(0).isDistinct());
+   }
+
+   @Test
+   void editConcatenationOnAThreeTableConcatenationAppliesToEveryPair() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly c = table(ws, "C", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B", "C"), "UNION"));
+
+      svc.apply("TOK", agent, ed -> ed.editConcatenation("U", "MINUS", true));
+
+      ConcatenatedTableAssembly ctbl = (ConcatenatedTableAssembly) ws.getAssembly("U");
+
+      for(int i = 0; i < 2; i++) {
+         assertEquals(TableAssemblyOperator.MINUS,
+            ctbl.getOperator(i).getKeyOperator().getOperation(),
+            "pair " + i + " must be updated, not just the first");
+         assertTrue(ctbl.getOperator(i).isDistinct(), "pair " + i + " must be updated");
+      }
+   }
+
+   @Test
+   void editConcatenationOnANonExistentAssemblyThrows() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editConcatenation("MISSING", "UNION", null)));
+
+      assertTrue(ex.getMessage().contains("MISSING"), ex.getMessage());
+   }
+
+   @Test
+   void editConcatenationWithBothFieldsNullThrows() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = table(ws, "A", col("id", XSchema.INTEGER));
+      EmbeddedTableAssembly b = table(ws, "B", col("id", XSchema.INTEGER));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+      svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION"));
+
+      assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.editConcatenation("U", null, null)));
+   }
+
    // =========================================================================
    // Mirror auto-update tests
    // =========================================================================
