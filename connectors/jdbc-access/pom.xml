@@ -57,26 +57,9 @@
     </dependency>
 
     <dependency>
-      <groupId>com.healthmarketscience.jackcess</groupId>
-      <artifactId>jackcess</artifactId>
-      <version>4.0.4</version>
-      <scope>compile</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.commons</groupId>
-          <artifactId>commons-lang3</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>commons-logging</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-
-    <dependency>
-      <groupId>net.sf.ucanaccess</groupId>
+      <groupId>io.github.spannm</groupId>
       <artifactId>ucanaccess</artifactId>
-      <version>5.0.1</version>
+      <version>5.1.8</version>
       <scope>compile</scope>
     </dependency>
 
