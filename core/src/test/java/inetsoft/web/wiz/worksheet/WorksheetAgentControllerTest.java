@@ -5848,6 +5848,70 @@ class WorksheetAgentControllerTest {
       }
    }
 
+   /**
+    * WBT-007 root cause 2 (residual broken table): {@code addTabularTable}'s lambda used to call
+    * {@code ws.addAssembly(assembly)} BEFORE probing the query for columns, so a query that
+    * genuinely produces zero columns left the just-added, zero-column assembly in the live
+    * worksheet even though the overall {@code add_table} call reported failure. Reuses the same
+    * real-{@code Worksheet}-through-a-mocked-{@code applyOnRuntime} wiring as {@link
+    * #addTabularTableNoColumnsErrorIncludesAppliedExtraProperties} -- {@code
+    * FakeNamedConnectorQuery.loadOutputColumns} produces zero columns whenever no response shape
+    * is staged, which is exactly this case.
+    */
+   @Test
+   void addTabularTableNoColumnsDoesNotLeaveResidualAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addTabularTableRequestWithExtraProperties(
+         "t1", "MyDatasource", "Comments", null,
+         Map.of("jsonPath", "$.items[*]"), null);
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-EP9"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertThrows(PairingException.class, () -> ctrl.edit("TOK-EP9", req, agent));
+         assertEquals(0, ws.getAssemblies().length,
+            "a failed add_table probe must not leave a zero-column assembly in the worksheet");
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
    @Test
    void addQueryParamsTableRequiresDatasource() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
@@ -5998,6 +6062,65 @@ class WorksheetAgentControllerTest {
          // editService.applyOnRuntime is only reached AFTER applyQueryContract succeeds -- if
          // jsonPath had not been threaded through at all, this mock would never be touched.
          verify(editSvc).applyOnRuntime(eq("TOK-QP7"), eq(agent), any());
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+   }
+
+   /**
+    * WBT-007 root cause 2 (residual broken table), {@code addQueryParamsTable}'s side of the
+    * identical defect fixed in {@link #addTabularTableNoColumnsDoesNotLeaveResidualAssembly} --
+    * same real-{@code Worksheet}-through-a-mocked-{@code applyOnRuntime} wiring, adapted to the
+    * queryParams form.
+    */
+   @Test
+   void addQueryParamsTableNoColumnsDoesNotLeaveResidualAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      TabularDataSource<?> ds = mock(TabularDataSource.class);
+      when(ds.getType()).thenReturn("FakeNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(ds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      FakeNamedConnectorQuery query = new FakeNamedConnectorQuery();
+
+      EditRequest req = addQueryParamsTableRequest("t1", "MyDatasource", null, null, null,
+         null, null, Map.of("endpoint", "Repos", "jsonPath", "$.data"));
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(editSvc.applyOnRuntime(eq("TOK-QP10"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try(MockedStatic<TabularUtil> tabularUtil = mockStatic(TabularUtil.class, CALLS_REAL_METHODS)) {
+         tabularUtil.when(() -> TabularUtil.createQuery(eq("MyDatasource"))).thenReturn(query);
+
+         assertThrows(PairingException.class, () -> ctrl.edit("TOK-QP10", req, agent));
+         assertEquals(0, ws.getAssemblies().length,
+            "a failed add_table probe must not leave a zero-column assembly in the worksheet");
       }
       finally {
          configContext.setApplicationContext(realAppContext);

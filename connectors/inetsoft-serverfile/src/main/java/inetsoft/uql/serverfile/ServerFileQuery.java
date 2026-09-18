@@ -286,7 +286,13 @@ public class ServerFileQuery extends SelectableTabularQuery {
    @Override
    public void loadOutputColumns(VariableTable vtable) throws Exception {
       ColumnDefinition[] columnDef = getColumns();
-      XTypeNode[] cols = new XTypeNode[getColumns().length];
+
+      if(columnDef == null) {
+         throw new IOException("No columns could be read for this file/sheet -- it may be empty " +
+            "or missing a header row.");
+      }
+
+      XTypeNode[] cols = new XTypeNode[columnDef.length];
       int j = 0;
 
       for(int i = 0; i < cols.length; i++) {
