@@ -52,7 +52,29 @@ public class TipPaneModel implements Serializable {
       return alpha;
    }
 
+   /**
+    * Clamps to 0-100 (an opacity percentage), mirroring the frontend's own AlphaDropdown
+    * widget (Math.min(Math.max(0, alpha), 100)) so a caller that reaches this model directly
+    * -- bypassing the widget, e.g. the wiz plugin's set_assembly_properties -- can't persist
+    * a value the UI itself would never allow through (Redmine #76759 VCG-006).
+    */
    public void setAlpha(String alpha) {
+      if(alpha != null && !alpha.isEmpty()) {
+         try {
+            double value = Double.parseDouble(alpha);
+            double clamped = Math.max(0, Math.min(100, value));
+
+            if(clamped != value) {
+               alpha = clamped == Math.floor(clamped)
+                  ? String.valueOf((int) clamped) : String.valueOf(clamped);
+            }
+         }
+         catch(NumberFormatException ignore) {
+            // Not a plain number (e.g. a variable reference) -- leave as-is, unrelated to
+            // this range clamp.
+         }
+      }
+
       this.alpha = alpha;
    }
 
