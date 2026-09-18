@@ -224,6 +224,84 @@ class SelectionRuntimeServiceTest {
       assertFalse(result.containsKey("scopedBySearch"));
    }
 
+   // ── bug-76758 (VFL-003): setting a search string via the 'search' overload ────────────────────
+
+   /** {@code search} has to land on the assembly before the search-scoped disclosure is computed. */
+   @Test
+   void setsTheSearchStringBeforeApplying() throws Exception {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) assembly.getInfo();
+      Harness h = harness(assembly);
+
+      h.service.setSelection("tok", principal(), "Filter1", null, null, null, null, null, "Sm", "");
+
+      verify(info).setSearchString("Sm");
+   }
+
+   /** The response has to name what it set — nothing else in the result would say so. */
+   @Test
+   void reportsSearchSetInTheResult() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      Map<String, Object> result = h.service.setSelection(
+         "tok", principal(), "Filter1", null, null, null, null, null, "Sm", "");
+
+      assertEquals("Sm", result.get("searchSet"));
+   }
+
+   /**
+    * {@code scopedBySearch} reads {@code info.getSearchString()} live, so a search set in this same
+    * call has to show up there too, not just as {@code searchSet} -- the two disclosures cover
+    * different things (what was requested vs. what the values-apply actually saw).
+    */
+   @Test
+   void scopedBySearchReflectsASearchStringSetInTheSameCall() throws Exception {
+      Harness h = harness(list(XConstants.SORT_ASC, false, "Sm"));
+
+      Map<String, Object> result = h.service.setSelection(
+         "tok", principal(), "Filter1", List.of(List.of("Smith")), null, null, null, null, "Sm",
+         "");
+
+      assertEquals("Sm", result.get("searchSet"));
+      assertEquals("Sm", result.get("scopedBySearch"));
+   }
+
+   /** A range slider has no search box -- the existing sortOrder refusal's counterpart. */
+   @Test
+   void refusesSearchOnARangeSlider() {
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      TimeSliderVSAssemblyInfo info = mock(TimeSliderVSAssemblyInfo.class);
+      doReturn(info).when(slider).getInfo();
+      Harness h = harness(slider);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Slider1", null, null, null, null, null,
+                                      "Sm", ""));
+
+      assertTrue(e.getMessage().contains("no search box"), e.getMessage());
+   }
+
+   /** A search-only call never touches getConditionList()/getSelection() -- same exemption as sort. */
+   @Test
+   void allowsASearchOnlyCallOnAColumnlessSelectionList() throws Exception {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      when(assembly.getDataRef()).thenReturn(null);
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.setSelection("tok", principal(), "Filter1", null, null,
+         null, null, null, "Sm", ""));
+   }
+
+   /** The new overload's own "nothing to do" guard has one more field to check than the old one. */
+   @Test
+   void refusesACallThatAsksForNothingOnTheSearchOverloadToo() {
+      Harness h = harness(list(XConstants.SORT_ASC, false, null));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> h.service.setSelection("tok", principal(), "Filter1", null, null, null, null, null,
+                                      null, ""));
+   }
+
    /**
     * A multi-select assembly with nothing previously selected has nothing to diff away, so the
     * plain-apply behaviour above must be unchanged: exactly one {@code applySelection} call, not a
@@ -964,6 +1042,107 @@ class SelectionRuntimeServiceTest {
          () -> h.service.selectSubtree("tok", principal(), "Tree1", List.of("East"), "toggle", ""));
    }
 
+   // ── bug-76758 (VFL-004): select_subtree collapsing to one leaf under singleSelection ──────────
+
+   /**
+    * A path shorter than the tree's own level count names an ancestor, not a leaf --
+    * {@code VSSelectionService.setSubtree}'s single-selection short-circuit silently collapses that
+    * to one arbitrary descendant while still reporting success, so this is refused up front instead.
+    */
+   @Test
+   void refusesSelectingAnAncestorPathUnderSingleSelection() {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      Harness h = harness(assembly);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.selectSubtree("tok", principal(), "Tree1", List.of("USA East"), "select",
+                                       ""));
+
+      assertTrue(e.getMessage().contains("single-select"), e.getMessage());
+      verifyNoInteractions(h.selections);
+   }
+
+   /** A path all the way down to a leaf is always exactly one node -- never ambiguous. */
+   @Test
+   void allowsSelectingAFullLeafPathUnderSingleSelection() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("USA East", "CT", "Hartford"), "select", ""));
+
+      verify(h.selections).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
+                                         any(), anyString());
+   }
+
+   /** Not single-select -- an ancestor path is never ambiguous outside single-select. */
+   @Test
+   void allowsAnAncestorPathWhenNotSingleSelect() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, false);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("USA East"), "select", ""));
+   }
+
+   /** {@code mode:"clear"} never hits the single-selection collapse -- selected=false skips it. */
+   @Test
+   void allowsAnAncestorPathOnClearEvenUnderSingleSelect() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("USA East"), "clear", ""));
+   }
+
+   /**
+    * Documents a known gap, not a passing behaviour to celebrate: an ID-mode path is matched by
+    * value anywhere in the tree (see {@code matchesAnywhere}), not positionally from the root, so
+    * {@code path.size()} says nothing about how many levels remain below the named node -- the
+    * depth heuristic above would be actively wrong here, not just imprecise, so the guard is
+    * skipped entirely for an ID-mode tree (see the caller's comment in {@code selectSubtree}).
+    * That means an ID-mode single-select tree's own version of VFL-004 is still open: this locks
+    * in that the call is currently let through, so a future fix that closes the gap has to update
+    * this test deliberately rather than by accident.
+    */
+   @Test
+   void treatsAnIdModeSingleSelectTreeAsUnguarded() throws Exception {
+      SelectionTreeVSAssembly assembly = tree(XConstants.SORT_ASC, true);
+      when(assembly.isIDMode()).thenReturn(true);
+      when(assembly.getDataRefs()).thenReturn(
+         new DataRef[]{ mock(DataRef.class), mock(DataRef.class), mock(DataRef.class) });
+      Harness h = harness(assembly);
+
+      assertDoesNotThrow(() -> h.service.selectSubtree(
+         "tok", principal(), "Tree1", List.of("USA East"), "select", ""));
+
+      verify(h.selections).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
+                                         any(), anyString());
+   }
+
+   /** The testable core of the guard, isolated from the assembly -- see the two tests above. */
+   @Test
+   void treeDepthGuardRefusesOnlyWhenShortOfALeaf() {
+      assertThrows(IllegalArgumentException.class,
+         () -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
+            3, "Tree1", List.of("USA East")));
+      assertThrows(IllegalArgumentException.class,
+         () -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
+            3, "Tree1", List.of("USA East", "CT")));
+      assertDoesNotThrow(() -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
+         3, "Tree1", List.of("USA East", "CT", "Hartford")));
+      assertDoesNotThrow(() -> SelectionRuntimeService.refuseAmbiguousSingleSelectSubtree(
+         1, "Tree1", List.of("USA East")));
+   }
+
    // ── the shared guards ─────────────────────────────────────────────────────
 
    @Test
@@ -1140,6 +1319,7 @@ class SelectionRuntimeServiceTest {
       when(info.isSingleSelection()).thenReturn(single);
       when(info.getSortTypeValue()).thenReturn(sortType);
       doReturn(info).when(assembly).getInfo();
+      when(assembly.getSelectionTreeInfo()).thenReturn(info);
       when(assembly.getDataRefs()).thenReturn(new DataRef[]{ mock(DataRef.class) });
       return assembly;
    }

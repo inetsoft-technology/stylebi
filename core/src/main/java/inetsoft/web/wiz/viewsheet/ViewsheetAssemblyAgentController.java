@@ -921,6 +921,8 @@ public class ViewsheetAssemblyAgentController {
    /**
     * Sets a selection assembly's state. The response reports how many sort cycles it took and
     * whether an active search string scoped the apply — neither is visible in the dashboard.
+    * {@code search} sets that search string first, the same as typing into the widget's search
+    * box, before the rest of the request is applied.
     */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection")
    public Map<String, Object> setSelection(@PathVariable String sessionToken,
@@ -933,7 +935,8 @@ public class ViewsheetAssemblyAgentController {
       requireEnabled();
       return selectionService.setSelection(sessionToken, user, request.assembly(), request.values(),
                                           request.deselect(), request.sortOrder(),
-                                          request.singleSelect(), request.additive(), linkUri);
+                                          request.singleSelect(), request.additive(),
+                                          request.search(), linkUri);
    }
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/clear")
@@ -963,7 +966,7 @@ public class ViewsheetAssemblyAgentController {
 
    public record SelectionRequest(String assembly, java.util.List<java.util.List<String>> values,
                                   java.util.List<java.util.List<String>> deselect, String sortOrder,
-                                  Boolean singleSelect, Boolean additive) {}
+                                  Boolean singleSelect, Boolean additive, String search) {}
 
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/calendar/display")
    public Map<String, Object> setCalendarDisplay(@PathVariable String sessionToken,
