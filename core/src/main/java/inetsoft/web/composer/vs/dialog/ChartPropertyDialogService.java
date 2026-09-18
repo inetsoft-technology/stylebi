@@ -93,6 +93,15 @@ public class ChartPropertyDialogService {
          rvs = viewsheetService.getViewsheet(runtimeId, principal);
          vs = rvs.getViewsheet();
          chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
+
+         if(chartAssembly == null) {
+            // objectId doesn't resolve in this viewsheet -- e.g. the assembly was renamed or
+            // removed after the caller's reference to it was taken (Redmine #76759). Degrade
+            // the same way TextPropertyDialogService.getTextPropertyDialogModel does for a
+            // missing TextVSAssembly, rather than NPE on the next line.
+            return new ChartPropertyDialogModel();
+         }
+
          chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
          vsChartInfo = chartAssemblyInfo.getVSChartInfo();
          vsChartInfo = vsChartInfo == null ? new VSChartInfo() : vsChartInfo;
@@ -343,6 +352,15 @@ public class ChartPropertyDialogService {
       try {
          viewsheet = viewsheetService.getViewsheet(runtimeId, principal);
          chartAssembly = (ChartVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+
+         if(chartAssembly == null) {
+            // objectId doesn't resolve -- same stale-reference cause as
+            // getChartPropertyDialogModel0's read side (Redmine #76759 VCG-001). There is
+            // nothing to apply this patch to; degrade to a no-op rather than NPE on the next
+            // line the way the read side did before that fix.
+            return null;
+         }
+
          assemblyInfo = (ChartVSAssemblyInfo) Tool.clone(chartAssembly.getVSAssemblyInfo());
          vsChartInfo = assemblyInfo.getVSChartInfo();
          vsChartInfo = vsChartInfo == null ? new VSChartInfo() : vsChartInfo;
