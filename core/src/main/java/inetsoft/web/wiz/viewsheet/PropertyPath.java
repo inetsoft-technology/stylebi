@@ -494,7 +494,14 @@ public final class PropertyPath {
          return text;
       }
 
-      Set<String> allowed = CONSTRAINED_STRINGS.get(leafName(path));
+      // Path-keyed first, then leaf-keyed. A leaf name alone is not always specific enough to
+      // carry a domain: "type" is a String property on a dozen unrelated models, so keying it
+      // globally would impose one model's vocabulary on all the others. CONSTRAINED_PATHS is the
+      // same idea as AssemblyPropertyService's SHOW_TYPE_DOMAINS, which is keyed by resolved
+      // path for exactly this reason.
+      Set<String> byPath = CONSTRAINED_PATHS.get(path);
+      final Set<String> allowed = byPath != null ? byPath
+         : CONSTRAINED_STRINGS.get(leafName(path));
 
       if(allowed == null) {
          return text;
@@ -574,4 +581,24 @@ public final class PropertyPath {
       // {position:"right"}}) -- literally this tool's own docstring example -- silently landed
       // on "Top" instead, confirmed live 2026-09-02.
       "position", Set.of("Top", "Right", "Bottom", "Left", "In Place"));
+
+   /**
+    * The same closed-domain check as {@link #CONSTRAINED_STRINGS}, keyed by the full dotted path
+    * instead of the leaf name, for properties whose leaf name is too generic to claim globally.
+    *
+    * <p>{@code textInputColumnOptionPaneModel.type} names the Input Editor
+    * (Text/Date/Integer/Float/Password). {@code VSInputService}'s write path dispatches on it with
+    * a bare case-sensitive {@code optionType.equals(ColumnOption.FLOAT)} ladder, so a token in the
+    * wrong case — {@code "float"} — matches no branch, {@code setColumnOption} is never called,
+    * and the editor's own {@code minimum}/{@code maximum}/{@code errorMessage}, which are only
+    * read inside the matching branch, are discarded along with it. The caller sees {@code ok:true}
+    * and nothing at all applied (VOF-012).
+    *
+    * <p>{@code ColumnOption} also declares {@code ComboBox} and {@code Boolean}, deliberately left
+    * out: neither appears in that ladder either, so accepting them would just be a second silent
+    * no-op wearing a valid-looking name.
+    */
+   private static final Map<String, Set<String>> CONSTRAINED_PATHS = Map.of(
+      "textInputColumnOptionPaneModel.type",
+      Set.of("Text", "Date", "Integer", "Float", "Password"));
 }

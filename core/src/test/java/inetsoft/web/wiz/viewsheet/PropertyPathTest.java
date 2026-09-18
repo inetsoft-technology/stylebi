@@ -754,4 +754,76 @@ class PropertyPathTest {
       assertTrue(thrown.getMessage().contains("dimensions[0]"), "name the offending index");
       assertTrue(thrown.getMessage().contains("VSDimensionModel"), "name the bean type");
    }
+
+   /**
+    * VOF-012. A TextInput's Input Editor type is the same "String-typed enum in disguise" as
+    * {@code visible}, but its domain could not be declared the same way: the leaf is just
+    * {@code type}, a name a dozen unrelated models also use, so it is keyed by full path instead.
+    *
+    * <p>What it cost before: {@code VSInputService} dispatches on the token with a case-sensitive
+    * {@code optionType.equals(ColumnOption.FLOAT)} ladder, so {@code "float"} matched no branch,
+    * {@code setColumnOption} was never called, and the {@code minimum}/{@code maximum} set in the
+    * same patch — read only inside the matching branch — went with it. {@code ok:true}, nothing
+    * applied.
+    */
+   public static class ColumnOptionPane {
+      public String getType() { return type; }
+      public void setType(String type) { this.type = type; }
+
+      private String type = "Text";
+   }
+
+   public static class ColumnOptionOwner {
+      public ColumnOptionPane getTextInputColumnOptionPaneModel() { return pane; }
+      public void setTextInputColumnOptionPaneModel(ColumnOptionPane pane) { this.pane = pane; }
+
+      private ColumnOptionPane pane = new ColumnOptionPane();
+   }
+
+   @Test
+   void canonicalizesTheInputEditorTypeToTheSpellingStyleBICompares() {
+      for(String token : new String[]{ "float", "FLOAT", "Float" }) {
+         ColumnOptionOwner target = new ColumnOptionOwner();
+         PropertyPath.set(target, "textInputColumnOptionPaneModel.type", token);
+         assertEquals("Float", target.getTextInputColumnOptionPaneModel().getType(),
+                      token + " must be stored as the token VSInputService compares against");
+      }
+   }
+
+   @Test
+   void acceptsEveryInputEditorTypeTheTextInputDialogOffers() {
+      for(String token : new String[]{ "Text", "Date", "Integer", "Float", "Password" }) {
+         ColumnOptionOwner target = new ColumnOptionOwner();
+         PropertyPath.set(target, "textInputColumnOptionPaneModel.type", token);
+         assertEquals(token, target.getTextInputColumnOptionPaneModel().getType());
+      }
+   }
+
+   @Test
+   void refusesAnInputEditorTypeOutsideTheDialogsOwnFiveChoices() {
+      // "ComboBox" and "Boolean" are real ColumnOption constants but appear in neither of
+      // VSInputService's TextInput ladders, so accepting them would be a second silent no-op.
+      for(String token : new String[]{ "decimal", "ComboBox", "Boolean" }) {
+         ColumnOptionOwner target = new ColumnOptionOwner();
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class,
+            () -> PropertyPath.set(target, "textInputColumnOptionPaneModel.type", token),
+            token + " must be refused");
+
+         assertTrue(thrown.getMessage().contains("Float"), "list the tokens that do work");
+         assertEquals("Text", target.getTextInputColumnOptionPaneModel().getType(),
+                      "a refused value must leave the default in place");
+      }
+   }
+
+   /**
+    * The path-keyed domain must not leak onto some other model's {@code type} leaf -- the whole
+    * reason it is keyed by path rather than by leaf name.
+    */
+   @Test
+   void theInputEditorTypeDomainDoesNotReachAnUnrelatedTypeProperty() {
+      ColumnOptionPane target = new ColumnOptionPane();
+      assertDoesNotThrow(() -> PropertyPath.set(target, "type", "anything at all"));
+      assertEquals("anything at all", target.getType());
+   }
 }

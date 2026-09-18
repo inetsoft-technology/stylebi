@@ -21,8 +21,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.model.vs.TableStylePaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
@@ -253,6 +255,10 @@ public class AssemblyPropertyService {
 
             if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
                requireKnownTableStyle(model, entry.getValue(), value);
+            }
+
+            if(entry.getValue().endsWith(".imagePreviewPaneModel.selectedImage")) {
+               value = requireKnownSelectedImage(model, entry.getValue(), value);
             }
 
             model = PropertyPath.set(model, entry.getValue(), value);
@@ -646,6 +652,162 @@ public class AssemblyPropertyService {
 
       return false;
    }
+
+   /**
+    * Refuses — or canonicalizes — a {@code selectedImage} write that does not name a real image
+    * in the assembly's own image tree (VOF-011).
+    *
+    * <p>{@code ImagePropertyDialogService} stores whatever string it is handed
+    * ({@code setImageValue} is a bare {@code DynamicValue.setDValue}), and nothing downstream
+    * complains: {@code VSUtil.getVSImage} falls through every lookup and returns {@code null}
+    * without logging for an unprefixed path, while {@code VSImageModel} sets
+    * {@code noImageFlag} from {@code getImage() == null} — so a non-blank bogus value leaves the
+    * flag false, the client asks for an image and receives nothing. An empty placeholder box,
+    * {@code ok:true}, and no signal anywhere that the value itself was the problem.
+    *
+    * <p><b>The encoding is not guessable from the tree.</b> A leaf's stored value is its
+    * {@code type} marker concatenated directly onto its {@code data} with no separator —
+    * {@code "^UPLOADED^logo.png"}, {@code "^SKIN^background1.png"} — which is what
+    * {@code image-preview-pane.component.ts} composes when a human picks a node. The
+    * {@code "Skin"} and {@code "Uploaded"} nodes above them are untyped display folders that
+    * never appear in the value, so the slash-joined {@code "Uploaded/logo.png"} that the tree's
+    * shape suggests is not a real value. Rather than only refusing it, that form is accepted as
+    * an alias and rewritten to the canonical one: it is the reading a caller naturally takes
+    * from the tree, and normalizing costs less than expecting every caller to learn the prefix.
+    *
+    * <p>Dynamic values ({@code $...}/{@code =...}) pass through unresolved, exactly as the
+    * Composer's own preview pane treats them — they name a variable or expression, not a node.
+    *
+    * <p>Walks the model's own {@code imagePreviewPaneModel.imageTree}, already populated by
+    * {@code readModel()} before the patch loop runs, the same way
+    * {@link #requireKnownTableStyle} walks {@code tableStylePaneModel.styleTree}.
+    *
+    * @return the canonical value to write, which may differ from {@code value} when an alias was
+    *         given.
+    */
+   private Object requireKnownSelectedImage(Object model, String path, Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      String text = String.valueOf(value).trim();
+
+      // Blank clears the image, which is a legitimate state; a dynamic reference is resolved at
+      // render time and has no node to match here.
+      if(text.isEmpty() || text.startsWith("$") || text.startsWith("=")) {
+         return value;
+      }
+
+      String panePath = path.substring(0, path.length() - ".selectedImage".length());
+      Object pane = PropertyPath.get(model, panePath);
+
+      if(!(pane instanceof ImagePreviewPaneModel previewModel) ||
+         previewModel.imageTree() == null)
+      {
+         return value;
+      }
+
+      String canonical = canonicalImageValue(previewModel.imageTree(), null, text);
+
+      if(canonical != null) {
+         return canonical;
+      }
+
+      List<String> known = new ArrayList<>();
+      collectImageValues(previewModel.imageTree(), known);
+
+      throw new IllegalArgumentException(
+         "'" + path + "' ('" + text + "') does not name any image in this assembly's image " +
+         "tree. StyleBI stores an unrecognised value unchanged and renders an empty box with no " +
+         "error, so this write would report success and show nothing. A value is the node's " +
+         "type marker joined directly to its name, with no separator -- e.g. " +
+         "\"^UPLOADED^logo.png\", not \"Uploaded/logo.png\" (that spelling is accepted as an " +
+         "alias, but only for an image that exists). Known values: " +
+         (known.isEmpty() ? "none -- this viewsheet has no images to choose from" : known) + ".");
+   }
+
+   /**
+    * Finds the leaf {@code text} names and returns its canonical stored value, or {@code null}.
+    *
+    * @param parentName the enclosing folder's display name, for the {@code "Folder/name"} alias.
+    */
+   private static String canonicalImageValue(TreeNodeModel node, String parentName, String text) {
+      if(node.leaf()) {
+         String canonical = canonicalImageValue(node);
+
+         if(canonical == null) {
+            return null;
+         }
+
+         if(text.equals(canonical) ||
+            parentName != null && text.equals(parentName + "/" + node.data()))
+         {
+            return canonical;
+         }
+
+         return null;
+      }
+
+      String name = node.label() != null ? node.label()
+         : node.data() == null ? null : String.valueOf(node.data());
+
+      for(TreeNodeModel child : node.children()) {
+         String canonical = canonicalImageValue(child, name, text);
+
+         if(canonical != null) {
+            return canonical;
+         }
+      }
+
+      return null;
+   }
+
+   private static void collectImageValues(TreeNodeModel node, List<String> into) {
+      if(node.leaf()) {
+         String canonical = canonicalImageValue(node);
+
+         if(canonical != null) {
+            into.add(canonical);
+         }
+
+         return;
+      }
+
+      for(TreeNodeModel child : node.children()) {
+         collectImageValues(child, into);
+      }
+   }
+
+   /**
+    * A leaf's stored value: its type marker joined directly to its data, mirroring
+    * {@code image-preview-pane.component.ts}'s {@code getImageType(node.type) + node.data}.
+    *
+    * @return {@code null} for a node that is not selectable — one with no data, or the
+    *         "Current Image" placeholder, which names the assembly's existing image rather than
+    *         a new one and is not a value anything can be set to.
+    */
+   private static String canonicalImageValue(TreeNodeModel node) {
+      if(node.data() == null || CURRENT_IMAGE_NODE_TYPE.equals(node.type())) {
+         return null;
+      }
+
+      String type = node.type();
+      // Set.of() rejects a null argument to contains(), and an untyped folder node has none.
+      String prefix = type != null && IMAGE_TYPE_MARKERS.contains(type) ? type : "";
+
+      return prefix + node.data();
+   }
+
+   /** The image tree's "Current Image" placeholder node, which is not a settable value. */
+   private static final String CURRENT_IMAGE_NODE_TYPE = "current";
+
+   /**
+    * The three markers a tree node's {@code type} can carry that are genuinely part of the
+    * stored value. Any other type — the "current" placeholder, or an untyped folder — is not.
+    */
+   private static final Set<String> IMAGE_TYPE_MARKERS = Set.of(
+      ImageVSAssemblyInfo.SERVER_IMAGE, ImageVSAssemblyInfo.UPLOADED_IMAGE,
+      ImageVSAssemblyInfo.SKIN_IMAGE);
 
    /**
     * {@code showType}'s domain, keyed by the alias-resolved <b>full path</b> rather than by the
