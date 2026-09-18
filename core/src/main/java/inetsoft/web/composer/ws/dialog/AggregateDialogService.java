@@ -713,54 +713,17 @@ public class AggregateDialogService extends WorksheetControllerService {
          return true;
       }
 
-      ColumnSelection cols = table.getColumnSelection();
-
-      for(int i = 0; i < cols.getAttributeCount(); i++) {
-         DataRef ref = cols.getAttribute(i);
-         String col = ref.getName();
-
-         if(ainfo.getGroup(col) != null || getAggregateRef(ainfo, col) != null) {
-            continue;
-         }
-
-         if(!(ref instanceof ColumnRef)) {
-            continue;
-         }
-
-         ColumnRef colRef = (ColumnRef) ref;
-
-         if(colRef.getDataRef() instanceof DateRangeRef) {
-            DateRangeRef dateRangeRef = (DateRangeRef) colRef.getDataRef();
-            String innerRef = dateRangeRef.getDataRef().getName();
-
-            if(ainfo.getGroup(innerRef) != null) {
-               continue;
-            }
-         }
-
-
-         if(!allowsDeletion(ws, table, (ColumnRef) ref)) {
-            MessageCommand command = new MessageCommand();
-            command.setMessage(Catalog.getCatalog().getString(
-               "common.columnsDependency"));
-            command.setType(MessageCommand.Type.WARNING);
-            command.setAssemblyName(table.getName());
-            dispatcher.sendCommand(command);
-            return false;
-         }
+      if(findAggregateIdentityLossConflict(ws, table, ainfo) != null) {
+         MessageCommand command = new MessageCommand();
+         command.setMessage(Catalog.getCatalog().getString(
+            "common.columnsDependency"));
+         command.setType(MessageCommand.Type.WARNING);
+         command.setAssemblyName(table.getName());
+         dispatcher.sendCommand(command);
+         return false;
       }
 
       return true;
-   }
-
-   private AggregateRef getAggregateRef(AggregateInfo ainfo, String gname) {
-      for(int i = 0; i < ainfo.getAggregateCount(); i++) {
-         if(Tool.equals(gname, ainfo.getAggregate(i).getName())) {
-            return ainfo.getAggregate(i);
-         }
-      }
-
-      return null;
    }
 
    private boolean isAutoRangeColumn(DataRef group) {

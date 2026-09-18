@@ -3086,6 +3086,93 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // set_group_aggregate vs. downstream join key (Bug #76787 / WBS-062)
+   //
+   // Same family of guard as the #75968 tests above, but for set_group_aggregate:
+   // reducing a column to an aggregate output leaves it present BY NAME in the column
+   // selection (getAggregateRef/getGroup both match on name), which is exactly the shape
+   // the Composer's own checkDeleteColumns loop mishandled -- it treated "retained as an
+   // aggregate" the same as "retained as a group", even though only the group case keeps
+   // real row-level values a downstream join can still match on. The plugin's own
+   // set_group_aggregate path had no downstream-dependency check of any kind before this
+   // fix (unlike remove_column/set_column_visibility/rename_column above).
+   // =========================================================================
+
+   @Test
+   void setGroupAggregateRefusesAggregateOnlyRetentionOfADownstreamJoinKey() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      // "id" survives BY NAME as an aggregate output (Count(id)) -- no longer row-level,
+      // but join J still keys on it. This is Case B: the actual WBS-062 repro shape.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("L", List.of(),
+               List.of(new WorksheetMutationSupport.AggregateSpec("id", "COUNT", null)))));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      assertTrue(left.getAggregateInfo().isEmpty(),
+         "the refused aggregate must not have been applied to the table");
+   }
+
+   @Test
+   void setGroupAggregateRefusesDroppingADownstreamJoinKeyEntirely() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      // "id" is referenced by neither a group nor an aggregate -- Case A, dropped
+      // entirely. The plugin path had no check for this either before this fix.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("L", List.of(),
+               List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null)))));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      assertTrue(left.getAggregateInfo().isEmpty(),
+         "the refused aggregate must not have been applied to the table");
+   }
+
+   @Test
+   void setGroupAggregateAllowsRetainingADownstreamJoinKeyAsAGroup() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      // "id" is retained as a GROUP, not an aggregate -- still row-level (one row per
+      // distinct id), so the downstream join key relationship is preserved. Must NOT be
+      // flagged; an over-eager fix would wrongly block ordinary group-by-the-join-key use.
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("L", groups("id"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      assertEquals(1, left.getAggregateInfo().getGroupCount());
+      assertNotNull(left.getAggregateInfo().getGroup(0));
+   }
+
+   // =========================================================================
    // Edit-in-place tests
    // =========================================================================
 
