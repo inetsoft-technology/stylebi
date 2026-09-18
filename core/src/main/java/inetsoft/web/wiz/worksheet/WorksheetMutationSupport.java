@@ -356,8 +356,8 @@ public final class WorksheetMutationSupport {
    // =========================================================================
 
    /**
-    * Builds a pre-condition and appends it (AND-joined) to the table's existing
-    * pre-condition list.
+    * Builds a condition and appends it (AND-joined) to the table's pre- or post-aggregate
+    * condition list -- whichever {@code field} actually belongs to.
     *
     * <p>{@link #parseOperation} owns the operator vocabulary and is the single place it is
     * written down -- deliberately not restated here, since the copy that used to live in this
@@ -365,17 +365,40 @@ public final class WorksheetMutationSupport {
     * equality, which is the defect parseOperation now refuses. An <i>absent</i> operator still
     * means equality; a supplied one that is not recognised throws.</p>
     *
+    * <p>Bug #76752: {@code field} is checked against {@link AggregateInfo} first via
+    * {@link #resolveUnambiguousAggregateAlias}, mirroring {@link #buildRankingConditionItem}'s
+    * own AggregateInfo-first order, but narrower -- only a match on an aggregate's ALIAS or VIEW
+    * name (e.g. {@code "TOTAL_QUANTITY"} or {@code "Sum(QUANTITY)"}) is unambiguous evidence the
+    * caller means the HAVING space, since an aggregate output under that name has no sensible
+    * pre-aggregate reading at all. A match on the aggregate's underlying BASE column name (e.g.
+    * {@code "QUANTITY"}) is deliberately NOT auto-routed this way: that name still refers to a
+    * real, filterable pre-aggregate column (a WHERE filter can run on the raw rows before the
+    * aggregate is computed), so it falls through to the unchanged private-column-selection
+    * resolution below, exactly like a {@link GroupRef} match (also genuinely ambiguous, since a
+    * group-by value is the same before and after aggregation) and a plain, non-aggregated column.
+    * </p>
+    *
     * @param t         the table assembly to mutate
-    * @param field     the column name to filter on
+    * @param field     the column name, aggregate alias, or group-by column to filter on
     * @param operation the comparison operator; see {@link #parseOperation} for the accepted forms
     * @param values    one or more literal string values
+    * @throws IllegalArgumentException if {@code field} resolves to neither an aggregate alias/view
+    *                                  nor a column in the table's private selection
     */
    public static void addFilter(TableAssembly t, String field,
                                 String operation, String... values)
    {
       boolean negate = isNegatedOperation(operation);
       int op = parseOperation(operation);
-      DataRef ref = resolveField(t, field);
+
+      AggregateRef aggregateAlias = resolveUnambiguousAggregateAlias(t, field);
+      boolean post = aggregateAlias != null;
+      DataRef ref = post ? aggregateAlias : resolveFieldOrNull(t, field, false);
+
+      if(ref == null) {
+         throw new IllegalArgumentException("Column not found: " + field);
+      }
+
       // Infer type from the resolved column so numeric comparisons work correctly.
       String dtype = ref.getDataType() != null && !ref.getDataType().isBlank()
          ? ref.getDataType() : XSchema.STRING;
@@ -410,34 +433,58 @@ public final class WorksheetMutationSupport {
          item = new ConditionItem(ref, c, 0);
       }
 
-      ConditionListWrapper existing = t.getPreConditionList();
+      ConditionListWrapper existing = post ? t.getPostConditionList() : t.getPreConditionList();
 
       if(existing != null && !existing.isEmpty()) {
          ConditionList cl = existing.getConditionList();
          cl.append(new JunctionOperator(JunctionOperator.AND, 0));
          cl.append(item);
-         t.setPreConditionList(cl);
+
+         if(post) {
+            t.setPostConditionList(cl);
+         }
+         else {
+            t.setPreConditionList(cl);
+         }
       }
       else {
          ConditionList cl = new ConditionList();
          cl.append(item);
-         t.setPreConditionList(cl);
+
+         if(post) {
+            t.setPostConditionList(cl);
+         }
+         else {
+            t.setPreConditionList(cl);
+         }
       }
    }
 
    /**
-    * Removes every condition whose attribute name equals {@code field} from
-    * the table's pre-condition list (including any orphaned junction operators
+    * Removes every condition whose attribute name equals {@code field} from the table's
+    * pre-condition list, or its post-condition (HAVING) list when {@code field} resolves
+    * unambiguously to an {@link AggregateRef} (including any orphaned junction operators
     * left behind).
     *
     * <p>This is a best-effort purge: it rebuilds the list by collecting the
     * remaining conditions and re-joining them with AND.</p>
     *
+    * <p>Bug #76752: {@code field} is checked via {@link #resolveUnambiguousAggregateAlias}, the
+    * same narrow (alias/view only, not base-attribute) match {@link #addFilter} routes on, so a
+    * remove targets whichever list the matching add/edit would have written to. A base-attribute
+    * or {@link GroupRef} match (ambiguous -- see {@link #addFilter}) is deliberately <em>not</em>
+    * auto-routed to the post-aggregate list; only the pre-condition list is scanned for it, same
+    * as before this fix. Only the one list a field unambiguously belongs to is ever scanned,
+    * never both, so a caller removing an aggregate-alias name cannot silently strip an unrelated
+    * pre-aggregate condition on a same-named column (or vice versa).</p>
+    *
     * @param t     the table assembly to mutate
-    * @param field the column name whose conditions should be removed
+    * @param field the column name, aggregate alias, or group-by column whose conditions should
+    *              be removed
     */
    public static void removeFilter(TableAssembly t, String field) {
-      ConditionListWrapper existing = t.getPreConditionList();
+      boolean post = resolveUnambiguousAggregateAlias(t, field) != null;
+      ConditionListWrapper existing = post ? t.getPostConditionList() : t.getPreConditionList();
 
       if(existing == null || existing.isEmpty()) {
          return;
@@ -496,7 +543,12 @@ public final class WorksheetMutationSupport {
          }
       }
 
-      t.setPreConditionList(result.isEmpty() ? null : result);
+      if(post) {
+         t.setPostConditionList(result.isEmpty() ? null : result);
+      }
+      else {
+         t.setPreConditionList(result.isEmpty() ? null : result);
+      }
    }
 
    // =========================================================================
@@ -2542,6 +2594,43 @@ public final class WorksheetMutationSupport {
             gr.getDataRef() instanceof ColumnRef cr && field.equals(cr.getAlias()))
          {
             return gr;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Matches {@code field} against an {@link AggregateRef}'s alias or view name ONLY --
+    * deliberately narrower than {@link #resolveAggregateOrGroupField}'s base-attribute fallback
+    * (e.g. {@code "QUANTITY"} under {@code SUM(QUANTITY) AS TOTAL_QUANTITY}), which still names a
+    * real, filterable pre-aggregate column: a WHERE filter can legitimately run on the raw
+    * column before the aggregate is computed, so a bare base-attribute match is NOT the
+    * "this can only mean HAVING" case {@link #addFilter}/{@link #removeFilter} route on -- only
+    * an alias (e.g. {@code "TOTAL_QUANTITY"}) or view (e.g. {@code "Sum(QUANTITY)"}) match is
+    * truly unambiguous. Used only for that routing decision; {@link #resolveAggregateOrGroupField}
+    * (with its wider, base-attribute-inclusive match) remains correct and unchanged for ranking
+    * and existence checks, which always run after aggregation and have no pre-aggregate reading
+    * to be ambiguous with.
+    */
+   private static AggregateRef resolveUnambiguousAggregateAlias(TableAssembly t, String field) {
+      if(field == null) {
+         return null;
+      }
+
+      AggregateInfo ainfo = t.getAggregateInfo();
+
+      if(ainfo == null || ainfo.isEmpty()) {
+         return null;
+      }
+
+      for(int i = 0; i < ainfo.getAggregateCount(); i++) {
+         AggregateRef ar = ainfo.getAggregate(i);
+
+         if(field.equals(ar.toView()) ||
+            ar.getDataRef() instanceof ColumnRef cr && field.equals(cr.getAlias()))
+         {
+            return ar;
          }
       }
 
