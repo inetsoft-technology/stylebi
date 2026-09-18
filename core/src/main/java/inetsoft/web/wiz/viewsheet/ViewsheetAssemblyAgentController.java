@@ -23,6 +23,8 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.composer.model.vs.ColumnOptionDialogModel;
+import inetsoft.web.composer.model.vs.EditorModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
@@ -109,6 +111,7 @@ public class ViewsheetAssemblyAgentController {
                                    CalendarDisplayService calendarService,
                                    InputValueService inputService,
                                    FormTableRowService formTableRowService,
+                                   ColumnOptionService columnOptionService,
                                    ParameterCollectionService parameterCollectionService,
                                    ParameterValueService parameterValueService,
                                    ViewsheetService viewsheetService,
@@ -146,6 +149,7 @@ public class ViewsheetAssemblyAgentController {
       this.calendarService = calendarService;
       this.inputService = inputService;
       this.formTableRowService = formTableRowService;
+      this.columnOptionService = columnOptionService;
       this.parameterCollectionService = parameterCollectionService;
       this.parameterValueService = parameterValueService;
       this.viewsheetService = viewsheetService;
@@ -1065,6 +1069,39 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       return formTableRowService.apply(sessionToken, user, request.assembly(), linkUri);
+   }
+
+   /**
+    * {@code get_column_options}. {@code col} is either a 0-based visible-column index or a
+    * column name -- see {@link ColumnOptionService} for why that resolution happens there rather
+    * than in the wiz plugin.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/column-options")
+   public ColumnOptionDialogModel getColumnOptions(@PathVariable String sessionToken,
+                                                    @RequestParam String assembly,
+                                                    @RequestParam String col,
+                                                    Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return columnOptionService.get(sessionToken, user, assembly, col);
+   }
+
+   public record ColumnOptionsPatchRequest(String assembly, Object col, boolean enableColumnEditing,
+                                           String inputControl, EditorModel editor) {}
+
+   /** {@code set_column_options}. */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/column-options")
+   public void setColumnOptions(@PathVariable String sessionToken,
+                                @RequestBody ColumnOptionsPatchRequest request,
+                                @RequestParam(required = false, defaultValue = "") String linkUri,
+                                Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      columnOptionService.set(sessionToken, user, request.assembly(), request.col(),
+                              request.enableColumnEditing(), request.inputControl(),
+                              request.editor(), linkUri);
    }
 
    public record SetParametersRequest(Map<String, List<Object>> values) {}
@@ -2292,6 +2329,7 @@ public class ViewsheetAssemblyAgentController {
    private final CalendarDisplayService calendarService;
    private final InputValueService inputService;
    private final FormTableRowService formTableRowService;
+   private final ColumnOptionService columnOptionService;
    private final ParameterCollectionService parameterCollectionService;
    private final ParameterValueService parameterValueService;
    private final ViewsheetService viewsheetService;
