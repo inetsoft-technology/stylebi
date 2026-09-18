@@ -93,6 +93,23 @@ class ViewsheetPropertyVizTest {
       assertEquals(VizMark.MODERN_DARK, text.getVSAssemblyInfo().getVizMark());
    }
 
+   @Test
+   void inheritedDensityReceivingEmptyStringIsNotChanged() {
+      assertFalse(ViewsheetPropertyDialogService.vizDensityChanged(null, ""),
+                  "an inherited dashboard's null density must not read as changed when the " +
+                  "model round-trips it as the empty-string sentinel");
+   }
+
+   @Test
+   void aRealDensityChangeFromInheritedIsDetected() {
+      assertTrue(ViewsheetPropertyDialogService.vizDensityChanged(null, "comfortable"));
+   }
+
+   @Test
+   void aRealDensityChangeToInheritedIsDetected() {
+      assertTrue(ViewsheetPropertyDialogService.vizDensityChanged("compact", ""));
+   }
+
    private Viewsheet modernSheet(VizMark mark) {
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       Viewsheet vs = new Viewsheet();

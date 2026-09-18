@@ -123,8 +123,9 @@ public final class VSDensityDefaults {
     * Default height for a modern form-input control (checkbox, combo box, spinner, text input),
     * or the legacy default when not modern. Unlike row/header height, dense does not equal
     * AssetUtil.defh here: a standalone control needs a bit more room than a data row even at the
-    * tightest density, matching the browser's --inet-viz-control-height token. Applied only at
-    * creation, to the type's own legacy default dimension - never to an author-resized control.
+    * tightest density, matching the browser's --inet-viz-control-height token. Applied at
+    * creation and re-applied on a density change, as long as the stored height is still the
+    * type's legacy default or a prior density tier - never to a control resized off those values.
     */
    public static int controlHeight(VizContext ctx) {
       return ctx.modern ? controlHeightForMode(ctx.density) : AssetUtil.defh;

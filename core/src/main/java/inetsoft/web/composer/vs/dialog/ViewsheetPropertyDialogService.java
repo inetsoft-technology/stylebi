@@ -85,6 +85,18 @@ public class ViewsheetPropertyDialogService {
       return dark ? VizMark.MODERN_DARK : VizMark.MODERN_LIGHT;
    }
 
+   /**
+    * Normalizes the model's empty-string "inherit" sentinel to null before comparing, so an
+    * inherited density round-tripping through the dialog is never mistaken for a change.
+    */
+   static String normalizeVizDensity(String density) {
+      return density == null || density.isEmpty() ? null : density;
+   }
+
+   static boolean vizDensityChanged(String oldDensity, String newDensity) {
+      return !Tool.equals(oldDensity, normalizeVizDensity(newDensity));
+   }
+
    public ViewsheetPropertyDialogService(CoreLifecycleService coreLifecycleService,
                                          ViewsheetService viewsheetService,
                                          VSLayoutService layoutService,
@@ -318,9 +330,9 @@ public class ViewsheetPropertyDialogService {
       VizMark targetMark =
          targetMark(vsOptionsPaneModel.isVizModern(), vsOptionsPaneModel.isVizDark());
       boolean densityChanged =
-         !Tool.equals(info.getVizDensity(), vsOptionsPaneModel.getVizDensity());
+         vizDensityChanged(info.getVizDensity(), vsOptionsPaneModel.getVizDensity());
 
-      info.setVizDensity(vsOptionsPaneModel.getVizDensity());
+      info.setVizDensity(normalizeVizDensity(vsOptionsPaneModel.getVizDensity()));
 
       if(targetMark != viewsheet.getVSAssemblyInfo().getVizMark()) {
          VizModernizeUtil.applyMark(viewsheet, targetMark);

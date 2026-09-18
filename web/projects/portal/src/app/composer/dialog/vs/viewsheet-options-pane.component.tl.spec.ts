@@ -97,7 +97,10 @@ function createModel(overrides: Partial<ViewsheetOptionsPaneModel> = {}): Viewsh
    };
 }
 
-async function renderComponent(modelOverrides: Partial<ViewsheetOptionsPaneModel> = {}) {
+async function renderComponent(
+   modelOverrides: Partial<ViewsheetOptionsPaneModel> = {},
+   componentInputOverrides: Partial<{ showVizControls: boolean }> = {})
+{
    const form = new UntypedFormGroup({});
    const model = createModel(modelOverrides);
    const { fixture } = await render(ViewsheetOptionsPane, {
@@ -112,6 +115,7 @@ async function renderComponent(modelOverrides: Partial<ViewsheetOptionsPaneModel
          form,
          runtimeId: "vs-test-1",
          defaultOrgAsset: false,
+         ...componentInputOverrides,
       },
    });
    const comp = fixture.componentInstance as ViewsheetOptionsPane;
@@ -574,5 +578,27 @@ describe("ViewsheetOptionsPane — visualization controls", () => {
          .map(o => o.textContent.trim());
 
       expect(options).toEqual(["_#(Default)", "_#(Dense)", "_#(Compact)", "_#(Comfortable)"]);
+   });
+
+   it("disables Density while Modern is off", async () => {
+      await renderComponent({ vizModern: false });
+
+      expect((screen.getByLabelText("_#(Visualization Density)") as HTMLSelectElement).disabled)
+         .toBe(true);
+   });
+
+   it("enables Density once Modern is on", async () => {
+      await renderComponent({ vizModern: true });
+
+      expect((screen.getByLabelText("_#(Visualization Density)") as HTMLSelectElement).disabled)
+         .toBe(false);
+   });
+
+   it("hides the three visualization controls when showVizControls is false", async () => {
+      await renderComponent({ vizModern: true }, { showVizControls: false });
+
+      expect(screen.queryByLabelText("_#(Modern Visualization)")).toBeNull();
+      expect(screen.queryByLabelText("_#(Dark Mode)")).toBeNull();
+      expect(screen.queryByLabelText("_#(Visualization Density)")).toBeNull();
    });
 });

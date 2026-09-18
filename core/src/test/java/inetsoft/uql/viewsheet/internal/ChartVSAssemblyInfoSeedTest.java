@@ -81,7 +81,7 @@ class ChartVSAssemblyInfoSeedTest {
       bindColor(info, new TealColorFrame());
 
       info.setVizMark(null);
-      info.seedChromeDefaults(VizContext.ofTransition(null));
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertInstanceOf(BluesColorFrame.class, colorFrame(info),
                         "Revert must not leave the modern default seeded on a legacy chart");
@@ -96,7 +96,7 @@ class ChartVSAssemblyInfoSeedTest {
       bindColor(info, new BluesColorFrame());
 
       info.setVizMark(VizMark.MODERN_LIGHT);
-      info.seedChromeDefaults(VizContext.ofTransition(VizMark.MODERN_LIGHT));
+      info.seedChromeDefaults(VizContext.ofTransition(null, VizMark.MODERN_LIGHT));
 
       assertInstanceOf(TealColorFrame.class, colorFrame(info),
                         "Modernize must not leave the legacy default seeded on a modern chart");
@@ -116,7 +116,7 @@ class ChartVSAssemblyInfoSeedTest {
       bindColor(info, spectral);
 
       info.setVizMark(null);
-      info.seedChromeDefaults(VizContext.ofTransition(null));
+      info.seedChromeDefaults(VizContext.ofTransition(null, null));
 
       assertSame(spectral, colorFrame(info),
                  "an author's deliberately chosen ramp must not be replaced by Revert");

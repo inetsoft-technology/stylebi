@@ -26,9 +26,10 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Modernize and Revert: move a dashboard's own content between the classic and modern chrome a
- * freshly created dashboard would have. Both run through seedChromeDefaults, which is why they
- * cannot drift apart, and both live in this package because that method is protected.
+ * Four public entry points onto a dashboard's chrome: modernize, revert, applyMark and reseed.
+ * All four funnel into seedAll, which is what keeps them from drifting apart - each just picks
+ * the targets and the mark, and seedAll does the stamping, seeding and shared-frame invalidation.
+ * They live in this package because seedChromeDefaults is protected.
  *
  * Nothing here is automatic - unmarked content is never modernized and marked content is never
  * reverted unless somebody asks. A mixed dashboard stays mixed either way.

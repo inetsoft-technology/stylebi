@@ -339,6 +339,19 @@ describe("ViewsheetPropertyDialog — saveChanges", () => {
 
       expect(confirm).not.toHaveBeenCalled();
    });
+
+   // distinguishes the real loadedVizModern-vs-current comparison from a naive implementation
+   // that confirms whenever the saved value is legacy, regardless of what was loaded
+   it("does not confirm when a sheet loaded already-legacy is saved untouched", async () => {
+      const confirm = vi.spyOn(ComponentTool, "showConfirmDialog");
+      HTTP_MOCK.post.mockReturnValue(of(null));
+      const { comp } = await renderComponent(
+         { vsOptionsPane: { ...createModel().vsOptionsPane, vizModern: false } });
+
+      comp.saveChanges();
+
+      expect(confirm).not.toHaveBeenCalled();
+   });
 });
 
 // ---------------------------------------------------------------------------
