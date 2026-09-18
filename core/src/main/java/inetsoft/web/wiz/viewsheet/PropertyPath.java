@@ -501,13 +501,14 @@ public final class PropertyPath {
       }
 
       // visible is backed by a DynamicValue (VSAssemblyInfo.getVisibleValue()) and StyleBI's own
-      // Composer UI offers a "Variable" button on it, so a "$(ComponentName)" reference is a real,
-      // supported value that this closed-value gate must let through unresolved rather than
-      // reject -- ViewsheetSandbox.executeDynamicValue resolves it at render time, never here.
+      // Composer UI offers both a "Variable" and an "Expression" button on it, so a
+      // "$(ComponentName)" reference and an "=script" expression are equally real, supported
+      // values that this closed-value gate must let through unresolved rather than reject --
+      // ViewsheetSandbox.executeDynamicValue resolves either at render time, never here.
       // trendLineType/position are deliberately NOT in this set: neither is DynamicValue-backed,
-      // so a "$(...)" string there would be stored and never resolved by anything -- silently
-      // wrong, the exact failure this whole gate exists to prevent.
-      if(DYNAMIC_CAPABLE_CONSTRAINED_STRINGS.contains(leafName(path)) && isDynamicVariableReference(text)) {
+      // so a "$(...)"/"=..." string there would be stored and never resolved by anything --
+      // silently wrong, the exact failure this whole gate exists to prevent.
+      if(DYNAMIC_CAPABLE_CONSTRAINED_STRINGS.contains(leafName(path)) && isDynamicValue(text)) {
          return text;
       }
 
@@ -524,8 +525,9 @@ public final class PropertyPath {
    }
 
    /**
-    * Mirrors {@code inetsoft.uql.viewsheet.internal.VSUtil.isVariableValue(String)} exactly
-    * ({@code "$(" ... ")"} test) rather than calling it. {@code VSUtil} is a huge class whose
+    * Mirrors {@code inetsoft.uql.viewsheet.internal.VSUtil.isDynamicValue(String)} exactly — its
+    * {@code isVariableValue} ({@code "$(" ... ")"}) and {@code isScriptValue} ({@code "="} prefix)
+    * halves together — rather than calling it. {@code VSUtil} is a huge class whose
     * static initializer builds a {@code DataCache} that reaches for a live Spring
     * {@code ApplicationContext} ({@code ConfigurationContext.getSpringBean}) — fine inside a
     * running server, but the first static call into {@code VSUtil} from this file's plain
@@ -535,8 +537,9 @@ public final class PropertyPath {
     * has nothing to do with Spring. Duplicating it here avoids forcing every other test in this
     * file onto a Spring-backed test harness.
     */
-   private static boolean isDynamicVariableReference(String text) {
-      return text != null && text.startsWith("$(") && text.endsWith(")");
+   private static boolean isDynamicValue(String text) {
+      return text != null &&
+         (text.startsWith("$(") && text.endsWith(")") || text.startsWith("="));
    }
 
    /** The last segment of a dotted path — the property's own name. */
@@ -546,9 +549,10 @@ public final class PropertyPath {
    }
 
    /**
-    * Leaf names whose closed-value domain does not apply to a {@code $(ComponentName)} dynamic
-    * reference, because the underlying field is a {@code DynamicValue} and StyleBI's own UI
-    * offers a "Variable" button on it -- {@code visible} only. {@code trendLineType} and
+    * Leaf names whose closed-value domain does not apply to a dynamic value -- either a
+    * {@code $(ComponentName)} reference or an {@code =script} expression -- because the
+    * underlying field is a {@code DynamicValue} and StyleBI's own UI offers "Variable" and
+    * "Expression" buttons on it -- {@code visible} only. {@code trendLineType} and
     * {@code position} are deliberately excluded: they resolve once, design-time, into an index
     * with no {@code executeDynamicValue} path ever touching them, so bypassing their domain
     * check would store a value nothing ever resolves.
