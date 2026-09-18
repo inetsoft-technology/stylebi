@@ -235,7 +235,16 @@ public class VSDataTipService {
 
    // Set alpha to all backgrounds of tipview
    private static void setAlpha(String alphaStr, FormatInfo finfo) {
-      int alpha = (alphaStr != null) ? (int) Double.parseDouble(alphaStr) : 100;
+      int alpha = 100;
+
+      if(alphaStr != null) {
+         try {
+            alpha = Math.max(0, Math.min(100, (int) Double.parseDouble(alphaStr)));
+         }
+         catch(NumberFormatException e) {
+            alpha = 100;
+         }
+      }
 
       finfo.getFormats().forEach(fmt -> fmt.getUserDefinedFormat().setAlphaValue(alpha));
       finfo.getFormat(VSAssemblyInfo.OBJECTPATH).getUserDefinedFormat().setAlphaValue(alpha);
