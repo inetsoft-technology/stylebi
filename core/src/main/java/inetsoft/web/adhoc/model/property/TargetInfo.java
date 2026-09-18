@@ -103,9 +103,26 @@ public class TargetInfo implements Serializable {
    }
 
    /**
-    * Sets alpha.
+    * Sets alpha. Clamps to 0-100 (an integer opacity percentage, unlike the double-based
+    * TipPaneModel/TextGeneralPaneModel alpha), mirroring the frontend's own AlphaDropdown
+    * widget (Math.min(Math.max(0, alpha), 100)) so a caller that reaches this model directly
+    * -- bypassing the widget, e.g. the wiz plugin's set_assembly_properties -- can't persist
+    * a value the UI itself would never allow through, and can't reach
+    * ChartPropertyService.updateTargetCommonInfo's uncaught Integer.parseInt with a
+    * non-numeric string (Redmine #76759 VCG-006).
     */
    public void setAlpha(String alpha) {
+      if(alpha != null && !alpha.isEmpty()) {
+         try {
+            int value = Integer.parseInt(alpha);
+            int clamped = Math.max(0, Math.min(100, value));
+            alpha = String.valueOf(clamped);
+         }
+         catch(NumberFormatException e) {
+            alpha = "100";
+         }
+      }
+
       this.alpha = alpha;
    }
 
