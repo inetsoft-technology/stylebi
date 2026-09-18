@@ -115,7 +115,8 @@ class WorksheetAgentControllerConvertToEmbeddedTest {
                                           mock(inetsoft.uql.asset.sync.RenameTransformHandler.class),
                                           mock(inetsoft.web.wiz.viewsheet.SheetOpenService.class),
                                           mock(inetsoft.report.composition.execution.AssetDataCache.class),
-                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class));
+                                          mock(inetsoft.web.composer.ws.dialog.AssemblyConditionDialogServiceProxy.class),
+                                          mock(inetsoft.web.wiz.service.RawDataService.class));
    }
 
    /** Builds a {@code convert_to_embedded} EditRequest that routes to convertToEmbedded(). */

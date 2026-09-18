@@ -83,6 +83,7 @@ import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.WizUtil;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.RawDataService;
 import inetsoft.web.wiz.service.RenderNotReadyException;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import inetsoft.web.wiz.service.TabularEndpointBindingSupport;
@@ -91,9 +92,11 @@ import inetsoft.web.wiz.script.PaneScopeService;
 import inetsoft.web.wiz.viewsheet.SheetOpenService;
 import inetsoft.web.wiz.worksheet.model.WorksheetModel;
 import inetsoft.web.wiz.worksheet.model.WorksheetPropertiesModel;
+import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -143,7 +146,8 @@ public class WorksheetAgentController {
                                    RenameTransformHandler renameTransformHandler,
                                    SheetOpenService openService,
                                    AssetDataCache assetDataCache,
-                                   AssemblyConditionDialogServiceProxy dialogServiceProxy)
+                                   AssemblyConditionDialogServiceProxy dialogServiceProxy,
+                                   RawDataService rawDataService)
    {
       this.feature = feature;
       this.joinService = joinService;
@@ -164,6 +168,7 @@ public class WorksheetAgentController {
       this.openService = openService;
       this.assetDataCache = assetDataCache;
       this.dialogServiceProxy = dialogServiceProxy;
+      this.rawDataService = rawDataService;
    }
 
    // ---------------------------------------------------------------------------
@@ -1272,6 +1277,47 @@ public class WorksheetAgentController {
       requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
       return previewService.preview(rws, table, offset, Math.min(limit, 200));
+   }
+
+   /**
+    * Exports a single worksheet table's full data as a downloadable CSV file, streamed directly
+    * to {@code response} (same direct-servlet-write pattern
+    * {@link inetsoft.web.wiz.viewsheet.ViewsheetAssemblyAgentController#export} uses). Unlike
+    * {@link #preview}, which is capped at 200 rows for verifying a query before saving, this
+    * exports every row (up to the server's row cap).
+    *
+    * <p>Resolves the table against THIS session's live {@link RuntimeWorksheet} -- via
+    * {@link RawDataService#writeLiveWorksheetTableCsvStream} -- so the export reflects the
+    * table's CURRENT state, including any unsaved edits made in this session, rather than
+    * {@code RawDataController}'s existing worksheet-export endpoint, which resolves a persisted
+    * asset by identifier and would silently return a stale copy of any worksheet edited (or
+    * never saved at all) since its last save.
+    *
+    * <p>Deliberately does not carry over
+    * {@link inetsoft.web.wiz.viewsheet.ViewsheetAssemblyAgentController#export}'s extra
+    * {@code VIEWSHEET_TOOLBAR_ACTION}/{@code "Export"} permission check -- there is no
+    * worksheet-side equivalent permission primitive to reuse (grepping the codebase for a
+    * {@code WORKSHEET_TOOLBAR_ACTION} resource type turns up nothing); this endpoint instead
+    * inherits the same {@link #requireWholeSheetSession}/{@code editService.resolve} auth/scope
+    * gate every other worksheet-agent endpoint (including {@link #preview}) already uses.
+    *
+    * @param sessionToken the token obtained at join time
+    * @param table        the table assembly name to export
+    * @param user         the authenticated agent principal
+    * @throws PairingException if the session is invalid/expired or the sandbox is absent
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/{sessionToken}/export")
+   public void exportTable(@PathVariable String sessionToken, @RequestParam String table,
+                           Principal user, HttpServletResponse response)
+      throws Exception
+   {
+      requireEnabled();
+      requireWholeSheetSession(sessionToken, user);
+      RuntimeWorksheet rws = editService.resolve(sessionToken, user);
+      response.setContentType("text/csv");
+      response.setHeader("Content-Disposition",
+         ContentDisposition.attachment().filename(table + ".csv").build().toString());
+      rawDataService.writeLiveWorksheetTableCsvStream(rws, table, response.getOutputStream());
    }
 
    /**
@@ -4398,6 +4444,7 @@ public class WorksheetAgentController {
    private final SheetOpenService openService;
    private final AssetDataCache assetDataCache;
    private final AssemblyConditionDialogServiceProxy dialogServiceProxy;
+   private final RawDataService rawDataService;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetAgentController.class);
 
    // Mirrors ViewsheetEditService.TABLE_WARM_MAX_ATTEMPTS/TABLE_WARM_RETRY_SLEEP_MS: the same
