@@ -895,6 +895,7 @@ public class WorksheetEditService {
             ws, name, tableSet.toArray(new TableAssembly[0]), new TableAssemblyOperator[0]);
 
          requireNoSelfReferencingSource(join);
+         requireNoNameCollision(join, ws);
 
          // Position + register before wiring the edges (matching placeAssembly's order for
          // every other join creator here), since editExistingJoinTable needs the assembly
@@ -3443,6 +3444,7 @@ public class WorksheetEditService {
       private void placeAssembly(WSAssembly assembly) throws PairingException {
          requireStorableName(assembly.getName(), "An assembly name");
          requireNoSelfReferencingSource(assembly);
+         requireNoNameCollision(assembly, ws);
          assembly.setPixelOffset(new Point(25, 25));
          AssetEventUtil.adjustAssemblyPosition(assembly, ws);
          ws.addAssembly(assembly);
@@ -3481,6 +3483,26 @@ public class WorksheetEditService {
                   "the existing \"" + sourceName + "\" assembly. Choose a different name for the " +
                   "new assembly, or edit \"" + sourceName + "\" in place instead.");
             }
+         }
+      }
+
+      /**
+       * Refuses an assembly name that already identifies a different, existing assembly in the
+       * worksheet. {@link Worksheet#addAssembly} silently evicts and replaces whatever already
+       * has that name -- this guards the general case; {@link #requireNoSelfReferencingSource}
+       * already refuses (with a more specific message) the narrower case where the collision is
+       * with one of the new assembly's own declared sources.
+       *
+       * <p>Package-private (not {@code private}) so {@link WorksheetAgentController} can reuse
+       * the same check for the assembly-creation paths it builds directly against
+       * {@code Worksheet}/{@code RuntimeWorksheet} rather than through this {@code Editor}.
+       */
+      static void requireNoNameCollision(WSAssembly assembly, Worksheet ws) throws PairingException {
+         if(ws.getAssembly(assembly.getName()) != null) {
+            throw new PairingException(
+               "\"" + assembly.getName() + "\" already names an existing assembly in this " +
+               "worksheet. Registering a new assembly under that name would silently replace and " +
+               "discard it. Choose a different name for the new assembly.");
          }
       }
 

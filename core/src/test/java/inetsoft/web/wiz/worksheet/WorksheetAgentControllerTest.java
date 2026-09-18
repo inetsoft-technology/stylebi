@@ -3630,6 +3630,33 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #76788 (WBS-065): {@code createEmbeddedTable}'s caller-supplied {@code name} is used
+    * verbatim and, like {@code addJoin}, never checked against an existing, unrelated assembly
+    * before {@link Worksheet#addAssembly} silently evicts and replaces it. A second, non-replace
+    * {@code import_csv_table} call naming a pre-existing table must be rejected rather than
+    * silently destroying it -- this is distinct from the intentional in-place {@code replaceTable}
+    * path exercised by {@code importCsvReplaceTableOverwritesAnExistingEmbeddedTableInPlace}.
+    */
+   @Test
+   void importCsvRejectsNameCollisionWithUnrelatedExistingAssembly() throws Exception {
+      Worksheet ws = new Worksheet();
+      WorksheetAgentController ctrl = importCtrl(ws, "TOK-CSV-COLLIDE");
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      ctrl.importCsv("TOK-CSV-COLLIDE",
+         new WorksheetAgentController.ImportCsvRequest("Existing", "a,b\n1,x\n2,y"), agent);
+      EmbeddedTableAssembly original = importedTable(ws, "Existing");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.importCsv("TOK-CSV-COLLIDE",
+            new WorksheetAgentController.ImportCsvRequest("Existing", "a,b\n9,z"), agent));
+      assertTrue(ex.getMessage().contains("Existing"), ex.getMessage());
+
+      assertSame(original, ws.getAssembly("Existing"));
+      assertEquals(1, ws.getAssemblies().length);
+   }
+
+   /**
     * The import settings the Composer's Import Data File dialog exposes, now reachable through the
     * agent too. Before this, the CSV route had its own hand-rolled parser that could honour none of
     * them -- the origin of a cluster of L2 findings. These assert the settings actually reach
@@ -6416,6 +6443,64 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Bug #76788 (WBS-065): {@code addDatasourceScopedNamedGroup} builds a
+    * {@code DefaultNamedGroupAssembly} and adds it to the worksheet without ever checking whether
+    * that name already identifies a different, existing assembly -- {@link Worksheet#addAssembly}
+    * would silently evict and replace it. The check must run inside the {@code applyOnRuntime}
+    * callback (where {@code ws} first comes into scope), after the assembly is built and before
+    * {@code ws.addAssembly}.
+    */
+   @Test
+   void addNamedGroupRejectsNameCollisionWithUnrelatedExistingAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      XAttribute stateAttr = new XAttribute("State", "SA.CUSTOMERS", "STATE", XSchema.STRING);
+      XEntity customerEntity = new XEntity("Customer");
+      customerEntity.addAttribute(stateAttr);
+      XLogicalModel orderModel = new XLogicalModel("Order Model");
+      orderModel.addEntity(customerEntity);
+
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModel("Order Model")).thenReturn(orderModel);
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("Examples/Orders"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(dataSourceService.getDataModel("Examples/Orders")).thenReturn(dataModel);
+      when(dataSourceService.getModelAssetEntry(any())).thenAnswer(inv -> inv.getArgument(0));
+      when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly preExisting = TestWorksheets.tableWithColumns(ws, "State N Group", "id");
+      ws.addAssembly(preExisting);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-NGD-COLLIDE"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = namedGroupDatasourceRequest(
+         "State N Group", "Examples/Orders", "Order Model", null, null,
+         "Customer", "State", List.of(), false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-NGD-COLLIDE", req, agent));
+      assertTrue(ex.getMessage().contains("State N Group"), ex.getMessage());
+
+      assertSame(preExisting, ws.getAssembly("State N Group"));
+      assertEquals(1, ws.getAssemblies().length);
+   }
+
+   /**
     * PR #4901 round-2 review follow-up: {@code addDatasourceScopedNamedGroup} builds a
     * {@code DefaultNamedGroupAssembly} and adds it directly, the same unescaped-CDATA write path
     * {@code createVariable} and the round-1 sites ({@code addJoin}/{@code duplicateAssembly}/
@@ -7002,6 +7087,62 @@ class WorksheetAgentControllerTest {
          () -> ctrl.addSqlQuery("TOK-SQ-CDATA", body, agent));
       assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
       assertNull(ws.getAssembly("bad]]>name"));
+   }
+
+   /**
+    * Bug #76788 (WBS-065): {@code addSqlQuery}'s caller-supplied {@code name} is used verbatim,
+    * like {@code createEmbeddedTable}, and was never checked against an existing, unrelated
+    * assembly before {@link Worksheet#addAssembly} silently evicts and replaces it. The check must
+    * run immediately after constructing {@code SQLBoundTableAssembly} -- before the {@code
+    * JDBCQuery}/{@code UniformSQL} construction, the up-to-10s synchronous parse wait, and the real
+    * {@code QueryManagerService.getColumnSelection} JDBC round-trip -- so a doomed call fails fast.
+    * {@code queryManagerService} must never be touched: that is the proof the check runs before
+    * those expensive steps, not merely somewhere before {@code ws.addAssembly}.
+    */
+   @Test
+   void addSqlQueryRejectsNameCollisionWithUnrelatedExistingAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      XRepository xrepository = mock(XRepository.class);
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      JDBCDataSource jdbcDs = mock(JDBCDataSource.class);
+      when(xrepository.getDataSource("MyDatasource")).thenReturn(jdbcDs);
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly preExisting = TestWorksheets.tableWithColumns(ws, "MyTable", "id");
+      ws.addAssembly(preExisting);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-SQ-COLLIDE"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, securityEngine, mock(MetadataApiService.class),
+         xrepository, queryManagerService);
+
+      WorksheetAgentController.SqlQueryRequest body =
+         new WorksheetAgentController.SqlQueryRequest("MyDatasource", "SELECT 1", "MyTable");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.addSqlQuery("TOK-SQ-COLLIDE", body, agent));
+      assertTrue(ex.getMessage().contains("MyTable"), ex.getMessage());
+
+      assertSame(preExisting, ws.getAssembly("MyTable"));
+      verifyNoInteractions(queryManagerService);
    }
 
    // ---------------------------------------------------------------------------
