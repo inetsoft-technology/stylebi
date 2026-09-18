@@ -403,6 +403,7 @@ public class BindingAgentController {
    public record TableRemoveRequest(String assembly, String shelf, String column) {}
    public record TableMoveRequest(String assembly, String fromShelf, String toShelf,
                                   String column, Integer position) {}
+   public record TableFieldVisibilityRequest(String assembly, String column, boolean visible) {}
 
    @GetMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/binding")
    public Map<String, Object> tableBinding(@PathVariable String sessionToken,
@@ -510,6 +511,18 @@ public class BindingAgentController {
       requireEnabled();
       tableService.moveField(sessionToken, user, request.assembly(), request.fromShelf(),
                              request.toShelf(), request.column(), request.position());
+   }
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/field/visibility")
+   public void setTableFieldVisibility(@PathVariable String sessionToken,
+                                       @RequestBody TableFieldVisibilityRequest request,
+                                       @RequestParam(required = false, defaultValue = "") String linkUri,
+                                       Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setFieldVisibility(sessionToken, user, request.assembly(), request.column(),
+                                      request.visible(), linkUri);
    }
 
    public record CellBindingRequest(String assembly, Integer row, Integer col,

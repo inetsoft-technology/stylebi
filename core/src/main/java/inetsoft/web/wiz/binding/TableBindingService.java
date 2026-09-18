@@ -23,10 +23,12 @@ import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.controller.VSBindingModelService;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
@@ -40,6 +42,8 @@ import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.composer.model.vs.HideColumnsDialogModel;
+import inetsoft.web.composer.vs.dialog.HideColumnsDialogService;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -69,12 +73,14 @@ public class TableBindingService {
    public TableBindingService(ViewsheetSessionService sessions,
                               VSBindingService binding,
                               VSBindingModelService bindingModelService,
-                              DataRefModelFactoryService refModelService)
+                              DataRefModelFactoryService refModelService,
+                              HideColumnsDialogService hideColumnsService)
    {
       this.sessions = sessions;
       this.binding = binding;
       this.bindingModelService = bindingModelService;
       this.refModelService = refModelService;
+      this.hideColumnsService = hideColumnsService;
    }
 
    /**
@@ -388,6 +394,68 @@ public class TableBindingService {
          (model, rvs, source) ->
             TableBindingMutator.moveField(model, fromShelf, toShelf, column, position, rvs,
                                           source, refModelService));
+   }
+
+   /**
+    * Moves one column between a Table's live {@link TableVSAssemblyInfo#getColumnSelection()}
+    * (shown) and {@link TableVSAssemblyInfo#getHiddenColumns()} (hidden but still bound) --
+    * "Hide Column" without unbinding the field, unlike {@link #removeField}. Reuses {@link
+    * HideColumnsDialogService#setColumnOptionDialogModel}, the same write the Composer's own Hide
+    * Columns dialog commits, rather than reimplementing its {@code assemblyInfoHandler.apply}
+    * checkpoint/refresh side effects here.
+    *
+    * <p>Unlike every mutator above, this does not go through {@link BaseTableBindingModel} at
+    * all -- {@code hiddenColumns} lives one level down, on the live {@code VSAssemblyInfo}, which
+    * the wiz binding model does not model.
+    *
+    * <p>Crosstab is refused by name rather than silently no-op'd: {@code
+    * CrosstabVSAssemblyInfo.hiddenColumns} is keyed by a rendered lens column's {@code
+    * TableDataPath} + header occurrence, not by field name, so this single
+    * {@code assembly + column} contract does not map onto it without new resolution logic
+    * (which pivoted occurrence(s) to hide) this call does not have.
+    */
+   public void setFieldVisibility(String sessionToken, Principal user, String assemblyName,
+                                  String column, boolean visible, String linkUri) throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(!(liveAssembly instanceof TableVSAssembly)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " +
+               (liveAssembly instanceof CrosstabVSAssembly ? "a Crosstab" : "not a Table") +
+               " -- set_table_field_visibility only supports Table right now. Crosstab " +
+               "hide/show is a separate, not-yet-built capability.");
+         }
+
+         HideColumnsDialogModel current =
+            hideColumnsService.getColumnOptionDialogModel(runtimeId, assemblyName, user);
+
+         if(!current.availableColumns().contains(column) &&
+            !current.hiddenColumns().contains(column))
+         {
+            List<String> bound = new ArrayList<>(current.availableColumns());
+            bound.addAll(current.hiddenColumns());
+            throw new IllegalArgumentException(
+               "'" + column + "' is not bound on '" + assemblyName + "'. It holds: " +
+               (bound.isEmpty() ? "(nothing)" : String.join(", ", bound)) +
+               ". Add it with add_table_field or set_table_fields first.");
+         }
+
+         List<String> newAvailable = new ArrayList<>(current.availableColumns());
+         List<String> newHidden = new ArrayList<>(current.hiddenColumns());
+         newAvailable.remove(column);
+         newHidden.remove(column);
+         (visible ? newAvailable : newHidden).add(column);
+
+         HideColumnsDialogModel updated = HideColumnsDialogModel.builder()
+            .availableColumns(newAvailable)
+            .hiddenColumns(newHidden)
+            .build();
+
+         hideColumnsService.setColumnOptionDialogModel(runtimeId, assemblyName, updated, user,
+                                                       dispatcher, linkUri);
+      });
    }
 
    public void setSort(String sessionToken, Principal user, String assemblyName, String shelf,
@@ -791,6 +859,13 @@ public class TableBindingService {
             enrichCrosstabLabels(rvs, crosstab, shelfFields);
          }
       }
+      else if(model instanceof TableBindingModel) {
+         VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(liveAssembly instanceof TableVSAssembly table) {
+            enrichTableVisibility(table, shelfFields);
+         }
+      }
 
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
@@ -960,6 +1035,46 @@ public class TableBindingService {
                           field.namedGroupValues(), field.calculateInfo(), label);
    }
 
+   /**
+    * Marks each {@code details} shelf {@link FieldRef} with whether its column currently renders,
+    * per {@link TableVSAssemblyInfo#getHiddenColumns()} -- the read side of {@link
+    * #setFieldVisibility}. {@code get_table_binding} was blind to this state before (see
+    * bug-76807): {@link TableBindingMutator#read} only ever reads {@code
+    * TableBindingModel.getDetails()}, which has no visibility concept of its own.
+    */
+   private static void enrichTableVisibility(TableVSAssembly table,
+                                              Map<String, List<FieldRef>> shelfFields)
+   {
+      List<FieldRef> details = shelfFields.get("details");
+
+      if(details == null || details.isEmpty()) {
+         return;
+      }
+
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      Set<String> hidden = new HashSet<>();
+      Enumeration<DataRef> refs = info.getHiddenColumns().getAttributes();
+
+      while(refs.hasMoreElements()) {
+         hidden.add(refs.nextElement().getAttribute());
+      }
+
+      List<FieldRef> enriched = new ArrayList<>(details.size());
+
+      for(FieldRef field : details) {
+         enriched.add(withVisibility(field, !hidden.contains(field.column())));
+      }
+
+      shelfFields.put("details", enriched);
+   }
+
+   private static FieldRef withVisibility(FieldRef field, boolean visible) {
+      return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
+                          field.namedGroup(), field.chartType(), field.runtimeChartType(),
+                          field.namedGroupValues(), field.calculateInfo(), field.label(),
+                          field.secondaryY(), visible);
+   }
+
    private static Map<String, Object> describeOptions(BaseTableBindingModel model) {
       Map<String, Object> out = new LinkedHashMap<>();
 
@@ -1121,4 +1236,5 @@ public class TableBindingService {
    private final VSBindingService binding;
    private final VSBindingModelService bindingModelService;
    private final DataRefModelFactoryService refModelService;
+   private final HideColumnsDialogService hideColumnsService;
 }
