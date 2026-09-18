@@ -59,7 +59,13 @@ import java.util.Map;
  *   <li>{@code set_column_visibility} — {@code table}, {@code column}, {@code visible}</li>
  *   <li>{@code change_column_type} — {@code table}, {@code column}, {@code type}</li>
  *   <li>{@code add_concatenation} — {@code name}, {@code tables} (list), {@code concatType} (UNION|INTERSECT|MINUS)</li>
- *   <li>{@code add_mirror} — {@code name}, {@code source}</li>
+ *   <li>{@code add_mirror} — {@code name}, {@code source} (same-worksheet form, resolves an
+ *       existing assembly name in the CURRENT worksheet); or {@code name}, {@code path} (+
+ *       optional {@code scope}) to add another SAVED worksheet asset as a cross-worksheet
+ *       ("outer") mirror instead — the same mechanism the Composer UI uses when a
+ *       repository-tree worksheet is dragged onto the canvas. {@code path}/{@code scope} use
+ *       the same shape as {@code attach_base_worksheet} on the viewsheet side. Mutually
+ *       exclusive with {@code source}; {@code path} wins if both are somehow present</li>
  *   <li>{@code set_conditions} — {@code table}, {@code conditions} (condition tree)</li>
  *   <li>{@code set_post_conditions} — {@code table}, {@code conditions} (condition tree, post-aggregate/HAVING)</li>
  *   <li>{@code set_ranking} — {@code table}, {@code ranking} (replaces the whole ranking list
@@ -479,8 +485,68 @@ public record EditRequest(
     * set_mv_conditions ({@link inetsoft.uql.asset.TableAssembly#setMVForceAppendUpdates}).
     * {@code null} leaves it unchanged.
     */
-   Boolean mvForceAppendUpdates
+   Boolean mvForceAppendUpdates,
+   /**
+    * Saved worksheet asset path for {@code add_mirror}'s cross-worksheet form (e.g.
+    * {@code "Sample Queries/customers"}) — same shape as {@code attach_base_worksheet}'s own
+    * {@code path} on the viewsheet side. When present, {@code add_mirror} adds an OUTER mirror
+    * of that saved worksheet's primary assembly instead of resolving {@code source} against
+    * the current worksheet. {@code null}/absent keeps today's same-worksheet behavior.
+    */
+   String path,
+   /**
+    * Asset scope for {@code path} — {@code "user"} for the caller's own My Reports folder,
+    * anything else (including omitted) for the global/enterprise repository. Only meaningful
+    * together with {@code path}.
+    */
+   String scope
 ) {
+   /**
+    * Compatibility constructor for callers built before {@code path}/{@code scope} were added —
+    * defaults both to {@code null}.
+    */
+   public EditRequest(
+      String op, String table, String column, String name, String type, String newName,
+      String field, String operation, List<String> values, String direction,
+      List<WorksheetMutationSupport.GroupSpec> groups,
+      List<WorksheetMutationSupport.AggregateSpec> aggregates, String expression, boolean sql,
+      String leftTable, String leftKey, String rightTable, String rightKey, String joinType,
+      Boolean visible, List<String> tables, String source, String concatType,
+      List<WorksheetMutationSupport.ConditionNode> conditions,
+      WorksheetMutationSupport.RankingSpec ranking, Integer headerColumns, String dateOption,
+      double[] boundaries, String datasource, String schema, String catalog, String logicalModel,
+      List<String> leftKeys, List<String> rightKeys, Integer row, Integer col, String value,
+      Integer index, String alias, String description, Integer maxRows, Boolean distinct,
+      List<String> columnOrder, List<WorksheetMutationSupport.GroupMapping> groupMappings,
+      Boolean groupOthers, Map<String, Object> variableValues, Integer x, Integer y, String label,
+      String defaultValue, String mode, Boolean insert, List<String> subtables,
+      String sourceTable, String attribute, String endpoint, Map<String, String> parameters,
+      List<String> lookup, Boolean lookupExpandArrays, Boolean lookupTopLevelOnly, String suffix,
+      List<WorksheetMutationSupport.CustomLookupSpec> customLookups, Boolean crosstab,
+      List<String> labels, WorksheetMutationSupport.VariableChoicesSpec choices,
+      List<WorksheetMutationSupport.JoinPathSpec> joinPaths, Boolean mergeable,
+      Boolean visibleInViewsheet, Boolean confirmed, Integer rowCount, Boolean concatDistinct,
+      List<WorksheetMutationSupport.RankingSpec> rankings, Map<String, Object> queryParams,
+      Map<String, Object> extraProperties,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvUpdatePostConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePreConditions,
+      List<WorksheetMutationSupport.ConditionNode> mvDeletePostConditions,
+      Boolean mvForceAppendUpdates)
+   {
+      this(op, table, column, name, type, newName, field, operation, values, direction, groups,
+           aggregates, expression, sql, leftTable, leftKey, rightTable, rightKey, joinType,
+           visible, tables, source, concatType, conditions, ranking, headerColumns, dateOption,
+           boundaries, datasource, schema, catalog, logicalModel, leftKeys, rightKeys, row, col,
+           value, index, alias, description, maxRows, distinct, columnOrder, groupMappings,
+           groupOthers, variableValues, x, y, label, defaultValue, mode, insert, subtables,
+           sourceTable, attribute, endpoint, parameters, lookup, lookupExpandArrays,
+           lookupTopLevelOnly, suffix, customLookups, crosstab, labels, choices, joinPaths,
+           mergeable, visibleInViewsheet, confirmed, rowCount, concatDistinct, rankings,
+           queryParams, extraProperties, mvUpdatePreConditions, mvUpdatePostConditions,
+           mvDeletePreConditions, mvDeletePostConditions, mvForceAppendUpdates, null, null);
+   }
+
    /**
     * Compatibility constructor for callers built before {@code mvUpdatePreConditions}/
     * {@code mvUpdatePostConditions}/{@code mvDeletePreConditions}/
