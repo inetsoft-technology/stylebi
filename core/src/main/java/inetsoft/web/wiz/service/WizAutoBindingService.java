@@ -341,6 +341,12 @@ public class WizAutoBindingService {
 
                   applyFieldConfigs(chartAsm.getVSChartInfo(), configMap);
                   applyAxisTitlesFromFieldConfigs(chartAsm, configMap);
+                  // Strictly after both passes above: each looks its config up by the ref's current
+                  // column value, which this rewrites back to the "$(ComponentName)" literal so the
+                  // rebuilt chart keeps FOLLOWING the Form component rather than freezing to whatever
+                  // the reference resolved to during the rebuild (#76641). Carried across a type
+                  // change for the same reason syncHighlightOnTypeChange carries a highlight.
+                  restoreChartDynamicColumnValues(chartAsm.getVSChartInfo(), configMap);
                }
                // The crosstab recommender decides row/col header placement itself and ignores
                // rows/cols pins (ChartPreference, the only pin channel into the recommender, models
@@ -722,7 +728,163 @@ public class WizAutoBindingService {
          configs.addAll(binding.getMeasures());
       }
 
+      return resolveDynamicFieldConfigs(target, configs);
+   }
+
+   /**
+    * Rewrites any "$(ComponentName)" field name in {@code configs} to the worksheet column that
+    * reference currently resolves to, remembering the original literal on the config so
+    * {@link #restoreChartDynamicColumnValues} / {@link #applyCrosstabAggregateFormulas} can put the
+    * dynamic binding back onto the rebuilt ref.
+    *
+    * <p>Why this is needed at all: {@code collectFlatBinding} builds its dimensions/measures from
+    * DESIGN refs ({@code getBindingRefs(false)}), and a dimension's/aggregate's design value is
+    * literally {@code "$(RadioButton2)"} for a dynamically bound field (see
+    * {@code VSDimensionRef#getGroupColumnValue}, {@code VSAggregateRef#getColumnValue} -- both return
+    * {@code DynamicValue#getDValue}). Only the {@code slots} map prefers RT refs, so the literal
+    * reaches the column-existence gates below. It matches no worksheet column, so without this the
+    * field is either rejected outright or filtered out of the rebuild and silently lost (#76641).
+    *
+    * <p>Mutates the configs in place, which is safe here: {@code collectFlatBinding} builds a fresh
+    * {@code FieldInfo} per call ({@code WizFieldInfoFactory} constructs new instances and caches
+    * nothing), so these objects are this rebuild's alone and are not the ones the wiz API echoes as
+    * {@code binding.dimensions[]} / {@code binding.measures[]}.
+    *
+    * <p>Best-effort. A ref whose runtime value was never populated (a cold RVS, which
+    * {@code collectFlatBinding}'s own javadoc warns about) resolves back to the literal; it is left
+    * as-is and the tolerant gates keep it from failing the call.
+    */
+   private List<SimpleFieldInfo> resolveDynamicFieldConfigs(VSAssembly target,
+                                                            List<SimpleFieldInfo> configs)
+   {
+      Map<String, String> resolved = dynamicColumnResolutions(target);
+
+      if(resolved.isEmpty()) {
+         return configs;
+      }
+
+      for(SimpleFieldInfo config : configs) {
+         String dynamicValue = config == null ? null : config.getField();
+         String column = dynamicValue == null ? null : resolved.get(dynamicValue);
+
+         if(column != null) {
+            config.setField(column);
+            config.setDynamicColumnValue(dynamicValue);
+         }
+      }
+
       return configs;
+   }
+
+   /**
+    * Maps each of {@code target}'s dynamically bound refs from its design value
+    * ("$(ComponentName)") to the column that reference currently resolves to. Empty when the
+    * assembly carries no dynamic ref, which is the overwhelmingly common case -- callers skip the
+    * rewrite entirely then.
+    *
+    * <p>Entries are added only for a ref whose DESIGN value is a "$(...)" literal, and only when
+    * resolution actually produced a different, non-empty name -- so an unresolved ref never maps to
+    * itself and an ordinary ref never pays for the runtime-name lookup.
+    */
+   private Map<String, String> dynamicColumnResolutions(VSAssembly target) {
+      Map<String, String> resolved = new LinkedHashMap<>();
+
+      for(DataRef ref : bindingRefsOf(target)) {
+         if(ref instanceof VSDimensionRef dim) {
+            String designValue = dim.getGroupColumnValue();
+
+            // getName() returns groupValue's RUNTIME value when it is a String, falling back to the
+            // design value -- exactly the resolution this needs, already implemented. Guarded so the
+            // overwhelmingly common non-dynamic ref does not pay for it.
+            if(isDynamicVariableReference(designValue)) {
+               addDynamicResolution(resolved, designValue, dim.getName());
+            }
+         }
+         else if(ref instanceof VSAggregateRef agg) {
+            String designValue = agg.getColumnValue();
+
+            // The same design-vs-runtime pair VSAggregateRef#getFullNameByDVariable works from.
+            if(isDynamicVariableReference(designValue)) {
+               addDynamicResolution(resolved, designValue, agg.getName());
+            }
+         }
+      }
+
+      return resolved;
+   }
+
+   private static void addDynamicResolution(Map<String, String> resolved, String designValue,
+                                            String runtimeName)
+   {
+      // "null" guards VSAggregateRef#getName, which stringifies a null runtime value rather than
+      // returning null; still-dynamic guards a resolution that produced another reference.
+      if(!Tool.isEmptyString(runtimeName) && !"null".equals(runtimeName) &&
+         !runtimeName.equals(designValue) && !isDynamicVariableReference(runtimeName))
+      {
+         resolved.putIfAbsent(designValue, runtimeName);
+      }
+   }
+
+   /**
+    * Every ref {@code collectFlatBinding} reads for its dimensions/measures, flattened -- the chart's
+    * design binding refs plus its aesthetic refs, or a crosstab's design row/col headers and
+    * aggregates. Kept in step with {@code WizVsService#collectChartFlatBinding} /
+    * {@code #collectCrosstabFlatBinding}: a ref those collect but this misses would simply not be
+    * resolved, and the tolerant gates would let it through unbound rather than fail.
+    */
+   private List<DataRef> bindingRefsOf(VSAssembly target) {
+      List<DataRef> refs = new ArrayList<>();
+
+      if(target instanceof ChartVSAssembly chart) {
+         VSChartInfo info = chart.getVSChartInfo();
+
+         if(info == null) {
+            return refs;
+         }
+
+         Collections.addAll(refs, info.getBindingRefs(false));
+
+         for(AestheticRef aref : new AestheticRef[]{
+            info.getColorField(), info.getShapeField(), info.getSizeField(), info.getTextField()
+         }) {
+            if(aref != null && aref.getDataRef() != null) {
+               refs.add(aref.getDataRef());
+            }
+         }
+
+         for(AestheticRef aref : info.getAggregateAestheticRefs(false)) {
+            if(aref != null && aref.getDataRef() != null) {
+               refs.add(aref.getDataRef());
+            }
+         }
+      }
+      else if(target instanceof CrosstabVSAssembly crosstab) {
+         VSCrosstabInfo info = crosstab.getVSCrosstabInfo();
+
+         if(info == null) {
+            return refs;
+         }
+
+         for(DataRef[] group : new DataRef[][]{
+            info.getDesignRowHeaders(), info.getDesignColHeaders(), info.getDesignAggregates()
+         }) {
+            if(group != null) {
+               Collections.addAll(refs, group);
+            }
+         }
+      }
+
+      return refs;
+   }
+
+   /**
+    * Mirrors {@code inetsoft.uql.viewsheet.internal.VSUtil.isVariableValue(String)} exactly
+    * ({@code "$(" ... ")"} test) rather than calling it, for the same reason
+    * {@link inetsoft.web.wiz.binding.BindableColumns} duplicates it: {@code VSUtil}'s static
+    * initializer reaches for a live Spring {@code ApplicationContext}.
+    */
+   private static boolean isDynamicVariableReference(String text) {
+      return text != null && text.startsWith("$(") && text.endsWith(")");
    }
 
    /**
@@ -750,9 +912,14 @@ public class WizAutoBindingService {
       Set<String> available = worksheetColumns.stream()
          .map(ColumnRef::getDisplayName)
          .collect(Collectors.toSet());
+      // A "$(ComponentName)" reference is not a schema column of any table -- resolveDynamicFieldConfigs
+      // above normally rewrites it to the column it currently resolves to, but a ref whose runtime value
+      // was never populated (a cold RVS) still reads back as the literal. Treating that residue as a
+      // missing column would discard the whole derived list over a field that was never a column name to
+      // begin with, falling back to binding every visible column (#76641).
       List<String> missing = derived.stream()
          .map(SimpleFieldInfo::getField)
-         .filter(f -> f != null && !available.contains(f))
+         .filter(f -> f != null && !isDynamicVariableReference(f) && !available.contains(f))
          .sorted()
          .collect(Collectors.toList());
 
@@ -958,6 +1125,68 @@ public class WizAutoBindingService {
 
       if(runtimeAggregates != null && runtimeAggregates.length > 0) {
          applyAggregateFormulasTo(runtimeAggregates, configMap);
+      }
+
+      // The crosstab counterpart of the chart branch's dynamic-reference restore: a rebuild that
+      // lands on a crosstab must keep FOLLOWING the Form component too, not freeze to the column the
+      // reference resolved to during the type change (#76641). Strictly last: every pass above looks
+      // its config up by the ref's current column value, which this rewrites back to "$(...)".
+      restoreDynamicColumnValues(crosstabInfo.getDesignRowHeaders(), configMap);
+      restoreDynamicColumnValues(crosstabInfo.getDesignColHeaders(), configMap);
+      restoreDynamicColumnValues(crosstabInfo.getDesignAggregates(), configMap);
+      restoreDynamicColumnValues(runtimeAggregates, configMap);
+   }
+
+   /**
+    * {@link #restoreDynamicColumnValues(DataRef[], Map)} over every ref of a chart binding -- x/y/group
+    * plus the aesthetics, matching the set {@link #applyFieldConfigs} walks.
+    */
+   static void restoreChartDynamicColumnValues(VSChartInfo chartInfo,
+                                               Map<String, SimpleFieldInfo> configMap)
+   {
+      if(chartInfo == null) {
+         return;
+      }
+
+      restoreDynamicColumnValues(chartInfo.getXFields(), configMap);
+      restoreDynamicColumnValues(chartInfo.getYFields(), configMap);
+      restoreDynamicColumnValues(chartInfo.getGroupFields(), configMap);
+
+      for(AestheticRef aref : new AestheticRef[]{
+         chartInfo.getColorField(), chartInfo.getShapeField(),
+         chartInfo.getSizeField(), chartInfo.getTextField()
+      }) {
+         if(aref != null && aref.getDataRef() != null) {
+            restoreDynamicColumnValues(new DataRef[]{ aref.getDataRef() }, configMap);
+         }
+      }
+   }
+
+   /**
+    * Puts the original "$(ComponentName)" literal back on any ref that was bound through the column
+    * that reference resolved to (see {@link #resolveDynamicFieldConfigs}), so the rebuilt binding
+    * keeps following the Form component. No-op for the ordinary case where no config carries one.
+    */
+   static void restoreDynamicColumnValues(DataRef[] refs, Map<String, SimpleFieldInfo> configMap) {
+      if(refs == null) {
+         return;
+      }
+
+      for(DataRef ref : refs) {
+         if(ref instanceof VSDimensionRef dim) {
+            SimpleFieldInfo fc = configMap.get(dim.getGroupColumnValue());
+
+            if(fc != null && fc.getDynamicColumnValue() != null) {
+               dim.setGroupColumnValue(fc.getDynamicColumnValue());
+            }
+         }
+         else if(ref instanceof VSAggregateRef agg) {
+            SimpleFieldInfo fc = configMap.get(agg.getColumnValue());
+
+            if(fc != null && fc.getDynamicColumnValue() != null) {
+               agg.setColumnValue(fc.getDynamicColumnValue());
+            }
+         }
       }
    }
 
@@ -1454,8 +1683,12 @@ public class WizAutoBindingService {
          Set<String> available = worksheetColumns.stream()
             .map(ColumnRef::getDisplayName)
             .collect(Collectors.toCollection(LinkedHashSet::new));
+         // "$(ComponentName)" is a dynamic reference to a Form component's live value, not a column
+         // name to check against the worksheet schema -- it is resolved at render time instead
+         // (#76641). Reporting it as an unknown field would turn every type change of a chart carrying
+         // one into a 400.
          List<String> missing = configMap.keySet().stream()
-            .filter(k -> !available.contains(k))
+            .filter(k -> !isDynamicVariableReference(k) && !available.contains(k))
             .sorted()
             .collect(Collectors.toList());
 
@@ -1465,9 +1698,19 @@ public class WizAutoBindingService {
                ". Available worksheet columns: " + available);
          }
 
-         return worksheetColumns.stream()
+         List<ColumnRef> selected = worksheetColumns.stream()
             .filter(c -> configMap.containsKey(c.getDisplayName()))
             .collect(Collectors.toList());
+
+         // Every config key was a dynamic reference (or none matched): filtering on them selects no
+         // column at all, which would bind the rebuilt chart to nothing -- worse than the pre-#76641
+         // hard failure. Fall back to every visible column, the same recovery derivedFieldConfigsWithin
+         // uses when it cannot trust the derived list.
+         if(selected.isEmpty()) {
+            return worksheetColumns;
+         }
+
+         return selected;
       }
 
       return worksheetColumns;
