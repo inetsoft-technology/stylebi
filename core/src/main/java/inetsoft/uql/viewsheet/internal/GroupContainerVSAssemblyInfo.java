@@ -334,16 +334,7 @@ public class GroupContainerVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * Set the run time image alpha.
     */
    public void setImageAlpha(String imageAlpha) {
-      Double validValue = null;
-
-      try {
-         validValue = Double.parseDouble(imageAlpha);
-         validValue = validValue < 0 ? 0 : validValue > 100 ? 100 : validValue;
-      }
-      catch(Exception e) {
-      }
-
-      imageAlphaValue.setRValue(validValue.intValue() + "");
+      imageAlphaValue.setRValue(ImageAlphaUtil.normalizeAlpha(imageAlpha));
    }
 
    /**
@@ -357,7 +348,7 @@ public class GroupContainerVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * Set the design time image alpha.
     */
    public void setImageAlphaValue(String imageAlpha) {
-      imageAlphaValue.setDValue(imageAlpha);
+      imageAlphaValue.setDValue(ImageAlphaUtil.normalizeAlpha(imageAlpha));
    }
 
    private String bgimage;
