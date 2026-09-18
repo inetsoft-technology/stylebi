@@ -2660,15 +2660,13 @@ public class WorksheetAgentController {
          case "edit_join" ->
             editor.editJoin(req.name(), req.leftKey(), req.rightKey(), req.joinType(),
                             req.leftKeys(), req.rightKeys());
-         // add_table_to_join/add_table_to_merge_join reuse add_join's fields with a different
-         // meaning: leftTable/leftKey(s) name the EXISTING join's own source (not a new one),
-         // rightTable/rightKey(s) name the table being added. Safe to reuse -- this switch keys
-         // strictly on req.op(), so no cross-op interference is possible.
+         // add_table_to_join reuses add_join's fields with a different meaning: leftTable/
+         // leftKey(s) name the EXISTING join's own source (not a new one), rightTable/rightKey(s)
+         // name the table being added. Safe to reuse -- this switch keys strictly on req.op(), so
+         // no cross-op interference is possible.
          case "add_table_to_join" ->
             editor.addTableToJoin(req.name(), req.leftTable(), req.leftKey(), req.rightTable(),
                                  req.rightKey(), req.joinType(), req.leftKeys(), req.rightKeys());
-         case "add_table_to_merge_join" ->
-            editor.addTableToMergeJoin(req.name(), req.rightTable());
          case "delete_table" ->
             editor.deleteTable(req.table());
          case "rename_table" ->

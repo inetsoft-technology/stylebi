@@ -1899,44 +1899,6 @@ class WorksheetEditServiceTest {
    }
 
    @Test
-   void addTableToMergeJoinRejectsKeyedJoinTarget() throws Exception {
-      Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly customers = TestWorksheets.tableWithColumns(
-         ws, "CUSTOMERS1", "CUSTOMER_ID");
-      EmbeddedTableAssembly contacts = TestWorksheets.tableWithColumns(
-         ws, "CONTACTS1", "CUSTOMER_ID");
-      EmbeddedTableAssembly orders = TestWorksheets.tableWithColumns(
-         ws, "ORDERS1", "CUSTOMER_ID");
-      ws.addAssembly(customers);
-      ws.addAssembly(contacts);
-      ws.addAssembly(orders);
-
-      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
-      when(rws.getWorksheet()).thenReturn(ws);
-
-      SheetSessionService sessions = mock(SheetSessionService.class);
-      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
-      Principal agent = TestPrincipals.user("alice", "host-org");
-      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
-                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
-      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
-      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
-
-      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class),
-         new InnerJoinService(null, null));
-
-      svc.apply("TOK", agent,
-                ed -> ed.addJoin("Query1", "CUSTOMERS1", "CUSTOMER_ID",
-                                 "CONTACTS1", "CUSTOMER_ID", "INNER", null, null));
-
-      PairingException ex = assertThrows(PairingException.class,
-         () -> svc.apply("TOK", agent, ed -> ed.addTableToMergeJoin("Query1", "ORDERS1")));
-      assertTrue(ex.getMessage().contains("add_table_to_join"));
-   }
-
-   @Test
    void addTableToJoinRejectsCrossAndMergeJoinType() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly customers = TestWorksheets.tableWithColumns(
@@ -1983,81 +1945,6 @@ class WorksheetEditServiceTest {
 
       RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("Query1");
       assertEquals(2, joined.getTableAssemblies().length, "both rejected calls must not mutate the join");
-   }
-
-   @Test
-   void addTableToMergeJoinExtendsExistingMergeJoinInPlace() throws Exception {
-      Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
-      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
-      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "id");
-      ws.addAssembly(a);
-      ws.addAssembly(b);
-      ws.addAssembly(c);
-
-      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
-      when(rws.getWorksheet()).thenReturn(ws);
-
-      SheetSessionService sessions = mock(SheetSessionService.class);
-      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
-      Principal agent = TestPrincipals.user("alice", "host-org");
-      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
-                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
-      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
-      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
-
-      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
-
-      svc.apply("TOK", agent, ed -> ed.addMergeJoin("MJ", new String[]{ "A", "B" }));
-      svc.apply("TOK", agent, ed -> ed.addTableToMergeJoin("MJ", "C"));
-
-      MergeJoinTableAssembly join = (MergeJoinTableAssembly) ws.getAssembly("MJ");
-      assertNotNull(join, "add_table_to_merge_join must extend the SAME assembly, not create a new one");
-      assertEquals(3, join.getTableAssemblies().length);
-
-      TableAssemblyOperator opAB = join.getOperator("A", "B");
-      assertNotNull(opAB, "the original A-B edge must survive");
-      assertEquals(TableAssemblyOperator.MERGE_JOIN, opAB.getOperator(0).getOperation());
-      assertEquals("A", opAB.getOperator(0).getLeftTable());
-      assertEquals("B", opAB.getOperator(0).getRightTable());
-
-      TableAssemblyOperator opBC = join.getOperator("B", "C");
-      assertNotNull(opBC, "the new B-C edge must be present");
-      assertEquals(TableAssemblyOperator.MERGE_JOIN, opBC.getOperator(0).getOperation());
-      assertEquals("B", opBC.getOperator(0).getLeftTable());
-      assertEquals("C", opBC.getOperator(0).getRightTable());
-   }
-
-   @Test
-   void addTableToMergeJoinRejectsTableAlreadyPresent() throws Exception {
-      Worksheet ws = new Worksheet();
-      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
-      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
-      ws.addAssembly(a);
-      ws.addAssembly(b);
-
-      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
-      when(rws.getWorksheet()).thenReturn(ws);
-
-      SheetSessionService sessions = mock(SheetSessionService.class);
-      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
-      Principal agent = TestPrincipals.user("alice", "host-org");
-      JoinSession s = new JoinSession("TOK", "Worksheet/foo-7", "alice~;~host-org",
-                                     SheetType.WORKSHEET, 0L, Long.MAX_VALUE,
-                                     JoinSession.ConnectionMode.PAIRED, null, null, null);
-      when(sessions.resolve(eq("TOK"), any())).thenReturn(s);
-      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
-
-      WorksheetEditService svc = new WorksheetEditService(sessions, runtimeAccess,
-         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
-
-      svc.apply("TOK", agent, ed -> ed.addMergeJoin("MJ", new String[]{ "A", "B" }));
-
-      PairingException ex = assertThrows(PairingException.class,
-         () -> svc.apply("TOK", agent, ed -> ed.addTableToMergeJoin("MJ", "B")));
-      assertTrue(ex.getMessage().contains("B"));
    }
 
    /**

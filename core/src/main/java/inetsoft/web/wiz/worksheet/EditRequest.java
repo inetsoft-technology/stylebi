@@ -55,7 +55,6 @@ import java.util.Map;
  *   <li>{@code edit_expression} — {@code table}, {@code name}, {@code expression}, {@code type}, {@code sql}</li>
  *   <li>{@code edit_join} — {@code name}, {@code leftKey}, {@code rightKey}, {@code joinType}; for multi-key joins use {@code leftKeys}/{@code rightKeys}</li>
  *   <li>{@code add_table_to_join} — extends an EXISTING keyed join assembly with one more table in place (same name/identity afterward), unlike {@code add_join} which always builds a new assembly. {@code name} is the existing join to extend; {@code leftTable}/{@code leftKey}(s) name one of {@code name}'s own current source tables (the side of the new edge that already belongs to the join, NOT a new table); {@code rightTable}/{@code rightKey}(s) name the table being added; {@code joinType} is INNER (default), LEFT, RIGHT, or FULL — CROSS and MERGE are refused</li>
- *   <li>{@code add_table_to_merge_join} — extends an EXISTING merge join assembly by appending one more table at the end (position, not key, decides ordering). {@code name} is the existing merge join; {@code rightTable} names the table being appended — no keys, no joinType (positional)</li>
  *   <li>{@code delete_table} — {@code table}</li>
  *   <li>{@code rename_table} — {@code table}, {@code newName}</li>
  *   <li>{@code set_column_visibility} — {@code table}, {@code column}, {@code visible}</li>
