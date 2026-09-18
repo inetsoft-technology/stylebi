@@ -157,6 +157,75 @@ public class TableRowTest {
    }
 
    /**
+    * getArrayElement() shares colmap0 with the previous-row object but gives it a
+    * fresh colcache, so a TableCol cached by this row is visible to it. If the
+    * TableCol carried a resolved row index, field[-1]['col'] would read *this*
+    * row's cell -- field['id'] - field[-1]['id'] would be 0 on every row.
+    */
+   @Test
+   void testPreviousRowResolvesItsOwnBaseTableCell() {
+      DefaultTableLens base = new DefaultTableLens(new Object[][]{
+         { "name", "id" },
+         { "a", 10 },
+         { "c", 20 },
+         { "b", 30 }
+      });
+      base.moreRows(TableLens.EOT);
+      SortFilter sorted = new SortFilter(base, new int[]{ 0 });
+      sorted.moreRows(TableLens.EOT);
+      // sorted order is a(10), b(30), c(20)
+      tableRow = new TableRow(new ColumnMapFilter(sorted, new int[]{ 0 }), 2);
+
+      // resolve and cache the base-table column on this row first
+      assertEquals(30, tableRow.getMember("id"));
+
+      TableRow prev = (TableRow) tableRow.getArrayElement(-1);
+      assertEquals(10, prev.getMember("id"),
+                   "field[-1] must read the previous row, not reuse this row's TableCol");
+      assertEquals(30, tableRow.getMember("id"), "the current row must still be correct");
+   }
+
+   /** A filter with no base-table counterpart for row 2, like SummaryFilter's data rows. */
+   public static class UnmappedRowFilter extends ColumnMapFilter {
+      public UnmappedRowFilter(TableLens table, int[] map) {
+         super(table, map);
+      }
+
+      @Override
+      public int getBaseRowIndex(int row) {
+         return row == 2 ? -1 : row;
+      }
+   }
+
+   /**
+    * A row with no counterpart in the base table is a *row-dependent* miss and must
+    * not be recorded in the permanent notfound set: a TableRow is reused across rows
+    * and hasMember() consults that set, so one such row would make the column read
+    * undefined on every later row too.
+    */
+   @Test
+   void testUnmappedRowDoesNotPoisonLaterRows() {
+      DefaultTableLens base = new DefaultTableLens(new Object[][]{
+         { "name", "id" },
+         { "a", 10 },
+         { "b", 20 },
+         { "c", 30 }
+      });
+      base.moreRows(TableLens.EOT);
+      tableRow = new TableRow(new UnmappedRowFilter(base, new int[]{ 0 }), 1);
+
+      assertEquals(10, tableRow.getMember("id"));
+
+      // row 2 maps to -1: reads as undefined, but must not be remembered as absent
+      tableRow.setRow(2);
+      assertNull(tableRow.getMember("id"));
+
+      tableRow.setRow(3);
+      assertTrue(tableRow.hasMember("id"), "an unmapped row must not mark the column absent");
+      assertEquals(30, tableRow.getMember("id"), "later rows must still resolve");
+   }
+
+   /**
     * A filter exposing only the first column; "id"/"date" exist solely in the base table.
     */
    private TableLens filtered() {
