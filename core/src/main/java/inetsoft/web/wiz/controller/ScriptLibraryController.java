@@ -65,15 +65,34 @@ public class ScriptLibraryController {
 
    public record ScriptLibraryFunction(String name, String comment) {}
 
-   public record ScriptLibraryFunctionDetail(String name, String text, String comment) {}
+   /**
+    * {@code resyncWarning} is non-null only on {@link #create}/{@link #update}/{@link #delete} --
+    * {@link #read} leaves it null. A Script Library function is installed as a global JS binding
+    * once, when a viewsheet session's script runtime (GraalJavaScriptEnv/Context) is first built;
+    * nothing currently rebuilds that binding set for an already-open session when LibManager
+    * changes (Redmine #76765 SSL-001). Until that staleness is fixed at the runtime level, the
+    * mutating endpoints surface the caveat here so a caller doesn't have to discover it by getting
+    * a stale/ReferenceError result from execute_script/run_script_live against a session that was
+    * open before this call.
+    */
+   public record ScriptLibraryFunctionDetail(String name, String text, String comment,
+                                              String resyncWarning) {}
 
    public record CreateScriptLibraryFunctionRequest(String name, String text, String comment) {}
 
    public record UpdateScriptLibraryFunctionRequest(String text, String comment) {}
 
+   public record DeleteScriptLibraryFunctionResult(String resyncWarning) {}
+
    public record CheckScriptSyntaxResult(boolean ok, String message, Integer line, Integer column) {}
 
    public record CheckScriptSyntaxRequest(String script) {}
+
+   private static final String RESYNC_WARNING =
+      "Viewsheet sessions that were already open before this call may not see this change in " +
+      "execute_script/run_script_live until they resync (e.g. via refresh_viewsheet) -- a " +
+      "session's script runtime only picks up the current Script Library contents when it is " +
+      "(re)built, not on every call.";
 
    @GetMapping
    public List<ScriptLibraryFunction> list(Principal principal) {
@@ -100,7 +119,7 @@ public class ScriptLibraryController {
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
       requirePermission(principal, name, ResourceAction.READ);
-      return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name));
+      return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name), null);
    }
 
    @PostMapping
@@ -133,7 +152,8 @@ public class ScriptLibraryController {
       }
 
       lib.save();
-      return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name));
+      return new ScriptLibraryFunctionDetail(
+         name, lib.getScript(name), lib.getScriptComment(name), RESYNC_WARNING);
    }
 
    @PutMapping("/{name}")
@@ -161,7 +181,8 @@ public class ScriptLibraryController {
       }
 
       lib.save();
-      return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name));
+      return new ScriptLibraryFunctionDetail(
+         name, lib.getScript(name), lib.getScriptComment(name), RESYNC_WARNING);
    }
 
    /**
@@ -172,9 +193,10 @@ public class ScriptLibraryController {
     * referenced this function.
     */
    @DeleteMapping("/{name}")
-   public void delete(@PathVariable String name,
-                      @RequestParam(required = false, defaultValue = "false") boolean force,
-                      Principal principal) throws Exception
+   public DeleteScriptLibraryFunctionResult delete(
+      @PathVariable String name,
+      @RequestParam(required = false, defaultValue = "false") boolean force,
+      Principal principal) throws Exception
    {
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
@@ -198,6 +220,7 @@ public class ScriptLibraryController {
 
       lib.removeScript(name);
       lib.save();
+      return new DeleteScriptLibraryFunctionResult(RESYNC_WARNING);
    }
 
    @PostMapping("/check")
