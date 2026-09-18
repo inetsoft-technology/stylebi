@@ -172,11 +172,15 @@ class SchedulerStatusChangesetApplyServiceTest {
       SchedulerStatusChangesetApplyService.READBACK_MAX_ATTEMPTS = originalReadbackMaxAttempts;
       SchedulerStatusChangesetApplyService.READBACK_POLL_INTERVAL_MS = originalReadbackPollIntervalMs;
 
-      // 1st call: plan resolve's "before" read (still running). 2nd call: read-back's first,
-      // immediate attempt (still running -- old budget's very first read already saw this).
-      // 3rd call, after one real READBACK_POLL_INTERVAL_MS sleep (500ms -- already past the old
-      // ~180ms total budget on its own): the async stop has now actually completed.
+      // getStatus() is called twice before the read-back even starts: once by this test's own
+      // planService.resolve() call (to compute the hash below), and once again by apply()'s own
+      // internal re-resolve. Then readBackWithRetry() makes its own immediate read plus one call
+      // per retry. Under the OLD budget (READBACK_MAX_ATTEMPTS=4: 1 immediate + 3 retries, i.e.
+      // 4 internal calls, overall calls 3-6), all of those must still read "Running" so the old
+      // budget exhausts and reports "failed". Only the NEW budget's 4th retry (overall call 7)
+      // reaches the "Stopped" read.
       when(configService.getStatus()).thenReturn(
+         scheduleStatus(true), scheduleStatus(true), scheduleStatus(true), scheduleStatus(true),
          scheduleStatus(true), scheduleStatus(true), scheduleStatus(false));
       String hash = planService.resolve(request("task", List.of(stop()))).planHash();
       doNothing().when(configService).setStatus("stop");
