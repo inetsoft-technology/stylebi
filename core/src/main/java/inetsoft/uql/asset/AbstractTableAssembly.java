@@ -1705,6 +1705,17 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     * @param nname the specified new name.
     */
    protected void renameAggregateInfo(String oname, String nname) {
+      // Worksheet.renameAssembly calls renameDepended on every assembly including the one just
+      // renamed (its setName(nname) already ran, so getName() == nname here identifies "self").
+      // AggregateInfo.renameDepended exists to requalify a ref that points AT a renamed table
+      // this assembly depends on (e.g. a join/mirror source); it must not run on the renamed
+      // assembly's own AggregateInfo, whose refs are never qualified by its own worksheet name
+      // (a bound/logical-model column's AttributeRef entity denotes a physical/model source, not
+      // the worksheet assembly name) -- rewriting it there corrupts the ref in place.
+      if(Tool.equals(getName(), nname)) {
+         return;
+      }
+
       ginfo.renameDepended(oname, nname);
    }
 

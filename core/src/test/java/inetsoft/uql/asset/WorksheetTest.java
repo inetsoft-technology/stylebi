@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.web.wiz.pairing.TestWorksheets;
 import org.junit.jupiter.api.Test;
 
@@ -54,5 +56,84 @@ class WorksheetTest {
       EmbeddedTableAssembly blankNamed = new EmbeddedTableAssembly(ws, "  ");
       assertFalse(ws.addAssembly(blankNamed));
       assertEquals(0, ws.getAssemblies().length);
+   }
+
+   /**
+    * Regression for bug 76796: renaming a worksheet table silently discarded its own
+    * {@code set_group_aggregate} config when the table was added from a logical-model entity
+    * (e.g. {@code add_table(datasource, logicalModel, table)}). Such a table's columns have
+    * their {@link AttributeRef} entity set to the logical-model entity name
+    * (see {@code WorksheetAgentController#addLogicalModelTable}), which is *also*, by the
+    * default worksheet-naming convention, the table's own initial assembly name -- a
+    * coincidence, not a semantic link (the entity denotes the logical-model source, never the
+    * worksheet assembly). {@code renameAssembly}'s rename-cascade (intended to requalify a
+    * group/aggregate ref that points AT some other, renamed source table -- e.g. a join/mirror
+    * dependency) must not also fire on the renamed table's own aggregate, or it corrupts the
+    * ref's entity into something that no longer resolves against the logical model at all.
+    */
+   @Test
+   void renameAssemblyDoesNotRequalifyItsOwnAggregateRefOnSelfRename() {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly table = new BoundTableAssembly(ws, "Product");
+      table.setSourceInfo(new SourceInfo(SourceInfo.MODEL, "Examples/Orders", "Return Model"));
+
+      inetsoft.uql.ColumnSelection cs = new inetsoft.uql.ColumnSelection();
+      ColumnRef totalColumn = new ColumnRef(new AttributeRef("Product", "Total"));
+      cs.addAttribute(totalColumn);
+      table.setColumnSelection(cs, false);
+
+      AggregateInfo ginfo = new AggregateInfo();
+      // Wraps the same ColumnRef object living in the table's own column selection, matching
+      // WorksheetMutationSupport#applyAggregateInfo's no-clone sharing for the primary
+      // aggregate column.
+      ginfo.addAggregate(new AggregateRef(totalColumn, AggregateFormula.SUM));
+      table.setAggregateInfo(ginfo);
+
+      ws.addAssembly(table);
+
+      assertTrue(ws.renameAssembly("Product", "ReturnTotalSummary", true));
+
+      AggregateInfo renamed = table.getAggregateInfo();
+      assertEquals(1, renamed.getAggregateCount(),
+         "rename_table must not silently drop the aggregate");
+      DataRef aggregateRef = renamed.getAggregate(0).getDataRef();
+      assertEquals("Product", aggregateRef.getEntity(),
+         "the aggregate's underlying column denotes the logical-model entity, not the " +
+         "worksheet assembly's own name -- renaming the assembly must not requalify it");
+      assertEquals("Total", aggregateRef.getAttribute());
+
+      // The raw (non-aggregated) column selection shares the same ColumnRef object and must
+      // remain resolvable too, not just the aggregate ref.
+      assertEquals("Product", totalColumn.getEntity());
+   }
+
+   /**
+    * Companion to the self-rename case above: a *different* table's group/aggregate that
+    * legitimately depends on the renamed table (the join/mirror scenario the rename-cascade
+    * mechanism exists for, added in commit 28a5ede3b) must still be requalified correctly --
+    * the self-rename guard must not have broken this cross-table case.
+    */
+   @Test
+   void renameAssemblyStillRequalifiesAnotherTablesAggregateThatDependsOnTheRenamedTable() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly source = TestWorksheets.tableWithColumns(ws, "SO", "amount");
+      ws.addAssembly(source);
+
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", source);
+      AggregateInfo ginfo = new AggregateInfo();
+      ColumnRef amountColumn = new ColumnRef(new AttributeRef("SO", "amount"));
+      ginfo.addAggregate(new AggregateRef(amountColumn, AggregateFormula.SUM));
+      mirror.setAggregateInfo(ginfo);
+      ws.addAssembly(mirror);
+
+      assertTrue(ws.renameAssembly("SO", "SalesOrder", true));
+
+      AggregateInfo mirrorInfo = mirror.getAggregateInfo();
+      assertEquals(1, mirrorInfo.getAggregateCount(),
+         "a dependent table's aggregate on a genuinely renamed source table must survive");
+      DataRef aggregateRef = mirrorInfo.getAggregate(0).getDataRef();
+      assertEquals("SalesOrder", aggregateRef.getEntity(),
+         "the dependent aggregate must be requalified to the source table's NEW name");
+      assertEquals("amount", aggregateRef.getAttribute());
    }
 }
