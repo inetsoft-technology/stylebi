@@ -372,6 +372,53 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * Round-2 review finding: {@link WorksheetMutationSupport#resolveUnambiguousAggregateAlias}
+    * matches on TWO arms -- {@code ar.toView()} OR {@code cr.getAlias()} -- but every test above
+    * only exercises the alias arm. An UNALIASED aggregate ({@code AggregateSpec.alias() == null},
+    * a normal, documented-nullable call shape) never gets its {@code ColumnRef}'s alias set at
+    * all ({@code applyAggregateInfo} only calls {@code colRef.setAlias(...)} when
+    * {@code spec.alias() != null}), so its ONLY reachable name other than the raw base attribute
+    * is its view string (e.g. {@code "Sum(quantity)"}) -- the {@code toView()} arm is the sole
+    * path an unaliased aggregate can ever match through, not a rarely-hit fallback.
+    *
+    * <p>Calls {@link WorksheetMutationSupport#addFilter} directly (mirroring how
+    * {@code WorksheetReadServiceTest} already exercises this method directly) rather than through
+    * {@link WorksheetEditService.Editor#addFilter}, since that service method's own
+    * {@code requireColumn(t, field)} guard checks only the private column selection and would
+    * reject a view-format field name before ever reaching this fix's routing logic -- a
+    * pre-existing, out-of-scope limitation documented in 03-fix.md's "Left alone" section, not
+    * something this test needs to route around differently than the view-string case actually
+    * requires.</p>
+    */
+   @Test
+   void addFilterOnUnaliasedAggregateViewNameRoutesToPostConditionList() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("quantity", "SUM", null))));
+
+      AggregateRef ar = t.getAggregateInfo().getAggregate(0);
+      assertNull(((ColumnRef) ar.getDataRef()).getAlias(),
+         "sanity check: an unaliased aggregate must not have picked up an alias by accident");
+      String view = ar.toView();
+
+      WorksheetMutationSupport.addFilter(t, view, ">", "100");
+
+      assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty(),
+         "the toView() match arm must route to postConditionList too, not create a stray WHERE " +
+         "condition");
+      assertNotNull(t.getPostConditionList());
+      assertEquals(1, t.getPostConditionList().getConditionList().getSize());
+      assertTrue(t.getPostConditionList().getConditionItem(0).getAttribute() instanceof AggregateRef,
+         "the HAVING condition must reference the AggregateRef, not a plain column");
+   }
+
+   /**
     * {@code edit_condition} on an existing HAVING condition's alias must mutate
     * {@code postConditionList} in place -- not leave the stale HAVING condition untouched while
     * writing an unrelated {@code preConditionList} entry.
