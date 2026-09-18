@@ -51,7 +51,7 @@
 
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { UntypedFormGroup } from "@angular/forms";
-import { render } from "@testing-library/angular";
+import { render, screen } from "@testing-library/angular";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, of } from "rxjs";
 import { HttpClient } from "@angular/common/http";
@@ -90,6 +90,9 @@ function createModel(overrides: Partial<ViewsheetOptionsPaneModel> = {}): Viewsh
       touchInterval: 60,
       listOnPortalTree: true,
       worksheet: false,
+      vizModern: false,
+      vizDark: false,
+      vizDensity: "",
       ...overrides,
    };
 }
@@ -526,5 +529,50 @@ describe("ViewsheetOptionsPane — snapToGrid", () => {
       vi.spyOn(LocalStorage, "getItem").mockReturnValue("true");
       const { comp } = await renderComponent();
       expect(comp.snapToGrid()).toBe(true);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 10: visualization controls (vizModern/vizDark/vizDensity)
+// ---------------------------------------------------------------------------
+
+describe("ViewsheetOptionsPane — visualization controls", () => {
+   it("renders the three visualization controls", async () => {
+      await renderComponent({ vizModern: true });
+
+      expect(screen.getByLabelText("_#(Modern Visualization)")).toBeTruthy();
+      expect(screen.getByLabelText("_#(Dark Mode)")).toBeTruthy();
+      expect(screen.getByLabelText("_#(Visualization Density)")).toBeTruthy();
+   });
+
+   it("disables Dark while Modern is off", async () => {
+      await renderComponent({ vizModern: false });
+
+      expect((screen.getByLabelText("_#(Dark Mode)") as HTMLInputElement).disabled).toBe(true);
+   });
+
+   it("enables Dark once Modern is on", async () => {
+      await renderComponent({ vizModern: true });
+
+      expect((screen.getByLabelText("_#(Dark Mode)") as HTMLInputElement).disabled).toBe(false);
+   });
+
+   it("clears Dark when Modern is switched off", async () => {
+      const { comp, model } = await renderComponent({ vizModern: true, vizDark: true });
+
+      model.vizModern = false;
+      comp.vizModernChanged();
+
+      expect(model.vizDark).toBe(false);
+   });
+
+   it("offers Default plus the three tiers for density", async () => {
+      await renderComponent({ vizModern: true });
+
+      const options = Array.from(
+         (screen.getByLabelText("_#(Visualization Density)") as HTMLSelectElement).querySelectorAll("option"))
+         .map(o => o.textContent.trim());
+
+      expect(options).toEqual(["_#(Default)", "_#(Dense)", "_#(Compact)", "_#(Comfortable)"]);
    });
 });

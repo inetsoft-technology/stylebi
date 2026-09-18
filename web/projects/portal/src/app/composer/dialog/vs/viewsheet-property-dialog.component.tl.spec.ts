@@ -80,6 +80,7 @@ function createModel(overrides: Partial<ViewsheetPropertyDialogModel> = {}): Vie
          createMv: false, onDemandMvEnabled: false, maxRows: 0, snapGrid: 10,
          alias: "", desc: "", serverSideUpdate: false, touchInterval: 60,
          listOnPortalTree: true, worksheet: false,
+         vizModern: false, vizDark: false, vizDensity: "",
       } as any,
       filtersPane: { filters: [], sharedFilters: [] },
       screensPane: { layoutInfos: [], newFormat: false } as any,
@@ -302,6 +303,41 @@ describe("ViewsheetPropertyDialog — saveChanges", () => {
       comp.saveChanges();
 
       expect(testScriptSpy).toHaveBeenCalledWith(true);
+   });
+
+   it("confirms before committing a switch from modern to legacy", async () => {
+      const confirm = vi.spyOn(ComponentTool, "showConfirmDialog").mockResolvedValue("yes");
+      const { comp } = await renderComponent(
+         { vsOptionsPane: { ...createModel().vsOptionsPane, vizModern: true } });
+
+      comp.model.vsOptionsPane.vizModern = false;
+      comp.saveChanges();
+
+      expect(confirm).toHaveBeenCalled();
+   });
+
+   it("does not confirm when switching from legacy to modern", async () => {
+      const confirm = vi.spyOn(ComponentTool, "showConfirmDialog");
+      HTTP_MOCK.post.mockReturnValue(of(null));
+      const { comp } = await renderComponent(
+         { vsOptionsPane: { ...createModel().vsOptionsPane, vizModern: false } });
+
+      comp.model.vsOptionsPane.vizModern = true;
+      comp.saveChanges();
+
+      expect(confirm).not.toHaveBeenCalled();
+   });
+
+   it("does not confirm for a density change alone", async () => {
+      const confirm = vi.spyOn(ComponentTool, "showConfirmDialog");
+      HTTP_MOCK.post.mockReturnValue(of(null));
+      const { comp } = await renderComponent(
+         { vsOptionsPane: { ...createModel().vsOptionsPane, vizModern: true } });
+
+      comp.model.vsOptionsPane.vizDensity = "comfortable";
+      comp.saveChanges();
+
+      expect(confirm).not.toHaveBeenCalled();
    });
 });
 

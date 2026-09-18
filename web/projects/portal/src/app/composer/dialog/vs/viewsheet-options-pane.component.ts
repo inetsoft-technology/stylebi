@@ -116,6 +116,12 @@ export class ViewsheetOptionsPane implements OnInit, OnDestroy {
       this.model.selectDataSourceDialogModel.dataSource = null;
    }
 
+   vizModernChanged(): void {
+      if(!this.model.vizModern) {
+         this.model.vizDark = false;
+      }
+   }
+
    changeServerSideUpdate() {
       if(this.model.serverSideUpdate) {
          this.form.get("touchInterval").enable();

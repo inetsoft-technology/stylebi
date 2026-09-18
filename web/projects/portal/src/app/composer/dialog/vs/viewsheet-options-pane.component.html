@@ -95,6 +95,39 @@
             </div>
           </div>
         </div>
+        <div class="shell-form-row shell-form-row--checkbox multiple-checkboxes">
+          <div class="col">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" [(ngModel)]="model.vizModern"
+                [ngModelOptions]="{standalone: true}" id="vizModern"
+                (ngModelChange)="vizModernChanged()"/>
+              <label class="form-check-label" for="vizModern">
+                _#(Modern Visualization)
+              </label>
+            </div>
+          </div>
+          <div class="col">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" [(ngModel)]="model.vizDark"
+                [ngModelOptions]="{standalone: true}" id="vizDark" [disabled]="!model.vizModern"/>
+              <label class="form-check-label" for="vizDark">
+                _#(Dark Mode)
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="row shell-form-row--field">
+          <div class="col-4">
+            <label class="form-label" for="vizDensity">_#(Visualization Density)</label>
+            <select class="form-control" id="vizDensity" [(ngModel)]="model.vizDensity"
+              [ngModelOptions]="{standalone: true}">
+              <option value="">_#(Default)</option>
+              <option value="dense">_#(Dense)</option>
+              <option value="compact">_#(Compact)</option>
+              <option value="comfortable">_#(Comfortable)</option>
+            </select>
+          </div>
+        </div>
         <div class="shell-form-row shell-form-row--checkbox gap-2">
           <div class="form-check form-switch mb-0">
             <input class="form-check-input" type="checkbox" role="switch"
