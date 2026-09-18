@@ -704,13 +704,21 @@ public class TableBindingService {
     * bypasses {@link #apply}/{@link #applyWithContext}, since it needs the live sandbox/lens
     * those helpers don't expose.
     *
-    * <p>A column is resolved by matching its current rendered header text (the last element of
-    * its {@code TableDataPath}) against every column the lens is rendering right now -- not a
-    * shelf/index the way a {@code ColumnLabelEntry} resolves a Crosstab target, because a width
-    * is a rendering-only property with no shelf position of its own. A name matching zero or
-    * more than one rendered column is refused rather than guessed at: this call has no
-    * shelf-index fallback the way {@code set_column_labels}'s {@code entries} does, so an
-    * ambiguous name is a real, honest limitation here, not a bug to route around.
+    * <p>A column is resolved by matching its current rendered header text -- the header cell's
+    * actual rendered value ({@code lens.getObject(row, col)}), not its {@code TableDataPath}'s
+    * last path segment, which for a Crosstab dimension header cell is an internal positional
+    * token ({@code "Cell [row,col]"}, see {@code CrossFilterDataDescriptor.getCellDataPath}), not
+    * the rendered text -- against every column the lens is rendering right now. The scan covers
+    * the same L-shaped header region {@link SetTableHeaderAliasHandler#findHeaderPath} does (top
+    * arm: rows {@code [0, headerRowCount)} across every column; left arm: rows {@code
+    * [headerRowCount, rowCount)} within the header columns), since a non-side-by-side crosstab's
+    * per-row aggregate labels render in column 0 at rows past the header row rectangle, never in
+    * row 0 alone. This is not a shelf/index lookup the way a {@code ColumnLabelEntry} resolves a
+    * Crosstab target, because a width is a rendering-only property with no shelf position of its
+    * own. A name matching zero or more than one rendered column is refused rather than guessed
+    * at: this call has no shelf-index fallback the way {@code set_column_labels}'s {@code
+    * entries} does, so an ambiguous name is a real, honest limitation here, not a bug to route
+    * around.
     *
     * <p>Width is in pixels. A {@code null} width resets the column back to auto-fit ({@code
     * setColumnWidthValue(col, NaN)}); a finite positive width is stored with {@code
@@ -759,21 +767,18 @@ public class TableBindingService {
 
          TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
 
+         int headerRows = lens.getHeaderRowCount();
+         int headerCols = lens.getHeaderColCount();
+         int colCount = lens.getColCount();
+         int rowCount = lens.getRowCount();
+
          for(Map.Entry<String, Double> entry : widths.entrySet()) {
             String column = entry.getKey();
             Double width = entry.getValue();
             List<Integer> matches = new ArrayList<>();
 
-            for(int col = 0; col < lens.getColCount(); col++) {
-               TableDataPath path = lens.getTableDataPath(0, col);
-               String[] pathArr = path == null ? null : path.getPath();
-
-               if(pathArr != null && pathArr.length > 0 &&
-                  Objects.equals(pathArr[pathArr.length - 1], column))
-               {
-                  matches.add(col);
-               }
-            }
+            scanForColumnMatch(lens, column, 0, headerRows, 0, colCount, matches);
+            scanForColumnMatch(lens, column, headerRows, rowCount, 0, headerCols, matches);
 
             if(matches.isEmpty()) {
                throw new IllegalArgumentException(
@@ -820,6 +825,29 @@ public class TableBindingService {
    private static String formatPixels(double width) {
       return width == Math.floor(width) && !Double.isInfinite(width)
          ? String.valueOf((long) width) : String.valueOf(width);
+   }
+
+   /**
+    * Appends every column in {@code [colStart, colEnd)} whose rendered cell value at some row in
+    * {@code [rowStart, rowEnd)} equals {@code column} to {@code matches}, skipping a column
+    * already recorded (guards against the top/left scan arms in {@link #setColumnWidths}
+    * double-counting a cell that falls in both).
+    */
+   private static void scanForColumnMatch(VSTableLens lens, String column, int rowStart,
+                                          int rowEnd, int colStart, int colEnd,
+                                          List<Integer> matches)
+   {
+      for(int row = rowStart; row < rowEnd; row++) {
+         for(int col = colStart; col < colEnd; col++) {
+            Object val = lens.getObject(row, col);
+
+            if(Objects.equals(column, val == null ? null : val.toString()) &&
+               !matches.contains(col))
+            {
+               matches.add(col);
+            }
+         }
+      }
    }
 
    public void setOptions(String sessionToken, Principal user, String assemblyName,
