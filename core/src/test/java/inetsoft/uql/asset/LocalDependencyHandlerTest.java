@@ -24,20 +24,26 @@ package inetsoft.uql.asset;
  * the file-level comment doesn't have to be rewritten every time a new scenario is added.
  */
 
+import inetsoft.report.LibManager;
+import inetsoft.report.LibManagerProvider;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependenciesInfo;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.RenameTransformObject;
 import inetsoft.uql.erm.XEntity;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.util.ThreadContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -50,8 +56,12 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -82,6 +92,11 @@ class LocalDependencyHandlerTest {
       // the context is cached across test methods, so drop the previous method's stubbing
       reset(dependencyStorageService);
       handler = new LocalDependencyHandler(mock(XRepository.class));
+   }
+
+   @AfterEach
+   void tearDown() {
+      ThreadContext.setContextPrincipal(null);
    }
 
    /*
@@ -135,6 +150,70 @@ class LocalDependencyHandlerTest {
                  "the extended model should no longer depend on the physical view");
    }
 
+   /*
+    * Bug #76765 (SSL-002): updateScriptDependencies scans a script's text for "identifier("
+    * shapes with no awareness of whether that is a call site or the scanned function's own
+    * declaration header. Updating a library function's own body -- which necessarily still
+    * contains "function <name>(" -- made the function look like a caller of itself, so it was
+    * recorded as its own dependent and later listed as a reason it could not be deleted. The fix
+    * skips recording when the matched identifier resolves to the same AssetEntry as the entry
+    * being scanned; genuine references to other functions must keep working.
+    */
+   @Test
+   void updateScriptDependencies_doesNotRecordAFunctionAsItsOwnDependent() throws Exception {
+      ThreadContext.setContextPrincipal(mockPrincipal());
+      LibManager manager = mock(LibManager.class);
+      when(manager.findScriptName(anyString())).thenAnswer(
+         invocation -> invocation.getArgument(0));
+      AssetEntry selfEntry = scriptEntry(SCRIPT_NAME);
+
+      try(MockedStatic<LibManagerProvider> provider = mockStatic(LibManagerProvider.class)) {
+         LibManagerProvider libManagerProvider = mock(LibManagerProvider.class);
+         provider.when(LibManagerProvider::getInstance).thenReturn(libManagerProvider);
+         when(libManagerProvider.getManager()).thenReturn(manager);
+
+         handler.updateScriptDependencies(
+            "function " + SCRIPT_NAME + "(value) { return value; }", selfEntry, true, false);
+      }
+
+      verify(dependencyStorageService, never()).put(eq(selfEntry.toIdentifier()), any());
+   }
+
+   @Test
+   void updateScriptDependencies_stillRecordsAGenuineReferenceToAnotherFunction() throws Exception {
+      ThreadContext.setContextPrincipal(mockPrincipal());
+      LibManager manager = mock(LibManager.class);
+      when(manager.findScriptName(anyString())).thenAnswer(
+         invocation -> invocation.getArgument(0));
+      AssetEntry selfEntry = scriptEntry(SCRIPT_NAME);
+      AssetEntry helperEntry = scriptEntry(HELPER_SCRIPT_NAME);
+
+      try(MockedStatic<LibManagerProvider> provider = mockStatic(LibManagerProvider.class)) {
+         LibManagerProvider libManagerProvider = mock(LibManagerProvider.class);
+         provider.when(LibManagerProvider::getInstance).thenReturn(libManagerProvider);
+         when(libManagerProvider.getManager()).thenReturn(manager);
+
+         handler.updateScriptDependencies(
+            "function " + SCRIPT_NAME + "(value) { return " + HELPER_SCRIPT_NAME + "(value); }",
+            selfEntry, true, false);
+      }
+
+      assertEquals(List.of(selfEntry.toIdentifier()),
+                   capturedDependencies(helperEntry.toIdentifier()).stream()
+                      .toList());
+   }
+
+   private AssetEntry scriptEntry(String name) {
+      return new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null);
+   }
+
+   /** AssetEntry/OrganizationManager require an {@link XPrincipal}, not a plain Principal mock. */
+   private XPrincipal mockPrincipal() {
+      XPrincipal principal = mock(XPrincipal.class);
+      when(principal.getName()).thenReturn("testUser");
+      return principal;
+   }
+
    /**
     * Creates a logical model bound to {@link #PHYSICAL_VIEW_NAME}.
     *
@@ -184,4 +263,6 @@ class LocalDependencyHandlerTest {
    private static final String PHYSICAL_VIEW_NAME = "physicalView";
    private static final String LOGICAL_MODEL_NAME = "logicalModel";
    private static final String EXTENDED_NAME = "additionalConnection";
+   private static final String SCRIPT_NAME = "formatShortDollar";
+   private static final String HELPER_SCRIPT_NAME = "helperFunc";
 }
