@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -720,5 +721,37 @@ class PropertyPathTest {
          () -> PropertyPath.set(target, "values", List.of("60", "not-a-number", "100")));
 
       assertTrue(thrown.getMessage().contains("values[1]"), "name the offending index");
+   }
+
+   /**
+    * Bug #76771 (VCG-008): {@code coerce} has no bean-construction branch at all -- only
+    * primitives, {@code String} and enums -- so a JSON object array for a bean-array field
+    * ({@code hierarchyPropertyPaneModel.dimensions}'s {@code VSDimensionModel[]}, mirrored here)
+    * is refused exactly like an unsupported scalar element type would be. This documents the gap
+    * deliberately left in place: the fix is {@code HierarchyDimensionService}
+    * (add_hierarchy_dimension / remove_hierarchy_dimension), not a bean-construction branch here
+    * -- see that class's doc for why. This test must keep failing the same way after that fix
+    * lands, not start passing.
+    */
+   public static class DimensionArrayHolder {
+      public inetsoft.web.composer.model.vs.VSDimensionModel[] getDimensions() { return dimensions; }
+      public void setDimensions(inetsoft.web.composer.model.vs.VSDimensionModel[] dimensions) {
+         this.dimensions = dimensions;
+      }
+
+      private inetsoft.web.composer.model.vs.VSDimensionModel[] dimensions;
+   }
+
+   @Test
+   void aBeanArrayElementFromAJsonObjectIsRefusedNamingTheBeanTypeAndIndex() {
+      DimensionArrayHolder target = new DimensionArrayHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "dimensions",
+                                List.of(Map.of("members", List.of()))));
+
+      assertTrue(thrown.getMessage().contains("dimensions[0]"), "name the offending index");
+      assertTrue(thrown.getMessage().contains("VSDimensionModel"), "name the bean type");
    }
 }
