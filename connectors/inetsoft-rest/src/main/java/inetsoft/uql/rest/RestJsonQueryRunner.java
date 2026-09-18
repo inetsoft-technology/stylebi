@@ -103,6 +103,21 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
                 transformedJson = transformer.transform(json, endpoint.jsonPath());
             }
             catch(PathNotFoundException e) {
+                if(jsonProvider.isArray(json)) {
+                    // The jsonPath is a property/leaf path (e.g. "$.id"), but this row is
+                    // actually the top-level response of an unpaged query -- an array of all
+                    // rows, not a single row object -- so the path can never structurally
+                    // apply. Silently returning here would drop the lookup entirely with no
+                    // trace, as in #76690 WBT-004.
+                    throw new IllegalStateException(
+                       "customLookups[" + query.getLookupDepth() + "].jsonPath \"" +
+                       endpoint.jsonPath() + "\" could not be applied to the top-level " +
+                       "response, which is an array of " + jsonProvider.length(json) +
+                       " row(s) (typical of an unpaged endpoint) -- jsonPath must select the " +
+                       "row(s) to look up, not a field within a single row; use \"$\" (or an " +
+                       "array-of-rows path) and let \"key\" select the id field instead.", e);
+                }
+
                 // Path is absent because it is empty or null
                 return;
             }
