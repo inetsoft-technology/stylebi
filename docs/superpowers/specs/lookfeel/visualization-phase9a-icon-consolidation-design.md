@@ -1,5 +1,10 @@
 # StyleBI Visualization — Phase 9A (Icon Consolidation) — Design Spec
 
+> **WITHDRAWN 2026-09-18.** Track A shipped and has been reverted: viewsheet affordance icons stay
+> *distinct* from the shell's, so consolidating them onto shell glyphs is the wrong goal for this
+> surface. Modern mode again draws the same ineticons glyphs as legacy. Track B stands. Kept for the
+> audit method and the divergence inventory, which are still accurate as description, not as a plan.
+
 ## Scope
 
 Phase 9A consolidates **visualization affordance icons** (sort, expand/collapse, drill, more/overflow)

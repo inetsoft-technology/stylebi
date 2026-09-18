@@ -144,7 +144,11 @@ Render-location rules and the gate mechanism are unchanged from the roadmap — 
   range-slider band is a PNG. No CSS overlay layer exists to attach the token to without the server
   seam or a new double-rendering overlay. Blocked until a live-overlay layer exists.
 
-### 7. Icon consolidation tail  *(from Phase 9A)*
+### 7. Icon consolidation tail  *(from Phase 9A)* — WITHDRAWN
+
+**WITHDRAWN 2026-09-18 with Phase 9A itself.** Viewsheet affordance icons stay distinct from the
+shell's, so there is no tail to schedule. The three notes below are kept because each records a
+grounded reason the consolidation was a bad fit — they now read as evidence for the withdrawal.
 
 - **More / overflow alignment** — kebab (viz) vs meatball (shell) orientation. Deferred pending
   *grounded selectors* (confirmed viable: `.mini-menu-trigger.menu-horizontal-icon`,

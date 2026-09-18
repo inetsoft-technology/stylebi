@@ -1,5 +1,10 @@
 # Phase 9A — Task 0/1 Export Grounding
 
+> **WITHDRAWN 2026-09-18.** Track A shipped and has been reverted: viewsheet affordance icons stay
+> *distinct* from the shell's, so consolidating them onto shell glyphs is the wrong goal for this
+> surface. Modern mode again draws the same ineticons glyphs as legacy. Track B stands. Kept for the
+> audit method and the divergence inventory, which are still accurate as description, not as a plan.
+
 Confirms that the four Phase 9A affordance icons (sort, expand/collapse, drill,
 more/overflow) are rendered exclusively as browser DOM (Angular template `<i>`
 elements) and are not drawn as glyphs into viewsheet export output. This

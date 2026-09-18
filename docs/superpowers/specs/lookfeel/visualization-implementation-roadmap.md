@@ -989,10 +989,20 @@ Deferred with grounded reasons: vocabulary-only token exposure (expose each only
 adopts it); sub-gate EM toggles (stay raw-`SreeEnv` opt-out — one master toggle covers object chrome);
 density theming (already an EM control, Phase 3 Part C); server-rendered color (already themeable via
 `format.css`/descriptors and must not route through a browser token); dark-mode viz palette (rides the
-initiative's dark pass). This completes the roadmap through Phase 9; Phase 9A adds icon consolidation and
-Phase 10 is cross-surface validation.
+initiative's dark pass). This completes the roadmap through Phase 9; Phase 9A (icon
+consolidation) is withdrawn and Phase 10 is cross-surface validation.
 
-## Phase 9A: Icon Consolidation
+## Phase 9A: Icon Consolidation — WITHDRAWN
+
+**WITHDRAWN 2026-09-18. The gated Track A consolidation shipped and has been reverted; the premise
+is rejected, not merely deferred.** Viewsheet affordance icons are to stay *distinct* from the
+shell's, so "adopt an existing shell glyph or CSS pattern wherever one exists" is the wrong goal for
+this surface. The four gated rule groups in `_themeable.scss` (header sort indicator, chart-axis sort
+toggle, selection tree/list expand-collapse, crosstab + chart-axis hierarchy drill) are removed, and
+modern mode again draws the same ineticons glyphs as legacy. Track B stands: it corrected icon names
+that reach no glyph either way and made no surface resemble the shell. The section below is kept for
+the audit method and the divergence tables, which remain accurate as a *description* of where the two
+icon languages differ — read it as an inventory, not as a plan.
 
 Inserted as a distinct pass between Phase 9 and Phase 10 (numbered `9A`, mirroring the Phase 6A precedent,
 so Phase 10 is not renumbered). Phase 10 is a review/validation stage, so new icon work belongs before it.

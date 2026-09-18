@@ -1,5 +1,10 @@
 # Visualization Phase 9A — Icon Consolidation Implementation Plan
 
+> **WITHDRAWN 2026-09-18.** Track A shipped and has been reverted: viewsheet affordance icons stay
+> *distinct* from the shell's, so consolidating them onto shell glyphs is the wrong goal for this
+> surface. Modern mode again draws the same ineticons glyphs as legacy. Track B stands. Kept for the
+> audit method and the divergence inventory, which are still accurate as description, not as a plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Consolidate visualization affordance icons (sort, expand/collapse, drill, more/overflow) onto the shell's cleaner existing patterns, under the `.viz-modern` gate, and fix two icon bugs (Font Awesome refs, dead sort-glyph names) globally.
