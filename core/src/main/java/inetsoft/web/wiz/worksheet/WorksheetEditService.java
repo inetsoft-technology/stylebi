@@ -49,6 +49,7 @@ import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.ExpressionDialogService;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
+import inetsoft.web.composer.ws.joins.JoinUtil;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.service.RenderWaitSupport;
 import org.slf4j.Logger;
@@ -765,6 +766,110 @@ public class WorksheetEditService {
          TableAssembly right = requireTable(rightTable);
 
          int operation = parseJoinType(joinType);
+
+         boolean leftIsJoin = left instanceof RelationalJoinTableAssembly;
+         boolean rightIsJoin = right instanceof RelationalJoinTableAssembly;
+
+         // Exactly one side already names an existing join: extend that join in place
+         // (the other, plain side becomes a new member) instead of nesting it as one of two
+         // sources of a brand-new assembly. Symmetric by design (either side may be the
+         // existing join) -- see this bug's fix notes for why: the Composer UI's own
+         // drag-and-drop gesture is asymmetric (only the drop TARGET extends), but this tool
+         // has no such directional convention for an LLM caller to learn, and today's code
+         // nests regardless of which side the existing join is on, so there is no existing
+         // asymmetric behavior worth preserving. If both or neither side is a join, fall
+         // through to the unconditional-new-assembly code below, unchanged.
+         if(leftIsJoin ^ rightIsJoin) {
+            RelationalJoinTableAssembly existingJoin =
+               (RelationalJoinTableAssembly) (leftIsJoin ? left : right);
+            TableAssembly newTable = leftIsJoin ? right : left;
+
+            if(JoinUtil.tableContainsSubtable(existingJoin, newTable.getName())) {
+               throw new PairingException(
+                  "\"" + newTable.getName() + "\" is already a member of the join \"" +
+                  existingJoin.getName() + "\". Joining it in again would create a " +
+                  "recursive join.");
+            }
+
+            // Seed with the existing join's OWN current operators (mirroring how
+            // joinSourceAndTargetTables itself seeds noperator via getOperatorsOfJoinTable
+            // before adding the new edge) -- editExistingJoinTable clears every operator table
+            // pair up front and, for any pair not re-supplied among noperator's own edges,
+            // synthesizes a CROSS_JOIN to reconnect it. Passing only the new edge would silently
+            // demote the existing join's own original operator(s) to a cross join.
+            TableAssemblyOperator noperator = innerJoinService.getOperatorsOfJoinTable(existingJoin);
+
+            // Never wire an operator's table name to existingJoin's OWN composite name --
+            // InnerJoinService.concatenateTable's isContain helper has no self-check, so
+            // resolving that name back to the join itself would add the join as a member of
+            // itself. Resolve down to whichever DIRECT member of the join actually owns the
+            // given key column instead.
+            if(leftKeys != null && rightKeys != null && !leftKeys.isEmpty()) {
+               if(leftKeys.size() != rightKeys.size()) {
+                  throw new PairingException(
+                     "leftKeys and rightKeys must have the same length: " +
+                     leftKeys.size() + " vs " + rightKeys.size());
+               }
+
+               for(int i = 0; i < leftKeys.size(); i++) {
+                  TableAssembly anchorLeft = leftIsJoin ?
+                     resolveMemberOwningColumn(existingJoin, leftKeys.get(i)) : left;
+                  TableAssembly anchorRight = rightIsJoin ?
+                     resolveMemberOwningColumn(existingJoin, rightKeys.get(i)) : right;
+
+                  TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+                  op.setLeftTable(anchorLeft.getName());
+                  op.setRightTable(anchorRight.getName());
+                  op.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
+                  op.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
+                  op.setOperation(operation);
+                  noperator.addOperator(op);
+               }
+            }
+            else {
+               TableAssembly anchorLeft = leftIsJoin ?
+                  resolveMemberOwningColumn(existingJoin, leftKey) : left;
+               TableAssembly anchorRight = rightIsJoin ?
+                  resolveMemberOwningColumn(existingJoin, rightKey) : right;
+
+               TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+               op.setLeftTable(anchorLeft.getName());
+               op.setRightTable(anchorRight.getName());
+               op.setLeftAttribute(new AttributeRef(null, leftKey));
+               op.setRightAttribute(new AttributeRef(null, rightKey));
+               op.setOperation(operation);
+               noperator.addOperator(op);
+            }
+
+            // Rename LAST, after every validation above has fully succeeded (key-list length,
+            // the recursive-join guard, and resolveMemberOwningColumn's missing/ambiguous-column
+            // checks) -- apply() has no rollback on a thrown exception, so renaming any earlier
+            // would leave the existing join permanently renamed even though the call as a whole
+            // still fails, an undisclosed partial mutation on a malformed call (CLAUDE.md's
+            // tool-misuse-is-a-plugin-gap principle: fail loud with NO mutation on bad input,
+            // not fail loud after already mutating something). The UI's own equivalent gesture
+            // never renames the join it extends -- match that by only renaming when the caller
+            // supplied a different name; a rename failure (e.g. a name collision) still leaves
+            // the join untouched, since it is the last thing that can fail before the edit call
+            // below, which is not expected to throw once it's reached.
+            if(name != null && !name.equals(existingJoin.getName())) {
+               renameTable(existingJoin.getName(), name);
+            }
+
+            try {
+               innerJoinService.editExistingJoinTable(ws, existingJoin, noperator, true);
+            }
+            catch(PairingException | SecurityException e) {
+               throw e;
+            }
+            catch(Exception e) {
+               throw new PairingException(
+                  "Failed to extend join \"" + existingJoin.getName() + "\": " +
+                  e.getMessage());
+            }
+
+            return;
+         }
 
          TableAssemblyOperator top = new TableAssemblyOperator();
 
@@ -3660,6 +3765,52 @@ public class WorksheetEditService {
          }
 
          return t;
+      }
+
+      /**
+       * Resolves {@code columnName} down to whichever DIRECT member of {@code existingJoin}
+       * actually owns it, so a join-extending operator can be wired against that real member
+       * table's name instead of {@code existingJoin}'s own composite name (see the addJoin
+       * extend-in-place branch for why passing the composite's own name is actively dangerous,
+       * not just imprecise).
+       *
+       * @throws PairingException if zero, or more than one, direct member has a column named
+       *                          {@code columnName} -- fails loud rather than silently guessing.
+       */
+      private TableAssembly resolveMemberOwningColumn(
+         RelationalJoinTableAssembly existingJoin, String columnName) throws PairingException
+      {
+         TableAssembly match = null;
+
+         for(TableAssembly member : existingJoin.getTableAssemblies()) {
+            Enumeration<?> attrs = member.getColumnSelection(true).getAttributes();
+
+            while(attrs.hasMoreElements()) {
+               DataRef ref = (DataRef) attrs.nextElement();
+
+               if(columnName.equals(ref.getName())) {
+                  if(match != null) {
+                     throw new PairingException(
+                        "Column \"" + columnName + "\" exists on more than one table already " +
+                        "joined in \"" + existingJoin.getName() + "\" (\"" + match.getName() +
+                        "\" and \"" + member.getName() + "\"). Qualify which table's column " +
+                        "you mean by giving it a unique alias first, or use a column name " +
+                        "that is unambiguous.");
+                  }
+
+                  match = member;
+                  break;
+               }
+            }
+         }
+
+         if(match == null) {
+            throw new PairingException(
+               "Column \"" + columnName + "\" was not found on any table already joined in \"" +
+               existingJoin.getName() + "\".");
+         }
+
+         return match;
       }
 
       /**
