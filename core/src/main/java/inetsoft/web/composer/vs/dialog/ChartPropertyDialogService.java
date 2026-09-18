@@ -352,6 +352,15 @@ public class ChartPropertyDialogService {
       try {
          viewsheet = viewsheetService.getViewsheet(runtimeId, principal);
          chartAssembly = (ChartVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+
+         if(chartAssembly == null) {
+            // objectId doesn't resolve -- same stale-reference cause as
+            // getChartPropertyDialogModel0's read side (Redmine #76759 VCG-001). There is
+            // nothing to apply this patch to; degrade to a no-op rather than NPE on the next
+            // line the way the read side did before that fix.
+            return null;
+         }
+
          assemblyInfo = (ChartVSAssemblyInfo) Tool.clone(chartAssembly.getVSAssemblyInfo());
          vsChartInfo = assemblyInfo.getVSChartInfo();
          vsChartInfo = vsChartInfo == null ? new VSChartInfo() : vsChartInfo;
