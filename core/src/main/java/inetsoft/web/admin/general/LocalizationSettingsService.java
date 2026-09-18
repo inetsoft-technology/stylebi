@@ -130,9 +130,14 @@ public class LocalizationSettingsService {
    }
 
    /**
-    * Reloading locales
+    * Reloading locales.
+    *
+    * <p>Public rather than package-private so the admin-chat general-settings area
+    * ({@code inetsoft.web.admin.ai.general}) can expose it as an action alongside the other
+    * general settings. Widening the visibility is the whole change -- the behaviour, and the
+    * existing same-package caller in {@code GeneralSettingsPageController}, are untouched.
     */
-   void reloadLocales() throws Exception {
+   public void reloadLocales() throws Exception {
       UserEnv.getReportCatalog(null).reloadUserBundle();
       localizationService.clearI18nCache();
    }
