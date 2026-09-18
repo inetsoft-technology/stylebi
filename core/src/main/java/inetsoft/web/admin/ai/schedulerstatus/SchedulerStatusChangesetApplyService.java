@@ -53,14 +53,13 @@ import java.util.concurrent.locks.ReentrantLock;
  * and vice versa; restart's own undo is simply restart again, or stop if the intent was "actually
  * turn it off").
  *
- * <p><b>Read-back verification</b> mirrors {@code ClusterChangesetApplyService.readBackWithRetry}:
- * after {@code setStatus} returns, a fresh {@code getStatus()} read (with a short bounded retry)
- * decides whether the live {@code running} flag now matches the plan's proposed state. Whether
- * {@code ScheduleClient.isReady()} has an analogous debounce/propagation delay to
- * {@code ServerClusterClient}'s own ~50ms status-map write was an open question at design time
- * (track-status/01-design.md section 6 point 2) -- this defaults to including the same bounded
- * retry as Cluster's own defensive posture (cheap insurance) rather than assuming a bare single
- * read is reliable, pending live confirmation.
+ * <p><b>Read-back verification</b> follows the same shape as
+ * {@code ClusterChangesetApplyService.readBackWithRetry} (a fresh {@code getStatus()} read after
+ * {@code setStatus} returns, with a bounded retry), but a longer one: unlike
+ * {@code ServerClusterClient}'s ~50ms in-process status-map write, {@code ScheduleClient.isReady()}
+ * is gated on Ignite cluster-topology membership for a *separate scheduler subprocess* -- a
+ * genuinely async, cross-process join/leave, not a same-JVM debounce (bug #76763). The retry
+ * budget below is sized to match, not to mirror Cluster's own shorter one.
  */
 @Component
 public class SchedulerStatusChangesetApplyService {
@@ -235,9 +234,25 @@ public class SchedulerStatusChangesetApplyService {
    private static final Logger LOG =
       LoggerFactory.getLogger(SchedulerStatusChangesetApplyService.class);
    private static final String OBJECT_TYPE_SCHEDULER_STATUS = "scheduler-status";
-   /** Mirrors {@code ClusterChangesetApplyService}'s own bounded retry: up to 4 reads, 60ms apart. */
-   private static final int READBACK_MAX_ATTEMPTS = 4;
-   private static final long READBACK_POLL_INTERVAL_MS = 60;
+   /**
+    * Unlike {@code ClusterChangesetApplyService}'s read-back (which watches an in-process,
+    * ~50ms-debounced status map), this read-back watches {@code ScheduleClient.isReady()}, which
+    * is gated on Ignite cluster-topology membership for a *separate scheduler subprocess*
+    * (join on start/restart, leave on stop) -- a genuinely async, cross-process propagation, not
+    * a same-JVM debounce. 4 attempts/60ms (~180ms total) raced that and lost (bug #76763: a stop
+    * reported "failed" even though the scheduler had, in fact, stopped moments later). Widened to
+    * match this codebase's own precedent for "how long a real scheduler-process state transition
+    * can plausibly take": {@link SchedulerConfigurationService#setStatus}'s internal
+    * {@code "restart"} stop-wait polls every 500ms for up to 30000ms (60 attempts) -- the same
+    * budget is used here for the outer read-back on all three verbs (stop's leave, and
+    * start/restart's final join), since none of them has any narrower guarantee.
+    *
+    * <p>Package-visible and non-final purely so
+    * {@code SchedulerStatusChangesetApplyServiceTest} can shrink them for the delayed-read-back
+    * tests without a real 30s sleep; production wiring never changes them.
+    */
+   static int READBACK_MAX_ATTEMPTS = 61;
+   static long READBACK_POLL_INTERVAL_MS = 500;
    private static final SecureRandom RANDOM = new SecureRandom();
    /** Serializes the entire body of {@link #apply} -- same rationale as every prior area's own
     * lock. */

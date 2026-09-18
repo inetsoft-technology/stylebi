@@ -53,6 +53,8 @@ class SchedulerStatusChangesetApplyServiceTest {
    private SchedulerStatusChangePlanService planService;
    private SchedulerStatusChangesetApplyService service;
    private MockedStatic<Tool> tool;
+   private int originalReadbackMaxAttempts;
+   private long originalReadbackPollIntervalMs;
 
    @BeforeEach void setUp() {
       planService = new SchedulerStatusChangePlanService(configService);
@@ -69,10 +71,20 @@ class SchedulerStatusChangesetApplyServiceTest {
 
          return s.substring(4);
       });
+      originalReadbackMaxAttempts = SchedulerStatusChangesetApplyService.READBACK_MAX_ATTEMPTS;
+      originalReadbackPollIntervalMs =
+         SchedulerStatusChangesetApplyService.READBACK_POLL_INTERVAL_MS;
+      // Bug #76763 regression: shrink the (now much wider, real-production) retry budget for
+      // every test that doesn't itself care about the exact numbers, so the "read-back never
+      // matches" failure-path tests below don't have to burn the real ~30s worst-case budget.
+      SchedulerStatusChangesetApplyService.READBACK_MAX_ATTEMPTS = 3;
+      SchedulerStatusChangesetApplyService.READBACK_POLL_INTERVAL_MS = 1;
    }
 
    @AfterEach void tearDown() {
       tool.close();
+      SchedulerStatusChangesetApplyService.READBACK_MAX_ATTEMPTS = originalReadbackMaxAttempts;
+      SchedulerStatusChangesetApplyService.READBACK_POLL_INTERVAL_MS = originalReadbackPollIntervalMs;
    }
 
    // -------------------------------------------------------------------------
@@ -143,6 +155,37 @@ class SchedulerStatusChangesetApplyServiceTest {
          var result = service.apply(applyRequest("task", hash, "looks good", stop()), user);
          assertEquals(SchedulerStatusChangesetApplyService.STATUS_APPLIED, result.status());
          assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   // bug #76763 regression -- stop is an async, cross-process (Ignite topology leave) state
+   // change; the old 4-attempts/60ms (~180ms total) read-back budget could give up before it
+   // completed, reporting "failed" even though the scheduler really did stop moments later.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesStopAndVerifiesAfterADelayThatWouldHaveExceededTheOldOneEightyMsBudget()
+      throws Exception
+   {
+      // Restore the real production budget for this test -- it's the shipped numbers
+      // (61 attempts / 500ms) that must survive the delay, not the shrunk per-test default.
+      SchedulerStatusChangesetApplyService.READBACK_MAX_ATTEMPTS = originalReadbackMaxAttempts;
+      SchedulerStatusChangesetApplyService.READBACK_POLL_INTERVAL_MS = originalReadbackPollIntervalMs;
+
+      // 1st call: plan resolve's "before" read (still running). 2nd call: read-back's first,
+      // immediate attempt (still running -- old budget's very first read already saw this).
+      // 3rd call, after one real READBACK_POLL_INTERVAL_MS sleep (500ms -- already past the old
+      // ~180ms total budget on its own): the async stop has now actually completed.
+      when(configService.getStatus()).thenReturn(
+         scheduleStatus(true), scheduleStatus(true), scheduleStatus(false));
+      String hash = planService.resolve(request("task", List.of(stop()))).planHash();
+      doNothing().when(configService).setStatus("stop");
+
+      try(MockedStatic<Audit> audit = mockAudit()) {
+         var result = service.apply(applyRequest("task", hash, "looks good", stop()), user);
+         assertEquals(SchedulerStatusChangesetApplyService.STATUS_APPLIED, result.status());
+         assertEquals(AdminChangeRecord.STATUS_VERIFIED, result.results().get(0).status());
+         assertEquals("Stopped", result.results().get(0).after());
       }
    }
 
@@ -238,9 +281,12 @@ class SchedulerStatusChangesetApplyServiceTest {
    }
 
    private void stubStatus(boolean running) {
-      lenient().when(configService.getStatus()).thenReturn(
-         ScheduleStatusModel.builder().cluster(false).running(running)
-            .externalStorageLocation("/tmp").build());
+      lenient().when(configService.getStatus()).thenReturn(scheduleStatus(running));
+   }
+
+   private static ScheduleStatusModel scheduleStatus(boolean running) {
+      return ScheduleStatusModel.builder().cluster(false).running(running)
+         .externalStorageLocation("/tmp").build();
    }
 
    private static SchedulerStatusChangeRequest start() {
