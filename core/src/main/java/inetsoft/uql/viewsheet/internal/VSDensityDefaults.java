@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.viewsheet.ViewsheetInfo;
 
 /**
  * Resolves the default row/header/control height for viewsheet assemblies from the org-scoped
@@ -68,6 +69,15 @@ public final class VSDensityDefaults {
    public static String mode() {
       String density = SreeEnv.getProperty("viewsheet.density", false, true);
       return density == null || density.isEmpty() ? COMPACT : density;
+   }
+
+   /**
+    * The density mode for one dashboard: its own value when set, else the org's. Never null, and
+    * always one of the three valid modes.
+    */
+   public static String mode(ViewsheetInfo info) {
+      String density = info == null ? null : info.getVizDensity();
+      return normalizeMode(density == null || density.isEmpty() ? mode() : density);
    }
 
    /**

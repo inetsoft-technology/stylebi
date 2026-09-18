@@ -559,6 +559,17 @@ public class ViewsheetInfo implements AssetObject {
    }
 
    /**
+    * The dashboard's own density mode, or null to follow the org.
+    */
+   public String getVizDensity() {
+      return vizDensity;
+   }
+
+   public void setVizDensity(String vizDensity) {
+      this.vizDensity = vizDensity == null || vizDensity.isEmpty() ? null : vizDensity;
+   }
+
+   /**
     * Check whether to use template.
     */
    public boolean isTemplateEnabled() {
@@ -760,6 +771,12 @@ public class ViewsheetInfo implements AssetObject {
       writer.print(" scaleToScreen=\"" + scaleToScreen + "\"");
       writer.print(" fitToWidth=\"" + fitToWidth + "\"");
       writer.print(" snapGrid=\"" + snapGrid + "\"");
+
+      if(vizDensity != null) {
+         // omitted when unset, so an untouched sheet's file does not change
+         writer.print(" vizDensity=\"" + vizDensity + "\"");
+      }
+
       writer.print(" balancePadding=\"" + balancePadding + "\"");
 
       if(desc != null) {
@@ -829,6 +846,8 @@ public class ViewsheetInfo implements AssetObject {
       if((prop = Tool.getAttribute(elem, "snapGrid")) != null) {
          this.snapGrid = Integer.parseInt(prop);
       }
+
+      this.vizDensity = Tool.getAttribute(elem, "vizDensity");
 
       this.desc = Tool.decodeNL(Tool.getAttribute(elem, "description"));
 
@@ -1181,6 +1200,7 @@ public class ViewsheetInfo implements AssetObject {
    private String loadScript;
    private int maxrows = 0;
    private int snapGrid = 20;
+   private String vizDensity; // null = inherit the org
    private boolean template = false;
    private boolean scaleToScreen = false;
    private boolean fitToWidth = false;
