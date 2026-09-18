@@ -22,7 +22,9 @@ import inetsoft.uql.rest.json.RestJsonQuery;
 import inetsoft.uql.rest.json.lookup.LookupService;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -64,6 +66,37 @@ public class RestJsonQueryRunnerCustomLookupJsonPathTest {
       runner.doLookups(query, post);
 
       assertTrue(post.containsKey("lookup1"));
+   }
+
+   /**
+    * Mirrors the actual runtime shape for an unpaged suffix query (e.g. GET .../posts against
+    * jsonplaceholder.typicode.com): JsonUnpagedRestDataIteratorStrategy /
+    * HttpRestDataIteratorStrategy hand runStream()/doLookups() the entire top-level JSON array
+    * in one shot, not a single row -- unlike scalarJsonPathThrowsInsteadOfSilentlyNoOpping()
+    * above (and PR #5265's own regression test), which only exercises a single-row Map and
+    * never observed this shape. Before the fix, evaluating "$.id" against this array throws a
+    * PathNotFoundException that a pre-existing catch swallowed silently, and the row(s) come
+    * back completely untouched with no error of any kind (#76690 WBT-004).
+    */
+   @Test
+   void arrayJsonPathThrowsInsteadOfSilentlyNoOpping() {
+      final RestJsonQuery query = new RestJsonQuery();
+      query.setLookupUrl0("comments?postId={param1}");
+      query.setLookupJsonPath0("$.id");
+      query.setLookupKey0("id");
+
+      final RestJsonQueryRunner runner = new RestJsonQueryRunner(
+         query, null, new LookupService(), new JsonTransformer());
+      final List<Map<String, Object>> posts = new ArrayList<>();
+      posts.add(post());
+      posts.add(post());
+
+      final IllegalStateException ex = assertThrows(IllegalStateException.class,
+         () -> runner.doLookups(query, posts));
+      assertTrue(ex.getMessage().contains("customLookups[0].jsonPath"));
+      assertTrue(ex.getMessage().contains("$.id"));
+      assertFalse(posts.get(0).containsKey("lookup1"));
+      assertFalse(posts.get(1).containsKey("lookup1"));
    }
 
    private static Map<String, Object> post() {
