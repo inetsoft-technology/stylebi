@@ -279,9 +279,52 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
 
    @Override
    public boolean hasMember(String id) {
+      if(id == null) {
+         return false;
+      }
+
+      if("length".equals(id) || members.containsKey(id)) {
+         return true;
+      }
+
+      // Unlike Rhino (whose get() was always invoked on read), GraalJS only calls
+      // getMember when hasMember reports the member present. getMember resolves a
+      // column that lives in a base table of the filter chain through findColumn(),
+      // a path this method did not take, so such a reference read as undefined --
+      // e.g. field['Col'].substring(...) threw "Cannot read property 'substring' of
+      // undefined". getColMap() is also intentionally left empty for row 0 (see the
+      // recursion guard there), and row 0 is the default row for an assembly-level
+      // script, so findColumn() is the *only* path that can resolve a header-named
+      // column in that case. Mirror getMember's resolution here. (#75423)
+      if(notfound.contains(id)) {
+         return false;
+      }
+
       Map colmap = getColMap();
-      return id.equals("length") || getColFromColMap(id, colmap) != null ||
-         members.containsKey(id);
+      Object col = getColFromColMap(id, colmap);
+
+      if(col != null) {
+         return !"not found".equals(col);
+      }
+
+      // getMember excludes "field" from the base-table search; stay consistent so a
+      // reference reported present here is one getMember can actually resolve.
+      if("field".equals(id)) {
+         return false;
+      }
+
+      if(findColumn(id) != null) {
+         return true;
+      }
+
+      // GraalJS probes hasMember for keys that are never columns (toString,
+      // valueOf, ...) on every read, and a miss here is never followed by a
+      // getMember call that would record it, so cache the miss -- otherwise each
+      // probe re-walks the base-table chain. Only the notfound set is used; the
+      // "not found" sentinel getMember writes into colmap would also show up in
+      // getMemberKeys(), which enumerates that map.
+      notfound.add(id);
+      return false;
    }
 
    @Override
@@ -552,6 +595,13 @@ public class TableRow implements ArrayObject, ScriptArrayScope {
                   }
                }
 
+               // Deliberately not cached in colcache: TableCol.row is derived from
+               // the current row via getBaseRowIndex(), and a TableRow is reused
+               // across rows through setRow(), which clears no cache. The NULL
+               // sentinel getColFromColMap() already wrote for this header masks the
+               // colmap entry above, so the TableCol is rebuilt against the current
+               // row on every read. That re-walk is what keeps a row-permuting
+               // filter (SortFilter, DefaultSortedTable, ...) correct.
                colmap.put(hdr, tcol);
                return tcol;
             }
