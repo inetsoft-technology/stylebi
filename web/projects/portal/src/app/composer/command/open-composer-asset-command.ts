@@ -27,4 +27,13 @@ export interface OpenComposerAssetCommand {
    baseDataSourceType?: number;
    parentId?: string;
    runtimeId?: string;
+   /**
+    * Whether an agent session is already attached to runtimeId when this command is sent -- set
+    * by open_base_worksheet/create_viewsheet/create_worksheet so a freshly-opened tab's
+    * agent-connected indicator is correct immediately, instead of racing a separate
+    * SetAgentActiveCommand push against this command establishing the tab's own subscription.
+    */
+   agentActive?: boolean;
+   /** The agent's identity, when agentActive is true. */
+   agentOwnerIdentity?: string;
 }

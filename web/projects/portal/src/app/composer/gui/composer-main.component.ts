@@ -2963,6 +2963,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
                this.composerRecentService.addRecentlyViewed(createAssetEntry(command.assetId));
                this.openViewsheet(command.assetId, false, command.runtimeId);
+               this.applyAgentActive(command);
             }
             else if(command.wsWizard) {
                this.saveToFolderId = command.folderId;
@@ -2974,9 +2975,35 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             else {
                this.composerRecentService.addRecentlyViewed(createAssetEntry(command.assetId));
                this.openWorksheet(command.assetId, false, command.runtimeId);
+               this.applyAgentActive(command);
             }
          });
       });
+   }
+
+   /**
+    * Sets the tab bar's agent-connected indicator on a sheet {@link openViewsheet}/
+    * {@link openWorksheet} just opened synchronously, from state carried on the same
+    * OpenComposerAssetCommand that opened it.
+    *
+    * <p>Deliberately not left to a separate SetAgentActiveCommand push: that command is only
+    * delivered to a tab already subscribed to its runtime's own channel, which this very
+    * OpenComposerAssetCommand is what establishes -- a push sent before this command arrives (the
+    * server's own agent-tool call sites used to do exactly that) has no subscriber yet and is
+    * silently lost. openViewsheet/openWorksheet create and push the sheet's model object onto
+    * this.sheets synchronously, so it can already be found here in the same tick.
+    */
+   private applyAgentActive(command: OpenComposerAssetCommand): void {
+      if(!command.agentActive || !command.runtimeId) {
+         return;
+      }
+
+      const sheet = this.sheets.find((s) => s.runtimeId === command.runtimeId);
+
+      if(sheet) {
+         sheet.agentConnected = true;
+         sheet.agentOwnerIdentity = command.agentOwnerIdentity;
+      }
    }
 
    private listenGettingStartedEvent() {

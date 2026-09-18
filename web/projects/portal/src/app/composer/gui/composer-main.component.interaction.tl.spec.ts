@@ -49,6 +49,9 @@
  *   Group 17 [Risk 3]  — openWorksheet: runtimeId → attaches to a server-provided runtime
  *                         (closeOnServer=false); no runtimeId → new runtime (closeOnServer=true)
  *                         (open_base_worksheet Task 4)
+ *   Group 18 [Risk 3]  — editAsset: agentActive on OpenComposerAssetCommand sets the new sheet's
+ *                         agentConnected/agentOwnerIdentity directly, instead of racing a separate
+ *                         SetAgentActiveCommand push against the tab's own subscription (Bug #76737)
  *
  * Confirmed bugs (it.fails): none in this pass
  *
@@ -68,8 +71,10 @@
  */
 
 import "@angular/compiler";
+import { Subject } from "rxjs";
 import { ComponentTool } from "../../common/util/component-tool";
 import { Point } from "../../common/data/point";
+import { OpenComposerAssetCommand } from "../command/open-composer-asset-command";
 import { ComposerMainComponent, SidebarTab } from "./composer-main.component";
 import { ComposerTabModel } from "./composer-tab-model";
 import { Viewsheet } from "../data/vs/viewsheet";
@@ -779,5 +784,67 @@ describe("ComposerMainComponent — openWorksheet: runtimeId (open_base_workshee
       // Assigned by the branch, not inherited: Sheet leaves this undefined.
       expect(ws.runtimeId).toBeNull();
       expect(ws.closeOnServer).toBe(true);
+   });
+});
+
+// ---------------------------------------------------------------------------
+// Group 18: editAsset — agentActive carried on OpenComposerAssetCommand (Bug #76737) (Risk 3)
+// ---------------------------------------------------------------------------
+
+describe("ComposerMainComponent — editAsset: agentActive (Bug #76737)", () => {
+   // 🔁 Regression-sensitive: a separate SetAgentActiveCommand push (the pre-fix shape) rides the
+   // per-runtime channel, which the browser only has a subscriber for once it has processed THIS
+   // command -- so the indicator state has to be carried here instead, and applied once the new
+   // sheet's model object exists (openViewsheet/openWorksheet create it synchronously).
+   it("should set agentConnected on a newly-opened viewsheet when the command carries agentActive", async () => {
+      const editAsset = new Subject<OpenComposerAssetCommand>();
+      const mocks = makeMocks();
+      mocks.composerClient.editAsset = editAsset as any;
+      const { comp } = await renderComponent({ deployed: false }, mocks);
+
+      editAsset.next({
+         assetId: "vs-new-1", folderId: null, viewsheet: true, wsWizard: false,
+         runtimeId: "vs-rt-1", agentActive: true, agentOwnerIdentity: "alice~;~host-org",
+      } as OpenComposerAssetCommand);
+
+      const vs = comp.sheets.find(s => s.runtimeId === "vs-rt-1");
+      expect(vs).toBeTruthy();
+      expect(vs.agentConnected).toBe(true);
+      expect(vs.agentOwnerIdentity).toBe("alice~;~host-org");
+   });
+
+   it("should set agentConnected on a newly-opened worksheet when the command carries agentActive", async () => {
+      const editAsset = new Subject<OpenComposerAssetCommand>();
+      const mocks = makeMocks();
+      mocks.composerClient.editAsset = editAsset as any;
+      const { comp } = await renderComponent({ deployed: false }, mocks);
+
+      editAsset.next({
+         assetId: null, folderId: null, viewsheet: false, wsWizard: false,
+         runtimeId: "ws-rt-1", agentActive: true, agentOwnerIdentity: "alice~;~host-org",
+      } as OpenComposerAssetCommand);
+
+      const ws = comp.sheets.find(s => s.runtimeId === "ws-rt-1");
+      expect(ws).toBeTruthy();
+      expect(ws.agentConnected).toBe(true);
+      expect(ws.agentOwnerIdentity).toBe("alice~;~host-org");
+   });
+
+   // 🔁 Regression-sensitive: the ordinary human-driven open (no agent involved) must not light
+   // up the indicator -- agentActive defaults to falsy when the server omits it.
+   it("should leave agentConnected false when the command does not carry agentActive", async () => {
+      const editAsset = new Subject<OpenComposerAssetCommand>();
+      const mocks = makeMocks();
+      mocks.composerClient.editAsset = editAsset as any;
+      const { comp } = await renderComponent({ deployed: false }, mocks);
+
+      editAsset.next({
+         assetId: "vs-new-2", folderId: null, viewsheet: true, wsWizard: false,
+         runtimeId: "vs-rt-2",
+      } as OpenComposerAssetCommand);
+
+      const vs = comp.sheets.find(s => s.runtimeId === "vs-rt-2");
+      expect(vs).toBeTruthy();
+      expect(vs.agentConnected).toBe(false);
    });
 });

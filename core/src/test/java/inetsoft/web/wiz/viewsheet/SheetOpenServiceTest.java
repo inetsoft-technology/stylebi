@@ -252,35 +252,24 @@ class SheetOpenServiceTest {
    /**
     * I-1 (agent-sheet-visibility review round 1): {@code open_base_worksheet} mints a genuine new
     * {@link JoinSession} an agent then holds, exactly the situation the Composer tab-bar "agent
-    * connected" indicator exists to surface -- but the happy path used to return without ever
-    * calling {@code sendAgentActive}, so the icon never appeared for a worksheet opened this way.
-    * Mirrors {@code SheetJoinServiceTest.notifiesTabBarOnJoin}.
+    * connected" indicator exists to surface. Bug #76737: a separate {@code sendAgentActive} push
+    * (this test's own previous shape) rides the per-runtime channel, which the browser has no
+    * subscriber for until it processes the {@code OpenComposerAssetCommand} below -- so the
+    * notification landed on a channel nobody was listening to yet and was silently lost. The state
+    * is now carried directly on that command instead, which the browser is guaranteed to see
+    * exactly when it opens the new runtime.
     */
    @Test
-   void notifiesTheTabBarThatAnAgentIsNowAttachedToTheNewWorksheet() throws Exception {
+   void theOpenCommandCarriesAgentActiveForTheNewWorksheet() throws Exception {
       SheetOpenService service = serviceWithBase(worksheetEntry(), true, null);
 
       JoinSession opened = service.openBaseWorksheet("tok-vs", principal());
 
-      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
-      verify(broadcast).sendAgentActive(sent.capture());
-      assertEquals(opened.runtimeId(), sent.getValue().runtimeId());
-   }
-
-   /**
-    * A broken tab-bar notification must not fail the open -- best-effort, independent try/catch,
-    * mirroring {@code SheetJoinServiceTest.tabBarNotifyFailureDoesNotFailTheJoin}.
-    */
-   @Test
-   void tabBarNotifyFailureDoesNotFailTheOpen() throws Exception {
-      SheetAgentBroadcastService flaky = mock(SheetAgentBroadcastService.class);
-      doThrow(new RuntimeException("socket gone")).when(flaky).sendAgentActive(any());
-      SheetOpenService service = serviceWithBase(worksheetEntry(), true, null, "sock-1", flaky);
-
-      JoinSession opened = service.openBaseWorksheet("tok-vs", principal());
-
-      assertNotNull(opened);
-      assertEquals("ws-runtime-1", opened.runtimeId());
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertTrue(sent.agentActive());
+      assertEquals(opened.ownerIdentity(), sent.agentOwnerIdentity());
    }
 
    /**
@@ -436,13 +425,15 @@ class SheetOpenServiceTest {
    }
 
    /**
-    * agent-sheet-visibility: create_viewsheet is a third real entry point that attaches a
-    * session (alongside SheetJoinService.join and openBaseWorksheet), so it needs the same
-    * sendAgentActive notification for the Composer tab-bar "agent connected" indicator to be
-    * consistent across all three. Mirrors notifiesTheTabBarThatAnAgentIsNowAttachedToTheNewWorksheet.
+    * agent-sheet-visibility / Bug #76737: create_viewsheet is a third real entry point that
+    * attaches a session (alongside SheetJoinService.join and openBaseWorksheet). A separate
+    * sendAgentActive push here rides a per-runtime channel the browser has no subscriber for until
+    * it processes the OpenComposerAssetCommand below, so it was silently lost -- carrying the
+    * state on that command instead guarantees the browser sees it when the tab actually opens.
+    * Mirrors theOpenCommandCarriesAgentActiveForTheNewWorksheet.
     */
    @Test
-   void notifiesTheTabBarThatAnAgentIsNowAttachedToTheNewViewsheet() throws Exception {
+   void theOpenCommandCarriesAgentActiveForTheNewViewsheet() throws Exception {
       AssetEntry wsEntry = new AssetEntry(
          inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
          "Sample Queries/customers", null);
@@ -450,24 +441,11 @@ class SheetOpenServiceTest {
 
       JoinSession created = service.createViewsheet("tok-acting", principal(), null);
 
-      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
-      verify(broadcast).sendAgentActive(sent.capture());
-      assertEquals(created.runtimeId(), sent.getValue().runtimeId());
-   }
-
-   /** A broken tab-bar notification must not fail the create -- best-effort, independent try/catch. */
-   @Test
-   void tabBarNotifyFailureDoesNotFailTheCreate() throws Exception {
-      AssetEntry wsEntry = new AssetEntry(
-         inetsoft.uql.asset.AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.WORKSHEET,
-         "Sample Queries/customers", null);
-      SheetOpenService service = createViewsheetService(SheetType.WORKSHEET, wsEntry, true);
-      doThrow(new RuntimeException("socket gone")).when(broadcast).sendAgentActive(any());
-
-      JoinSession created = service.createViewsheet("tok-acting", principal(), null);
-
-      assertNotNull(created);
-      assertEquals("vs-runtime-new", created.runtimeId());
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertTrue(sent.agentActive());
+      assertEquals(created.ownerIdentity(), sent.agentOwnerIdentity());
    }
 
    @Test
@@ -622,7 +600,6 @@ class SheetOpenServiceTest {
          any(), any(AssetEntry.class), any(Principal.class), any());
       verify(sheetSessions, never()).open(anyString(), anyString(), any(SheetType.class),
                                           any(), any(), any());
-      verify(broadcast, never()).sendAgentActive(any());
       verify(broadcast, never()).sendToComposer(anyString(), any());
    }
 
@@ -819,34 +796,26 @@ class SheetOpenServiceTest {
    }
 
    /**
-    * agent-sheet-visibility: create_worksheet is another real entry point that attaches a
-    * session, alongside SheetJoinService.join, openBaseWorksheet, and createViewsheet, so it
-    * needs the same sendAgentActive notification for the Composer tab-bar "agent connected"
-    * indicator to be consistent across all of them.
+    * agent-sheet-visibility / Bug #76737: create_worksheet is another real entry point that
+    * attaches a session, alongside SheetJoinService.join, openBaseWorksheet, and createViewsheet.
+    * A separate sendAgentActive push here rides a per-runtime channel the browser has no
+    * subscriber for until it processes the OpenComposerAssetCommand below, so it was silently
+    * lost -- carrying the state on that command instead guarantees the browser sees it when the
+    * tab actually opens.
     */
    @Test
-   void notifiesTheTabBarThatAnAgentIsNowAttachedToTheNewWorksheetFromCreateWorksheet()
+   void theOpenCommandCarriesAgentActiveForTheNewWorksheetFromCreateWorksheet()
       throws Exception
    {
       SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
 
       JoinSession created = service.createWorksheet("tok-acting", principal());
 
-      ArgumentCaptor<JoinSession> sent = ArgumentCaptor.forClass(JoinSession.class);
-      verify(broadcast).sendAgentActive(sent.capture());
-      assertEquals(created.runtimeId(), sent.getValue().runtimeId());
-   }
-
-   /** A broken tab-bar notification must not fail the create -- best-effort, independent try/catch. */
-   @Test
-   void tabBarNotifyFailureDoesNotFailTheCreateWorksheet() throws Exception {
-      SheetOpenService service = createWorksheetService(SheetType.WORKSHEET, true);
-      doThrow(new RuntimeException("socket gone")).when(broadcast).sendAgentActive(any());
-
-      JoinSession created = service.createWorksheet("tok-acting", principal());
-
-      assertNotNull(created);
-      assertEquals("ws-runtime-new", created.runtimeId());
+      ArgumentCaptor<Object> command = ArgumentCaptor.forClass(Object.class);
+      verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
+      OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
+      assertTrue(sent.agentActive());
+      assertEquals(created.ownerIdentity(), sent.agentOwnerIdentity());
    }
 
    @Test
@@ -877,7 +846,7 @@ class SheetOpenServiceTest {
     * (editorContext = null) session from it would launder that narrow grant into unscoped
     * whole-sheet authority on a runtime the pane's grant never named.
     *
-    * <p>The four never() assertions are the substance: refusing with a message while still
+    * <p>The three never() assertions are the substance: refusing with a message while still
     * opening the runtime, or still minting the session, would leave the hole open.
     */
    @Test
@@ -898,7 +867,6 @@ class SheetOpenServiceTest {
       verify(viewsheetService, never()).openTemporaryWorksheet(any(Principal.class), any());
       verify(sheetSessions, never()).open(anyString(), anyString(), any(SheetType.class),
                                           any(), any(), any());
-      verify(broadcast, never()).sendAgentActive(any());
       verify(broadcast, never()).sendToComposer(anyString(), any());
    }
 

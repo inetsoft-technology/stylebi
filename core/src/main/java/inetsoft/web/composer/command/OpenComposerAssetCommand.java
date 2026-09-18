@@ -58,6 +58,30 @@ public abstract class OpenComposerAssetCommand {
    @Nullable
    public abstract String runtimeId();
 
+   /**
+    * Whether an agent session is already attached to {@link #runtimeId()} at the moment this
+    * command is sent, so the newly-opened tab's agent-connected indicator is correct from the
+    * start.
+    *
+    * <p>Deliberately carried here rather than left to a separate {@code SetAgentActiveCommand}
+    * push: that command rides the per-runtime {@code CommandDispatcher.COMMANDS_TOPIC}, which the
+    * browser only has a subscriber for once it has actually opened {@link #runtimeId()} -- exactly
+    * what THIS command is what causes to happen. A tool that mints a brand-new runtime server-side
+    * (open_base_worksheet/create_viewsheet/create_worksheet) and pushes
+    * {@code SetAgentActiveCommand} first, then this command second, sends the indicator update to a
+    * channel nobody is listening to yet; it is not merely a narrow race, since the browser cannot
+    * possibly be subscribed before it has processed this very command. Carrying the state here
+    * instead means the tab that opens already knows.
+    */
+   @Value.Default
+   public boolean agentActive() {
+      return false;
+   }
+
+   /** The agent's identity, when {@link #agentActive()} is true; unused otherwise. */
+   @Nullable
+   public abstract String agentOwnerIdentity();
+
    public static Builder builder() {
       return new Builder();
    }
