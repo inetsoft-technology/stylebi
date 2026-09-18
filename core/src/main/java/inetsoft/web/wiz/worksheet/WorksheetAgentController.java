@@ -262,8 +262,10 @@ public class WorksheetAgentController {
     * @param req          the edit operation and its parameters
     * @param user         the authenticated agent principal
     * @return {@code 200} with an {@link EditResponse} carrying the resolved assembly name for
-    *         {@code add_table} (see {@link EditResponse}); {@code 204 No Content} for every
-    *         other op, matching this endpoint's response before {@link EditResponse} existed
+    *         ops whose result assembly may be named other than what the caller requested (e.g.
+    *         {@code add_table}, {@code convert_to_embedded}; see {@link EditResponse});
+    *         {@code 204 No Content} for every other op, matching this endpoint's response before
+    *         {@link EditResponse} existed
     * @throws PairingException if the session is invalid/expired, the runtime is not found,
     *                          or the requested operation is unknown
     */
@@ -499,7 +501,7 @@ public class WorksheetAgentController {
 
       // convert_to_embedded needs AssetQuerySandbox for data population.
       if("convert_to_embedded".equals(req.op())) {
-         convertToEmbedded(sessionToken, req, user);
+         convertToEmbedded(sessionToken, req, user, resolvedNameHolder);
          return;
       }
 
@@ -3723,7 +3725,8 @@ public class WorksheetAgentController {
     * Converts a bound table assembly to an embedded table by executing the query
     * and storing the result data inline.
     */
-   private void convertToEmbedded(String sessionToken, EditRequest req, Principal user)
+   private void convertToEmbedded(String sessionToken, EditRequest req, Principal user,
+                                  String[] resolvedNameHolder)
       throws Exception
    {
       if(req.table() == null || req.table().isBlank()) {
@@ -3738,14 +3741,18 @@ public class WorksheetAgentController {
             throw new PairingException("Not a bound table: " + req.table());
          }
 
-         // replace=true keeps the same name; the returned assembly must be
-         // explicitly added to replace the old bound table in the worksheet.
+         // replace=false adds the embedded snapshot as a new sibling assembly, leaving
+         // the original bound table untouched — matching the Composer UI's own "Convert
+         // to Embedded Table" action (ConvertEmbeddedService.convertEmbedded). forceLive=true
+         // preserves the RUNTIME_MODE query guarantee that replace=true used to provide
+         // implicitly, so the snapshot still freezes the table's live query result rather
+         // than a DESIGN_MODE query.
          EmbeddedTableAssembly embedded;
 
          try {
             embedded = AssetEventUtil.convertEmbeddedTable(
                rws.getAssetQuerySandbox(), (TableAssembly) a,
-               true, false, false);
+               false, false, false, true);
          }
          catch(EmptyTableToEmbeddedException e) {
             throw new PairingException(
@@ -3758,6 +3765,11 @@ public class WorksheetAgentController {
          }
 
          ws.addAssembly(embedded);
+
+         if(resolvedNameHolder != null) {
+            resolvedNameHolder[0] = embedded.getName();
+         }
+
          return null;
       });
    }

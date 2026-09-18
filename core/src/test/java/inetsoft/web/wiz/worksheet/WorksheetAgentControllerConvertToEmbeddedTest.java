@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.test.BaseTestConfiguration;
@@ -29,6 +30,7 @@ import inetsoft.test.SwapperTestConfiguration;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.util.EmptyTableToEmbeddedException;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.wiz.pairing.*;
@@ -38,6 +40,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import org.springframework.http.ResponseEntity;
 
 import java.security.Principal;
 import java.util.Arrays;
@@ -61,6 +65,16 @@ import static org.mockito.Mockito.*;
  * exercising the real query-execution pipeline needs {@link IntegrationTestConfiguration} (for
  * the {@code AssetDataCache} Spring bean {@code box.getTableLens} resolves through), which the
  * rest of that file's tests don't need.
+ *
+ * <p>Also covers bug #76753 (WBS-054): {@code convert_to_embedded} used to call
+ * {@code AssetEventUtil.convertEmbeddedTable} with {@code replace=true}, which reused the
+ * original assembly's name and caused {@code Worksheet.addAssembly} to silently evict the
+ * original JOIN/MIRROR assembly and replace it in place. The fix passes {@code replace=false},
+ * {@code forceLive=true} (matching the native Composer UI's own
+ * {@code ConvertEmbeddedService.convertEmbedded} call shape exactly, including the
+ * {@code forceLive} flag that preserves the RUNTIME_MODE query guarantee {@code replace=true}
+ * used to provide implicitly), so the original assembly is left untouched and the embedded
+ * snapshot is added as a new sibling instead.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, IntegrationTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -120,7 +134,10 @@ class WorksheetAgentControllerConvertToEmbeddedTest {
    /**
     * JOIN half: broadening the guard both lets the conversion through and produces correct
     * data for a real {@code RelationalJoinTableAssembly} via the actual production
-    * query-execution pipeline, not a mock.
+    * query-execution pipeline, not a mock. Also covers WBS-054: the original JOIN assembly must
+    * be left untouched, and the embedded snapshot must land in a NEW sibling assembly, at a
+    * canvas offset of (+200, 0) from the original, with its resolved name reported back via
+    * {@link EditResponse#assemblyName()}.
     */
    @Test
    void convertToEmbeddedConvertsJoinTableWithRealJoinedData() throws Exception {
@@ -179,10 +196,24 @@ class WorksheetAgentControllerConvertToEmbeddedTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      ctrl.edit("TOK-CTE-JOIN", convertToEmbeddedRequest("JOINED"), agent);
+      ResponseEntity<EditResponse> response =
+         ctrl.edit("TOK-CTE-JOIN", convertToEmbeddedRequest("JOINED"), agent);
 
-      Assembly result = ws.getAssembly("JOINED");
+      // The original JOIN assembly must be untouched -- still a RelationalJoinTableAssembly,
+      // still wired to its original join sources, not overwritten in place.
+      Assembly original = ws.getAssembly("JOINED");
+      assertInstanceOf(RelationalJoinTableAssembly.class, original);
+      assertEquals(new java.awt.Point(0, 0), ((TableAssembly) original).getPixelOffset());
+
+      // The resolved name of the new sibling embedded table must be reported back to the caller.
+      String newName = response.getBody() != null ? response.getBody().assemblyName() : null;
+      assertNotNull(newName);
+      assertNotEquals("JOINED", newName);
+
+      Assembly result = ws.getAssembly(newName);
       assertInstanceOf(EmbeddedTableAssembly.class, result);
+      assertEquals(new java.awt.Point(200, 0), ((TableAssembly) result).getPixelOffset());
+
       XEmbeddedTable data = ((EmbeddedTableAssembly) result).getEmbeddedData();
 
       Map<Object, Object[]> byId = new HashMap<>();
@@ -203,7 +234,8 @@ class WorksheetAgentControllerConvertToEmbeddedTest {
 
    /**
     * MIRROR half: same broadened-guard fix, exercised against a real {@link MirrorTableAssembly}
-    * wrapping an embedded source table.
+    * wrapping an embedded source table. Also covers WBS-054: same "original untouched, new
+    * sibling added" assertions as the JOIN half above.
     */
    @Test
    void convertToEmbeddedConvertsMirrorTableWithRealMirroredData() throws Exception {
@@ -243,10 +275,22 @@ class WorksheetAgentControllerConvertToEmbeddedTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
 
-      ctrl.edit("TOK-CTE-MIR", convertToEmbeddedRequest("MIR"), agent);
+      ResponseEntity<EditResponse> response =
+         ctrl.edit("TOK-CTE-MIR", convertToEmbeddedRequest("MIR"), agent);
 
-      Assembly result = ws.getAssembly("MIR");
+      // The original MIRROR assembly must be untouched.
+      Assembly original = ws.getAssembly("MIR");
+      assertInstanceOf(MirrorTableAssembly.class, original);
+      assertEquals(new java.awt.Point(0, 0), ((TableAssembly) original).getPixelOffset());
+
+      String newName = response.getBody() != null ? response.getBody().assemblyName() : null;
+      assertNotNull(newName);
+      assertNotEquals("MIR", newName);
+
+      Assembly result = ws.getAssembly(newName);
       assertInstanceOf(EmbeddedTableAssembly.class, result);
+      assertEquals(new java.awt.Point(200, 0), ((TableAssembly) result).getPixelOffset());
+
       XEmbeddedTable data = ((EmbeddedTableAssembly) result).getEmbeddedData();
 
       Map<Object, Object> byKey = new HashMap<>();
@@ -363,5 +407,97 @@ class WorksheetAgentControllerConvertToEmbeddedTest {
       PairingException ex = assertThrows(PairingException.class,
          () -> ctrl.edit("TOK-CTE-EMPTY", convertToEmbeddedRequest("JOINED_EMPTY"), agent));
       assertTrue(ex.getMessage().contains("no data to convert"));
+   }
+
+   /**
+    * WBS-054, refuter-flagged mode-parity gap (02-refute.md Section 5): builds the exact same
+    * INNER JOIN shape as {@link #convertToEmbeddedConvertsJoinTableWithRealJoinedData}, whose
+    * join table defaults to {@code isRuntime()==false}/{@code isLiveData()==false} like every
+    * freshly-built {@code RelationalJoinTableAssembly}, and directly compares the two
+    * {@code AssetEventUtil.convertEmbeddedTable} call shapes:
+    * <ul>
+    *   <li>the corrected 6-arg call ({@code replace=false, forceLive=true}, what
+    *       {@code WorksheetAgentController.convertToEmbedded} now uses) resolves to
+    *       {@code RUNTIME_MODE} and preserves the join's INNER JOIN filtering -- exactly 2 rows,
+    *       one per matched ID;</li>
+    *   <li>the 5-arg call ({@code replace=false}, {@code forceLive} hardcoded {@code false} by
+    *       that overload -- the diagnosis's literal, un-refuted 3a snippet) resolves to
+    *       {@code DESIGN_MODE} for this table. Empirically (confirmed by actually running this
+    *       test, not merely reasoned about) {@code box.getTableLens} in {@code DESIGN_MODE}
+    *       returns a lens with zero rows for this unresolved join, which
+    *       {@code XEmbeddedTable}'s constructor rejects as {@code EmptyTableToEmbeddedException}
+    *       -- i.e. the literal 3a patch would not merely have produced subtly-wrong data for this
+    *       exact repro, it would have made {@code convert_to_embedded} fail outright with
+    *       "table has no data to convert" for a table that plainly does have data.</li>
+    * </ul>
+    * This is the exact silent-regression risk the diagnosis's literal 3a snippet (5-arg overload,
+    * no {@code forceLive}) would have introduced; it proves {@code forceLive=true} is load-bearing
+    * for this fix, not just cosmetic parity with {@code ConvertEmbeddedService}.
+    */
+   @Test
+   void convertToEmbeddedForceLiveTruePreventsDesignModeFromBreakingConversion() throws Exception {
+      RelationalJoinTableAssembly runtimeModeJoin = buildTwoRowInnerJoinFixture("JOINED_RT");
+      AssetQuerySandbox runtimeBox = new AssetQuerySandbox(runtimeModeJoin.getWorksheet(), null, new VariableTable());
+      runtimeBox.setActive(true);
+      runtimeBox.refreshColumnSelection("JOINED_RT", false);
+
+      EmbeddedTableAssembly correct = AssetEventUtil.convertEmbeddedTable(
+         runtimeBox, runtimeModeJoin, false, false, false, true);
+      assertNotNull(correct);
+      assertEquals(2, correct.getEmbeddedData().getRowCount() - 1);
+
+      RelationalJoinTableAssembly designModeJoin = buildTwoRowInnerJoinFixture("JOINED_DESIGN");
+      AssetQuerySandbox designBox = new AssetQuerySandbox(designModeJoin.getWorksheet(), null, new VariableTable());
+      designBox.setActive(true);
+      designBox.refreshColumnSelection("JOINED_DESIGN", false);
+
+      assertThrows(EmptyTableToEmbeddedException.class, () ->
+         AssetEventUtil.convertEmbeddedTable(designBox, designModeJoin, false, false, false),
+         "DESIGN_MODE (the 5-arg overload's hardcoded forceLive=false) was expected to fail to " +
+         "produce usable data for this exact join fixture -- if this assertion now fails because " +
+         "DESIGN_MODE succeeds, the mode-parity risk this test guards against may have changed " +
+         "shape and this test's comment/assertions should be revisited, not just deleted.");
+   }
+
+   /**
+    * Builds a fresh two-row-per-side INNER JOIN fixture (same shape as
+    * {@link #convertToEmbeddedConvertsJoinTableWithRealJoinedData}) under a new {@link Worksheet},
+    * so the mode-comparison test above can run the same join shape twice, once per
+    * {@code AssetQuerySandbox}, without any shared mutable state between the two calls.
+    */
+   private static RelationalJoinTableAssembly buildTwoRowInnerJoinFixture(String joinName) {
+      Worksheet ws = new Worksheet();
+
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "LEFT_" + joinName, "ID", "NAME");
+      left.setEmbeddedData(new XEmbeddedTable(new String[]{ "string", "string" },
+         new Object[][]{
+            { "ID", "NAME" },
+            { "1", "a" },
+            { "2", "b" },
+         }));
+      ws.addAssembly(left);
+
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "RIGHT_" + joinName, "ID", "CITY");
+      right.setEmbeddedData(new XEmbeddedTable(new String[]{ "string", "string" },
+         new Object[][]{
+            { "ID", "CITY" },
+            { "1", "NY" },
+            { "2", "LA" },
+         }));
+      ws.addAssembly(right);
+
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setLeftTable("LEFT_" + joinName);
+      op.setRightTable("RIGHT_" + joinName);
+      op.setLeftAttribute(new AttributeRef(null, "ID"));
+      op.setRightAttribute(new AttributeRef(null, "ID"));
+      op.setOperation(TableAssemblyOperator.INNER_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+
+      RelationalJoinTableAssembly joined = new RelationalJoinTableAssembly(
+         ws, joinName, new TableAssembly[]{ left, right }, new TableAssemblyOperator[]{ top });
+      ws.addAssembly(joined);
+      return joined;
    }
 }
