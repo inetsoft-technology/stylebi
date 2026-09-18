@@ -790,13 +790,6 @@ public class WorksheetEditService {
                   "recursive join.");
             }
 
-            // The UI's own equivalent gesture never renames the join it extends -- match that
-            // by only renaming when the caller supplied a different name, before touching
-            // anything else so a rename failure (e.g. a collision) leaves the join untouched.
-            if(name != null && !name.equals(existingJoin.getName())) {
-               renameTable(existingJoin.getName(), name);
-            }
-
             // Seed with the existing join's OWN current operators (mirroring how
             // joinSourceAndTargetTables itself seeds noperator via getOperatorsOfJoinTable
             // before adding the new edge) -- editExistingJoinTable clears every operator table
@@ -845,6 +838,21 @@ public class WorksheetEditService {
                op.setRightAttribute(new AttributeRef(null, rightKey));
                op.setOperation(operation);
                noperator.addOperator(op);
+            }
+
+            // Rename LAST, after every validation above has fully succeeded (key-list length,
+            // the recursive-join guard, and resolveMemberOwningColumn's missing/ambiguous-column
+            // checks) -- apply() has no rollback on a thrown exception, so renaming any earlier
+            // would leave the existing join permanently renamed even though the call as a whole
+            // still fails, an undisclosed partial mutation on a malformed call (CLAUDE.md's
+            // tool-misuse-is-a-plugin-gap principle: fail loud with NO mutation on bad input,
+            // not fail loud after already mutating something). The UI's own equivalent gesture
+            // never renames the join it extends -- match that by only renaming when the caller
+            // supplied a different name; a rename failure (e.g. a name collision) still leaves
+            // the join untouched, since it is the last thing that can fail before the edit call
+            // below, which is not expected to throw once it's reached.
+            if(name != null && !name.equals(existingJoin.getName())) {
+               renameTable(existingJoin.getName(), name);
             }
 
             try {

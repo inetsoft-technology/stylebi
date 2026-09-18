@@ -2952,6 +2952,117 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(2, unchanged.getTableAssemblies().length, "no mutation on the refused call");
    }
 
+   // =========================================================================
+   // Fix round 2 (bug #76786 review r1): renameTable used to run BEFORE the key-list length
+   // check and before resolveMemberOwningColumn's missing/ambiguous-column checks. Since
+   // apply() has no rollback on a thrown exception, a caller who combined a different `name`
+   // with any of those failure modes got the existing join silently renamed even though the
+   // call still failed -- an undisclosed partial mutation on a malformed call. These tests pin
+   // that rename now happens LAST, after every other validation has fully succeeded, so a
+   // failing call renames nothing.
+   // =========================================================================
+
+   @Test
+   void addJoinExtendingInPlaceRecursiveJoinFailureDoesNotRename() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+
+      // "L" is already a direct member of "J" -- refused. The call ALSO asks to rename "J" to
+      // "RENAMED" in the same breath; that rename must not have taken effect either.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin("RENAMED", "J", "m_id", "L", "l_id", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("L"), ex.getMessage());
+
+      assertNotNull(ws.getAssembly("J"), "the join must still be addressable under its OLD name");
+      assertNull(ws.getAssembly("RENAMED"), "no rename must have happened on a failed call");
+   }
+
+   @Test
+   void addJoinExtendingInPlaceMissingKeyColumnFailureDoesNotRename() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "no_such_col");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+            ed -> ed.addJoin(
+               "RENAMED", "J", "does_not_exist", "N", "no_such_col", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("does_not_exist"), ex.getMessage());
+
+      assertNotNull(ws.getAssembly("J"), "the join must still be addressable under its OLD name");
+      assertNull(ws.getAssembly("RENAMED"), "no rename must have happened on a failed call");
+   }
+
+   @Test
+   void addJoinExtendingInPlaceAmbiguousKeyColumnFailureDoesNotRename() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "id", "l_val");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "id", "m_val");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "n_key");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "M", "id", "INNER", null, null));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin("RENAMED", "J", "id", "N", "n_key", "INNER", null, null)));
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+
+      assertNotNull(ws.getAssembly("J"), "the join must still be addressable under its OLD name");
+      assertNull(ws.getAssembly("RENAMED"), "no rename must have happened on a failed call");
+   }
+
+   @Test
+   void addJoinExtendingInPlaceMismatchedKeyListLengthFailureDoesNotRename() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      EmbeddedTableAssembly n = TestWorksheets.tableWithColumns(ws, "N", "m_id", "n_val");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      ws.addAssembly(n);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+
+      // leftKeys has 1 entry, rightKeys has 2 -- refused before any operator is built, and
+      // before the requested rename to "RENAMED" is allowed to take effect.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+            ed -> ed.addJoin("RENAMED", "J", null, "N", null, "INNER",
+                             List.of("m_id"), List.of("m_id", "n_val"))));
+      assertTrue(ex.getMessage().contains("leftKeys and rightKeys must have the same length"),
+         ex.getMessage());
+
+      assertNotNull(ws.getAssembly("J"), "the join must still be addressable under its OLD name");
+      assertNull(ws.getAssembly("RENAMED"), "no rename must have happened on a failed call");
+   }
+
    /** Regression guard: both sides already existing joins must still nest, unchanged. */
    @Test
    void addJoinWithBothSidesExistingJoinsStillNests() throws Exception {
