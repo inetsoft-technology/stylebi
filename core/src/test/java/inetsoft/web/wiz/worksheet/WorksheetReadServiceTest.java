@@ -859,6 +859,7 @@ class WorksheetReadServiceTest {
 
       assertTrue(t.sources().isEmpty());
       assertNull(t.concatType());
+      assertNull(t.concatDistinct());
       assertNull(t.concatCompatible());
       assertNull(t.autoUpdate());
    }
@@ -878,6 +879,7 @@ class WorksheetReadServiceTest {
          .writeValueAsString(read(ws));
 
       assertFalse(json.contains("concatType"), json);
+      assertFalse(json.contains("concatDistinct"), json);
       assertFalse(json.contains("concatCompatible"), json);
       assertFalse(json.contains("autoUpdate"), json);
       assertFalse(json.contains("aggregates"), json);
@@ -943,6 +945,61 @@ class WorksheetReadServiceTest {
 
       assertEquals(List.of("A", "B", "C"), x.sources());
       assertEquals("MIXED", x.concatType());
+   }
+
+   /**
+    * Mirrors {@link #concatenationReportsItsSubtablesInOrder} for the {@code concatDistinct} field:
+    * one value per adjacent pair, reported when every pair agrees.
+    */
+   @Test
+   void concatenationReportsConcatDistinctWhenPairsAgree() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      ws.addAssembly(concatWithDistinct(ws, "U", new boolean[]{ true, true }, a, b, c));
+
+      assertEquals(Boolean.TRUE, tableNamed(read(ws), "U").concatDistinct());
+   }
+
+   /**
+    * Unlike {@code concatType}, there is no {@code "MIXED"} sentinel for a boolean field --
+    * disagreement reads the same as "not present": {@code null}.
+    */
+   @Test
+   void concatenationReportsNullConcatDistinctWhenPairsDisagree() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      ws.addAssembly(concatWithDistinct(ws, "X", new boolean[]{ true, false }, a, b, c));
+
+      assertNull(tableNamed(read(ws), "X").concatDistinct());
+   }
+
+   /** One distinct flag per adjacent pair, so a mixed concatenation can be built. */
+   private static ConcatenatedTableAssembly concatWithDistinct(Worksheet ws, String name,
+                                                               boolean[] distinctFlags,
+                                                               TableAssembly... sources)
+   {
+      TableAssemblyOperator[] operators = new TableAssemblyOperator[sources.length - 1];
+
+      for(int i = 0; i < operators.length; i++) {
+         TableAssemblyOperator top = new TableAssemblyOperator();
+         TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setOperation(TableAssemblyOperator.UNION);
+         op.setDistinct(distinctFlags[i]);
+         top.addOperator(op);
+         operators[i] = top;
+      }
+
+      return new ConcatenatedTableAssembly(ws, name, sources, operators);
    }
 
    /**
