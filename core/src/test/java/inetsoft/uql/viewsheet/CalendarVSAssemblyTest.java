@@ -86,6 +86,33 @@ class CalendarVSAssemblyTest {
    }
 
    @Test
+   void periodComparisonScansTheTrueMinAndMaxAcrossOutOfOrderPeriodDates() {
+      CalendarVSAssembly assembly = new CalendarVSAssembly(new Viewsheet(), "Calendar1");
+      CalendarVSAssemblyInfo info = assembly.getCalendarInfo();
+      info.setViewModeValue(CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
+      info.setPeriod(true);
+      // period 1: April 15, April 1, April 8, 2023 -- 3 dates, out of order, with the
+      // true min (April 1) and max (April 15) both away from the array's first/last slots.
+      // A first/last-element implementation would wrongly read start=April 15, end=April 8+1.
+      // period 2: May 1, May 8, May 15, 2023 -- already in order, for contrast.
+      info.setDates(new String[] {
+         "d2023-3-15", "d2023-3-1", "d2023-3-8",
+         "d2023-4-1", "d2023-4-8", "d2023-4-15"
+      });
+
+      DataRef ref = dateRef();
+      ConditionList conds = assembly.getConditionList(new DataRef[] { ref });
+
+      assertEquals(7, conds.getSize(), "expected 2 periods x 3 items + 1 OR junction");
+
+      assertEquals("2023-04-01", asMinValue(conds, 0), "period 1 start must be the true min across all its dates, not the first array element");
+      assertEquals("2023-04-16", asMinValue(conds, 2), "period 1 end must be the ceiling of the true max across all its dates, not the last array element");
+
+      assertEquals("2023-05-01", asMinValue(conds, 4), "period 2 start must be the true min across all its dates");
+      assertEquals("2023-05-16", asMinValue(conds, 6), "period 2 end must be the ceiling of the true max across all its dates");
+   }
+
+   @Test
    void singleCalendarNonAdjacentDaysStayOredAsIndependentDays() {
       // April 1 and April 3, 2023 -- not calendar-adjacent, must stay as 2 OR'd single days.
       String[] dates = { "d2023-3-1", "d2023-3-3" };
