@@ -20,7 +20,7 @@ package inetsoft.web.admin.ai.schedule;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * Request body for {@code POST /api/wiz/v1/admin/schedule/import/apply}: a plan request plus the
+ * Request body for {@code POST /api/wiz/v1/admin/schedule/transfer/apply}: a plan request plus the
  * {@code planHash}/{@code taskToken} pair from {@code preview} -- the same {@link
  * inetsoft.web.admin.ai.TaskAuditToken} verification every other mutating area in this plugin
  * requires (e.g. {@code AdminAssetImportApplyService}), never skipped just because this area's own

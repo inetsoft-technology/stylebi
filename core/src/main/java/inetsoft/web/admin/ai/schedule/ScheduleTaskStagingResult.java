@@ -20,7 +20,7 @@ package inetsoft.web.admin.ai.schedule;
 import java.util.List;
 
 /**
- * Response body for {@code POST /api/wiz/v1/admin/schedule/import/stage} -- uploads and parses a
+ * Response body for {@code POST /api/wiz/v1/admin/schedule/transfer/stage} -- uploads and parses a
  * task-export XML file, writes nothing. {@code stagingToken} is a bearer for the parsed content,
  * held in an in-memory, single-node cache with a 30-minute idle timeout (mirroring the "review
  * window" scope {@code analysisId} uses for Materialized Views) -- NOT persisted to real storage,

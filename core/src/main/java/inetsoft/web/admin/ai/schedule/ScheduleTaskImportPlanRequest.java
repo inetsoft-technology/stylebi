@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.List;
 
-/** Request body for {@code POST /api/wiz/v1/admin/schedule/import/preview}. */
+/** Request body for {@code POST /api/wiz/v1/admin/schedule/transfer/preview}. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ScheduleTaskImportPlanRequest {
    public String getTask() { return task; }

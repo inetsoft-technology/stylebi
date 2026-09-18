@@ -28,7 +28,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.w3c.dom.Document;
 
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
@@ -208,7 +212,7 @@ public class ScheduleTaskImportChangesetApplyService {
       throws Exception
    {
       String taskId = original.getTaskId();
-      // Clone before mutating -- requireStagedTask returns the SAME cached object every call
+      // Deep-copy before mutating -- requireStagedTask returns the SAME cached object every call
       // (ScheduleTaskTransferService's own staging cache holds one instance per stagingToken for
       // its whole 30-minute lifetime, deliberately shared across every preview/apply against that
       // token, per its own "Parses (never mutates)" contract). Mutating it in place here (via
@@ -216,8 +220,15 @@ public class ScheduleTaskImportChangesetApplyService {
       // cached instance for every LATER preview_schedule_task_import/apply_schedule_task_import
       // call against the same stagingToken -- live-confirmed: a second preview after a first apply
       // showed the first apply's own linkURI rewrite already baked into "proposedValue", which a
-      // preview must never do.
-      ScheduleTask staged = transferService.requireStagedTask(stagingToken, taskId).clone();
+      // preview must never do. A plain ScheduleTask.clone() is NOT enough here: it Vector.clone()s
+      // conds/acts, which only copies the Vector, not the ScheduleCondition/ScheduleAction objects
+      // inside it, so sanitizeConditions/sanitizeAction/updateTaskLinkUri below -- which mutate
+      // those objects' OWN fields in place -- would still corrupt the shared cached instance one
+      // level down. deepCopy() below round-trips the whole task through writeXML/parseXML (the
+      // same idiom ScheduleTask.copyScheduleAction already uses per-action, applied to the whole
+      // task so conditions are isolated too, which copyScheduleTask's own clone()-plus-per-action-
+      // copy does not do) to guarantee every condition and action is a fresh instance.
+      ScheduleTask staged = deepCopy(transferService.requireStagedTask(stagingToken, taskId));
       // Re-resolve fresh AT APPLY TIME -- never trust anything computed at preview.
       ScheduleTask existing = scheduleManager.getScheduleTask(taskId);
       boolean overwrite = Boolean.TRUE.equals(original.getOverwrite());
@@ -258,6 +269,30 @@ public class ScheduleTaskImportChangesetApplyService {
          undoable.add(capturedOriginal == null ? Undo.create(key, taskId, staged) :
             Undo.overwrite(key, taskId, capturedOriginal));
       }
+   }
+
+   /**
+    * Deep-copies {@code task}, isolating every condition/action from the source instance, via an
+    * XML round-trip through {@code ScheduleTask.writeXML}/{@code parseXML} -- the same pair
+    * {@code ScheduleTaskTransferService.stage} already uses to build a {@code ScheduleTask} from
+    * an uploaded export file's {@code <Task>} element, and the same per-object round-trip idiom
+    * {@code ScheduleTask.copyScheduleAction} uses for a single action. {@code
+    * ScheduleTask.copyScheduleTask} is not used here: besides being {@code protected static} and
+    * unreachable from this package, it only round-trips ACTIONS after a shallow {@code clone()},
+    * leaving conditions shared with the source -- insufficient for this call site, which also
+    * mutates conditions (via {@code ScheduleTaskService.sanitizeConditions}).
+    */
+   private static ScheduleTask deepCopy(ScheduleTask task) throws Exception {
+      StringWriter buffer = new StringWriter();
+
+      try(PrintWriter writer = new PrintWriter(buffer)) {
+         task.writeXML(writer);
+      }
+
+      Document document = Tool.parseXML(new StringReader(buffer.toString()));
+      ScheduleTask copy = new ScheduleTask();
+      copy.parseXML(document.getDocumentElement());
+      return copy;
    }
 
    /** Mirrors {@code ImportTaskController.updateTaskInfo} exactly: rewrite every action's own

@@ -32,13 +32,13 @@ import java.util.*;
 /**
  * Resolves a requested schedule-task import (a {@code stagingToken} plus which of its staged tasks
  * to actually write) into a {@link ResolvedPlan} and hashes it -- the import-side analog of
- * {@code RepositoryImportChangePlanService}. Unlike {@code ScheduleChangePlanService}'s own
- * {@code create}/{@code delete} verbs (which need an 8-field digest layered on top of the server's
- * own plan hash to close a confirm-then-swap gap on fields that hash does not project), an import
- * entry's ENTIRE staged {@code ScheduleTask} is folded into this area's own plan hash via
- * {@code ScheduleXmlProjection.project} (a total {@code writeXML()} serialization, not a
- * hand-picked field list) -- so the simpler, standard {@link TaskAuditToken} this plugin's other
- * areas already use is sufficient here; there is no analogous gap to close.
+ * {@code RepositoryImportChangePlanService}. Like {@code ScheduleChangePlanService}'s own
+ * {@code create}/{@code delete} verbs, this area's plan hash is a SHA-256 digest over its own
+ * {@link PlanChange} list, not the staged task itself -- but here every entry's ENTIRE staged
+ * {@code ScheduleTask} is folded into that hash via {@code ScheduleXmlProjection.project} (a total
+ * {@code writeXML()} serialization, not a hand-picked field list), so the simpler, standard
+ * {@link TaskAuditToken} this plugin's other areas already use is sufficient here: there is no
+ * field the hash fails to project that a caller could swap out between preview and apply.
  */
 @Component
 public class ScheduleTaskImportChangePlanService {

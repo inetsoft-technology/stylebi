@@ -20,7 +20,7 @@ package inetsoft.web.admin.ai.schedule;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * Request body for {@code POST /api/wiz/v1/admin/schedule/import/stage} -- base64-in-JSON, not
+ * Request body for {@code POST /api/wiz/v1/admin/schedule/transfer/stage} -- base64-in-JSON, not
  * multipart, unlike {@code AdminAssetImportController#stage}'s own zip upload: a schedule-task
  * export file is small XML text (the same size class {@code lookAndFeel}'s {@code logoFile}/
  * {@code viewsheetFile} already send base64-in-JSON), not a multi-megabyte binary archive.

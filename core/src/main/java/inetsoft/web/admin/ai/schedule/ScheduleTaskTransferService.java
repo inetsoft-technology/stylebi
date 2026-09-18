@@ -193,7 +193,17 @@ public class ScheduleTaskTransferService {
       for(int i = 0; i < taskNodes.getLength(); i++) {
          Element element = (Element) taskNodes.item(i);
          ScheduleTask task = new ScheduleTask();
-         task.parseXML(element);
+
+         try {
+            task.parseXML(element);
+         }
+         catch(Exception e) {
+            String name = element.getAttribute("name");
+            String identifier = Tool.isEmptyString(name) ? "index " + i : "\"" + name + "\"";
+            throw new IllegalArgumentException(
+               "xml: <Task> " + identifier + " could not be parsed (" + messageOf(e) + ")", e);
+         }
+
          tasks.add(task);
          summaries.add(new StagedScheduleTask(task.getTaskId(), dependencyOf(task),
             scheduleManager.getScheduleTask(task.getTaskId()) != null));
@@ -249,6 +259,10 @@ public class ScheduleTaskTransferService {
    private void evictExpired() {
       Instant cutoff = Instant.now().minus(IDLE_TIMEOUT);
       staged.values().removeIf(entry -> entry.lastAccess.isBefore(cutoff));
+   }
+
+   private static String messageOf(Exception e) {
+      return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
    }
 
    private static String dependencyOf(ScheduleTask task) {

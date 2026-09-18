@@ -22,9 +22,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 /**
- * Request body for {@code POST /api/wiz/v1/admin/schedule/export} -- a bare, synchronous action,
- * matching {@code RepositoryExportRequest}'s own precedent (no preview/apply/planHash, since
- * nothing is mutated).
+ * Request body for {@code POST /api/wiz/v1/admin/schedule/transfer/export} -- a bare, synchronous
+ * action, matching {@code RepositoryExportRequest}'s own precedent (no preview/apply/planHash,
+ * since nothing is mutated).
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ScheduleTaskExportRequest {

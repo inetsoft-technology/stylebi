@@ -20,7 +20,8 @@ package inetsoft.web.admin.ai.schedule;
 import java.util.List;
 
 /**
- * Response body for {@code POST /api/wiz/v1/admin/schedule/export} -- a bare, synchronous action
+ * Response body for {@code POST /api/wiz/v1/admin/schedule/transfer/export} -- a bare, synchronous
+ * action
  * (no preview/apply/planHash) since export mutates nothing on the server, matching
  * {@code export_repository_assets}'s own precedent.
  *
