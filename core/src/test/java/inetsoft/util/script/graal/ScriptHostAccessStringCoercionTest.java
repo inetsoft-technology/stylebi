@@ -101,6 +101,42 @@ class ScriptHostAccessStringCoercionTest {
    }
 
    @Test
+   void wideIntegralTypesKeepEveryDigit() {
+      // doubleValue() rounds past 2^53, so routing these through the double path
+      // silently corrupted digits -- worse than the loud failure being replaced
+      try(Context c = context()) {
+         StringParam t = new StringParam();
+         c.getBindings("js").putMember("t", t);
+         c.getBindings("js").putMember("big", new java.math.BigDecimal("123456789012345678"));
+         c.eval("js", "t.setFormat(big);");
+         assertEquals("123456789012345678", t.got);
+
+         c.getBindings("js").putMember("lng", Long.valueOf(9007199254740993L));
+         c.eval("js", "t.setFormat(lng);");
+         assertEquals("9007199254740993", t.got);
+
+         c.getBindings("js").putMember("bi", new java.math.BigInteger("98765432109876543210"));
+         c.eval("js", "t.setFormat(bi);");
+         assertEquals("98765432109876543210", t.got);
+      }
+   }
+
+   @Test
+   void bigDecimalKeepsFractionWithoutScientificNotationOrScalePadding() {
+      try(Context c = context()) {
+         StringParam t = new StringParam();
+         c.getBindings("js").putMember("t", t);
+         c.getBindings("js").putMember("d", new java.math.BigDecimal("1.50"));
+         c.eval("js", "t.setFormat(d);");
+         assertEquals("1.5", t.got);
+
+         c.getBindings("js").putMember("tiny", new java.math.BigDecimal("0.0001"));
+         c.eval("js", "t.setFormat(tiny);");
+         assertEquals("0.0001", t.got);
+      }
+   }
+
+   @Test
    void overloadResolutionIsUnaffected() {
       // LOWEST precedence keeps the mapping out of overload selection
       assertEquals("int:7", eval("t.setX(7);", new Overloaded()));
