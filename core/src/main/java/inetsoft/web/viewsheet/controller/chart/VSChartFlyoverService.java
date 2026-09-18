@@ -39,6 +39,8 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeSet;
 
 @Service
 @ClusterProxy
@@ -101,21 +103,89 @@ public class VSChartFlyoverService extends VSChartControllerService<VSChartFlyov
       ChartVSAssembly chartAssembly = chartState.getAssembly();
       ChartVSAssemblyInfo chartVSAssemblyInfo = chartState.getChartAssemblyInfo();
       String[] views = chartVSAssemblyInfo.getFlyoverViews();
+
+      if(views == null || views.length == 0) {
+         return;
+      }
+
       Worksheet ws = box.getWorksheet();
       AbstractTableAssembly tassembly = (AbstractTableAssembly)
          ws.getAssembly(chartAssembly.getTableName());
+      Viewsheet vs = chartState.getViewsheet();
+
+      // A Table/Crosstab flyover (BaseTableFlyoverService) sharing the same Flyover View
+      // target performs the same save/mutate/execute/restore sequence on the target's
+      // condition state, serialized per-target via ViewsheetSandbox.getFlyoverLock(). Without
+      // acquiring the same locks here, a chart flyover and a table/crosstab flyover pointed at
+      // the same target can interleave that sequence and corrupt the shared condition state,
+      // leaving the viewsheet stuck loading. Build the same lock name set (source table name +
+      // target view names, sorted for deterministic acquisition order) and acquire them before
+      // running the actual flyover logic. See BaseTableFlyoverService.applyFlyovers() for the
+      // matching table-side implementation.
+      TreeSet<String> lockNames = new TreeSet<>();
+
+      if(tassembly != null) {
+         lockNames.add(tassembly.getName());
+      }
+
+      for(String view : views) {
+         VSAssembly tip = (VSAssembly) vs.getAssembly(view);
+
+         if(tip != null && !view.equals(name)) {
+            lockNames.add(tip.getAbsoluteName());
+         }
+      }
+
+      List<Object> locks = new ArrayList<>();
+
+      for(String lockName : lockNames) {
+         locks.add(box.getFlyoverLock(lockName));
+      }
+
+      processFlyoverLocked(locks, 0, chartState, linkUri, dispatcher, name, conds, box,
+                           chartAssembly, tassembly, views, vs);
+   }
+
+   /**
+    * Recursively acquire the given per-target flyover locks (sorted into a deterministic order
+    * by the caller to avoid deadlock against another request acquiring an overlapping lock
+    * set), then run the actual flyover apply/execute/restore logic while holding all of them.
+    * This is entered while holding no sandbox lock (see processFlyover()'s caller chain), so
+    * unlike BaseTableFlyoverService.applyFlyoversLocked(), no unlockAll()/restoreLocks() dance
+    * around lock acquisition is needed here.
+    */
+   private void processFlyoverLocked(List<Object> locks, int index, VSChartStateInfo chartState,
+                                     String linkUri, CommandDispatcher dispatcher, String name,
+                                     String conds, ViewsheetSandbox box,
+                                     ChartVSAssembly chartAssembly,
+                                     AbstractTableAssembly tassembly, String[] views, Viewsheet vs)
+      throws Exception
+   {
+      if(index >= locks.size()) {
+         doProcessFlyover(chartState, linkUri, dispatcher, name, conds, box, chartAssembly,
+                          tassembly, views, vs);
+         return;
+      }
+
+      synchronized(locks.get(index)) {
+         processFlyoverLocked(locks, index + 1, chartState, linkUri, dispatcher, name, conds,
+                              box, chartAssembly, tassembly, views, vs);
+      }
+   }
+
+   private void doProcessFlyover(VSChartStateInfo chartState, String linkUri,
+                                 CommandDispatcher dispatcher, String name, String conds,
+                                 ViewsheetSandbox box, ChartVSAssembly chartAssembly,
+                                 AbstractTableAssembly tassembly, String[] views, Viewsheet vs)
+      throws Exception
+   {
       ConditionList preList = null;
 
       if(tassembly != null) {
          preList = (ConditionList) tassembly.getPreRuntimeConditionList();
       }
 
-      if(views == null || views.length == 0) {
-         return;
-      }
-
       ArrayList<Integer> hints = new ArrayList<>();
-      Viewsheet vs = chartState.getViewsheet();
       RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
 
       for(String view : views) {
