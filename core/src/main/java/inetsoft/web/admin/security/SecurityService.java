@@ -1079,19 +1079,32 @@ public class SecurityService {
       List<PropertyModel> properties = new ArrayList<>();
       String orgPrefix = "inetsoft.org." + orgId.toLowerCase() + ".";
 
-      for(Object key : SreeEnv.getProperties().keySet()) {
-         String propName = (String) key;
+      try {
+         // Mirrors applyOrganizationProperties's own runInOrgScope wrap: SreeEnv.getProperty's
+         // org-scoped re-lookup below resolves "current org" from OrganizationManager, not from
+         // orgId directly, so without this scope it silently reads back the caller's own org's
+         // properties instead of orgId's.
+         OrganizationManager.runInOrgScope(orgId, () -> {
+            for(Object key : SreeEnv.getProperties().keySet()) {
+               String propName = (String) key;
 
-         if(!propName.startsWith(orgPrefix)) {
-            continue;
-         }
+               if(!propName.startsWith(orgPrefix)) {
+                  continue;
+               }
 
-         propName = propName.substring(orgPrefix.length());
-         String value = SreeEnv.getProperty(propName, false, true);
+               propName = propName.substring(orgPrefix.length());
+               String value = SreeEnv.getProperty(propName, false, true);
 
-         if(value != null) {
-            properties.add(PropertyModel.builder().name(propName).value(value).build());
-         }
+               if(value != null) {
+                  properties.add(PropertyModel.builder().name(propName).value(value).build());
+               }
+            }
+
+            return null;
+         });
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
       }
 
       return properties;

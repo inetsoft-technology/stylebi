@@ -1269,6 +1269,69 @@ class SecurityServiceTest {
       assertEquals("v", result.getProperties().get(0).value());
    }
 
+   // ── getOrganization properties cross-org read scope (Bug #76798) ────────
+   //
+   // readOrganizationProperties re-resolved each already-found, prefix-stripped property name
+   // through SreeEnv.getProperty(name, false, true) -> PropertiesEngine.useAvailableOrgProperty,
+   // which derives "current org" from OrganizationManager.getCurrentOrgID() (the calling
+   // principal's own org) instead of the orgId parameter actually being read -- so an admin
+   // reading an organization other than their own got every property silently dropped, even
+   // though the value was persisted correctly (confirmed by the reporter via the raw prefixed
+   // key). The sibling write path, applyOrganizationProperties, already wraps its SreeEnv calls
+   // in OrganizationManager.runInOrgScope(orgId, ...); the read path needed the same wrap.
+   //
+   // Both SreeEnv and OrganizationManager are fully static-mocked in this file, so the real
+   // PropertiesEngine/OrganizationContextHolder internals never run here. This test models their
+   // coupling directly: getCurrentOrgID() is backed by a mutable holder that only
+   // OrganizationManager.runInOrgScope(orgId, ...) is allowed to swing to orgId for the scope's
+   // duration (mirroring OrganizationContextHolder's real ThreadLocal push/finally-restore), and
+   // the SreeEnv.getProperty stub only resolves the property when the simulated "current org"
+   // matches orgId -- exactly the real coupling that dropped the property when the caller's own
+   // org differed from the org being read.
+   @Test
+   void getOrganization_callerInDifferentOrg_stillReadsBackProperties() throws Exception {
+      String orgId = "org-b";
+      String[] currentOrg = { "org-a" };
+      when(orgManager.getCurrentOrgID()).thenAnswer(inv -> currentOrg[0]);
+      organizationManagerStatic.when(() -> OrganizationManager.runInOrgScope(anyString(), any()))
+         .thenAnswer(inv -> {
+            String scopedOrg = inv.getArgument(0);
+            String previous = currentOrg[0];
+            currentOrg[0] = scopedOrg;
+
+            try {
+               java.util.concurrent.Callable<?> callable = inv.getArgument(1);
+               return callable.call();
+            }
+            finally {
+               currentOrg[0] = previous;
+            }
+         });
+
+      FSOrganization organization = new FSOrganization(orgId);
+      organization.setName("Org B");
+      when(securityProvider.getOrganization(orgId)).thenReturn(organization);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            orgId, ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(identityService.getIdentityInfo(any(IdentityID.class), eq(Identity.ORGANIZATION),
+                                           eq(securityProvider)))
+         .thenReturn(new IdentityInfo());
+      Properties raw = new Properties();
+      raw.setProperty("inetsoft.org." + orgId.toLowerCase() + ".custom.key", "v");
+      sreeEnvStatic.when(SreeEnv::getProperties).thenReturn(raw);
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(eq("custom.key"), eq(false), eq(true)))
+         .thenAnswer(inv -> orgId.equals(currentOrg[0]) ? "v" : null);
+
+      SecurityOrganization result = service.getOrganization(orgId, principal);
+
+      assertEquals(1, result.getProperties().size(),
+         "Bug #76798: readOrganizationProperties must read back properties for an org other "
+         + "than the caller's own current org, not just the caller's own org");
+      assertEquals("custom.key", result.getProperties().get(0).name());
+      assertEquals("v", result.getProperties().get(0).value());
+   }
+
    // ── updateOrganization locale (Bug #76678) ─────────────────────────────
    //
    // updateOrganization passed request.getLocale() (a code, per the Public API's documented
