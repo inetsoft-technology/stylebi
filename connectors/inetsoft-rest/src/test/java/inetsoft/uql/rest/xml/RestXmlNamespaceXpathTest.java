@@ -36,8 +36,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Regression coverage for Redmine #76690 / WBT-005: a Rest.XML {@code xpath} using the response
  * document's own declared namespace prefix (e.g. {@code /wb:countries/wb:country} against a
  * document declaring {@code xmlns:wb="..."}) previously failed to compile (unresolvable prefix,
- * since the generated stylesheet only ever bound {@code xsl}/{@code is}), while an unprefixed
- * xpath silently matched nothing and was reported as one fabricated null-column row.
+ * since the generated stylesheet only ever bound {@code xsl}/{@code is}); an unprefixed xpath
+ * that matches nothing previously fabricated one placeholder null-column row instead of reporting
+ * zero rows (fixed 2026-09-18 in {@code RestXMLQueryRunner.isUnmatchedRoot}).
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, CredentialTestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -55,17 +56,23 @@ public class RestXmlNamespaceXpathTest {
    }
 
    @Test
-   void unprefixedXpathStillMatchesNothingInNamespacedDocument() throws Exception {
-      // Spec-correct XSLT/XPath 1.0 behavior, not a defect: an unprefixed name test only
-      // matches elements in no namespace, and every real element here is in the wb: namespace.
-      // This is the pre-existing "one fabricated null-column row" quirk (EditableNode's
-      // empty-to-ValueNode(null) fallback) - out of scope to fix here, just guarded against
-      // regressing into something worse (e.g. an exception, or more than one row).
+   void unprefixedXpathMatchesNothingAndReportsZeroRows() throws Exception {
+      // Spec-correct XSLT/XPath 1.0 behavior, not a defect in itself: an unprefixed name test
+      // only matches elements in no namespace, and every real element here is in the wb:
+      // namespace. Previously EditableNode's empty-to-ValueNode(null) fallback for "nothing
+      // matched" was fed to table.loadStreamed() as if it were one real scalar row, fabricating
+      // a spurious {"Column": null} row instead of reporting zero rows -- fixed by
+      // RestXMLQueryRunner.isUnmatchedRoot() skipping that fallback instead of loading it.
+      //
+      // A genuinely zero-row result collapses to a null XTableNode through this connector's own
+      // query pipeline (QueryRunner.run()'s zero-size-to-null conversion) -- the same convention
+      // WorksheetTableService.buildTabularTable's zero-column guard relies on to fail the
+      // add_table build loudly instead of silently, per this repo's own
+      // wiz-tabular-build-error-reporting convention (zero rows must keep failing the build).
       final XTableNode table = runQuery("/countries/country");
 
-      assertNotNull(table);
-      // 1 fabricated null-column row + the header row XNodeTableLens.getRowCount() counts.
-      assertEquals(2, rowCount(table));
+      assertNull(table, "an xpath matching zero real elements must report zero rows (a null " +
+         "table, per this connector's convention), not fabricate a placeholder row");
    }
 
    @Test

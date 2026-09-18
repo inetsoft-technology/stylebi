@@ -51,6 +51,16 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
                     break;
                 }
 
+               if(isUnmatchedRoot(data)) {
+                  // the xpath matched zero elements in this response - NoSchemaDocumentParser/
+                  // SchemaDocumentParser's root EditableNode was never appended to, so
+                  // toParsedNode() fell through to its bare ValueNode(null) fallback (see
+                  // EditableNode.toParsedNode()). Skip it rather than handing it to
+                  // table.loadStreamed(), which would otherwise treat this non-Map value as a
+                  // scalar literal and fabricate a single spurious {"Column": null} row.
+                  continue;
+               }
+
                if(query instanceof EndpointQuery) {
                   doLookups((EndpointQuery) query, strategy);
                }
@@ -83,6 +93,16 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
 
     private boolean hasNext(RestDataIteratorStrategy<Object> strategy, BaseJsonTable table) throws Exception {
         return !isCancelled() && (table.getMaxRows() <= 0 || table.size() < table.getMaxRows()) && strategy.hasNext();
+    }
+
+    /**
+     * True when {@code data} is the {@code EditableNode.toParsedNode()} fallback produced by a
+     * root that was never appended to -- i.e. the query's xpath matched zero elements in the
+     * response, as opposed to matching one real element whose own text happens to be empty
+     * (which sets {@code EditableNode.value} to a real, non-null parsed value).
+     */
+    private boolean isUnmatchedRoot(Object data) {
+        return data instanceof ValueNode && ((ValueNode) data).unwrap() == null;
     }
 
    private void doLookups(EndpointQuery query,
