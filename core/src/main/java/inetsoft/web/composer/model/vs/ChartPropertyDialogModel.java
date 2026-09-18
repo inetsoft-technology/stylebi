@@ -36,6 +36,10 @@ public class ChartPropertyDialogModel implements Serializable {
    }
 
    public ChartAdvancedPaneModel getChartAdvancedPaneModel() {
+      if(chartAdvancedPaneModel == null) {
+         chartAdvancedPaneModel = new ChartAdvancedPaneModel();
+      }
+
       return chartAdvancedPaneModel;
    }
 
@@ -44,6 +48,10 @@ public class ChartPropertyDialogModel implements Serializable {
    }
 
    public ChartLinePaneModel getChartLinePaneModel() {
+      if(chartLinePaneModel == null) {
+         chartLinePaneModel = new ChartLinePaneModel();
+      }
+
       return chartLinePaneModel;
    }
 
@@ -66,6 +74,13 @@ public class ChartPropertyDialogModel implements Serializable {
    }
 
    public VSAssemblyScriptPaneModel getVsAssemblyScriptPaneModel() {
+      if(vsAssemblyScriptPaneModel == null) {
+         vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder()
+            .scriptEnabled(false)
+            .expression("")
+            .build();
+      }
+
       return vsAssemblyScriptPaneModel;
    }
 
