@@ -1178,7 +1178,20 @@ public class WorksheetAgentController {
          }
 
          // Work on a scratch clone of the live query -- never assigned to the live assembly
-         // until every check below has passed.
+         // until every check below has passed. NOTE (code review, PR #5391): unlike
+         // JDBCQuery.clone() (which editSqlQuery relies on and which deep-clones its
+         // SQLDefinition too), TabularQuery.clone() only deep-copies typemap/fmtmap/extentmap/
+         // cols/variableTable -- every connector-specific property (e.g. RestParameters,
+         // additionalParameters) is a shallow Object.clone() copy, initially the SAME object
+         // reference the live query's field holds. This is safe here only because every shipped
+         // named/custom connector's mutable composite properties follow a "fresh object per
+         // getter, replace-the-field-in-the-setter" convention (see
+         // FakeNamedConnectorQuery.getParameters()/setParameters(), documented as mirroring the
+         // real EndpointJsonQuery) -- the getter never hands back the live shared object, so
+         // TabularEndpointBindingSupport/TabularQueryContractSupport mutating what a getter
+         // returns can't corrupt the live query. A future connector whose property getter DOES
+         // return its own live mutable field would break that assumption and silently mutate the
+         // live assembly's query out from under this scratch-first pattern.
          TabularQuery scratchQuery = liveQuery.clone();
          Map<String, PropertyMeta> pmap = TabularUtil.getPropertyMap(scratchQuery.getClass());
          boolean namedConnector = pmap.get("endpoint") != null;

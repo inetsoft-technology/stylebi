@@ -78,4 +78,23 @@ public class FakeColumnProducingNamedConnectorQuery extends FakeNamedConnectorQu
    }
 
    private Map<String, List<String>> columnsByEndpoint;
+
+   /**
+    * {@link TabularEndpointBindingSupport#applyLookupChain} validates each chain entry via
+    * reflection against a SINGLE {@code getLookupEndpoints(int)} method (see its own
+    * {@code getLookupEndpointsAt} helper) -- a different reflection surface than the
+    * {@code tagsMethod}-driven, per-level {@code getLookupEndpoints0()}/{@code getLookupEndpoints1()}
+    * pair {@link FakeNamedConnectorQuery} declares for the UI-facing {@code @PropertyEditor}
+    * exploration path ({@code list_endpoint_lookups}). Without this override, {@code
+    * applyLookupChain} finds no such method (a caught, logged {@code NoSuchMethodException}),
+    * treats the chain as having zero known candidates, and refuses every lookup name with
+    * "Available: (none)." regardless of {@link FakeNamedConnectorQuery}'s own {@code ENDPOINT_MAP}.
+    */
+   public String[][] getLookupEndpoints(int index) {
+      return switch(index) {
+         case 0 -> getLookupEndpoints0();
+         case 1 -> getLookupEndpoints1();
+         default -> new String[0][];
+      };
+   }
 }

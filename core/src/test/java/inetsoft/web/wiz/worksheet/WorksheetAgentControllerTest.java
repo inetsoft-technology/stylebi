@@ -74,6 +74,7 @@ import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.service.FakeColumnProducingCustomRestQuery;
 import inetsoft.web.wiz.service.FakeColumnProducingNamedConnectorQuery;
 import inetsoft.web.wiz.service.FakeCustomRestQuery;
 import inetsoft.web.wiz.service.FakeNamedConnectorQuery;
@@ -930,6 +931,396 @@ class WorksheetAgentControllerTest {
       assertEquals(2, unchangedColumns.getAttributeCount());
       assertNotNull(unchangedColumns.getAttribute("repoId"),
          "the OLD columns must still be present after a rejected edit");
+   }
+
+   /**
+    * Code-review follow-up (PR #5391, finding 2): edit_table's headline safety property is that
+    * it refuses to drop a column a dependent JOIN still keys on -- the exact protection
+    * delete_table + add_table never provided (delete_table refuses outright if ANYTHING depends
+    * on the table; add_table can't repoint an existing join at all). Mirrors
+    * WorksheetEditServiceMutatorsTest#removeColumnRefusesAJoinKeyStillUsedByADependentJoin's
+    * construction, but drives edit_table through the real WorksheetAgentController/
+    * WorksheetEditService pair (not the mocked applyOnRuntime shortcut the other edit_table tests
+    * use) so the join is wired through the SAME production dependency-tracking path
+    * WorksheetControllerService.allowsDeletion reads.
+    */
+   @Test
+   void editTableRefusesWhenDependentJoinStillKeysOnADroppedColumn() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of(
+         "Repos", List.of("repoId", "repoName"),
+         "Issues", List.of("issueId", "issueTitle")));
+      liveQuery.setEndpoint("Repos");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "repoId");
+      ws.addAssembly(right);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ET8"), any())).thenReturn(session("TOK-ET8"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      SecurityEngine joinSecurityEngine = mock(SecurityEngine.class);
+      when(joinSecurityEngine.checkPermission(
+         any(), any(ResourceType.class), any(String.class), any(ResourceAction.class)))
+         .thenReturn(true);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), joinSecurityEngine, mock(InnerJoinService.class));
+
+      // Build a REAL join depending on "Calendars"."repoId" via the production Editor path (not
+      // by hand-constructing a join assembly), so the worksheet's own dependency graph is wired
+      // exactly the way WorksheetControllerService.allowsDeletion expects to read it.
+      editSvc.apply("TOK-ET8", agent,
+         ed -> ed.addJoin("J", "Calendars", "repoId", "R", "repoId", "INNER", null, null));
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      // Switching to "Issues" drops repoId/repoName entirely -- the join still keys on repoId.
+      EditRequest req = editTableRequest("Calendars", "Issues", null, null, null, null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-ET8", req, agent));
+      assertTrue(ex.getMessage().contains("repoId"), ex.getMessage());
+
+      // Nothing must have been committed to the live assembly -- the join must still resolve too.
+      assertEquals("Repos", liveQuery.getEndpoint(),
+         "a refused edit must not mutate the live query's own endpoint");
+      assertNotNull(liveAssembly.getColumnSelection(false).getAttribute("repoId"),
+         "the join key must survive the refusal");
+      assertNotNull(ws.getAssembly("J"), "the join must still be there");
+   }
+
+   /**
+    * Code-review follow-up (PR #5391, finding 2): a success test for the suffix form -- only the
+    * endpoint form had one. Uses FakeColumnProducingCustomRestQuery (a generic/custom REST-JSON
+    * connector with no endpoint property, so editTabularTable dispatches to the suffix branch).
+    */
+   @Test
+   void editTableRewritesSuffixInPlaceKeepingSameAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingCustomRestQuery liveQuery = new FakeColumnProducingCustomRestQuery();
+      liveQuery.setColumnsBySuffix(Map.of(
+         "/widgets", List.of("widgetId"),
+         "/gadgets", List.of("gadgetId", "gadgetName")));
+      liveQuery.setSuffix("/widgets");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Widgets");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET9"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = editTableRequest("Widgets", null, null, null, "/gadgets", null, null, null);
+
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET9", req, agent));
+
+      assertSame(liveAssembly, ws.getAssembly("Widgets"));
+      TabularQuery updatedQuery = ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertEquals("/gadgets", ((FakeColumnProducingCustomRestQuery) updatedQuery).getSuffix());
+      ColumnSelection newColumns = liveAssembly.getColumnSelection(false);
+      assertEquals(2, newColumns.getAttributeCount());
+      assertNotNull(newColumns.getAttribute("gadgetId"));
+      assertNull(newColumns.getAttribute("widgetId"),
+         "the OLD suffix's columns must not linger after the edit");
+   }
+
+   /**
+    * Code-review follow-up (PR #5391, finding 2): a success test for the queryParams form -- only
+    * the endpoint form had one, mirroring how addQueryParamsTable's own tests reuse
+    * FakeNamedConnectorQuery's "endpoint" property THROUGH the generic queryParams map rather
+    * than the dedicated endpoint field (see addQueryParamsTableEditResponseDisclosesResolvedNameOnCollision).
+    */
+   @Test
+   void editTableRewritesQueryParamsInPlaceKeepingSameAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of(
+         "Repos", List.of("repoId"),
+         "Issues", List.of("issueId", "issueTitle")));
+      liveQuery.setEndpoint("Repos");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      when(ds.getType()).thenReturn("FakeColumnProducingNamedConnector");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Products");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET10"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      TabularDataSource<?> xds = mock(TabularDataSource.class);
+      when(xds.getType()).thenReturn("FakeColumnProducingNamedConnector");
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(xds);
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = editTableRequest(
+         "Products", null, null, null, null, Map.of("endpoint", "Issues"), null, null);
+
+      // TabularSchemaExtractor.extract (reached by the queryParams branch) needs Config.getConfig(),
+      // a Spring-bean-backed singleton -- same stub addQueryParamsTableEditResponseDisclosesResolvedNameOnCollision uses.
+      inetsoft.util.ConfigurationContext configContext = inetsoft.util.ConfigurationContext.getContext();
+      org.springframework.context.ApplicationContext realAppContext = configContext.getApplicationContext();
+      inetsoft.uql.util.Config configStub = mock(inetsoft.uql.util.Config.class);
+      when(configStub.getResourceBundle(any())).thenReturn(null);
+      org.springframework.context.ApplicationContext delegatingContext =
+         mock(org.springframework.context.ApplicationContext.class,
+              org.mockito.AdditionalAnswers.delegatesTo(realAppContext));
+      doReturn(configStub).when(delegatingContext).getBean(inetsoft.uql.util.Config.class);
+      configContext.setApplicationContext(delegatingContext);
+
+      try {
+         assertDoesNotThrow(() -> ctrl.edit("TOK-ET10", req, agent));
+      }
+      finally {
+         configContext.setApplicationContext(realAppContext);
+      }
+
+      assertSame(liveAssembly, ws.getAssembly("Products"));
+      ColumnSelection newColumns = liveAssembly.getColumnSelection(false);
+      assertNotNull(newColumns.getAttribute("issueId"));
+      assertNull(newColumns.getAttribute("repoId"));
+   }
+
+   /**
+    * Code-review follow-up (PR #5391, finding 2): proves `lookup` is actually threaded into
+    * TabularEndpointBindingSupport.applyLookupChain by edit_table, not just accepted and dropped
+    * -- mirrors addTabularTableThreadsParametersIntoTheSharedHelper's "read the property back"
+    * verification style for `parameters`.
+    */
+   @Test
+   void editTableAppliesLookupChain() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of("Repos", List.of("repoId")));
+      liveQuery.setEndpoint("Repos");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET11"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      // "Repos" -> "Issues" is a real lookup edge in FakeNamedConnectorQuery's ENDPOINT_MAP.
+      EditRequest req = editTableRequest(
+         "Calendars", "Repos", Map.of("id", "42"), List.of("Issues"), null, null, null, null);
+
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET11", req, agent));
+
+      TabularQuery updatedQuery = ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertEquals("Issues", ((FakeColumnProducingNamedConnectorQuery) updatedQuery).getLookupEndpoint0(),
+         "edit_table must actually apply the lookup chain, not just accept and drop it");
+   }
+
+   /**
+    * Code-review follow-up (PR #5391, finding 2): the customLookups analogue of
+    * {@link #editTableAppliesLookupChain}, for the suffix form.
+    */
+   @Test
+   void editTableAppliesCustomLookupChain() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingCustomRestQuery liveQuery = new FakeColumnProducingCustomRestQuery();
+      liveQuery.setColumnsBySuffix(Map.of("/widgets", List.of("widgetId")));
+      liveQuery.setSuffix("/widgets");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Widgets");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET12"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      // customLookups is only settable through the ObjectMapper JSON route (see
+      // addTabularTableRequest's own customLookups param) -- reuse that shape here too.
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "edit_table");
+      body.put("table", "Widgets");
+      body.put("suffix", "/widgets");
+      body.put("customLookups", List.of(Map.of(
+         "url", "/widgets/{param1}/parts", "jsonPath", "$.parts", "key", "id")));
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      EditRequest req = mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET12", req, agent));
+
+      TabularQuery updatedQuery = ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertEquals("/widgets/{param1}/parts",
+         ((FakeColumnProducingCustomRestQuery) updatedQuery).getLookupUrl0(),
+         "edit_table must actually apply customLookups, not just accept and drop it");
+   }
+
+   /**
+    * Code-review follow-up (PR #5391, finding 2): the "Table has no query"/"no bound datasource"
+    * branches editTabularTable itself guards on had no direct test.
+    */
+   @Test
+   void editTableThrowsWhenTableHasNoQuery() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      // Deliberately no setQuery() call -- info.getQuery() stays null.
+      ws.addAssembly(liveAssembly);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET13"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         mock(DataSourceService.class), mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = editTableRequest("Calendars", "Issues", null, null, null, null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-ET13", req, agent));
+      assertTrue(ex.getMessage().contains("has no query"), ex.getMessage());
+   }
+
+   @Test
+   void editTableThrowsWhenTableHasNoBoundDatasource() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeNamedConnectorQuery liveQuery = new FakeNamedConnectorQuery();
+      liveQuery.setEndpoint("Repos");
+      // Deliberately no setDataSource() call -- getDataSource() stays null.
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET14"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         mock(DataSourceService.class), mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = editTableRequest("Calendars", "Issues", null, null, null, null, null, null);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-ET14", req, agent));
+      assertTrue(ex.getMessage().contains("no bound datasource"), ex.getMessage());
    }
 
    // ---------------------------------------------------------------------------
