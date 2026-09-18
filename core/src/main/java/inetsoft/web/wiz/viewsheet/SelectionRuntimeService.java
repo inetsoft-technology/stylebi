@@ -72,10 +72,13 @@ import java.util.*;
  * <p><b>An active search string silently narrows what an apply touches.</b> When one is set and the
  * assembly is not single-select, {@code applySelection} runs
  * {@code olist = olist.findAll(search, true)} before applying, so the write lands on the filtered
- * subset. This class reads it and reports it rather than pretending the apply was global. It does not
- * offer to <i>set</i> one: {@code setSearchString} writes both {@code search} and {@code search2},
- * only {@code search2} is persisted, and <b>nothing in the repository ever parses {@code search2}
- * back</b> — so a search string is a write-only field that never survives a reopen.
+ * subset. This class reads it and reports it rather than pretending the apply was global, and
+ * {@link #setSelection(String, Principal, String, List, List, String, Boolean, Boolean, String,
+ * String) setSelection}'s {@code search} parameter can set one before the apply runs, the same as
+ * typing into the widget's own search box (bug-76758). Either way, {@code setSearchString} writes
+ * both {@code search} and {@code search2}, only {@code search2} is persisted, and <b>nothing in the
+ * repository ever parses {@code search2} back</b> — so a search string never survives a reopen,
+ * exactly like the interactive widget's own search box.
  */
 @Service
 public class SelectionRuntimeService {
@@ -121,14 +124,37 @@ public class SelectionRuntimeService {
                                            String linkUri)
       throws Exception
    {
+      return setSelection(sessionToken, user, assemblyName, values, deselect, sortOrder,
+                          singleSelect, additive, null, linkUri);
+   }
+
+   /**
+    * Same as {@link #setSelection(String, Principal, String, List, List, String, Boolean, Boolean,
+    * String)}, with a search string to set on the assembly before the rest of the request applies —
+    * see bug-76758 (VFL-003). This is the only way to set one: {@code setSearchString} exists on the
+    * assembly info, but nothing upstream of this class ever called it, so a caller had no way to
+    * scope a write by search the way a person typing into the widget's own search box can. Like the
+    * widget's own search box, it does not survive a reopen (see the class javadoc).
+    *
+    * @param search the search string to set before applying, or null to leave it as-is. Only valid
+    *              on a selection list or tree — a range slider has no search box.
+    */
+   public Map<String, Object> setSelection(String sessionToken, Principal user, String assemblyName,
+                                           List<List<String>> values, List<List<String>> deselect,
+                                           String sortOrder, Boolean singleSelect, Boolean additive,
+                                           String search, String linkUri)
+      throws Exception
+   {
       requireName(assemblyName);
 
       boolean hasDeselect = deselect != null && !deselect.isEmpty();
 
-      if(values == null && sortOrder == null && singleSelect == null && !hasDeselect) {
+      if(values == null && sortOrder == null && singleSelect == null && search == null &&
+         !hasDeselect)
+      {
          throw new IllegalArgumentException(
-            "Nothing to do — give at least one of 'values', 'deselect', 'sortOrder' or " +
-            "'singleSelect'.");
+            "Nothing to do — give at least one of 'values', 'deselect', 'sortOrder', " +
+            "'singleSelect' or 'search'.");
       }
 
       if(values != null && hasDeselect) {
@@ -159,6 +185,20 @@ public class SelectionRuntimeService {
 
          result.put("assembly", assemblyName);
          result.put("type", describe(assembly));
+
+         // Search first, same reasoning as selection style below: it changes how a values apply
+         // is scoped (see scopedBySearch further down), so it has to be in place before that apply
+         // runs, not after.
+         if(search != null) {
+            if(!(info instanceof SelectionBaseVSAssemblyInfo searchable)) {
+               throw new IllegalArgumentException(
+                  "'" + assemblyName + "' is " + describe(assembly) + ", which has no search box — " +
+                  "only a selection list or tree can be scoped by search. Drop 'search'.");
+            }
+
+            searchable.setSearchString(search);
+            result.put("searchSet", search);
+         }
 
          // Order matters. Selection style first: it changes how a value apply is interpreted
          // (single-select unselects siblings), so applying values under the old style and then
@@ -215,12 +255,13 @@ public class SelectionRuntimeService {
                }
             }
 
-            String search = searchString(info);
+            String activeSearch = searchString(info);
 
-            if(search != null && !search.isBlank() && !single) {
+            if(activeSearch != null && !activeSearch.isBlank() && !single) {
                // Not a refusal: the apply is legitimate, but it lands on the filtered subset and
-               // nothing in the result would otherwise say so.
-               result.put("scopedBySearch", search);
+               // nothing in the result would otherwise say so. Reads whatever is live on `info`,
+               // which the `search` parameter above may have just set for this same call.
+               result.put("scopedBySearch", activeSearch);
             }
 
             if(!single && isPathDiffable(assembly) && !Boolean.TRUE.equals(additive)) {
@@ -393,6 +434,18 @@ public class SelectionRuntimeService {
 
          requireBoundColumn(assembly, assemblyName);
 
+         SelectionTreeVSAssembly tree = (SelectionTreeVSAssembly) assembly;
+
+         // Not extended to an ID-mode tree: an ID-mode path is matched anywhere in the tree by
+         // value (see matchesAnywhere, used the same way by setSelection's own idMode branch),
+         // not positionally from the root, so path.size() says nothing about how many levels
+         // remain below the named node -- the depth heuristic below would be actively wrong here,
+         // not just imprecise. An ID-mode single-select tree's own version of this bug (VFL-004)
+         // is therefore still open; see treatsAnIdModeSingleSelectTreeAsUnguarded in the test.
+         if(select && !tree.isIDMode()) {
+            refuseAmbiguousSingleSelectSubtree(tree, assemblyName, path);
+         }
+
          result.put("assembly", assemblyName);
          result.put("path", path);
          result.put("mode", select ? "select" : "clear");
@@ -474,6 +527,71 @@ public class SelectionRuntimeService {
       return "'" + assemblyName + "' has no column bound -- select/deselect/clear would silently " +
          "do nothing against it. Call set_selection_source first (or confirm its binding actually " +
          "took effect via get_assembly_properties).";
+   }
+
+   /**
+    * Refuses {@code select_subtree(mode:"select")} on a whole-tree single-selection tree when the
+    * named path is not already a leaf -- see bug-76758 (VFL-004).
+    *
+    * <p>{@code VSSelectionService.setSubtree}'s own recursive walk has an early return —
+    * {@code if(selected && treeInfo.isSingleSelection() && treeInfo.containsLevel(level) &&
+    * !value.isSelected())} — that, once {@code isSingleSelection()} is true, fires for every level
+    * ({@code containsLevel} auto-populates every level when single-selection is not "mixed" per
+    * level). That silently walks only the first child at each level, collapsing a "select this
+    * whole branch" request down to one arbitrary leaf while still reporting {@code ok:true}.
+    *
+    * <p>Deliberately not fixed by changing that shared algorithm: it is also what the live
+    * interactive UI's own "select subtree" context-menu action depends on (see
+    * {@code VSSelectionListController}/{@code selection-tree-controller.ts}), and there is no
+    * evidence the collapse is new there rather than long-standing. Refusing here only narrows this
+    * agent-only entry point.
+    *
+    * <p><b>Deliberately conservative, not an exact leaf count.</b> Telling whether {@code path}
+    * names exactly one leaf would mean walking the assembly's actual {@code SelectionList} --
+    * which cannot be constructed or mocked in a plain unit test (confirmed by
+    * {@code aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath}'s own note; Mockito
+    * throws instrumenting it). Comparing {@code path}'s length against the tree's own level count
+    * needs no such walk, and is exactly right for this bug's repro (and the overwhelmingly common
+    * case): a path shorter than the tree's depth names an ancestor, which the recursive collapse
+    * above always mishandles once it has more than one descendant. The one case this over-refuses
+    * -- an ancestor whose every level below happens to hold exactly one value, so it is not
+    * actually ambiguous -- is rare enough, and cheap enough to work around (name the leaf path
+    * directly), to accept for a low-priority guard.
+    *
+    * <p><b>Not called at all for an ID-mode tree</b> -- see the caller's comment. This guard does
+    * not close VFL-004 for that case.
+    */
+   private static void refuseAmbiguousSingleSelectSubtree(SelectionTreeVSAssembly tree,
+                                                          String assemblyName, List<String> path)
+   {
+      SelectionTreeVSAssemblyInfo info = tree.getSelectionTreeInfo();
+
+      if(!info.isSingleSelection()) {
+         return;
+      }
+
+      DataRef[] refs = tree.getDataRefs();
+      refuseAmbiguousSingleSelectSubtree(refs == null ? 0 : refs.length, assemblyName, path);
+   }
+
+   /**
+    * Split out from {@link #refuseAmbiguousSingleSelectSubtree(SelectionTreeVSAssembly, String,
+    * List)} so it is testable without a real assembly -- only called once the caller already knows
+    * {@code info.isSingleSelection()} is true.
+    */
+   static void refuseAmbiguousSingleSelectSubtree(int treeDepth, String assemblyName,
+                                                   List<String> path)
+   {
+      if(path.size() >= treeDepth) {
+         return; // path already names a leaf -- always exactly one, safe under any selection style.
+      }
+
+      throw new IllegalArgumentException(
+         "'" + assemblyName + "' is single-select, so selecting the whole subtree at " +
+         String.join(" > ", path) + " -- " + (treeDepth - path.size()) + " level(s) short of a " +
+         "leaf -- could silently collapse to just one descendant instead of the whole branch. " +
+         "Name a full path down to a leaf instead, or pass singleSelect:false on set_selection " +
+         "first to widen it.");
    }
 
    private static int requireSortOrder(String sortOrder) {
