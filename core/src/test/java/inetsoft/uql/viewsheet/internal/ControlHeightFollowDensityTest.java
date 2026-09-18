@@ -198,11 +198,11 @@ class ControlHeightFollowDensityTest {
    void checkBoxHeightIsLeftAloneWhenAlreadyResized() {
       SreeEnv.setProperty("viewsheet.density", "compact");
       CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
-      info.setPixelSize(new Dimension(info.getPixelSize().width, 60));
+      info.setPixelSize(new Dimension(info.getPixelSize().width, 64));
 
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-      assertEquals(60, info.getPixelSize().height, "an author-resized checkbox is never substituted");
+      assertEquals(64, info.getPixelSize().height, "an author-resized checkbox is never substituted");
    }
 
    @Test
@@ -282,11 +282,11 @@ class ControlHeightFollowDensityTest {
    void radioButtonHeightIsLeftAloneWhenAlreadyResized() {
       SreeEnv.setProperty("viewsheet.density", "compact");
       RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
-      info.setPixelSize(new Dimension(info.getPixelSize().width, 60));
+      info.setPixelSize(new Dimension(info.getPixelSize().width, 64));
 
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
-      assertEquals(60, info.getPixelSize().height, "an author-resized radio button is never substituted");
+      assertEquals(64, info.getPixelSize().height, "an author-resized radio button is never substituted");
    }
 
    // SubmitVSAssemblyInfo has no title lane or data rows - its legacy default is a single
@@ -325,5 +325,107 @@ class ControlHeightFollowDensityTest {
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
       assertEquals(40, info.getPixelSize().height, "an author-resized submit button is never substituted");
+   }
+
+   @Test
+   void spinnerHeightFollowsALaterDensityChange() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(30, info.getPixelSize().height);
+
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(24, info.getPixelSize().height,
+                   "a seeded control must not be stranded at the old tier");
+   }
+
+   @Test
+   void comboBoxHeightFollowsALaterDensityChange() {
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      ComboBoxVSAssemblyInfo info = new ComboBoxVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(24, info.getPixelSize().height);
+
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(30, info.getPixelSize().height);
+   }
+
+   @Test
+   void textInputHeightFollowsALaterDensityChange() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      TextInputVSAssemblyInfo info = new TextInputVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(28, info.getPixelSize().height);
+   }
+
+   @Test
+   void submitHeightFollowsALaterDensityChange() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SubmitVSAssemblyInfo info = new SubmitVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(24, info.getPixelSize().height);
+   }
+
+   @Test
+   void checkBoxHeightFollowsALaterDensityChange() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(60, info.getPixelSize().height, "the doubled comfortable tier");
+
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(48, info.getPixelSize().height, "the doubled dense tier");
+   }
+
+   @Test
+   void radioButtonHeightFollowsALaterDensityChange() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      RadioButtonVSAssemblyInfo info = new RadioButtonVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(48, info.getPixelSize().height);
+   }
+
+   @Test
+   void aControlHandSizedToATierValueIsAlsoMoved() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      SpinnerVSAssemblyInfo info = new SpinnerVSAssemblyInfo();
+      info.setPixelSize(new Dimension(info.getPixelSize().width, 28));
+
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(30, info.getPixelSize().height,
+                   "the accepted false positive: a hand-sized control matching a tier is moved, "
+                      + "the same rule isControlHeight already applies on Revert");
+   }
+
+   @Test
+   void aDoubledControlHandSizedToATierValueIsAlsoMoved() {
+      SreeEnv.setProperty("viewsheet.density", "compact");
+      CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
+      info.setPixelSize(new Dimension(info.getPixelSize().width, 60));
+
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(56, info.getPixelSize().height,
+                   "60 is comfortable's doubled tier, so it reads as seeded rather than hand-sized - "
+                      + "the same accepted false positive the single-height types take");
    }
 }

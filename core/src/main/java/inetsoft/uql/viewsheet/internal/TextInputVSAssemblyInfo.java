@@ -89,7 +89,10 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
             ctx.modern ? VSObjectChromeDefaults.cardCornerRadius() : 0);
       }
 
-      if(ctx.modern && getPixelSize().height == AssetUtil.defh) {
+      // also re-fires on a density change, or a seeded control is stranded at the old tier
+      if(ctx.modern && (getPixelSize().height == AssetUtil.defh ||
+         VSDensityDefaults.isControlHeight(getPixelSize().height)))
+      {
          setPixelSize(new Dimension(getPixelSize().width, VSDensityDefaults.controlHeight(ctx)));
       }
       else if(!ctx.modern && VSDensityDefaults.isControlHeight(getPixelSize().height)) {

@@ -478,7 +478,11 @@ public class CheckBoxVSAssemblyInfo extends ListInputVSAssemblyInfo
       // still-legacy title height), or updateDataRowCol()'s (containerHeight - titleHeight) /
       // cellHeight would recompute a second row out of the container's new headroom instead of
       // leaving it as clearance.
-      if(ctx.modern && getPixelSize().height == 2 * AssetUtil.defh) {
+      // also re-fires on a density change, or a seeded control is stranded at the old tier
+      if(ctx.modern && (getPixelSize().height == 2 * AssetUtil.defh ||
+         getPixelSize().height % 2 == 0 &&
+            VSDensityDefaults.isControlHeight(getPixelSize().height / 2)))
+      {
          int newHeight = 2 * VSDensityDefaults.controlHeight(ctx);
          setPixelSize(new Dimension(getPixelSize().width, newHeight));
 
