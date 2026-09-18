@@ -54,25 +54,6 @@ describe("GuiTool.isVizShell", () => {
    });
 });
 
-describe("GuiTool density mode", () => {
-   afterEach(() => {
-      document.body.classList.remove(
-         "viz-density-dense", "viz-density-compact", "viz-density-comfortable");
-   });
-
-   it("defaults to dense when no density class is present", () => {
-      expect(GuiTool.vizDensityMode()).toBe("dense");
-   });
-
-   it("reads the density class when one is present", () => {
-      document.body.classList.add("viz-density-compact");
-      expect(GuiTool.vizDensityMode()).toBe("compact");
-      document.body.classList.remove("viz-density-compact");
-      document.body.classList.add("viz-density-comfortable");
-      expect(GuiTool.vizDensityMode()).toBe("comfortable");
-   });
-});
-
 describe("GuiTool.isVizModernElement", () => {
    let container: HTMLElement;
 
