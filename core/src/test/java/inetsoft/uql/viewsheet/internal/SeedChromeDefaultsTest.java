@@ -30,6 +30,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.ChartLineColor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
@@ -1247,6 +1248,43 @@ class SeedChromeDefaultsTest {
 
       assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
                    "a measure-backed node colour must keep taking the palette");
+   }
+
+   // Binding a category onto the node shelf builds a fresh CategoricalColorFrame, whose
+   // constructor default is the legacy COLOR_PALETTE. What lifts an ordinary chart's frame off
+   // that default at bind time is ChangeChartProcessor.updateColorFrameCSSParentParams, called
+   // from VSChartDataHandler - and it walks getAestheticRefs() too, so a tree chart's node
+   // colours were born legacy on a modern dashboard.
+   @Test
+   void treeChartNodeColorIsSeededAtBindTime() {
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      CategoricalColorFrame frame = newNodeColorChart(info);
+      assertEquals(CategoricalColorFrame.COLOR_PALETTE[0], frame.getDefaultColor(0),
+                   "precondition: a freshly bound frame carries the legacy constructor default");
+
+      new ChangeChartProcessor()
+         .updateColorFrameCSSParentParams(info, info.getVSChartInfo());
+
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
+                   "binding a category to node colour on a modern chart must seed the modern palette");
+   }
+
+   // The same call is what hands a frame its CSS parent params; without them
+   // CategoricalColorFrame.updateCSSColors() is a no-op, so a deployment's format.css
+   // ChartPalette override could never reach a tree chart's node colours.
+   @Test
+   void treeChartNodeColorGetsItsCssParentParamsAtBindTime() {
+      ChartVSAssemblyInfo info = newChart();
+      info.setVizMark(VizMark.MODERN_LIGHT);
+      CategoricalColorFrame frame = newNodeColorChart(info);
+      assertNull(frame.getParentParams(), "precondition: a fresh frame has no CSS parent params");
+
+      new ChangeChartProcessor()
+         .updateColorFrameCSSParentParams(info, info.getVSChartInfo());
+
+      assertNotNull(frame.getParentParams(),
+                    "the node colour frame must be reachable by a format.css palette override");
    }
 
    private CategoricalColorFrame newNodeColorChart(ChartVSAssemblyInfo info) {

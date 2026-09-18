@@ -1887,18 +1887,40 @@ public class ChangeChartProcessor {
 
       for(boolean runtime : new boolean[]{ false, true }) {
          for(AestheticRef ref : chartInfo.getAestheticRefs(runtime)) {
-            if(ref.getVisualFrame() instanceof CategoricalColorFrame) {
-               CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
-               ccf.setParentParams(parentParams);
-               VSChartPaletteDefaults.applyModernPalette(ccf, VizContext.of(info));
-            }
-            else if(ref.getVisualFrame() instanceof GradientColorFrame) {
-               ((GradientColorFrame) ref.getVisualFrame()).setParentParams(parentParams);
-            }
-            else if(ref.getVisualFrame() instanceof HSLColorFrame) {
-               ((HSLColorFrame) ref.getVisualFrame()).setParentParams(parentParams);
-            }
+            updateColorFrameCSSParentParams(ref, parentParams, info);
          }
+      }
+
+      // A relation chart keeps a VSDimensionRef-backed node color out of getAestheticRefs() so its
+      // dimension stays out of the GROUP BY (bug #75253), so the loop above cannot reach it. This
+      // call is what lifts a newly bound frame off CategoricalColorFrame's legacy constructor
+      // default, so without it a category dropped on a modern tree chart's node shelf is born
+      // legacy - and never gets the parent params updateCSSColors() needs, so no format.css
+      // palette override could reach it either.
+      if(chartInfo instanceof RelationChartInfo) {
+         updateColorFrameCSSParentParams(((RelationChartInfo) chartInfo).getNodeColorField(),
+                                         parentParams, info);
+      }
+   }
+
+   private void updateColorFrameCSSParentParams(AestheticRef ref,
+                                                List<CSSParameter> parentParams,
+                                                ChartVSAssemblyInfo info)
+   {
+      if(ref == null) {
+         return;
+      }
+
+      if(ref.getVisualFrame() instanceof CategoricalColorFrame) {
+         CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
+         ccf.setParentParams(parentParams);
+         VSChartPaletteDefaults.applyModernPalette(ccf, VizContext.of(info));
+      }
+      else if(ref.getVisualFrame() instanceof GradientColorFrame) {
+         ((GradientColorFrame) ref.getVisualFrame()).setParentParams(parentParams);
+      }
+      else if(ref.getVisualFrame() instanceof HSLColorFrame) {
+         ((HSLColorFrame) ref.getVisualFrame()).setParentParams(parentParams);
       }
    }
 
