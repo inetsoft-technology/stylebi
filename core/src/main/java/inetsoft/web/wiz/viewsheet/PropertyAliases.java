@@ -607,6 +607,26 @@ public final class PropertyAliases {
       aliases.put("refresh", basic + ".refresh");
    }
 
+   /**
+    * "Submit on Change" — declared per input type rather than folded into {@link #basicGeneral}.
+    *
+    * <p>The field itself lives on the shared {@code GeneralPropPaneModel} that every assembly
+    * carries, so folding it into {@code basicGeneral} would have been one line. It is not done
+    * that way on purpose: only the six input dialogs call
+    * {@code generalPropPaneModel.setShowSubmitCheckbox(true)} (VSInputService), and on a chart,
+    * table or gauge the field is inherited, never read and never applied — aliasing it there
+    * would be the same "exposes but does nothing" trap {@code shadow} and
+    * {@code sliderLabelPaneModel.showLabel} are kept out of the table for.
+    *
+    * <p>Without this the property was genuinely applied by {@code VSInputService} and genuinely
+    * writable through its raw dotted path, but {@code list_assembly_properties} and
+    * {@code get_assembly_properties} both iterate this alias map alone, so it was discoverable
+    * only by reverse-engineering {@code get_assembly_properties(raw: true)} (VOF-008).
+    */
+   private static void submitOnChange(Map<String, String> aliases, String prefix) {
+      aliases.put("submitOnChange", prefix + ".generalPropPaneModel.submitOnChange");
+   }
+
    /** Title bar, on the assemblies that have one. */
    private static void title(Map<String, String> aliases, String prefix) {
       aliases.put("titleVisible", prefix + ".titlePropPaneModel.visible");
@@ -939,6 +959,7 @@ public final class PropertyAliases {
    {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, prefix);
+      submitOnChange(aliases, prefix);
       sizePosition(aliases, prefix);
 
       if(hasTitle) {
@@ -970,6 +991,7 @@ public final class PropertyAliases {
    private static Map<String, String> slider() {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "sliderGeneralPaneModel");
+      submitOnChange(aliases, "sliderGeneralPaneModel");
       sizePosition(aliases, "sliderGeneralPaneModel");
       numericRange(aliases, "sliderGeneralPaneModel");
       aliases.put("snap", "sliderAdvancedPaneModel.snap");
@@ -995,6 +1017,7 @@ public final class PropertyAliases {
    private static Map<String, String> spinner() {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "spinnerGeneralPaneModel");
+      submitOnChange(aliases, "spinnerGeneralPaneModel");
       sizePosition(aliases, "spinnerGeneralPaneModel");
       numericRange(aliases, "spinnerGeneralPaneModel");
       aliases.put("showLabel", "inputLabelPaneModel.showLabel");
@@ -1006,6 +1029,7 @@ public final class PropertyAliases {
    private static Map<String, String> textInput() {
       Map<String, String> aliases = new LinkedHashMap<>();
       dataGeneral(aliases, "textInputGeneralPaneModel");
+      submitOnChange(aliases, "textInputGeneralPaneModel");
       sizePosition(aliases, "textInputGeneralPaneModel");
       aliases.put("showLabel", "inputLabelPaneModel.showLabel");
       aliases.put("labelText", "inputLabelPaneModel.labelText");
@@ -1018,6 +1042,11 @@ public final class PropertyAliases {
       dataGeneral(aliases, "rangeSliderGeneralPaneModel");
       sizePosition(aliases, "rangeSliderGeneralPaneModel");
       title(aliases, "rangeSliderGeneralPaneModel");
+      // Not submitOnChange(aliases, ...) -- a range slider keeps the same setting on its own
+      // RangeSliderSizePaneModel instead of the shared GeneralPropPaneModel, and it is the
+      // size pane's copy that RangeSliderPropertyDialogService reads back on write.
+      aliases.put("submitOnChange",
+         "rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.submitOnChange");
       return aliases;
    }
 
