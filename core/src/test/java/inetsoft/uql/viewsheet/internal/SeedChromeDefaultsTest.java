@@ -30,6 +30,7 @@ import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.ChartLineColor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
+import inetsoft.uql.viewsheet.graph.RelationVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSAestheticRef;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.util.Tool;
@@ -1182,6 +1183,83 @@ class SeedChromeDefaultsTest {
 
       assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
                    "a modern context must seed the modern palette onto the colour frame");
+   }
+
+   // A relation chart binds node colour on nodeColorField, and RelationVSChartInfo deliberately
+   // keeps a VSDimensionRef-backed one out of getAestheticRefs() so its dimension stays out of the
+   // GROUP BY (bug #75253). The seed hook walks getAestheticRefs(), so without an explicit branch
+   // a tree chart's node colours are the one binding Modernize and Revert cannot reach.
+   @Test
+   void treeChartNodeColorPaletteIsWrittenOnTheModernBranch() {
+      ChartVSAssemblyInfo info = newChart();
+      CategoricalColorFrame frame = newNodeColorChart(info);
+
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
+                   "a modern context must seed the modern palette onto the node colour frame");
+   }
+
+   @Test
+   void treeChartNodeColorPaletteIsWrittenOnTheLegacyBranch() {
+      ChartVSAssemblyInfo info = newChart();
+      CategoricalColorFrame frame = newNodeColorChart(info);
+
+      VSChartPaletteDefaults.applyModernPalette(frame, VizContext.of(VizMark.MODERN_LIGHT));
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
+                   "precondition: the frame holds modern colours coming into the Revert");
+
+      info.seedChromeDefaults(VizContext.of((VizMark) null));
+
+      assertEquals(VSChartPaletteDefaults.legacyPalette()[0], frame.getDefaultColor(0),
+                   "Revert must re-seed the legacy palette onto the node colour frame");
+   }
+
+   // The second half of the same hook: a per-value colour outranks the palette, so one derived
+   // from the old palette keeps rendering for the rest of the session if it is not cleared.
+   @Test
+   void treeChartNodeColorDerivedColorsAreCleared() {
+      ChartVSAssemblyInfo info = newChart();
+      CategoricalColorFrame frame = newNodeColorChart(info);
+      frame.setDerivedColor("Sales", Color.RED);
+      assertTrue(frame.isDerived("Sales"), "precondition: the render derived a per-value colour");
+
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertFalse(frame.isDerived("Sales"),
+                  "the hook must drop colours derived from the old palette on the node frame too");
+   }
+
+   // A tree chart whose node colour is bound to a measure rather than a dimension is NOT excluded
+   // from getAestheticRefs(), so it was already reached. Pins that the fix does not regress it.
+   @Test
+   void treeChartNodeColorBoundToAMeasureWasAlreadyReached() {
+      ChartVSAssemblyInfo info = newChart();
+      RelationVSChartInfo rinfo = new RelationVSChartInfo();
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSAestheticRef nodeColor = new VSAestheticRef();
+      nodeColor.setDataRef(new VSChartAggregateRef());
+      nodeColor.setVisualFrame(frame);
+      rinfo.setNodeColorField(nodeColor);
+      info.setVSChartInfo(rinfo);
+
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(VSChartPaletteDefaults.modernPalette()[0], frame.getDefaultColor(0),
+                   "a measure-backed node colour must keep taking the palette");
+   }
+
+   private CategoricalColorFrame newNodeColorChart(ChartVSAssemblyInfo info) {
+      RelationVSChartInfo rinfo = new RelationVSChartInfo();
+      CategoricalColorFrame frame = new CategoricalColorFrame();
+      VSAestheticRef nodeColor = new VSAestheticRef();
+      VSDimensionRef dim = new VSDimensionRef();
+      dim.setGroupColumnValue("Category");
+      nodeColor.setDataRef(dim);
+      nodeColor.setVisualFrame(frame);
+      rinfo.setNodeColorField(nodeColor);
+      info.setVSChartInfo(rinfo);
+      return frame;
    }
 
    @Test
