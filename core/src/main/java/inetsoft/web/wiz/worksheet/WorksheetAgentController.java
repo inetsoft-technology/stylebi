@@ -1261,7 +1261,9 @@ public class WorksheetAgentController {
     * @param user         the authenticated agent principal
     * @return the preview rows (each keyed by column name) plus any warning raised while
     *         producing them — notably, the organization's column-count limit silently
-    *         dropping trailing columns from a wide result
+    *         dropping trailing columns from a wide result, or (WBS-059) a condition bound to a
+    *         declared-but-session-value-less variable having been silently dropped from this
+    *         query entirely
     * @throws PairingException if the session is invalid/expired, the sandbox is absent,
     *                          or the query fails
     */
@@ -1277,7 +1279,84 @@ public class WorksheetAgentController {
       requireEnabled();
       requireWholeSheetSession(sessionToken, user);
       RuntimeWorksheet rws = editService.resolve(sessionToken, user);
-      return previewService.preview(rws, table, offset, Math.min(limit, 200));
+      WorksheetPreviewService.PreviewResult result =
+         previewService.preview(rws, table, offset, Math.min(limit, 200));
+
+      List<String> droppedConditionWarnings = detectDroppedConditionWarnings(rws, table);
+
+      if(droppedConditionWarnings.isEmpty()) {
+         return result;
+      }
+
+      List<String> warnings = new ArrayList<>(result.warnings());
+      warnings.addAll(droppedConditionWarnings);
+      return new WorksheetPreviewService.PreviewResult(result.rows(), warnings);
+   }
+
+   /**
+    * Warns when the previewed table's own query references a variable that IS declared (a
+    * {@link DefaultVariableAssembly} exists) but has no explicit session value yet -- i.e. one of
+    * {@link #detectVariablesNeedingSessionValue}'s names. Live-JVM-debugger-confirmed mechanism
+    * (WBS-059): {@code JDBCHandler.execute}'s call into {@code XUtil.validateConditions} /
+    * {@code removeNoParamConditions} deliberately calls {@code usql.setWhere(null)} -- the
+    * condition using that variable is silently dropped from the query entirely, not merely left
+    * unfiltered -- whenever the variable resolves to a null parameter. That is intentional,
+    * shared product behavior (the same convention as an interactive BI filter showing everything
+    * when nothing is selected) and is not changed here; this only surfaces, after the fact, that
+    * it happened for this specific preview, so the result isn't mistaken for a genuinely-filtered
+    * answer. Best-effort: any failure computing this signal (e.g. the table not resolving to a
+    * {@link TableAssembly}) is treated as "nothing to warn about" rather than failing the whole
+    * preview, since the preview's own rows were already successfully produced by the time this
+    * runs.
+    */
+   private List<String> detectDroppedConditionWarnings(RuntimeWorksheet rws, String tableName) {
+      try {
+         Worksheet ws = rws.getWorksheet();
+         Assembly assembly = ws.getAssembly(tableName);
+
+         if(!(assembly instanceof TableAssembly table)) {
+            return List.of();
+         }
+
+         UserVariable[] tableVars = table.getAllVariables();
+
+         if(tableVars == null || tableVars.length == 0) {
+            return List.of();
+         }
+
+         Set<String> tableVarNames = new LinkedHashSet<>();
+
+         for(UserVariable var : tableVars) {
+            if(var != null && var.getName() != null) {
+               tableVarNames.add(var.getName());
+            }
+         }
+
+         List<String> affected = new ArrayList<>();
+
+         for(String name : detectVariablesNeedingSessionValue(rws)) {
+            if(tableVarNames.contains(name)) {
+               affected.add(name);
+            }
+         }
+
+         if(affected.isEmpty()) {
+            return List.of();
+         }
+
+         boolean plural = affected.size() > 1;
+
+         return List.of(
+            "Variable" + (plural ? "s " : " ") + String.join(", ", affected)
+            + (plural ? " have" : " has") + " no session value yet, so the condition"
+            + (plural ? "s" : "") + " referencing " + (plural ? "them" : "it")
+            + " " + (plural ? "were" : "was") + " dropped from this query entirely (not applied) "
+            + "-- these rows are NOT filtered by " + (plural ? "these variables" : "this variable")
+            + ". Call set_variable_values first if you want the filter applied.");
+      }
+      catch(RuntimeException e) {
+         return List.of();
+      }
    }
 
    /**
@@ -3154,7 +3233,8 @@ public class WorksheetAgentController {
          }, TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS,
             (int) Math.max(1, (TABLE_WARM_MAX_ATTEMPTS * TABLE_WARM_RETRY_SLEEP_MS) / 1000));
 
-         return new SqlQueryResponse(table, detectUndeclaredVariables(rws));
+         return new SqlQueryResponse(table, detectUndeclaredVariables(rws),
+            detectVariablesNeedingSessionValue(rws));
       });
    }
 
@@ -4123,16 +4203,28 @@ public class WorksheetAgentController {
    /**
     * Response from creating a SQL query table.
     *
-    * @param tableName            the assembly name of the newly created table
-    * @param undeclaredVariables  {@code $(name)} references found in the SQL text that the
-    *                             worksheet has no matching variable for yet (L2 parity finding:
-    *                             the native SQL Query dialog surfaces these via
-    *                             {@code refreshVariables}' collect-variables prompt; this agent
-    *                             path has no dialog to prompt, so it reports them here instead).
-    *                             Empty when the SQL has none, or when every referenced name is
-    *                             already a worksheet variable.
+    * @param tableName               the assembly name of the newly created table
+    * @param undeclaredVariables     {@code $(name)} references found in the SQL text that the
+    *                                worksheet has no matching variable for yet (L2 parity
+    *                                finding: the native SQL Query dialog surfaces these via
+    *                                {@code refreshVariables}' collect-variables prompt; this
+    *                                agent path has no dialog to prompt, so it reports them here
+    *                                instead). Empty when the SQL has none, or when every
+    *                                referenced name is already a worksheet variable.
+    * @param variablesNeedingValues  {@code $(name)} references that ARE declared worksheet
+    *                                variables but have no explicit session value yet (WBS-059,
+    *                                live-JVM-debugger-confirmed): a condition bound to one of
+    *                                these is silently dropped entirely from the query -- not
+    *                                merely left unfiltered -- until {@code set_variable_values}
+    *                                is called for it. Distinct from {@code undeclaredVariables},
+    *                                which is a real gap (no matching variable exists at all);
+    *                                this is expected state for a brand-new variable, but still
+    *                                worth surfacing so a subsequent {@code preview_worksheet_data}
+    *                                call on this table isn't mistaken for a genuinely-filtered
+    *                                result.
     */
-   public record SqlQueryResponse(String tableName, List<String> undeclaredVariables) {}
+   public record SqlQueryResponse(String tableName, List<String> undeclaredVariables,
+                                   List<String> variablesNeedingValues) {}
 
    /**
     * Create a new SQL query table assembly in the worksheet.
@@ -4290,7 +4382,8 @@ public class WorksheetAgentController {
          assembly.setColumnSelection(columns);
          ws.addAssembly(assembly);
 
-         return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws));
+         return new SqlQueryResponse(tableName, detectUndeclaredVariables(rws),
+            detectVariablesNeedingSessionValue(rws));
       });
    }
 
@@ -4347,10 +4440,53 @@ public class WorksheetAgentController {
          return List.of();
       }
 
+      Worksheet ws = rws.getWorksheet();
       List<String> names = new ArrayList<>();
 
       for(VariableAssemblyModelInfo info : command.varInfos()) {
-         names.add(info.getName());
+         String name = info.getName();
+
+         // WSCollectVariablesCommand also lists variables that ARE declared (a
+         // DefaultVariableAssembly exists, possibly with a default value) but simply have no
+         // explicit value yet in this session's AssetQuerySandbox VariableTable -- that's a
+         // "needs set_variable_values before a non-default value is desired" signal, not
+         // "undeclared". Only a name with no matching assembly at all is genuinely undeclared
+         // (e.g. a typo'd $(name) with no add_variable call behind it).
+         if(!(ws.getAssembly(name) instanceof DefaultVariableAssembly)) {
+            names.add(name);
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Names of variables referenced by SQL-bound tables that ARE declared (a
+    * {@link DefaultVariableAssembly} exists) but have no explicit session value yet in this
+    * runtime's {@code AssetQuerySandbox}. Unlike {@link #detectUndeclaredVariables}, these are
+    * not reported as an error -- they are the exact opposite half of the same
+    * {@link WSCollectVariablesCommand#varInfos()} list. Callers use this to warn that a query
+    * condition bound to one of these variables will be silently dropped (not applied) by
+    * {@code JDBCHandler}/{@code XUtil.validateConditions} until {@code set_variable_values} is
+    * called, rather than falling back to the variable's declared default.
+    */
+   private List<String> detectVariablesNeedingSessionValue(RuntimeWorksheet rws) {
+      WSCollectVariablesCommand command = WorksheetEventUtil.refreshVariables(
+         rws, worksheetService, false);
+
+      if(command == null) {
+         return List.of();
+      }
+
+      Worksheet ws = rws.getWorksheet();
+      List<String> names = new ArrayList<>();
+
+      for(VariableAssemblyModelInfo info : command.varInfos()) {
+         String name = info.getName();
+
+         if(ws.getAssembly(name) instanceof DefaultVariableAssembly) {
+            names.add(name);
+         }
       }
 
       return names;

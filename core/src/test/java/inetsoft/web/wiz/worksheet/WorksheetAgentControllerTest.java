@@ -873,6 +873,175 @@ class WorksheetAgentControllerTest {
       verify(previewSvc).preview(rws, "T", 200, 50);
    }
 
+   /**
+    * WBS-059 part 2 (live-JVM-debugger-confirmed): {@code preview_worksheet_data} must warn when
+    * the previewed table's own query references a variable that IS declared but has no explicit
+    * session value yet -- because {@code JDBCHandler.execute}'s call into
+    * {@code XUtil.validateConditions}/{@code removeNoParamConditions} silently drops the whole
+    * condition using that variable ({@code usql.setWhere(null)}), not merely leaves it
+    * unfiltered. Before this fix, {@code preview}'s response had no signal of this at all
+    * ({@code warnings: []}), even though the rows returned were NOT filtered by that condition.
+    */
+   @Test
+   void previewWarnsWhenReferencedVariableHasNoSessionValueYet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "declaredVar");
+      ws.addAssembly(declaredVar);
+
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn("T");
+      when(table.getAssemblyType()).thenReturn(AbstractSheet.TABLE_ASSET);
+      when(table.isVisible()).thenReturn(true);
+      when(table.getAllVariables())
+         .thenReturn(new UserVariable[]{new UserVariable("declaredVar")});
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      WorksheetPreviewService.PreviewResult unfiltered =
+         new WorksheetPreviewService.PreviewResult(
+            List.of(Map.of("x", "unfiltered-row")), List.of());
+      when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(unfiltered);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      VariableAssemblyModelInfo needsValue = new VariableAssemblyModelInfo();
+      needsValue.setName("declaredVar");
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(List.of(needsValue))
+         .build();
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 0, 50, agent);
+
+         assertEquals(unfiltered.rows(), result.rows());
+         assertEquals(1, result.warnings().size());
+         assertTrue(result.warnings().get(0).contains("declaredVar"),
+            "warning must name the specific variable: " + result.warnings());
+      }
+   }
+
+   /**
+    * Positive-case counterpart: once {@code set_variable_values} has given "declaredVar" a
+    * session value, {@code WSCollectVariablesCommand.varInfos()} no longer lists it (the whole
+    * point of {@code AssetQuerySandbox.getAllVariables}'s "still needs a value" filter) -- so no
+    * dropped-condition warning should be added.
+    */
+   @Test
+   void previewDoesNotWarnWhenVariableAlreadyHasSessionValue() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "declaredVar");
+      ws.addAssembly(declaredVar);
+
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn("T");
+      when(table.getAssemblyType()).thenReturn(AbstractSheet.TABLE_ASSET);
+      when(table.isVisible()).thenReturn(true);
+      when(table.getAllVariables())
+         .thenReturn(new UserVariable[]{new UserVariable("declaredVar")});
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      WorksheetPreviewService.PreviewResult filtered =
+         new WorksheetPreviewService.PreviewResult(
+            List.of(Map.of("x", "filtered-row")), List.of());
+      when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(filtered);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      // No pending "needs a value" entries at all -- refreshVariables returns null exactly like
+      // WorksheetEventUtil.refreshVariables does once every referenced variable already has an
+      // explicit session value (WorksheetEventUtil.java:150-153).
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(null);
+
+         WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 0, 50, agent);
+
+         assertEquals(filtered, result);
+      }
+   }
+
+   /**
+    * A variable can be "declared but no session value yet" for a DIFFERENT table in the same
+    * worksheet without affecting this preview -- the warning must only fire for variables the
+    * PREVIEWED table itself references, not every such variable anywhere in the worksheet.
+    */
+   @Test
+   void previewDoesNotWarnAboutAnUnrelatedTablesVariable() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "otherTableVar");
+      ws.addAssembly(declaredVar);
+
+      TableAssembly table = mock(TableAssembly.class);
+      when(table.getName()).thenReturn("T");
+      when(table.getAssemblyType()).thenReturn(AbstractSheet.TABLE_ASSET);
+      when(table.isVisible()).thenReturn(true);
+      when(table.getAllVariables()).thenReturn(new UserVariable[0]);
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.resolve(eq("TOK"), eq(agent))).thenReturn(rws);
+
+      WorksheetPreviewService previewSvc = mock(WorksheetPreviewService.class);
+      WorksheetPreviewService.PreviewResult unrelated =
+         new WorksheetPreviewService.PreviewResult(
+            List.of(Map.of("x", "row")), List.of());
+      when(previewSvc.preview(eq(rws), eq("T"), eq(0), eq(50))).thenReturn(unrelated);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class),
+         previewSvc);
+
+      VariableAssemblyModelInfo needsValue = new VariableAssemblyModelInfo();
+      needsValue.setName("otherTableVar");
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(List.of(needsValue))
+         .build();
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         WorksheetPreviewService.PreviewResult result = ctrl.preview("TOK", "T", 0, 50, agent);
+
+         assertEquals(unrelated, result);
+      }
+   }
+
    // ---------------------------------------------------------------------------
    // export (WBS-057) -- exports a worksheet table's CURRENT LIVE data (including any unsaved
    // edits made in this session) as a downloadable CSV file, streamed directly to a mocked
@@ -6771,6 +6940,81 @@ class WorksheetAgentControllerTest {
 
          assertEquals("SqlTable1", response.tableName());
          assertEquals(List.of("MV.ORDER_DATE.Max"), response.undeclaredVariables());
+         assertEquals(List.of(), response.variablesNeedingValues());
+      }
+   }
+
+   /**
+    * WBS-059 regression: a variable that IS declared (a {@code DefaultVariableAssembly} exists)
+    * but has no explicit session value yet must NOT be reported as undeclared -- it is a
+    * different signal ({@code variablesNeedingValues}), not an error. Before this fix,
+    * {@code detectUndeclaredVariables} returned every name in {@code varInfos()} verbatim,
+    * regardless of whether a matching assembly existed.
+    */
+   @Test
+   void editSqlQueryEndpointDoesNotReportDeclaredVariableAsUndeclared() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      SQLBoundTableAssembly sqlt = new SQLBoundTableAssembly(ws, "SqlTable1");
+      ((SQLBoundTableAssemblyInfo) sqlt.getInfo()).setQuery(new JDBCQuery());
+      ws.addAssembly(sqlt);
+
+      DefaultVariableAssembly declaredVar = new DefaultVariableAssembly(ws, "declaredVar");
+      ws.addAssembly(declaredVar);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      when(rws.getAssetQuerySandbox()).thenReturn(box);
+      doNothing().when(box).refreshColumnSelection(eq("SqlTable1"), anyBoolean());
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-ES6"), any())).thenReturn(session("TOK-ES6"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(eq(agent), eq(ResourceType.FREE_FORM_SQL),
+                                          eq("*"), eq(ResourceAction.ACCESS)))
+         .thenReturn(true);
+
+      QueryManagerService queryManagerService = mock(QueryManagerService.class);
+      ColumnSelection newColumns = new ColumnSelection();
+      newColumns.addAttribute(new ColumnRef(new AttributeRef(null, "a")));
+      when(queryManagerService.getColumnSelection(any(), any(), any(), any(), any()))
+         .thenReturn(newColumns);
+
+      WorksheetAgentController ctrl = securityController(editSvc, mock(DataSourceService.class),
+         securityEngine, mock(MetadataApiService.class), mock(XRepository.class),
+         queryManagerService);
+
+      // Simulates WSCollectVariablesCommand reporting "declaredVar" because it has no explicit
+      // session value yet in AssetQuerySandbox.vars -- even though a DefaultVariableAssembly for
+      // it already exists in the worksheet (added above).
+      VariableAssemblyModelInfo needsValue = new VariableAssemblyModelInfo();
+      needsValue.setName("declaredVar");
+      WSCollectVariablesCommand command = WSCollectVariablesCommand.builder()
+         .varInfos(List.of(needsValue))
+         .build();
+
+      WorksheetAgentController.EditSqlQueryRequest body =
+         new WorksheetAgentController.EditSqlQueryRequest("SqlTable1", "SELECT 1");
+
+      try(MockedStatic<WorksheetEventUtil> eventUtil =
+             mockStatic(WorksheetEventUtil.class, CALLS_REAL_METHODS)) {
+         eventUtil.when(() -> WorksheetEventUtil.refreshVariables(eq(rws), any(), eq(false)))
+            .thenReturn(command);
+
+         WorksheetAgentController.SqlQueryResponse response =
+            ctrl.editSqlQuery("TOK-ES6", body, agent);
+
+         assertEquals("SqlTable1", response.tableName());
+         assertEquals(List.of(), response.undeclaredVariables());
+         assertEquals(List.of("declaredVar"), response.variablesNeedingValues());
       }
    }
 
