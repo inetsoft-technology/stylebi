@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSBindingModelService;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.model.BindingModel;
@@ -194,7 +195,9 @@ class TableBindingServiceTest {
    void readReportsTheObjectTypeAndShelvesWithoutMutating() throws Exception {
       TableBindingModel existing = new TableBindingModel();
       TableBindingMutator.setShelf(existing, "details", List.of(dim("Region")));
-      ViewsheetSessionService sessions = sessionsFor(mock(TableVSAssembly.class));
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getVSAssemblyInfo()).thenReturn(new TableVSAssemblyInfo());
+      ViewsheetSessionService sessions = sessionsFor(table);
 
       Map<String, Object> read = serviceWith(sessions, existing,
                                              mock(VSBindingModelService.class))
@@ -1074,6 +1077,135 @@ class TableBindingServiceTest {
                 "never actually set");
    }
 
+   // ── set_field_visibility (bug-76807) ─────────────────────────────────────
+
+   /** A ColumnSelection holding one bare-named DataRef per given column name. */
+   private static inetsoft.uql.ColumnSelection columnSelectionOf(String... names) {
+      inetsoft.uql.ColumnSelection selection = new inetsoft.uql.ColumnSelection();
+
+      for(String name : names) {
+         selection.addAttribute(new inetsoft.uql.erm.AttributeRef(null, name));
+      }
+
+      return selection;
+   }
+
+   private static inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsServiceReturning(
+      String runtimeId, String assemblyName, List<String> available, List<String> hidden)
+      throws Exception
+   {
+      inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService =
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class);
+      when(hideColumnsService.getColumnOptionDialogModel(
+         eq(runtimeId), eq(assemblyName), any(Principal.class)))
+         .thenReturn(inetsoft.web.composer.model.vs.HideColumnsDialogModel.builder()
+                        .availableColumns(available).hiddenColumns(hidden).build());
+      return hideColumnsService;
+   }
+
+   private static inetsoft.web.composer.model.vs.HideColumnsDialogModel captureHideColumnsWrite(
+      inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService,
+      String runtimeId, String assemblyName)
+      throws Exception
+   {
+      ArgumentCaptor<inetsoft.web.composer.model.vs.HideColumnsDialogModel> captor =
+         ArgumentCaptor.forClass(inetsoft.web.composer.model.vs.HideColumnsDialogModel.class);
+      verify(hideColumnsService).setColumnOptionDialogModel(
+         eq(runtimeId), eq(assemblyName), captor.capture(), any(Principal.class), any(), any());
+      return captor.getValue();
+   }
+
+   @Test
+   void setFieldVisibilityHidesABoundColumn() throws Exception {
+      inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService =
+         hideColumnsServiceReturning("rt1", "TableView2",
+                                     List.of("product_id", "product_name"), List.of());
+      ViewsheetSessionService sessions = sessionsFor(mock(TableVSAssembly.class));
+
+      serviceWith(sessions, new TableBindingModel(), mock(VSBindingModelService.class),
+                 hideColumnsService)
+         .setFieldVisibility("tok", principal(), "TableView2", "product_id", false, null);
+
+      inetsoft.web.composer.model.vs.HideColumnsDialogModel posted =
+         captureHideColumnsWrite(hideColumnsService, "rt1", "TableView2");
+      assertEquals(List.of("product_id"), posted.hiddenColumns());
+      assertEquals(List.of("product_name"), posted.availableColumns());
+   }
+
+   @Test
+   void setFieldVisibilityShowsAPreviouslyHiddenColumn() throws Exception {
+      inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService =
+         hideColumnsServiceReturning("rt1", "TableView2",
+                                     List.of("product_name"), List.of("product_id"));
+      ViewsheetSessionService sessions = sessionsFor(mock(TableVSAssembly.class));
+
+      serviceWith(sessions, new TableBindingModel(), mock(VSBindingModelService.class),
+                 hideColumnsService)
+         .setFieldVisibility("tok", principal(), "TableView2", "product_id", true, null);
+
+      inetsoft.web.composer.model.vs.HideColumnsDialogModel posted =
+         captureHideColumnsWrite(hideColumnsService, "rt1", "TableView2");
+      assertEquals(List.of(), posted.hiddenColumns());
+      assertEquals(List.of("product_name", "product_id"), posted.availableColumns());
+   }
+
+   @Test
+   void setFieldVisibilityRefusesAnUnboundColumn() throws Exception {
+      inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService =
+         hideColumnsServiceReturning("rt1", "TableView2", List.of("product_name"), List.of());
+      ViewsheetSessionService sessions = sessionsFor(mock(TableVSAssembly.class));
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class), hideColumnsService);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setFieldVisibility("tok", principal(), "TableView2", "ghost_col", false,
+                                          null));
+
+      assertTrue(thrown.getMessage().contains("ghost_col"));
+      assertTrue(thrown.getMessage().contains("not bound"));
+      verify(hideColumnsService, never()).setColumnOptionDialogModel(
+         anyString(), anyString(), any(), any(Principal.class), any(), any());
+   }
+
+   @Test
+   void setFieldVisibilityRefusesACrosstabByName() {
+      inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService =
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class);
+      ViewsheetSessionService sessions = sessionsFor(mock(CrosstabVSAssembly.class));
+      TableBindingService service = serviceWith(
+         sessions, new CrosstabBindingModel(), mock(VSBindingModelService.class),
+         hideColumnsService);
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setFieldVisibility("tok", principal(), "Crosstab1", "Year", false, null));
+
+      assertTrue(thrown.getMessage().contains("Crosstab1"));
+      assertTrue(thrown.getMessage().toLowerCase().contains("crosstab"));
+   }
+
+   /** Read side of bug-76807: get_table_binding was blind to hide/show state before this. */
+   @Test
+   void readReportsColumnVisibilityFromHiddenColumns() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableBindingMutator.setShelf(existing, "details",
+                                   List.of(dim("product_id"), dim("product_name")));
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnSelectionOf("product_id"));
+      info.setHiddenColumns(columnSelectionOf("product_name"));
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getVSAssemblyInfo()).thenReturn(info);
+      ViewsheetSessionService sessions = sessionsFor(table);
+
+      Map<String, Object> read = serviceWith(sessions, existing, mock(VSBindingModelService.class))
+         .read("tok", principal(), "TableView2");
+
+      @SuppressWarnings("unchecked")
+      Map<String, List<FieldRef>> shelves = (Map<String, List<FieldRef>>) (Map<String, ?>) read.get("shelves");
+      List<FieldRef> details = shelves.get("details");
+      assertEquals(Boolean.TRUE, details.get(0).visible(), "product_id is shown");
+      assertEquals(Boolean.FALSE, details.get(1).visible(), "product_name is hidden");
+   }
+
    private static CrosstabBindingModel withTables(String... names) {
       CrosstabBindingModel model = new CrosstabBindingModel();
       List<BindingModel.SourceTable> tables = new ArrayList<>();
@@ -1186,10 +1318,19 @@ class TableBindingServiceTest {
                                                   BindingModel model,
                                                   VSBindingModelService bindings)
    {
+      return serviceWith(sessions, model, bindings,
+                         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class));
+   }
+
+   private static TableBindingService serviceWith(
+      ViewsheetSessionService sessions, BindingModel model, VSBindingModelService bindings,
+      inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService)
+   {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
       return new TableBindingService(sessions, binding, bindings,
-                                     mock(inetsoft.web.binding.service.DataRefModelFactoryService.class));
+                                     mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
+                                     hideColumnsService);
    }
 
    private static Principal principal() {
