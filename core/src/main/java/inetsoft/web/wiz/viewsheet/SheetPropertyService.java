@@ -18,8 +18,12 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.web.composer.model.vs.ConvertToWorksheetResponseModel;
+import inetsoft.web.composer.model.vs.ViewsheetParametersDialogModel;
 import inetsoft.web.composer.model.vs.ViewsheetPropertyDialogModel;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.ViewsheetSettingsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -116,6 +120,7 @@ public class SheetPropertyService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
+         requireKnownParameterNames(model, resolved, patch);
 
          // Keep PropertyPath.set's returned root. Every alias in the vocabulary currently nests
          // under a pane, which absorbs an Immutables wither's rebuild, so today this reassignment
@@ -127,8 +132,227 @@ public class SheetPropertyService {
                PropertyPath.set(model, entry.getValue(), patch.get(entry.getKey()));
          }
 
+         reconcileParameterLists(model, resolved);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
+   }
+
+   /**
+    * {@code enabledParameters}/{@code disabledParameters} are two independently-settable fields
+    * on the underlying model — {@link ViewsheetSettingsService#setViewsheetParameterInfo} writes
+    * {@code disabledVariable} and {@code orderedVariables} separately, with nothing enforcing
+    * that a name in one is absent from the other. The Composer's own "Customize" dialog never
+    * exposes this seam: moving a parameter between its enabled/disabled columns always submits
+    * both as one already-partitioned pair. A patch through this generic property path can touch
+    * only one side, though, leaving the other carrying whatever the pre-patch read had — which
+    * may still include the very name just moved to the other list.
+    *
+    * <p>Confirmed live (2026-09-17): patching only {@code disabledParameters:["MinPopulation"]}
+    * against a viewsheet whose query genuinely declares that variable left it listed in BOTH
+    * {@code enabledParameters} AND {@code disabledParameters} on the next read — a state the real
+    * dialog can never produce, reported as a plain success with no indication anything was
+    * inconsistent.
+    *
+    * <p>Resolved here, after the ordinary per-key writes above have applied whatever the caller
+    * actually supplied: if only one of the two fields was touched, the overlap is pruned from the
+    * OTHER (untouched) side — the side the caller's patch actually named wins, matching what
+    * "move this parameter to the other column" means in the dialog. If the caller supplied
+    * <b>both</b> fields and they still overlap, that is a self-contradictory patch, not an
+    * ordering question, and is refused rather than silently resolved one way or the other.
+    */
+   private static void reconcileParameterLists(
+      ViewsheetPropertyDialogModel model, Map<String, String> resolved)
+   {
+      boolean touchesEnabled = resolved.values().contains(ENABLED_PARAMETERS_PATH);
+      boolean touchesDisabled = resolved.values().contains(DISABLED_PARAMETERS_PATH);
+
+      if(!touchesEnabled && !touchesDisabled) {
+         return;
+      }
+
+      ViewsheetParametersDialogModel params = model.vsOptionsPane().getViewsheetParametersDialogModel();
+      List<String> enabled = new ArrayList<>(namesOf(params.getEnabledParameters()));
+      List<String> disabled = new ArrayList<>(namesOf(params.getDisabledParameters()));
+      Set<String> overlap = new LinkedHashSet<>(enabled);
+      overlap.retainAll(disabled);
+
+      if(overlap.isEmpty()) {
+         return;
+      }
+
+      if(touchesEnabled && touchesDisabled) {
+         throw new IllegalArgumentException(
+            "'" + overlap + "' cannot be in both enabledParameters and disabledParameters in " +
+            "the same patch -- a parameter is one or the other, never both.");
+      }
+
+      if(touchesDisabled) {
+         enabled.removeAll(overlap);
+         params.setEnabledParameters(enabled.toArray(new String[0]));
+      }
+      else {
+         disabled.removeAll(overlap);
+         params.setDisabledParameters(disabled.toArray(new String[0]));
+      }
+   }
+
+   /**
+    * {@code enabledParameters}/{@code disabledParameters} are not a free-text list — they
+    * partition the viewsheet's OWN query-declared variables (a {@code $(varName)} used somewhere
+    * in the underlying query/condition), the same closed set
+    * {@link ViewsheetSettingsService#getViewsheetParameterInfo} discovers live and the Composer's
+    * own "Customize" dialog only ever offers by toggling/reordering — a human using that dialog
+    * can never type an unrecognized name in the first place.
+    *
+    * <p>{@link ViewsheetSettingsService#setViewsheetParameterInfo} itself does not enforce this:
+    * it stores whatever the model contains into {@code ViewsheetInfo} unconditionally. An
+    * unrecognized name is not rejected there — it is silently orphaned, because the NEXT read
+    * re-derives these two arrays from the live query variables and filters it back out. Confirmed
+    * live (2026-09-16): setting {@code enabledParameters:["Region"]} against a viewsheet whose
+    * query declares no variables at all returned {@code ok:true}, and the very next
+    * {@code get_viewsheet_properties} read back an empty array — success reported, nothing
+    * changed, exactly the defect this plugin family exists to catch (Redmine #76739 follow-up).
+    * Refused here, at the one place both the alias and the raw-dotted-path escape hatch funnel
+    * through, rather than trusting every caller to list-then-set in that order.
+    *
+    * <p>{@code model} is the pre-patch read already fetched by the caller (its own
+    * {@code enabledParameters}/{@code disabledParameters} are the correctly-filtered current
+    * values), so the closed set below costs no extra round trip.
+    */
+   private static void requireKnownParameterNames(
+      ViewsheetPropertyDialogModel model, Map<String, String> resolved, Map<String, Object> patch)
+   {
+      boolean touchesParameters = resolved.values().stream().anyMatch(PARAMETER_LIST_PATHS::contains);
+
+      if(!touchesParameters) {
+         return;
+      }
+
+      ViewsheetParametersDialogModel current = model.vsOptionsPane().getViewsheetParametersDialogModel();
+      Set<String> known = new LinkedHashSet<>();
+      known.addAll(namesOf(current.getEnabledParameters()));
+      known.addAll(namesOf(current.getDisabledParameters()));
+
+      for(Map.Entry<String, String> entry : resolved.entrySet()) {
+         if(!PARAMETER_LIST_PATHS.contains(entry.getValue())) {
+            continue;
+         }
+
+         for(String name : namesOf(patch.get(entry.getKey()))) {
+            if(!known.contains(name)) {
+               throw new IllegalArgumentException(
+                  "'" + name + "' is not a parameter of this viewsheet's query. " +
+                  (known.isEmpty()
+                     ? "This viewsheet's query declares no variables at all, so there is " +
+                       "nothing to enable or disable."
+                     : "Known parameters: " + known + ".") +
+                  " A name outside this set would be stored but silently dropped on the next " +
+                  "read -- the query's own declared variables (a $(varName) somewhere in its " +
+                  "condition/SQL), not an assembly name, are what these two lists partition.");
+            }
+         }
+      }
+   }
+
+   /** Coerces a patch value (a JSON array deserializes as a {@code List<?>}) or an already-read
+    *  model's {@code String[]} into plain names, uniformly. */
+   private static List<String> namesOf(Object value) {
+      if(value == null) {
+         return List.of();
+      }
+
+      if(value instanceof String[] array) {
+         return Arrays.asList(array);
+      }
+
+      if(value instanceof Collection<?> collection) {
+         List<String> names = new ArrayList<>(collection.size());
+
+         for(Object item : collection) {
+            names.add(String.valueOf(item));
+         }
+
+         return names;
+      }
+
+      throw new IllegalArgumentException(
+         "'enabledParameters'/'disabledParameters' expect a JSON array of parameter names; '" +
+         value + "' is not one.");
+   }
+
+   private static final String ENABLED_PARAMETERS_PATH =
+      "vsOptionsPane.viewsheetParametersDialogModel.enabledParameters";
+   private static final String DISABLED_PARAMETERS_PATH =
+      "vsOptionsPane.viewsheetParametersDialogModel.disabledParameters";
+   private static final Set<String> PARAMETER_LIST_PATHS =
+      Set.of(ENABLED_PARAMETERS_PATH, DISABLED_PARAMETERS_PATH);
+
+   /**
+    * Rebinds or clears the viewsheet's own Data Source — the Options dialog's "Select"/"Clear"
+    * buttons ({@code vsOptionsPane.selectDataSourceDialogModel.dataSource}), the one field of
+    * that dialog {@link #set} cannot reach through its alias vocabulary (Redmine #76739): every
+    * alias there is a scalar leaf {@link PropertyPath#coerce} can build from JSON alone, while
+    * this field needs a resolved, permission-checked {@link AssetEntry} instead. Resolving that
+    * entry from a caller-supplied path/type is
+    * {@code ViewsheetAssemblyAgentController.resolveDataSourceEntry}'s job — the same lookup
+    * {@code attach_base_worksheet}/{@code create_viewsheet} already share — so this method takes
+    * the entry already resolved.
+    *
+    * <p>{@code entry} null clears the binding, matching the dialog's "Clear" button.
+    *
+    * <p>Goes through the exact same {@link ViewsheetPropertyDialogService#setViewsheetInfo} apply
+    * path {@link #set} uses for its ordinary aliases, so the dependency-refresh/sandbox-reset/
+    * {@code VSDependencyChangedCommand} side effects that method's data-source branch performs
+    * happen exactly as they would from a human editing the dialog — nothing here re-implements
+    * that logic. Unlike {@code attach_base_worksheet}, this always replaces whatever base is
+    * currently set rather than refusing when one already exists, matching what the dialog itself
+    * allows.
+    */
+   public void setDataSource(String sessionToken, Principal user, AssetEntry entry, String linkUri)
+      throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
+         model.vsOptionsPane().getSelectDataSourceDialogModel().setDataSource(entry);
+         dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
+      });
+   }
+
+   /**
+    * "Convert Source to Worksheet" (Redmine #76739) — the Options dialog's own conversion
+    * action for a viewsheet whose base is a Logical Model, offered there via a link shown only
+    * for that data source type. Saves a brand-new, editable worksheet asset built from the
+    * model's query and returns its path, going through the exact same
+    * {@link ViewsheetPropertyDialogService#convertLogicModelToWorksheet} the Composer UI itself
+    * calls (see {@code viewsheet-options-pane.component.ts}'s {@code doConvert()}) — nothing
+    * here re-implements that logic.
+    *
+    * <p>Like the dialog's own action, this only <b>saves</b> the new worksheet asset — it does
+    * not rebind the viewsheet to it. The dialog itself defers that until the whole Options
+    * dialog is subsequently saved; here, call {@link #setDataSource} with the returned path to
+    * actually attach it as the viewsheet's base.
+    *
+    * @return {@code path}, the new worksheet's path (usable directly as
+    *         {@code set_viewsheet_data_source}'s {@code path} with {@code type:"worksheet"}),
+    *         and {@code hasMaterializedViews} — whether this viewsheet has materialized views
+    *         that switching its base away from the logical model would invalidate. The dialog
+    *         shows a confirmation for that; this tool surfaces it as data instead of blocking,
+    *         since there is no one here to click through a confirmation.
+    * @throws Exception if the viewsheet's base is not a logical model, or the viewsheet has not
+    *                    been saved yet — the same refusals
+    *                    {@code convertLogicModelToWorksheet} itself throws.
+    */
+   public Map<String, Object> convertDataSourceToWorksheet(String sessionToken, Principal user)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      ConvertToWorksheetResponseModel response =
+         dialogService.convertLogicModelToWorksheet(rvs.getID(), user);
+
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("path", response.getModel().getDataSource().getPath());
+      result.put("hasMaterializedViews", response.isHasMvs());
+      return result;
    }
 
    /**

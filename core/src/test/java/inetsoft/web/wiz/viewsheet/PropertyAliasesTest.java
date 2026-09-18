@@ -115,6 +115,36 @@ class PropertyAliasesTest {
    }
 
    /**
+    * Redmine #76739: the Options dialog's "Customize" parameter list (Prompt for Parameters) had
+    * no short name, despite being a plain String[]/String[] pair setViewsheetInfo genuinely
+    * applies via ViewsheetSettingsService.setViewsheetParameterInfo.
+    */
+   @Test
+   void exposesTheViewsheetParametersAliases() {
+      assertEquals("vsOptionsPane.viewsheetParametersDialogModel.enabledParameters",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "enabledParameters"));
+      assertEquals("vsOptionsPane.viewsheetParametersDialogModel.disabledParameters",
+                   PropertyAliases.resolveForWrite(PropertyAliases.SHEET, "disabledParameters"));
+   }
+
+   /**
+    * Redmine #76739: the Options dialog's Data Source "Select"/"Clear" buttons are deliberately
+    * NOT in this vocabulary -- they need a resolved AssetEntry, not a scalar JSON leaf, so they
+    * are reached through the dedicated set_viewsheet_data_source tool instead (see
+    * SheetPropertyService#setDataSource). This is the negative-space companion to
+    * exposesTheViewsheetParametersAliases above: proving the omission is deliberate, not simply
+    * untested.
+    */
+   @Test
+   void doesNotAliasTheDataSourceField() {
+      assertFalse(
+         PropertyAliases.forType(PropertyAliases.SHEET).aliases().containsKey("dataSource"),
+         "selectDataSourceDialogModel.dataSource should not be a short-name alias -- it needs " +
+         "a resolved AssetEntry, which set_viewsheet_properties' patch contract cannot build " +
+         "from a JSON leaf value alone");
+   }
+
+   /**
     * {@code vsScriptPane} carries onInit/onLoad script. Writing it through a properties patch
     * would be a second, ungoverned path to authoring viewsheet script that routes around the
     * (unbuilt) script-kind taxonomy. The refusal names the field and points at the tool that
