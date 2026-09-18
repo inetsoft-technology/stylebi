@@ -47,6 +47,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -168,6 +169,58 @@ class ScheduleTaskImportChangesetApplyServiceTest {
 
       assertEquals(proposedBeforeApply, proposedAfterApply,
          "a preview taken after apply must not show apply's own mutation baked into proposedValue");
+   }
+
+   // -------------------------------------------------------------------------
+   // Finding 6 regression (round-2 review): deepCopy() must isolate CONDITIONS too, not just
+   // actions -- the specific gap that reusing ScheduleTask.copyScheduleTask() (deep-copies actions
+   // via an XML round-trip, but only Vector.clone()s conditions) would silently reopen.
+   // -------------------------------------------------------------------------
+
+   @Test void applyDoesNotLeakSanitizeConditionsMutationIntoTheStagedCache() throws Exception {
+      int originalHour = 9;
+      ScheduleTask sourceTask = taskWithViewsheetAction("t2", "http://source-server/");
+      String taskId = sourceTask.getTaskId();
+      String stagingToken = stage(sourceTask);
+
+      // Simulate what the REAL ScheduleTaskService.sanitizeConditions does: mutate a TimeCondition
+      // field in place on the "staged" task it is handed (e.g. clamping the hour back to a
+      // permitted default). The mock has no other stubbing, so this is the ONLY behavior under
+      // test here -- Finding 1's regression test above already covers the linkURI/action path.
+      doAnswer(invocation -> {
+         ScheduleTask stagedArg = invocation.getArgument(0);
+         TimeCondition tc = (TimeCondition) stagedArg.getCondition(0);
+         tc.setHour(1);
+         tc.setMinute(30);
+         return null;
+      }).when(scheduleTaskService).sanitizeConditions(any(), any(), eq(user));
+
+      // Preview, before any stubbing -- like the Finding 1 test above, this relies on the mock's
+      // default null return (no existing task yet), matching applyOne's own "re-resolve fresh at
+      // apply time" contract.
+      ScheduleTaskImportPlanRequest planReq =
+         planRequest(stagingToken, "apply", importChange(taskId, false));
+      ResolvedPlan plan = planService.resolve(planReq, user);
+      ScheduleTaskImportApplyRequest applyReq = applyRequest(planReq, plan);
+
+      when(scheduleManager.getScheduleTask(taskId))
+         .thenReturn(null)                          // re-resolve inside apply()
+         .thenReturn(null)                          // applyOne's existing-task check
+         .thenReturn(sreeTask("t2", "admin"));       // apply-time verify
+
+      ScheduleTaskImportApplyResult result =
+         applyService.apply(applyReq, user, "http://source-server/");
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+
+      // The cached staged task's OWN condition instance must be untouched by sanitizeConditions'
+      // in-place mutation of the deep copy passed into it -- this is exactly what a shallow
+      // clone()-based copy (or ScheduleTask.copyScheduleTask(), which round-trips actions but not
+      // conditions) would fail to isolate.
+      ScheduleTask stillCached = transferService.requireStagedTask(stagingToken, taskId);
+      TimeCondition cachedCondition = (TimeCondition) stillCached.getCondition(0);
+      assertEquals(originalHour, cachedCondition.getHour(),
+         "apply must not mutate the condition instance shared by the staging cache");
    }
 
    // -------------------------------------------------------------------------

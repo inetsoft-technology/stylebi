@@ -1309,7 +1309,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
 
       if(locale != null) {
-         writer.print(" locale=\"" + locale +"\"");
+         writer.print(" locale=\"" + Tool.escape(locale) +"\"");
       }
 
       if(getIdentity() instanceof User) {
