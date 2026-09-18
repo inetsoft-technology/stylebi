@@ -17,6 +17,7 @@
  */
 import { Component, Input, NgZone, OnChanges, OnDestroy, OnInit, SimpleChanges } from "@angular/core";
 import { NgIf } from "@angular/common";
+import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { ClipboardModule } from "ngx-clipboard";
 import { Subscription } from "rxjs";
 import { filter, take, timeout } from "rxjs/operators";
@@ -40,7 +41,7 @@ const MINT_CONNECT_TIMEOUT_MS = 30000;
    selector: "wiz-connect-to-claude",
    templateUrl: "./connect-to-claude.component.html",
    standalone: true,
-   imports: [NgIf, ClipboardModule, FormsModule]
+   imports: [NgIf, ClipboardModule, FormsModule, NgbTooltip]
 })
 export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    @Input() runtimeId!: string;
