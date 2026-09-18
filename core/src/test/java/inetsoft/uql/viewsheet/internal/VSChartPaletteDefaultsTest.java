@@ -1,6 +1,8 @@
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.TealColorFrame;
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -395,5 +397,57 @@ class VSChartPaletteDefaultsTest {
          assertEquals(base.getCompanionColor(i, dark), authored.getDefaultColor(i),
                       name + " index " + (i + 1) + " must equal the rule's output");
       }
+   }
+
+   @Test
+   void modernChartsSeedTealAndClassicChartsSeedBlues() {
+      assertInstanceOf(TealColorFrame.class,
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_LIGHT)));
+      assertInstanceOf(TealColorFrame.class,
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.of(VizMark.MODERN_DARK)));
+      assertInstanceOf(BluesColorFrame.class,
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.LEGACY));
+      // not LEGACY, but still not modern: an unmarked assembly builds a fresh non-modern context,
+      // so a resolver that identity-compares against the LEGACY singleton would wrongly seed Teal
+      assertInstanceOf(BluesColorFrame.class,
+                       VSChartPaletteDefaults.defaultLinearFrame(VizContext.of((VizMark) null)));
+   }
+
+   @Test
+   void aNullContextSeedsTheLegacyRamp() {
+      assertInstanceOf(BluesColorFrame.class, VSChartPaletteDefaults.defaultLinearFrame(null));
+   }
+
+   @Test
+   void aClassicChartHidesNoRamps() {
+      assertTrue(VSChartPaletteDefaults.hiddenLinearFrames(VizContext.LEGACY).isEmpty());
+   }
+
+   @Test
+   void aModernChartHidesTheSucceededFamiliesOnly() {
+      Set<String> hidden = VSChartPaletteDefaults.hiddenLinearFrames(VizContext.of(VizMark.MODERN_LIGHT));
+
+      assertEquals(16, hidden.size(), "six single hue, nine diverging, and Heat");
+
+      // the single-hue family, succeeded by Amber and Teal
+      assertTrue(hidden.containsAll(Set.of("BluesColorModel", "GreensColorModel", "GreysColorModel",
+                                           "OrangesColorModel", "PurplesColorModel", "RedsColorModel")));
+      // the diverging family, succeeded by Variance
+      assertTrue(hidden.containsAll(Set.of("BrBGColorModel", "PiYGColorModel", "PRGnColorModel",
+                                           "PuOrColorModel", "RdBuColorModel", "RdGyColorModel",
+                                           "RdYlGnColorModel", "SpectralColorModel",
+                                           "RdYlBuColorModel")));
+      // Heat, succeeded by Amber
+      assertTrue(hidden.contains("HeatColorModel"));
+
+      // multi-hue has no house successor and survives intact
+      assertFalse(hidden.contains("BuGnColorModel"));
+      assertFalse(hidden.contains("YlOrRdColorModel"));
+      // the house ramps are never hidden from the charts they were built for
+      assertFalse(hidden.contains("AmberColorModel"));
+      assertFalse(hidden.contains("TealColorModel"));
+      assertFalse(hidden.contains("VarianceColorModel"));
+      // Custom has no house successor and is kept for brand matching and one-offs
+      assertFalse(hidden.contains("GradientColorModel"));
    }
 }

@@ -25,6 +25,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticSizeFrameWrapper;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.vswizard.recommender.ChartRecommenderUtil;
 import inetsoft.web.vswizard.recommender.object.VSChartScoreComparator;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -66,6 +67,20 @@ public class ChartTypeFilter {
 
    private void initValues() {
       this.dateDimCount = getDateCount(temp);
+   }
+
+   /**
+    * The context every seed in this filter resolves against. Set once by the factory that builds
+    * the filter list, so a filter added later inherits it without a constructor change; a filter
+    * nobody sets keeps the legacy default and seeds exactly what it seeded before. Package-private
+    * on purpose: only the filter factory may name a filter's context, and only before it runs.
+    */
+   void setVizContext(VizContext vizContext) {
+      this.vizContext = vizContext == null ? VizContext.LEGACY : vizContext;
+   }
+
+   VizContext getVizContext() {
+      return vizContext;
    }
 
    public boolean isValid(ChartRefCombination comb) {
@@ -339,7 +354,7 @@ public class ChartTypeFilter {
          getRefs(comb.getInside(), refs).forEach(ref -> putInside(info, ref));
       }
 
-      GraphUtil.fixVisualFrames(info);
+      GraphUtil.fixVisualFrames(info, vizContext);
    }
 
    // Filter info. Can be override to filter some infos in own type.
@@ -553,4 +568,5 @@ public class ChartTypeFilter {
    protected List<ChartInfo> infos;
    protected boolean autoOrder = true;
    protected int dateDimCount = 0;
+   protected VizContext vizContext = VizContext.LEGACY;
 }

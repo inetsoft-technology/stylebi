@@ -1886,13 +1886,27 @@ public class VSWizardBindingHandler {
    }
 
    public VSChartInfo getTempChart(VSWizardData wizardData) {
-      ChartVSAssembly chart = null;
+      ChartVSAssembly chart = getTempChartAssembly(wizardData);
+      return chart == null ? null : chart.getVSChartInfo();
+   }
 
-      if(wizardData != null && wizardData.getVsTemporaryInfo() != null) {
-         chart = wizardData.getVsTemporaryInfo().getTempChart();
+   /**
+    * The context the wizard's temp chart implies. The assembly is stamped with the host
+    * viewsheet's mark when it is created, but the info it carries has none, so a caller that
+    * needs the mark has to ask for the assembly rather than getTempChart's info. Absent temp
+    * chart reads legacy.
+    */
+   public VizContext getTempChartContext(VSWizardData wizardData) {
+      ChartVSAssembly chart = getTempChartAssembly(wizardData);
+      return chart == null ? VizContext.LEGACY : VizContext.of(chart.getVSAssemblyInfo());
+   }
+
+   private ChartVSAssembly getTempChartAssembly(VSWizardData wizardData) {
+      if(wizardData == null || wizardData.getVsTemporaryInfo() == null) {
+         return null;
       }
 
-      return chart == null ? null : chart.getVSChartInfo();
+      return wizardData.getVsTemporaryInfo().getTempChart();
    }
 
    /**

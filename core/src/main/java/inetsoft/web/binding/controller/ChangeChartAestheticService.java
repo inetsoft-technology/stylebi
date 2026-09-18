@@ -29,6 +29,7 @@ import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.ChangeChartRefEvent;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -115,7 +116,8 @@ public class ChangeChartAestheticService {
          // fix bug1352448598261, chart type is not valid when in flex side,
          // so GraphUtil.as.fixVisualFrame may cause invalid result, here
          // fix it again
-         new ChangeChartDataProcessor(ninfo.getVSChartInfo(), false).process();
+         new ChangeChartDataProcessor(ninfo.getVSChartInfo(), false, VizContext.of(ninfo))
+            .process();
 
          ChangeChartProcessor pro = new ChangeChartProcessor();
          VSChartInfo ocinfo = oinfo.getVSChartInfo();

@@ -253,6 +253,8 @@ public abstract class VisualFrameWrapper implements AssetObject, ContentObject {
    private static VisualFrameWrapper createWrapper(String cls) throws Exception {
       // optimization, avoid Class.forName if necessary
       switch(cls) {
+      case "AmberColorFrame":
+         return new AmberColorFrameWrapper();
       case "BipolarColorFrame":
          return new BipolarColorFrameWrapper();
       case "BluesColorFrameW":
@@ -355,8 +357,12 @@ public abstract class VisualFrameWrapper implements AssetObject, ContentObject {
          return new StaticSizeFrameWrapper();
       case "StaticTextureFrame":
          return new StaticTextureFrameWrapper();
+      case "TealColorFrame":
+         return new TealColorFrameWrapper();
       case "TriangleShapeFrame":
          return new TriangleShapeFrameWrapper();
+      case "VarianceColorFrame":
+         return new VarianceColorFrameWrapper();
       case "YlGnBuColorFrame":
          return new YlGnBuColorFrameWrapper();
       case "YlGnColorFrame":

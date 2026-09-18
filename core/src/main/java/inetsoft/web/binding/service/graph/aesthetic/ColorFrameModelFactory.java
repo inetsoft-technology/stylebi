@@ -349,6 +349,26 @@ public abstract class ColorFrameModelFactory<V extends ColorFrameWrapper,
    }
 
    @Component
+   public static final class AmberColorFactory
+      extends ColorFrameModelFactory<AmberColorFrameWrapper, AmberColorModel>
+   {
+      @Override
+      public Class<AmberColorFrameWrapper> getVisualFrameWrapperClass() {
+         return AmberColorFrameWrapper.class;
+      }
+
+      @Override
+      public AmberColorModel createVisualFrameModel(AmberColorFrameWrapper wrapper) {
+         return new AmberColorModel(wrapper);
+      }
+
+      @Override
+      protected VisualFrame getVisualFrame() {
+         return new AmberColorFrame();
+      }
+   }
+
+   @Component
    public static final class BluesColorFactory
       extends ColorFrameModelFactory<BluesColorFrameWrapper, BluesColorModel>
    {
@@ -805,6 +825,46 @@ public abstract class ColorFrameModelFactory<V extends ColorFrameWrapper,
       @Override
       protected VisualFrame getVisualFrame() {
          return new RdYlBuColorFrame();
+      }
+   }
+
+   @Component
+   public static final class TealColorFactory
+      extends ColorFrameModelFactory<TealColorFrameWrapper, TealColorModel>
+   {
+      @Override
+      public Class<TealColorFrameWrapper> getVisualFrameWrapperClass() {
+         return TealColorFrameWrapper.class;
+      }
+
+      @Override
+      public TealColorModel createVisualFrameModel(TealColorFrameWrapper wrapper) {
+         return new TealColorModel(wrapper);
+      }
+
+      @Override
+      protected VisualFrame getVisualFrame() {
+         return new TealColorFrame();
+      }
+   }
+
+   @Component
+   public static final class VarianceColorFactory
+      extends ColorFrameModelFactory<VarianceColorFrameWrapper, VarianceColorModel>
+   {
+      @Override
+      public Class<VarianceColorFrameWrapper> getVisualFrameWrapperClass() {
+         return VarianceColorFrameWrapper.class;
+      }
+
+      @Override
+      public VarianceColorModel createVisualFrameModel(VarianceColorFrameWrapper wrapper) {
+         return new VarianceColorModel(wrapper);
+      }
+
+      @Override
+      protected VisualFrame getVisualFrame() {
+         return new VarianceColorFrame();
       }
    }
 

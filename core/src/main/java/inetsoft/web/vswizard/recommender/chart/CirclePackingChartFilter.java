@@ -64,7 +64,7 @@ public class CirclePackingChartFilter extends TreemapChartFilter {
 
          if(info.getColorField() == null) {
             addColor(info, comb);
-            GraphUtil.fixVisualFrames(info);
+            GraphUtil.fixVisualFrames(info, vizContext);
          }
 
          return getClassyInfo(info);
@@ -89,7 +89,7 @@ public class CirclePackingChartFilter extends TreemapChartFilter {
          }
       }
 
-      GraphUtil.fixVisualFrames(info);
+      GraphUtil.fixVisualFrames(info, vizContext);
    }
 
    @Override

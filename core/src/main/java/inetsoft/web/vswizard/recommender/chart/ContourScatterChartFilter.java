@@ -17,9 +17,9 @@
  */
 package inetsoft.web.vswizard.recommender.chart;
 
-import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
 
 import java.util.List;
 
@@ -45,7 +45,7 @@ public class ContourScatterChartFilter extends ScatterChartFilter {
 
       if(info != null) {
          info.setChartType(GraphTypes.CHART_SCATTER_CONTOUR);
-         info.setColorFrame(new BluesColorFrame());
+         info.setColorFrame(VSChartPaletteDefaults.defaultLinearFrame(vizContext));
       }
 
       return info;

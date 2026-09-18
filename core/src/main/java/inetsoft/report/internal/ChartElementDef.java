@@ -35,6 +35,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
@@ -625,7 +626,7 @@ public class ChartElementDef extends PainterElementDef
          if(getChartStyle() != value) {
             ChartInfo info = new ChangeChartTypeProcessor(
                getChartStyle(), value, false, false, null, getChartInfo(),
-               true, getChartDescriptor()).process();
+               true, getChartDescriptor(), VizContext.LEGACY).process();
 
             if(getBindingAttr() != null &&
                getBindingAttr().getBindingOption() != null)
@@ -643,7 +644,7 @@ public class ChartElementDef extends PainterElementDef
             ChartAggregateRef ref0 = (ChartAggregateRef) ref;
             new ChangeChartTypeProcessor(
                getChartStyle(), value, true, true, ref0, getChartInfo(),
-               true, getChartDescriptor()).process();
+               true, getChartDescriptor(), VizContext.LEGACY).process();
 
             ref0.setChartType(value);
          }

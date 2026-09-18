@@ -40,11 +40,21 @@ import java.util.List;
 import java.util.stream.Stream;
 
 public class ChartDcProcessor {
+   /** Legacy overload: a caller with no chart assembly in reach seeds the pre-modern ramp. */
    public ChartDcProcessor(VSChartInfo info, DateComparisonInfo dcInfo) {
+      this(info, dcInfo, VizContext.LEGACY);
+   }
+
+   /**
+    * @param ctx the context the chart's measure-to-colour frames are born on. A chart whose
+    *            assembly is in reach should pass VizContext.of(it).
+    */
+   public ChartDcProcessor(VSChartInfo info, DateComparisonInfo dcInfo, VizContext ctx) {
       super();
 
       this.info = info;
       this.dcInfo = dcInfo;
+      this.vizContext = ctx;
    }
 
    public void process(String source, Viewsheet vs) {
@@ -203,7 +213,7 @@ public class ChartDcProcessor {
       info.setDateComparisonRef((VSDataRef) (periodRef != null ? periodRef.clone() :
          dateDim.clone()));
       info.setAppliedCustomPeriodsDc(dcInfo.getPeriods() instanceof CustomPeriods);
-      new ChangeChartDataProcessor(info).sortRefs(info, true);
+      new ChangeChartDataProcessor(info, vizContext).sortRefs(info, true);
       updateDateComparisonChartType(info);
       updateStaticColorFrame(info, dcInfo);
       setDefaultFormatForAggs(info);
@@ -291,7 +301,7 @@ public class ChartDcProcessor {
          info.setRuntimeMulti(true);
          int chartType = info.getRTChartType();
          new ChangeChartTypeProcessor(chartType, chartType,
-            omulti, true, null, info, false, info.getChartDescriptor())
+            omulti, true, null, info, false, info.getChartDescriptor(), vizContext)
             .processMultiChanged(true);
          LegendsDescriptor legendsDescriptor = info.getChartDescriptor().getLegendsDescriptor();
          List<ChartAggregateRef> aestheticAggregateRefs = info.getAestheticAggregateRefs(true);
@@ -649,7 +659,8 @@ public class ChartDcProcessor {
       }
 
       if(nAestheticRef != null && updateAestheticType != null) {
-         GraphUtil.fixVisualFrame(nAestheticRef, updateAestheticType, bindable.getRTChartType(), info);
+         GraphUtil.fixVisualFrame(nAestheticRef, updateAestheticType, bindable.getRTChartType(),
+                                  info, vizContext);
       }
    }
 
@@ -843,12 +854,13 @@ public class ChartDcProcessor {
             }
          }
 
-         GraphUtil.fixVisualFrames(vsChartInfo, true);
+         GraphUtil.fixVisualFrames(vsChartInfo, true, vizContext);
       }
       else {
          if(GraphTypes.CHART_AUTO == vsChartInfo.getChartType() && !vsChartInfo.isMultiStyles()) {
             new ChangeChartTypeProcessor(vsChartInfo.getRTChartType(), vsChartInfo.getRTChartType(),
-               null, vsChartInfo).fixShapeField(vsChartInfo, vsChartInfo, vsChartInfo.getRTChartType());
+               null, vsChartInfo, vizContext)
+               .fixShapeField(vsChartInfo, vsChartInfo, vsChartInfo.getRTChartType());
          }
       }
    }
@@ -1081,4 +1093,5 @@ public class ChartDcProcessor {
 
    private VSChartInfo info;
    private DateComparisonInfo dcInfo;
+   private final VizContext vizContext;
 }

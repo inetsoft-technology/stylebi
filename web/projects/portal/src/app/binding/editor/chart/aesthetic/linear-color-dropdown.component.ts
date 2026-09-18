@@ -41,6 +41,8 @@ export class LinearColorDropdown {
 
    getSrc(frame: string): string {
       switch(frame) {
+      case "AmberColorModel":
+         return "assets/Amber.png";
       case "BluesColorModel":
          return "assets/Blues.png";
       case "BrBGColorModel":
@@ -87,6 +89,10 @@ export class LinearColorDropdown {
          return "assets/Spectral.png";
       case "RdYlBuColorModel":
          return "assets/RdYlBu.png";
+      case "TealColorModel":
+         return "assets/Teal.png";
+      case "VarianceColorModel":
+         return "assets/Variance.png";
       case "YlGnBuColorModel":
          return "assets/YlGnBu.png";
       case "YlGnColorModel":

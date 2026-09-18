@@ -112,7 +112,8 @@ public class DateComparisonDialogService {
       VSAssembly assembly = viewsheet.getAssembly(assemblyName);
 
       if(assembly instanceof ChartVSAssembly) {
-         GraphUtil.fixVisualFrames(((ChartVSAssembly) assembly).getVSChartInfo());
+         GraphUtil.fixVisualFrames(((ChartVSAssembly) assembly).getVSChartInfo(),
+                                   VizContext.of(assembly.getVSAssemblyInfo()));
       }
 
       return null;
@@ -195,7 +196,8 @@ public class DateComparisonDialogService {
             if(GraphTypes.CHART_AUTO == cinfo.getChartType() && !cinfo.isMultiStyles()) {
                cinfo.updateChartType(!cinfo.isMultiStyles(), cinfo.getXFields(), cinfo.getYFields());
                new ChangeChartTypeProcessor(cinfo.getRTChartType(), cinfo.getRTChartType(),
-                                            null, cinfo).fixShapeField(cinfo, cinfo, cinfo.getRTChartType());
+                                            null, cinfo, VizContext.of(assemblyInfo))
+                  .fixShapeField(cinfo, cinfo, cinfo.getRTChartType());
             }
          }
 

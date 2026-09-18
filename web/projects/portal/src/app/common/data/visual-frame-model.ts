@@ -241,6 +241,10 @@ export interface TextLayoutModel {
    rows: TextLayoutRowModel[];
 }
 
+export class AmberColorModel extends ColorFrameModel {
+   clazz: string = "inetsoft.web.binding.model.graph.aesthetic.AmberColorModel";
+}
+
 export class BluesColorModel extends ColorFrameModel {
    clazz: string = "inetsoft.web.binding.model.graph.aesthetic.BluesColorModel";
 }
@@ -331,6 +335,14 @@ export class SpectralColorModel extends ColorFrameModel {
 
 export class RdYlBuColorModel extends ColorFrameModel {
    clazz: string = "inetsoft.web.binding.model.graph.aesthetic.RdYlBuColorModel";
+}
+
+export class TealColorModel extends ColorFrameModel {
+   clazz: string = "inetsoft.web.binding.model.graph.aesthetic.TealColorModel";
+}
+
+export class VarianceColorModel extends ColorFrameModel {
+   clazz: string = "inetsoft.web.binding.model.graph.aesthetic.VarianceColorModel";
 }
 
 export class YlGnBuColorModel extends ColorFrameModel {

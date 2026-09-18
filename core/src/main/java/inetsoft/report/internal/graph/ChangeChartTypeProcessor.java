@@ -28,6 +28,8 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
+import inetsoft.uql.viewsheet.internal.VSChartPaletteDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +47,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
     */
    public ChangeChartTypeProcessor() {
       super();
+      this.vizContext = VizContext.LEGACY;
    }
 
    /**
@@ -53,7 +56,16 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
    public ChangeChartTypeProcessor(int oldType, int newType,
                                    ChartAggregateRef ref,
                                    ChartInfo info) {
-      this(oldType, newType, false, false, ref, info, true, null);
+      this(oldType, newType, ref, info, VizContext.LEGACY);
+   }
+
+   /**
+    * Constructor.
+    */
+   public ChangeChartTypeProcessor(int oldType, int newType,
+                                   ChartAggregateRef ref,
+                                   ChartInfo info, VizContext ctx) {
+      this(oldType, newType, false, false, ref, info, true, null, ctx);
    }
 
    /**
@@ -64,7 +76,23 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
                                    ChartAggregateRef ref, ChartInfo info,
                                    boolean forced, ChartDescriptor desc)
    {
+      this(oldType, newType, omulti, nmulti, ref, info, forced, desc, VizContext.LEGACY);
+   }
+
+   /**
+    * Constructor.
+    *
+    * @param ctx the context the chart's measure-to-colour frames are born on. A chart whose
+    *            assembly is in reach should pass VizContext.of(it); the report path is LEGACY.
+    */
+   public ChangeChartTypeProcessor(int oldType, int newType,
+                                   boolean omulti, boolean nmulti,
+                                   ChartAggregateRef ref, ChartInfo info,
+                                   boolean forced, ChartDescriptor desc, VizContext ctx)
+   {
       super();
+
+      this.vizContext = ctx;
 
       // if only multi changed, the types are same
       if(omulti != nmulti && newType == -1) {
@@ -131,7 +159,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       }
 
       fixColorFrame(oldType, newType);
-      GraphUtil.fixVisualFrames(info);
+      GraphUtil.fixVisualFrames(info, vizContext);
       info.setTooltipVisible(oinfo.isTooltipVisible());
 
       if(!GraphTypes.supportsMultiStyles(newType)) {
@@ -163,7 +191,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
    private void fixColorFrame(int oldType, int newType) {
       if(GraphTypes.isContour(newType)) {
          if(!(info.getColorFrame() instanceof LinearColorFrame)) {
-            info.setColorFrame(new BluesColorFrame());
+            info.setColorFrame(VSChartPaletteDefaults.defaultLinearFrame(vizContext));
          }
       }
       else if(!(info.getColorFrame() instanceof StaticColorFrame)) {
@@ -752,7 +780,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          }
       }
 
-      new ChangeChartDataProcessor(ninfo).sortRefs(ninfo);
+      new ChangeChartDataProcessor(ninfo, vizContext).sortRefs(ninfo);
 
       // if the old doesn't support 'separate', copy the other special fields
       // to info, like the high field, the low field, ect.
@@ -860,7 +888,8 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
       if(color == null) {
          color = createAestheticRef(cref);
-         color.setVisualFrame(measure ? new BluesColorFrame() : new CategoricalColorFrame());
+         color.setVisualFrame(measure ? VSChartPaletteDefaults.defaultLinearFrame(vizContext)
+                                      : new CategoricalColorFrame());
          info.setColorField(color);
       }
       else if(shape == null) {
@@ -1173,7 +1202,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
       if(info.getColorField() == null && measures.size() > 0) {
          AestheticRef aref = createAestheticRef(measures.get(0));
-         aref.setVisualFrame(new BluesColorFrame());
+         aref.setVisualFrame(VSChartPaletteDefaults.defaultLinearFrame(vizContext));
          info.setColorField(aref);
          measures.remove(0);
       }
@@ -1247,7 +1276,8 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       if(info.getColorField() == null && (dims.size() > 0 || measures.size() > 0)) {
          ChartRef ref = dims.size() > 0 ? dims.remove(0) : measures.remove(0);
          AestheticRef aref = createAestheticRef(ref);
-         aref.setVisualFrame(ref.isMeasure() ? new BluesColorFrame() : new CategoricalColorFrame());
+         aref.setVisualFrame(ref.isMeasure() ? VSChartPaletteDefaults.defaultLinearFrame(vizContext)
+                                             : new CategoricalColorFrame());
          info.setColorField(aref);
       }
 
@@ -1341,7 +1371,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
 
       if(info.getColorField() == null && measures.size() > 0) {
          AestheticRef aref = createAestheticRef(measures.get(0));
-         aref.setVisualFrame(new BluesColorFrame());
+         aref.setVisualFrame(VSChartPaletteDefaults.defaultLinearFrame(vizContext));
          info.setColorField(aref);
          measures.remove(0);
       }
@@ -1417,7 +1447,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
       if(startField != null) {
          if(startField.getColorField() == null && measures.size() > 0) {
             AestheticRef aref = createAestheticRef(measures.get(0));
-            aref.setVisualFrame(new BluesColorFrame());
+            aref.setVisualFrame(VSChartPaletteDefaults.defaultLinearFrame(vizContext));
             startField.setColorField(aref);
             measures.remove(0);
          }
@@ -1437,7 +1467,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
          }
       }
 
-      GraphUtil.fixVisualFrames(info);
+      GraphUtil.fixVisualFrames(info, vizContext);
    }
 
    private void addFieldForGantt(List<ChartRef> dateDims, List<ChartRef> measures,
@@ -1513,7 +1543,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
             addToAesthetic(aref);
          }
 
-         GraphUtil.fixVisualFrames(info);
+         GraphUtil.fixVisualFrames(info, vizContext);
       }
    }
 
@@ -1621,6 +1651,7 @@ public class ChangeChartTypeProcessor extends ChangeChartProcessor {
    private ChartInfo info, oinfo;
    private ChartDescriptor desc;
    private boolean forced = true; // forced change to auto if without measure
+   private final VizContext vizContext;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ChangeChartTypeProcessor.class);

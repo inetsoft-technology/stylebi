@@ -1212,7 +1212,7 @@ public class ChartVSAssembly extends DataVSAssembly
          changeAestheticCalcType(refName, cinfo, nref);
       }
 
-      GraphUtil.fixVisualFrames(cinfo);
+      GraphUtil.fixVisualFrames(cinfo, VizContext.of(getVSAssemblyInfo()));
    }
 
    private void changeXCalcType(String refName, VSChartInfo cinfo, ChartRef nref, boolean wizard) {

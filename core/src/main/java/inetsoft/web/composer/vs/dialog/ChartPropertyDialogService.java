@@ -531,7 +531,7 @@ public class ChartPropertyDialogService {
       if(viewsheet.getOriginalID() != null) {
          VSChartInfo cinfo = assemblyInfo.getVSChartInfo();
          cinfo.setChartDescriptor(((ChartDescriptor) chartDescriptor.clone()));
-         GraphUtil.fixVisualFrames(cinfo);
+         GraphUtil.fixVisualFrames(cinfo, VizContext.of(assemblyInfo));
          final BindingModel model = vsBindingService.createModel(chartAssembly);
          commandDispatcher.sendCommand(new SetVSBindingModelCommand(model));
       }

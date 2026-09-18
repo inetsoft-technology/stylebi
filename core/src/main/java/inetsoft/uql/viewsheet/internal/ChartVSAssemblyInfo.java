@@ -17,7 +17,11 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.graph.aesthetic.BluesColorFrame;
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.graph.aesthetic.LinearColorFrame;
+import inetsoft.graph.aesthetic.TealColorFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GDefaults;
@@ -241,8 +245,9 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
-    * Writes the mark-appropriate categorical palette onto every bound colour aesthetic, so
-    * Modernize and Revert keep the chart's colours in step with the rest of its chrome.
+    * Writes the mark-appropriate palette onto every bound colour aesthetic, so Modernize and Revert
+    * keep the chart's colours in step with the rest of its chrome: the categorical palette on every
+    * call, and the measure-to-colour ramp on a mark transition only.
     */
    private void seedColorPalette(VizContext ctx) {
       VSChartInfo info = getVSChartInfo();
@@ -260,8 +265,38 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
                // palette have to go or they keep rendering for the rest of the session
                ccf.clearDerivedColors();
             }
+            // transition only, unlike the categorical branch above: this one replaces the frame
+            // outright, and the house ramps are offered to a classic chart too, so on the restore
+            // path - which runs on every state and bookmark restore - it would silently discard a
+            // deliberate Teal. A Modernize or a Revert is the only moment the seeded default is
+            // stale by definition
+            else if(ctx.transition && ref != null
+               && isOtherMarkSeededLinearFrame(ref.getVisualFrame(), ctx))
+            {
+               ref.setVisualFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx));
+            }
          }
       }
+   }
+
+   /**
+    * Whether frame is exactly the linear ramp the *other* mark seeds by default - Blues on a
+    * chart becoming modern, Teal on a chart becoming legacy. A ramp the author picked deliberately
+    * is some other class (Spectral, Amber, Variance, a gradient, ...) and is left alone, whatever
+    * its changed flag says: linear-color-pane never sets that flag, so keying on it would discard
+    * real choices on the first revert after upgrade.
+    *
+    * Only a mark transition may ask: the other mark's default is a class an author of a chart on
+    * *this* mark can equally have chosen, so outside a transition there is nothing to distinguish
+    * the two and the caller must not guess.
+    */
+   private static boolean isOtherMarkSeededLinearFrame(VisualFrame frame, VizContext ctx) {
+      if(!(frame instanceof LinearColorFrame)) {
+         return false;
+      }
+
+      Class<?> otherMarkDefault = ctx.modern ? BluesColorFrame.class : TealColorFrame.class;
+      return frame.getClass() == otherMarkDefault;
    }
 
    /**
@@ -2573,7 +2608,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       if(getChartStyle() != value && !cinfo.isMultiStyles()) {
          this.cinfo = (VSChartInfo) new ChangeChartTypeProcessor(
             getChartStyle(), value, false, false, null, getVSChartInfo(),
-       true, getChartDescriptor()).process();
+       true, getChartDescriptor(), VizContext.of(this)).process();
       }
 
       if(!cinfo.isMultiStyles()) {
@@ -2584,7 +2619,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          ChartRef[] yrefs = cinfo.getRTYFields();
          ChangeChartProcessor processor = new ChangeChartTypeProcessor(
             getChartStyle(), value, true, true, null, getVSChartInfo(),
-            true, getChartDescriptor());
+            true, getChartDescriptor(), VizContext.of(this));
 
          for(ChartRef[] refs : new ChartRef[][] {yrefs, xrefs}) {
             for(ChartRef ref : refs) {

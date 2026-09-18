@@ -45,6 +45,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.VSTrapCommand;
@@ -357,7 +358,7 @@ public class VSChartDataHandler {
 
       if(changed) {
          vsChartInfo = (VSChartInfo)
-            new ChangeChartDataProcessor(vsChartInfo).process();
+            new ChangeChartDataProcessor(vsChartInfo, VizContext.of(ninfo)).process();
          ninfo.setVSChartInfo(vsChartInfo);
          hint |= chartHandler.createCommands(oinfo, ninfo);
          boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
@@ -416,7 +417,7 @@ public class VSChartDataHandler {
          // get chart type would use runtime value, so get chart type before clear operator.
          int ctype = getChartType(ninfo.getVSChartInfo());
          VSChartInfo cinfo = ninfo.getVSChartInfo();
-         cinfo = (VSChartInfo) new ChangeChartDataProcessor(cinfo).process();
+         cinfo = (VSChartInfo) new ChangeChartDataProcessor(cinfo, VizContext.of(ninfo)).process();
 
          int aggCount = Arrays.stream(cinfo.getBindingRefs(false))
             .filter(ref -> ref instanceof ChartAggregateRef && !((ChartAggregateRef) ref).isDiscrete())
@@ -673,7 +674,8 @@ public class VSChartDataHandler {
          // fix bug1352448598261, chart type is not valid when in flex side,
          // so GraphUtil.as.fixVisualFrame may cause invalid result, here
          // fix it again
-         new ChangeChartDataProcessor(ninfo.getVSChartInfo(), false).process();
+         new ChangeChartDataProcessor(ninfo.getVSChartInfo(), false, VizContext.of(ninfo))
+            .process();
          ChangeChartProcessor pro = new ChangeChartProcessor();
          VSChartInfo ocinfo = oinfo.getVSChartInfo();
          VSChartInfo ncinfo = ninfo.getVSChartInfo();
