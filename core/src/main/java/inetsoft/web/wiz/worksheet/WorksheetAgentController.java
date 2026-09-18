@@ -1217,6 +1217,7 @@ public class WorksheetAgentController {
          assembly.setAttachedSource(sinfo);
          assembly.setAttachedAttribute(ref);
 
+         WorksheetEditService.Editor.requireNoNameCollision(assembly, ws);
          positionBelowExisting(ws, assembly);
          ws.addAssembly(assembly);
          return null;
@@ -2391,6 +2392,7 @@ public class WorksheetAgentController {
          WorksheetEditService.Editor.requireStorableName(tableName, "A table name");
 
          EmbeddedTableAssembly assembly = new EmbeddedTableAssembly(ws, tableName);
+         WorksheetEditService.Editor.requireNoNameCollision(assembly, ws);
 
          Assembly[] existing = ws.getAssemblies();
          int maxY = 0;
@@ -4207,6 +4209,7 @@ public class WorksheetAgentController {
          WorksheetEditService.Editor.requireStorableName(tableName, "A table name");
 
          SQLBoundTableAssembly assembly = new SQLBoundTableAssembly(ws, tableName);
+         WorksheetEditService.Editor.requireNoNameCollision(assembly, ws);
 
          // Build the JDBCQuery with freeform SQL.
          JDBCQuery query = new JDBCQuery();
