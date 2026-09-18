@@ -510,6 +510,54 @@ class BindingAgentControllerTest {
                                     eq(request.fields()), eq("ORDERS"));
    }
 
+   @Test
+   void setTableColumnWidthForwardsToTheServiceAndReturnsApplied() throws Exception {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      TableBindingService tableService = mock(TableBindingService.class);
+      java.util.Map<String, Double> widths = java.util.Map.of("Region", 120.0);
+      when(tableService.setColumnWidths(eq("tok"), any(Principal.class), eq("Table1"),
+                                        eq(widths)))
+         .thenReturn(List.of("Region -> 120px"));
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), tableService, mock(CalcTableService.class),
+         mock(SelectionBindingService.class), mock(CalcFieldAgentService.class),
+         mock(ViewsheetFormatService.class), mock(SheetAgentBroadcastService.class));
+
+      BindingAgentController.TableColumnWidthRequest request =
+         new BindingAgentController.TableColumnWidthRequest("Table1", widths);
+
+      java.util.Map<String, Object> response =
+         controller.setTableColumnWidth("tok", request, principal());
+
+      assertEquals(List.of("Region -> 120px"), response.get("applied"));
+   }
+
+   @Test
+   void tableColumnWidthRefusesWhenTheFeatureIsDisabled() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(false);
+
+      BindingAgentController controller = new BindingAgentController(
+         feature, mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(ViewsheetSessionService.class), mock(BindableFieldsService.class),
+         mock(BindingReadService.class), mock(ChartBindingService.class),
+         mock(ChartAestheticAgentService.class), mock(TableBindingService.class),
+         mock(CalcTableService.class), mock(SelectionBindingService.class),
+         mock(CalcFieldAgentService.class), mock(ViewsheetFormatService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      BindingAgentController.TableColumnWidthRequest request =
+         new BindingAgentController.TableColumnWidthRequest("Table1", java.util.Map.of("Region", 120.0));
+
+      assertThrows(ResponseStatusException.class,
+                   () -> controller.setTableColumnWidth("tok", request, principal()));
+   }
+
    // ---------------------------------------------------------------------------
    // VBS-003 review round 1 (important, confidence 85): a warning captured during a calc-field
    // write must reach the wiz-agent-facing response body, not just get built and discarded
