@@ -59,7 +59,7 @@ public final class VizModernizeUtil {
          return 0;
       }
 
-      VizContext ctx = VizContext.ofTransition(mark);
+      VizContext ctx = VizContext.ofTransition(vs, mark);
       List<VSAssemblyInfo> targets = unmarked(vs);
 
       for(VSAssemblyInfo info : targets) {
@@ -104,7 +104,7 @@ public final class VizModernizeUtil {
       // every target is unmarked by the time it is seeded, so one context serves them all. A
       // transition context, like modernize's: the seeds that may run only when the mark actually
       // changes read that flag, and nothing else builds one
-      VizContext ctx = VizContext.ofTransition(null);
+      VizContext ctx = VizContext.ofTransition(vs, null);
 
       for(VSAssemblyInfo info : targets) {
          info.setVizMark(null);

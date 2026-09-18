@@ -21,6 +21,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -156,5 +158,75 @@ class VizContextTest {
       SreeEnv.setProperty("viewsheet.density", "compact");
       assertEquals("compact", VizContext.of(VizMark.MODERN_LIGHT).density);
       assertEquals("compact", VizContext.of((VizMark) null).density);
+   }
+
+   @Test
+   void aSheetsOwnDensityOverridesTheOrg() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("dense");
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      vs.addAssembly(text);
+
+      assertEquals("dense", VizContext.of(text.getVSAssemblyInfo()).density);
+   }
+
+   @Test
+   void aSheetWithNoDensityFallsBackToTheOrg() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      Viewsheet vs = new Viewsheet();
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      vs.addAssembly(text);
+
+      assertEquals("comfortable", VizContext.of(text.getVSAssemblyInfo()).density);
+   }
+
+   @Test
+   void anAssemblyWithNoSheetFallsBackToTheOrg() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+
+      assertEquals("comfortable", VizContext.of(new TextVSAssemblyInfo()).density);
+   }
+
+   @Test
+   void embeddedContentTakesTheOutermostSheetsDensity() {
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      Viewsheet outer = new Viewsheet();
+      outer.getViewsheetInfo().setVizDensity("comfortable");
+
+      Viewsheet embedded = new Viewsheet();
+      embedded.getViewsheetInfo().setVizDensity("compact");
+      embedded.getVSAssemblyInfo().setName("EmbeddedVS");
+      TextVSAssembly text = new TextVSAssembly(embedded, "InnerText");
+      embedded.addAssembly(text);
+      outer.addAssembly(embedded);
+
+      assertEquals("comfortable", VizContext.of(text.getVSAssemblyInfo()).density,
+                   "the page's density, not the embedded asset's");
+   }
+
+   @Test
+   void thatSameSheetEditedStandaloneTakesItsOwnDensity() {
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("compact");
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      vs.addAssembly(text);
+
+      assertEquals("compact", VizContext.of(text.getVSAssemblyInfo()).density,
+                   "outermost when opened on its own");
+   }
+
+   @Test
+   void aTransitionCarriesTheSheetsDensity() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("dense");
+
+      VizContext ctx = VizContext.ofTransition(vs, VizMark.MODERN_LIGHT);
+
+      assertEquals("dense", ctx.density);
+      assertTrue(ctx.transition);
+      assertTrue(ctx.modern);
    }
 }
