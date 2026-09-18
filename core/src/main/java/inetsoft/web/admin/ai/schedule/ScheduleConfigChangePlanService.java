@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.schedule;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.schedule.TimeRange;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -35,6 +36,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 
@@ -471,7 +473,79 @@ public class ScheduleConfigChangePlanService {
          throw new IllegalArgumentException(label + ".spec.label: required non-blank string");
       }
 
-      return location;
+      // refused rather than canonicalized away: both shapes below describe a credential the write
+      // side cannot persist, so normalizing them would silently store a location with NO
+      // credential -- the quiet data loss this whole area's verify-after-write step exists to
+      // catch. Only the derived ftp flag is safe to normalize (see canonicalizeServerLocation).
+      ServerPathInfoModel info = location.pathInfoModel();
+
+      if(info != null && info.useCredential() && Tool.isEmptyString(info.secretId())) {
+         throw new IllegalArgumentException(
+            label + ".spec.secretId: required non-blank string when useCredential=true -- the " +
+            "credential is resolved by reference, so a blank secretId stores no credential at all");
+      }
+
+      if(info != null && !info.useCredential() && Tool.isEmptyString(info.username()) &&
+         !Tool.isEmptyString(info.password()))
+      {
+         throw new IllegalArgumentException(
+            label + ".spec.username: required non-blank string when a password is supplied -- a " +
+            "password is only ever persisted alongside a username");
+      }
+
+      return canonicalizeServerLocation(location);
+   }
+
+   /**
+    * Rewrites a caller-supplied location into EXACTLY the shape {@code
+    * SchedulerConfigurationService#setServerLocations} persists and {@code
+    * SUtil#getServerLocations} hands back on the verification re-read.
+    *
+    * <p>Without this, {@code ScheduleConfigChangesetApplyService}'s write-then-readback check
+    * compares the caller's shape against the server's canonical shape and rolls back a write that
+    * actually succeeded. The asymmetries closed here are all ones the read side introduces and the
+    * write side never round-trips: a null {@code pathInfoModel} (the read always builds one), a
+    * trailing slash on the path (stripped on read), and {@code ftp}/{@code useCredential}, which
+    * are never persisted as such but DERIVED on read from whether a username/secretId is present.
+    * Deriving them the same way here also makes the write itself correct -- {@code
+    * setServerLocations} only persists a credential when {@code ftp()} is true, so a caller who
+    * supplies a username without {@code ftp:true} would otherwise have it silently dropped.
+    *
+    * <p>Only shapes that lose NOTHING are normalized here. The two that would cost a credential
+    * (a blank {@code secretId} under {@code useCredential=true}, and a password with no username)
+    * are refused by {@link #convertServerLocation} before this runs, so reaching the no-credential
+    * branch below always means the caller genuinely supplied no credential.
+    */
+   private static ServerLocation canonicalizeServerLocation(ServerLocation location) {
+      String path = normalizePath(location.path());
+      ServerPathInfoModel info = location.pathInfoModel();
+      ServerPathInfoModel.Builder builder = ServerPathInfoModel.builder().path(path);
+      String secretId = info == null || !info.useCredential() ||
+         Tool.isEmptyString(info.secretId()) ? null : info.secretId();
+      String username = info == null || info.useCredential() ||
+         Tool.isEmptyString(info.username()) ? null : info.username();
+
+      if(secretId != null) {
+         builder.useCredential(true).secretId(secretId).ftp(true);
+      }
+      else if(username != null) {
+         // the password is only ever persisted alongside a username
+         String password = Tool.isEmptyString(info.password()) ? null : info.password();
+         builder.useCredential(false)
+            .username(username)
+            .password(password)
+            .oldPasswordKey(info.oldPasswordKey())
+            .ftp(true);
+      }
+      else {
+         builder.useCredential(false).ftp(false);
+      }
+
+      return ServerLocation.builder()
+         .path(path)
+         .label(location.label())
+         .pathInfoModel(builder.build())
+         .build();
    }
 
    private static TimeRangeModel convertTimeRange(String label, Map<String, Object> spec) {
@@ -492,22 +566,46 @@ public class ScheduleConfigChangePlanService {
          throw new IllegalArgumentException(label + ".spec.name: required non-blank string");
       }
 
-      requireLocalTime(label + ".spec.startTime", range.startTime());
-      requireLocalTime(label + ".spec.endTime", range.endTime());
-      return range;
+      return TimeRangeModel.builder()
+         .from(range)
+         .startTime(requireLocalTime(label + ".spec.startTime", range.startTime()))
+         .endTime(requireLocalTime(label + ".spec.endTime", range.endTime()))
+         .build();
    }
 
-   private static void requireLocalTime(String label, String value) {
+   /**
+    * Validates a time and returns it in the ONE representation a re-read will produce: {@code
+    * TimeRangeModel.Builder#from} truncates to the minute and formats with {@code ISO_LOCAL_TIME},
+    * which PRINTS the seconds field even when it is zero (unlike {@code LocalTime#toString}). Both
+    * documented input formats are accepted, but {@code "09:00"} is canonicalized to {@code
+    * "09:00:00"} -- otherwise the apply side's projection comparison could never match and a
+    * successful write would be rolled back.
+    *
+    * <p>Sub-minute precision is refused rather than silently truncated: a time range is stored to
+    * the minute, so accepting {@code "09:30:15"} would quietly persist something other than what
+    * was asked for.
+    */
+   private static String requireLocalTime(String label, String value) {
       if(value == null) {
          throw new IllegalArgumentException(label + ": required (HH:mm or HH:mm:ss)");
       }
 
+      LocalTime time;
+
       try {
-         LocalTime.parse(value);
+         time = LocalTime.parse(value);
       }
       catch(DateTimeParseException e) {
          throw new IllegalArgumentException(label + ": \"" + value + "\" is not a valid HH:mm[:ss] time");
       }
+
+      if(time.getSecond() != 0 || time.getNano() != 0) {
+         throw new IllegalArgumentException(
+            label + ": \"" + value + "\" has sub-minute precision, but a time range is stored to " +
+            "the minute -- use \"HH:mm\" (or \"HH:mm:00\")");
+      }
+
+      return time.format(DateTimeFormatter.ISO_LOCAL_TIME);
    }
 
    private static String requireVerb(String label, String verb) {
@@ -582,19 +680,18 @@ public class ScheduleConfigChangePlanService {
     * a credential is present, mirroring the masking convention {@code
     * ScheduleTaskChangePlanService}'s XML projection uses for the same concern. */
    static String projectServerLocation(ServerLocation location) {
-      StringBuilder sb = new StringBuilder();
-      sb.append("path=").append(location.path()).append(";label=").append(location.label());
+      // the credential tail is emitted unconditionally, and the path is normalized the same way
+      // the read side normalizes it: a re-read ALWAYS yields a non-null pathInfoModel and a
+      // slash-stripped path, so making either conditional here compares two different shapes and
+      // fails verification on a write that succeeded.
       ServerPathInfoModel info = location.pathInfoModel();
-
-      if(info != null) {
-         sb.append(";ftp=").append(info.ftp())
-            .append(";useCredential=").append(info.useCredential())
-            .append(";username=").append(info.username())
-            .append(";secretId=").append(info.secretId() == null ? "(none)" : "(set)")
-            .append(";password=").append(info.password() == null ? "(none)" : "(set)");
-      }
-
-      return sb.toString();
+      return "path=" + normalizePath(location.path()) +
+         ";label=" + location.label() +
+         ";ftp=" + (info != null && info.ftp()) +
+         ";useCredential=" + (info != null && info.useCredential()) +
+         ";username=" + (info == null ? null : info.username()) +
+         ";secretId=" + (info == null || info.secretId() == null ? "(none)" : "(set)") +
+         ";password=" + (info == null || info.password() == null ? "(none)" : "(set)");
    }
 
    static String projectTimeRange(TimeRangeModel range) {
