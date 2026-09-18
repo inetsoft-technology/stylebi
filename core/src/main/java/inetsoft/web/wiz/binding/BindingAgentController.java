@@ -677,6 +677,23 @@ public class BindingAgentController {
       tableService.setOptions(sessionToken, user, request.assembly(), request.options());
    }
 
+   public record TableColumnWidthRequest(String assembly, Map<String, Double> widths) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/column-width")
+   public Map<String, Object> setTableColumnWidth(@PathVariable String sessionToken,
+                                                  @RequestBody TableColumnWidthRequest request,
+                                                  Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      List<String> applied = tableService.setColumnWidths(
+         sessionToken, user, request.assembly(), request.widths());
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("applied", applied);
+
+      return out;
+   }
+
    public record CalcLayoutRequest(String assembly, String op, Integer row, Integer col,
                                    Integer rows, Integer cols, Integer n) {}
    public record CalcCopyRequest(String assembly, String op, Integer row, Integer col,

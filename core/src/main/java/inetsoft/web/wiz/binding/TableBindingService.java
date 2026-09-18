@@ -26,6 +26,7 @@ import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.controller.VSBindingModelService;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
@@ -623,6 +624,134 @@ public class TableBindingService {
 
             return index >= 0 && index < aggregates.size() ? aggregates.get(index) : null;
       }
+   }
+
+   /**
+    * Unlike {@link #setColumnLabels}, Table and Crosstab share one code path here: a column
+    * width is stored keyed by the column's rendered {@link TableDataPath} ({@code
+    * TableDataVSAssemblyInfo.setColumnWidthValue2}), which resolves identically for either
+    * assembly type once a {@code VSTableLens} is rendered -- there is no type-specific mechanism
+    * to branch on the way labels' Table (alias written straight onto the model) vs Crosstab
+    * (header cell resolved in the lens) split requires. Like the Crosstab label branch, this
+    * bypasses {@link #apply}/{@link #applyWithContext}, since it needs the live sandbox/lens
+    * those helpers don't expose.
+    *
+    * <p>A column is resolved by matching its current rendered header text (the last element of
+    * its {@code TableDataPath}) against every column the lens is rendering right now -- not a
+    * shelf/index the way a {@code ColumnLabelEntry} resolves a Crosstab target, because a width
+    * is a rendering-only property with no shelf position of its own. A name matching zero or
+    * more than one rendered column is refused rather than guessed at: this call has no
+    * shelf-index fallback the way {@code set_column_labels}'s {@code entries} does, so an
+    * ambiguous name is a real, honest limitation here, not a bug to route around.
+    *
+    * <p>Width is in pixels. A {@code null} width resets the column back to auto-fit ({@code
+    * setColumnWidthValue(col, NaN)}); a finite positive width is stored with {@code
+    * setColumnWidthValue2}, the same call {@code ComposerVSTableService.changeColumnWidth} makes
+    * for a live column-drag resize (its own {@code setColumnWidthValue} javadoc calling the
+    * value "a ratio to total width" is stale for this call path -- trust the usage site).
+    *
+    * @return one line per width actually written, e.g. {@code "Region -> 120px"} or
+    *         {@code "Region -> auto"} for a reset.
+    */
+   public List<String> setColumnWidths(String sessionToken, Principal user, String assemblyName,
+                                       Map<String, Double> widths) throws Exception
+   {
+      if(widths == null || widths.isEmpty()) {
+         throw new IllegalArgumentException(
+            "setColumnWidths requires a non-empty 'widths' object.");
+      }
+
+      List<String> applied = new ArrayList<>();
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isEmpty()) {
+            throw new IllegalStateException(
+               "'" + assemblyName + "' has no active render sandbox right now, so its columns " +
+               "cannot be resolved.");
+         }
+
+         String oname = assembly.getAbsoluteName();
+         boolean detail = oname.startsWith(Assembly.DETAIL);
+
+         if(detail) {
+            oname = oname.substring(Assembly.DETAIL.length());
+         }
+
+         VSTableLens lens = box.get().getVSTableLens(oname, detail);
+
+         if(lens == null) {
+            throw new IllegalStateException(
+               "'" + assemblyName + "' did not render -- its columns cannot be resolved right " +
+               "now.");
+         }
+
+         TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+
+         for(Map.Entry<String, Double> entry : widths.entrySet()) {
+            String column = entry.getKey();
+            Double width = entry.getValue();
+            List<Integer> matches = new ArrayList<>();
+
+            for(int col = 0; col < lens.getColCount(); col++) {
+               TableDataPath path = lens.getTableDataPath(0, col);
+               String[] pathArr = path == null ? null : path.getPath();
+
+               if(pathArr != null && pathArr.length > 0 &&
+                  Objects.equals(pathArr[pathArr.length - 1], column))
+               {
+                  matches.add(col);
+               }
+            }
+
+            if(matches.isEmpty()) {
+               throw new IllegalArgumentException(
+                  "'" + column + "' is not a visible column on '" + assemblyName + "' right " +
+                  "now.");
+            }
+
+            if(matches.size() > 1) {
+               throw new IllegalArgumentException(
+                  "'" + column + "' matches " + matches.size() + " rendered columns on '" +
+                  assemblyName + "' -- width cannot be set by name when it's ambiguous.");
+            }
+
+            int col = matches.get(0);
+
+            if(width == null) {
+               info.setColumnWidthValue(col, Double.NaN);
+               applied.add(column + " -> auto");
+            }
+            else {
+               if(!Double.isFinite(width) || width <= 0) {
+                  throw new IllegalArgumentException(
+                     "'" + column + "' width must be a finite, positive number of pixels; got " +
+                     width + ".");
+               }
+
+               info.setColumnWidthValue2(col, width, lens);
+               applied.add(column + " -> " + formatPixels(width) + "px");
+            }
+         }
+
+         info.setExplicitTableWidthValue(true);
+
+         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
+         event.setName(assemblyName);
+         event.setBinding(model);
+         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+      });
+
+      return applied;
+   }
+
+   /** Strips a trailing {@code .0} so a whole-pixel width reads as {@code "120px"}, not {@code "120.0px"}. */
+   private static String formatPixels(double width) {
+      return width == Math.floor(width) && !Double.isInfinite(width)
+         ? String.valueOf((long) width) : String.valueOf(width);
    }
 
    public void setOptions(String sessionToken, Principal user, String assemblyName,

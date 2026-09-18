@@ -501,6 +501,167 @@ class TableBindingServiceTest {
       assertEquals(List.of("aggregates[0] -> Revenue"), applied);
    }
 
+   // ── set_column_widths ────────────────────────────────────────────────────
+
+   @Test
+   void setColumnWidthsAppliesAPositiveWidthToTheMatchedColumn() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("Table1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
+      when(lens.getTableDataPath(0, 1)).thenReturn(headerPath("Total"));
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessionsWithLens(assembly, "Table1", lens),
+                                         existing, bindings)
+         .setColumnWidths("tok", principal(), "Table1", Map.of("Region", 120.0));
+
+      verify(info).setColumnWidthValue2(0, 120.0, lens);
+      verify(info).setExplicitTableWidthValue(true);
+      assertEquals(List.of("Region -> 120px"), applied);
+   }
+
+   @Test
+   void setColumnWidthsResetsANullWidthToAutoFit() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("Table1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getColCount()).thenReturn(1);
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessionsWithLens(assembly, "Table1", lens),
+                                         existing, bindings)
+         .setColumnWidths("tok", principal(), "Table1",
+                          java.util.Collections.singletonMap("Region", null));
+
+      verify(info).setColumnWidthValue(0, Double.NaN);
+      assertEquals(List.of("Region -> auto"), applied);
+   }
+
+   @Test
+   void setColumnWidthsRejectsANonPositiveOrNonFiniteWidth() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("Table1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getColCount()).thenReturn(1);
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
+
+      for(double bad : new double[]{ 0.0, -5.0, Double.NaN, Double.POSITIVE_INFINITY }) {
+         VSBindingModelService bindings = mock(VSBindingModelService.class);
+         TableBindingService service = serviceWith(sessionsWithLens(assembly, "Table1", lens),
+                                                    existing, bindings);
+
+         assertThrows(IllegalArgumentException.class,
+            () -> service.setColumnWidths("tok", principal(), "Table1",
+                                          Map.of("Region", bad)),
+            "width " + bad + " must be refused");
+      }
+
+      verify(info, never()).setColumnWidthValue2(anyInt(), anyDouble(), any());
+   }
+
+   @Test
+   void setColumnWidthsRejectsAnUnknownColumnName() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("Table1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getColCount()).thenReturn(1);
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
+
+      TableBindingService service = serviceWith(sessionsWithLens(assembly, "Table1", lens),
+                                                existing, mock(VSBindingModelService.class));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnWidths("tok", principal(), "Table1", Map.of("Nope", 100.0)));
+      assertTrue(thrown.getMessage().contains("Nope"));
+      assertTrue(thrown.getMessage().contains("Table1"));
+   }
+
+   @Test
+   void setColumnWidthsRejectsAnAmbiguousColumnName() throws Exception {
+      TableBindingModel existing = new TableBindingModel();
+      TableVSAssembly assembly = mock(TableVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("Table1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
+      when(lens.getTableDataPath(0, 1)).thenReturn(headerPath("Region"));
+
+      TableBindingService service = serviceWith(sessionsWithLens(assembly, "Table1", lens),
+                                                existing, mock(VSBindingModelService.class));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnWidths("tok", principal(), "Table1", Map.of("Region", 100.0)));
+      assertTrue(thrown.getMessage().contains("ambiguous"));
+      verify(info, never()).setColumnWidthValue2(anyInt(), anyDouble(), any());
+   }
+
+   @Test
+   void setColumnWidthsRefusesAChartNamingIt() {
+      TableBindingService service = serviceWith(
+         sessionsFor(mock(ChartVSAssembly.class)),
+         new inetsoft.web.binding.model.ChartBindingModel(), mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setColumnWidths("tok", principal(), "Chart1", Map.of("Region", 100.0)));
+      assertTrue(thrown.getMessage().contains("Chart1"));
+      assertTrue(thrown.getMessage().contains("chart"));
+   }
+
+   @Test
+   void setColumnWidthsRequiresAnActiveRenderSandbox() {
+      TableBindingModel existing = new TableBindingModel();
+      TableBindingService service = serviceWith(sessionsFor(mock(TableVSAssembly.class)),
+                                                existing, mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setColumnWidths("tok", principal(), "Table1", Map.of("Region", 100.0)));
+      assertTrue(thrown.getMessage().contains("sandbox"));
+   }
+
+   @Test
+   void setColumnWidthsRejectsAnEmptyWidthsMap() {
+      TableBindingService service = serviceWith(sessionsFor(mock(TableVSAssembly.class)),
+                                                new TableBindingModel(),
+                                                mock(VSBindingModelService.class));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnWidths("tok", principal(), "Table1", Map.of()));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    // ── set_table_source ──────────────────────────────────────────────────────
@@ -962,6 +1123,40 @@ class TableBindingServiceTest {
                                               VSBindingModelService bindings)
    {
       return serviceWith(sessionsFor(assembly), model, bindings);
+   }
+
+   private static inetsoft.report.TableDataPath headerPath(String name) {
+      return new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ name });
+   }
+
+   /** Like {@link #sessionsFor}, but with a render sandbox that resolves {@code lens} for
+    *  {@code assemblyName} -- needed by {@code setColumnWidths}, which resolves a column against
+    *  a rendered {@code VSTableLens} rather than the wiz model. */
+   private static ViewsheetSessionService sessionsWithLens(VSAssembly assembly,
+                                                           String assemblyName,
+                                                           inetsoft.report.composition.VSTableLens lens)
+      throws Exception
+   {
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens(assemblyName, false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      return sessions;
    }
 
    private static ViewsheetSessionService sessionsFor(VSAssembly assembly) {
