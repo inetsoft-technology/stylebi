@@ -358,7 +358,7 @@ public class ConcatenatedTableAssembly extends CompositeTableAssembly {
          String ltype = lcolumn.getDataType();
          String rtype = rcolumn.getDataType();
 
-         if(!AssetUtil.isMergeable(ltype, rtype)) {
+         if(!AssetUtil.isMergeableForConcat(ltype, rtype)) {
             return false;
          }
       }

@@ -39,7 +39,9 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag("core")
 public class AssetUtilTest {
@@ -141,5 +143,34 @@ public class AssetUtilTest {
       String result = assertDoesNotThrow(
          () -> AssetUtil.checkUnpivotShrinkTypeConflict(cs, 5, 4));
       assertNull(result);
+   }
+
+   /**
+    * Regression test for bug 76753/WBS-060: {@code isMergeable} folds {@code DATE} and
+    * {@code TIME_INSTANT} into one "date bucket" with no compensating type-widening step the way
+    * the number bucket has ({@code XSchema.mergeNumericType}), so a genuine date/timeInstant
+    * mismatch in a concatenation was invisible to both the write-time guard and
+    * {@code concatCompatible}. {@code isMergeableForConcat} requires an exact match within the
+    * date bucket instead, while leaving every other bucket's behavior (and {@code isMergeable}
+    * itself) untouched.
+    */
+   @Test
+   void isMergeableForConcatRequiresExactMatchWithinDateBucket() {
+      assertTrue(AssetUtil.isMergeableForConcat(XSchema.DATE, XSchema.DATE));
+      assertTrue(AssetUtil.isMergeableForConcat(XSchema.TIME_INSTANT, XSchema.TIME_INSTANT));
+      assertFalse(AssetUtil.isMergeableForConcat(XSchema.DATE, XSchema.TIME_INSTANT));
+      assertFalse(AssetUtil.isMergeableForConcat(XSchema.TIME_INSTANT, XSchema.DATE));
+
+      // A date-bucket type paired with a non-date type is still rejected, same as isMergeable.
+      assertFalse(AssetUtil.isMergeableForConcat(XSchema.DATE, XSchema.TIME));
+      assertFalse(AssetUtil.isMergeableForConcat(XSchema.TIME_INSTANT, XSchema.STRING));
+
+      // XSchema.TIME is not in the date bucket, so same-type TIME+TIME must still fall through to
+      // isMergeable's equals check and be accepted -- the fix must not accidentally reject it.
+      assertTrue(AssetUtil.isMergeableForConcat(XSchema.TIME, XSchema.TIME));
+
+      // Existing string/number bucket behavior is preserved unchanged.
+      assertTrue(AssetUtil.isMergeableForConcat(XSchema.STRING, XSchema.CHAR));
+      assertTrue(AssetUtil.isMergeableForConcat(XSchema.INTEGER, XSchema.DOUBLE));
    }
 }

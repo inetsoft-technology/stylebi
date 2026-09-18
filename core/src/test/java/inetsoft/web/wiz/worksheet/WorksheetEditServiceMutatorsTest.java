@@ -4248,6 +4248,35 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    /**
+    * {@code date} and {@code timeInstant} used to be folded into the same "date bucket" by
+    * {@code AssetUtil.isMergeable}, so this pairing was silently accepted even though there is no
+    * date-widening step (unlike {@code XSchema.mergeNumericType} for numbers) — a later
+    * {@code timeInstant} source's time-of-day would be silently lost through the concatenation's
+    * declared column type. This must now be refused at write time, naming the position and both
+    * types, just like the existing string/number-bucket mismatch case above.
+    */
+   @Test
+   void addConcatenationRejectsDateAndTimeInstantColumns() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a =
+         table(ws, "A", col("id", XSchema.INTEGER), col("d", XSchema.DATE));
+      EmbeddedTableAssembly b =
+         table(ws, "B", col("id", XSchema.INTEGER), col("d", XSchema.TIME_INSTANT));
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addConcatenation("U", List.of("A", "B"), "UNION")));
+
+      assertTrue(ex.getMessage().contains("position 2"), ex.getMessage());
+      assertTrue(ex.getMessage().contains(XSchema.DATE), ex.getMessage());
+      assertTrue(ex.getMessage().contains(XSchema.TIME_INSTANT), ex.getMessage());
+      assertNull(ws.getAssembly("U"), "nothing may be added when the sources do not line up");
+   }
+
+   /**
     * ws.removeAssembly does not clean up what depended on the deleted table: its removeMirrors call
     * returns immediately unless the assembly BEING deleted is itself an outer mirror. So the
     * dependent survived pointing at a name that was gone, every query against it failed, and no

@@ -1594,11 +1594,12 @@ public class WorksheetEditService {
          // surfaced as concatenationWarning); this path previously checked only the count.
          //
          // Comparing every table against the first rather than against its predecessor (which is
-         // what ConcatenatedTableAssembly.areCompatible does) is equivalent, since isMergeable
-         // partitions types into disjoint classes — string {string, char}, number {float, double,
-         // byte, short, integer, long}, date {date, timeInstant}, identity otherwise — and is
-         // therefore transitive. Anchoring on the first also matches getDefaultColumnSelection,
-         // which takes the resulting column list from subtables[0].
+         // what ConcatenatedTableAssembly.areCompatible does) is equivalent, since
+         // isMergeableForConcat partitions types into disjoint classes — string {string, char},
+         // number {float, double, byte, short, integer, long}, date and timeInstant each their own
+         // singleton class, identity otherwise — and is therefore transitive. Anchoring on the
+         // first also matches getDefaultColumnSelection, which takes the resulting column list
+         // from subtables[0].
          //
          // Both counts and positions come from the PUBLIC column selection, so hidden columns are
          // excluded — exactly what the server itself concatenates.
@@ -1670,13 +1671,13 @@ public class WorksheetEditService {
             String atype = anchor.getDataType();
             String otype = other.getDataType();
 
-            // isMergeable dereferences both arguments; a ref with no type at all is not
+            // isMergeableForConcat dereferences both arguments; a ref with no type at all is not
             // something this check can speak to, so leave it to the server.
             if(atype == null || otype == null) {
                continue;
             }
 
-            if(!AssetUtil.isMergeable(atype, otype)) {
+            if(!AssetUtil.isMergeableForConcat(atype, otype)) {
                throw new PairingException(
                   "Columns are concatenated by position, and position " + (c + 1) +
                   " does not line up: \"" + anchorName + "\" has \"" + anchor.getAttribute() +
