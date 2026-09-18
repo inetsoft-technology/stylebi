@@ -258,6 +258,12 @@ public final class PropertyAliases {
          return refusal;
       }
 
+      refusal = hierarchyDimensionsWriteRefusal(normalizedType, pathOrKey);
+
+      if(refusal != null) {
+         return refusal;
+      }
+
       refusal = chartWriteRefusal(normalizedType, pathOrKey);
 
       return refusal != null ? refusal : deadFieldWriteRefusal(normalizedType, pathOrKey);
@@ -309,6 +315,42 @@ public final class PropertyAliases {
       }
 
       return null;
+   }
+
+   /** The one hierarchy field with no scalar write path; see {@link #hierarchyDimensionsWriteRefusal}. */
+   private static final String HIERARCHY_DIMENSIONS_FIELD = "hierarchyPropertyPaneModel.dimensions";
+
+   /**
+    * Refuses a write to {@code hierarchyPropertyPaneModel.dimensions} on chart or crosstab -- a
+    * {@code VSDimensionModel[]} that {@link PropertyPath#coerce} cannot build (bug #76771,
+    * mirroring {@code chartTargetLinesPaneModel} on bug #76770). Checked for both assembly types
+    * since the field, and the failure, are identical on both -- {@code hierarchyPropertyPaneModel}
+    * is not registered here at all, so both fall through to the same raw-dotted-path escape hatch
+    * and the same {@code coerce} gap. See {@link HierarchyDimensionService}'s class doc for why a
+    * hand-built bean is dangerous here specifically (a column can silently double as a measure, or
+    * the write can throw, depending on whether the column happens to be found).
+    *
+    * <p>Sibling fields on the same pane -- {@code columnList}, {@code grayedOutFields}, {@code cube}
+    * -- are deliberately NOT refused here: nothing writes them today, so they are out of this
+    * bug's scope, and refusing a field with no replacement tool would just be a worse error
+    * message than the generic coercion failure they already get.
+    */
+   private static String hierarchyDimensionsWriteRefusal(String normalizedType, String pathOrKey) {
+      if(pathOrKey == null ||
+         !("chart".equals(normalizedType) || "crosstab".equals(normalizedType)) ||
+         !isOrUnder(pathOrKey, HIERARCHY_DIMENSIONS_FIELD))
+      {
+         return null;
+      }
+
+      return "'" + HIERARCHY_DIMENSIONS_FIELD + "' is not settable through " +
+         "set_assembly_properties. Its entries are VSDimensionModel objects, not scalars -- " +
+         "PropertyPath builds arrays of primitives, String and enums and nothing else -- and " +
+         "hand-writing one is how a column ends up silently double-booked as a measure, or the " +
+         "write throws outright, depending on whether the column happens to be found in the " +
+         "pane's own column list. Use add_hierarchy_dimension / remove_hierarchy_dimension, " +
+         "which build the dimension from the pane's own column catalog. Reading is fine -- call " +
+         "get_assembly_properties with raw=true, or list_hierarchy_dimensions.";
    }
 
    /**

@@ -19,6 +19,7 @@ package inetsoft.web.wiz.controller;
 
 import inetsoft.report.LibManager;
 import inetsoft.report.LibManagerProvider;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
@@ -83,6 +84,8 @@ public class ScriptLibraryController {
    public record UpdateScriptLibraryFunctionRequest(String text, String comment) {}
 
    public record DeleteScriptLibraryFunctionResult(String resyncWarning) {}
+
+   public record RenameScriptLibraryFunctionRequest(String newName) {}
 
    public record CheckScriptSyntaxResult(boolean ok, String message, Integer line, Integer column) {}
 
@@ -183,6 +186,62 @@ public class ScriptLibraryController {
       lib.save();
       return new ScriptLibraryFunctionDetail(
          name, lib.getScript(name), lib.getScriptComment(name), RESYNC_WARNING);
+   }
+
+   /**
+    * Renames a function AND rewrites its own declaration text so the new name is what
+    * {@code GraalJavaScriptEngine.installLibraryFunctions} actually binds as the JS global --
+    * {@code LibManager.renameScript} alone only relocates the registry key and the derived
+    * signature (see {@code ScriptLogicalLibrary.renameEntry}), leaving the stored source still
+    * declaring {@code function <oldName>(...)}. Left alone, that would strand every caller
+    * (which {@code RenameTransformHandler} has already, asynchronously, rewritten to call
+    * {@code newName(...)}) with a {@code ReferenceError} once the engine next installs library
+    * functions -- worse than not renaming at all.
+    *
+    * <p>Reuses {@code Util.renameScriptDepended}, the same utility {@code
+    * AssetScriptDependencyTransformer} already uses to rewrite callers' scripts. It is a
+    * dot/bracket-bounded substring replace, not an identifier-exact-match rename (contrast {@code
+    * renameScriptRefDepended}, which does check for an exact reference-token match) -- a sibling
+    * identifier that merely contains {@code oldName} as a substring (e.g. renaming
+    * {@code formatShortDollar} while a local variable is named {@code formatShortDollarBackup})
+    * could also get corrupted. This is a pre-existing property of the shared utility, not
+    * something newly introduced here.
+    */
+   @PostMapping("/{name}/rename")
+   public ScriptLibraryFunctionDetail rename(@PathVariable String name,
+                                             @RequestBody RenameScriptLibraryFunctionRequest request,
+                                             Principal principal) throws Exception
+   {
+      String newName = request.newName();
+
+      if(newName == null || newName.isBlank()) {
+         throw new IllegalArgumentException("rename_script_library_function requires 'newName'.");
+      }
+
+      LibManager lib = libManagerProvider.getManager(principal);
+      requireExists(lib, name);
+      requirePermission(principal, name, ResourceAction.WRITE);
+
+      if(lib.getScript(newName) != null) {
+         throw new IllegalArgumentException(
+            "A script library function named '" + newName + "' already exists. Choose a " +
+            "different name, or delete_script_library_function('" + newName + "') first.");
+      }
+
+      requirePermission(principal, newName, ResourceAction.WRITE);
+
+      String oldText = lib.getScript(name);
+      lib.renameScript(name, newName);
+
+      String newText = Util.renameScriptDepended(name, newName, oldText);
+
+      if(!Objects.equals(oldText, newText)) {
+         lib.setScript(newName, newText);
+      }
+
+      lib.save();
+      return new ScriptLibraryFunctionDetail(
+         newName, lib.getScript(newName), lib.getScriptComment(newName), RESYNC_WARNING);
    }
 
    /**

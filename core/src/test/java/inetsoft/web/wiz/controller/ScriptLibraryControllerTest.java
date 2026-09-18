@@ -226,6 +226,75 @@ class ScriptLibraryControllerTest {
       verify(fixture.lib, never()).setScript(anyString(), anyString());
    }
 
+   @Test
+   void rename_rejectsWhenNewNameAlreadyExists() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("oldFn")).thenReturn("function oldFn(x) { return x; }");
+      when(fixture.lib.getScript("existingFn")).thenReturn("function existingFn(x) { return x; }");
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.rename(
+         "oldFn",
+         new ScriptLibraryController.RenameScriptLibraryFunctionRequest("existingFn"),
+         fixture.principal));
+
+      verify(fixture.lib, never()).renameScript(anyString(), anyString());
+      // the pre-existing function under newName must not be clobbered
+      assertEquals("function existingFn(x) { return x; }", fixture.lib.getScript("existingFn"));
+   }
+
+   @Test
+   void rename_rejectsWhenOldNameDoesNotExist() throws Exception {
+      Fixture fixture = new Fixture();
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.rename(
+         "missingFn",
+         new ScriptLibraryController.RenameScriptLibraryFunctionRequest("newFn"),
+         fixture.principal));
+
+      verify(fixture.lib, never()).renameScript(anyString(), anyString());
+   }
+
+   @Test
+   void rename_rejectsBlankNewName() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("oldFn")).thenReturn("function oldFn(x) { return x; }");
+
+      assertThrows(IllegalArgumentException.class, () -> fixture.controller.rename(
+         "oldFn",
+         new ScriptLibraryController.RenameScriptLibraryFunctionRequest("   "),
+         fixture.principal));
+
+      verify(fixture.lib, never()).renameScript(anyString(), anyString());
+   }
+
+   /**
+    * The regression this fix is actually about: renameScript() alone only moves the registry key
+    * and patches the derived signature (ScriptLogicalLibrary.renameEntry) -- it never touches the
+    * function's own declaration text, which is what GraalJavaScriptEngine.installLibraryFunctions
+    * actually binds as the JS global. Without the follow-up setScript() rewriting the declaration
+    * itself, the renamed entry would still read "function oldFn(...)" and every caller (already
+    * rewritten by RenameTransformHandler to call newFn(...)) would break with a ReferenceError.
+    *
+    * <p>Note: Util.renameScriptDepended is a dot/bracket-bounded substring replace, not an
+    * identifier-exact-match rename -- this test's fixture avoids any substring-collision (e.g. a
+    * sibling local variable containing "oldFn" as a substring) since that's a known pre-existing
+    * limitation of the shared utility, not something this fix is expected to solve.
+    */
+   @Test
+   void rename_rewritesTheFunctionsOwnDeclarationText() throws Exception {
+      Fixture fixture = new Fixture();
+      when(fixture.lib.getScript("oldFn")).thenReturn("function oldFn(x) { return x * 2; }");
+
+      fixture.controller.rename(
+         "oldFn",
+         new ScriptLibraryController.RenameScriptLibraryFunctionRequest("newFn"),
+         fixture.principal);
+
+      verify(fixture.lib).renameScript("oldFn", "newFn");
+      verify(fixture.lib).setScript("newFn", "function newFn(x) { return x * 2; }");
+      verify(fixture.lib).save();
+   }
+
    private static String componentScopedId(String name) {
       return new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null)
          .toIdentifier();

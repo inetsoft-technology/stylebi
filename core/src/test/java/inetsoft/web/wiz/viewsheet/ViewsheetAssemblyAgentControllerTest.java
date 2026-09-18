@@ -486,6 +486,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -529,6 +530,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -575,6 +577,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -611,6 +614,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -651,6 +655,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           conditionService,
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -690,6 +695,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -729,6 +735,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           hyperlinkService,
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -896,6 +903,50 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals("normal", built.getFontStrikethrough());
    }
 
+   /**
+    * The hierarchy-dimension routes. Worth pinning at this layer for the same reason as the
+    * target-line routes (bug #76770): the field has no other way in, so a route that bound its
+    * request record wrongly would put the caller back where bug #76771 found them.
+    */
+   @Test
+   void listHierarchyDimensionsCallsThrough() throws Exception {
+      HierarchyDimensionService hierarchyService = mock(HierarchyDimensionService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(hierarchyService);
+
+      controller.listHierarchyDimensions("tok", "Chart1", principal());
+
+      verify(hierarchyService).list(eq("tok"), any(Principal.class), eq("Chart1"));
+   }
+
+   @Test
+   void addHierarchyDimensionForwardsEveryField() throws Exception {
+      HierarchyDimensionService hierarchyService = mock(HierarchyDimensionService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(hierarchyService);
+
+      controller.addHierarchyDimension(
+         "tok",
+         new ViewsheetAssemblyAgentController.HierarchyDimensionRequest(
+            "Chart1", List.of("Country", "State", "City"), List.of("", "", "")),
+         "", principal());
+
+      verify(hierarchyService).add(eq("tok"), any(Principal.class), eq("Chart1"),
+                                   eq(List.of("Country", "State", "City")),
+                                   eq(List.of("", "", "")), eq(""));
+   }
+
+   @Test
+   void removeHierarchyDimensionForwardsItsIndex() throws Exception {
+      HierarchyDimensionService hierarchyService = mock(HierarchyDimensionService.class);
+      ViewsheetAssemblyAgentController controller = controllerWith(hierarchyService);
+
+      controller.removeHierarchyDimension(
+         "tok",
+         new ViewsheetAssemblyAgentController.HierarchyDimensionDeleteRequest("Chart1", 1),
+         "", principal());
+
+      verify(hierarchyService).remove(eq("tok"), any(Principal.class), eq("Chart1"), eq(1), eq(""));
+   }
+
    /** Feature enabled, only {@code highlightService} wired -- for the highlight-region tests. */
    private static ViewsheetAssemblyAgentController controllerWith(
       AssemblyHighlightService highlightService)
@@ -915,8 +966,50 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           highlightService,
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
+   }
+
+   /** Feature enabled, only {@code hierarchyDimensionService} wired -- for the hierarchy-dimension
+    *  route tests. */
+   private static ViewsheetAssemblyAgentController controllerWith(
+      HierarchyDimensionService hierarchyDimensionService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          mock(ViewsheetSessionService.class),
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          hierarchyDimensionService,
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
                                           mock(AssemblyConvertService.class),
                                           mock(SelectionRuntimeService.class),
@@ -956,6 +1049,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -997,6 +1091,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -2614,6 +2709,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -2749,6 +2845,59 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals(2, thrown.getRetryAfter());
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug 76765 (SSL-004) -- a ScriptException from a broken assembly script must not be
+   // swallowed behind WizControllerErrorHandler's generic 500.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void imageWrapsAScriptExceptionFromGetViewsheetImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getViewsheetImage(eq(rvs), any(), any(), any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: TotalRevenueText\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.image("tok", null, null, null, principal()));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
+   @Test
+   void imageWrapsAScriptExceptionFromGetAssemblyImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), any(), any(), any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: Chart1\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.image("tok", "Chart1", null, null, principal()));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
    /** Feature enabled, only {@code imageService} (and a fixed {@code sessions.resolve}) wired. */
    private static ViewsheetAssemblyAgentController controllerWith(
       SheetAgentFeature feature, ViewsheetSessionService sessions,
@@ -2766,6 +2915,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -3150,6 +3300,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -3415,6 +3566,72 @@ class ViewsheetAssemblyAgentControllerTest {
       verifyNoInteractions(exportService);
    }
 
+   @Test
+   void exportWrapsAScriptExceptionFromGetAssemblyImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), isNull(), isNull(),
+         any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: Chart1\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "PNG", "Chart1", null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+      verifyNoInteractions(exportService);
+   }
+
+   /**
+    * The whole-sheet branch (no {@code target}, any format) drives
+    * {@code exportService.exportViewsheet} directly -- a distinct exposure point from
+    * {@code getAssemblyImage}'s target+PNG branch above, both funneling into the same unguarded
+    * {@code AbstractVSExporter.prepareSheet()} script loop.
+    */
+   @Test
+   void exportWrapsAScriptExceptionFromExportViewsheetAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      doThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: TotalRevenueText\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"))
+         .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+            anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
+            any(ExportResponse.class), any(Principal.class));
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "PDF", null, null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
    /** Feature enabled, only {@code sessions}/{@code exportService}/{@code securityEngine}/
     *  {@code imageService} wired -- for the export() tests. */
    private static ViewsheetAssemblyAgentController controllerForExport(
@@ -3433,6 +3650,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
