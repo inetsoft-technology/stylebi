@@ -95,37 +95,9 @@ public class CalendarVSAssembly extends AbstractSelectionVSAssembly implements T
 
       for(int i = index; i < index + length; i++) {
          String date = dates[i];
-         int idx = date.indexOf("-");
-         int idx2 = date.lastIndexOf("-");
-         int year = Integer.parseInt((idx < 0) ? date.substring(1)
-                                     : date.substring(1, idx));
-         int month = (idx < 0) ? 0 :
-            (idx2 == idx ? Integer.parseInt(date.substring(idx + 1))
-             : Integer.parseInt(date.substring(idx + 1, idx2)));
-         int week = idx2 == idx ? -1 :
-            Integer.parseInt(date.substring(idx2 + 1));
-
-         int start, end;
-
-         if(date.startsWith("y")) {
-            start = encodeDate(year, month, 1, false, 0, 0);
-            end = encodeDate(year, month, 1, false, Calendar.YEAR, 1);
-         }
-         else if(date.startsWith("m")) {
-            start = encodeDate(year, month, 1, false, 0, 0);
-            end = encodeDate(year, month, 1, false, Calendar.MONTH, 1);
-         }
-         else if(date.startsWith("w")) {
-            start = encodeDate(year, month, week, true, Calendar.DATE, 0);
-            end = encodeDate(year, month, week, true, Calendar.DATE, 7);
-         }
-         else if(date.startsWith("d")) {
-            start = encodeDate(year, month, week, false, 0, 0);
-            end = encodeDate(year, month, week, false, Calendar.DATE, 1);
-         }
-         else {
-            throw new RuntimeException("Unsupported date found: " + date);
-         }
+         int[] range = parseDateRange(date);
+         int start = range[0];
+         int end = range[1];
 
          if(startDay < 0) {
             startDay = start;
@@ -150,6 +122,78 @@ public class CalendarVSAssembly extends AbstractSelectionVSAssembly implements T
       }
 
       return conds;
+   }
+
+   /**
+    * Build one period's condition for a double-calendar period comparison, treating the
+    * date-cell array as a single [start,end) range (min/max across all cells) rather than
+    * OR'ing each cell as its own independent day selection -- unlike
+    * {@link #createConditionList}, which is for the single-calendar OR'd-days caller and must
+    * keep its adjacency-merge behavior.
+    */
+   private static ConditionList createPeriodRangeConditionList(String[] dates, int index,
+                                                               int length, DataRef ref,
+                                                               int[] limitRange) {
+      ConditionList conds = new ConditionList();
+      int startDay = -1;
+      int endDay = -1;
+
+      for(int i = index; i < index + length; i++) {
+         int[] range = parseDateRange(dates[i]);
+
+         if(startDay < 0 || range[0] < startDay) {
+            startDay = range[0];
+         }
+
+         if(endDay < 0 || range[1] > endDay) {
+            endDay = range[1];
+         }
+      }
+
+      if(startDay > 0) {
+         appendCondition(conds, ref, startDay, endDay, 0, limitRange);
+      }
+
+      return conds;
+   }
+
+   /**
+    * Parse a calendar date-cell token into its [start,end) day-encoded bounds.
+    */
+   private static int[] parseDateRange(String date) {
+      int idx = date.indexOf("-");
+      int idx2 = date.lastIndexOf("-");
+      int year = Integer.parseInt((idx < 0) ? date.substring(1)
+                                  : date.substring(1, idx));
+      int month = (idx < 0) ? 0 :
+         (idx2 == idx ? Integer.parseInt(date.substring(idx + 1))
+          : Integer.parseInt(date.substring(idx + 1, idx2)));
+      int week = idx2 == idx ? -1 :
+         Integer.parseInt(date.substring(idx2 + 1));
+
+      int start, end;
+
+      if(date.startsWith("y")) {
+         start = encodeDate(year, month, 1, false, 0, 0);
+         end = encodeDate(year, month, 1, false, Calendar.YEAR, 1);
+      }
+      else if(date.startsWith("m")) {
+         start = encodeDate(year, month, 1, false, 0, 0);
+         end = encodeDate(year, month, 1, false, Calendar.MONTH, 1);
+      }
+      else if(date.startsWith("w")) {
+         start = encodeDate(year, month, week, true, Calendar.DATE, 0);
+         end = encodeDate(year, month, week, true, Calendar.DATE, 7);
+      }
+      else if(date.startsWith("d")) {
+         start = encodeDate(year, month, week, false, 0, 0);
+         end = encodeDate(year, month, week, false, Calendar.DATE, 1);
+      }
+      else {
+         throw new RuntimeException("Unsupported date found: " + date);
+      }
+
+      return new int[] { start, end };
    }
 
    /**
@@ -652,9 +696,9 @@ public class CalendarVSAssembly extends AbstractSelectionVSAssembly implements T
       if(period) {
          int length = dates.length / 2;
          List<ConditionList> list = new ArrayList<>();
-         ConditionList conds = createConditionList(dates, 0, length, ref, limitRange);
+         ConditionList conds = createPeriodRangeConditionList(dates, 0, length, ref, limitRange);
          list.add(conds);
-         conds = createConditionList(dates, length, length, ref, limitRange);
+         conds = createPeriodRangeConditionList(dates, length, length, ref, limitRange);
          list.add(conds);
          return VSUtil.mergeConditionList(list, JunctionOperator.OR);
       }
