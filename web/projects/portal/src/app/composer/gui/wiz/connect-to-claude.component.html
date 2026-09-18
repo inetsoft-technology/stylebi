@@ -13,8 +13,14 @@
   <div *ngIf="followFocusToggleVisible" class="wiz-follow-focus form-check mt-2">
     <input type="checkbox" class="form-check-input" id="wiz-follow-focus-toggle"
       [ngModel]="followFocusEnabled" (change)="toggleFollowFocus($event)">
-    <label class="form-check-label" for="wiz-follow-focus-toggle">Follow Focus</label>
+    <label class="form-check-label" for="wiz-follow-focus-toggle"
+      [ngbTooltip]="FollowFocusTooltip" triggers="hover" container="body">Follow Focus</label>
   </div>
+  <ng-template #FollowFocusTooltip>
+    <div class="composer-tooltip">
+      _#(When enabled, the connected agent's session follows you to whichever chart, script, or formula editor pane you open, instead of staying scoped to the whole sheet.)
+    </div>
+  </ng-template>
 
   <div *ngIf="code && !connected" class="wiz-connect-code mt-2">
     <span class="wiz-connect-label">Pairing Code:</span>
