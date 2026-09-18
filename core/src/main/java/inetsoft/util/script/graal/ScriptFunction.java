@@ -259,7 +259,9 @@ public class ScriptFunction implements ProxyExecutable {
     * small integers (header/order constants), and strings; such magnitudes do
     * not occur in practice.
     */
-   private static String toStringValue(Object value) {
+   // package-private: ScriptHostAccess reuses this for the equivalent coercion on
+   // direct host-object method calls, which do not go through ScriptFunction. (#76778)
+   static String toStringValue(Object value) {
       if(value instanceof Number) {
          double d = ((Number) value).doubleValue();
 
