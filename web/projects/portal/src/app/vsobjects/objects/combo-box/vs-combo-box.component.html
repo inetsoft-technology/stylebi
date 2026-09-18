@@ -114,7 +114,8 @@
         }
         <ng-template #dropdownOptions>
           <div class="dropdown-container dropdown-pane" [style.min-width.px]="model.objectFormat.width"
-            [style.background-color]="model.objectFormat.background || 'transparent'">
+            [style.background-color]="model.objectFormat.background || 'transparent'"
+            [class.viz-modern]="model.vizModern" [class.viz-dark]="model.vizDark">
             <cdk-virtual-scroll-viewport [itemSize]="35" class="dropdown-viewport">
               <div class="dropdown-item"
                 *cdkVirtualFor="let entry of model.labels"

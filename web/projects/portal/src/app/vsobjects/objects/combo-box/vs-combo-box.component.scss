@@ -167,8 +167,9 @@ input[type="number"] {
   cursor: pointer;
   color: var(--inet-text-color);
 
-  // the list stays light in dark mode, so the text must flip with the fill. :host-context cannot
-  // scope this — the dropdown is appended to document.body, outside the host subtree.
+  // the panel itself stays light, so the text must flip with the fill. :host-context cannot scope
+  // this — the dropdown is appended to document.body, outside the host subtree — so .dropdown-container
+  // carries viz-modern/viz-dark itself, resolved from this assembly's own mark rather than the shell.
   &:hover {
     background-color: var(--inet-viz-hover-bg);
     color: var(--inet-viz-hover-text);
