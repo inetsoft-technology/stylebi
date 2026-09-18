@@ -93,6 +93,15 @@ public class ChartPropertyDialogService {
          rvs = viewsheetService.getViewsheet(runtimeId, principal);
          vs = rvs.getViewsheet();
          chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
+
+         if(chartAssembly == null) {
+            // objectId doesn't resolve in this viewsheet -- e.g. the assembly was renamed or
+            // removed after the caller's reference to it was taken (Redmine #76759). Degrade
+            // the same way TextPropertyDialogService.getTextPropertyDialogModel does for a
+            // missing TextVSAssembly, rather than NPE on the next line.
+            return new ChartPropertyDialogModel();
+         }
+
          chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
          vsChartInfo = chartAssemblyInfo.getVSChartInfo();
          vsChartInfo = vsChartInfo == null ? new VSChartInfo() : vsChartInfo;
