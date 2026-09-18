@@ -152,7 +152,12 @@ public class AutoSaveRecycleBinService {
          AutoSaveRecycleBinEntryProjection.SCOPE_USER : AutoSaveRecycleBinEntryProjection.SCOPE_GLOBAL;
       String type = "VIEWSHEET".equals(attrs[1]) ? AutoSaveRecycleBinEntryProjection.TYPE_DASHBOARD :
          AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET;
-      String owner = "_NULL_".equals(attrs[2]) || attrs[2].isEmpty() ? null : attrs[2];
+      // "anonymous" is an equivalent no-owner sentinel to "_NULL_" -- AutoSaveUtils itself treats
+      // it that way in deleteUserAutoSaveFiles/getUserAutoSaveFiles (both normalize it away before
+      // any owner comparison), so a guest-session draft's owner is recognized as absent here too,
+      // rather than being treated as a real (but nonexistent) identity named "anonymous".
+      String owner = "_NULL_".equals(attrs[2]) || "anonymous".equals(attrs[2]) || attrs[2].isEmpty() ?
+         null : attrs[2];
       String path = denormalizeAssetName(attrs[3]);
       String timestamp = timestampOf(id, user);
       return new AutoSaveRecycleBinEntryProjection(id, type, path, scope, owner, timestamp);

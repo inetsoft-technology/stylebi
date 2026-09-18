@@ -37,6 +37,14 @@ public record AutoSaveRecycleBinEntryProjection(String id, String type, String p
    public static final String TYPE_DASHBOARD = "dashboard";
    public static final String TYPE_WORKSHEET = "worksheet";
 
+   /**
+    * Informational only, not used for any access-control decision in this area: really means "not
+    * {@link #SCOPE_USER}", i.e. every {@code AssetRepository} scope constant OTHER than
+    * {@code USER_SCOPE} (this includes {@code GLOBAL_SCOPE} but also, e.g., {@code TEMPORARY_SCOPE}
+    * for a brand-new draft that was never given a real scope -- see {@code AutoSaveController}'s own
+    * comment that "the scope of the auto save file is not necessarily the temporary scope"). Not a
+    * precise match on {@code AssetRepository.GLOBAL_SCOPE} specifically.
+    */
    public static final String SCOPE_GLOBAL = "global";
    public static final String SCOPE_USER = "user";
 }

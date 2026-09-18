@@ -164,19 +164,30 @@ public class AutoSaveRecycleBinChangesetApplyService {
                                                      null);
          }
 
+         Map<String, String> rollbackAdvisories = new LinkedHashMap<>();
          List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, plan.task(), undoable, backupRef, reviewOutcome, user));
+         failures.addAll(rollback(txId, plan.task(), undoable, backupRef, reviewOutcome, user,
+                                  rollbackAdvisories));
+         // Merge each rollback's own disclosure (e.g. the "destroyed asset has no live inverse"
+         // advisory for a non-compensable restore rollback) into that entry's ORIGINAL outcome
+         // record -- rollback runs after `results` is already built, and matches how
+         // IdentityChangesetApplyService/ProviderChangesetApplyService/LicenseChangesetApplyService
+         // already surface a rollback-time advisory as a first-class outcome field rather than only
+         // in the audit trail.
+         List<AutoSaveRecycleBinApplyOutcome> finalResults = results.stream()
+            .map(o -> mergeAdvisory(o, rollbackAdvisories.get(o.property())))
+            .collect(Collectors.toList());
 
          if(failures.isEmpty()) {
             return new AutoSaveRecycleBinApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK,
-                                                     backupRef, Collections.unmodifiableList(results),
+                                                     backupRef, Collections.unmodifiableList(finalResults),
                                                      null);
          }
 
          LOG.error("Autosave changeset {} rollback failed; entries still changed: {}", txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
          return new AutoSaveRecycleBinApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED,
-                                                  backupRef, Collections.unmodifiableList(results),
+                                                  backupRef, Collections.unmodifiableList(finalResults),
                                                   Collections.unmodifiableList(failures));
       }
       finally {
@@ -228,33 +239,64 @@ public class AutoSaveRecycleBinChangesetApplyService {
 
       String beforeProjection = AutoSaveRecycleBinChangePlanService.project(entry);
       byte[] capturedBytes = captureBytes(id, user);
-      mutationEntered.set(true);
-      boolean restored = autoSaveServiceProxy.restoreAutoSaveAssets(id, assetName, overwrite, user);
+      boolean restored;
+
+      try {
+         restored = autoSaveServiceProxy.restoreAutoSaveAssets(id, assetName, overwrite, user);
+      }
+      catch(Exception e) {
+         // Unlike a clean `false` return below, an exception from the primitive could have been
+         // thrown AFTER its own repository.setSheet call -- state is genuinely unknown, so this
+         // must still count as a mutation attempt for the caller's unknown-state handling.
+         mutationEntered.set(true);
+         throw e;
+      }
 
       if(!restored) {
+         // A clean `false` return means restoreAutoSaveAssets' own internal duplicate check
+         // (viewsheetService.isDuplicatedEntry) fired BEFORE its repository.setSheet call -- no
+         // mutation happened, so mutationEntered must stay false (a benign refusal, not an
+         // unknown-state failure).
          throw new IllegalArgumentException(
             "assetName: \"" + assetName + "\" was created since preview and overwrite was not " +
             "set -- nothing was restored");
       }
 
+      // The live sheet is now confirmed created -- everything from here on is a real mutation.
+      mutationEntered.set(true);
+
       AutoSaveUtils.deleteAutoSaveFile(id, user);
 
-      boolean verified = !autoSaveRecycleBinService.exists(id, user);
-      String advisory = collides ?
+      IdentityID actingUser = IdentityID.getIdentityIDFromKey(user.getName());
+      AssetEntry.Type type = AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET.equals(entry.type()) ?
+         AssetEntry.Type.WORKSHEET : AssetEntry.Type.VIEWSHEET;
+      AssetEntry created = new AssetEntry(AssetRepository.GLOBAL_SCOPE, type, assetName, actingUser);
+      // Verify the two halves independently -- AutoSaveUtils.deleteAutoSaveFile swallows its own
+      // exceptions internally (logs at debug, returns normally), so `exists` alone cannot tell a
+      // failed cleanup apart from a successful one. The live sheet's own existence is the actual
+      // product-visible outcome of a restore and must gate the Undo regardless of whether the
+      // best-effort draft cleanup completed.
+      boolean liveSheetCreated = assetRepository.containsEntry(created);
+      boolean draftCleaned = !autoSaveRecycleBinService.exists(id, user);
+      String overwriteAdvisory = collides ?
          "overwrite: true permanently destroyed the existing " + entry.type() + " that was at \"" +
             assetName + "\", bypassing recovery" : null;
-      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+      String cleanupAdvisory = liveSheetCreated && !draftCleaned ?
+         "the source draft could not be removed from the auto save recycle bin after restore -- " +
+         "a stale copy may remain (harmless, but visible until cleaned up separately)" : null;
+      String advisory = overwriteAdvisory == null ? cleanupAdvisory :
+         cleanupAdvisory == null ? overwriteAdvisory : overwriteAdvisory + "; " + cleanupAdvisory;
+      String status = liveSheetCreated ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       results.add(new AutoSaveRecycleBinApplyOutcome(key, beforeProjection,
-         verified ? "(restored to \"" + assetName + "\")" : null, status,
-         verified ? null : "auto save recycle bin entry still present after restore", advisory));
+         liveSheetCreated ? "(restored to \"" + assetName + "\")" : null, status,
+         liveSheetCreated ? null :
+            "live asset was not found at \"" + assetName + "\" after restore -- the restore did " +
+            "not take effect", advisory));
       writeAudit(txId, task, key, objectTypeOf(entry.type()), collides ? AdminChangeRecord.RISK_HIGH :
                 AdminChangeRecord.RISK_LOW, AdminChangeRecord.ACTION_APPLY, beforeProjection, null,
                 status, backupRef, reviewOutcome, user);
 
-      if(verified) {
-         IdentityID actingUser = IdentityID.getIdentityIDFromKey(user.getName());
-         AssetEntry.Type type = AutoSaveRecycleBinEntryProjection.TYPE_WORKSHEET.equals(entry.type()) ?
-            AssetEntry.Type.WORKSHEET : AssetEntry.Type.VIEWSHEET;
+      if(liveSheetCreated) {
          // Non-compensable if it collided with (and thereby destroyed) an existing asset: undoing
          // the restore itself cannot resurrect what overwrite:true already permanently deleted. The
          // created-sheet-removal half still queues normally either way -- only the destroyed
@@ -303,7 +345,8 @@ public class AutoSaveRecycleBinChangesetApplyService {
    // ---------------------------------------------------------------- rollback
 
    private List<RollbackFailure> rollback(String txId, String task, List<Undo> undoable,
-                                          String backupRef, String reviewOutcome, Principal user)
+                                          String backupRef, String reviewOutcome, Principal user,
+                                          Map<String, String> advisories)
    {
       List<RollbackFailure> failures = new ArrayList<>();
 
@@ -311,7 +354,7 @@ public class AutoSaveRecycleBinChangesetApplyService {
          Undo undo = undoable.get(i);
 
          try {
-            rollbackOne(undo, txId, task, backupRef, reviewOutcome, user, failures);
+            rollbackOne(undo, txId, task, backupRef, reviewOutcome, user, failures, advisories);
          }
          catch(Exception e) {
             failures.add(new RollbackFailure(undo.key, messageOf(e)));
@@ -322,7 +365,8 @@ public class AutoSaveRecycleBinChangesetApplyService {
    }
 
    private void rollbackOne(Undo undo, String txId, String task, String backupRef,
-                            String reviewOutcome, Principal user, List<RollbackFailure> failures)
+                            String reviewOutcome, Principal user, List<RollbackFailure> failures,
+                            Map<String, String> advisories)
       throws Exception
    {
       boolean verified = true;
@@ -340,6 +384,10 @@ public class AutoSaveRecycleBinChangesetApplyService {
             verified = !assetRepository.containsEntry(created);
          }
          else {
+            // Not itself a failure -- removing the newly-created live sheet here would make things
+            // strictly worse (the destroyed original is gone either way, leaving the recovered
+            // draft content in place is at least not nothing). `verified` stays true; the advisory
+            // is still surfaced below so this rollback does not silently look fully clean.
             advisory = "the asset that overwrite:true destroyed at \"" + undo.createdAssetName +
                "\" was not restored -- there is no live inverse for it";
          }
@@ -362,6 +410,27 @@ public class AutoSaveRecycleBinChangesetApplyService {
             "rollback of " + undo.kind.name().toLowerCase() + " did not restore the prior state" +
             (advisory == null ? "" : " (" + advisory + ")")));
       }
+      else if(advisory != null) {
+         advisories.put(undo.key, advisory);
+      }
+   }
+
+   /** Combines an outcome's own advisory (if any, e.g. a colliding restore's own overwrite/cleanup
+    * disclosure recorded at the original apply attempt) with a later rollback's own advisory (if
+    * any) -- both surfaced, neither silently dropped. Mirrors
+    * {@code IdentityChangesetApplyService.mergeAdvisory}/
+    * {@code ProviderChangesetApplyService.mergeAdvisory}. */
+   private static AutoSaveRecycleBinApplyOutcome mergeAdvisory(AutoSaveRecycleBinApplyOutcome outcome,
+                                                                String rollbackAdvisory)
+   {
+      if(rollbackAdvisory == null) {
+         return outcome;
+      }
+
+      String combined = outcome.advisory() == null ? rollbackAdvisory :
+         outcome.advisory() + " | " + rollbackAdvisory;
+      return new AutoSaveRecycleBinApplyOutcome(outcome.property(), outcome.before(), outcome.after(),
+                                                outcome.status(), outcome.error(), combined);
    }
 
    private void restoreBytes(Undo undo, Principal user, List<RollbackFailure> failures) {
