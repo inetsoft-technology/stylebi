@@ -51,6 +51,7 @@ import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.MessageException;
+import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import inetsoft.web.adhoc.model.FontInfo;
@@ -340,9 +341,16 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
-      ScriptImageService.ChartImage image = target == null || target.isBlank()
-         ? imageService.getViewsheetImage(rvs, width, height, user)
-         : imageService.getAssemblyImage(rvs, target, width, height, user);
+      ScriptImageService.ChartImage image;
+
+      try {
+         image = target == null || target.isBlank()
+            ? imageService.getViewsheetImage(rvs, width, height, user)
+            : imageService.getAssemblyImage(rvs, target, width, height, user);
+      }
+      catch(ScriptException e) {
+         throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+      }
 
       return new ImageResponse(Base64.getEncoder().encodeToString(image.pngBytes()),
                                image.isPng() ? "png" : "svg",
@@ -623,15 +631,29 @@ public class ViewsheetAssemblyAgentController {
                "get_viewsheet_image for a PNG preview of just this assembly.");
          }
 
-         ScriptImageService.ChartImage image = imageService.getAssemblyImage(rvs, target, null, null, user);
+         ScriptImageService.ChartImage image;
+
+         try {
+            image = imageService.getAssemblyImage(rvs, target, null, null, user);
+         }
+         catch(ScriptException e) {
+            throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+         }
+
          writeAttachment(servletResponse, image.pngBytes(), "image/png", target + ".png");
          return null;
       }
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
-      exportService.exportViewsheet(rvs, formatType, match == null || match,
-         expandSelections != null && expandSelections, current == null || current, false, false,
-         new String[0], false, new ExportResponse(out), user);
+
+      try {
+         exportService.exportViewsheet(rvs, formatType, match == null || match,
+            expandSelections != null && expandSelections, current == null || current, false, false,
+            new String[0], false, new ExportResponse(out), user);
+      }
+      catch(ScriptException e) {
+         throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+      }
 
       writeAttachment(servletResponse, out.toByteArray(), VSExportService.getMime(formatType),
          "export." + VSExportService.getSuffix(formatType));

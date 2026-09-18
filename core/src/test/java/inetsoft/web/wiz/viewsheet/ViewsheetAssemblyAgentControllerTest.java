@@ -2749,6 +2749,59 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals(2, thrown.getRetryAfter());
    }
 
+   // ---------------------------------------------------------------------------
+   // Bug 76765 (SSL-004) -- a ScriptException from a broken assembly script must not be
+   // swallowed behind WizControllerErrorHandler's generic 500.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void imageWrapsAScriptExceptionFromGetViewsheetImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getViewsheetImage(eq(rvs), any(), any(), any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: TotalRevenueText\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.image("tok", null, null, null, principal()));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
+   @Test
+   void imageWrapsAScriptExceptionFromGetAssemblyImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), any(), any(), any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: Chart1\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerWith(featureOn(), sessions,
+                                                                    imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.image("tok", "Chart1", null, null, principal()));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+   }
+
    /** Feature enabled, only {@code imageService} (and a fixed {@code sessions.resolve}) wired. */
    private static ViewsheetAssemblyAgentController controllerWith(
       SheetAgentFeature feature, ViewsheetSessionService sessions,
@@ -3413,6 +3466,72 @@ class ViewsheetAssemblyAgentControllerTest {
       verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
       assertTrue(disposition.getValue().contains("Chart1.png"));
       verifyNoInteractions(exportService);
+   }
+
+   @Test
+   void exportWrapsAScriptExceptionFromGetAssemblyImageAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+      inetsoft.web.wiz.script.ScriptImageService imageService =
+         mock(inetsoft.web.wiz.script.ScriptImageService.class);
+      when(imageService.getAssemblyImage(eq(rvs), eq("Chart1"), isNull(), isNull(),
+         any(Principal.class)))
+         .thenThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: Chart1\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"));
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, imageService);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "PNG", "Chart1", null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
+      verifyNoInteractions(exportService);
+   }
+
+   /**
+    * The whole-sheet branch (no {@code target}, any format) drives
+    * {@code exportService.exportViewsheet} directly -- a distinct exposure point from
+    * {@code getAssemblyImage}'s target+PNG branch above, both funneling into the same unguarded
+    * {@code AbstractVSExporter.prepareSheet()} script loop.
+    */
+   @Test
+   void exportWrapsAScriptExceptionFromExportViewsheetAsAnInternalPairingException()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      doThrow(new inetsoft.util.script.ScriptException(
+            "Script execution error in assembly: TotalRevenueText\nScript failed:\n" +
+            "ReferenceError: formatShortDollar is not defined"))
+         .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
+            anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
+            any(ExportResponse.class), any(Principal.class));
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "PDF", null, null, null, null, principal(),
+            mock(HttpServletResponse.class)));
+      assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
+      assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
    }
 
    /** Feature enabled, only {@code sessions}/{@code exportService}/{@code securityEngine}/
