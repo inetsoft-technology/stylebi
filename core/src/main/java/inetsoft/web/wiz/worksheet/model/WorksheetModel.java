@@ -217,16 +217,19 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                  {@code "NULL"}, {@code "NOT_NULL"}.
     *                  These are exactly the strings accepted by the {@code operation}
     *                  parameter of {@code add_filter} / {@code edit_condition}.
-    * @param values    literal value(s) used in the condition
-    * @param junction  {@code "AND"} or {@code "OR"} — the junction that precedes
-    *                  this condition in the list (may be {@code null} for the first item)
+    * @param values      literal value(s) used in the condition
+    * @param junction    {@code "AND"} or {@code "OR"} — the junction that precedes
+    *                    this condition in the list (may be {@code null} for the first item)
+    * @param choiceQuery browse-query marker ({@code "table]:[column"}) for a {@code $(name)}
+    *                    variable value's picker, if set; {@code null}/omitted otherwise
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record FilterModel(
       String field,
       String operation,
       List<String> values,
-      String junction
+      String junction,
+      String choiceQuery
    ) {}
 
    /**
