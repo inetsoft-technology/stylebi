@@ -766,8 +766,10 @@ public class WorksheetReadService {
             XCondition xc = item.getXCondition();
             String operation = xc != null ? operationName(xc) : null;
             List<String> values = extractValues(xc);
+            String choiceQuery = extractChoiceQuery(xc);
 
-            result.add(new WorksheetModel.FilterModel(field, operation, values, pendingJunction));
+            result.add(new WorksheetModel.FilterModel(
+               field, operation, values, pendingJunction, choiceQuery));
             pendingJunction = null;
          }
       }
@@ -844,6 +846,32 @@ public class WorksheetReadService {
       }
 
       return values;
+   }
+
+   /**
+    * Finds the browse-query marker ({@code "table]:[column"}) that {@code set_conditions}/
+    * {@code edit_condition} may have set on a {@code $(name)} variable value, by scanning a
+    * plain {@link Condition}'s values for the first {@link UserVariable} with a non-blank
+    * {@code choiceQuery}. Not applicable to {@code RankingCondition} (its {@code n} is a row
+    * count, not a browse-query-eligible picker value) or {@code DateCondition} (no variable
+    * values), so both fall through the {@code instanceof Condition} check and return null.
+    */
+   private String extractChoiceQuery(XCondition xc) {
+      if(!(xc instanceof Condition c)) {
+         return null;
+      }
+
+      for(int i = 0; i < c.getValueCount(); i++) {
+         Object v = c.getValue(i);
+
+         if(v instanceof UserVariable uv && uv.getChoiceQuery() != null &&
+            !uv.getChoiceQuery().isBlank())
+         {
+            return uv.getChoiceQuery();
+         }
+      }
+
+      return null;
    }
 
    // -------------------------------------------------------------------------

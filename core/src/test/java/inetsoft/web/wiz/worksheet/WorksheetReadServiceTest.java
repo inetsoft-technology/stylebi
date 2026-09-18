@@ -549,6 +549,48 @@ class WorksheetReadServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // choiceQuery read-back (WBS-069 / bug #76800): set_conditions/edit_condition's
+   // ConditionSpec.choiceQuery is applied to the condition's UserVariable value
+   // (WorksheetMutationSupport.buildConditionList), but extractValues() collapsed every
+   // condition value to Object.toString() before it ever reached FilterModel, silently
+   // dropping the browse-query marker.
+   // -------------------------------------------------------------------------
+
+   @Test
+   void filterConditionSurfacesChoiceQueryWhenSet() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "region");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t,
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "region", "=", List.of("$(region)"), false,
+               null, null, "CUSTOMER]:[STATE"),
+            null, 0)),
+         false);
+
+      WorksheetModel.FilterModel condition =
+         tableNamed(read(ws), "T").preConditions().get(0);
+
+      assertEquals("CUSTOMER]:[STATE", condition.choiceQuery());
+   }
+
+   @Test
+   void filterConditionChoiceQueryIsNullWhenUnset() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "region");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.addFilter(t, "region", "=", "$(region)");
+
+      WorksheetModel.FilterModel condition =
+         tableNamed(read(ws), "T").preConditions().get(0);
+
+      assertNull(condition.choiceQuery());
+   }
+
+   // -------------------------------------------------------------------------
    // Variable choices (WBS-030 / bug #76502): read_worksheet_model never surfaced a variable's
    // "Values" picker -- readVariable() only read alias/type/default, never choices/values/
    // tableName/labelAttribute/valueAttribute/displayStyle. These round-trip through the real
