@@ -1033,6 +1033,41 @@ class WorksheetReadServiceTest {
       assertEquals(Boolean.FALSE, tableNamed(m, "BAD").concatCompatible());
    }
 
+   /**
+    * {@code date} and {@code timeInstant} used to be folded into one "date bucket" by
+    * {@code AssetUtil.isMergeable}, so a concatenation pairing them read back as compatible even
+    * though a later source's time-of-day is silently lost through the concatenation's declared
+    * column type (there is no date-widening step the way {@code XSchema.mergeNumericType} widens
+    * numeric pairs). {@code concatCompatible} must report {@code FALSE} for such a pairing, while
+    * still reporting {@code TRUE} for a same-type pairing.
+    */
+   @Test
+   void concatenationReportsDateAndTimeInstantAsIncompatible() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "col");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "col");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "col");
+      ((ColumnRef) a.getColumnSelection(false).getAttribute("col"))
+         .setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      a.setColumnSelection(a.getColumnSelection(false), false);
+      ((ColumnRef) b.getColumnSelection(false).getAttribute("col"))
+         .setDataType(inetsoft.uql.schema.XSchema.TIME_INSTANT);
+      b.setColumnSelection(b.getColumnSelection(false), false);
+      ((ColumnRef) c.getColumnSelection(false).getAttribute("col"))
+         .setDataType(inetsoft.uql.schema.XSchema.DATE);
+      c.setColumnSelection(c.getColumnSelection(false), false);
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+      ws.addAssembly(concat(ws, "SAME_TYPE", TableAssemblyOperator.UNION, a, b));
+      ws.addAssembly(concat(ws, "MIXED_TYPE", TableAssemblyOperator.UNION, a, c));
+
+      WorksheetModel m = read(ws);
+
+      assertEquals(Boolean.TRUE, tableNamed(m, "SAME_TYPE").concatCompatible());
+      assertEquals(Boolean.FALSE, tableNamed(m, "MIXED_TYPE").concatCompatible());
+   }
+
    @Test
    void tableTypeDistinguishesSnapshotFromEditableEmbedded() {
       // SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly, so the snapshot branch has
