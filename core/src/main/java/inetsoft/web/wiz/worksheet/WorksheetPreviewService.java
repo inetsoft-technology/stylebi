@@ -20,6 +20,8 @@ package inetsoft.web.wiz.worksheet;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.filter.ColumnMapFilter;
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.util.CoreTool;
 import inetsoft.util.UserMessage;
@@ -134,6 +136,28 @@ public class WorksheetPreviewService {
       }
 
       try {
+         // WBT-012 (#76733): AssetQuerySandbox.executeQuery only applies its own column cap when
+         // table.isLiveData() -- a DISPLAY-mode flag, false for every table add_table creates
+         // (they read back as mode:"full"). This endpoint executes in RUNTIME_MODE regardless of
+         // that flag (see the class comment above), so without re-applying the cap here a plain
+         // add_table-built table returns an unbounded row width with nothing in warnings to say
+         // so. Idempotent: when the sandbox already capped (mode:"detail"), getColCount() is
+         // already within the limit and this is a no-op, so the warning is never raised twice.
+         // Inside this try, not before it, so a lens whose getColCount() throws still surfaces as
+         // the PairingException the catch below produces rather than a bare crash.
+         int maxCols = Util.getOrganizationMaxColumn();
+
+         if(lens.getColCount() > maxCols) {
+            int[] map = new int[maxCols];
+
+            for(int i = 0; i < maxCols; i++) {
+               map[i] = i;
+            }
+
+            CoreTool.addUserMessage(Util.getColumnLimitMessage());
+            lens = new ColumnMapFilter(lens, map);
+         }
+
          int colCount = lens.getColCount();
 
          // Row 0 is the header row in StyleBI's TableLens convention.
@@ -167,13 +191,15 @@ public class WorksheetPreviewService {
 
    /**
     * Reads and clears any {@link CoreTool#addUserMessage} raised while producing this preview
-    * — chiefly {@link inetsoft.report.internal.Util#getColumnLimitMessage()}, which
-    * {@code AssetQuerySandbox.getColumnLimitTableLens} raises (via {@code Tool.addUserMessage})
-    * whenever the executed table's column count exceeds the organization's column limit and it
-    * silently drops every column past that limit from the lens this method just read. The
-    * interactive Designer UI has its own request/response cycle that surfaces that same message
-    * as a toast; this REST agent endpoint has no equivalent, so without this call the truncation
-    * was previously indistinguishable from a genuinely narrow table.
+    * — chiefly {@link inetsoft.report.internal.Util#getColumnLimitMessage()}, raised whenever
+    * the executed table's column count exceeds the organization's column limit and every column
+    * past that limit is silently dropped from the lens this method just read. Two places raise
+    * it: {@code AssetQuerySandbox.getColumnLimitTableLens} for a live-data ({@code mode:"detail"})
+    * table, and {@link #preview} itself for every other table (WBT-012, #76733 — see its own
+    * comment there). The interactive Designer UI has its own request/response cycle that
+    * surfaces that same message as a toast; this REST agent endpoint has no equivalent, so
+    * without this call the truncation was previously indistinguishable from a genuinely narrow
+    * table.
     */
    private static List<String> captureWarnings() {
       UserMessage msg = CoreTool.getUserMessage();
