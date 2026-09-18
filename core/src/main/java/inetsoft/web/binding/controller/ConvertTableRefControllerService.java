@@ -39,12 +39,13 @@ import java.util.Optional;
 @Service
 @ClusterProxy
 public class ConvertTableRefControllerService {
-   public ConvertTableRefControllerService(VSBindingTreeController bindingTreeController,
-                                    ConvertTableRefService convertTableRefService,
-                                    VSAssemblyInfoHandler assemblyInfoHandler,
-                                    ViewsheetService viewsheetService)
+   public ConvertTableRefControllerService(
+      VSBindingTreeControllerServiceProxy vsBindingTreeService,
+      ConvertTableRefService convertTableRefService,
+      VSAssemblyInfoHandler assemblyInfoHandler,
+      ViewsheetService viewsheetService)
    {
-      this.bindingTreeController = bindingTreeController;
+      this.vsBindingTreeService = vsBindingTreeService;
       this.convertTableRefService = convertTableRefService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.viewsheetService = viewsheetService;
@@ -75,12 +76,18 @@ public class ConvertTableRefControllerService {
                                              event.sourceChange(), event.name(),rvs, principal, dispatcher);
       RefreshBindingTreeEvent refreshBindingTreeEvent = new RefreshBindingTreeEvent();
       refreshBindingTreeEvent.setName(event.name());
-      bindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher);
+      // Was VSBindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher),
+      // which re-derives the runtime id from RuntimeViewsheetRef -- a STOMP-message-scoped bean
+      // populated only from a native header on a live browser WebSocket session. A caller reached
+      // without one gets null, and that null reaches Ignite's AffinityKey constructor. Call the
+      // proxy directly with the id this call already holds (its own @ClusterProxyKey parameter),
+      // as #4971 did for ModifyCalculateFieldService. Bug #76674, following #76666.
+      vsBindingTreeService.getBinding(id, refreshBindingTreeEvent, principal, dispatcher);
       return null;
 
    }
 
-   private final VSBindingTreeController bindingTreeController;
+   private final VSBindingTreeControllerServiceProxy vsBindingTreeService;
    private final ConvertTableRefService convertTableRefService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final ViewsheetService viewsheetService;

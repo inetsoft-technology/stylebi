@@ -73,7 +73,7 @@ public class ChangeGeographicService {
    public ChangeGeographicService(
       VSBindingService bindingFactory,
       CoreLifecycleService coreLifecycleService,
-      VSBindingTreeController bindingTreeController,
+      VSBindingTreeControllerServiceProxy vsBindingTreeService,
       VSAssemblyInfoHandler assemblyInfoHandler,
       VSChartHandler chartHandler,
       VSObjectModelFactoryService objectModelService,
@@ -83,7 +83,7 @@ public class ChangeGeographicService {
    {
       this.bindingFactory = bindingFactory;
       this.coreLifecycleService = coreLifecycleService;
-      this.bindingTreeController = bindingTreeController;
+      this.vsBindingTreeService = vsBindingTreeService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
       this.objectModelService = objectModelService;
@@ -258,7 +258,13 @@ public class ChangeGeographicService {
 
       RefreshBindingTreeEvent refreshBindingTreeEvent = new RefreshBindingTreeEvent();
       refreshBindingTreeEvent.setName(name);
-      bindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher);
+      // Was VSBindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher),
+      // which re-derives the runtime id from RuntimeViewsheetRef -- a STOMP-message-scoped bean
+      // populated only from a native header on a live browser WebSocket session. A caller reached
+      // without one gets null, and that null reaches Ignite's AffinityKey constructor. Call the
+      // proxy directly with the id this call already holds (its own @ClusterProxyKey parameter),
+      // as #4971 did for ModifyCalculateFieldService. Bug #76674, following #76666.
+      vsBindingTreeService.getBinding(id, refreshBindingTreeEvent, principal, dispatcher);
 
       dispatcher.sendCommand(new RefreshWizardTreeTriggerCommand());
       return null;
@@ -303,7 +309,7 @@ public class ChangeGeographicService {
    private final VSBindingService bindingFactory;
    private final VSChartBindingFactory vsChartBindingFactory;
    private final CoreLifecycleService coreLifecycleService;
-   private final VSBindingTreeController bindingTreeController;
+   private final VSBindingTreeControllerServiceProxy vsBindingTreeService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final VSChartHandler chartHandler;
    private final VSObjectModelFactoryService objectModelService;

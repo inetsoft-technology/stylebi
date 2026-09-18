@@ -62,7 +62,7 @@ public class VSChartRefreshService extends VSChartControllerService<VSChartRefre
    {
       processEvent(runtimeId, event, principal, chartState -> {
          try {
-            refreshChart(chartState, dispatcher, linkUri, principal);
+            refreshChart(runtimeId, chartState, dispatcher, linkUri, principal);
          }
          catch(Exception e) {
             throw new RuntimeException(e);
@@ -76,8 +76,9 @@ public class VSChartRefreshService extends VSChartControllerService<VSChartRefre
       return null;
    }
 
-   private void refreshChart(VSChartStateInfo chartState, CommandDispatcher dispatcher,
-                             String linkUri, Principal principal) throws Exception
+   private void refreshChart(String runtimeId, VSChartStateInfo chartState,
+                             CommandDispatcher dispatcher, String linkUri, Principal principal)
+      throws Exception
    {
       String name = chartState.getChartAssemblyInfo().getAbsoluteName();
       RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
@@ -88,7 +89,13 @@ public class VSChartRefreshService extends VSChartControllerService<VSChartRefre
             .confirmed(true)
             .initing(false)
             .build();
-         this.vsRefreshController.refreshViewsheet(refresh, principal, dispatcher, linkUri);
+         // This used to call the 4-arg refreshViewsheet, which re-derives the runtime id from
+         // RuntimeViewsheetRef -- a STOMP-message-scoped bean populated only from a native header
+         // on a live browser WebSocket session. A caller reached without one gets null, and that
+         // null reaches Ignite's AffinityKey constructor. Pass the id this call already holds
+         // (eventHandler's @ClusterProxyKey parameter) instead. Bug #76674, following #76666.
+         this.vsRefreshController.refreshViewsheet(runtimeId, refresh, principal, dispatcher,
+                                                   linkUri);
          return;
       }
 
