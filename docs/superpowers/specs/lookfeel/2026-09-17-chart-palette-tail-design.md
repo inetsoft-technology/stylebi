@@ -1,8 +1,8 @@
 # Chart palette tail — design
 
 **Date:** 2026-09-17
-**Status:** implemented on `feature-chart-palette-tail`; automated suite green, **manual browser
-pass outstanding** — see "What the implementation found".
+**Status:** implemented on `feature-chart-palette-tail`; automated suite green and the manual
+browser pass verified 2026-09-18 — see "What the implementation found".
 **Branch:** `epic-74519` (base). Community-only.
 **Source:** ENGINE §3 of the external design set `SBI Color and Type Pairings.dc.html` and its
 `design_handoff_chart_palettes/` folder, at
@@ -302,8 +302,8 @@ enumerating. Neither test installs a CSS override or otherwise distinguishes CSS
 the Java fallback, so re-pointing their hardcoded expectations to the derived colours cost no
 assertion power.
 
-**The manual browser pass has not been run.** Nothing below is confirmed against a rendered
-chart. The five cases from the brief's Step 3 remain outstanding:
+**The manual browser pass ran on 2026-09-18 and passed.** All five cases from the brief's Step 3
+were confirmed against rendered charts:
 
 1. A twelve-series bar chart in light mode, on a modern-marked dashboard.
 2. The same chart in dark mode.
@@ -312,7 +312,13 @@ chart. The five cases from the brief's Step 3 remain outstanding:
 5. A chart on the `Contrast` palette with nine categories, confirming the deferred tail is
    unchanged.
 
-The automated suite proves the derivation rule, the constants, and the CSS declarations agree
-with each other and with the acceptance constraints in §2. It does not prove any of these five
-charts read as one set on screen. This slice should not be treated as visually verified until
-that pass runs and its outcome is recorded here with a date.
+The automated suite proves the derivation rule, the constants and the CSS declarations agree with
+each other and with the acceptance constraints in §2; it could not prove those five charts read as
+one set on screen, which is what this pass adds.
+
+**A defect found while verifying case 3 is fixed separately, and is not this slice's.** Modernize
+and Revert did not repaint a tree chart's node colours when the node shelf carried a *category*:
+`RelationVSChartInfo` keeps a `VSDimensionRef`-backed `nodeColorField` out of `getAestheticRefs()`
+so its dimension stays out of the GROUP BY (bug #75253), and `ChartVSAssemblyInfo.seedColorPalette`
+walked only that accessor. It predates this slice — the same hook has missed that field since the
+seed mark shipped — and it is fixed on `bug-tree-node-color-seed`, not here.

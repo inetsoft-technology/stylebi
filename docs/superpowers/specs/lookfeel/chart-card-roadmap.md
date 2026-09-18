@@ -1769,8 +1769,8 @@ needed, or simply removed if the parenthetical has lost its explanatory value by
   wrapper's `changed` flag cannot serve as that guard, and the decision that a classic chart may
   deliberately hold a house ramp — retirements are gated on the mark, additions ship to everyone
 - [2026-09-17-chart-palette-tail-design.md](./2026-09-17-chart-palette-tail-design.md) —
-  **implemented on `feature-chart-palette-tail`; automated suite green, manual browser pass
-  outstanding.** Slots 9-40 of `Modern` and `Modern Dark`, which every slice above
+  **implemented on `feature-chart-palette-tail`; automated suite green and the manual browser
+  pass verified 2026-09-18.** Slots 9-40 of `Modern` and `Modern Dark`, which every slice above
   left as the 2010-era legacy list while re-tuning, companioning and gating the first eight.
   Replaces them with a tail derived from each palette's own head, authored as literal hexes with a
   drift guard rather than generated at runtime. **Read its "Why the source needed correcting"
