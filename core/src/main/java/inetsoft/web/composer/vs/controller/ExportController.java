@@ -170,6 +170,20 @@ public class ExportController {
             throw e;
          }
 
+         if(response.isCommitted()) {
+            LOG.error("Failed to export viewsheet \"{}\" after the response was committed", path, e);
+            return;
+         }
+
+         // The error page is forwarded to, and a forward neither changes the status nor
+         // clears the headers -- it only resets the buffer. Without this the caller gets
+         // 200 OK with an HTML body still carrying the Content-Type and the attachment
+         // file name that exportViewsheet0() set just before writing the export, so a
+         // scheduled export writes a "PDF" that is not one and reports success. reset()
+         // drops those headers; the status is then set on the cleared response. (The
+         // unsupported-output-type branch above needs no reset -- nothing is set yet.)
+         response.reset();
+         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
          WebUtils.redirectToErrorPage(response, request, e.getMessage());
       }
    }
