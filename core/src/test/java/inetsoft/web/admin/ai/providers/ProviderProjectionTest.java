@@ -30,10 +30,12 @@ package inetsoft.web.admin.ai.providers;
  */
 
 import inetsoft.web.admin.security.*;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class ProviderProjectionTest {
    @Test void projectAuthenticationProvider_database_projectsOwnTypeAndFields() {
       AuthenticationProviderModel model = AuthenticationProviderModel.builder()
