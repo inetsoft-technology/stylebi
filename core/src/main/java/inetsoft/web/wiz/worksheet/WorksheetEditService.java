@@ -42,6 +42,7 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptEnvRepository;
 import java.awt.Point;
+import java.util.Arrays;
 import java.util.Enumeration;
 import inetsoft.web.composer.ws.RenameColumnController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
@@ -2154,6 +2155,169 @@ public class WorksheetEditService {
          }
 
          join.setOperator(leftTable, rightTable, newTop);
+      }
+
+      /**
+       * Extends an existing keyed join assembly with one more table IN PLACE (same name/identity
+       * afterward) -- the Composer UI's native "Edit Join -> add a table" action, unlike
+       * {@link #addJoin(String, String, String, String, String, String, List, List)} under a
+       * fresh name, which always nests the existing join as one source of a new, separate
+       * assembly.
+       *
+       * @param name          the existing join assembly's name (unchanged afterward)
+       * @param existingTable one of {@code name}'s own current source tables -- the side of the
+       *                      new edge that already belongs to the join
+       * @param existingKey   join key column on existingTable (single-key)
+       * @param newTable      the table being added into the join
+       * @param newKey        join key column on newTable (single-key)
+       * @param joinType      INNER (default), LEFT, RIGHT, FULL for the new edge. CROSS/MERGE are
+       *                      refused (CROSS is an exclusive operation server-side and cannot be
+       *                      combined with the join's other existing edges; MERGE is a distinct
+       *                      assembly type -- use {@link #addTableToMergeJoin})
+       * @param existingKeys  multi-key variant of existingKey, same precedence rule as addJoin/editJoin
+       * @param newKeys       multi-key variant of newKey, same precedence rule as addJoin/editJoin
+       * @throws PairingException if name is not a RelationalJoinTableAssembly (incl. a
+       *         MergeJoinTableAssembly), if existingTable is not currently one of name's own
+       *         sources, if newTable is not found or is already one of name's own sources
+       *         (duplicate add), or if joinType is CROSS/MERGE
+       */
+      public void addTableToJoin(String name, String existingTable, String existingKey,
+                                 String newTable, String newKey, String joinType,
+                                 List<String> existingKeys, List<String> newKeys)
+         throws PairingException, SecurityException
+      {
+         Assembly a = ws.getAssembly(name);
+
+         if(a instanceof MergeJoinTableAssembly) {
+            throw new PairingException(
+               "\"" + name + "\" is a MERGE join -- use add_table_to_merge_join instead.");
+         }
+
+         if(!(a instanceof RelationalJoinTableAssembly join)) {
+            throw new PairingException("Join assembly not found: " + name);
+         }
+
+         if(!Arrays.asList(join.getTableNames()).contains(existingTable)) {
+            throw new PairingException(
+               "\"" + existingTable + "\" is not one of \"" + name + "\"'s own source tables " +
+               "(" + String.join(", ", join.getTableNames()) + ") -- name the existing source the " +
+               "new table attaches to.");
+         }
+
+         requireTable(newTable);
+
+         if(join.getTableAssembly(newTable) != null) {
+            throw new PairingException(
+               "\"" + newTable + "\" is already one of \"" + name + "\"'s own source tables.");
+         }
+
+         int operation = parseJoinType(joinType);
+
+         if(operation == TableAssemblyOperator.CROSS_JOIN || operation == TableAssemblyOperator.MERGE_JOIN) {
+            throw new PairingException(
+               "add_table_to_join does not support joinType \"" + joinType + "\" -- CROSS cannot be " +
+               "combined with a join's other existing edges, and MERGE is a distinct assembly type.");
+         }
+
+         // editExistingJoinTable is NOT a "graft one new edge" primitive -- every real caller
+         // (addJoin(joinPaths), joinSourceAndTargetTables, editInnerJoin) passes it the COMPLETE
+         // final edge set for the whole join. A delta containing only the new edge causes
+         // editExistingJoinTable's own "clear all pairs, then reconcile orphans" logic to silently
+         // replace every pre-existing edge with an unconditional CROSS_JOIN (via
+         // AbstractJoinTableAssembly.removeOperator's zero-operator safety net AND the method's own
+         // orphaned-tables reconciliation loop -- both independently converge on this). Seed from the
+         // join's own current operators first, exactly like the native UI's own
+         // joinSourceAndTargetTables does.
+         TableAssemblyOperator top = innerJoinService.getOperatorsOfJoinTable(join);
+
+         if(existingKeys != null && newKeys != null && !existingKeys.isEmpty()) {
+            if(existingKeys.size() != newKeys.size()) {
+               throw new PairingException(
+                  "existingKeys and newKeys must have the same length: " +
+                  existingKeys.size() + " vs " + newKeys.size());
+            }
+
+            for(int i = 0; i < existingKeys.size(); i++) {
+               TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+               op.setLeftTable(existingTable);
+               op.setRightTable(newTable);
+               op.setLeftAttribute(new AttributeRef(null, existingKeys.get(i)));
+               op.setRightAttribute(new AttributeRef(null, newKeys.get(i)));
+               op.setOperation(operation);
+               top.addOperator(op);
+            }
+         }
+         else {
+            TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+            op.setLeftTable(existingTable);
+            op.setRightTable(newTable);
+            op.setLeftAttribute(new AttributeRef(null, existingKey));
+            op.setRightAttribute(new AttributeRef(null, newKey));
+            op.setOperation(operation);
+            top.addOperator(op);
+         }
+
+         try {
+            innerJoinService.editExistingJoinTable(ws, join, top, true);
+         }
+         catch(PairingException | SecurityException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new PairingException(
+               "Failed to add \"" + newTable + "\" to join \"" + name + "\": " + e.getMessage());
+         }
+      }
+
+      /**
+       * Extends an existing merge join assembly with one more table IN PLACE, appended at the end
+       * (position, not key, decides ordering for a merge join) -- the Composer UI's native
+       * "Edit Join -> add a table" action for a MergeJoinTableAssembly
+       * ({@code MergeJoinService.insertJoinTable}), reimplemented without its RuntimeWorksheet
+       * dependency, matching how {@link #addJoin(String, List)} already reimplements
+       * editExistingJoinTable's call shape runtime-free.
+       *
+       * @param name     the existing merge join assembly's name (unchanged afterward)
+       * @param newTable the table being appended
+       * @throws PairingException if name is not a MergeJoinTableAssembly, if newTable is not found,
+       *         or if newTable is already one of name's own sources (duplicate add)
+       */
+      public void addTableToMergeJoin(String name, String newTable) throws PairingException {
+         Assembly a = ws.getAssembly(name);
+
+         if(!(a instanceof MergeJoinTableAssembly mergeJoin)) {
+            throw new PairingException(
+               a instanceof RelationalJoinTableAssembly
+                  ? "\"" + name + "\" is a keyed join -- use add_table_to_join instead."
+                  : "Merge join assembly not found: " + name);
+         }
+
+         TableAssembly newTableAssembly = requireTable(newTable);
+
+         if(mergeJoin.getTableAssembly(newTable) != null) {
+            throw new PairingException(
+               "\"" + newTable + "\" is already one of \"" + name + "\"'s own source tables.");
+         }
+
+         TableAssembly[] oldAssemblies = mergeJoin.getTableAssemblies(true);
+         TableAssembly[] newAssemblies = new TableAssembly[oldAssemblies.length + 1];
+         System.arraycopy(oldAssemblies, 0, newAssemblies, 0, oldAssemblies.length);
+         newAssemblies[oldAssemblies.length] = newTableAssembly;
+
+         // WBS-050 (bug #76730): the Operator's own leftTable/rightTable must be set explicitly --
+         // setOperator's own map key is not enough. A null leftTable/rightTable here silently
+         // breaks edit_join (writes to a brand-new (null,null) map entry instead of the real edge)
+         // and makes WorksheetReadService.readJoins() filter the edge out of the model entirely.
+         String lastTableName = oldAssemblies[oldAssemblies.length - 1].getName();
+         TableAssemblyOperator operator = new TableAssemblyOperator();
+         TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+         op.setLeftTable(lastTableName);
+         op.setRightTable(newTable);
+         op.setOperation(TableAssemblyOperator.MERGE_JOIN);
+         operator.addOperator(op);
+         mergeJoin.setOperator(lastTableName, newTable, operator);
+
+         mergeJoin.setTableAssemblies(newAssemblies);
       }
 
       // -----------------------------------------------------------------------
