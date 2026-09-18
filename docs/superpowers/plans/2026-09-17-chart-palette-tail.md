@@ -188,7 +188,9 @@ final class ChartTailDerivation {
     * lightness, which collapses at 32 slots - hue alone cannot carry forty categories. So there are
     * three rings, and each slot takes whichever ring separates it furthest from everything already
     * placed, head included. Ties break on the interleave order, which keeps the walk deterministic
-    * and therefore keeps the shipped literals reproducible.
+    * and therefore keeps the shipped literals reproducible. Both tie-breaks compare against TIE,
+    * a 1e-9 tolerance, so a 1-ulp difference in Math.pow upstream cannot resolve a tie the other
+    * way on a JVM without HotSpot's x86-64 _dpow intrinsic.
     */
    static Color[] derive(Color[] head, int count, int rings, double lSpread) {
       List<Double> hues = new ArrayList<>();
@@ -222,7 +224,7 @@ final class ChartTailDerivation {
                separation = Math.min(separation, deltaE(candidate, p));
             }
 
-            if(separation > bestSeparation) {
+            if(separation > bestSeparation + TIE) {
                bestSeparation = separation;
                best = candidate;
             }
@@ -241,9 +243,11 @@ final class ChartTailDerivation {
       double[] x = OKLab.fromColor(a);
       double[] y = OKLab.fromColor(b);
 
-      return Math.sqrt(Math.pow(x[0] - y[0], 2)
-                          + Math.pow(x[1] - y[1], 2)
-                          + Math.pow(x[2] - y[2], 2));
+      double dl = x[0] - y[0];
+      double da = x[1] - y[1];
+      double db = x[2] - y[2];
+
+      return Math.sqrt(dl * dl + da * da + db * db);
    }
 
    private static double widestGapMidpoint(List<Double> hues) {
@@ -256,7 +260,7 @@ final class ChartTailDerivation {
          double lo = sorted.get(i);
          double hi = i + 1 < sorted.size() ? sorted.get(i + 1) : sorted.get(0) + 360;
 
-         if(hi - lo > widest) {
+         if(hi - lo > widest + TIE) {
             widest = hi - lo;
             midpoint = (lo + hi) / 2 % 360;
          }
@@ -428,19 +432,19 @@ Add to the constants block at the bottom of the class, immediately after `DARK_H
       new Color(0xB02B80), new Color(0xBC9FFF), new Color(0x1C8000), new Color(0x007E57),
       new Color(0xFF915F), new Color(0xC87800), new Color(0x007B70), new Color(0x00CAD7),
       new Color(0x009DC2), new Color(0x0071AB), new Color(0xBF272B), new Color(0xE65078),
-      new Color(0x757CFC), new Color(0x86B3FF), new Color(0xE4A700), new Color(0x5D7500),
-      new Color(0xD1B000), new Color(0x706F00), new Color(0x913DB3), new Color(0x9F35A1)
+      new Color(0x86B3FF), new Color(0x757CFC), new Color(0xE4A700), new Color(0xD1B000),
+      new Color(0x706F00), new Color(0x7C9C00), new Color(0x913DB3), new Color(0x9F35A1)
    };
 
    private static final Color[] DARK_TAIL = {
       new Color(0x008FA4), new Color(0x8E8100), new Color(0xFFA7EF), new Color(0x2FC16A),
       new Color(0xC06200), new Color(0x00BBB9), new Color(0x84D5FF), new Color(0xD2485A),
-      new Color(0x5575E5), new Color(0x9FAF00), new Color(0xF6C200), new Color(0xD37BE5),
-      new Color(0xC44B94), new Color(0x8C63D8), new Color(0x009668), new Color(0x369725),
-      new Color(0xFFB596), new Color(0xE78A00), new Color(0x009386), new Color(0x0087CB),
-      new Color(0x00E4F2), new Color(0x00B5DF), new Color(0xFD716A), new Color(0xFFB0BE),
-      new Color(0xABCBFF), new Color(0x8D98FF), new Color(0xD19800), new Color(0xD2D226),
-      new Color(0x6F8C00), new Color(0xC0A200), new Color(0xA459C5), new Color(0xB352B4)
+      new Color(0x5575E5), new Color(0xC99D00), new Color(0x9FAF00), new Color(0xD37BE5),
+      new Color(0xC44B94), new Color(0x8C63D8), new Color(0x369725), new Color(0x009668),
+      new Color(0xFFB596), new Color(0xE78A00), new Color(0x009386), new Color(0x00E4F2),
+      new Color(0x00B5DF), new Color(0x0087CB), new Color(0xFD716A), new Color(0xFFB0BE),
+      new Color(0xABCBFF), new Color(0x8D98FF), new Color(0xFFBD1F), new Color(0xECC700),
+      new Color(0xD2D226), new Color(0x6F8C00), new Color(0xA459C5), new Color(0xB352B4)
    };
 
    private static final Color[] MODERN_FALLBACK = splice(MODERN_HEAD, MODERN_TAIL);
@@ -637,7 +641,7 @@ In `defaults.css`, replace the `color:` value of each existing
 15 #2fc1ff   16 #ff8b93   17 #405cd4   18 #836600   19 #aebf00   20 #bf60d1
 21 #b02b80   22 #bc9fff   23 #1c8000   24 #007e57   25 #ff915f   26 #c87800
 27 #007b70   28 #00cad7   29 #009dc2   30 #0071ab   31 #bf272b   32 #e65078
-33 #757cfc   34 #86b3ff   35 #e4a700   36 #5d7500   37 #d1b000   38 #706f00
+33 #86b3ff   34 #757cfc   35 #e4a700   36 #d1b000   37 #706f00   38 #7c9c00
 39 #913db3   40 #9f35a1
 ```
 
@@ -645,10 +649,10 @@ And for `ChartPalette[name='Modern Dark'][index='N']`, N = 9..40:
 
 ```
 9  #008fa4   10 #8e8100   11 #ffa7ef   12 #2fc16a   13 #c06200   14 #00bbb9
-15 #84d5ff   16 #d2485a   17 #5575e5   18 #9faf00   19 #f6c200   20 #d37be5
-21 #c44b94   22 #8c63d8   23 #009668   24 #369725   25 #ffb596   26 #e78a00
-27 #009386   28 #0087cb   29 #00e4f2   30 #00b5df   31 #fd716a   32 #ffb0be
-33 #abcbff   34 #8d98ff   35 #d19800   36 #d2d226   37 #6f8c00   38 #c0a200
+15 #84d5ff   16 #d2485a   17 #5575e5   18 #c99d00   19 #9faf00   20 #d37be5
+21 #c44b94   22 #8c63d8   23 #369725   24 #009668   25 #ffb596   26 #e78a00
+27 #009386   28 #00e4f2   29 #00b5df   30 #0087cb   31 #fd716a   32 #ffb0be
+33 #abcbff   34 #8d98ff   35 #ffbd1f   36 #ecc700   37 #d2d226   38 #6f8c00
 39 #a459c5   40 #b352b4
 ```
 
@@ -758,10 +762,10 @@ Append to `ChartTailDerivationTest.java`. Add `import inetsoft.graph.internal.OK
    void separationMatchesTheMeasuredFigures() throws Exception {
       assertEquals(0.1311, minDeltaE("MODERN_FALLBACK", 12), 5e-4, "Modern at n=12");
       assertEquals(0.1127, minDeltaE("MODERN_FALLBACK", 16), 5e-4, "Modern at n=16");
-      assertEquals(0.0319, minDeltaE("MODERN_FALLBACK", 40), 5e-4, "Modern at n=40");
+      assertEquals(0.0364, minDeltaE("MODERN_FALLBACK", 40), 5e-4, "Modern at n=40");
       assertEquals(0.1491, minDeltaE("DARK_FALLBACK", 12), 5e-4, "Modern Dark at n=12");
       assertEquals(0.1079, minDeltaE("DARK_FALLBACK", 16), 5e-4, "Modern Dark at n=16");
-      assertEquals(0.0361, minDeltaE("DARK_FALLBACK", 40), 5e-4, "Modern Dark at n=40");
+      assertEquals(0.0383, minDeltaE("DARK_FALLBACK", 40), 5e-4, "Modern Dark at n=40");
    }
 
    // A tail colour that reads as a head colour is the failure the aggregate figures hide, because it

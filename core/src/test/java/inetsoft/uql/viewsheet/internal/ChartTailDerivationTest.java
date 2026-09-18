@@ -58,6 +58,17 @@ class ChartTailDerivationTest {
       new Color(0xAE41F5), new Color(0xFFCB82), new Color(0xFE3290), new Color(0x9FEB28)
    };
 
+   // Disambiguates the drift guard below. The heads above are duplicated rather than read, so a
+   // re-tune that lands in production but not here would surface as "the tail does not match the
+   // rule" when the real fault is a stale fixture. This says which one it is.
+   @Test
+   void theDuplicatedHeadsMatchTheShippedHeads() throws Exception {
+      assertArrayEquals(MODERN_HEAD, colorArray("MODERN_HEAD"),
+                        "this test's MODERN_HEAD copy is stale");
+      assertArrayEquals(DARK_HEAD, colorArray("DARK_HEAD"),
+                        "this test's DARK_HEAD copy is stale");
+   }
+
    // The drift guard. If the head is ever re-tuned again, the tail fails loudly here instead of
    // silently belonging to the previous head.
    @Test
@@ -109,22 +120,38 @@ class ChartTailDerivationTest {
       assertEquals(1, anchors, "only #49447D may take the dark anchor branch");
    }
 
-   @Test
-   void everySlotSitsInsideTheHeadsLightnessBand() throws Exception {
-      double bandMin = Double.MAX_VALUE;
-      double bandMax = -Double.MAX_VALUE;
+   // The rings, not the head's full band. The head spans 0.269-0.813 on Modern, so asserting
+   // against it would pass a tail slot at L 0.28 - precisely the slot that recedes in the opposite
+   // direction from its neighbours. The rule puts every generated slot at meanL +/- lSpread, so
+   // that is what gets pinned. The tolerance covers gamut mapping and the round to 8-bit channels;
+   // the measured worst deviation is 1.3e-3.
+   private static final double RING_TOLERANCE = 5e-3;
 
-      for(Color c : MODERN_HEAD) {
-         double l = OKLab.toLCH(OKLab.fromColor(c))[0];
-         bandMin = Math.min(bandMin, l);
-         bandMax = Math.max(bandMax, l);
+   @Test
+   void everyModernTailSlotSitsOnARing() throws Exception {
+      assertTailSitsOnARing(MODERN_HEAD, "MODERN_TAIL");
+   }
+
+   @Test
+   void everyDarkTailSlotSitsOnARing() throws Exception {
+      assertTailSitsOnARing(DARK_HEAD, "DARK_TAIL");
+   }
+
+   private static void assertTailSitsOnARing(Color[] head, String tailField) throws Exception {
+      double sumL = 0;
+
+      for(Color c : head) {
+         sumL += OKLab.toLCH(OKLab.fromColor(c))[0];
       }
 
-      for(Color c : colorArray("MODERN_FALLBACK")) {
+      double meanL = sumL / head.length;
+      double lo = meanL - 0.12 - RING_TOLERANCE;
+      double hi = meanL + 0.12 + RING_TOLERANCE;
+
+      for(Color c : colorArray(tailField)) {
          double l = OKLab.toLCH(OKLab.fromColor(c))[0];
-         assertTrue(l >= bandMin - 1e-3 && l <= bandMax + 1e-3,
-                    hex(c) + " at L " + l + " sits outside the head's band "
-                       + bandMin + "-" + bandMax);
+         assertTrue(l >= lo && l <= hi,
+                    hex(c) + " at L " + l + " sits outside the rings " + lo + "-" + hi);
       }
    }
 
@@ -134,10 +161,10 @@ class ChartTailDerivationTest {
    void separationMatchesTheMeasuredFigures() throws Exception {
       assertEquals(0.1311, minDeltaE("MODERN_FALLBACK", 12), 5e-4, "Modern at n=12");
       assertEquals(0.1127, minDeltaE("MODERN_FALLBACK", 16), 5e-4, "Modern at n=16");
-      assertEquals(0.0319, minDeltaE("MODERN_FALLBACK", 40), 5e-4, "Modern at n=40");
+      assertEquals(0.0364, minDeltaE("MODERN_FALLBACK", 40), 5e-4, "Modern at n=40");
       assertEquals(0.1491, minDeltaE("DARK_FALLBACK", 12), 5e-4, "Modern Dark at n=12");
       assertEquals(0.1079, minDeltaE("DARK_FALLBACK", 16), 5e-4, "Modern Dark at n=16");
-      assertEquals(0.0361, minDeltaE("DARK_FALLBACK", 40), 5e-4, "Modern Dark at n=40");
+      assertEquals(0.0383, minDeltaE("DARK_FALLBACK", 40), 5e-4, "Modern Dark at n=40");
    }
 
    // A tail colour that reads as a head colour is the failure the aggregate figures hide, because it

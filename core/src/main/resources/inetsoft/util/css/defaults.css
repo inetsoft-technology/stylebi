@@ -304,11 +304,11 @@ ChartPalette[name='Modern'][index='32'] {
 }
 
 ChartPalette[name='Modern'][index='33'] {
-   color: #757cfc;
+   color: #86b3ff;
 }
 
 ChartPalette[name='Modern'][index='34'] {
-   color: #86b3ff;
+   color: #757cfc;
 }
 
 ChartPalette[name='Modern'][index='35'] {
@@ -316,15 +316,15 @@ ChartPalette[name='Modern'][index='35'] {
 }
 
 ChartPalette[name='Modern'][index='36'] {
-   color: #5d7500;
-}
-
-ChartPalette[name='Modern'][index='37'] {
    color: #d1b000;
 }
 
-ChartPalette[name='Modern'][index='38'] {
+ChartPalette[name='Modern'][index='37'] {
    color: #706f00;
+}
+
+ChartPalette[name='Modern'][index='38'] {
+   color: #7c9c00;
 }
 
 ChartPalette[name='Modern'][index='39'] {
@@ -404,11 +404,11 @@ ChartPalette[name='Modern Dark'][index='17'] {
 }
 
 ChartPalette[name='Modern Dark'][index='18'] {
-   color: #9faf00;
+   color: #c99d00;
 }
 
 ChartPalette[name='Modern Dark'][index='19'] {
-   color: #f6c200;
+   color: #9faf00;
 }
 
 ChartPalette[name='Modern Dark'][index='20'] {
@@ -424,11 +424,11 @@ ChartPalette[name='Modern Dark'][index='22'] {
 }
 
 ChartPalette[name='Modern Dark'][index='23'] {
-   color: #009668;
+   color: #369725;
 }
 
 ChartPalette[name='Modern Dark'][index='24'] {
-   color: #369725;
+   color: #009668;
 }
 
 ChartPalette[name='Modern Dark'][index='25'] {
@@ -444,15 +444,15 @@ ChartPalette[name='Modern Dark'][index='27'] {
 }
 
 ChartPalette[name='Modern Dark'][index='28'] {
-   color: #0087cb;
-}
-
-ChartPalette[name='Modern Dark'][index='29'] {
    color: #00e4f2;
 }
 
-ChartPalette[name='Modern Dark'][index='30'] {
+ChartPalette[name='Modern Dark'][index='29'] {
    color: #00b5df;
+}
+
+ChartPalette[name='Modern Dark'][index='30'] {
+   color: #0087cb;
 }
 
 ChartPalette[name='Modern Dark'][index='31'] {
@@ -472,19 +472,19 @@ ChartPalette[name='Modern Dark'][index='34'] {
 }
 
 ChartPalette[name='Modern Dark'][index='35'] {
-   color: #d19800;
+   color: #ffbd1f;
 }
 
 ChartPalette[name='Modern Dark'][index='36'] {
-   color: #d2d226;
+   color: #ecc700;
 }
 
 ChartPalette[name='Modern Dark'][index='37'] {
-   color: #6f8c00;
+   color: #d2d226;
 }
 
 ChartPalette[name='Modern Dark'][index='38'] {
-   color: #c0a200;
+   color: #6f8c00;
 }
 
 ChartPalette[name='Modern Dark'][index='39'] {

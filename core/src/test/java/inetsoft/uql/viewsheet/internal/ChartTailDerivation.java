@@ -32,18 +32,21 @@ import java.util.List;
  * and compares. Keeping the rule out of main means the frame stays free of the purity, caching and
  * CSS-reachability constraints that a runtime generator would have carried.
  *
- * This rule reproduces the shipped literals under HotSpot's Math.pow on x86-64, verified on
- * Temurin 17 and 21. widestGapMidpoint contains exact ties - bisecting a hue gap of width W
- * produces two halves of width exactly W/2, which compare equal - and a 1-ulp difference in
- * Math.pow upstream, inside OKLab, resolves that tie the other way. A JVM without HotSpot's
- * x86-64 _dpow intrinsic (fdlibm instead) therefore derives a different tail from the same rule.
- * The symptom is ChartTailDerivationTest.shippedTailsMatchTheRule failing with what looks like
- * corrupted constants. Reproduce it with
- * -XX:+UnlockDiagnosticVMOptions -XX:-UseLibmIntrinsic.
+ * Both tie-breaks compare against a tolerance rather than exactly, which is what makes the rule
+ * reproducible across JVMs. The derivation is full of exact ties - bisecting a hue gap of width W
+ * produces two halves of width exactly W/2, and the ring scan regularly finds two rings equally
+ * far from everything already placed - and a 1-ulp difference in Math.pow upstream, inside OKLab,
+ * is enough to resolve one of them the other way. A JVM without HotSpot's x86-64 _dpow intrinsic
+ * would then derive a different tail from the same rule. Comparing against TIE keeps the first
+ * candidate in both cases, so the shipped literals reproduce bit-identically under
+ * -XX:+UnlockDiagnosticVMOptions -XX:-UseLibmIntrinsic and -Xint as well as on the intrinsic path.
  */
 final class ChartTailDerivation {
    private ChartTailDerivation() {
    }
+
+   // Wider than any ulp difference Math.pow can introduce, far below any separation that matters.
+   private static final double TIE = 1e-9;
 
    /** The shipping configuration: 32 slots, three rings, 0.12 apart. */
    static Color[] derive(Color[] head) {
@@ -59,8 +62,14 @@ final class ChartTailDerivation {
     * whichever ring separates it furthest from everything already placed, head included. Ties
     * break on the interleave order, which keeps the walk deterministic and therefore keeps the
     * shipped literals reproducible.
+    *
+    * rings must be at least 1 - there would be no candidate to place otherwise.
     */
    static Color[] derive(Color[] head, int count, int rings, double lSpread) {
+      if(rings < 1) {
+         throw new IllegalArgumentException("rings must be at least 1, was " + rings);
+      }
+
       List<Double> hues = new ArrayList<>();
       double sumL = 0;
       double sumC = 0;
@@ -92,7 +101,7 @@ final class ChartTailDerivation {
                separation = Math.min(separation, deltaE(candidate, p));
             }
 
-            if(separation > bestSeparation) {
+            if(separation > bestSeparation + TIE) {
                bestSeparation = separation;
                best = candidate;
             }
@@ -111,9 +120,11 @@ final class ChartTailDerivation {
       double[] x = OKLab.fromColor(a);
       double[] y = OKLab.fromColor(b);
 
-      return Math.sqrt(Math.pow(x[0] - y[0], 2)
-                          + Math.pow(x[1] - y[1], 2)
-                          + Math.pow(x[2] - y[2], 2));
+      double dl = x[0] - y[0];
+      double da = x[1] - y[1];
+      double db = x[2] - y[2];
+
+      return Math.sqrt(dl * dl + da * da + db * db);
    }
 
    private static double widestGapMidpoint(List<Double> hues) {
@@ -126,7 +137,7 @@ final class ChartTailDerivation {
          double lo = sorted.get(i);
          double hi = i + 1 < sorted.size() ? sorted.get(i + 1) : sorted.get(0) + 360;
 
-         if(hi - lo > widest) {
+         if(hi - lo > widest + TIE) {
             widest = hi - lo;
             midpoint = (lo + hi) / 2 % 360;
          }

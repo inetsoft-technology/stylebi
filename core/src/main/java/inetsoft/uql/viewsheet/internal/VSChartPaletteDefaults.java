@@ -242,11 +242,31 @@ public final class VSChartPaletteDefaults {
     * A palette's head followed by its tail. The tail is derived from the head rather than taken
     * from the legacy list. ChartTailDerivation, in test sources, is the authority on the values,
     * and ChartTailDerivationTest re-derives and compares.
+    *
+    * Unlike the legacy splice this replaced, the result is only as long as what it is handed, and
+    * fromFrame silently returns a short palette below COLOR_PALETTE.length - so the callers below
+    * check the length rather than leaving the invariant to cssMatchesTheJavaFallback alone.
     */
    static Color[] splice(Color[] head, Color[] tail) {
       List<Color> palette = new ArrayList<>(Arrays.asList(head));
       palette.addAll(Arrays.asList(tail));
       return palette.toArray(new Color[0]);
+   }
+
+   /**
+    * splice, with the full-palette length pinned at class-init. A head or tail edited to the wrong
+    * length fails here, next to the constants, rather than as a short palette much later.
+    */
+   private static Color[] spliceFull(Color[] head, Color[] tail) {
+      Color[] palette = splice(head, tail);
+
+      if(palette.length != CategoricalColorFrame.COLOR_PALETTE.length) {
+         throw new IllegalStateException(
+            "a modern palette must declare " + CategoricalColorFrame.COLOR_PALETTE.length
+               + " colors, got " + palette.length);
+      }
+
+      return palette;
    }
 
    /**
@@ -361,21 +381,22 @@ public final class VSChartPaletteDefaults {
       new Color(0xB02B80), new Color(0xBC9FFF), new Color(0x1C8000), new Color(0x007E57),
       new Color(0xFF915F), new Color(0xC87800), new Color(0x007B70), new Color(0x00CAD7),
       new Color(0x009DC2), new Color(0x0071AB), new Color(0xBF272B), new Color(0xE65078),
-      new Color(0x757CFC), new Color(0x86B3FF), new Color(0xE4A700), new Color(0x5D7500),
-      new Color(0xD1B000), new Color(0x706F00), new Color(0x913DB3), new Color(0x9F35A1)
+      new Color(0x86B3FF), new Color(0x757CFC), new Color(0xE4A700), new Color(0xD1B000),
+      new Color(0x706F00), new Color(0x7C9C00), new Color(0x913DB3), new Color(0x9F35A1)
    };
 
    private static final Color[] DARK_TAIL = {
       new Color(0x008FA4), new Color(0x8E8100), new Color(0xFFA7EF), new Color(0x2FC16A),
       new Color(0xC06200), new Color(0x00BBB9), new Color(0x84D5FF), new Color(0xD2485A),
-      new Color(0x5575E5), new Color(0x9FAF00), new Color(0xF6C200), new Color(0xD37BE5),
-      new Color(0xC44B94), new Color(0x8C63D8), new Color(0x009668), new Color(0x369725),
-      new Color(0xFFB596), new Color(0xE78A00), new Color(0x009386), new Color(0x0087CB),
-      new Color(0x00E4F2), new Color(0x00B5DF), new Color(0xFD716A), new Color(0xFFB0BE),
-      new Color(0xABCBFF), new Color(0x8D98FF), new Color(0xD19800), new Color(0xD2D226),
-      new Color(0x6F8C00), new Color(0xC0A200), new Color(0xA459C5), new Color(0xB352B4)
+      new Color(0x5575E5), new Color(0xC99D00), new Color(0x9FAF00), new Color(0xD37BE5),
+      new Color(0xC44B94), new Color(0x8C63D8), new Color(0x369725), new Color(0x009668),
+      new Color(0xFFB596), new Color(0xE78A00), new Color(0x009386), new Color(0x00E4F2),
+      new Color(0x00B5DF), new Color(0x0087CB), new Color(0xFD716A), new Color(0xFFB0BE),
+      new Color(0xABCBFF), new Color(0x8D98FF), new Color(0xFFBD1F), new Color(0xECC700),
+      new Color(0xD2D226), new Color(0x6F8C00), new Color(0xA459C5), new Color(0xB352B4)
    };
 
-   private static final Color[] MODERN_FALLBACK = splice(MODERN_HEAD, MODERN_TAIL);
-   private static final Color[] DARK_FALLBACK = splice(DARK_HEAD, DARK_TAIL);
+   // Declared after the four arrays above on purpose - spliceFull reads them at class-init.
+   private static final Color[] MODERN_FALLBACK = spliceFull(MODERN_HEAD, MODERN_TAIL);
+   private static final Color[] DARK_FALLBACK = spliceFull(DARK_HEAD, DARK_TAIL);
 }

@@ -84,7 +84,7 @@ three rather than solving them.
 
 ## 1. The derivation rule
 
-A pure function of the eight head colours. Deterministic, no state, no runtime input — though not
+A pure function of the eight head colours. Deterministic, no state, no runtime input, and
 invariant across `Math.pow` implementations; see §5.
 
 Convert the head to OKLCH and take its mean lightness and mean chroma. Then, 32 times:
@@ -94,7 +94,7 @@ Convert the head to OKLCH and take its mean lightness and mean chroma. Then, 32 
 2. **Choose the lightness ring.** Three rings sit at head-mean L −0.12, +0, +0.12. Try them in
    interleave order — ring `(i + r) % 3` for `r` in 0..2 — and keep the candidate whose nearest
    neighbour among **everything already placed, head included**, is furthest away. Ties break on the
-   interleave order.
+   interleave order, compared against a tolerance rather than exactly — see §5.
 3. **Chroma is the head's mean C**, brought into sRGB by `OKLab.toColorInGamut`, which reduces
    chroma only and never shifts hue.
 
@@ -116,16 +116,16 @@ this same deterministic walk.
 #00788A #9E9000 #F77FE4 #00A956 #A25100 #00A2A0 #2FC1FF #FF8B93
 #405CD4 #836600 #AEBF00 #BF60D1 #B02B80 #BC9FFF #1C8000 #007E57
 #FF915F #C87800 #007B70 #00CAD7 #009DC2 #0071AB #BF272B #E65078
-#757CFC #86B3FF #E4A700 #5D7500 #D1B000 #706F00 #913DB3 #9F35A1
+#86B3FF #757CFC #E4A700 #D1B000 #706F00 #7C9C00 #913DB3 #9F35A1
 ```
 
 ### Modern Dark, slots 9–40
 
 ```
 #008FA4 #8E8100 #FFA7EF #2FC16A #C06200 #00BBB9 #84D5FF #D2485A
-#5575E5 #9FAF00 #F6C200 #D37BE5 #C44B94 #8C63D8 #009668 #369725
-#FFB596 #E78A00 #009386 #0087CB #00E4F2 #00B5DF #FD716A #FFB0BE
-#ABCBFF #8D98FF #D19800 #D2D226 #6F8C00 #C0A200 #A459C5 #B352B4
+#5575E5 #C99D00 #9FAF00 #D37BE5 #C44B94 #8C63D8 #369725 #009668
+#FFB596 #E78A00 #009386 #00E4F2 #00B5DF #0087CB #FD716A #FFB0BE
+#ABCBFF #8D98FF #FFBD1F #ECC700 #D2D226 #6F8C00 #A459C5 #B352B4
 ```
 
 ## 2. Acceptance constraints
@@ -138,12 +138,12 @@ Measured against the palette this replaces. ΔE is Euclidean distance in OKLab.
 | **Modern** — lightness range | 0.269–0.925 | **0.269–0.813** |
 | **Modern** — min ΔE at n=12 | 0.1171 | **0.1311** |
 | **Modern** — min ΔE at n=16 | 0.0459 | **0.1127** |
-| **Modern** — min ΔE, full 40 | 0.0253 | **0.0319** |
+| **Modern** — min ΔE, full 40 | 0.0253 | **0.0364** |
 | **Modern** — worst head-to-tail pair | 0.0365 | **0.0521** |
 | **Modern Dark** — anchor rule exceptions at n=40 | 4 | **1** |
 | **Modern Dark** — min ΔE at n=12 | 0.1168 | **0.1491** |
 | **Modern Dark** — min ΔE at n=16 | 0.0459 | **0.1079** |
-| **Modern Dark** — min ΔE, full 40 | 0.0253 | **0.0361** |
+| **Modern Dark** — min ΔE, full 40 | 0.0253 | **0.0383** |
 
 **Zero light-end exceptions is the point of the slice**, and it is what the trigger record asked
 for: *"If the generator holds its output inside the head's lightness band, the existing rule covers
@@ -158,7 +158,7 @@ was actually raised at, and the reason this is worth shipping rather than only w
 
 It does not make a twenty-category chart readable. ENGINE §3 says so about its own generator —
 *"Generation guarantees the chart is never wrong. It cannot make a nine-hue chart readable"* — and
-the numbers agree: min ΔE at forty slots is 0.0319 against today's 0.0253, better but nowhere near
+the numbers agree: min ΔE at forty slots is 0.0364 against today's 0.0253, better but nowhere near
 separable. The Composer nudge toward top-*n*-plus-Other that §3 pairs itself with is still the
 answer to that problem, and is still unbuilt.
 
@@ -216,19 +216,26 @@ from `MODERN_HEAD` / `DARK_HEAD` and compare against the shipped literals, in bo
 and `VSChartPaletteDefaults`. If the head is ever re-tuned again, the tail fails loudly instead of
 silently belonging to the previous head.
 
-**The guard holds on the build toolchain, not on the rule in the abstract.** It is verified against
-HotSpot's `Math.pow` on x86-64, on Temurin 17 and 21. `widestGapMidpoint` contains exact ties that a
-1-ulp difference in `Math.pow` resolves the other way, so a JVM without the `_dpow` intrinsic
-derives a different tail from the same rule. That is a toolchain assumption recorded in
-`ChartTailDerivation`'s javadoc, not a hidden defect: a toolchain change would make
-`shippedTailsMatchTheRule` fail loudly with what looks like corrupted constants, not silently ship
-a wrong tail.
+**The guard holds on any JVM, not just the build toolchain's.** The derivation is full of exact
+ties — bisecting a hue gap of width W produces two halves of width exactly W/2, and the ring scan
+regularly finds two rings equally far from everything placed — and a 1-ulp difference in `Math.pow`
+upstream, inside `OKLab`, is enough to resolve one of them the other way. Left as exact
+comparisons, the rule derived a different tail on a JVM without HotSpot's x86-64 `_dpow` intrinsic:
+five Modern slots and six dark ones, including colours absent from the shipped list altogether, so
+`shippedTailsMatchTheRule` failed hard on aarch64 — Apple Silicon, ARM Linux, Graviton — where
+`./mvnw clean install` is a normal developer action. Both tie-breaks therefore compare against a
+`1e-9` tolerance, which keeps the first candidate either way and makes the output bit-identical
+under the intrinsic, `-XX:-UseLibmIntrinsic` and `-Xint`. The tolerance is wider than any ulp
+difference `Math.pow` can introduce and roughly seven orders of magnitude below the smallest
+separation that matters.
 
 The §2 table becomes assertions rather than prose:
 
 - Zero `LIGHT_MAX_L` exceptions across `Modern`'s forty slots, and exactly one anchor exception
   across `Modern Dark`'s — the anchor.
-- Every slot's lightness inside the head's band.
+- Every generated slot's lightness on one of the three rings, `meanL ± 0.12` within a tolerance
+  that covers gamut mapping and the round to 8-bit channels. Asserting only the head's band would
+  admit a slot that recedes in the opposite direction from its neighbours.
 - Min ΔE floors at n=12, n=16 and n=40, and the worst head-to-tail pair, each asserted against the
   measured figure rather than a round number, so a change to the rule has to restate its cost.
 - `fromFrame`'s three fallback paths return the derived tail, not the legacy one.
