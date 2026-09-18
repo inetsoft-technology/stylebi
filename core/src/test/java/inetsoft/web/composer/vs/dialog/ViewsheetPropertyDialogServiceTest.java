@@ -29,6 +29,7 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
@@ -54,6 +55,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
@@ -83,6 +85,8 @@ public class ViewsheetPropertyDialogServiceTest {
       when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
       ViewsheetInfo viewsheetInfo = new ViewsheetInfo();
       when(viewsheet.getViewsheetInfo()).thenReturn(viewsheetInfo);
+      when(viewsheet.getVSAssemblyInfo()).thenReturn(new ViewsheetVSAssemblyInfo());
+      when(viewsheet.getAssemblies(anyBoolean())).thenReturn(new Assembly[0]);
       LayoutInfo layoutInfo = new LayoutInfo();
       List<ViewsheetLayout> viewsheetLayoutList = new ArrayList<>();
       ViewsheetLayout viewsheetLayout = new ViewsheetLayout();
@@ -143,6 +147,7 @@ public class ViewsheetPropertyDialogServiceTest {
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getViewsheetInfo()).thenReturn(new ViewsheetInfo());
       when(viewsheet.getAssemblies()).thenReturn(new Assembly[0]);
+      when(viewsheet.getVSAssemblyInfo()).thenReturn(new ViewsheetVSAssemblyInfo());
 
       LayoutInfo layoutInfo = new LayoutInfo();
       layoutInfo.setViewsheetLayouts(new ArrayList<>());

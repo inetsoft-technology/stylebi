@@ -64,6 +64,27 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class ViewsheetPropertyDialogService {
 
+   /**
+    * The sheet's own mark is the dashboard's mode: stamped from the org gate at creation and
+    * inherited by every assembly created since.
+    */
+   static boolean isVizModern(Viewsheet vs) {
+      return vs.getVSAssemblyInfo().getVizMark() != null;
+   }
+
+   static boolean isVizDark(Viewsheet vs) {
+      return vs.getVSAssemblyInfo().getVizMark() == VizMark.MODERN_DARK;
+   }
+
+   /** Dark is a modifier of modern, so it cannot be set on its own. */
+   static VizMark targetMark(boolean modern, boolean dark) {
+      if(!modern) {
+         return null;
+      }
+
+      return dark ? VizMark.MODERN_DARK : VizMark.MODERN_LIGHT;
+   }
+
    public ViewsheetPropertyDialogService(CoreLifecycleService coreLifecycleService,
                                          ViewsheetService viewsheetService,
                                          VSLayoutService layoutService,
@@ -108,6 +129,10 @@ public class ViewsheetPropertyDialogService {
       vsOptionsPaneModel.setTouchInterval(info.getTouchInterval());
       vsOptionsPaneModel.setMaxRows(info.getDesignMaxRows());
       vsOptionsPaneModel.setSnapGrid(info.getSnapGrid());
+      vsOptionsPaneModel.setVizModern(isVizModern(viewsheet));
+      vsOptionsPaneModel.setVizDark(isVizDark(viewsheet));
+      vsOptionsPaneModel.setVizDensity(
+         info.getVizDensity() == null ? "" : info.getVizDensity());
       vsOptionsPaneModel.setListOnPortalTree(info.isOnReport());
       vsOptionsPaneModel.setAlias(viewsheet.getRuntimeEntry() == null ? null:
                                      viewsheet.getRuntimeEntry().getAlias());
@@ -289,6 +314,21 @@ public class ViewsheetPropertyDialogService {
       info.setDesignMaxRows(vsOptionsPaneModel.getMaxRows());
       info.setSnapGrid(vsOptionsPaneModel.getSnapGrid());
       info.setOnReport(vsOptionsPaneModel.isListOnPortalTree());
+
+      VizMark targetMark =
+         targetMark(vsOptionsPaneModel.isVizModern(), vsOptionsPaneModel.isVizDark());
+      boolean densityChanged =
+         !Tool.equals(info.getVizDensity(), vsOptionsPaneModel.getVizDensity());
+
+      info.setVizDensity(vsOptionsPaneModel.getVizDensity());
+
+      if(targetMark != viewsheet.getVSAssemblyInfo().getVizMark()) {
+         VizModernizeUtil.applyMark(viewsheet, targetMark);
+      }
+      else if(densityChanged) {
+         // no mark moved, so applyMark collects nothing; control heights still have to re-fire
+         VizModernizeUtil.reseed(viewsheet);
+      }
 
       if(viewsheet.getRuntimeEntry() != null) {
          AssetEntry runtimeEntry = viewsheet.getRuntimeEntry();
