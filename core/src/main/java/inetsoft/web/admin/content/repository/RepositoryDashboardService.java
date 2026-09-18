@@ -146,17 +146,17 @@ public class RepositoryDashboardService {
          String desp = model.description();
          String identifier = model.viewsheet();
          AssetEntry entry = Objects.requireNonNull(AssetEntry.createAssetEntry(identifier));
-         String oldName = model.oname();
+         String oldName = fixDashboardName(model.oname(), owner);
          Dashboard oldDashboard = registry.getDashboard(oldName);
          dependencyHandler.updateDashboardDependencies(owner, oldName, false);
-         ViewsheetEntry oldEntry = ((VSDashboard) oldDashboard).getViewsheet();
+         ViewsheetEntry oldEntry = oldDashboard instanceof VSDashboard ?
+            ((VSDashboard) oldDashboard).getViewsheet() : null;
          ViewsheetEntry viewsheet = new ViewsheetEntry(entry.getPath(), entry.getUser());
          viewsheet.setIdentifier(identifier);
          dashboard.setViewsheet(viewsheet);
          dashboard.setDescription(desp);
 
          name = fixDashboardName(name, owner);
-         oldName = fixDashboardName(oldName, owner);
          boolean renamed = oldDashboard != null && oldName != null && !oldName.equals(name) && !"".equals(oldName);
          actionRecord.setObjectName(Util.getObjectFullPath(RepositoryEntry.DASHBOARD, name, principal, owner));
 
