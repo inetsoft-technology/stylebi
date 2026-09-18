@@ -694,4 +694,114 @@ class VizModernizeUtilTest {
       params.addParameter("Category");
       vs.getSharedFrames().put(params, new CategoricalColorFrame());
    }
+
+   // ---- applyMark: the shared traversal behind modernize, revert and the Dark switch ----------
+
+   @Test
+   void applyMarkMovesALightSheetToDark() {
+      Viewsheet vs = legacySheet();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertEquals(3, VizModernizeUtil.applyMark(vs, VizMark.MODERN_DARK),
+                   "two assemblies plus the sheet itself");
+
+      assertEquals(VizMark.MODERN_DARK, vs.getVSAssemblyInfo().getVizMark());
+
+      for(Assembly assembly : vs.getAssemblies(true)) {
+         assertEquals(VizMark.MODERN_DARK,
+                      ((VSAssembly) assembly).getVSAssemblyInfo().getVizMark());
+      }
+   }
+
+   @Test
+   void applyMarkIsANoOpWhenNothingDiffers() {
+      Viewsheet vs = legacySheet();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertEquals(0, VizModernizeUtil.applyMark(vs, VizMark.MODERN_LIGHT));
+   }
+
+   @Test
+   void applyMarkReseedsOnALightToDarkFlip() {
+      Viewsheet vs = legacySheet();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      TableVSAssembly table = (TableVSAssembly) vs.getAssembly("Table1");
+      String light = table.getVSAssemblyInfo().getFormat().getDefaultFormat()
+         .getBackgroundValue();
+
+      VizModernizeUtil.applyMark(vs, VizMark.MODERN_DARK);
+
+      assertNotEquals(light, table.getVSAssemblyInfo().getFormat().getDefaultFormat()
+         .getBackgroundValue(), "the dark card background replaces the light one");
+   }
+
+   @Test
+   void applyMarkClearsEveryMarkWhenGivenNull() {
+      Viewsheet vs = legacySheet();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertEquals(3, VizModernizeUtil.applyMark(vs, null));
+      assertFalse(VizModernizeUtil.hasMarked(vs));
+   }
+
+   @Test
+   void applyMarkTouchesOnlyWhatDiffers() {
+      Viewsheet vs = legacySheet();
+      gateOn();
+      TextVSAssembly text = (TextVSAssembly) vs.getAssembly("Text1");
+      text.getVSAssemblyInfo().setVizMark(VizMark.MODERN_DARK);
+
+      assertEquals(2, VizModernizeUtil.applyMark(vs, VizMark.MODERN_DARK),
+                   "the table and the sheet; the text already matches");
+   }
+
+   @Test
+   void reseedTouchesEveryTargetWithoutMovingAnyMark() {
+      Viewsheet vs = legacySheet();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertEquals(3, VizModernizeUtil.reseed(vs), "two assemblies plus the sheet itself");
+      assertEquals(VizMark.MODERN_LIGHT, vs.getVSAssemblyInfo().getVizMark(), "marks unchanged");
+   }
+
+   @Test
+   void reseedIsWhatADensityOnlyChangeNeeds() {
+      Viewsheet vs = legacySheet();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+
+      assertEquals(0, VizModernizeUtil.applyMark(vs, VizMark.MODERN_LIGHT),
+                   "applyMark collects nothing when no mark moves, which is why reseed exists");
+      assertEquals(3, VizModernizeUtil.reseed(vs));
+   }
+
+   @Test
+   void reseedLeavesAMixedSheetMixed() {
+      Viewsheet vs = legacySheet();
+      TextVSAssembly text = (TextVSAssembly) vs.getAssembly("Text1");
+      text.getVSAssemblyInfo().setVizMark(VizMark.MODERN_DARK);
+
+      VizModernizeUtil.reseed(vs);
+
+      assertEquals(VizMark.MODERN_DARK, text.getVSAssemblyInfo().getVizMark());
+      assertNull(((TableVSAssembly) vs.getAssembly("Table1")).getVSAssemblyInfo().getVizMark());
+   }
+
+   @Test
+   void applyMarkClearsTheSharedFramesWhenItTouchesAnything() {
+      Viewsheet vs = legacySheet();
+      gateOn();
+      VizModernizeUtil.modernize(vs);
+      seedSharedFrame(vs);
+
+      VizModernizeUtil.applyMark(vs, VizMark.MODERN_DARK);
+
+      assertTrue(vs.getSharedFrames().isEmpty(),
+                 "a render prefers the sheet's shared frame over an assembly's own");
+   }
 }
