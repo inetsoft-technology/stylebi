@@ -263,8 +263,26 @@ public class HLColorFrame extends ColorFrame {
          return def;
       }
 
-      Highlight hl = getHighlight(data, row);
-      return hl != null ? hl.getForeground() : def;
+      boolean matched = false;
+
+      // Bug 76558 (VSH-003): a rule that matches but sets no foreground -- e.g. a
+      // background-only highlight, which is a no-op for a mark by design -- must not consume
+      // the match and blank out a later rule that does set one. HighlightGroup.findGroup (the
+      // axis/data-label path) already merges every matching rule field by field
+      // (HighlightGroup.mergeHighlight); this is the equivalent for the one field a mark's
+      // color is read from. Keeping the matched/unmatched distinction (null vs. def) is what
+      // preserves the brushing path, where def is set by GraphGenerator.getHLColorFrame.
+      for(int i = 0; i < rconds.length; i++) {
+         if(rconds[i].evaluate(data, row)) {
+            matched = true;
+
+            if(highlights[i].getForeground() != null) {
+               return highlights[i].getForeground();
+            }
+         }
+      }
+
+      return matched ? null : def;
    }
 
    public Highlight getHighlight(DataSet data, int row) {
