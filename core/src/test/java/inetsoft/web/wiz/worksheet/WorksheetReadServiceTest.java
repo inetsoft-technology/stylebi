@@ -1462,4 +1462,82 @@ class WorksheetReadServiceTest {
       assertNull(jm.rightKey());
       assertEquals("MERGE_JOIN", jm.op());
    }
+
+   // Bug #76788 WBS-067: unlike WBS-050's addCrossJoin()/addMergeJoin() (the plugin's own
+   // join-creation paths, which do call setLeftTable/setRightTable), the native Composer UI's
+   // MergeJoinService/CrossJoinService never populate an Operator's own leftTable/rightTable
+   // fields -- they rely entirely on the assembly's operator map key, which the Operator object
+   // itself never sees. readJoins() silently dropped every such join. The fix falls back to the
+   // assembly's own getTableNames() only when both fields are null AND there are exactly 2
+   // source tables -- the only case where that positional guess cannot mismatch a non-adjacent
+   // edge (see bug-76788-WBS-067's diagnosis/refutation).
+
+   @Test
+   void readJoinsFallsBackToTableNamesForNativeUiMergeJoinWithNullOperatorFields() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+
+      // Matches what MergeJoinService.concatenateTable actually builds: setOperation() only,
+      // leftTable/rightTable left null.
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setOperation(TableAssemblyOperator.MERGE_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+
+      MergeJoinTableAssembly join = new MergeJoinTableAssembly(
+         ws, "MJ", new TableAssembly[]{ a, b }, new TableAssemblyOperator[]{ top });
+      ws.addAssembly(join);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "MJ");
+      assertEquals(1, tm.joins().size());
+      WorksheetModel.JoinModel jm = tm.joins().get(0);
+      assertEquals("A", jm.leftTable());
+      assertEquals("B", jm.rightTable());
+      assertEquals("MERGE_JOIN", jm.op());
+   }
+
+   @Test
+   void readJoinsReportsBothEdgesForThreeTableJoinWithNonAdjacentPairing() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = TestWorksheets.tableWithColumns(ws, "A", "id");
+      EmbeddedTableAssembly b = TestWorksheets.tableWithColumns(ws, "B", "id");
+      EmbeddedTableAssembly c = TestWorksheets.tableWithColumns(ws, "C", "id");
+      ws.addAssembly(a);
+      ws.addAssembly(b);
+      ws.addAssembly(c);
+
+      // InnerJoinService always populates leftTable/rightTable on every Operator it builds, so
+      // both pairs here are fully populated -- this must pass identically before and after the
+      // fix, since canFallbackByPosition is false for a 3-source assembly.
+      RelationalJoinTableAssembly join = new RelationalJoinTableAssembly(
+         ws, "J", new TableAssembly[]{ a, b, c },
+         new TableAssemblyOperator[]{
+            innerJoinOperator("A", "B"), innerJoinOperator("B", "C") });
+      // Table C is actually joined to A, not to B: re-key the second pair to (A, C), matching
+      // how InnerJoinService.concatenateTable can attach a new table to any existing table, not
+      // just the most-recently-added one.
+      join.removeOperator("B", "C");
+      join.setOperator("A", "C", innerJoinOperator("A", "C"));
+      ws.addAssembly(join);
+
+      WorksheetModel.TableModel tm = tableNamed(read(ws), "J");
+      assertEquals(2, tm.joins().size());
+      assertTrue(tm.joins().stream()
+         .anyMatch(j -> "A".equals(j.leftTable()) && "B".equals(j.rightTable())));
+      assertTrue(tm.joins().stream()
+         .anyMatch(j -> "A".equals(j.leftTable()) && "C".equals(j.rightTable())));
+   }
+
+   private static TableAssemblyOperator innerJoinOperator(String left, String right) {
+      TableAssemblyOperator.Operator op = new TableAssemblyOperator.Operator();
+      op.setLeftTable(left);
+      op.setRightTable(right);
+      op.setOperation(TableAssemblyOperator.INNER_JOIN);
+      TableAssemblyOperator top = new TableAssemblyOperator();
+      top.addOperator(op);
+      return top;
+   }
 }

@@ -685,6 +685,13 @@ public class WorksheetReadService {
          return Collections.emptyList();
       }
 
+      String[] tnames = joinTable.getTableNames();
+      // Only safe when there are exactly 2 source tables: with 2 tables there is exactly one
+      // possible (ltable, rtable) pair, so this cannot mismatch a non-adjacent edge the way a
+      // positional guess could for 3+ table joins/merges (see bug-76788-WBS-067's refutation) --
+      // not even across a later "reorder subtables" action.
+      boolean canFallbackByPosition = tnames != null && tnames.length == 2;
+
       List<WorksheetModel.JoinModel> joins = new ArrayList<>();
 
       while(operators.hasMoreElements()) {
@@ -701,6 +708,15 @@ public class WorksheetReadService {
 
             String leftTable = op.getLeftTable();
             String rightTable = op.getRightTable();
+
+            // Tightened per refutation recheck: only fall back when BOTH fields are null --
+            // every producer actually seen (MergeJoinService/CrossJoinService) always nulls
+            // them together, so this avoids ever clobbering an already-valid field from some
+            // future producer that leaves only one side null.
+            if(leftTable == null && rightTable == null && canFallbackByPosition) {
+               leftTable = tnames[0];
+               rightTable = tnames[1];
+            }
 
             if(leftTable == null || rightTable == null) {
                continue;
