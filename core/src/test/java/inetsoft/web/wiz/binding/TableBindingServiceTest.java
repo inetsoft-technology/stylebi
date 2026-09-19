@@ -1276,27 +1276,78 @@ class TableBindingServiceTest {
       assertTrue(thrown.getMessage().toLowerCase().contains("crosstab"));
    }
 
-   /** Read side of bug-76807: get_table_binding was blind to hide/show state before this. */
+   /**
+    * Read side of bug-76807: {@code get_table_binding} was blind to hide/show state before this.
+    *
+    * <p>Deliberately does <em>not</em> hand-build the {@code TableBindingModel} via {@code
+    * TableBindingMutator.setShelf} the way the write-side tests above do (they mock {@code
+    * binding.createModel(any())} to return that hand-built model regardless of what the live
+    * assembly contains). That would bypass the real {@code TableBindingModel(refModelService,
+    * assembly)} constructor entirely and only prove {@code enrichTableVisibility} can mark an
+    * entry the test itself pre-seeded into {@code details} -- it would never exercise whether a
+    * genuinely-hidden column reaches {@code details} to begin with, which is exactly the gap a
+    * prior version of this test missed (a real {@code TableVSAssembly}'s {@code details} is built
+    * only from the shown-side {@code getColumnSelection()}, disjoint from {@code
+    * getHiddenColumns()} -- see {@code TableBindingModel}'s own constructor). So this test uses a
+    * real {@code TableVSAssembly}/{@code TableVSAssemblyInfo} and stubs {@code
+    * binding.createModel} to call the real constructor, and stubs {@code refModelService} with a
+    * real {@code ColumnRefModel(ColumnRef)} rather than a bare mock, so the column name actually
+    * round-trips.
+    */
    @Test
    void readReportsColumnVisibilityFromHiddenColumns() throws Exception {
-      TableBindingModel existing = new TableBindingModel();
-      TableBindingMutator.setShelf(existing, "details",
-                                   List.of(dim("product_id"), dim("product_name")));
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
-      info.setColumnSelection(columnSelectionOf("product_id"));
-      info.setHiddenColumns(columnSelectionOf("product_name"));
-      TableVSAssembly table = mock(TableVSAssembly.class);
-      when(table.getVSAssemblyInfo()).thenReturn(info);
+      info.setColumnSelection(columnRefSelectionOf("product_id"));
+      info.setHiddenColumns(columnRefSelectionOf("product_name"));
+      // The 2-arg constructor backs the assembly with a Viewsheet -- setVSAssemblyInfo below
+      // calls getViewsheet().resetWS() -- a mock is enough since nothing under test reads it.
+      TableVSAssembly table = new TableVSAssembly(mock(Viewsheet.class), "TableView2");
+      table.setVSAssemblyInfo(info);
       ViewsheetSessionService sessions = sessionsFor(table);
 
-      Map<String, Object> read = serviceWith(sessions, existing, mock(VSBindingModelService.class))
-         .read("tok", principal(), "TableView2");
+      inetsoft.web.binding.service.DataRefModelFactoryService refModelService =
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenAnswer(
+         invocation -> new inetsoft.web.binding.drm.ColumnRefModel(invocation.getArgument(0)));
+
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenAnswer(invocation ->
+         new TableBindingModel(refModelService, (TableVSAssembly) invocation.getArgument(0)));
+
+      TableBindingService service = new TableBindingService(
+         sessions, binding, mock(VSBindingModelService.class), refModelService,
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class));
+
+      Map<String, Object> read = service.read("tok", principal(), "TableView2");
 
       @SuppressWarnings("unchecked")
       Map<String, List<FieldRef>> shelves = (Map<String, List<FieldRef>>) (Map<String, ?>) read.get("shelves");
       List<FieldRef> details = shelves.get("details");
-      assertEquals(Boolean.TRUE, details.get(0).visible(), "product_id is shown");
-      assertEquals(Boolean.FALSE, details.get(1).visible(), "product_name is hidden");
+      List<String> columns = details.stream().map(FieldRef::column).toList();
+      assertEquals(List.of("product_id", "product_name"), columns,
+                   "the hidden column must still be reported by get_table_binding, not dropped " +
+                   "from details entirely");
+      assertEquals(Boolean.TRUE, details.get(columns.indexOf("product_id")).visible(),
+                  "product_id is shown");
+      assertEquals(Boolean.FALSE, details.get(columns.indexOf("product_name")).visible(),
+                  "product_name is hidden");
+   }
+
+   /** A ColumnSelection holding one real {@code ColumnRef} per given column name -- what a live
+    *  {@code TableVSAssemblyInfo}'s {@code getColumnSelection()}/{@code getHiddenColumns()}
+    *  actually hold, unlike {@link #columnSelectionOf}'s bare {@code AttributeRef}s (fine for the
+    *  {@code HideColumnsDialogModel} tests above, which only compare column names by string, but
+    *  not for a real {@code TableBindingModel} construction, which casts each attribute to
+    *  {@code ColumnRef}). */
+   private static inetsoft.uql.ColumnSelection columnRefSelectionOf(String... names) {
+      inetsoft.uql.ColumnSelection selection = new inetsoft.uql.ColumnSelection();
+
+      for(String name : names) {
+         selection.addAttribute(
+            new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(null, name)));
+      }
+
+      return selection;
    }
 
    private static CrosstabBindingModel withTables(String... names) {

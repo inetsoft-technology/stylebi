@@ -25,12 +25,14 @@ import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.controller.VSBindingModelService;
+import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.handler.ClearTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
@@ -1069,28 +1071,52 @@ public class TableBindingService {
     * #setFieldVisibility}. {@code get_table_binding} was blind to this state before (see
     * bug-76807): {@link TableBindingMutator#read} only ever reads {@code
     * TableBindingModel.getDetails()}, which has no visibility concept of its own.
+    *
+    * <p>A hidden column is <em>absent</em> from {@code details} to begin with -- {@link
+    * TableBindingModel}'s constructor builds it only from {@link
+    * TableVSAssembly#getColumnSelection()}, the shown side, disjoint by construction from {@code
+    * getHiddenColumns()}. So this does not just re-mark the existing list: it merges in every
+    * hidden column {@code details} is missing, the same shown+hidden union {@link
+    * HideColumnsDialogService}'s own {@code getAllColumns} builds for the write side's dialog
+    * model. Without this merge a hidden field vanishes from {@code get_table_binding} instead of
+    * reporting {@code visible: false} -- the exact silent-disappearance class of bug bug-76807
+    * exists to close, just reopened on the read side.
     */
-   private static void enrichTableVisibility(TableVSAssembly table,
-                                              Map<String, List<FieldRef>> shelfFields)
+   private void enrichTableVisibility(TableVSAssembly table,
+                                       Map<String, List<FieldRef>> shelfFields)
    {
-      List<FieldRef> details = shelfFields.get("details");
-
-      if(details == null || details.isEmpty()) {
-         return;
-      }
-
       TableVSAssemblyInfo info = (TableVSAssemblyInfo) table.getVSAssemblyInfo();
+      ColumnSelection hiddenCols = info.getHiddenColumns();
       Set<String> hidden = new HashSet<>();
-      Enumeration<DataRef> refs = info.getHiddenColumns().getAttributes();
+      Enumeration<DataRef> refs = hiddenCols.getAttributes();
 
       while(refs.hasMoreElements()) {
          hidden.add(refs.nextElement().getAttribute());
       }
 
-      List<FieldRef> enriched = new ArrayList<>(details.size());
+      List<FieldRef> details = shelfFields.get("details");
+      List<FieldRef> enriched = details == null ? new ArrayList<>() : new ArrayList<>(details);
+      Set<String> present = new HashSet<>();
 
-      for(FieldRef field : details) {
-         enriched.add(withVisibility(field, !hidden.contains(field.column())));
+      for(int i = 0; i < enriched.size(); i++) {
+         FieldRef field = enriched.get(i);
+         present.add(field.column());
+         enriched.set(i, withVisibility(field, !hidden.contains(field.column())));
+      }
+
+      Enumeration<DataRef> hiddenRefs = hiddenCols.getAttributes();
+
+      while(hiddenRefs.hasMoreElements()) {
+         DataRef ref = hiddenRefs.nextElement();
+
+         if(present.contains(ref.getAttribute())) {
+            continue;
+         }
+
+         ColumnRef col = (ColumnRef) ref.clone();
+         col.setApplyingAlias(false);
+         ColumnRefModel model = (ColumnRefModel) refModelService.createDataRefModel(col);
+         enriched.add(withVisibility(FieldRefFactory.from(model), false));
       }
 
       shelfFields.put("details", enriched);
