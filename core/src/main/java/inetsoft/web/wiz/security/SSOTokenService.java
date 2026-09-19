@@ -28,10 +28,11 @@ import inetsoft.util.PasswordEncryption;
 import inetsoft.util.Tool;
 import inetsoft.web.wiz.AppDomainUtils;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
 import java.security.*;
 import java.security.interfaces.RSAPublicKey;
 import java.time.ZoneOffset;
@@ -51,8 +52,13 @@ public class SSOTokenService {
    }
 
    @PostConstruct
-   public void init() throws IOException {
-      ssoKeyPair = PasswordEncryption.newInstance().getSSOKeyPair();
+   public void init() {
+      try {
+         ssoKeyPair = PasswordEncryption.newInstance().getSSOKeyPair();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load SSO key pair for SSO token service", e);
+      }
    }
 
    /**
@@ -226,4 +232,5 @@ public class SSOTokenService {
 
    private static final List<String> SSO_AUDIENCE = Arrays.asList("chat-app", "wiz-service");
    private static final long SSO_TOKEN_EXPIRATION_HOURS = 8L;
+   private static final Logger LOG = LoggerFactory.getLogger(SSOTokenService.class);
 }

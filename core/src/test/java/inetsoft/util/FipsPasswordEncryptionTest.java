@@ -45,12 +45,15 @@ package inetsoft.util;
  * Cases deferred - require integration context:
  *
  * updateMasterPassword() — reads/writes SreeEnv password.hash.key; needs mockStatic or full context
- * getSSOKeyPair() — Cluster distributed lock + SreeEnv persistence
  * encryptPassword() / decryptPassword() — full SreeEnv round-trip; getSecretKey()'s
  *    storage-first read is covered by getSecretKey_staleInMemoryValue_readsStorageInsteadOfSnapshot
  *
  * getJwtSigningKey() self-heal path (Bug #75541) is covered by
  * getJwtSigningKey_undersizedLegacyKey_regeneratesAndPersists.
+ *
+ * getSSOKeyPair()'s cloud-secrets-mode reuse of an existing local key (Bug #76784) is covered by
+ * getSSOKeyPair_cloudSecretsEnabled_reusesExistingLocalKeyWithoutRegenerating; its distributed-lock
+ * ordering itself is still not separately exercised here.
  */
 
 import com.nimbusds.jose.*;
@@ -62,6 +65,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -75,6 +79,10 @@ import java.util.Base64;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -414,6 +422,44 @@ class FipsPasswordEncryptionTest {
          PrivateKey restored = encryption.decryptSSOPrivateKey(
             Base64.getEncoder().encodeToString(encrypted), encryption.getMasterKey());
          assertArrayEquals(keyPair.getPrivate().getEncoded(), restored.getEncoded());
+      }
+
+      // Bug #76784: getSSOKeyPair()'s private-key read used to go through
+      // SreeEnv.getPassword/getPasswordFromStorage -- unlike jwt.signing.key/
+      // password.encryption.key's raw getProperty/getPropertyFromStorage reads -- which funnels
+      // into decodePassword()'s Tool.isCloudSecrets() branch. Switching secrets.type away from
+      // "local" made that branch treat the stored (pure Base64, non-cloud) value as a cloud
+      // secret reference and throw, crashing every @PostConstruct that resolves the SSO key pair
+      // (WizServiceAuthenticationFilter, SSOTokenService). Guards that a pre-existing
+      // local-encrypted key still decrypts -- byte-identical, no regeneration -- once the read is
+      // switched to the raw property accessor, exactly like its two siblings.
+      @Test
+      void getSSOKeyPair_cloudSecretsEnabled_reusesExistingLocalKeyWithoutRegenerating()
+         throws Exception
+      {
+         String ambientPrivate = readStoredProperty("sso.rsa.private.key");
+         String ambientPublic = readStoredProperty("sso.rsa.public.key");
+
+         try {
+            KeyPair original = encryption.getSSOKeyPair();
+
+            try(MockedStatic<Tool> toolMock = mockStatic(Tool.class, CALLS_REAL_METHODS)) {
+               toolMock.when(Tool::isCloudSecrets).thenReturn(true);
+               toolMock.when(() -> Tool.loadCredentials(anyString(), eq(false)))
+                  .thenThrow(new RuntimeException("not a valid cloud secret reference"));
+
+               KeyPair reread = encryption.getSSOKeyPair();
+
+               assertArrayEquals(original.getPrivate().getEncoded(),
+                  reread.getPrivate().getEncoded(),
+                  "Bug #76784: switching secrets.type must not regenerate an existing local SSO key");
+               assertArrayEquals(original.getPublic().getEncoded(), reread.getPublic().getEncoded());
+            }
+         }
+         finally {
+            restoreStoredProperty("sso.rsa.private.key", ambientPrivate);
+            restoreStoredProperty("sso.rsa.public.key", ambientPublic);
+         }
       }
    }
 
