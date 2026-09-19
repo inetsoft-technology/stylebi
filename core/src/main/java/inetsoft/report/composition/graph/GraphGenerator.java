@@ -3783,6 +3783,7 @@ public abstract class GraphGenerator {
       else if(GraphTypes.isGantt(chartType)) {
          IntervalElement elem = new IntervalElement();
          elem.setLabelPlacement(GraphConstants.CENTER);
+         elem.setZeroHeight(1);
          elements.add(elem);
 
          if(((GanttChartInfo) info).getRTMilestoneField() instanceof ChartAggregateRef) {
@@ -4601,7 +4602,8 @@ public abstract class GraphGenerator {
 
       if(GraphTypeUtil.supportsFrame(info, chartType2, getShapeFrame(elem), elem,
                                      desc.getPlotDescriptor()) &&
-         (elem.getShapeFrame() == null || GraphTypes.isGantt(chartType)))
+         (elem.getShapeFrame() == null ||
+          GraphTypes.isGantt(chartType) && !(elem instanceof PointElement)))
       {
          fixShapeFrame(getShapeFrame(elem), elem);
       }
