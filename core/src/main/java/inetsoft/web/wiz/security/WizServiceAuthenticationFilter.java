@@ -73,7 +73,7 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       try {
          ssoKeyPair = PasswordEncryption.newInstance().getSSOKeyPair();
       }
-      catch(IOException e) {
+      catch(Exception e) {
          LOG.error("Failed to load SSO key pair for WIZ service authentication", e);
       }
    }

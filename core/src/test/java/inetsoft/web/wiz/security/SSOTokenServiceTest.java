@@ -18,13 +18,10 @@
 package inetsoft.web.wiz.security;
 
 /*
- * Cases deferred - require additional static-constructor isolation:
- *
- * init() -> calls PasswordEncryption.newInstance().getSSOKeyPair()
- *           and is covered indirectly here by injecting a test key pair.
- *           A direct unit test would need an extra mockStatic tier for
- *           PasswordEncryption and adds little value beyond the existing
- *           createSSOToken()/getJWKS() key-usage assertions.
+ * init() -> calls PasswordEncryption.newInstance().getSSOKeyPair(); the happy path is covered
+ * indirectly here by injecting a test key pair in setUp(). The exception path (Bug #76784) is
+ * covered directly by init_getSSOKeyPairThrowsRuntimeException_doesNotPropagate, with its own
+ * mockStatic tier for PasswordEncryption.
  */
 
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -33,6 +30,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.FSUser;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.XSessionService;
+import inetsoft.util.PasswordEncryption;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,7 +71,7 @@ class SSOTokenServiceTest {
       // which requires a Spring context. Mock it to avoid that dependency.
       XSessionService mockSessionService = mock(XSessionService.class);
       AtomicLong counter = new AtomicLong(0);
-      when(mockSessionService.createSessionID(anyString(), any()))
+      lenient().when(mockSessionService.createSessionID(anyString(), any()))
          .thenAnswer(inv -> inv.getArgument(0, String.class) + counter.incrementAndGet());
 
       xSessionServiceMock = mockStatic(XSessionService.class);
@@ -317,6 +315,33 @@ class SSOTokenServiceTest {
 
       JWTClaimsSet claims = SignedJWT.parse(token).getJWTClaimsSet();
       assertNull(claims.getIssuer(), "Null issuer input must remain null");
+   }
+
+   // ── Bug #76784: @PostConstruct must not crash the server ───────────────────
+
+   @Test
+   void init_getSSOKeyPairThrowsRuntimeException_doesNotPropagate() {
+      // A fresh service, not the one from setUp() whose ssoKeyPair is preset directly -- this
+      // exercises init() itself, the @PostConstruct method.
+      SSOTokenService freshService = new SSOTokenService(securityProvider);
+
+      try(MockedStatic<PasswordEncryption> peMock = mockStatic(PasswordEncryption.class)) {
+         PasswordEncryption encryption = mock(PasswordEncryption.class);
+         peMock.when(PasswordEncryption::newInstance).thenReturn(encryption);
+         try {
+            when(encryption.getSSOKeyPair()).thenThrow(
+               new RuntimeException("not a valid cloud secret reference"));
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+
+         // Bug #76784: switching secrets.type away from "local" made getSSOKeyPair() throw an
+         // uncaught RuntimeException for a pre-existing local-encrypted key, which used to
+         // propagate out of this @PostConstruct, fail the bean, and crash Tomcat startup.
+         assertDoesNotThrow(freshService::init,
+            "a RuntimeException from getSSOKeyPair() must be caught, not crash the server");
+      }
    }
 
    @Test

@@ -305,11 +305,11 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
          // storage is unreadable. See getJwtSigningKey() for why storage-first (rather than
          // storage-as-a-null-fallback) is required: the snapshot is stale both during a
          // simultaneous multi-node start and at the moment the property-change listener fires.
-         String privateKeyProperty = SreeEnv.getPasswordFromStorage("sso.rsa.private.key");
+         String privateKeyProperty = SreeEnv.getPropertyFromStorage("sso.rsa.private.key");
          String publicKeyProperty = SreeEnv.getPropertyFromStorage("sso.rsa.public.key");
 
          if(privateKeyProperty == null) {
-            privateKeyProperty = SreeEnv.getPassword("sso.rsa.private.key");
+            privateKeyProperty = SreeEnv.getProperty("sso.rsa.private.key");
          }
 
          if(publicKeyProperty == null) {

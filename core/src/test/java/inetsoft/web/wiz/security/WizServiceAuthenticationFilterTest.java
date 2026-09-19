@@ -21,6 +21,7 @@ import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
+import inetsoft.util.PasswordEncryption;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -108,6 +109,34 @@ class WizServiceAuthenticationFilterTest {
    void tearDown() {
       sreeEnvMock.close();
       securityEngineMock.close();
+   }
+
+   // ── Bug #76784: @PostConstruct must not crash the server ───────────────────
+
+   @Test
+   void initializeKeyPair_getSSOKeyPairThrowsRuntimeException_doesNotPropagate() {
+      // A fresh filter, not the one from setUp() whose ssoKeyPair is preset directly -- this
+      // exercises initializeKeyPair() itself, the @PostConstruct method.
+      WizServiceAuthenticationFilter freshFilter =
+         new WizServiceAuthenticationFilter(licenseProvider, authService);
+
+      try(MockedStatic<PasswordEncryption> peMock = mockStatic(PasswordEncryption.class)) {
+         PasswordEncryption encryption = mock(PasswordEncryption.class);
+         peMock.when(PasswordEncryption::newInstance).thenReturn(encryption);
+         try {
+            when(encryption.getSSOKeyPair()).thenThrow(
+               new RuntimeException("not a valid cloud secret reference"));
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+
+         // Bug #76784: switching secrets.type away from "local" made getSSOKeyPair() throw an
+         // uncaught RuntimeException for a pre-existing local-encrypted key, which used to
+         // propagate out of this @PostConstruct, fail the bean, and crash Tomcat startup.
+         assertDoesNotThrow(freshFilter::initializeKeyPair,
+            "a RuntimeException from getSSOKeyPair() must be caught, not crash the server");
+      }
    }
 
    // ── outer gates, unchanged behavior ───────────────────────────────────────
