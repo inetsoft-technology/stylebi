@@ -273,7 +273,26 @@ public class IdentityChangesetApplyService {
       request.setRoles(IdentityMerge.toIdentityIds(spec.getRoles(), orgId));
       request.setTheme(spec.getTheme());
 
-      securityService.createUser(request, orgId, user);
+      try {
+         securityService.createUser(request, orgId, user);
+      }
+      catch(Exception e) {
+         if(tryGet(() -> securityService.getUser(id, user)) == null) {
+            // Nothing was ever created -- createUser's precondition checks (permission,
+            // existence, validateLocale) all run before its first write (provider.addUser), with
+            // no side effect on any other entity, so "still doesn't exist" is sound proof this
+            // was a clean no-op, not a partial mutation (unlike update/delete, which delegate to
+            // IdentityService.syncIdentity and can have side effects before their own final
+            // write -- see isUnchangedSince's javadoc).
+            results.add(new IdentityApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+               messageOf(e), null));
+            writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                      null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+            return;
+         }
+
+         throw e;
+      }
 
       SecurityUser after = tryGet(() -> securityService.getUser(id, user));
       boolean verified = after != null;
@@ -306,7 +325,22 @@ public class IdentityChangesetApplyService {
       request.setRoles(IdentityMerge.toIdentityIds(spec.getRoles(), orgId));
       request.setTheme(spec.getTheme());
 
-      securityService.createGroup(request, orgId, user);
+      try {
+         securityService.createGroup(request, orgId, user);
+      }
+      catch(Exception e) {
+         if(tryGet(() -> securityService.getGroup(id, user)) == null) {
+            // See applyCreateUser's identical catch above -- createGroup has the same shape
+            // (no write before its own precondition checks fail, no other-entity side effect).
+            results.add(new IdentityApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+               messageOf(e), null));
+            writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                      null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+            return;
+         }
+
+         throw e;
+      }
 
       SecurityGroup after = tryGet(() -> securityService.getGroup(id, user));
       boolean verified = after != null;
@@ -341,7 +375,22 @@ public class IdentityChangesetApplyService {
       request.setDefaultRole(spec.getDefaultRole());
       request.setSysAdmin(spec.getSysAdmin());
 
-      securityService.createRole(request, orgId, user);
+      try {
+         securityService.createRole(request, orgId, user);
+      }
+      catch(Exception e) {
+         if(tryGet(() -> securityService.getRole(id, user)) == null) {
+            // See applyCreateUser's identical catch above -- createRole has the same shape
+            // (no write before its own precondition checks fail, no other-entity side effect).
+            results.add(new IdentityApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+               messageOf(e), null));
+            writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                      null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+            return;
+         }
+
+         throw e;
+      }
 
       SecurityRole after = tryGet(() -> securityService.getRole(id, user));
       boolean verified = after != null;
@@ -373,7 +422,24 @@ public class IdentityChangesetApplyService {
 
       // No member pre-population and no copyFromOrgID -- spec section 1/2: an org create in this
       // cut is always empty, so `createOrganization`'s member-creation branch is never reached.
-      securityService.createOrganization(request, null, user);
+      try {
+         securityService.createOrganization(request, null, user);
+      }
+      catch(Exception e) {
+         if(tryGet(() -> securityService.getOrganization(organizationId, user)) == null) {
+            // See applyCreateUser's identical catch above -- createOrganization has the same
+            // shape (e.g. validateLocale throws strictly before its first write, per its own
+            // comment at the call site in SecurityService), no other-entity side effect. This is
+            // the exact live repro for this bug (an invalid locale on org create).
+            results.add(new IdentityApplyOutcome(key, null, null, AdminChangeRecord.STATUS_FAILED,
+               messageOf(e), null));
+            writeAudit(txId, task, key, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
+                      null, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome, user);
+            return;
+         }
+
+         throw e;
+      }
 
       SecurityOrganization after = tryGet(() -> securityService.getOrganization(organizationId, user));
       boolean verified = after != null;

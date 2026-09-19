@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.identities;
 
 import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.*;
+import inetsoft.web.admin.InvalidResourceException;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
@@ -655,6 +656,103 @@ class IdentityChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // create-side pre-mutation validation refusals must not be misreported as rollback-failed
+   // (bug 76790 -- same family as bug 76444 above, but for create* instead of delete*; the
+   // update* methods are a deliberately separate follow-up, NOT fixed here, because their
+   // backing IdentityService calls have real cross-entity side effects before their final
+   // persist that a plain entity-projection re-check cannot see -- see bug 76790's diagnosis).
+   // -------------------------------------------------------------------------
+
+   @Test void userCreateRefusedByValidationReportsPlainFailedNotRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      // Every getUser call -- resolve() helper, apply()'s internal re-resolve, and this fix's
+      // post-throw re-check -- confirms the user never existed, since createUser's precondition
+      // checks (e.g. weak-password validation) run before its first write.
+      when(securityService.getUser(eq(id), eq(user)))
+         .thenThrow(new MissingResourceException("no such user"));
+      doThrow(new Exception("Password does not meet strength requirements"))
+         .when(securityService).createUser(any(SecurityUser.class), eq("host-org"), eq(user));
+
+      var result = service.apply(applyRequest("create bob", createUser("bob")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNull(result.rollbackFailures());
+      verify(securityService, times(3)).getUser(eq(id), eq(user));
+   }
+
+   @Test void groupCreateRefusedByValidationReportsPlainFailedNotRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("analysts", "host-org");
+      when(securityService.getGroup(eq(id), eq(user)))
+         .thenThrow(new MissingResourceException("no such group"));
+      doThrow(new Exception("Invalid parent group"))
+         .when(securityService).createGroup(any(SecurityGroup.class), eq("host-org"), eq(user));
+
+      var result = service.apply(applyRequest("create analysts", createGroup("analysts")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNull(result.rollbackFailures());
+      verify(securityService, times(3)).getGroup(eq(id), eq(user));
+   }
+
+   @Test void roleCreateRefusedByValidationReportsPlainFailedNotRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("viewer", "host-org");
+      when(securityService.getRole(eq(id), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"));
+      doThrow(new Exception("Invalid inherited role"))
+         .when(securityService).createRole(any(SecurityRole.class), eq("host-org"), eq(user));
+
+      var result = service.apply(applyRequest("create viewer", createRole("viewer")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNull(result.rollbackFailures());
+      verify(securityService, times(3)).getRole(eq(id), eq(user));
+   }
+
+   @Test void organizationCreateRefusedByLocaleValidationReportsPlainFailedNotRollbackFailed()
+      throws Exception
+   {
+      String orgId = "qa-org";
+      // This is the bug's exact live repro: validateLocale throws InvalidResourceException
+      // strictly before SecurityService.createOrganization's first write.
+      when(securityService.getOrganization(eq(orgId), eq(user)))
+         .thenThrow(new MissingResourceException("no such organization"));
+      doThrow(new InvalidResourceException("Invalid locale: not-a-real-locale-code"))
+         .when(securityService).createOrganization(any(SecurityOrganization.class), isNull(), eq(user));
+
+      var result = service.apply(applyRequest("create qa-org", createOrganization(orgId, "QA Org")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNull(result.rollbackFailures());
+      verify(securityService, times(3)).getOrganization(eq(orgId), eq(user));
+   }
+
+   @Test void organizationCreateAmbiguousMidMutationFailureStillReportsRollbackFailed()
+      throws Exception
+   {
+      String orgId = "qa-org";
+      // Unlike the clean-refusal case above, the org DOES exist after the throw (e.g. a partial
+      // write) -- the fix must not swallow this into a false no-op; it must rethrow and let the
+      // outer loop's conservative "unknown state" handling apply, same as before this fix.
+      when(securityService.getOrganization(eq(orgId), eq(user)))
+         .thenThrow(new MissingResourceException("no such organization"))
+         .thenThrow(new MissingResourceException("no such organization"))
+         .thenReturn(existingOrganization(orgId));
+      doThrow(new Exception("Failed to create identity " + orgId + "."))
+         .when(securityService).createOrganization(any(SecurityOrganization.class), isNull(), eq(user));
+
+      var result = service.apply(applyRequest("create qa-org", createOrganization(orgId, "QA Org")), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertEquals(1, result.rollbackFailures().size());
+      verify(securityService, times(3)).getOrganization(eq(orgId), eq(user));
+   }
+
+   // -------------------------------------------------------------------------
    // organization delete -- non-compensable by design (spec section 6 item 5)
    // -------------------------------------------------------------------------
 
@@ -841,6 +939,16 @@ class IdentityChangesetApplyServiceTest {
       IdentitySpec spec = new IdentitySpec();
       spec.setName(name);
       spec.setPassword("Password1!AAA");
+      change.setSpec(spec);
+      return change;
+   }
+
+   private static IdentityChangeRequest createGroup(String name) {
+      IdentityChangeRequest change = new IdentityChangeRequest();
+      change.setVerb("create");
+      change.setUnitType("group");
+      IdentitySpec spec = new IdentitySpec();
+      spec.setName(name);
       change.setSpec(spec);
       return change;
    }
