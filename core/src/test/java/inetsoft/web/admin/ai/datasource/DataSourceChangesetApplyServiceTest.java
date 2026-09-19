@@ -437,6 +437,73 @@ class DataSourceChangesetApplyServiceTest {
       assertEquals("Orders", result.rollbackFailures().get(0).property());
    }
 
+   // Bug 76808: a throw strictly BEFORE the mutating call must not by itself force
+   // ROLLBACK_FAILED -- the item was never touched, so a fully-verified rollback (of everything
+   // that WAS touched, i.e. nothing here) must still report ROLLED_BACK. Mirrors bug 76567's fix
+   // for LicenseChangesetApplyService.
+   @Test void throwBeforeMutatingCallMustNotForceRollbackFailed() throws Exception {
+      // Build the request FIRST (this itself calls getDataSource once, during preview/plan
+      // resolution) -- only THEN wire the fault so it fires solely inside apply()'s own re-resolve,
+      // strictly before the mutating call.
+      DataSourceApplyRequest req = applyRequest("update url",
+         false, updateChange("Orders", Map.of("url", "jdbc:h2:mem:test2")));
+
+      // apply() itself re-resolves the plan (1st getDataSource call, before the per-item loop even
+      // starts) before applyUpdate makes its OWN re-resolve (2nd call) immediately before the
+      // mutating updateDataSource call -- let the 1st succeed normally and only fault the 2nd, so
+      // the throw lands strictly inside the per-item loop's try/catch, before any mutation.
+      when(dataSourceService.getDataSource(eq("id-orders"), eq(user)))
+         .thenAnswer(inv -> copyMasked(store.get("Orders")))
+         .thenThrow(new IllegalStateException("boom before any mutation"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(dataSourceService, never()).updateDataSource(any(), any(), any());
+      assertEquals("jdbc:h2:mem:test", store.get("Orders").getUrl(),
+                  "nothing was ever mutated -- this is a genuine zero-net-change no-op");
+   }
+
+   // Bug 76808: same "pre-mutation throw must not force rollback failed" proof, for the delete
+   // verb -- fault the SECOND getDataSource read (inside applyDelete itself, before the dependency
+   // preflight and the mutating deleteDataSource call), leaving the 1st (apply()'s own re-resolve)
+   // to succeed normally.
+   @Test void throwBeforeDeleteMutatingCallMustNotForceRollbackFailed() throws Exception {
+      DataSourceApplyRequest req = applyRequest("delete it", true, deleteChange("Orders", null));
+
+      when(dataSourceService.getDataSource(eq("id-orders"), eq(user)))
+         .thenAnswer(inv -> copyMasked(store.get("Orders")))
+         .thenThrow(new IllegalStateException("boom before any mutation"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(dataSourceService, never()).deleteDataSource(any(), anyBoolean(), any());
+      assertNotNull(store.get("Orders"), "nothing was ever mutated -- this is a genuine no-op");
+   }
+
+   // Bug 76808 per-verb coverage: applyFolderCreate has no pre-mutation service call of its own to
+   // fault (unlike update/delete) -- its only mutating-adjacent call is createDataSourceFolder
+   // itself, immediately after mutationEntered is set true. This proves the OTHER half of the same
+   // gate for this verb: a throw that DOES reach the mutating call must still force
+   // ROLLBACK_FAILED, exactly like throwMidApplyIsReportedAsUnknownStateAndRollbackFailed does for
+   // update.
+   @Test void throwDuringFolderCreateMutatingCallIsReportedAsRollbackFailed() throws Exception {
+      doThrow(new IllegalStateException("boom")).when(dataSourceService)
+         .createDataSourceFolder(eq("Examples/NewFolder"), eq(user));
+
+      DataSourceApplyRequest req = applyRequest("create folder",
+         false, folderCreateChange("Examples/NewFolder"));
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertEquals(1, result.rollbackFailures().size());
+      assertEquals("folder:Examples/NewFolder", result.rollbackFailures().get(0).property());
+   }
+
    /** Two-entry plan: the first (Orders) update succeeds; the second (Reports) fails verification
     * because its {@code updateDataSource} call is stubbed to silently no-op (the URL never
     * actually changes) -- forcing the whole apply into rollback, which must restore Orders' ORIGINAL
