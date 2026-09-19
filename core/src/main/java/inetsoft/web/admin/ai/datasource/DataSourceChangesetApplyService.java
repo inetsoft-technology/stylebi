@@ -31,6 +31,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -118,6 +119,13 @@ public class DataSourceChangesetApplyService {
          List<Undo> undoable = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
          boolean failed = false;
+         // Whether the item that threw (if any) had already entered its own mutating call
+         // (createDataSourceFolder/updateDataSource/deleteDataSource) before the throw -- only that
+         // case is a genuine partial-mutation risk that must force STATUS_ROLLBACK_FAILED on its
+         // own; a throw that fires strictly before the mutating call means the item was never
+         // touched, so it must not by itself override an otherwise fully-verified rollback (bug
+         // 76808, mirroring bug 76567's LicenseChangesetApplyService fix).
+         boolean unknownStateMutationEntered = false;
 
          List<DataSourceChangeRequest> originals = req.getChanges();
 
@@ -125,10 +133,11 @@ public class DataSourceChangesetApplyService {
             PlanChange change = plan.changes().get(i);
             DataSourceChangeRequest original = originals.get(i);
             String key = change.property();
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                applyOne(txId, reviewedTask, key, original, user, backupRef, reviewOutcome, results,
-                       undoable);
+                       undoable, mutationEntered);
             }
             catch(Exception e) {
                // A throw carries no verifiable before/after evidence for THIS change -- must never
@@ -137,6 +146,7 @@ public class DataSourceChangesetApplyService {
                   AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
                unknownStateFailures.add(new RollbackFailure(key,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               unknownStateMutationEntered = mutationEntered.get();
                failed = true;
                break;
             }
@@ -152,14 +162,19 @@ public class DataSourceChangesetApplyService {
                                              backupRef, Collections.unmodifiableList(results), null);
          }
 
-         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, reviewedTask, undoable, backupRef, reviewOutcome, user));
+         List<RollbackFailure> rollbackOwnFailures =
+            rollback(txId, reviewedTask, undoable, backupRef, reviewOutcome, user);
 
-         if(failures.isEmpty()) {
+         // An unknownStateFailures entry only forces rollback-failed when that item's own mutating
+         // call had actually been entered (a real partial-mutation risk); if it never touched the
+         // data source, it must not by itself override an otherwise fully-verified rollback.
+         if(rollbackOwnFailures.isEmpty() && !unknownStateMutationEntered) {
             return new DataSourceApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK,
                                              backupRef, Collections.unmodifiableList(results), null);
          }
 
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollbackOwnFailures);
          LOG.error("Data source changeset {} rollback failed; data sources still changed: {}", txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
          return new DataSourceApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED,
@@ -173,20 +188,23 @@ public class DataSourceChangesetApplyService {
 
    private void applyOne(String txId, String task, String key, DataSourceChangeRequest original,
                          Principal user, String backupRef, String reviewOutcome,
-                         List<DataSourceApplyOutcome> results, List<Undo> undoable)
+                         List<DataSourceApplyOutcome> results, List<Undo> undoable,
+                         AtomicBoolean mutationEntered)
       throws Exception
    {
       String verb = DataSourceChangePlanService.requireVerb("change", original.getVerb());
 
       if(DataSourceChangeRequest.VERB_UPDATE.equals(verb)) {
-         applyUpdate(txId, task, key, original, user, backupRef, reviewOutcome, results, undoable);
+         applyUpdate(txId, task, key, original, user, backupRef, reviewOutcome, results, undoable,
+                    mutationEntered);
       }
       else if(DataSourceChangeRequest.VERB_CREATE.equals(verb)) {
          applyFolderCreate(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                           undoable);
+                           undoable, mutationEntered);
       }
       else {
-         applyDelete(txId, task, key, original, user, backupRef, reviewOutcome, results, undoable);
+         applyDelete(txId, task, key, original, user, backupRef, reviewOutcome, results, undoable,
+                    mutationEntered);
       }
    }
 
@@ -201,12 +219,14 @@ public class DataSourceChangesetApplyService {
    private void applyFolderCreate(String txId, String task, String key,
                                   DataSourceChangeRequest original, Principal user,
                                   String backupRef, String reviewOutcome,
-                                  List<DataSourceApplyOutcome> results, List<Undo> undoable)
+                                  List<DataSourceApplyOutcome> results, List<Undo> undoable,
+                                  AtomicBoolean mutationEntered)
       throws Exception
    {
       String folderPath = original.getFolderPath();
       String beforeProjection = "(does not exist)";
 
+      mutationEntered.set(true);
       dataSourceService.createDataSourceFolder(folderPath, user);
 
       boolean verified = dataSourceService.dataSourceFolderExists(folderPath);
@@ -227,7 +247,8 @@ public class DataSourceChangesetApplyService {
 
    private void applyUpdate(String txId, String task, String name, DataSourceChangeRequest original,
                             Principal user, String backupRef, String reviewOutcome,
-                            List<DataSourceApplyOutcome> results, List<Undo> undoable)
+                            List<DataSourceApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
       throws Exception
    {
       // Section 2/6: re-resolve id fresh, from the name, against the live state AT APPLY TIME --
@@ -251,6 +272,7 @@ public class DataSourceChangesetApplyService {
       }
 
       String beforeProjection = DataSourceProjection.project(before);
+      mutationEntered.set(true);
       dataSourceService.updateDataSource(id, proposed, user);
 
       // Re-resolve by the NEW name (a rename may have just happened) to confirm the change landed
@@ -279,7 +301,8 @@ public class DataSourceChangesetApplyService {
 
    private void applyDelete(String txId, String task, String name, DataSourceChangeRequest original,
                             Principal user, String backupRef, String reviewOutcome,
-                            List<DataSourceApplyOutcome> results, List<Undo> undoable)
+                            List<DataSourceApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
       throws Exception
    {
       boolean force = Boolean.TRUE.equals(original.getForce());
@@ -297,6 +320,7 @@ public class DataSourceChangesetApplyService {
          "deleted with force: true despite " + dependencies.size() + " dependent asset(s) still " +
          "referencing this data source: " + DataSourceProjection.projectDependencies(dependencies);
 
+      mutationEntered.set(true);
       dataSourceService.deleteDataSource(id, force, user);
 
       boolean verified;
