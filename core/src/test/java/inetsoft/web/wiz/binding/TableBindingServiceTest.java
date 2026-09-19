@@ -517,9 +517,11 @@ class TableBindingServiceTest {
 
       inetsoft.report.composition.VSTableLens lens =
          mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
       when(lens.getColCount()).thenReturn(2);
-      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
-      when(lens.getTableDataPath(0, 1)).thenReturn(headerPath("Total"));
+      when(lens.getObject(0, 0)).thenReturn("Region");
+      when(lens.getObject(0, 1)).thenReturn("Total");
 
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessionsWithLens(assembly, "Table1", lens),
@@ -542,8 +544,10 @@ class TableBindingServiceTest {
 
       inetsoft.report.composition.VSTableLens lens =
          mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
       when(lens.getColCount()).thenReturn(1);
-      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
+      when(lens.getObject(0, 0)).thenReturn("Region");
 
       VSBindingModelService bindings = mock(VSBindingModelService.class);
       List<String> applied = serviceWith(sessionsWithLens(assembly, "Table1", lens),
@@ -566,8 +570,10 @@ class TableBindingServiceTest {
 
       inetsoft.report.composition.VSTableLens lens =
          mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
       when(lens.getColCount()).thenReturn(1);
-      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
+      when(lens.getObject(0, 0)).thenReturn("Region");
 
       for(double bad : new double[]{ 0.0, -5.0, Double.NaN, Double.POSITIVE_INFINITY }) {
          VSBindingModelService bindings = mock(VSBindingModelService.class);
@@ -594,8 +600,10 @@ class TableBindingServiceTest {
 
       inetsoft.report.composition.VSTableLens lens =
          mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
       when(lens.getColCount()).thenReturn(1);
-      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
+      when(lens.getObject(0, 0)).thenReturn("Region");
 
       TableBindingService service = serviceWith(sessionsWithLens(assembly, "Table1", lens),
                                                 existing, mock(VSBindingModelService.class));
@@ -617,9 +625,11 @@ class TableBindingServiceTest {
 
       inetsoft.report.composition.VSTableLens lens =
          mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
       when(lens.getColCount()).thenReturn(2);
-      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Region"));
-      when(lens.getTableDataPath(0, 1)).thenReturn(headerPath("Region"));
+      when(lens.getObject(0, 0)).thenReturn("Region");
+      when(lens.getObject(0, 1)).thenReturn("Region");
 
       TableBindingService service = serviceWith(sessionsWithLens(assembly, "Table1", lens),
                                                 existing, mock(VSBindingModelService.class));
@@ -628,6 +638,89 @@ class TableBindingServiceTest {
          () -> service.setColumnWidths("tok", principal(), "Table1", Map.of("Region", 100.0)));
       assertTrue(thrown.getMessage().contains("ambiguous"));
       verify(info, never()).setColumnWidthValue2(anyInt(), anyDouble(), any());
+   }
+
+   /**
+    * Regression test for the "wrong matching key" defect confirmed via a live
+    * {@code set_column_widths} call against a running server: a crosstab dimension header
+    * cell's {@code TableDataPath} last segment is an internal positional token ({@code
+    * "Cell [0,0]"}, see {@code CrossFilterDataDescriptor.getCellDataPath}), not the rendered
+    * text -- matching against the path (as the pre-fix implementation did) could never find a
+    * dimension header by its rendered name, even though it is plainly visible. The fix matches
+    * the lens's actual rendered cell value ({@code getObject}) instead.
+    */
+   @Test
+   void setColumnWidthsMatchesACrosstabDimensionHeaderByItsRenderedCellValue() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("CT1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
+      // The path's own last segment is an internal positional token, not the rendered text --
+      // proves the fix isn't (still) matching against getTableDataPath.
+      when(lens.getTableDataPath(0, 0)).thenReturn(new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" }));
+      when(lens.getObject(0, 0)).thenReturn("SALES_REP_NAME");
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessionsWithLens(assembly, "CT1", lens),
+                                         existing, bindings)
+         .setColumnWidths("tok", principal(), "CT1", Map.of("SALES_REP_NAME", 150.0));
+
+      verify(info).setColumnWidthValue2(0, 150.0, lens);
+      assertEquals(List.of("SALES_REP_NAME -> 150px"), applied);
+   }
+
+   /**
+    * Regression test for the "L-shape scan-coverage gap" defect: on a non-side-by-side crosstab
+    * (1 row dimension, 1 column dimension, 2+ aggregates), each aggregate's own label renders in
+    * column 0 at a row past the header-row rectangle ({@code CrossTabFilter}'s "no label header
+    * and side by side is false" branch writes {@code getMeasureHeader(i, false)} -- the
+    * aggregate's own full name -- to {@code data[ccount + i][0]}), never in row 0 -- a
+    * row-0-only scan can never find it. The fix scans the same L-shaped region {@code
+    * SetTableHeaderAliasHandler.findHeaderPath} already scans for {@code set_column_labels}.
+    */
+   @Test
+   void setColumnWidthsMatchesANonSideBySideAggregateHeaderPastTheHeaderRowRectangle()
+      throws Exception
+   {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn("CT1");
+      inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo info =
+         mock(inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo.class);
+      when(assembly.getInfo()).thenReturn(info);
+
+      // 1 row dim ("Date"), 1 col dim, 2 non-side-by-side aggregates: headerRowCount=1 (the
+      // single column-dimension header row), headerColCount=1 (the row-dimension column); the
+      // two aggregate labels render at (1,0) and (2,0), past the header-row rectangle.
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(3);
+      when(lens.getObject(0, 0)).thenReturn("Date");
+      when(lens.getObject(0, 1)).thenReturn("2024");
+      when(lens.getObject(1, 0)).thenReturn("Sum(Paid)");
+      when(lens.getObject(2, 0)).thenReturn("Sum(Cost)");
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessionsWithLens(assembly, "CT1", lens),
+                                         existing, bindings)
+         .setColumnWidths("tok", principal(), "CT1", Map.of("Sum(Paid)", 90.0));
+
+      verify(info).setColumnWidthValue2(0, 90.0, lens);
+      assertEquals(List.of("Sum(Paid) -> 90px"), applied);
    }
 
    @Test
@@ -1255,12 +1348,6 @@ class TableBindingServiceTest {
                                               VSBindingModelService bindings)
    {
       return serviceWith(sessionsFor(assembly), model, bindings);
-   }
-
-   private static inetsoft.report.TableDataPath headerPath(String name) {
-      return new inetsoft.report.TableDataPath(
-         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
-         new String[]{ name });
    }
 
    /** Like {@link #sessionsFor}, but with a render sandbox that resolves {@code lens} for
