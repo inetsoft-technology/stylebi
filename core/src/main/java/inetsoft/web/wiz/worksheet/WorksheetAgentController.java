@@ -522,6 +522,15 @@ public class WorksheetAgentController {
          return;
       }
 
+      // add_mirror's cross-worksheet form (path/scope) needs AssetRepository + RuntimeWorksheet
+      // to resolve the source asset and build an outer mirror -- Editor has neither. The
+      // same-worksheet form (source only, no path) still goes through the ordinary dispatch
+      // switch below, unchanged.
+      if("add_mirror".equals(req.op()) && req.path() != null && !req.path().isBlank()) {
+         addWorksheetMirror(sessionToken, req, user);
+         return;
+      }
+
       // auto_layout uses mxGraph — needs LayoutGraphService.
       if("auto_layout".equals(req.op())) {
          autoLayout(sessionToken, req, user);
@@ -3309,6 +3318,71 @@ public class WorksheetAgentController {
          }
 
          mirror.updateMirror(assetRepository, user);
+         return null;
+      });
+   }
+
+   // ---------------------------------------------------------------------------
+   // Add cross-worksheet mirror (add_mirror with path/scope)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Adds a SAVED worksheet asset as an outer (cross-worksheet) mirror -- the same construction
+    * the native Composer UI performs when a repository-tree worksheet is dropped onto another
+    * worksheet's canvas ({@link inetsoft.web.composer.ws.WorksheetOpenAssetService#dropWorksheet},
+    * read-only reference here; not called directly since it is
+    * CommandDispatcher/interactive-session-shaped and this agent path is headless). Needs
+    * {@link AssetRepository} + a real {@link RuntimeWorksheet}, which {@link
+    * WorksheetEditService.Editor} has neither of -- same reason {@link #updateMirror} bypasses
+    * {@code dispatch} via {@link WorksheetEditService#applyOnRuntime}.
+    */
+   private void addWorksheetMirror(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String name = req.name();
+
+      if(name == null || name.isBlank()) {
+         throw new PairingException("name is required for add_mirror.");
+      }
+
+      String path = req.path().trim();
+      WizUtil.requireNoCaret(path, "path");
+      WorksheetEditService.Editor.requireStorableName(name, "An assembly name");
+
+      IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
+      int assetScope = "user".equalsIgnoreCase(req.scope())
+         ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+      AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.WORKSHEET, path, owner,
+                                        uname.orgID);
+
+      // Validates existence/permission up front with a clear message, matching
+      // resolveDataSourceEntry's "worksheet" branch on the viewsheet side -- copyOuterAssemblies
+      // below does its own unchecked lookup (permission=false) and would otherwise surface a
+      // generic/internal failure instead of naming the path.
+      try {
+         if(assetRepository.getSheet(entry, user, true, AssetContent.ALL, false) == null) {
+            throw new PairingException(
+               "no worksheet named '" + path + "' was found, or you lack permission to read it");
+         }
+      }
+      catch(PairingException e) {
+         throw e;
+      }
+      catch(Exception e) {
+         throw new PairingException(
+            "no worksheet named '" + path + "' was found, or you lack permission to read it", e);
+      }
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         WSAssembly[] created = AssetUtil.copyOuterAssemblies(
+            assetRepository, entry, user, ws, new Point(25, 25));
+         WSAssembly source = created[created.length - 1];
+         WSAssembly mirror = AssetEventUtil.createMirrorAssembly(rws, source, name, entry);
+         mirror.setPixelOffset(new Point(25, 25));
+         AssetEventUtil.adjustAssemblyPosition(mirror, ws);
+         ws.addAssembly(mirror);
          return null;
       });
    }

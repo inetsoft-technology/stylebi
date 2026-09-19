@@ -2731,6 +2731,238 @@ class WorksheetAgentControllerTest {
       assertTrue(a instanceof VariableAssembly, "a variable assembly should have been created");
    }
 
+   // ---------------------------------------------------------------------------
+   // add_mirror -- same-worksheet (source) and cross-worksheet (path/scope) forms
+   // ---------------------------------------------------------------------------
+
+   /** Builds the same-worksheet {@code add_mirror} EditRequest form ({@code name}/{@code source}). */
+   private static EditRequest addMirrorRequest(String name, String source) throws Exception {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_mirror");
+      body.put("name", name);
+      body.put("source", source);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   /**
+    * Builds the cross-worksheet {@code add_mirror} EditRequest form ({@code name}, {@code path},
+    * optional {@code scope}) via the real app {@link ObjectMapper} -- same technique as
+    * {@link #addQueryParamsTableRequest}, since hand-counting nulls to path/scope's new position
+    * in the 70+ field positional record risks the exact silent off-by-one that technique exists
+    * to avoid.
+    */
+   private static EditRequest addWorksheetMirrorRequest(String name, String path, String scope)
+      throws Exception
+   {
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "add_mirror");
+      body.put("name", name);
+      if(path != null) body.put("path", path);
+      if(scope != null) body.put("scope", scope);
+
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      return mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+   }
+
+   @Test
+   void editAddMirrorWithSourceStillResolvesSameWorksheetAssembly() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly table = TestWorksheets.tableWithColumns(ws, "T", "id", "name");
+      ws.addAssembly(table);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AM"), any())).thenReturn(session("TOK-AM"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      // Regression: today's same-worksheet add_mirror(name, source) must keep working unchanged
+      // now that a new path/scope form exists -- the new dispatch guard must not intercept a
+      // request with no 'path'.
+      ctrl.edit("TOK-AM", addMirrorRequest("M", "T"), agent);
+
+      Assembly created = ws.getAssembly("M");
+      assertTrue(created instanceof MirrorTableAssembly, "expected an inner mirror assembly");
+      assertNull(((MirrorTableAssembly) created).getEntry(),
+         "same-worksheet add_mirror must stay an inner mirror (no AssetEntry)");
+   }
+
+   @Test
+   void editAddMirrorWithPathCreatesOuterMirrorFromSavedWorksheet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      // Source, saved worksheet asset: one embedded table WITH real backing data, auto-primary.
+      // initColumnSelection re-derives columns from the assembly's own AssetQuery in DESIGN_MODE --
+      // for an embedded table with no real XEmbeddedTable rows (TestWorksheets.tableWithColumns),
+      // that re-derivation sees 0 live columns and discards the hand-set selection; a bound/JDBC
+      // table's AssetQuery instead needs a live XRepository, unavailable here. Real embedded data
+      // (mirrors insertColumnThrowsRenderNotReadyWhenColumnSelectionIsSlow's fixture) avoids both.
+      Worksheet sourceWs = new Worksheet();
+      EmbeddedTableAssembly sourceTable = new EmbeddedTableAssembly(sourceWs, "SRC");
+      sourceTable.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING, XSchema.STRING },
+         new Object[][] { { "id", "name" }, { "1", "Alice" } }));
+      sourceWs.addAssembly(sourceTable);
+
+      // Target (current) worksheet -- empty.
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(new AssetQuerySandbox(ws));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AWM"), any())).thenReturn(session("TOK-AWM"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      when(assetRepository.getSheet(any(AssetEntry.class), any(), eq(true), eq(AssetContent.ALL),
+         eq(false))).thenReturn(sourceWs);
+      when(assetRepository.getSheet(any(AssetEntry.class), any(), eq(false), eq(AssetContent.ALL)))
+         .thenReturn(sourceWs);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetRepository);
+
+      ctrl.edit("TOK-AWM", addWorksheetMirrorRequest("M", "Sample Queries/SRC", null), agent);
+
+      Assembly created = ws.getAssembly("M");
+      assertTrue(created instanceof MirrorTableAssembly, "expected an outer mirror assembly");
+      MirrorTableAssembly mirror = (MirrorTableAssembly) created;
+      assertNotNull(mirror.getEntry(),
+         "a cross-worksheet mirror must carry a non-null AssetEntry");
+      assertEquals(2, mirror.getColumnSelection(false).getAttributeCount(),
+         "mirror should carry over the source table's columns");
+   }
+
+   @Test
+   void editAddMirrorWithPathRequiresName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AWMN"), any())).thenReturn(session("TOK-AWMN"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AWMN", addWorksheetMirrorRequest(null, "Sample Queries/SRC", null),
+            agent));
+      assertTrue(ex.getMessage().contains("name"));
+   }
+
+   @Test
+   void editAddMirrorWithPathRejectsUnknownWorksheet() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet ws = new Worksheet();
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-AWMU"), any())).thenReturn(session("TOK-AWMU"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      when(assetRepository.getSheet(any(AssetEntry.class), any(), eq(true), eq(AssetContent.ALL),
+         eq(false))).thenReturn(null);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetRepository);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-AWMU", addWorksheetMirrorRequest("M", "Nonexistent/WS", null),
+            agent));
+      assertTrue(ex.getMessage().contains("Nonexistent/WS"));
+   }
+
+   @Test
+   void editSetMirrorAutoUpdateTogglesOffForCrossWorksheetMirror() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      Worksheet sourceWs = new Worksheet();
+      EmbeddedTableAssembly sourceTable = new EmbeddedTableAssembly(sourceWs, "SRC");
+      sourceTable.setEmbeddedData(new XEmbeddedTable(
+         new String[] { XSchema.STRING, XSchema.STRING },
+         new Object[][] { { "id", "name" }, { "1", "Alice" } }));
+      sourceWs.addAssembly(sourceTable);
+
+      Worksheet ws = new Worksheet();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+      when(rws.getAssetQuerySandbox()).thenReturn(new AssetQuerySandbox(ws));
+
+      SheetSessionService sessions = mock(SheetSessionService.class);
+      SheetRuntimeAccess runtimeAccess = mock(SheetRuntimeAccess.class);
+      when(sessions.resolve(eq("TOK-SMAU"), any())).thenReturn(session("TOK-SMAU"));
+      when(runtimeAccess.getSheetForPairing(any(), any(), any())).thenReturn(rws);
+
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      when(assetRepository.getSheet(any(AssetEntry.class), any(), eq(true), eq(AssetContent.ALL),
+         eq(false))).thenReturn(sourceWs);
+      when(assetRepository.getSheet(any(AssetEntry.class), any(), eq(false), eq(AssetContent.ALL)))
+         .thenReturn(sourceWs);
+
+      WorksheetEditService editSvc = new WorksheetEditService(sessions, runtimeAccess,
+         mock(SheetAgentBroadcastService.class), mock(SecurityEngine.class), mock(InnerJoinService.class));
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), editSvc, mock(WorksheetService.class), assetRepository);
+
+      ctrl.edit("TOK-SMAU", addWorksheetMirrorRequest("M", "Sample Queries/SRC", null), agent);
+
+      Map<String, Object> body = new java.util.LinkedHashMap<>();
+      body.put("op", "set_mirror_auto_update");
+      body.put("table", "M");
+      body.put("visible", false);
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      EditRequest toggleReq = mapper.readValue(mapper.writeValueAsString(body), EditRequest.class);
+
+      // set_mirror_auto_update's own tool description asserts this closes the loop: only a
+      // mirror of another worksheet's asset (a non-null AssetEntry) can turn auto-update off.
+      ctrl.edit("TOK-SMAU", toggleReq, agent);
+
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+      assertFalse(mirror.isAutoUpdate(),
+         "set_mirror_auto_update should be able to disable auto-update on a mirror created via " +
+         "add_mirror's new path/scope form");
+   }
+
    @Test
    void editRejectsAddVariableWithDuplicateName() throws Exception {
       Principal agent = TestPrincipals.user("alice", "host-org");
