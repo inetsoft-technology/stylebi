@@ -20,7 +20,10 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.asset.DefaultVariableAssembly;
+import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.CalcTablePropertyDialogModel;
@@ -57,7 +60,7 @@ import static org.mockito.Mockito.*;
 // up for the same reason -- a bare Mockito-only test does not have a Spring context for that
 // static init to find.
 @ExtendWith(SpringExtension.class)
-@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @Tag("core")
@@ -770,6 +773,139 @@ class AssemblyPropertyServiceTest {
 
       assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateRadio",
          Map.of("dataInputPaneModel.variable", false), ""));
+   }
+
+   // ── row/column value validation (bug #76803/VOF-013/VOF-014) ──────────────
+   //
+   // dataInputPaneModel.rowValue/columnValue are only ever checked against the bound embedded
+   // table lazily, inside InputVSAssemblyInfo.update() -- never at set_assembly_properties write
+   // time. An out-of-range rowValue was a permanent, silent no-op; a nonexistent columnValue was
+   // accepted silently and crashed the next unrelated set_input_value call with an opaque 500.
+   // requireRowColumnValueValid() mirrors update()'s own checks so both are refused loud, here.
+
+   private static final String EMBEDDED_TABLE = "Query1";
+
+   private static Worksheet embeddedTableWorksheet() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly embedded = new EmbeddedTableAssembly(ws, EMBEDDED_TABLE);
+      // row 0 is the header row, so the addressable data rows are 1 and 2.
+      embedded.setEmbeddedData(new XEmbeddedTable(
+         new String[]{ XSchema.STRING, XSchema.STRING },
+         new Object[][] {
+            { "state", "product_name" },
+            { "NY", "InsideView" },
+            { "CA", "Fast Mail" }
+         }));
+      ws.addAssembly(embedded);
+
+      return ws;
+   }
+
+   @Test
+   void vof013OutOfRangeRowValueIsRefused() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "10");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.rowValue"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   @Test
+   void vof014NonexistentColumnValueIsRefused() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "not_a_real_column");
+      patch.put("dataInputPaneModel.rowValue", "1");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.columnValue"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   @Test
+   void validRowAndColumnValueStillSucceeds() throws Exception {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "1");
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput", patch, ""));
+   }
+
+   /**
+    * VOF-014's real repro shape: the table binding is already set from a prior call, and this
+    * patch touches only {@code columnValue}. The gating condition ORs on either field, so
+    * {@code PropertyPath.get(model, "dataInputPaneModel.table")} must still read the model's
+    * pre-existing state and catch this, not just a patch that names all three fields at once.
+    */
+   @Test
+   void vof014ColumnOnlyPatchAgainstAPreExistingTableBindingIsStillCaught() {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      model.getDataInputPaneModel().setRowValue("1");
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "StartDateInput",
+            Map.of("dataInputPaneModel.columnValue", "not_a_real_column"), ""));
+
+      assertTrue(thrown.getMessage().contains("dataInputPaneModel.columnValue"),
+                 "must name the refused field: " + thrown.getMessage());
+   }
+
+   /**
+    * A {@code "="}-prefixed value is a script expression (bug #76803 revision), resolved only at
+    * runtime by a {@code ViewsheetSandbox} this check does not have -- it must be left alone
+    * (fails open) rather than statically checked against the real column list and wrongly
+    * refused.
+    */
+   @Test
+   void scriptExpressionColumnValueIsNotRefused() throws Exception {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "=getColumnName()");
+      patch.put("dataInputPaneModel.rowValue", "1");
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput", patch, ""));
+   }
+
+   /** Mirrors {@link #scriptExpressionColumnValueIsNotRefused} for {@code rowValue}. */
+   @Test
+   void scriptExpressionRowValueIsNotRefused() throws Exception {
+      TextInputPropertyDialogModel model = new TextInputPropertyDialogModel();
+      model.getDataInputPaneModel().setTable(EMBEDDED_TABLE);
+      AssemblyPropertyService service =
+         serviceWithTextInput(mock(TextInputVSAssembly.class), model, embeddedTableWorksheet());
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("dataInputPaneModel.columnValue", "state");
+      patch.put("dataInputPaneModel.rowValue", "=getRowIndex()");
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "StartDateInput", patch, ""));
    }
 
    // ── static list "embedded" auto-derivation (Redmine #76699/VFO-016) ───────
