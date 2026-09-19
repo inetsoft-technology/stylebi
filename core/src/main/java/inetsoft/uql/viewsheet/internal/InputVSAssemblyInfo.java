@@ -541,7 +541,7 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
       int row = getRow();
 
       // invalid row
-      if(row < 0 || row > table.getRowCount()) {
+      if(row < table.getHeaderRowCount() || row >= table.getRowCount()) {
          throw new RuntimeException(Catalog.getCatalog().
             getString("common.viewsheet.rowInvalid", getName()) + row);
       }
