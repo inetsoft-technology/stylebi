@@ -599,6 +599,29 @@ class CalcTableServiceTest {
    }
 
    /**
+    * Bug #76814: omitting {@code field.dateLevel} entirely on a plain group cell (no namedGroup
+    * at all) must persist {@code NONE_DATE_GROUP}, not silently inherit OrderModel's raw
+    * {@code YEAR_DATE_GROUP}/interval-1 class defaults -- {@code toCellBindingInfo()} builds a
+    * fresh {@code CellBindingInfo}/{@code OrderModel} on every write, so an unset option here
+    * previously reached {@code LayoutTool.createGroupExpression}'s date-option block for any
+    * actual date/time column (that block gates purely on the bound field's own data type, not
+    * on this test's own column, which is not itself date-typed) and would have silently forced
+    * a year-level grouping the caller never asked for.
+    */
+   @Test
+   void omittingDateLevelPersistsNoLevelRatherThanTheYearDefault() throws Exception {
+      Harness h = harness(3, 3);
+
+      h.service.setCellBinding("tok", principal(), "Calc1", 0, 0,
+         spec("content", "column", "grouping", "group", "expand", "vertical",
+              "field", spec("column", "REGION", "type", "dimension")));
+
+      ArgumentCaptor<SetCellBindingEvent> captor = ArgumentCaptor.forClass(SetCellBindingEvent.class);
+      verify(h.layoutService).setCellBinding(eq("rt1"), captor.capture(), any(Principal.class), any());
+      assertEquals(XConstants.NONE_DATE_GROUP, captor.getValue().getBinding().getOrder().getOption());
+   }
+
+   /**
     * Unlike a chart/table dimension's dlevelValue, a calc-table cell's OrderModel.option is a
     * plain int with no DynamicValue counterpart -- DateLevels.normalize() now returns a
     * "$(ComponentName)" value unchanged (bug #76751) rather than throwing, so applyDateGroup has
@@ -1120,6 +1143,10 @@ class CalcTableServiceTest {
       // resolving a named group only ever sets order.info, never order.type (see the class
       // comment above).
       assertEquals(XConstants.SORT_ASC, order.getType());
+      // Bug #76814: no 'field.dateLevel' was given (this is a plain string column with a
+      // namedGroup, not a date), so a fresh write must persist "no level" -- not silently
+      // inherit OrderModel's raw YEAR_DATE_GROUP class default.
+      assertEquals(XConstants.NONE_DATE_GROUP, order.getOption());
       assertEquals(XNamedGroupInfo.EXPERT_NAMEDGROUP_INFO, order.getInfo().getType());
       List<inetsoft.web.composer.model.condition.ConditionExpression> conds =
          order.getInfo().getConditions();

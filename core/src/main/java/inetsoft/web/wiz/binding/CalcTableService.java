@@ -1164,6 +1164,13 @@ public class CalcTableService {
 
          info.getOrder().setOption(Integer.parseInt(normalized));
       }
+      else {
+         // Omitting 'field.dateLevel' means "no level", not "leave whatever OrderModel's raw
+         // class defaults happen to be" (YEAR_DATE_GROUP) -- a fresh CellBindingInfo/OrderModel
+         // is built on every write here, so leaving this unset silently persisted a bogus
+         // year-level grouping on every cell that never mentioned dateLevel at all.
+         info.getOrder().setOption(XConstants.NONE_DATE_GROUP);
+      }
 
       Object interval = field.get("dateInterval");
 
