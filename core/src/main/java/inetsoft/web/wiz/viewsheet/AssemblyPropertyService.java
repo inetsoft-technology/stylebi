@@ -18,10 +18,15 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.model.vs.TableStylePaneModel;
@@ -272,6 +277,13 @@ public class AssemblyPropertyService {
             resolved.containsValue("dataInputPaneModel.variable"))
          {
             requireVariableFlagAchievable(type, model, rvs.getViewsheet());
+         }
+
+         if(PropertyAliases.derivesVariableFlagFromTable(type) &&
+            (resolved.containsValue("dataInputPaneModel.columnValue") ||
+             resolved.containsValue("dataInputPaneModel.rowValue")))
+         {
+            requireRowColumnValueValid(type, model, rvs.getViewsheet());
          }
 
          model = impliedSibling(model, resolved.values(), "tipView", "tipOption", true);
@@ -578,6 +590,103 @@ public class AssemblyPropertyService {
                  "a variable created with add_variable instead."
                : "Set 'dataInputPaneModel.table' (or 'columnValue') to a non-variable binding " +
                  "instead, or leave 'dataInputPaneModel.variable' out of the patch."));
+      }
+   }
+
+   /**
+    * Refuses a {@code dataInputPaneModel.columnValue}/{@code rowValue} write that does not
+    * exist on the bound embedded table (bug #76803/VOF-013/VOF-014). {@code
+    * InputVSAssemblyInfo.update(Viewsheet, ColumnSelection)} is the only place either field is
+    * actually checked against the table's real columns/row count, and it only runs lazily, on
+    * some later {@code set_input_value}-triggered refresh -- never at write time. Until then, a
+    * bad {@code rowValue} is a silent, permanent no-op (nothing ever complains) and a bad
+    * {@code columnValue} crashes the next unrelated {@code set_input_value} call with a generic
+    * 500 that names neither the assembly nor the bad column. This mirrors {@code update()}'s own
+    * checks so both are refused loud, here, instead.
+    *
+    * <p>Fails open (skips validation) whenever the binding cannot be resolved to a concrete
+    * embedded table -- a variable binding, an unresolvable {@code table}, or a {@code table}
+    * that resolves to something other than an {@link EmbeddedTableAssembly} -- rather than block
+    * a patch this check cannot meaningfully validate; {@code requireVariableFlagAchievable}
+    * already covers the variable-binding case.
+    *
+    * <p>Also skips a {@code columnValue}/{@code rowValue} that is dynamic ({@code
+    * VSUtil#isDynamicValue}: a {@code "$(variableName)"} reference or a {@code "="}-prefixed
+    * script expression) -- this check only has the raw design-time string, not a
+    * {@code ViewsheetSandbox} to resolve it, so a scripted binding cannot be statically checked
+    * without risking a false-positive refusal of a value {@code update()} would resolve and
+    * accept at runtime.
+    */
+   private void requireRowColumnValueValid(String type, Object model, Viewsheet vs) {
+      String table = (String) PropertyPath.get(model, "dataInputPaneModel.table");
+      String columnValue = (String) PropertyPath.get(model, "dataInputPaneModel.columnValue");
+      String rowValue = (String) PropertyPath.get(model, "dataInputPaneModel.rowValue");
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+
+      if(VSInputService.resolvesToVariableBinding(ws, vs, table, columnValue)) {
+         return;
+      }
+
+      if(table == null || table.isEmpty() || ws == null) {
+         return;
+      }
+
+      String tname = table;
+
+      if(tname.startsWith("$(") && tname.endsWith(")")) {
+         tname = tname.substring(2, tname.length() - 1);
+      }
+
+      Object obj = ws.getAssembly(tname);
+
+      if(obj == null && tname.endsWith("_O")) {
+         obj = ws.getAssembly(tname.substring(0, tname.length() - 2));
+      }
+
+      if(!(obj instanceof EmbeddedTableAssembly assembly)) {
+         return;
+      }
+
+      if(columnValue != null && !columnValue.isEmpty() && !VSUtil.isDynamicValue(columnValue)) {
+         ColumnSelection columns = assembly.getColumnSelection(false);
+         DataRef attr = columns.getAttribute(columnValue);
+
+         if(attr == null) {
+            StringBuilder names = new StringBuilder();
+
+            for(int i = 0; i < columns.getAttributeCount(); i++) {
+               names.append(i == 0 ? "" : ", ").append(columns.getAttribute(i).getAttribute());
+            }
+
+            throw new IllegalArgumentException(
+               "'dataInputPaneModel.columnValue' ('" + columnValue + "') is not a column of '" +
+               tname + "'. StyleBI resolves an unrecognised columnValue with no error until the " +
+               "next set_input_value call, which then crashes with an unrelated, opaque error, " +
+               "so this write would report success and leave the input permanently broken. " +
+               "Real columns: " + names + ".");
+         }
+      }
+
+      if(rowValue != null && !rowValue.isEmpty() && !VSUtil.isDynamicValue(rowValue)) {
+         int row;
+
+         try {
+            row = Integer.parseInt(rowValue);
+         }
+         catch(NumberFormatException e) {
+            return;
+         }
+
+         XEmbeddedTable data = assembly.getEmbeddedData();
+
+         if(row < 0 || row > data.getRowCount()) {
+            throw new IllegalArgumentException(
+               "'dataInputPaneModel.rowValue' (" + row + ") is out of range for '" + tname +
+               "', which has " + data.getRowCount() + " row(s) (0-indexed, header row " +
+               "included). StyleBI accepts an out-of-range rowValue with no error and the " +
+               "input's value silently never reaches any cell, so this write would report " +
+               "success and be a permanent no-op.");
+         }
       }
    }
 
