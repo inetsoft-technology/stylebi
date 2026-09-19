@@ -8255,6 +8255,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       XEmbeddedTable embedded = wstable.getEmbeddedData();
+
+      if(row < embedded.getHeaderRowCount() || row >= embedded.getRowCount()) {
+         throw new RuntimeException(
+            catalog.getString("write.back.failed.rowInvalid", row, wsTableName));
+      }
+
       embedded.setObject(row, col, value);
       saveWsData(engine, vs);
    }
