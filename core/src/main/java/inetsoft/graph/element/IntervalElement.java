@@ -827,14 +827,18 @@ public class IntervalElement extends StackableElement {
     * Check whether this interval element belongs to a waterfall chart. Bridge lines are
     * only drawn for waterfall charts.
     */
+   @TernMethod
    public boolean isWaterfall() {
       return waterfall;
    }
 
    /**
-    * Mark this interval element as belonging to a waterfall chart. Set by the graph
-    * generator; enables waterfall-only behavior such as bridge lines. (75628)
+    * Mark this interval element as belonging to a waterfall chart. Set automatically by
+    * the graph generator for waterfall charts built from a binding; a script building an
+    * element from scratch can call this explicitly to opt into waterfall-only behavior
+    * such as bridge lines. (75628, 76817)
     */
+   @TernMethod
    public void setWaterfall(boolean waterfall) {
       this.waterfall = waterfall;
    }
