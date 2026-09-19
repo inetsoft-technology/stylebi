@@ -1041,21 +1041,30 @@ public class UserTreeService {
       Organization organization = currentProvider.getOrganization(orgID.orgID);
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      Set<Object> keyset = SreeEnv.getProperties().keySet();
       String orgPrefix = "inetsoft.org." + orgID.getOrgID().toLowerCase() + ".";
 
-      for(Object key : keyset) {
-         String propName = (String) key;
+      try {
+         OrganizationManager.runInOrgScope(orgID.getOrgID(), () -> {
+            for(Object key : SreeEnv.getProperties().keySet()) {
+               String propName = (String) key;
 
-         if(!(propName).startsWith(orgPrefix)) {
-            continue;
-         }
+               if(!propName.startsWith(orgPrefix)) {
+                  continue;
+               }
 
-         propName = propName.substring(orgPrefix.length());
+               propName = propName.substring(orgPrefix.length());
+               String value = SreeEnv.getProperty(propName, false, true);
 
-         if(SreeEnv.getProperty(propName, false, true) != null) {
-            properties.add(PropertyModel.builder().name(propName).value(SreeEnv.getProperty(propName, false, true)).build());
-         }
+               if(value != null) {
+                  properties.add(PropertyModel.builder().name(propName).value(value).build());
+               }
+            }
+
+            return null;
+         });
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
       }
 
       List<IdentityModel> grantedOrganizations =
