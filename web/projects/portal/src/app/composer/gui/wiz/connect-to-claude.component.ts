@@ -136,13 +136,21 @@ export class ConnectToClaudeComponent implements OnInit, OnChanges, OnDestroy {
    constructor(private zone: NgZone, private followFocusService: FollowFocusService) {}
 
    /**
-    * Whether the Follow Focus toggle should render at all -- only once connected, and only on
-    * the whole-sheet (toolbar) instance. A pane's own {@code ConnectToClaudeComponent} has
-    * nothing meaningful to toggle: Follow Focus opts in the OUTER session, not the pane session
-    * itself (see the design spec's "what this changes" section).
+    * Whether the Follow Focus toggle should render at all -- on the whole-sheet (toolbar)
+    * instance only. A pane's own {@code ConnectToClaudeComponent} has nothing meaningful to
+    * toggle: Follow Focus opts in the OUTER session, not the pane session itself (see the design
+    * spec's "what this changes" section).
+    *
+    * Deliberately NOT gated on {@link #connected}: `followFocusEnabled` is a per-`runtimeId`
+    * preference the user can set before any agent has joined, so it takes effect the moment one
+    * does -- and `connected` is a one-shot flag that `requestCode()`/`ngOnChanges` reset to
+    * `false` on every fresh pairing code, which would otherwise hide the toggle (and make its
+    * already-set value un-inspectable/un-changeable) for the entire window between "regenerated
+    * a code" and "an agent redeemed it," even though the underlying setting neither changed nor
+    * needs an agent present to be written (see FollowFocusService#setEnabled).
     */
    get followFocusToggleVisible(): boolean {
-      return this.connected && !this.editorContext;
+      return !this.editorContext;
    }
 
    get followFocusEnabled(): boolean {

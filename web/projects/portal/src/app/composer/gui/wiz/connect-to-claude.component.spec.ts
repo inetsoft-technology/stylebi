@@ -730,15 +730,30 @@ describe("ConnectToClaudeComponent", () => {
          fixture.detectChanges();
       }
 
-      it("hides the toggle before a session is connected", () => {
-         expect(component.followFocusToggleVisible).toBe(false);
+      // The toggle is a per-runtimeId preference (FollowFocusService), settable before any agent
+      // has joined so it's already active the moment one does -- it must not wait on `connected`,
+      // a one-shot flag `requestCode()` resets on every fresh code (see the getter's own doc).
+      it("shows the toggle on a toolbar instance even before a session is connected", () => {
+         expect(component.followFocusToggleVisible).toBe(true);
+         expect(fixture.nativeElement.querySelector("#wiz-follow-focus-toggle")).toBeTruthy();
       });
 
-      it("shows the toggle once the whole-sheet session is connected", () => {
+      it("keeps showing the toggle once the whole-sheet session is connected", () => {
          connectAsToolbar();
 
          expect(component.followFocusToggleVisible).toBe(true);
          expect(fixture.nativeElement.querySelector("#wiz-follow-focus-toggle")).toBeTruthy();
+      });
+
+      // requestCode() resets `connected` to false on every fresh pairing code -- the toggle must
+      // not disappear (and its already-set value become un-inspectable/un-changeable) for the
+      // whole window between "regenerated a code" and "an agent redeemed it."
+      it("keeps showing the toggle across a code regeneration, not just after the first connect", () => {
+         connectAsToolbar();
+         component.requestCode();
+
+         expect(component.connected).toBe(false);
+         expect(component.followFocusToggleVisible).toBe(true);
       });
 
       it("hides the toggle on a pane instance even once connected", () => {
@@ -836,7 +851,10 @@ describe("ConnectToClaudeComponent", () => {
          expect(component.currentTarget).toBeNull();
       });
 
-      it("resets the live target and toggle visibility when the runtimeId changes", () => {
+      // Toggle visibility is independent of `connected`/runtimeId churn (see the getter's own
+      // doc) -- only the live target indicator, which genuinely has no meaning for a runtime that
+      // was just switched away from, resets here.
+      it("resets the live target but keeps the toggle visible when the runtimeId changes", () => {
          connectAsToolbar();
          handlerFor("/user/commands/wiz/pairing/joined")(
             notice({ runtimeId: "rt-1", sheetType: "WORKSHEET", focusChanged: true,
@@ -848,7 +866,7 @@ describe("ConnectToClaudeComponent", () => {
                            firstChange: false, isFirstChange: () => false } } as any);
 
          expect(component.currentTarget).toBeNull();
-         expect(component.followFocusToggleVisible).toBe(false);
+         expect(component.followFocusToggleVisible).toBe(true);
       });
    });
 
