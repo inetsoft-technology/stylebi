@@ -88,13 +88,15 @@ final class IdentityMerge {
       merged.setInheritedRoles(spec.getInheritedRoles() != null ?
                                toIdentityIds(spec.getInheritedRoles(), currentId.orgID) :
                                current.getInheritedRoles());
-      // Requires current.getDefaultRole()/getSysAdmin() to already be populated by
+      // Requires current.getDefaultRole()/getSysAdmin()/getOrgAdmin() to already be populated by
       // SecurityService.getRoleModel (the read-path fix) -- landing this merge fix before that
-      // read-path fix would make current.getDefaultRole()/getSysAdmin() always null here, silently
-      // resetting an existing defaultRole:true/sysAdmin:true role to false on any unrelated update.
+      // read-path fix would make current.getDefaultRole()/getSysAdmin()/getOrgAdmin() always null
+      // here, silently resetting an existing defaultRole:true/sysAdmin:true/orgAdmin:true role to
+      // false on any unrelated update.
       merged.setDefaultRole(spec.getDefaultRole() != null ? spec.getDefaultRole() :
                             current.getDefaultRole());
       merged.setSysAdmin(spec.getSysAdmin() != null ? spec.getSysAdmin() : current.getSysAdmin());
+      merged.setOrgAdmin(spec.getOrgAdmin() != null ? spec.getOrgAdmin() : current.getOrgAdmin());
       return merged;
    }
 

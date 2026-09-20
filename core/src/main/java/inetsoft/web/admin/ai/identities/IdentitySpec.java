@@ -132,6 +132,12 @@ public class IdentitySpec {
    public Boolean getSysAdmin() { return sysAdmin; }
    public void setSysAdmin(Boolean v) { this.sysAdmin = v; }
 
+   /** role only. {@code null} means "not specified", same convention as {@link #getDefaultRole()}.
+    * Designates the role as an Organization Administrator role -- scoped to the role's own
+    * organization, unlike {@link #getSysAdmin()}'s site-wide grant. */
+   public Boolean getOrgAdmin() { return orgAdmin; }
+   public void setOrgAdmin(Boolean v) { this.orgAdmin = v; }
+
    /** organization only: org-scoped overrides into the shared global server-property namespace
     * (the same store this plugin's Properties area manages, namespaced per-organization) -- not
     * inert metadata. {@code null} means "not specified" (leave existing properties untouched);
@@ -161,5 +167,6 @@ public class IdentitySpec {
    private String theme;
    private Boolean defaultRole;
    private Boolean sysAdmin;
+   private Boolean orgAdmin;
    private List<PropertyModel> properties;
 }

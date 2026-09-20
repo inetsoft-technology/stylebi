@@ -117,6 +117,7 @@ final class IdentityProjection {
       appendSortedIds(sb, "inheritedRoles", r.getInheritedRoles());
       append(sb, "defaultRole", String.valueOf(Boolean.TRUE.equals(r.getDefaultRole())));
       append(sb, "sysAdmin", String.valueOf(Boolean.TRUE.equals(r.getSysAdmin())));
+      append(sb, "orgAdmin", String.valueOf(Boolean.TRUE.equals(r.getOrgAdmin())));
       return sb.toString();
    }
 
@@ -130,6 +131,7 @@ final class IdentityProjection {
       appendSorted(sb, "inheritedRoles", spec.getInheritedRoles());
       append(sb, "defaultRole", String.valueOf(Boolean.TRUE.equals(spec.getDefaultRole())));
       append(sb, "sysAdmin", String.valueOf(Boolean.TRUE.equals(spec.getSysAdmin())));
+      append(sb, "orgAdmin", String.valueOf(Boolean.TRUE.equals(spec.getOrgAdmin())));
       return sb.toString();
    }
 

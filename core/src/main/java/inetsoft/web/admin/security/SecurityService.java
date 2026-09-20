@@ -1261,6 +1261,7 @@ public class SecurityService {
          role.setRoles(inheritedRoles.toArray(new IdentityID[0]));
          role.setDefaultRole(Boolean.TRUE.equals(request.getDefaultRole()));
          role.setSysAdmin(Boolean.TRUE.equals(request.getSysAdmin()));
+         role.setOrgAdmin(Boolean.TRUE.equals(request.getOrgAdmin()));
          provider.addRole(role);
 
          //Assign role to users
@@ -1358,7 +1359,14 @@ public class SecurityService {
          // already has (description/theme below never fall back to the current value either).
          .defaultRole(Boolean.TRUE.equals(request.getDefaultRole()))
          .isSysAdmin(Boolean.TRUE.equals(request.getSysAdmin()))
-         .isOrgAdmin(provider.isOrgAdministratorRole(roleId))
+         // Deliberately NOT the same blind-overwrite-on-omission contract as defaultRole/sysAdmin
+         // above: orgAdmin's caller is IdentityMerge.mergeRole, whose own omit-preserves-current-
+         // value semantics (see its comment) depend on this falling back to the role's current
+         // server-side state rather than false when request.getOrgAdmin() is null. A raw REST
+         // caller who omits the field gets the role's unchanged current orgAdmin status, not a
+         // reset to false -- do not "fix" this to match defaultRole/sysAdmin's pattern.
+         .isOrgAdmin(request.getOrgAdmin() != null ? request.getOrgAdmin() :
+                    provider.isOrgAdministratorRole(roleId))
          .description(request.getDescription())
          .theme(request.getTheme())
          .members(asssignedIDs);
@@ -1431,6 +1439,7 @@ public class SecurityService {
       roleModel.setAdminIdentities(getIdentityPermissions(identityID, ResourceType.SECURITY_ROLE, principal));
       roleModel.setDefaultRole(info.isDefaultRole());
       roleModel.setSysAdmin(provider.isSystemAdministratorRole(identityID));
+      roleModel.setOrgAdmin(provider.isOrgAdministratorRole(identityID));
 
       return roleModel;
    }

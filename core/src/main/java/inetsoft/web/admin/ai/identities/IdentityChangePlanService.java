@@ -431,6 +431,8 @@ public class IdentityChangePlanService {
                 IdentityUnitType.ROLE);
       checkField(label, "sysAdmin", spec.getSysAdmin(), unitType == IdentityUnitType.ROLE,
                 IdentityUnitType.ROLE);
+      checkField(label, "orgAdmin", spec.getOrgAdmin(), unitType == IdentityUnitType.ROLE,
+                IdentityUnitType.ROLE);
       checkField(label, "properties", spec.getProperties(), unitType == IdentityUnitType.ORGANIZATION,
                 IdentityUnitType.ORGANIZATION);
       // "roles" is legal on both USER (assign existing roles) and GROUP (assign existing roles to
@@ -537,7 +539,8 @@ public class IdentityChangePlanService {
          anyPresent = spec.getName() != null || spec.getDescription() != null ||
             spec.getInheritedRoles() != null || spec.getAssignedUsers() != null ||
             spec.getAssignedGroups() != null || spec.getTheme() != null ||
-            spec.getDefaultRole() != null || spec.getSysAdmin() != null;
+            spec.getDefaultRole() != null || spec.getSysAdmin() != null ||
+            spec.getOrgAdmin() != null;
          break;
       default:
          anyPresent = spec.getOrgName() != null || spec.getLocale() != null ||
