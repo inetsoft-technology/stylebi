@@ -112,18 +112,21 @@ public class ScheduleFolderChangePlanService {
          return resolveRename(label, change, seenPaths);
       case ScheduleFolderChangeRequest.VERB_MOVE:
          return resolveMove(label, change, seenPaths);
+      case ScheduleFolderChangeRequest.VERB_MOVE_TASK:
+         return resolveMoveTask(label, change, seenPaths);
       default:
          return resolveDelete(label, change, seenPaths);
       }
    }
 
-   /** Accepts the four canonical verbs verbatim; the tool layer normalizes natural aliases before
+   /** Accepts the five canonical verbs verbatim; the tool layer normalizes natural aliases before
     * this point (same convention {@code ScheduleChangePlanService#normalizeVerb} documents), so
-    * anything reaching here that is not exactly one of the four is a genuine caller error. */
+    * anything reaching here that is not exactly one of the five is a genuine caller error. */
    private static String normalizeVerb(String label, String verb) {
       if(ScheduleFolderChangeRequest.VERB_CREATE.equals(verb) ||
          ScheduleFolderChangeRequest.VERB_RENAME.equals(verb) ||
          ScheduleFolderChangeRequest.VERB_MOVE.equals(verb) ||
+         ScheduleFolderChangeRequest.VERB_MOVE_TASK.equals(verb) ||
          ScheduleFolderChangeRequest.VERB_DELETE.equals(verb))
       {
          return verb;
@@ -132,7 +135,8 @@ public class ScheduleFolderChangePlanService {
       throw new IllegalArgumentException(
          label + ".verb: must be \"" + ScheduleFolderChangeRequest.VERB_CREATE + "\", \"" +
          ScheduleFolderChangeRequest.VERB_RENAME + "\", \"" + ScheduleFolderChangeRequest.VERB_MOVE +
-         "\", or \"" + ScheduleFolderChangeRequest.VERB_DELETE + "\", got " + String.valueOf(verb));
+         "\", \"" + ScheduleFolderChangeRequest.VERB_MOVE_TASK + "\", or \"" +
+         ScheduleFolderChangeRequest.VERB_DELETE + "\", got " + String.valueOf(verb));
    }
 
    private PlanChange resolveCreate(String label, ScheduleFolderChangeRequest change,
@@ -259,6 +263,67 @@ public class ScheduleFolderChangePlanService {
       return new PlanChange(path, null, current, proposed, AdminChangeRecord.RISK_LOW,
                             AdminChangeRecord.SCOPE_STORAGE, true,
                             "move schedule task folder \"" + path + "\" into \"" + targetPath + "\"");
+   }
+
+   /**
+    * Bug #76841: unlike every other verb here, {@code moveTask} acts on a schedule TASK ({@code
+    * taskId}), not a folder ({@code path}) -- the only way, until now, that a schedule task could
+    * be organized into a folder through admin-chat at all.
+    *
+    * <p>Refuses loud, at PLAN time, if {@code targetPath} does not already exist (root excepted) --
+    * the identical guard {@link #resolveMove} already enforces for a folder-to-folder move, and
+    * REQUIRED here too: {@code ScheduleTaskFolderService}'s own task-move helper silently updates
+    * the task's own path even when the destination folder was never actually created, producing a
+    * task that reports living at a path it is not registered under in the folder tree -- refusing
+    * before {@link AdminScheduleFolderGateway#moveTask} is ever called is the only place that is
+    * caught (that gateway method's own javadoc documents the same finding from the apply side).
+    *
+    * <p>Does NOT verify the caller's own WRITE/delete permission on the task, or the task's {@code
+    * removable()} flag -- both are enforced by {@link AdminScheduleFolderGateway#moveTask} itself at
+    * apply time, matching this class's own established split (no verb here preflights permission at
+    * plan time; {@code resolveMove}/{@code resolveRename}/{@code resolveDelete} don't either).
+    */
+   private PlanChange resolveMoveTask(String label, ScheduleFolderChangeRequest change,
+                                      Set<String> seenPaths)
+      throws Exception
+   {
+      requireUnused(label, "path", change.getPath(), "moveTask");
+      requireUnused(label, "parentPath", change.getParentPath(), "moveTask");
+      requireUnused(label, "folderName", change.getFolderName(), "moveTask");
+      requireUnused(label, "newPath", change.getNewPath(), "moveTask");
+
+      if(change.isForce()) {
+         throw new IllegalArgumentException(label + ".force: not used for verb=moveTask; remove it");
+      }
+
+      if(change.getTaskId() == null || change.getTaskId().isBlank()) {
+         throw new IllegalArgumentException(label + ".taskId: required for verb=moveTask");
+      }
+
+      String taskId = change.getTaskId().trim();
+
+      if(change.getTargetPath() == null || change.getTargetPath().isBlank()) {
+         throw new IllegalArgumentException(label + ".targetPath: required for verb=moveTask");
+      }
+
+      String targetPath = AdminScheduleFolderGateway.normalizePath(change.getTargetPath());
+      // Namespaced so a task's own id can never collide with an unrelated folder path that
+      // happens to share the same literal string in the same plan's dedup set.
+      requireUnseen(label, "task:" + taskId, seenPaths);
+
+      if(!folderGateway.taskExists(taskId)) {
+         throw new IllegalArgumentException(
+            label + ".taskId: no schedule task exists with id \"" + taskId + "\"");
+      }
+
+      if(!AdminScheduleFolderGateway.isRootPath(targetPath) && !folderGateway.folderExists(targetPath)) {
+         throw new IllegalArgumentException(
+            label + ".targetPath: no schedule-task folder exists at \"" + targetPath + "\"");
+      }
+
+      return new PlanChange(taskId, null, null, null, AdminChangeRecord.RISK_LOW,
+                            AdminChangeRecord.SCOPE_STORAGE, true,
+                            "move schedule task \"" + taskId + "\" into \"" + targetPath + "\"");
    }
 
    private PlanChange resolveDelete(String label, ScheduleFolderChangeRequest change,

@@ -351,6 +351,115 @@ class ScheduleFolderChangePlanServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // moveTask (bug #76841)
+   // -------------------------------------------------------------------------
+
+   @Test void resolveMoveTaskThrowsWhenTaskIdMissing() {
+      ScheduleFolderChangeRequest change = new ScheduleFolderChangeRequest();
+      change.setVerb(ScheduleFolderChangeRequest.VERB_MOVE_TASK);
+      change.setTargetPath("Target");
+      ScheduleFolderChangePlanRequest req = request("task", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("taskId"));
+   }
+
+   @Test void resolveMoveTaskThrowsWhenTargetPathMissing() {
+      ScheduleFolderChangeRequest change = new ScheduleFolderChangeRequest();
+      change.setVerb(ScheduleFolderChangeRequest.VERB_MOVE_TASK);
+      change.setTaskId("task1");
+      ScheduleFolderChangePlanRequest req = request("task", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("targetPath"));
+   }
+
+   @Test void resolveMoveTaskThrowsWhenPathFieldPresent() {
+      ScheduleFolderChangeRequest change = moveTaskChange("task1", "Target");
+      change.setPath("SomeFolder");
+      ScheduleFolderChangePlanRequest req = request("task", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("path"));
+   }
+
+   @Test void resolveMoveTaskThrowsWhenForcePresent() {
+      ScheduleFolderChangeRequest change = moveTaskChange("task1", "Target");
+      change.setForce(true);
+      ScheduleFolderChangePlanRequest req = request("task", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("force"));
+   }
+
+   @Test void resolveMoveTaskThrowsWhenTaskDoesNotExist() throws Exception {
+      when(folderGateway.taskExists("missing")).thenReturn(false);
+      ScheduleFolderChangePlanRequest req =
+         request("task", List.of(moveTaskChange("missing", "Target")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("taskId"));
+      assertTrue(ex.getMessage().contains("missing"));
+   }
+
+   // The refute's own required addition: the target folder does NOT auto-create for a task move
+   // (ScheduleTaskFolderService's own moveTask helper silently updates the task's path even when
+   // the folder was never registered) -- this must be refused at plan time, mirroring resolveMove.
+   @Test void resolveMoveTaskThrowsWhenTargetDoesNotExist() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(false);
+      ScheduleFolderChangePlanRequest req =
+         request("task", List.of(moveTaskChange("task1", "Target")));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("targetPath"));
+   }
+
+   // Moving a task to the top level (targetPath="/") is legitimate and must not require the root
+   // folder to "exist" -- mirrors resolveMove's own root-target exception.
+   @Test void resolveMoveTaskToRootTargetSucceeds() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      ScheduleFolderChangePlanRequest req =
+         request("move task to root", List.of(moveTaskChange("task1", "/")));
+
+      ResolvedPlan plan = service.resolve(req, user);
+
+      assertEquals(1, plan.changes().size());
+   }
+
+   @Test void resolveMoveTaskSucceeds() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      ScheduleFolderChangePlanRequest req =
+         request("move a task", List.of(moveTaskChange("task1", "Target")));
+
+      ResolvedPlan plan = service.resolve(req, user);
+
+      PlanChange change = plan.changes().get(0);
+      assertEquals("task1", change.property());
+      assertEquals("low", change.risk());
+   }
+
+   @Test void resolveMoveTaskAndFolderMoveOfTheSameLiteralIdentifierAreNotTreatedAsDuplicates() throws Exception {
+      when(folderGateway.taskExists("A")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.findFolder("A")).thenReturn(new AssetFolder());
+
+      ScheduleFolderChangePlanRequest req = request(
+         "task", List.of(moveTaskChange("A", "Target"), moveChange("A", "Target")));
+
+      ResolvedPlan plan = service.resolve(req, user);
+
+      assertEquals(2, plan.changes().size());
+   }
+
+   // -------------------------------------------------------------------------
    // delete
    // -------------------------------------------------------------------------
 
@@ -461,6 +570,14 @@ class ScheduleFolderChangePlanServiceTest {
       ScheduleFolderChangeRequest change = new ScheduleFolderChangeRequest();
       change.setVerb(ScheduleFolderChangeRequest.VERB_MOVE);
       change.setPath(path);
+      change.setTargetPath(targetPath);
+      return change;
+   }
+
+   private static ScheduleFolderChangeRequest moveTaskChange(String taskId, String targetPath) {
+      ScheduleFolderChangeRequest change = new ScheduleFolderChangeRequest();
+      change.setVerb(ScheduleFolderChangeRequest.VERB_MOVE_TASK);
+      change.setTaskId(taskId);
       change.setTargetPath(targetPath);
       return change;
    }

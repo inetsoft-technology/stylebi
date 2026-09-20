@@ -17,18 +17,29 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
+import inetsoft.web.admin.schedule.ScheduleTaskService;
 import inetsoft.web.admin.schedule.model.EditTaskFolderDialogModel;
+import inetsoft.web.admin.schedule.model.ScheduleTaskModel;
+import inetsoft.web.security.auth.MissingResourceException;
+import inetsoft.web.security.auth.UnauthorizedAccessException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -50,11 +61,15 @@ import static org.mockito.Mockito.*;
 class AdminScheduleFolderGatewayTest {
    @Mock private ScheduleTaskFolderService taskFolderService;
    @Mock private ScheduleService scheduleService;
+   @Mock private ScheduleManager scheduleManager;
+   @Mock private SecurityEngine securityEngine;
+   @Mock private ScheduleTaskService scheduleTaskService;
    @Mock private Principal user;
    private AdminScheduleFolderGateway gateway;
 
    @BeforeEach void setUp() {
-      gateway = new AdminScheduleFolderGateway(taskFolderService, scheduleService);
+      gateway = new AdminScheduleFolderGateway(
+         taskFolderService, scheduleService, scheduleManager, securityEngine, scheduleTaskService);
       lenient().when(taskFolderService.getFolderEntry(anyString()))
          .thenAnswer(inv -> entry(inv.getArgument(0)));
    }
@@ -235,6 +250,125 @@ class AdminScheduleFolderGatewayTest {
 
       verify(scheduleService).removeScheduleFolders(
          argThat(model -> model.taskNames().contains("A")), eq(user));
+   }
+
+   // -------------------------------------------------------------------------
+   // moveTask / taskExists / getTaskPath (bug #76841)
+   // -------------------------------------------------------------------------
+
+   @Test void taskExistsTrueWhenTaskFound() {
+      when(scheduleManager.getScheduleTask("task1")).thenReturn(removableTask("task1", "Old"));
+
+      assertTrue(gateway.taskExists("task1"));
+   }
+
+   @Test void taskExistsFalseWhenTaskMissing() {
+      when(scheduleManager.getScheduleTask("missing")).thenReturn(null);
+
+      assertFalse(gateway.taskExists("missing"));
+   }
+
+   @Test void getTaskPathReturnsNullWhenTaskMissing() {
+      when(scheduleManager.getScheduleTask("missing")).thenReturn(null);
+
+      assertNull(gateway.getTaskPath("missing"));
+   }
+
+   @Test void getTaskPathReturnsTheTasksCurrentPath() {
+      when(scheduleManager.getScheduleTask("task1")).thenReturn(removableTask("task1", "Old"));
+
+      assertEquals("Old", gateway.getTaskPath("task1"));
+   }
+
+   @Test void moveTaskThrowsMissingResourceExceptionWhenTaskNotFound() {
+      when(scheduleManager.getScheduleTask("missing")).thenReturn(null);
+
+      assertThrows(MissingResourceException.class, () -> gateway.moveTask("missing", "Target", user));
+   }
+
+   // The permission check moveScheduleItems itself does NOT perform for a task -- the native
+   // EM "Move Task" dialog adds it one layer up (EMScheduleTaskFolderController#moveFolder); this
+   // gateway reproduces the identical check but throws loud instead of silently no-op-ing.
+   @Test void moveTaskThrowsUnauthorizedWhenNeitherWriteNorDeletePermission() throws Exception {
+      ScheduleTask task = removableTask("task1", "Old");
+      when(scheduleManager.getScheduleTask("task1")).thenReturn(task);
+      when(securityEngine.checkPermission(
+         user, ResourceType.SCHEDULE_TASK, "task1", ResourceAction.WRITE)).thenReturn(false);
+      when(scheduleTaskService.canDeleteTask(task, user)).thenReturn(false);
+
+      assertThrows(UnauthorizedAccessException.class,
+         () -> gateway.moveTask("task1", "Target", user));
+      verify(taskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
+   }
+
+   @Test void moveTaskSucceedsWithDeletePermissionAloneWhenWriteIsDenied() throws Exception {
+      ScheduleTask task = removableTask("task1", "Old");
+      when(scheduleManager.getScheduleTask("task1")).thenReturn(task);
+      when(securityEngine.checkPermission(
+         user, ResourceType.SCHEDULE_TASK, "task1", ResourceAction.WRITE)).thenReturn(false);
+      when(scheduleTaskService.canDeleteTask(task, user)).thenReturn(true);
+      lenient().when(scheduleService.isSecurityEnabled()).thenReturn(true);
+
+      moveTaskWithMockedAliasLookup("task1", "Target");
+
+      // The model's own name() is the fully-qualified id (owner~;~org:name) ScheduleTaskModel
+      // always builds from a non-null owner -- NOT the bare "task1" this method was called with.
+      verify(taskFolderService).moveScheduleItems(
+         argThat(models -> models.length == 1 && task.getTaskId().equals(models[0].name())),
+         eq(new String[0]), argThat(e -> "Target".equals(e.getPath())), eq(user));
+   }
+
+   // Data-cycle-owned tasks are silently skipped by moveScheduleItems's own taskModels loop (no
+   // exception at all) -- this gateway must refuse loud instead of forwarding a call that would
+   // appear to succeed while doing nothing.
+   @Test void moveTaskThrowsWhenTaskIsNotRemovable() throws Exception {
+      ScheduleTask task = removableTask("task1", "Old");
+      task.setRemovable(false);
+      when(scheduleManager.getScheduleTask("task1")).thenReturn(task);
+      when(securityEngine.checkPermission(
+         user, ResourceType.SCHEDULE_TASK, "task1", ResourceAction.WRITE)).thenReturn(true);
+      lenient().when(scheduleService.isSecurityEnabled()).thenReturn(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> moveTaskWithMockedAliasLookup("task1", "Target"));
+      assertTrue(ex.getMessage().contains("not removable"));
+      verify(taskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
+   }
+
+   @Test void moveTaskDelegatesWithSingleEntryTaskModelsArrayAndNoFolders() throws Exception {
+      ScheduleTask task = removableTask("task1", "Old");
+      when(scheduleManager.getScheduleTask("task1")).thenReturn(task);
+      when(securityEngine.checkPermission(
+         user, ResourceType.SCHEDULE_TASK, "task1", ResourceAction.WRITE)).thenReturn(true);
+      lenient().when(scheduleService.isSecurityEnabled()).thenReturn(true);
+
+      moveTaskWithMockedAliasLookup("task1", "/Target");
+
+      verify(taskFolderService).moveScheduleItems(
+         argThat((ScheduleTaskModel[] models) ->
+            models.length == 1 && task.getTaskId().equals(models[0].name()) && models[0].removable()),
+         eq(new String[0]), argThat(e -> "Target".equals(e.getPath())), eq(user));
+   }
+
+   private static ScheduleTask removableTask(String name, String path) {
+      ScheduleTask task = new ScheduleTask(name);
+      task.setPath(path);
+      task.setOwner(new IdentityID("admin", "host-org"));
+      return task;
+   }
+
+   /** {@code ScheduleTaskModel.Builder#fromTask} resolves the task owner's alias via {@code
+    * SUtil.getUserAlias}, which reaches the static {@code SecurityEngine.getSecurity()} -- a live
+    * Spring context is not available in this unit test, so it is mocked here, scoped to just the
+    * call under test, the same way this area's own apply-service tests mock other static
+    * accessors ({@code SreeEnv}/{@code Tool}/{@code Audit}). */
+   private void moveTaskWithMockedAliasLookup(String taskId, String targetPath) throws Exception {
+      try(MockedStatic<SecurityEngine> securityEngineStatic = mockStatic(SecurityEngine.class)) {
+         SecurityEngine security = mock(SecurityEngine.class);
+         securityEngineStatic.when(SecurityEngine::getSecurity).thenReturn(security);
+         lenient().when(security.getSecurityProvider()).thenReturn(mock(SecurityProvider.class));
+         gateway.moveTask(taskId, targetPath, user);
+      }
    }
 
    private static AssetEntry entry(String path) {
