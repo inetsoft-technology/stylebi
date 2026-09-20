@@ -172,6 +172,26 @@ public class SecurityRole {
    }
 
    /**
+    * Gets whether this role designates an Organization Administrator role.
+    *
+    * @return {@code true} if this is an Organization Administrator role, {@code false} if not, or
+    * {@code null} if unspecified.
+    */
+   @Schema(description = "Whether this role designates an Organization Administrator role.")
+   public Boolean getOrgAdmin() {
+      return orgAdmin;
+   }
+
+   /**
+    * Sets whether this role designates an Organization Administrator role.
+    *
+    * @param orgAdmin {@code true}/{@code false} to set, or {@code null} to leave unspecified.
+    */
+   public void setOrgAdmin(Boolean orgAdmin) {
+      this.orgAdmin = orgAdmin;
+   }
+
+   /**
     * Sets the identities with admin permission over the user
     *
     * @return the identities.
@@ -233,13 +253,14 @@ public class SecurityRole {
          (inheritedRoles == null || inheritedRoles.equals(that.inheritedRoles)) &&
          (adminIdentities == null || adminIdentities.equals(that.adminIdentities)) &&
          (defaultRole == null || defaultRole.equals(that.defaultRole)) &&
-         (sysAdmin == null || sysAdmin.equals(that.sysAdmin));
+         (sysAdmin == null || sysAdmin.equals(that.sysAdmin)) &&
+         (orgAdmin == null || orgAdmin.equals(that.orgAdmin));
    }
 
    @Override
    public int hashCode() {
       return Objects.hash(identityID.name, description, theme, assignedUsers, assignedGroups,
-                          inheritedRoles, adminIdentities, defaultRole, sysAdmin);
+                          inheritedRoles, adminIdentities, defaultRole, sysAdmin, orgAdmin);
    }
 
    @Override
@@ -255,6 +276,7 @@ public class SecurityRole {
          ", adminIdentities=" + adminIdentities +
          ", defaultRole=" + defaultRole +
          ", sysAdmin=" + sysAdmin +
+         ", orgAdmin=" + orgAdmin +
          '}';
    }
 
@@ -267,4 +289,5 @@ public class SecurityRole {
    private AdminIdentities adminIdentities;
    private Boolean defaultRole;
    private Boolean sysAdmin;
+   private Boolean orgAdmin;
 }

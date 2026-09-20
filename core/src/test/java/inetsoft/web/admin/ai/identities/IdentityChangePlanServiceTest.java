@@ -189,6 +189,28 @@ class IdentityChangePlanServiceTest {
       assertEquals(1, plan.changes().size());
    }
 
+   // bug-76824: orgAdmin gets the same field-ownership treatment as defaultRole/sysAdmin above.
+
+   @Test void resolveThrowsOnOrgAdminFieldOnUserSpec() {
+      IdentityChangeRequest change = createUser("bob");
+      change.getSpec().setOrgAdmin(true);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("orgAdmin"));
+      assertTrue(ex.getMessage().contains("role"));
+   }
+
+   @Test void resolveAllowsOrgAdminOnRoleCreate() throws Exception {
+      when(securityService.getRole(any(), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"));
+      IdentityChangeRequest change = createRole("Org Admin Role");
+      change.getSpec().setOrgAdmin(true);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      assertEquals(1, plan.changes().size());
+   }
+
    @Test void resolveAllowsPropertiesOnOrganizationCreate() throws Exception {
       when(securityService.getOrganization(any(), eq(user)))
          .thenThrow(new MissingResourceException("no such organization"));
@@ -562,6 +584,23 @@ class IdentityChangePlanServiceTest {
       // sysAdmin was never mentioned -- must be preserved (false), not tripped to true as a
       // side-effect of the defaultRole change.
       assertTrue(planChange.proposedValue().contains("sysAdmin=false"));
+   }
+
+   @Test void resolveUpdateRoleOrgAdminProducesAMergedProposal() throws Exception {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole existing = existingRole(id);
+      existing.setOrgAdmin(true);
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(existing);
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDescription("New description"); // unrelated to orgAdmin
+      IdentityChangeRequest change = updateRole("Viewer", spec);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      PlanChange planChange = plan.changes().get(0);
+      assertTrue(planChange.proposedValue().contains("description=New description"));
+      // orgAdmin was never mentioned -- must be preserved (true), not reset to false as a
+      // side-effect of the description change.
+      assertTrue(planChange.proposedValue().contains("orgAdmin=true"));
    }
 
    @Test void resolveUpdateOrganizationPropertiesProducesAMergedProposal() throws Exception {

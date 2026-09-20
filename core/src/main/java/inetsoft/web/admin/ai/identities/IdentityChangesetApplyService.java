@@ -374,6 +374,7 @@ public class IdentityChangesetApplyService {
       request.setTheme(spec.getTheme());
       request.setDefaultRole(spec.getDefaultRole());
       request.setSysAdmin(spec.getSysAdmin());
+      request.setOrgAdmin(spec.getOrgAdmin());
 
       try {
          securityService.createRole(request, orgId, user);

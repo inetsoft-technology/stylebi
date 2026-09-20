@@ -201,6 +201,7 @@ class IdentityMergeTest {
       assertEquals(current.getInheritedRoles(), merged.getInheritedRoles());
       assertEquals(current.getDefaultRole(), merged.getDefaultRole());
       assertEquals(current.getSysAdmin(), merged.getSysAdmin());
+      assertEquals(current.getOrgAdmin(), merged.getOrgAdmin());
    }
 
    @Test void mergeRoleExplicitEmptyAssignedUsersClearsWhileOtherFieldsSurvive() {
@@ -260,6 +261,33 @@ class IdentityMergeTest {
 
       assertEquals(Boolean.FALSE, merged.getDefaultRole());
       assertEquals(Boolean.FALSE, merged.getSysAdmin());
+   }
+
+   // bug-76824: orgAdmin needs the same current.getOrgAdmin()-populated-first sequencing as
+   // defaultRole/sysAdmin above -- an unrelated update must not silently un-org-admin an existing
+   // orgAdmin:true role.
+   @Test void mergeRoleOmittedOrgAdminSurvivesAnUnrelatedFieldUpdate() {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole current = fullRole(id);
+      current.setOrgAdmin(true);
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDescription("New description"); // unrelated field; orgAdmin left absent
+
+      SecurityRole merged = IdentityMerge.mergeRole(current, spec, id);
+
+      assertEquals(Boolean.TRUE, merged.getOrgAdmin());
+   }
+
+   @Test void mergeRoleExplicitOrgAdminOverridesCurrent() {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole current = fullRole(id);
+      current.setOrgAdmin(true);
+      IdentitySpec spec = new IdentitySpec();
+      spec.setOrgAdmin(false);
+
+      SecurityRole merged = IdentityMerge.mergeRole(current, spec, id);
+
+      assertEquals(Boolean.FALSE, merged.getOrgAdmin());
    }
 
    // -------------------------------------------------------------------------

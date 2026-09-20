@@ -188,6 +188,27 @@ class IdentityChangesetApplyServiceTest {
       ), eq("host-org"), eq(user));
    }
 
+   // bug-76824: orgAdmin must also actually reach SecurityService.createRole, not just be
+   // accepted by the schema.
+
+   @Test void appliesACreateRoleAndPassesOrgAdminThrough() throws Exception {
+      IdentityID id = new IdentityID("Org Admin Role", "host-org");
+      when(securityService.getRole(eq(id), eq(user)))
+         .thenThrow(new MissingResourceException("no such role"))
+         .thenThrow(new MissingResourceException("no such role"))
+         .thenReturn(existingRole(id));
+
+      IdentityChangeRequest change = createRole("Org Admin Role");
+      change.getSpec().setOrgAdmin(true);
+
+      var result = service.apply(applyRequest("create Org Admin Role", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).createRole(argThat(req ->
+         Boolean.TRUE.equals(req.getOrgAdmin())
+      ), eq("host-org"), eq(user));
+   }
+
    @Test void appliesACreateOrganizationAndPassesPropertiesThrough() throws Exception {
       String orgId = "neworg";
       when(securityService.getOrganization(eq(orgId), eq(user)))
@@ -423,6 +444,26 @@ class IdentityChangesetApplyServiceTest {
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       verify(securityService).updateRole(eq(id), argThat(req ->
          Boolean.TRUE.equals(req.getDefaultRole()) && Boolean.TRUE.equals(req.getSysAdmin())
+      ), eq(user));
+   }
+
+   // bug-76824: orgAdmin needs the same preserve-on-unrelated-update guarantee as
+   // defaultRole/sysAdmin above, exercised through the full apply path.
+   @Test void appliesAnUpdateRolePreservesOrgAdminWhenUpdatingAnUnrelatedField() throws Exception {
+      IdentityID id = new IdentityID("Viewer", "host-org");
+      SecurityRole before = existingRole(id);
+      before.setOrgAdmin(true);
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(before);
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDescription("New description"); // unrelated; orgAdmin left absent
+      IdentityChangeRequest change = updateRole("Viewer", spec);
+
+      var result = service.apply(applyRequest("update Viewer", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(securityService).updateRole(eq(id), argThat(req ->
+         Boolean.TRUE.equals(req.getOrgAdmin())
       ), eq(user));
    }
 

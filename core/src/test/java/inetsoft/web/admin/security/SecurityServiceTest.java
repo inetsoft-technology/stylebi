@@ -742,6 +742,107 @@ class SecurityServiceTest {
       assertEquals(Boolean.TRUE, result.getSysAdmin());
    }
 
+   // ── createRole/updateRole/getRole orgAdmin (Bug #76824) ─────────────────────────────────
+   //
+   // orgAdmin's update-path contract is deliberately NOT the same blind-overwrite-on-omission
+   // contract sysAdmin/defaultRole use above: an omitted orgAdmin must preserve the role's current
+   // server-side state (identityTools.ts's own omit-preserves-current-value update semantics),
+   // not reset to false. See the comment at SecurityService.updateRole's isOrgAdmin(...) line.
+
+   @Test
+   void createRole_setsOrgAdminFromRequest() throws Exception {
+      stubCommonCreateGates();
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(new IdentityID("neworgrole4", "org1"));
+      request.setOrgAdmin(true);
+
+      service.createRole(request, null, principal);
+
+      ArgumentCaptor<FSRole> captor = ArgumentCaptor.forClass(FSRole.class);
+      verify(editableProvider).addRole(captor.capture());
+      assertTrue(captor.getValue().isOrgAdmin());
+   }
+
+   @Test
+   void createRole_omittedOrgAdmin_defaultsToFalse() throws Exception {
+      stubCommonCreateGates();
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(new IdentityID("neworgrole5", "org1"));
+
+      service.createRole(request, null, principal);
+
+      ArgumentCaptor<FSRole> captor = ArgumentCaptor.forClass(FSRole.class);
+      verify(editableProvider).addRole(captor.capture());
+      assertFalse(captor.getValue().isOrgAdmin());
+   }
+
+   @Test
+   void updateRole_setsOrgAdminFromRequestWhenExplicitlyProvided() throws Exception {
+      IdentityID roleId = new IdentityID("orgrole2", "org1");
+      FSRole oldRole = new FSRole(roleId);
+      when(securityProvider.getRole(roleId)).thenReturn(oldRole);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            roleId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getRole(roleId)).thenReturn(oldRole);
+      when(editableProvider.isOrgAdministratorRole(roleId)).thenReturn(false);
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(roleId);
+      request.setOrgAdmin(true);
+
+      service.updateRole(roleId, request, principal);
+
+      ArgumentCaptor<EditRolePaneModel> captor = ArgumentCaptor.forClass(EditRolePaneModel.class);
+      verify(identityService).setIdentity(eq(oldRole), captor.capture(), eq(editableProvider), eq(principal));
+      assertTrue(captor.getValue().isOrgAdmin());
+   }
+
+   @Test
+   void updateRole_omittedOrgAdmin_preservesCurrentValueRatherThanOverwriting() throws Exception {
+      IdentityID roleId = new IdentityID("orgrole3", "org1");
+      FSRole oldRole = new FSRole(roleId);
+      when(securityProvider.getRole(roleId)).thenReturn(oldRole);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            roleId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getRole(roleId)).thenReturn(oldRole);
+      // The role is currently an org-admin role server-side.
+      when(editableProvider.isOrgAdministratorRole(roleId)).thenReturn(true);
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(roleId);
+      // orgAdmin left unset on the request -- must NOT be reset to false, unlike sysAdmin/defaultRole.
+
+      service.updateRole(roleId, request, principal);
+
+      ArgumentCaptor<EditRolePaneModel> captor = ArgumentCaptor.forClass(EditRolePaneModel.class);
+      verify(identityService).setIdentity(eq(oldRole), captor.capture(), eq(editableProvider), eq(principal));
+      assertTrue(captor.getValue().isOrgAdmin());
+   }
+
+   @Test
+   void getRole_existingRole_returnsOrgAdmin() throws Exception {
+      IdentityID role = new IdentityID("OrgAdminRole", "org1");
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            role.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      FSRole existingRole = new FSRole(role, "Org admin role");
+      when(securityProvider.getRole(role)).thenReturn(existingRole);
+      doReturn(new Identity[0]).when(authenticationProvider).getRoleMembers(role);
+      IdentityInfo info = new IdentityInfo(existingRole, authenticationProvider);
+      when(identityService.getIdentityInfo(role, Identity.ROLE, securityProvider)).thenReturn(info);
+      when(identityService.getPermission(eq(role), eq(ResourceType.SECURITY_ROLE), any(), eq(principal)))
+         .thenReturn(List.of());
+      when(securityProvider.isOrgAdministratorRole(role)).thenReturn(true);
+
+      SecurityRole result = service.getRole(role, principal);
+
+      assertEquals(Boolean.TRUE, result.getOrgAdmin());
+   }
+
    // ── createUser/createGroup parent-group permission key form (Bug #76654) ────────────────
    //
    // createUser's request.getGroups() filter and createGroup's request.getParentGroups() filter
