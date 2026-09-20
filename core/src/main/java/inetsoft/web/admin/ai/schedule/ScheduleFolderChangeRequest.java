@@ -22,17 +22,20 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 /**
  * One requested schedule-task FOLDER change: {@code create} (a new folder under {@code
  * parentPath}), {@code rename} (change {@code path}'s own leaf name to {@code newPath}), {@code
- * move} (relocate {@code path} to be a child of {@code targetPath}), or {@code delete} ({@code
- * path}, recursively -- see {@link ScheduleFolderChangePlanService}'s own javadoc for why this is
- * NOT a registry-label-only operation, unlike a viewsheet folder). Exactly the fields the chosen
- * {@code verb} uses apply; {@link ScheduleFolderChangePlanService#resolve} refuses loud on any
- * other field being present, rather than silently ignoring it.
+ * move} (relocate {@code path} to be a child of {@code targetPath}), {@code moveTask} (relocate the
+ * schedule TASK {@code taskId} to be a child of {@code targetPath} -- bug #76841, the only verb
+ * here that acts on a task rather than a folder), or {@code delete} ({@code path}, recursively --
+ * see {@link ScheduleFolderChangePlanService}'s own javadoc for why this is NOT a registry-label-
+ * only operation, unlike a viewsheet folder). Exactly the fields the chosen {@code verb} uses
+ * apply; {@link ScheduleFolderChangePlanService#resolve} refuses loud on any other field being
+ * present, rather than silently ignoring it.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ScheduleFolderChangeRequest {
    public static final String VERB_CREATE = "create";
    public static final String VERB_RENAME = "rename";
    public static final String VERB_MOVE = "move";
+   public static final String VERB_MOVE_TASK = "moveTask";
    public static final String VERB_DELETE = "delete";
 
    public String getVerb() { return verb; }
@@ -55,9 +58,16 @@ public class ScheduleFolderChangeRequest {
    public String getNewPath() { return newPath; }
    public void setNewPath(String v) { this.newPath = v; }
 
-   /** {@code move} only: the destination parent folder {@code path} is relocated under. */
+   /** {@code move}/{@code moveTask}: the destination parent folder {@code path}/{@code taskId} is
+    * relocated under. */
    public String getTargetPath() { return targetPath; }
    public void setTargetPath(String v) { this.targetPath = v; }
+
+   /** {@code moveTask} only: the id of the schedule task being moved (see {@code
+    * list_schedule_tasks}/{@code get_schedule_task} for the id shape). Not used for any other
+    * verb -- a folder is identified by {@code path}, a task by {@code taskId}. */
+   public String getTaskId() { return taskId; }
+   public void setTaskId(String v) { this.taskId = v; }
 
    /** {@code delete} only: required {@code true} whenever {@code path} is non-empty (contains any
     * schedule task, recursively). Not used for any other verb. */
@@ -70,5 +80,6 @@ public class ScheduleFolderChangeRequest {
    private String folderName;
    private String newPath;
    private String targetPath;
+   private String taskId;
    private boolean force;
 }

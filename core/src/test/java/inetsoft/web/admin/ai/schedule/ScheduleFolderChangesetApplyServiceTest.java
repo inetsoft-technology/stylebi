@@ -18,17 +18,25 @@
 package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
+import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.AdminBackupService;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
+import inetsoft.web.admin.schedule.ScheduleTaskService;
 import inetsoft.web.admin.schedule.model.EditTaskFolderDialogModel;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -189,6 +197,123 @@ class ScheduleFolderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // moveTask (bug #76841)
+   // -------------------------------------------------------------------------
+
+   @Test void appliesAMoveTaskAndReportsApplied() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Target");
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ResolvedPlan preview = planService.resolve(planRequest(moveTaskChange("task1", "Target")), user);
+      ScheduleFolderApplyRequest req =
+         applyRequest(preview.planHash(), preview.taskToken(), moveTaskChange("task1", "Target"));
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      verify(folderGateway).moveTask("task1", "Target", user);
+   }
+
+   // Verification is a live read-back of the task's own folder, not just "did moveTask throw" --
+   // a moveTask call that returns normally but does not actually relocate the task must be treated
+   // as a failure, not a false "applied". With nothing else in the plan to roll back, a single such
+   // entry trivially reports ROLLED_BACK (the same "verified-false with an empty undo list" shape
+   // every other verb's own analogous single-entry-failure case reduces to in this apply loop).
+   @Test void moveTaskFailsVerificationWhenFolderDoesNotActuallyChange() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      // Reports "Old" both before AND after -- simulating a move that silently did nothing.
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old");
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ResolvedPlan preview = planService.resolve(planRequest(moveTaskChange("task1", "Target")), user);
+      ScheduleFolderApplyRequest req =
+         applyRequest(preview.planHash(), preview.taskToken(), moveTaskChange("task1", "Target"));
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, result.results().get(0).status());
+   }
+
+   @Test void rollsBackAnEarlierMoveTaskWhenALaterEntryFails() throws Exception {
+      when(folderGateway.taskExists("task1")).thenReturn(true);
+      when(folderGateway.folderExists("Target")).thenReturn(true);
+      // Before move: "Old". After the apply-time move: "Target". After the rollback's own
+      // undo-move (back to "Old"): "Old" again.
+      when(folderGateway.getTaskPath("task1")).thenReturn("Old", "Target", "Old");
+      when(folderGateway.findFolder("Missing")).thenReturn(new AssetFolder());
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest moveTask = moveTaskChange("task1", "Target");
+      ScheduleFolderChangeRequest badDelete = deleteChangeForce("Missing");
+
+      ResolvedPlan preview = planService.resolve(planRequest(moveTask, badDelete), user);
+      ScheduleFolderApplyRequest req =
+         applyRequest(preview.planHash(), preview.taskToken(), moveTask, badDelete);
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(folderGateway).moveTask("task1", "Target", user);
+      verify(folderGateway).moveTask("task1", "Old", user);
+   }
+
+   // -------------------------------------------------------------------------
+   // permission/removable enforcement lives in the real gateway, not the mocked one used above --
+   // wired through the full preview/apply pipeline the same way the rename owner-preservation test
+   // below does, so a regression in AdminScheduleFolderGateway#moveTask itself is caught here too.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesAMoveTaskThroughTheRealGatewayAndPropagatesItsPermissionRefusal() throws Exception {
+      ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
+      ScheduleService realScheduleService = mock(ScheduleService.class);
+      ScheduleManager realScheduleManager = mock(ScheduleManager.class);
+      SecurityEngine realSecurityEngine = mock(SecurityEngine.class);
+      ScheduleTaskService realScheduleTaskService = mock(ScheduleTaskService.class);
+      AdminScheduleFolderGateway realGateway = new AdminScheduleFolderGateway(
+         realTaskFolderService, realScheduleService, realScheduleManager, realSecurityEngine,
+         realScheduleTaskService);
+      ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
+      ScheduleFolderChangesetApplyService realApplyService =
+         new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
+
+      ScheduleTask task = new ScheduleTask("task1");
+      task.setOwner(new IdentityID("admin", "host-org"));
+      task.setPath("Old");
+      lenient().when(realScheduleManager.getScheduleTask("task1")).thenReturn(task);
+      lenient().when(realTaskFolderService.getFolderEntry(anyString())).thenAnswer(inv ->
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        (String) inv.getArgument(0), null));
+      lenient().when(realTaskFolderService.getTaskFolder(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Target", null)
+            .toIdentifier()))
+         .thenReturn(new AssetFolder());
+      when(realSecurityEngine.checkPermission(
+         user, ResourceType.SCHEDULE_TASK, "task1", ResourceAction.WRITE)).thenReturn(false);
+      when(realScheduleTaskService.canDeleteTask(task, user)).thenReturn(false);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest moveTask = moveTaskChange("task1", "Target");
+      ResolvedPlan preview = realPlanService.resolve(planRequest(moveTask), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), moveTask);
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = realApplyService.apply(req, user);
+
+      // A throw carries no verifiable evidence -- treated as STATUS_ROLLBACK_FAILED (nothing to
+      // roll back for the one entry that threw), matching AdminChangesetApplyService's own
+      // "state unknown" convention for a thrown, not returned, failure.
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      verify(realTaskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
+   }
+
+   // -------------------------------------------------------------------------
    // owner preservation on rename (reviewer round 1: this file's own mocked folderGateway hides
    // the real AdminScheduleFolderGateway#renameFolder boundary entirely, so it cannot catch a
    // future "simplification" back to passing a null owner directly -- see that method's own
@@ -200,8 +325,9 @@ class ScheduleFolderChangesetApplyServiceTest {
    @Test void appliesARenameAndSendsAnOwnerPreservingModelToTheRealService() throws Exception {
       ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
       ScheduleService realScheduleService = mock(ScheduleService.class);
-      AdminScheduleFolderGateway realGateway =
-         new AdminScheduleFolderGateway(realTaskFolderService, realScheduleService);
+      AdminScheduleFolderGateway realGateway = new AdminScheduleFolderGateway(
+         realTaskFolderService, realScheduleService, mock(ScheduleManager.class),
+         mock(SecurityEngine.class), mock(ScheduleTaskService.class));
       ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
       ScheduleFolderChangesetApplyService realApplyService =
          new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
@@ -244,6 +370,14 @@ class ScheduleFolderChangesetApplyServiceTest {
       change.setVerb(ScheduleFolderChangeRequest.VERB_RENAME);
       change.setPath(path);
       change.setNewPath(newPath);
+      return change;
+   }
+
+   private static ScheduleFolderChangeRequest moveTaskChange(String taskId, String targetPath) {
+      ScheduleFolderChangeRequest change = new ScheduleFolderChangeRequest();
+      change.setVerb(ScheduleFolderChangeRequest.VERB_MOVE_TASK);
+      change.setTaskId(taskId);
+      change.setTargetPath(targetPath);
       return change;
    }
 

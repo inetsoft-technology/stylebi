@@ -17,15 +17,23 @@
  */
 package inetsoft.web.admin.ai.schedule;
 
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.util.Catalog;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.ScheduleTaskFolderService;
+import inetsoft.web.admin.schedule.ScheduleTaskService;
 import inetsoft.web.admin.schedule.model.EditTaskFolderDialogModel;
+import inetsoft.web.admin.schedule.model.ScheduleTaskModel;
 import inetsoft.web.admin.schedule.model.TaskListModel;
+import inetsoft.web.security.auth.MissingResourceException;
 import inetsoft.web.security.auth.UnauthorizedAccessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -54,10 +62,16 @@ import java.util.stream.Collectors;
 public class AdminScheduleFolderGateway {
    @Autowired
    public AdminScheduleFolderGateway(ScheduleTaskFolderService taskFolderService,
-                                     ScheduleService scheduleService)
+                                     ScheduleService scheduleService,
+                                     ScheduleManager scheduleManager,
+                                     SecurityEngine securityEngine,
+                                     ScheduleTaskService scheduleTaskService)
    {
       this.taskFolderService = taskFolderService;
       this.scheduleService = scheduleService;
+      this.scheduleManager = scheduleManager;
+      this.securityEngine = securityEngine;
+      this.scheduleTaskService = scheduleTaskService;
    }
 
    /**
@@ -276,6 +290,81 @@ public class AdminScheduleFolderGateway {
    }
 
    /**
+    * Whether a schedule task with id {@code taskId} exists -- the task-move analog of {@link
+    * #folderExists}, used by {@link ScheduleFolderChangePlanService#resolve} to refuse loud at plan
+    * time on an unknown taskId, mirroring {@link #folderExists}'s own role for {@code resolveMove}.
+    */
+   public boolean taskExists(String taskId) {
+      return scheduleManager.getScheduleTask(taskId) != null;
+   }
+
+   /** The live folder path {@code taskId} currently sits at, or {@code null} if the task does not
+    * exist -- used purely for apply-time before/after evidence, not for any decision. */
+   public String getTaskPath(String taskId) {
+      ScheduleTask task = scheduleManager.getScheduleTask(taskId);
+      return task == null ? null : task.getPath();
+   }
+
+   /**
+    * Relocates the schedule task {@code taskId} to be a child of {@code targetPath} -- wraps the
+    * same {@link ScheduleTaskFolderService#moveScheduleItems} primitive {@link #moveFolder} already
+    * uses, but with a single-entry {@code taskModels[]} and no {@code folders[]}, closing the gap
+    * that primitive's own {@code taskModels} argument has sat unused for (bug #76841): the native
+    * EM "Move Task" dialog already calls {@code moveScheduleItems} this same way, via {@code
+    * EMScheduleTaskFolderController#moveFolder}.
+    *
+    * <p>Adds two checks {@code moveScheduleItems} itself does NOT perform for a task move, both
+    * confirmed by reading it directly rather than assumed:
+    *
+    * <ul>
+    * <li>Per-task permission -- {@code moveScheduleItems} only checks {@code WRITE} on the TARGET
+    * folder, never anything on the task itself; the native controller adds that check one layer up,
+    * and silently no-ops (returns) rather than throwing on failure. This method reproduces the same
+    * check ({@code WRITE} on the task, or {@link ScheduleTaskService#canDeleteTask}) but throws
+    * loud instead, matching every other refusal in this gateway.
+    * <li>{@code removable()} -- {@code moveScheduleItems}'s own taskModels loop silently {@code
+    * continue}s (no exception, no signal) when a task is not removable (a data-cycle-owned internal
+    * task), which would make this method appear to succeed while doing nothing. Checked and refused
+    * loud here instead.
+    * </ul>
+    *
+    * <p>Whether {@code targetPath} must already exist is enforced by {@link
+    * ScheduleFolderChangePlanService#resolveMoveTask} at PLAN time (mirroring {@code resolveMove}'s
+    * own {@code folderExists} guard), not here -- {@code moveScheduleItems}'s own task-move helper
+    * silently updates the task's own path even when the target folder was never actually created,
+    * producing a task that reports a folder it is not registered under; refusing before this method
+    * is ever called is the only place that is caught.
+    */
+   public void moveTask(String taskId, String targetPath, Principal user) throws Exception {
+      ScheduleTask task = scheduleManager.getScheduleTask(taskId);
+
+      if(task == null) {
+         throw new MissingResourceException(taskId);
+      }
+
+      if(!(securityEngine.checkPermission(
+              user, ResourceType.SCHEDULE_TASK, taskId, ResourceAction.WRITE) ||
+           scheduleTaskService.canDeleteTask(task, user)))
+      {
+         throw new UnauthorizedAccessException();
+      }
+
+      ScheduleTaskModel model = ScheduleTaskModel.builder()
+         .fromTask(task, scheduleService, Catalog.getCatalog())
+         .build();
+
+      if(!model.removable()) {
+         throw new IllegalArgumentException(
+            "taskId: \"" + taskId + "\" is not removable (it belongs to a data cycle) and cannot " +
+            "be moved into a folder");
+      }
+
+      AssetEntry targetEntry = taskFolderService.getFolderEntry(normalizePath(targetPath));
+      taskFolderService.moveScheduleItems(
+         new ScheduleTaskModel[]{ model }, new String[0], targetEntry, user);
+   }
+
+   /**
     * Recursively counts every schedule task contained under {@code path}, directly or via nested
     * folders -- read-only, the non-empty-delete safety net this design puts in THIS gateway rather
     * than in the shared {@code ScheduleService#removeScheduleFolders} (design §3 decision 3), which
@@ -315,4 +404,7 @@ public class AdminScheduleFolderGateway {
 
    private final ScheduleTaskFolderService taskFolderService;
    private final ScheduleService scheduleService;
+   private final ScheduleManager scheduleManager;
+   private final SecurityEngine securityEngine;
+   private final ScheduleTaskService scheduleTaskService;
 }

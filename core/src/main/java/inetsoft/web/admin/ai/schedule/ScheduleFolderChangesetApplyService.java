@@ -124,6 +124,10 @@ public class ScheduleFolderChangesetApplyService {
                   applyMove(txId, reviewedTask, path, original.getTargetPath(), backupRef,
                            req.getReviewOutcome(), user, results, undoable);
                   break;
+               case ScheduleFolderChangeRequest.VERB_MOVE_TASK:
+                  applyMoveTask(txId, reviewedTask, path, original.getTargetPath(), backupRef,
+                               req.getReviewOutcome(), user, results, undoable);
+                  break;
                default:
                   applyDelete(txId, reviewedTask, path, backupRef, req.getReviewOutcome(), user,
                              results, undoable);
@@ -189,7 +193,7 @@ public class ScheduleFolderChangesetApplyService {
                                    verified ? null : "folder not found after create"));
       writeAudit(txId, task, path, ActionRecord.ACTION_NAME_CREATE, AdminChangeRecord.ACTION_APPLY,
                 AdminChangeRecord.RISK_LOW, null, afterProjection, status, backupRef, reviewOutcome,
-                user);
+                user, ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(verified) {
          undoable.add(Undo.create(path));
@@ -215,7 +219,7 @@ public class ScheduleFolderChangesetApplyService {
                                    verified ? null : "folder not found at the new path after rename"));
       writeAudit(txId, task, oldPath, ActionRecord.ACTION_NAME_RENAME, AdminChangeRecord.ACTION_APPLY,
                 AdminChangeRecord.RISK_LOW, beforeProjection, afterProjection, status, backupRef,
-                reviewOutcome, user);
+                reviewOutcome, user, ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(verified) {
          undoable.add(Undo.rename(normalizedNewPath, oldPath));
@@ -243,10 +247,47 @@ public class ScheduleFolderChangesetApplyService {
                                    verified ? null : "folder not found at the target path after move"));
       writeAudit(txId, task, path, ActionRecord.ACTION_NAME_MOVE, AdminChangeRecord.ACTION_APPLY,
                 AdminChangeRecord.RISK_LOW, beforeProjection, afterProjection, status, backupRef,
-                reviewOutcome, user);
+                reviewOutcome, user, ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(verified) {
          undoable.add(Undo.move(resultingPath, originalParentPath));
+      }
+   }
+
+   /**
+    * Bug #76841: the task-move analog of {@link #applyMove}. {@code taskId} is the plan's own
+    * {@code property} key for this verb (see {@link ScheduleFolderChangePlanService#resolveMoveTask}),
+    * not a folder path.
+    *
+    * <p>Verification reads the task's own live folder back via {@link
+    * AdminScheduleFolderGateway#getTaskPath} and compares it against the normalized target -- this
+    * alone would NOT have caught the missing-target-folder defect {@code resolveMoveTask}'s own
+    * {@code folderExists} guard exists to prevent (the underlying primitive updates the task's path
+    * unconditionally even when the target folder was never registered), which is exactly why that
+    * guard lives at plan time instead of being deferred to this read-back.
+    */
+   private void applyMoveTask(String txId, String task, String taskId, String targetPath,
+                              String backupRef, String reviewOutcome, Principal user,
+                              List<ApplyOutcome> results, List<Undo> undoable)
+      throws Exception
+   {
+      String beforePath = folderGateway.getTaskPath(taskId);
+      String normalizedTargetPath = AdminScheduleFolderGateway.normalizePath(targetPath);
+
+      folderGateway.moveTask(taskId, targetPath, user);
+
+      String afterPath = folderGateway.getTaskPath(taskId);
+      boolean verified = afterPath != null &&
+         AdminScheduleFolderGateway.normalizePath(afterPath).equals(normalizedTargetPath);
+      String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
+      results.add(new ApplyOutcome(taskId, beforePath, afterPath, status,
+                                   verified ? null : "task's folder was not updated to the target path after move"));
+      writeAudit(txId, task, taskId, ActionRecord.ACTION_NAME_MOVE, AdminChangeRecord.ACTION_APPLY,
+                AdminChangeRecord.RISK_LOW, beforePath, afterPath, status, backupRef, reviewOutcome,
+                user, ActionRecord.OBJECT_TYPE_TASK);
+
+      if(verified) {
+         undoable.add(Undo.moveTask(taskId, beforePath));
       }
    }
 
@@ -270,7 +311,8 @@ public class ScheduleFolderChangesetApplyService {
       results.add(new ApplyOutcome(path, beforeProjection, null, status,
                                    verified ? null : "folder still exists after delete"));
       writeAudit(txId, task, path, ActionRecord.ACTION_NAME_DELETE, AdminChangeRecord.ACTION_APPLY,
-                risk, beforeProjection, null, status, backupRef, reviewOutcome, user);
+                risk, beforeProjection, null, status, backupRef, reviewOutcome, user,
+                ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(verified) {
          // NOT a complete inverse when the folder was non-empty at delete time -- re-adding via
@@ -302,8 +344,11 @@ public class ScheduleFolderChangesetApplyService {
             case RENAME:
                rollbackRename(undo, txId, task, backupRef, reviewOutcome, user, failures);
                break;
-            default:
+            case MOVE:
                rollbackMove(undo, txId, task, backupRef, reviewOutcome, user, failures);
+               break;
+            default:
+               rollbackMoveTask(undo, txId, task, backupRef, reviewOutcome, user, failures);
                break;
             }
          }
@@ -324,7 +369,7 @@ public class ScheduleFolderChangesetApplyService {
       writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_DELETE,
                 AdminChangeRecord.ACTION_ROLLBACK, AdminChangeRecord.RISK_LOW, null, null,
                 verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
-                backupRef, reviewOutcome, user);
+                backupRef, reviewOutcome, user, ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(!verified) {
          failures.add(new RollbackFailure(undo.key, "rollback of create did not remove the folder"));
@@ -345,7 +390,7 @@ public class ScheduleFolderChangesetApplyService {
       writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_CREATE,
                 AdminChangeRecord.ACTION_ROLLBACK, AdminChangeRecord.RISK_LOW, null, null,
                 verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
-                backupRef, reviewOutcome, user);
+                backupRef, reviewOutcome, user, ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(!verified) {
          failures.add(new RollbackFailure(undo.key, "rollback of delete did not restore the folder"));
@@ -362,7 +407,7 @@ public class ScheduleFolderChangesetApplyService {
       writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_RENAME,
                 AdminChangeRecord.ACTION_ROLLBACK, AdminChangeRecord.RISK_LOW, null, null,
                 verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
-                backupRef, reviewOutcome, user);
+                backupRef, reviewOutcome, user, ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(!verified) {
          failures.add(
@@ -383,23 +428,46 @@ public class ScheduleFolderChangesetApplyService {
       writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_MOVE,
                 AdminChangeRecord.ACTION_ROLLBACK, AdminChangeRecord.RISK_LOW, null, null,
                 verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
-                backupRef, reviewOutcome, user);
+                backupRef, reviewOutcome, user, ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(!verified) {
          failures.add(new RollbackFailure(undo.key, "rollback of move did not restore the prior parent"));
       }
    }
 
+   /** Bug #76841: moves {@code undo.path} (the taskId) back to {@code undo.beforePath} (the task's
+    * folder path before the original move) -- the task-move analog of {@link #rollbackMove}. */
+   private void rollbackMoveTask(Undo undo, String txId, String task, String backupRef,
+                                 String reviewOutcome, Principal user, List<RollbackFailure> failures)
+      throws Exception
+   {
+      folderGateway.moveTask(undo.path, undo.beforePath, user);
+      String restoredPath = folderGateway.getTaskPath(undo.path);
+      boolean verified = restoredPath != null &&
+         AdminScheduleFolderGateway.normalizePath(restoredPath)
+            .equals(AdminScheduleFolderGateway.normalizePath(undo.beforePath));
+      writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_MOVE,
+                AdminChangeRecord.ACTION_ROLLBACK, AdminChangeRecord.RISK_LOW, null, null,
+                verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED,
+                backupRef, reviewOutcome, user, ActionRecord.OBJECT_TYPE_TASK);
+
+      if(!verified) {
+         failures.add(
+            new RollbackFailure(undo.key, "rollback of task move did not restore the prior folder"));
+      }
+   }
+
    private void writeAudit(String txId, String task, String path, String actionRecordName,
                            String adminAction, String risk, String before, String after,
-                           String status, String backupRef, String reviewOutcome, Principal user)
+                           String status, String backupRef, String reviewOutcome, Principal user,
+                           String objectType)
    {
       try {
          AdminChangeRecord record = new AdminChangeRecord();
          record.setTransactionId(txId);
          record.setTaskDescription(task);
          record.setProperty(path);
-         record.setObjectType(ActionRecord.OBJECT_TYPE_FOLDER);
+         record.setObjectType(objectType);
          record.setBeforeValue(before);
          record.setAfterValue(after);
          record.setAction(adminAction);
@@ -435,7 +503,7 @@ public class ScheduleFolderChangesetApplyService {
 
    /** One undo descriptor built during apply, replayed in reverse by {@link #rollback}. */
    private static final class Undo {
-      private enum Kind { CREATE, DELETE, RENAME, MOVE }
+      private enum Kind { CREATE, DELETE, RENAME, MOVE, MOVE_TASK }
 
       static Undo create(String path) {
          return new Undo(Kind.CREATE, path, path, null);
@@ -455,6 +523,12 @@ public class ScheduleFolderChangesetApplyService {
          return new Undo(Kind.MOVE, currentPath, currentPath, originalParentPath);
       }
 
+      /** @param taskId the moved task's id. @param originalPath the task's folder path BEFORE the
+       * move (may be {@code null}, meaning root). */
+      static Undo moveTask(String taskId, String originalPath) {
+         return new Undo(Kind.MOVE_TASK, taskId, taskId, originalPath);
+      }
+
       private Undo(Kind kind, String key, String path, String beforePath) {
          this.kind = kind;
          this.key = key;
@@ -466,7 +540,8 @@ public class ScheduleFolderChangesetApplyService {
       /** The plan's own {@code property} key, used only for a {@link RollbackFailure}. */
       final String key;
       final String path;
-      /** RENAME: the original path. MOVE: the original parent path. Unused for CREATE/DELETE. */
+      /** RENAME: the original path. MOVE: the original parent path. MOVE_TASK: the task's original
+       * folder path. Unused for CREATE/DELETE. */
       final String beforePath;
    }
 
