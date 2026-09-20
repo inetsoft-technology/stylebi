@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.w3c.dom.Element;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -1276,6 +1277,239 @@ class TableBindingServiceTest {
       assertTrue(thrown.getMessage().toLowerCase().contains("crosstab"));
    }
 
+   // ── set_table_column_sort (bug-76806) ──────────────────────────────────────
+
+   @Test
+   void setColumnSortSetsAnExplicitAscendingOrder() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id", "product_name");
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
+
+      assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_ASC),
+                  orderOf(table.getSortInfo(), "product_id"));
+   }
+
+   @Test
+   void setColumnSortAcceptsCaseInsensitiveDirectionAndColumnName() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id");
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "PRODUCT_ID", "DESC", null);
+
+      assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_DESC),
+                  orderOf(table.getSortInfo(), "product_id"));
+   }
+
+   @Test
+   void setColumnSortReplacesAPreviousDirectionOnTheSameColumn() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id");
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "desc", null);
+
+      assertEquals(1, table.getSortInfo().getSortCount(),
+                  "the second call replaces, rather than duplicates, the first call's entry");
+      assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_DESC),
+                  orderOf(table.getSortInfo(), "product_id"));
+   }
+
+   @Test
+   void setColumnSortNoneRemovesTheColumnsSort() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id");
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "none", null);
+
+      assertEquals(0, table.getSortInfo().getSortCount());
+   }
+
+   /**
+    * The additive-vs-exclusive decision this fix makes explicit (see
+    * {@link TableBindingService#setColumnSort}'s javadoc): sorting column B must not discard
+    * column A's already-set sort, unlike a plain (non-shift) column-header click's own default
+    * ({@code BaseTableSortColumnService.tableSortColumn}'s
+    * {@code if(sinfo == null || !event.multi())} branch). This is the only way a sequence of
+    * single-column tool calls can reproduce a Viewer shift-click's multi-column sort.
+    */
+   @Test
+   void setColumnSortIsAdditiveAcrossDifferentColumns() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id", "product_name");
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
+      service.setColumnSort("tok", principal(), "TableView2", "product_name", "desc", null);
+
+      assertEquals(2, table.getSortInfo().getSortCount(),
+                  "sorting product_name must not discard product_id's earlier sort");
+      assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_ASC),
+                  orderOf(table.getSortInfo(), "product_id"));
+      assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_DESC),
+                  orderOf(table.getSortInfo(), "product_name"));
+   }
+
+   @Test
+   void setColumnSortRefusesAnUnboundColumn() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_name");
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnSort("tok", principal(), "TableView2", "ghost_col", "asc", null));
+
+      assertTrue(thrown.getMessage().contains("ghost_col"));
+      assertTrue(thrown.getMessage().contains("not bound"));
+      assertTrue(thrown.getMessage().contains("product_name"));
+   }
+
+   @Test
+   void setColumnSortRefusesACrosstabByName() {
+      ViewsheetSessionService sessions = sessionsFor(mock(CrosstabVSAssembly.class));
+      TableBindingService service = serviceWith(
+         sessions, new CrosstabBindingModel(), mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnSort("tok", principal(), "Crosstab1", "Year", "asc", null));
+
+      assertTrue(thrown.getMessage().contains("Crosstab1"));
+      assertTrue(thrown.getMessage().toLowerCase().contains("crosstab"));
+      assertTrue(thrown.getMessage().contains("set_field_sort"));
+   }
+
+   @Test
+   void setColumnSortRefusesACrosstabOnlyDirection() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id");
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnSort("tok", principal(), "TableView2", "product_id", "value_asc",
+                                     null));
+
+      assertTrue(thrown.getMessage().contains("set_field_sort"));
+      assertEquals(0, table.getSortInfo().getSortCount(),
+                  "a refused direction must not partially apply");
+   }
+
+   /**
+    * B.2's persistence claim in the bug's diagnosis, which the refuter found had zero existing
+    * test coverage anywhere in this codebase (no {@code *TableDataVSAssemblyInfoTest}/
+    * {@code *TableVSAssemblyInfoTest} exists, and {@code BaseTableSortColumnServiceTest}
+    * exercises its toggle purely in-memory, never through {@code writeXML}/{@code parseXML}).
+    * Exercises the real, {@code final} {@code AssemblyInfo.writeXML}/{@code parseXML} pair --
+    * the same pair {@code TableDataVSAssemblyInfo.writeContents}/{@code parseContents} plug
+    * into for a genuine save/reload, not a hand-rolled substitute.
+    */
+   @Test
+   void columnSortSurvivesAnXmlWriteAndParseRoundTrip() throws Exception {
+      // Unlike tableWithColumns' usual mock(Viewsheet.class) (fine for every other test here,
+      // which never serializes), writeXML's real TitleInfo.getTitle() dereferences
+      // getViewsheet().getViewsheetInfo() -- a real Viewsheet is needed so that is non-null.
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf("product_id", "product_name"));
+      TableVSAssembly table = new TableVSAssembly(new Viewsheet(), "TableView2");
+      table.setVSAssemblyInfo(info);
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "desc", null);
+
+      java.io.StringWriter sw = new java.io.StringWriter();
+      java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+      table.getVSAssemblyInfo().writeXML(pw);
+      pw.flush();
+
+      TableVSAssemblyInfo restored = new TableVSAssemblyInfo();
+      restored.parseXML(parseXmlString(sw.toString()));
+
+      assertEquals(1, restored.getSortInfo().getSortCount(),
+                  "the column sort set by setColumnSort must survive a save (writeXML) / " +
+                  "reload (parseXML) round trip, not just live in the runtime assembly");
+      assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_DESC),
+                  orderOf(restored.getSortInfo(), "product_id"));
+   }
+
+   /**
+    * Read side of bug-76806: {@code sorts} was structurally always empty for
+    * {@code objectType:"table"} before this (see {@link #readReportsColumnVisibilityFromHiddenColumns}
+    * for the parallel bug-76807 fix this mirrors). Uses the same real-{@code TableVSAssembly}/
+    * real-{@code TableBindingModel} construction as that test, for the same reason: a hand-built
+    * model bypasses whatever the live assembly actually reports.
+    */
+   @Test
+   void readReportsAPlainTablesColumnSortAfterSetColumnSort() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id", "product_name");
+      ViewsheetSessionService sessions = sessionsFor(table);
+
+      inetsoft.web.binding.service.DataRefModelFactoryService refModelService =
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class);
+      when(refModelService.createDataRefModel(any())).thenAnswer(
+         invocation -> new inetsoft.web.binding.drm.ColumnRefModel(invocation.getArgument(0)));
+
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenAnswer(invocation ->
+         new TableBindingModel(refModelService, (TableVSAssembly) invocation.getArgument(0)));
+
+      TableBindingService service = new TableBindingService(
+         sessions, binding, mock(VSBindingModelService.class), refModelService,
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class),
+         mock(inetsoft.web.binding.handler.VSAssemblyInfoHandler.class));
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "desc", null);
+
+      Map<String, Object> read = service.read("tok", principal(), "TableView2");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> sorts = (Map<String, Object>) read.get("sorts");
+      assertEquals("desc", sorts.get("product_id"));
+      assertFalse(sorts.containsKey("product_name"),
+                  "an unsorted column is omitted, not reported as a default state");
+   }
+
+   private static TableVSAssembly tableWithColumns(String assemblyName, String... columns) {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf(columns));
+      TableVSAssembly table = new TableVSAssembly(mock(Viewsheet.class), assemblyName);
+      table.setVSAssemblyInfo(info);
+      return table;
+   }
+
+   private static Integer orderOf(inetsoft.uql.asset.SortInfo sinfo, String column) {
+      for(inetsoft.uql.asset.SortRef ref : sinfo.getSorts()) {
+         if(ref.getDataRef() != null && column.equals(ref.getDataRef().getName())) {
+            return ref.getOrder();
+         }
+      }
+
+      return null;
+   }
+
+   private static Element parseXmlString(String xml) throws Exception {
+      javax.xml.parsers.DocumentBuilderFactory factory =
+         javax.xml.parsers.DocumentBuilderFactory.newInstance();
+      factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+      factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+      factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+      org.w3c.dom.Document doc = factory.newDocumentBuilder()
+         .parse(new java.io.ByteArrayInputStream(xml.getBytes()));
+      return doc.getDocumentElement();
+   }
+
    /**
     * Read side of bug-76807: {@code get_table_binding} was blind to hide/show state before this.
     *
@@ -1316,7 +1550,8 @@ class TableBindingServiceTest {
 
       TableBindingService service = new TableBindingService(
          sessions, binding, mock(VSBindingModelService.class), refModelService,
-         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class));
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class),
+         mock(inetsoft.web.binding.handler.VSAssemblyInfoHandler.class));
 
       Map<String, Object> read = service.read("tok", principal(), "TableView2");
 
@@ -1468,7 +1703,8 @@ class TableBindingServiceTest {
       when(binding.createModel(any())).thenReturn(model);
       return new TableBindingService(sessions, binding, bindings,
                                      mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
-                                     hideColumnsService);
+                                     hideColumnsService,
+                                     mock(inetsoft.web.binding.handler.VSAssemblyInfoHandler.class));
    }
 
    private static Principal principal() {
