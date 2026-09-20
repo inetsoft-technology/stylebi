@@ -3390,12 +3390,12 @@ class ViewsheetAssemblyAgentControllerTest {
     *  {@link ExportResponse} argument it's called with, mimicking what the real service does. */
    private static void stubExportBytes(VSExportService exportService, byte[] bytes) throws Exception {
       doAnswer(invocation -> {
-         ExportResponse response = invocation.getArgument(9);
+         ExportResponse response = invocation.getArgument(12);
          response.getOutputStream().write(bytes);
          return null;
       }).when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
          anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
-         any(ExportResponse.class), any(Principal.class));
+         anyBoolean(), isNull(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
    }
 
    @Test
@@ -3417,11 +3417,12 @@ class ViewsheetAssemblyAgentControllerTest {
       ByteArrayOutputStream written = new ByteArrayOutputStream();
       HttpServletResponse servletResponse = mockServletResponse(written);
 
-      controller.export("tok", "PDF", null, true, false, true, principal(), servletResponse);
+      controller.export("tok", "PDF", null, true, false, true, null, null, null, principal(),
+         servletResponse);
 
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_PDF),
          eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
-         any(ExportResponse.class), any(Principal.class));
+         eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
       verify(servletResponse).setContentType("application/pdf");
       verify(servletResponse).setContentLength(fakePdf.length);
       assertArrayEquals(fakePdf, written.toByteArray());
@@ -3452,11 +3453,12 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
       HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
 
-      controller.export("tok", "Snapshot", null, null, null, null, principal(), servletResponse);
+      controller.export("tok", "Snapshot", null, null, null, null, null, null, null, principal(),
+         servletResponse);
 
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_SNAPSHOT),
          eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
-         any(ExportResponse.class), any(Principal.class));
+         eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
       ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
       verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
       assertTrue(disposition.getValue().contains("export.vso"));
@@ -3479,11 +3481,12 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
       HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
 
-      controller.export("tok", "CSV", null, null, null, null, principal(), servletResponse);
+      controller.export("tok", "CSV", null, null, null, null, null, null, null, principal(),
+         servletResponse);
 
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_CSV),
          eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
-         any(ExportResponse.class), any(Principal.class));
+         eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
       // CSV's real payload is a zip archive (VSExportService#getSuffix), not a literal .csv file
       // -- confirmed live against a real export. A wrong extension here would actively mislead
       // once the bytes are actually saved to disk under this name.
@@ -3507,8 +3510,8 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
 
       assertThrows(SecurityException.class,
-         () -> controller.export("tok", "PDF", null, null, null, null, principal(),
-            mock(HttpServletResponse.class)));
+         () -> controller.export("tok", "PDF", null, null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
       verifyNoInteractions(exportService);
    }
 
@@ -3526,8 +3529,8 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
 
       IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-         () -> controller.export("tok", "JPEG", null, null, null, null, principal(),
-            mock(HttpServletResponse.class)));
+         () -> controller.export("tok", "JPEG", null, null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
       assertTrue(thrown.getMessage().contains("format"));
       verifyNoInteractions(exportService);
    }
@@ -3554,8 +3557,8 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, imageService);
 
       IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
-         () -> controller.export("tok", "PDF", "Chart1", null, null, null, principal(),
-            mock(HttpServletResponse.class)));
+         () -> controller.export("tok", "PDF", "Chart1", null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
       assertTrue(thrown.getMessage().contains("target"));
       verifyNoInteractions(exportService);
       verifyNoInteractions(imageService);
@@ -3584,7 +3587,8 @@ class ViewsheetAssemblyAgentControllerTest {
       ByteArrayOutputStream written = new ByteArrayOutputStream();
       HttpServletResponse servletResponse = mockServletResponse(written);
 
-      controller.export("tok", "PNG", "Chart1", null, null, null, principal(), servletResponse);
+      controller.export("tok", "PNG", "Chart1", null, null, null, null, null, null, principal(),
+         servletResponse);
 
       assertArrayEquals(pngBytes, written.toByteArray());
       verify(servletResponse).setContentType("image/png");
@@ -3618,8 +3622,8 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, imageService);
 
       PairingException ex = assertThrows(PairingException.class,
-         () -> controller.export("tok", "PNG", "Chart1", null, null, null, principal(),
-            mock(HttpServletResponse.class)));
+         () -> controller.export("tok", "PNG", "Chart1", null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
       assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
       assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
       verifyNoInteractions(exportService);
@@ -3645,7 +3649,7 @@ class ViewsheetAssemblyAgentControllerTest {
             "ReferenceError: formatShortDollar is not defined"))
          .when(exportService).exportViewsheet(any(), anyInt(), anyBoolean(), anyBoolean(),
             anyBoolean(), anyBoolean(), anyBoolean(), any(String[].class), anyBoolean(),
-            any(ExportResponse.class), any(Principal.class));
+            anyBoolean(), isNull(), anyBoolean(), any(ExportResponse.class), any(Principal.class));
       SecurityEngine securityEngine = mock(SecurityEngine.class);
       when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
          .thenReturn(true);
@@ -3654,8 +3658,8 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
 
       PairingException ex = assertThrows(PairingException.class,
-         () -> controller.export("tok", "PDF", null, null, null, null, principal(),
-            mock(HttpServletResponse.class)));
+         () -> controller.export("tok", "PDF", null, null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
       assertEquals(PairingException.Kind.INTERNAL, ex.getKind());
       assertTrue(ex.getMessage().contains("formatShortDollar is not defined"));
    }
