@@ -19,7 +19,16 @@ package inetsoft.web.wiz.viewsheet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.StyleConstants;
+import inetsoft.report.TableDataDescriptor;
 import inetsoft.report.TableDataPath;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
 import inetsoft.web.composer.vs.controller.FormatPainterService;
@@ -34,8 +43,10 @@ import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -512,6 +523,193 @@ class ViewsheetFormatServiceTest {
       assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
    }
 
+   // ── target: "data" (bug 76754) ──────────────────────────────────────────────────────────
+
+   /**
+    * A Crosstab's per-cell rendering discards an OBJECT-level `color` write once a table style
+    * applies (essentially always -- see {@code VSFormatTableLens}'s "styled" gate), so `target:
+    * "data"` writes directly to each body cell's own {@code TableDataPath} instead -- the same
+    * per-path mechanism `target: "title"` already uses. HEADER-type cells (the header
+    * row/column's own label text) are excluded -- only the body region is "data" -- and a
+    * repeated path is written once, not once per cell.
+    */
+   @Test
+   void targetDataRoutesThroughTheAssemblysComputedBodyCellPaths() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#D32F2F");
+
+      TableDataPath headerPath = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+         new String[]{ "state" });
+      TableDataPath groupHeaderPath = new TableDataPath(-1, TableDataPath.GROUP_HEADER,
+         XSchema.STRING, new String[]{ "state" });
+      TableDataPath summaryPath = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.INTEGER,
+         new String[]{ "Count(customer_id)" });
+
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> {
+         when(lens.getColCount()).thenReturn(2);
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(true);
+         when(lens.moreRows(2)).thenReturn(false);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         // Header row (row 0): excluded from the result.
+         when(desc.getCellDataPath(0, 0)).thenReturn(headerPath);
+         when(desc.getCellDataPath(0, 1)).thenReturn(headerPath);
+         // Body row (row 1): the row-dimension label cell and the aggregate cell.
+         when(desc.getCellDataPath(1, 0)).thenReturn(groupHeaderPath);
+         when(desc.getCellDataPath(1, 1)).thenReturn(summaryPath);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Crosstab1"), format, false, "data"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      ArrayList<TableDataPath[]> data = captor.getValue().getData();
+      assertNotNull(data, "target:data must populate event.getData()");
+      assertEquals(1, data.size());
+      List<TableDataPath> paths = Arrays.asList(data.get(0));
+      assertEquals(2, paths.size(), "the HEADER cell must be excluded: " + paths);
+      assertTrue(paths.contains(groupHeaderPath), paths.toString());
+      assertTrue(paths.contains(summaryPath), paths.toString());
+      assertFalse(paths.contains(headerPath), paths.toString());
+   }
+
+   /** A path repeated across several rows/cells is written once, not once per occurrence. */
+   @Test
+   void targetDataDedupesARepeatedPathAcrossRows() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#D32F2F");
+
+      TableDataPath detailPath = new TableDataPath(-1, TableDataPath.DETAIL, XSchema.STRING,
+         new String[]{ "NAME" });
+
+      RuntimeViewsheet rvs = tableRvs("Table1", lens -> {
+         when(lens.getColCount()).thenReturn(1);
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(true);
+         when(lens.moreRows(2)).thenReturn(true);
+         when(lens.moreRows(3)).thenReturn(false);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         // Same DETAIL path on every one of three data rows, as a plain Table's own descriptor
+         // returns regardless of row (DefaultTableDataDescriptor.getCellDataPath).
+         when(desc.getCellDataPath(anyInt(), eq(0))).thenReturn(detailPath);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Table1"), format, false, "data"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      TableDataPath[] paths = captor.getValue().getData().get(0);
+      assertArrayEquals(new TableDataPath[]{ detailPath }, paths);
+   }
+
+   @Test
+   void targetDataAlignsOnePathListPerAssembly() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+
+      TableDataPath path1 = new TableDataPath(-1, TableDataPath.DETAIL, XSchema.STRING,
+         new String[]{ "A" });
+      TableDataPath path2 = new TableDataPath(-1, TableDataPath.DETAIL, XSchema.STRING,
+         new String[]{ "B" });
+
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+
+      TableVSAssembly table1 = mock(TableVSAssembly.class);
+      ViewsheetSandbox box1 = mock(ViewsheetSandbox.class);
+      VSTableLens lens1 = mock(VSTableLens.class);
+      TableDataDescriptor desc1 = mock(TableDataDescriptor.class);
+      when(viewsheet.getAssembly("Table1")).thenReturn(table1);
+      when(lens1.getDescriptor()).thenReturn(desc1);
+      when(lens1.getColCount()).thenReturn(1);
+      when(lens1.moreRows(0)).thenReturn(true);
+      when(lens1.moreRows(1)).thenReturn(false);
+      when(desc1.getCellDataPath(0, 0)).thenReturn(path1);
+
+      TableVSAssembly table2 = mock(TableVSAssembly.class);
+      ViewsheetSandbox box2 = mock(ViewsheetSandbox.class);
+      VSTableLens lens2 = mock(VSTableLens.class);
+      TableDataDescriptor desc2 = mock(TableDataDescriptor.class);
+      when(viewsheet.getAssembly("Table2")).thenReturn(table2);
+      when(lens2.getDescriptor()).thenReturn(desc2);
+      when(lens2.getColCount()).thenReturn(1);
+      when(lens2.moreRows(0)).thenReturn(true);
+      when(lens2.moreRows(1)).thenReturn(false);
+      when(desc2.getCellDataPath(0, 0)).thenReturn(path2);
+
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box1), Optional.of(box2));
+      when(box1.getVSTableLens("Table1", false)).thenReturn(lens1);
+      when(box2.getVSTableLens("Table2", false)).thenReturn(lens2);
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Table1", "Table2"), format, false, "data"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      ArrayList<TableDataPath[]> data = captor.getValue().getData();
+      assertEquals(2, data.size(), "one TableDataPath[] per assembly, same order as objects[]");
+      assertArrayEquals(new TableDataPath[]{ path1 }, data.get(0));
+      assertArrayEquals(new TableDataPath[]{ path2 }, data.get(1));
+   }
+
+   @Test
+   void targetDataRefusesAnAssemblyThatIsNeitherCrosstabNorTable() {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Text1")).thenReturn(mock(TextVSAssembly.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Text1"), new VSObjectFormatInfoModel(), false, "data"), ""));
+      assertTrue(thrown.getMessage().contains("data"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Text1"), thrown.getMessage());
+   }
+
+   /** No sandbox (e.g. an unloaded/disposed viewsheet) degrades to an empty path list. */
+   @Test
+   void targetDataIsEmptyWhenNoSandboxIsAvailable() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      assertArrayEquals(new TableDataPath[0], captor.getValue().getData().get(0));
+   }
+
    // ── set_calc_cell_format / get_calc_cell_format (bug 76679) ────────────────────────────
 
    /**
@@ -664,15 +862,68 @@ class ViewsheetFormatServiceTest {
       return serviceWith(painter, mock(CalcTableService.class));
    }
 
+   /** A real (mocked) {@code RuntimeViewsheet} in place of {@code null} -- for target:"data",
+    *  which needs to resolve the named assembly and its live table lens. */
+   private static ViewsheetFormatService serviceWith(FormatPainterService painter,
+                                                      RuntimeViewsheet rvs)
+   {
+      return serviceWith(painter, mock(CalcTableService.class), rvs);
+   }
+
+   /** A Crosstab assembly whose {@code VSTableLens}/descriptor {@code configure} sets up. */
+   private static RuntimeViewsheet crosstabRvs(String name,
+                                               java.util.function.Consumer<VSTableLens> configure)
+      throws Exception
+   {
+      return dataAssemblyRvs(name, mock(CrosstabVSAssembly.class), configure);
+   }
+
+   /** A plain Table assembly whose {@code VSTableLens}/descriptor {@code configure} sets up. */
+   private static RuntimeViewsheet tableRvs(String name,
+                                            java.util.function.Consumer<VSTableLens> configure)
+      throws Exception
+   {
+      return dataAssemblyRvs(name, mock(TableVSAssembly.class), configure);
+   }
+
+   private static RuntimeViewsheet dataAssemblyRvs(
+      String name, inetsoft.uql.viewsheet.VSAssembly assembly,
+      java.util.function.Consumer<VSTableLens> configure)
+      throws Exception
+   {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetSandbox box = mock(ViewsheetSandbox.class);
+      VSTableLens lens = mock(VSTableLens.class);
+      TableDataDescriptor desc = mock(TableDataDescriptor.class);
+
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(name)).thenReturn(assembly);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
+      when(box.getVSTableLens(name, false)).thenReturn(lens);
+      when(lens.getDescriptor()).thenReturn(desc);
+
+      configure.accept(lens);
+
+      return rvs;
+   }
+
    private static ViewsheetFormatService serviceWith(FormatPainterService painter,
                                                       CalcTableService calcService)
+   {
+      return serviceWith(painter, calcService, null);
+   }
+
+   private static ViewsheetFormatService serviceWith(FormatPainterService painter,
+                                                      CalcTableService calcService,
+                                                      RuntimeViewsheet rvs)
    {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
 
       try {
          doAnswer(invocation -> {
             ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
-            mutation.run(null, "rt1", null);
+            mutation.run(rvs, "rt1", null);
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
 

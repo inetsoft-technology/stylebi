@@ -24,7 +24,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.report.StyleConstants;
+import inetsoft.report.TableDataDescriptor;
 import inetsoft.report.TableDataPath;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.adhoc.model.chart.ChartFormatConstants;
 import inetsoft.web.composer.model.vs.VSObjectFormatInfoModel;
@@ -40,8 +48,10 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Applies assembly-level formatting through the Composer's own format service.
@@ -68,7 +78,10 @@ public class ViewsheetFormatService {
     * @param target     {@code "object"} (default, when null/blank) formats the whole assembly;
     *                   {@code "title"} formats only that assembly's own title-bar text, distinct
     *                   from a chart's axis titles or any other sub-region; {@code "text"} formats
-    *                   a single chart's {@code text}-aesthetic-bound field (its data labels)
+    *                   a single chart's {@code text}-aesthetic-bound field (its data labels);
+    *                   {@code "data"} formats a Crosstab/Table's body cells directly, the only
+    *                   target that reaches rendered body text (e.g. {@code color}/font color) once
+    *                   a table style applies -- see {@link #requireTarget}
     * @param field      required when {@code target} is {@code "text"} — the column currently
     *                   bound to the chart's text aesthetic channel
     */
@@ -420,11 +433,91 @@ public class ViewsheetFormatService {
 
                event.setData(data);
             }
+            else if("data".equals(target)) {
+               // Same event.getData() per-path mechanism as "title" above, but computed per
+               // assembly instead of a single shared constant: a Crosstab/Table's per-cell
+               // rendering discards an OBJECT-level format write whenever any table style
+               // applies (VSFormatTableLens's "styled" gate) -- true for essentially every
+               // realistic Crosstab/Table -- so "object" can never reach body text. Writing
+               // directly to each cell's own TableDataPath bypasses that gate entirely, the
+               // same way a human dragging over data cells in the native UI already does
+               // (FormatPainterService's paths != null branch, below).
+               ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+               for(String name : request.assemblies()) {
+                  data.add(computeDataRegionPaths(rvs, name));
+               }
+
+               event.setData(data);
+            }
          }
 
          painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
       });
    }
+
+   /**
+    * Computes the {@code TableDataPath[]} for a Crosstab/Table's whole data (body) region --
+    * one entry per distinct cell path the assembly's own live-rendered table actually reports,
+    * mirroring what a human dragging over every data cell in the native Composer UI would send
+    * (see {@code FormatPainterService}'s {@code paths != null} branch). Computed from the live
+    * lens rather than the binding alone because a Crosstab's body paths encode structural
+    * nesting (row/col dimension levels, subtotal/grand-total rows) that isn't derivable from the
+    * binding without re-implementing {@link inetsoft.report.filter.CrossFilterDataDescriptor}'s
+    * own path construction -- reusing {@link TableDataDescriptor#getCellDataPath} instead keeps
+    * this correct by construction for both a Crosstab and a plain Table. Column/row HEADER
+    * label cells (the header row/column text, distinct from the assembly's own title bar) are
+    * excluded -- only the body region is "data".
+    *
+    * @throws IllegalArgumentException if {@code name} does not resolve to a Crosstab or Table
+    */
+   private static TableDataPath[] computeDataRegionPaths(RuntimeViewsheet rvs, String name)
+      throws Exception
+   {
+      Viewsheet viewsheet = rvs.getViewsheet();
+      VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof CrosstabVSAssembly) && !(assembly instanceof TableVSAssembly)) {
+         throw new IllegalArgumentException(
+            "set_format: target 'data' only applies to a Crosstab or Table assembly; '" + name +
+            "' is " + (assembly == null ? "not found" :
+                       assembly.getClass().getSimpleName()) + ".");
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return new TableDataPath[0];
+      }
+
+      VSTableLens lens = box.get().getVSTableLens(name, false);
+
+      if(lens == null) {
+         return new TableDataPath[0];
+      }
+
+      TableDataDescriptor desc = lens.getDescriptor();
+      LinkedHashSet<TableDataPath> paths = new LinkedHashSet<>();
+      int colCount = lens.getColCount();
+
+      // Bounded defensively against a pathological lens that never stops reporting more rows --
+      // the distinct path SET is small regardless of row count (a body path encodes structural
+      // nesting, not the cell's actual value), so this cap is never load-bearing for a real
+      // Crosstab/Table.
+      for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
+         for(int col = 0; col < colCount; col++) {
+            TableDataPath path = desc.getCellDataPath(row, col);
+
+            if(path != null && path.getType() != TableDataPath.HEADER) {
+               paths.add(path);
+            }
+         }
+      }
+
+      return paths.toArray(new TableDataPath[0]);
+   }
+
+   private static final int MAX_DATA_REGION_ROWS = 100_000;
 
    /**
     * {@code set_calc_cell_format}. Applies a format at one {@code CalcTable} cell's own
@@ -543,14 +636,19 @@ public class ViewsheetFormatService {
    private static String requireTarget(String target) {
       String name = target == null || target.isBlank() ? "object" : target.trim().toLowerCase();
 
-      if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name)) {
+      if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
+         !"data".equals(name))
+      {
          throw new IllegalArgumentException(
-            "set_format 'target' must be 'object', 'title' or 'text', got '" + target + "'. " +
-            "'object' (the default) formats the whole assembly, including — for a chart — the " +
-            "default text style that unstyled axis titles and tick labels fall back to. 'title' " +
-            "formats only that assembly's own title-bar text; for a chart's x/y axis titles, use " +
-            "set_chart_region_properties with region 'title' instead. 'text' formats a single " +
-            "chart's text-aesthetic-bound field (its data labels) — requires 'field'.");
+            "set_format 'target' must be 'object', 'title', 'text' or 'data', got '" + target +
+            "'. 'object' (the default) formats the whole assembly, including — for a chart — " +
+            "the default text style that unstyled axis titles and tick labels fall back to. " +
+            "'title' formats only that assembly's own title-bar text; for a chart's x/y axis " +
+            "titles, use set_chart_region_properties with region 'title' instead. 'text' " +
+            "formats a single chart's text-aesthetic-bound field (its data labels) — requires " +
+            "'field'. 'data' formats a Crosstab or Table's body cells directly — use this for " +
+            "'color' on a Crosstab/Table: 'object' can never reach rendered body text once a " +
+            "table style applies, which is true for essentially every realistic Crosstab/Table.");
       }
 
       return name;
