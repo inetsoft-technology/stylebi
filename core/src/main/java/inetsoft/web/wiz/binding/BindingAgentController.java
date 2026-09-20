@@ -707,6 +707,20 @@ public class BindingAgentController {
       return out;
    }
 
+   public record TableColumnSortRequest(String assembly, String column, String direction) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/column-sort")
+   public void setTableColumnSort(@PathVariable String sessionToken,
+                                  @RequestBody TableColumnSortRequest request,
+                                  @RequestParam(required = false, defaultValue = "") String linkUri,
+                                  Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setColumnSort(sessionToken, user, request.assembly(), request.column(),
+                                 request.direction(), linkUri);
+   }
+
    public record CalcLayoutRequest(String assembly, String op, Integer row, Integer col,
                                    Integer rows, Integer cols, Integer n) {}
    public record CalcCopyRequest(String assembly, String op, Integer row, Integer col,

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
@@ -26,6 +27,8 @@ import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SortInfo;
+import inetsoft.uql.asset.SortRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
@@ -36,6 +39,7 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.handler.ClearTableHeaderAliasHandler;
 import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
@@ -76,13 +80,15 @@ public class TableBindingService {
                               VSBindingService binding,
                               VSBindingModelService bindingModelService,
                               DataRefModelFactoryService refModelService,
-                              HideColumnsDialogService hideColumnsService)
+                              HideColumnsDialogService hideColumnsService,
+                              VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.sessions = sessions;
       this.binding = binding;
       this.bindingModelService = bindingModelService;
       this.refModelService = refModelService;
       this.hideColumnsService = hideColumnsService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
    /**
@@ -458,6 +464,174 @@ public class TableBindingService {
          hideColumnsService.setColumnOptionDialogModel(runtimeId, assemblyName, updated, user,
                                                        dispatcher, linkUri);
       });
+   }
+
+   /**
+    * Sets a plain Table's own interactive column-header sort -- the {@link SortInfo} field on
+    * {@link TableDataVSAssemblyInfo} a Viewer/Preview column-header click mutates directly
+    * (see {@code BaseTableSortColumnService.tableSortColumn}), reached here by an explicit
+    * {@code direction} instead of that click handler's ASC -&gt; DESC -&gt; NONE toggle. This is
+    * a different Java field entirely from {@link #setSort} above, which only ever writes a
+    * Crosstab dimension's order inside {@link BaseTableBindingModel} -- see the refusal below
+    * for why a Crosstab is rejected here rather than routed to that method.
+    *
+    * <p><b>Additive, not exclusive.</b> A plain (non-shift) column-header click discards every
+    * other column's sort and keeps only the one just clicked ({@code tableSortColumn}'s
+    * {@code if(sinfo == null || !event.multi())} branch); only a shift-click preserves the
+    * others. This call always preserves the others -- it is the only way a sequence of
+    * single-column tool calls can build a multi-column sort (e.g. "sort Region ascending, then
+    * Sales descending" as two separate calls), which a plain click cannot do one column at a
+    * time. There is no parameter to ask for the exclusive/plain-click behaviour instead; call
+    * this once per column and it composes.
+    *
+    * <p>Commits via {@link VSAssemblyInfoHandler#apply}, the same primitive
+    * {@code VSInputService.setVSSortingDialogModel} (the CalcTable Sort dialog, the closest
+    * existing precedent on this exact {@code sinfo} field family) trusts for this, rather than
+    * hand-replaying {@code tableSortColumn}'s own multi-call refresh sequence
+    * ({@code coreLifecycleService.execute} + {@code layoutViewsheet} +
+    * {@code bindingFactory.createModel} + {@code SetVSBindingModelCommand}). {@code refreshPara}
+    * is left {@code false} (unlike that CalcTable dialog's call, which passes {@code true}) to
+    * match what the native column-click handler itself does -- it never calls
+    * {@code refreshParameters} either -- which is also why {@code engine} is passed {@code null}
+    * here: {@link VSAssemblyInfoHandler#apply} only dereferences it when {@code refreshPara} is
+    * {@code true}.
+    *
+    * <p>Persists into the saved viewsheet asset on the next save, same as every other write in
+    * this class: {@code sinfo} round-trips through {@code TableDataVSAssemblyInfo}'s real
+    * {@code writeContents}/{@code parseContents} XML pair, not a runtime-only field.
+    *
+    * <p>Form tables are refused for now -- the interactive path's form branch
+    * ({@code box.sortFormTableLens} plus an {@code UpdateSortInfoCommand}) needs a live
+    * {@code ViewsheetSandbox} form-lens refresh this call does not drive.
+    */
+   public void setColumnSort(String sessionToken, Principal user, String assemblyName,
+                             String column, String direction, String linkUri) throws Exception
+   {
+      int order = parseColumnSortDirection(direction);
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(!(liveAssembly instanceof TableVSAssembly table)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " +
+               (liveAssembly instanceof CrosstabVSAssembly ? "a Crosstab" : "not a Table") +
+               " -- set_table_column_sort only supports a plain Table. A Crosstab's column " +
+               "sort is set_field_sort's job instead (it sorts a dimension shelf, not a " +
+               "rendered column).");
+         }
+
+         if(table.getVSAssemblyInfo() instanceof TableVSAssemblyInfo tinfo && tinfo.isForm()) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is a form table -- set_table_column_sort does not " +
+               "support form tables yet.");
+         }
+
+         ColumnSelection columns = table.getColumnSelection();
+         DataRef ref = resolveSortColumn(columns, column);
+
+         if(ref == null) {
+            List<String> bound = boundColumnNames(columns);
+            throw new IllegalArgumentException(
+               "'" + column + "' is not bound on '" + assemblyName + "'. It holds: " +
+               (bound.isEmpty() ? "(nothing)" : String.join(", ", bound)) + ".");
+         }
+
+         // Sorting is applied before alias, so the base ref is what SortInfo keys off -- the
+         // same unwrap BaseTableSortColumnService.tableSortColumn() does.
+         DataRef base = ref;
+
+         if(ref instanceof ColumnRef columnRef) {
+            base = columnRef.getDataRef();
+
+            if(!(base instanceof ColumnRef)) {
+               ColumnRef wrapped = new ColumnRef(base);
+               wrapped.setDataType(ref.getDataType());
+               base = wrapped;
+            }
+         }
+
+         // Mutate a CLONE, not the assembly's own live info -- table.getVSAssemblyInfo()
+         // returns that live field directly (AbstractVSAssembly.getVSAssemblyInfo(), no
+         // defensive copy). Passing the live object itself into apply() would make
+         // AbstractVSAssembly.setVSAssemblyInfo()'s this.info.copyInfo(info) a self-comparison
+         // -- TableDataVSAssemblyInfo.copyInputDataInfo()'s Tool.equalsContent(sinfo, tinfo.sinfo)
+         // check is always "equal" against itself, so VSAssembly.INPUT_DATA_CHANGED is never set
+         // and the refresh/recompute dispatch a real column-header click triggers silently does
+         // not happen. Same clone-first shape as HideColumnsDialogService
+         // .setColumnOptionDialogModel() (the delegate setFieldVisibility above already uses
+         // correctly) -- info.clone() deep-clones sinfo too (TableDataVSAssemblyInfo.clone(false)),
+         // so mutating the clone's SortInfo never touches the live one until apply() commits it.
+         TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) table.getVSAssemblyInfo();
+         TableDataVSAssemblyInfo clone = (TableDataVSAssemblyInfo) info.clone();
+         SortInfo sinfo = clone.getSortInfo();
+         sinfo = sinfo == null ? new SortInfo() : sinfo;
+         SortRef sortRef = new SortRef(base);
+
+         if(order == StyleConstants.SORT_NONE) {
+            sinfo.removeSort(sortRef);
+         }
+         else {
+            sortRef.setOrder(order);
+            sinfo.addSort(sortRef);
+         }
+
+         clone.setSortInfo(sinfo);
+         assemblyInfoHandler.apply(rvs, clone, null, false, false, false, false, dispatcher,
+                                   null, null, linkUri, null);
+      });
+   }
+
+   /**
+    * Maps {@code direction} to {@link StyleConstants}'s {@code SORT_ASC}/{@code SORT_DESC}/
+    * {@code SORT_NONE} -- the only three states a plain Table's {@link SortRef} ever takes.
+    * Case-folded and a couple of natural spellings accepted (ascending/descending), but unlike
+    * {@link DimensionSortRanking}'s Crosstab vocabulary, {@code value_asc}/{@code value_desc}/
+    * {@code manual} have no equivalent here (there is no aggregate-by or manual-value-order
+    * concept on a Table's own column sort), so those -- and anything else -- are refused by
+    * name rather than silently coerced to one of the three real states.
+    */
+   private static int parseColumnSortDirection(String direction) {
+      String token = direction == null ? "" : direction.trim().toLowerCase();
+
+      return switch(token) {
+         case "asc", "ascending" -> StyleConstants.SORT_ASC;
+         case "desc", "descending" -> StyleConstants.SORT_DESC;
+         case "none" -> StyleConstants.SORT_NONE;
+         default -> throw new IllegalArgumentException(
+            "'direction' must be one of asc, desc, none -- got '" + direction + "'. " +
+            "value_asc/value_desc/manual are set_field_sort's Crosstab-only vocabulary and " +
+            "have no equivalent on a plain Table's column sort.");
+      };
+   }
+
+   /** Case-insensitive column-name lookup, matching this class's other by-name resolutions. */
+   private static DataRef resolveSortColumn(ColumnSelection columns, String column) {
+      Enumeration<DataRef> refs = columns.getAttributes();
+
+      while(refs.hasMoreElements()) {
+         DataRef ref = refs.nextElement();
+         String name = ref.getName();
+
+         if(name != null &&
+            (name.equalsIgnoreCase(column) || unqualified(name).equalsIgnoreCase(column)))
+         {
+            return ref;
+         }
+      }
+
+      return null;
+   }
+
+   private static List<String> boundColumnNames(ColumnSelection columns) {
+      List<String> names = new ArrayList<>();
+      Enumeration<DataRef> refs = columns.getAttributes();
+
+      while(refs.hasMoreElements()) {
+         names.add(refs.nextElement().getName());
+      }
+
+      return names;
    }
 
    public void setSort(String sessionToken, Principal user, String assemblyName, String shelf,
@@ -922,6 +1096,20 @@ public class TableBindingService {
          }
       }
 
+      // The loop above never fires for a Table -- shelvesOf() only ever returns "details" for
+      // one, which is unconditionally excluded (that exclusion is TableBindingMutator's own
+      // Crosstab-dimension-shelf vocabulary, deliberately not touched here; see
+      // describeTableColumnSorts's javadoc). Without this, "sorts" was structurally always
+      // empty for objectType:"table", the read-side half of this bug -- setColumnSort's write
+      // above had nothing that reported it back.
+      if(model instanceof TableBindingModel) {
+         VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(liveAssembly instanceof TableVSAssembly table) {
+            sorts.putAll(describeTableColumnSorts(table));
+         }
+      }
+
       out.put("sorts", sorts);
       out.put("options", describeOptions(model));
 
@@ -1123,6 +1311,44 @@ public class TableBindingService {
       shelfFields.put("details", enriched);
    }
 
+   /**
+    * The read side of {@link #setColumnSort}: a plain Table's current column sort, keyed by
+    * column name to {@code "asc"}/{@code "desc"} -- the same {@code sorts} map
+    * {@link TableBindingMutator#describeSorts} already populates for a Crosstab dimension
+    * shelf, just built from {@code table.getSortInfo()} directly instead, since that mutator's
+    * vocabulary (sortByField/manualOrder/ranking) is Crosstab-dimension-only and does not apply
+    * to a Table's plain {@link SortRef}[]. An unsorted column is omitted rather than reported as
+    * {@code "none"}, matching how {@code shelves} and this same {@code sorts} map already omit
+    * anything with nothing to report elsewhere in this method, rather than enumerating every
+    * bound column's default state.
+    */
+   private static Map<String, Object> describeTableColumnSorts(TableVSAssembly table) {
+      Map<String, Object> out = new LinkedHashMap<>();
+      SortInfo sinfo = table.getSortInfo();
+
+      if(sinfo == null) {
+         return out;
+      }
+
+      for(SortRef ref : sinfo.getSorts()) {
+         DataRef column = ref.getDataRef();
+         String name = column == null ? null : column.getName();
+
+         if(name == null) {
+            continue;
+         }
+
+         if(ref.getOrder() == StyleConstants.SORT_ASC) {
+            out.put(name, "asc");
+         }
+         else if(ref.getOrder() == StyleConstants.SORT_DESC) {
+            out.put(name, "desc");
+         }
+      }
+
+      return out;
+   }
+
    private static FieldRef withVisibility(FieldRef field, boolean visible) {
       return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
                           field.namedGroup(), field.chartType(), field.runtimeChartType(),
@@ -1292,4 +1518,5 @@ public class TableBindingService {
    private final VSBindingModelService bindingModelService;
    private final DataRefModelFactoryService refModelService;
    private final HideColumnsDialogService hideColumnsService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
 }
