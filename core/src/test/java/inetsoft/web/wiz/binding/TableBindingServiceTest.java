@@ -1694,6 +1694,35 @@ class TableBindingServiceTest {
                   "product_name is hidden");
    }
 
+   /**
+    * Write side of bug #76820: re-adding a hidden column via {@code add_table_field}/{@code
+    * set_table_fields} left it present in both {@code getColumnSelection()} and {@code
+    * getHiddenColumns()} at once, so {@code get_table_binding} kept reporting it hidden even
+    * though it was live-bound and rendering. Calls {@link VSTableBindingFactory#updateTableAssembly}
+    * directly -- it is {@code public static}, so no service-layer mocking is needed.
+    */
+   @Test
+   void updateTableAssemblyClearsReaddedColumnFromHiddenColumns() {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf("product_id"));
+      info.setHiddenColumns(columnRefSelectionOf("product_name"));
+      TableVSAssembly table = new TableVSAssembly(mock(Viewsheet.class), "TableView3");
+      table.setVSAssemblyInfo(info);
+
+      TableBindingModel model = new TableBindingModel();
+      model.addDetail(new inetsoft.web.binding.drm.ColumnRefModel(
+         new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(null, "product_id"))));
+      model.addDetail(new inetsoft.web.binding.drm.ColumnRefModel(
+         new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(null, "product_name"))));
+
+      inetsoft.web.binding.service.VSTableBindingFactory.updateTableAssembly(model, table);
+
+      assertNotNull(info.getColumnSelection().getAttribute("product_name"),
+                    "the re-added column must still be present in the shown column selection");
+      assertNull(info.getHiddenColumns().getAttribute("product_name"),
+                "the re-added column must be cleared from hidden columns, not left dual-bound");
+   }
+
    /** A ColumnSelection holding one real {@code ColumnRef} per given column name -- what a live
     *  {@code TableVSAssemblyInfo}'s {@code getColumnSelection()}/{@code getHiddenColumns()}
     *  actually hold, unlike {@link #columnSelectionOf}'s bare {@code AttributeRef}s (fine for the
