@@ -21,13 +21,17 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.SNamedGroupInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.VSAggregateRef;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
+import inetsoft.web.wiz.binding.TableBindingMutator;
+import inetsoft.web.wiz.binding.model.FieldRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +40,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -146,5 +152,111 @@ class VSCrosstabBindingFactoryTest {
                    "an aggregate calc field/expression is already an aggregated " +
                    "value, so its default formula must be None rather than an " +
                    "arbitrary Sum/Count that would double-aggregate it");
+   }
+
+   /**
+    * Bug #76809, VTB-019: {@code set_table_fields}'s inline {@code namedGroupValues}, attached to
+    * a row dimension that is already bound on the shelf, was silently dropped -- the rendered
+    * crosstab kept rendering as if no grouping had ever been applied.
+    *
+    * <p>{@code updateAssembly}'s row/col merge loops call {@code updateDataRefGroupInfo(nref,
+    * oref)} for any shelf position that already existed before the write, to preserve a grouping
+    * that was set on the live ref through some other path and that the incoming model doesn't
+    * know about. That preserve logic used to be unconditional: it always overwrote the
+    * freshly-built ref's {@code namedGroupInfo} with a clone of the OLD live ref's value, even
+    * when the freshly-built ref already carried its own, newly-resolved, non-null
+    * {@code namedGroupInfo} from the incoming model -- silently clobbering it back to the old
+    * (here: ungrouped/{@code null}) value.
+    *
+    * <p>Reproduces the exact repro shape: an already-bound, ungrouped {@code Product:Category} on
+    * rows, then a second {@code updateAssembly} call whose model resolves a fresh
+    * {@code namedGroupValues}-based grouping for that same row.
+    */
+   @Test
+   void updateAssemblyKeepsFreshNamedGroupInfoOnAnExistingRow() {
+      VSCrosstabBindingFactory factory =
+         new VSCrosstabBindingFactory(mock(DataRefModelFactoryService.class));
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+
+      CrosstabBindingModel initial = new CrosstabBindingModel();
+      initial.setOption(new CrosstabOptionInfo());
+      TableBindingMutator.setShelf(initial, "rows",
+         List.of(new FieldRef("Product:Category", "dimension", null, null, null)));
+      factory.updateAssembly(initial, assembly);
+
+      VSDimensionRef liveRowBefore =
+         (VSDimensionRef) assembly.getVSCrosstabInfo().getDesignRowHeaders()[0];
+      assertNull(liveRowBefore.getNamedGroupInfo(), "sanity: no group yet");
+
+      FieldRef.NamedGroupValues spec = new FieldRef.NamedGroupValues(
+         List.of(new FieldRef.NamedGroupValues.Clause("bu", List.of("Business", "Hardware"))),
+         null);
+      FieldRef field = new FieldRef("Product:Category", "dimension", null, null, null, null, null,
+                                    spec);
+      CrosstabBindingModel update = new CrosstabBindingModel();
+      update.setOption(new CrosstabOptionInfo());
+      TableBindingMutator.setShelf(update, "rows", List.of(field));
+
+      factory.updateAssembly(update, assembly);
+
+      VSDimensionRef liveRow =
+         (VSDimensionRef) assembly.getVSCrosstabInfo().getDesignRowHeaders()[0];
+      assertNotNull(liveRow.getNamedGroupInfo(),
+                    "an explicit namedGroupValues on an already-bound row must survive " +
+                    "updateAssembly's merge into the live crosstab, not be clobbered back to " +
+                    "the old, ungrouped value");
+      assertInstanceOf(SNamedGroupInfo.class, liveRow.getNamedGroupInfo());
+      assertEquals(List.of("Business", "Hardware"),
+                   ((SNamedGroupInfo) liveRow.getNamedGroupInfo()).getGroupValue("bu"),
+                   "the live grouping must actually contain the reporter's mapping, not just " +
+                   "be non-null");
+   }
+
+   /**
+    * Bug #76809, VTB-019 -- the required preserve-behavior guard. A fix that made the test above
+    * pass by simply deleting {@code updateDataRefGroupInfo}'s preserve logic outright (rather than
+    * making it conditional on the freshly-built ref not already having its own namedGroupInfo)
+    * would look correct but silently reintroduce whatever this method was originally written to
+    * protect: a grouping already live on a ref, resubmitted through an unrelated {@code
+    * updateAssembly} call whose incoming model says nothing about grouping for that field, must
+    * still be preserved rather than dropped.
+    */
+   @Test
+   void updateAssemblyPreservesExistingNamedGroupInfoWhenModelDoesNotSpecifyOne() {
+      VSCrosstabBindingFactory factory =
+         new VSCrosstabBindingFactory(mock(DataRefModelFactoryService.class));
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+
+      FieldRef.NamedGroupValues spec = new FieldRef.NamedGroupValues(
+         List.of(new FieldRef.NamedGroupValues.Clause("bu", List.of("Business", "Hardware"))),
+         null);
+      FieldRef groupedField = new FieldRef("Product:Category", "dimension", null, null, null,
+                                           null, null, spec);
+      CrosstabBindingModel grouped = new CrosstabBindingModel();
+      grouped.setOption(new CrosstabOptionInfo());
+      TableBindingMutator.setShelf(grouped, "rows", List.of(groupedField));
+      factory.updateAssembly(grouped, assembly);
+
+      VSDimensionRef liveRowBefore =
+         (VSDimensionRef) assembly.getVSCrosstabInfo().getDesignRowHeaders()[0];
+      assertNotNull(liveRowBefore.getNamedGroupInfo(), "sanity: the group is live before the " +
+                    "unrelated re-bind below");
+
+      // No namedGroup/namedGroupValues on this field at all -- the ordinary shape of a re-bind
+      // that doesn't touch this field's grouping.
+      CrosstabBindingModel unrelatedRebind = new CrosstabBindingModel();
+      unrelatedRebind.setOption(new CrosstabOptionInfo());
+      TableBindingMutator.setShelf(unrelatedRebind, "rows",
+         List.of(new FieldRef("Product:Category", "dimension", null, null, null)));
+
+      factory.updateAssembly(unrelatedRebind, assembly);
+
+      VSDimensionRef liveRow =
+         (VSDimensionRef) assembly.getVSCrosstabInfo().getDesignRowHeaders()[0];
+      assertNotNull(liveRow.getNamedGroupInfo(),
+                    "a grouping already live on a ref must survive a re-bind whose incoming " +
+                    "model doesn't mention grouping for that field");
+      assertEquals(List.of("Business", "Hardware"),
+                   ((SNamedGroupInfo) liveRow.getNamedGroupInfo()).getGroupValue("bu"));
    }
 }
