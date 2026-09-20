@@ -39,7 +39,6 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.BlobStorageManager;
 import inetsoft.storage.KeyValueStorageManager;
-import inetsoft.uql.XDataService;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -433,7 +432,7 @@ public class EngineConfiguration {
    @Bean
    @Lazy
    @Primary
-   public XSessionManager xSessionManager(@Lazy XDataService dataService, @Lazy XSessionService sessionService, @Lazy DataSourceRegistry dataSourceRegistry) throws RemoteException {
+   public XSessionManager xSessionManager(@Lazy XRepository dataService, @Lazy XSessionService sessionService, @Lazy DataSourceRegistry dataSourceRegistry) throws RemoteException {
       return new XSessionManager(dataService, sessionService, dataSourceRegistry);
    }
 

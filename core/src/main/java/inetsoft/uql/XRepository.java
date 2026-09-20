@@ -23,6 +23,7 @@ import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.util.ConfigurationContext;
 import java.rmi.RemoteException;
+import java.security.Principal;
 import java.util.List;
 import java.util.concurrent.Future;
 
@@ -358,6 +359,12 @@ public interface XRepository extends XDataService, XQueryRepository {
    void renameQueryFolder(String nname, String oname) throws Exception;
 
    void renameSourceFolder(XDataSource source, String oname);
+
+   /**
+    * Remove the cached query result for the given query.
+    */
+   void removeQueryCache(Object session, XQuery query, VariableTable vars, Principal user,
+                          Class<?> type) throws Exception;
 
    interface MetaDataListener {
       void start(XDataSource dx, String msg);

@@ -47,7 +47,7 @@ public class DesignSession extends XSessionManager {
    /**
     * Create a design session manager.
     */
-   public DesignSession(XDataService dataService, XSessionService sessionService,
+   public DesignSession(XRepository dataService, XSessionService sessionService,
                         DataSourceRegistry dataSourceRegistry) throws RemoteException
    {
       super(dataService, sessionService, dataSourceRegistry);

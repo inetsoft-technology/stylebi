@@ -83,7 +83,7 @@ public class XSessionManager {
    /**
     * Create a session manager with specific key.
     */
-   public XSessionManager(XDataService dataService, XSessionService sessionService,
+   public XSessionManager(XRepository dataService, XSessionService sessionService,
                           DataSourceRegistry dataSourceRegistry) throws RemoteException
    {
       service = dataService;
@@ -651,8 +651,8 @@ public class XSessionManager {
    }
 
    public void removeQueryCacheData(XQuery query, VariableTable vars, Principal user, Class<?> type) throws Exception {
-      if(service instanceof XEngine) {
-         ((XEngine) service).removeQueryCache(session, query, vars, user, type);
+      if(service != null) {
+         service.removeQueryCache(session, query, vars, user, type);
       }
    }
 
@@ -957,7 +957,7 @@ public class XSessionManager {
    }
 
    private static final ExecutionMap emap = new ExecutionMap();
-   private XDataService service;
+   private XRepository service;
    private Object session;
    private final Map<ReportSheet, String> executemap = new ConcurrentHashMap<>();
    private final DataCache<String, CEntry> dataCache = new DataCache<>();

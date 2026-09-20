@@ -1895,6 +1895,7 @@ public class XEngine implements XRepository, XQueryRepository {
       return meta;
    }
 
+   @Override
    public void removeQueryCache(Object session, XQuery xquery, VariableTable vars,
                                Principal user, Class<?> type) throws Exception
    {
