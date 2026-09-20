@@ -36,7 +36,6 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.storage.BlobStorageManager;
-import inetsoft.uql.XDataService;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -284,7 +283,7 @@ public class IntegrationTestConfiguration {
    }
 
    @Bean
-   public DesignSession designSession(XDataService dataService, XSessionService sessionService, DataSourceRegistry dataSourceRegistry) throws Exception {
+   public DesignSession designSession(XRepository dataService, XSessionService sessionService, DataSourceRegistry dataSourceRegistry) throws Exception {
       return new DesignSession(dataService, sessionService, dataSourceRegistry);
    }
 
