@@ -782,6 +782,149 @@ class WorksheetAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // assetExists (#76818)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Regression for Bug #76818: {@code add_table}'s blank-embedded-table form had no way to
+    * check whether a bare name it was about to create already named a saved asset, so a
+    * collision was silently shadowed rather than refused. This endpoint answers that question,
+    * session-independently, via {@link WorksheetService#isDuplicatedEntry}.
+    */
+   @Test
+   void assetExistsReturnsTrueWhenAssetAlreadyExists() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetService worksheetService = mock(WorksheetService.class);
+      when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
+
+      AssetExistsResponse resp = ctrl.assetExists("CollisionProbe76818", null, null, agent);
+
+      assertTrue(resp.exists());
+   }
+
+   @Test
+   void assetExistsReturnsFalseForANovelName() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetService worksheetService = mock(WorksheetService.class);
+      when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
+
+      AssetExistsResponse resp = ctrl.assetExists("BrandNewTable", null, null, agent);
+
+      assertFalse(resp.exists());
+   }
+
+   /** Defaults: {@code type} -> WORKSHEET, {@code scope} -> GLOBAL_SCOPE (no owner). */
+   @Test
+   void assetExistsChecksWorksheetTypeAndGlobalScopeByDefault() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetService worksheetService = mock(WorksheetService.class);
+      when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
+
+      ctrl.assetExists("BrandNewTable", null, null, agent);
+
+      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(worksheetService).isDuplicatedEntry(any(), captor.capture());
+      AssetEntry entry = captor.getValue();
+      assertEquals(AssetEntry.Type.WORKSHEET, entry.getType());
+      assertEquals("BrandNewTable", entry.getPath());
+      assertEquals(AssetRepository.GLOBAL_SCOPE, entry.getScope());
+      assertNull(entry.getUser());
+   }
+
+   @Test
+   void assetExistsHonorsUserScope() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetService worksheetService = mock(WorksheetService.class);
+      when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
+
+      ctrl.assetExists("MyPrivateTable", null, "user", agent);
+
+      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(worksheetService).isDuplicatedEntry(any(), captor.capture());
+      AssetEntry entry = captor.getValue();
+      assertEquals(AssetRepository.USER_SCOPE, entry.getScope());
+      assertEquals(new IdentityID("alice", "host-org"), entry.getUser());
+   }
+
+   @Test
+   void assetExistsHonorsExplicitType() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetService worksheetService = mock(WorksheetService.class);
+      when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
+
+      ctrl.assetExists("Some Viewsheet", "viewsheet", null, agent);
+
+      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(worksheetService).isDuplicatedEntry(any(), captor.capture());
+      assertEquals(AssetEntry.Type.VIEWSHEET, captor.getValue().getType());
+   }
+
+   @Test
+   void assetExistsRejectsBlankPath() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.assetExists("   ", null, null, agent));
+      assertTrue(ex.getMessage().contains("path"), ex.getMessage());
+   }
+
+   @Test
+   void assetExistsRejectsUnknownType() {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.assetExists("Foo", "NOT_A_TYPE", null, agent));
+      assertTrue(ex.getMessage().contains("NOT_A_TYPE"), ex.getMessage());
+   }
+
+   @Test
+   void assetExistsRejectsFlagOff() {
+      WorksheetAgentController ctrl = controller(featureOff(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class),
+         mock(WorksheetService.class));
+
+      ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+         () -> ctrl.assetExists("Foo", null, null, TestPrincipals.user("alice", "host-org")));
+      assertEquals(403, ex.getStatusCode().value());
+   }
+
+   // ---------------------------------------------------------------------------
    // read
    // ---------------------------------------------------------------------------
 

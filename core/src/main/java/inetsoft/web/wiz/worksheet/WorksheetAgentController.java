@@ -243,6 +243,73 @@ public class WorksheetAgentController {
    }
 
    /**
+    * Answers whether an asset already exists at {@code path} -- session-independent (no
+    * {@code sessionToken}, no open runtime): a plain {@link AssetRepository} lookup.
+    *
+    * <p>Exists so a caller can check for a name collision BEFORE deciding to create a new
+    * asset under a name it chose itself, e.g. {@code add_table}'s blank-embedded-table form,
+    * which has no {@code datasource}/{@code endpoint}/{@code suffix}/{@code queryParams} to
+    * distinguish "genuinely new table" from "meant to reference something that already
+    * exists" -- reuses {@link WorksheetService#isDuplicatedEntry}, the same
+    * already-proven-cheap existence-check primitive {@link #save} and
+    * {@link inetsoft.web.wiz.viewsheet.ViewsheetAssemblyAgentController} already call, rather
+    * than {@link #addWorksheetMirror}'s full {@code assetRepository.getSheet(...)} (which
+    * loads the whole sheet just to answer a yes/no).</p>
+    *
+    * @param path  the candidate name/path to check, e.g. {@code "agent_ws_1"} or
+    *              {@code "My Folder/agent_ws_1"}.
+    * @param type  the asset type to check against, e.g. {@code "WORKSHEET"} (default) or
+    *              {@code "VIEWSHEET"} -- matches {@link AssetEntry.Type}'s enum names,
+    *              case-insensitively.
+    * @param scope optional scope -- {@code "global"} (default) for the shared repository,
+    *              {@code "user"} for the caller's own private folder.
+    * @param user  the authenticated agent principal
+    * @throws PairingException if {@code path} is blank or {@code type} does not name a known
+    *                          {@link AssetEntry.Type}
+    */
+   @GetMapping("/api/wiz/v1/agent/worksheet/asset-exists")
+   public AssetExistsResponse assetExists(@RequestParam String path,
+                                          @RequestParam(required = false) String type,
+                                          @RequestParam(required = false) String scope,
+                                          Principal user) throws PairingException
+   {
+      requireEnabled();
+
+      if(path == null || path.isBlank()) {
+         throw new PairingException("path is required for asset-exists.");
+      }
+
+      String trimmedPath = path.trim();
+      WizUtil.requireNoCaret(trimmedPath, "path");
+
+      AssetEntry.Type assetType = AssetEntry.Type.WORKSHEET;
+
+      if(type != null && !type.isBlank()) {
+         try {
+            assetType = AssetEntry.Type.valueOf(type.trim().toUpperCase());
+         }
+         catch(IllegalArgumentException e) {
+            throw new PairingException("Unknown asset type: '" + type + "'");
+         }
+      }
+
+      IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
+      int assetScope = "user".equalsIgnoreCase(scope)
+         ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+      AssetEntry entry = new AssetEntry(assetScope, assetType, trimmedPath, owner, uname.orgID);
+
+      try {
+         boolean exists =
+            worksheetService.isDuplicatedEntry(worksheetService.getAssetRepository(), entry);
+         return new AssetExistsResponse(exists);
+      }
+      catch(Exception e) {
+         throw new PairingException("Failed to check for an existing asset: " + e.getMessage(), e);
+      }
+   }
+
+   /**
     * Read the current structural model of the worksheet identified by {@code sessionToken}.
     *
     * @param sessionToken the token obtained at join time
