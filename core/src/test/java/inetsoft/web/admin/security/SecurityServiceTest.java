@@ -45,6 +45,7 @@ import inetsoft.web.admin.general.LocalizationSettingsService;
 import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.admin.security.action.ActionTreeNode;
 import inetsoft.web.admin.security.user.*;
+import inetsoft.web.security.auth.MissingResourceException;
 import inetsoft.web.security.auth.UnauthorizedAccessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -131,6 +132,17 @@ class SecurityServiceTest {
       themeService = new IdentityThemeService(customThemesManager);
 
       userTreeService = mock(UserTreeService.class, withSettings().lenient());
+
+      // Bug #76828: updateUser/updateGroup now resolve every requested role's existence via
+      // resolveRoleReferencesOrThrow(provider, ...) before it can reach builder.roles(...), so
+      // any test asserting a role survives filterSystemAdminRoles into the final model needs
+      // that role to actually resolve against editableProvider (the same provider these methods
+      // use), not just against the separate authenticationProvider mock used for the
+      // sysAdmin-name permission check. Stubbed non-null here so that check isn't what removes
+      // ADMIN_ROLE/VIEWER_ROLE from a test's result -- only filterSystemAdminRoles() should be
+      // responsible for that.
+      when(editableProvider.getRole(VIEWER_ROLE)).thenReturn(new FSRole(VIEWER_ROLE));
+      when(editableProvider.getRole(ADMIN_ROLE)).thenReturn(new FSRole(ADMIN_ROLE));
 
       service = new SecurityService(
          securityEngine, identityService, actionPermissionService,
@@ -254,6 +266,9 @@ class SecurityServiceTest {
       // provider, whose FSRole.isSysAdmin() is false).
       doReturn(false).when(authenticationProvider).isSystemAdministratorRole(orgScopedAdmin);
       doReturn(new FSRole(orgScopedAdmin)).when(authenticationProvider).getRole(orgScopedAdmin);
+      // Also exists against editableProvider, the provider resolveRoleReferencesOrThrow actually
+      // checks (bug #76828's resolution step), so it resolves instead of being rejected as unknown.
+      doReturn(new FSRole(orgScopedAdmin)).when(editableProvider).getRole(orgScopedAdmin);
 
       SecurityUser request = new SecurityUser();
       request.setIdentityID(userId);
@@ -631,6 +646,182 @@ class SecurityServiceTest {
       ArgumentCaptor<FSRole> captor = ArgumentCaptor.forClass(FSRole.class);
       verify(editableProvider).addRole(captor.capture());
       assertEquals(List.of(VIEWER_ROLE), List.of(captor.getValue().getRoles()));
+   }
+
+   // ── global role name resolution (Bug #76828) ─────────────────────────────────────────────
+   //
+   // "Administrator" and "Organization Administrator" are created exactly once as GLOBAL roles
+   // (orgID == null). A caller assigning either by bare name via spec.roles builds the
+   // IdentityID with its own org (never null), so a plain provider.getRole(role) lookup on that
+   // org-scoped key never matches the real global role's key -- createUser/createGroup silently
+   // dropped the role with no error, and updateUser/updateGroup had no resolvability check at
+   // all and stored the broken reference verbatim. Fixed by resolveRoleReference(), which falls
+   // back to the org-less global key only when the direct org-scoped lookup already found
+   // nothing, and resolveRoleReferencesOrThrow(), which throws MissingResourceException naming
+   // any role that still doesn't resolve instead of silently dropping or storing it.
+
+   private static final IdentityID ORG_ADMIN_ROLE_REQUESTED = new IdentityID("Organization Administrator", "org1");
+   private static final IdentityID ORG_ADMIN_ROLE_GLOBAL = new IdentityID("Organization Administrator", null);
+
+   @Test
+   void createUser_globalRoleRequestedWithCallerOrg_resolvesToGlobalKey() throws Exception {
+      stubCommonCreateGates();
+      when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+      when(editableProvider.getRole(ORG_ADMIN_ROLE_REQUESTED)).thenReturn(null);
+      when(editableProvider.getRole(ORG_ADMIN_ROLE_GLOBAL)).thenReturn(new FSRole(ORG_ADMIN_ROLE_GLOBAL));
+
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("neworgadminuser1", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+      request.setRoles(List.of(ORG_ADMIN_ROLE_REQUESTED, VIEWER_ROLE));
+
+      service.createUser(request, null, principal);
+
+      ArgumentCaptor<FSUser> captor = ArgumentCaptor.forClass(FSUser.class);
+      verify(editableProvider).addUser(captor.capture());
+      assertEquals(Set.of(ORG_ADMIN_ROLE_GLOBAL, VIEWER_ROLE),
+                  Set.of(captor.getValue().getRoles()),
+                  "Bug #76828: a global role requested with the caller's own org id must resolve "
+                  + "to its real global key instead of being silently dropped");
+   }
+
+   @Test
+   void createUser_unresolvableRole_throwsInsteadOfSilentlyDroppingIt() throws Exception {
+      stubCommonCreateGates();
+      when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+      IdentityID noSuchRole = new IdentityID("NoSuchRole", "org1");
+      when(editableProvider.getRole(noSuchRole)).thenReturn(null);
+      when(editableProvider.getRole(new IdentityID("NoSuchRole", null))).thenReturn(null);
+
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("newuser2", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+      request.setRoles(List.of(noSuchRole, VIEWER_ROLE));
+
+      MissingResourceException ex = assertThrows(MissingResourceException.class,
+         () -> service.createUser(request, null, principal));
+      assertTrue(ex.getMessage().contains("NoSuchRole"));
+      verify(editableProvider, never()).addUser(any());
+   }
+
+   @Test
+   void createGroup_globalRoleRequestedWithCallerOrg_resolvesToGlobalKey() throws Exception {
+      stubCommonCreateGates();
+      when(editableProvider.getRole(ORG_ADMIN_ROLE_REQUESTED)).thenReturn(null);
+      when(editableProvider.getRole(ORG_ADMIN_ROLE_GLOBAL)).thenReturn(new FSRole(ORG_ADMIN_ROLE_GLOBAL));
+
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(new IdentityID("neworgadmingroup1", "org1"));
+      request.setOrgID("org1");
+      request.setRoles(List.of(ORG_ADMIN_ROLE_REQUESTED, VIEWER_ROLE));
+
+      service.createGroup(request, null, principal);
+
+      ArgumentCaptor<FSGroup> captor = ArgumentCaptor.forClass(FSGroup.class);
+      verify(editableProvider).addGroup(captor.capture());
+      assertEquals(Set.of(ORG_ADMIN_ROLE_GLOBAL, VIEWER_ROLE), Set.of(captor.getValue().getRoles()));
+   }
+
+   @Test
+   void updateUser_globalRoleRequestedWithCallerOrg_resolvesToGlobalKey() throws Exception {
+      IdentityID userId = new IdentityID("orgadminuser1", "org1");
+      FSUser oldUser = new FSUser(userId);
+      when(securityProvider.getUser(userId)).thenReturn(oldUser);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            userId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getUser(userId)).thenReturn(oldUser);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+      when(editableProvider.getRole(ORG_ADMIN_ROLE_REQUESTED)).thenReturn(null);
+      when(editableProvider.getRole(ORG_ADMIN_ROLE_GLOBAL)).thenReturn(new FSRole(ORG_ADMIN_ROLE_GLOBAL));
+
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(userId);
+      request.setRoles(List.of(ORG_ADMIN_ROLE_REQUESTED, VIEWER_ROLE));
+
+      service.updateUser(userId, request, principal);
+
+      ArgumentCaptor<EditUserPaneModel> captor = ArgumentCaptor.forClass(EditUserPaneModel.class);
+      verify(identityService).setIdentity(eq(oldUser), captor.capture(), eq(editableProvider), eq(principal));
+      assertEquals(Set.of(ORG_ADMIN_ROLE_GLOBAL, VIEWER_ROLE), Set.copyOf(captor.getValue().roles()),
+                  "Bug #76828: updateUser had no resolvability check at all -- the broken "
+                  + "org-scoped reference was stored verbatim instead of resolving to the real "
+                  + "global role");
+   }
+
+   @Test
+   void updateUser_unresolvableRole_throwsInsteadOfSilentlyStoringIt() throws Exception {
+      IdentityID userId = new IdentityID("orgadminuser2", "org1");
+      FSUser oldUser = new FSUser(userId);
+      when(securityProvider.getUser(userId)).thenReturn(oldUser);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            userId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getUser(userId)).thenReturn(oldUser);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+      IdentityID noSuchRole = new IdentityID("NoSuchRole", "org1");
+      when(editableProvider.getRole(noSuchRole)).thenReturn(null);
+      when(editableProvider.getRole(new IdentityID("NoSuchRole", null))).thenReturn(null);
+
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(userId);
+      request.setRoles(List.of(noSuchRole));
+
+      MissingResourceException ex = assertThrows(MissingResourceException.class,
+         () -> service.updateUser(userId, request, principal));
+      assertTrue(ex.getMessage().contains("NoSuchRole"));
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateGroup_globalRoleRequestedWithCallerOrg_resolvesToGlobalKey() throws Exception {
+      IdentityID groupId = new IdentityID("orgadmingroup1", "org1");
+      FSGroup oldGroup = new FSGroup(groupId);
+      when(securityProvider.getGroup(groupId)).thenReturn(oldGroup);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
+                                            groupId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getGroup(groupId)).thenReturn(oldGroup);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+      when(editableProvider.getRole(ORG_ADMIN_ROLE_REQUESTED)).thenReturn(null);
+      when(editableProvider.getRole(ORG_ADMIN_ROLE_GLOBAL)).thenReturn(new FSRole(ORG_ADMIN_ROLE_GLOBAL));
+
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(groupId);
+      request.setRoles(List.of(ORG_ADMIN_ROLE_REQUESTED, VIEWER_ROLE));
+
+      service.updateGroup(groupId, request, principal);
+
+      ArgumentCaptor<EditGroupPaneModel> captor = ArgumentCaptor.forClass(EditGroupPaneModel.class);
+      verify(identityService).setIdentity(eq(oldGroup), captor.capture(), eq(editableProvider), eq(principal));
+      assertEquals(Set.of(ORG_ADMIN_ROLE_GLOBAL, VIEWER_ROLE), Set.copyOf(captor.getValue().roles()));
+   }
+
+   @Test
+   void updateUser_nonSiteAdmin_stillFiltersAdministratorRole_afterResolution() throws Exception {
+      // Guards ordering: the system-admin permission gate must still run BEFORE the new
+      // resolve-or-throw step, so the fallback resolution logic does not become an alternate
+      // route around the existing security check for who may assign "Administrator".
+      IdentityID userId = new IdentityID("orgadminuser3", "org1");
+      FSUser oldUser = new FSUser(userId);
+      when(securityProvider.getUser(userId)).thenReturn(oldUser);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                            userId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getUser(userId)).thenReturn(oldUser);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(false);
+
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(userId);
+      request.setRoles(List.of(ADMIN_ROLE, VIEWER_ROLE));
+
+      service.updateUser(userId, request, principal);
+
+      ArgumentCaptor<EditUserPaneModel> captor = ArgumentCaptor.forClass(EditUserPaneModel.class);
+      verify(identityService).setIdentity(eq(oldUser), captor.capture(), eq(editableProvider), eq(principal));
+      assertEquals(List.of(VIEWER_ROLE), captor.getValue().roles(),
+                  "the system-admin permission gate must still strip \"Administrator\" for a "
+                  + "non-site-admin even after the role-resolution fix");
    }
 
    // ── createRole/updateRole/getRole defaultRole & sysAdmin (Bug #76715) ───────────────────

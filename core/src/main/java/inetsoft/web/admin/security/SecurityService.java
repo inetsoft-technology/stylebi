@@ -250,9 +250,8 @@ public class SecurityService {
             principal, ResourceType.SECURITY_ROLE, getIdentityRootResorucePath(), ResourceAction.ADMIN))
          {
             if(request.getRoles() != null) {
-               roles = filterSystemAdminRoles(request.getRoles(), securityProvider, principal).stream()
-                  .filter(role -> provider.getRole(role) != null)
-                  .collect(Collectors.toSet());
+               roles = resolveRoleReferencesOrThrow(
+                  filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider);
             }
          }
 
@@ -336,7 +335,8 @@ public class SecurityService {
       }
 
       if(request.getRoles() != null) {
-         builder = builder.roles(filterSystemAdminRoles(request.getRoles(), securityProvider, principal));
+         builder = builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
+            filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
       }
 
       if(request.getAdminIdentities() != null) {
@@ -514,9 +514,8 @@ public class SecurityService {
             principal, ResourceType.SECURITY_ROLE, getIdentityRootResorucePath(), ResourceAction.ADMIN))
          {
             if(request.getRoles() != null) {
-               roles = filterSystemAdminRoles(request.getRoles(), securityProvider, principal).stream()
-                  .filter(role -> provider.getRole(role) != null)
-                  .collect(Collectors.toSet());
+               roles = resolveRoleReferencesOrThrow(
+                  filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider);
             }
          }
 
@@ -621,7 +620,8 @@ public class SecurityService {
          .members(members);
 
       if(request.getRoles() != null) {
-         builder.roles(filterSystemAdminRoles(request.getRoles(), securityProvider, principal));
+         builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
+            filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
       }
 
       if(request.getAdminIdentities() != null) {
@@ -1478,6 +1478,61 @@ public class SecurityService {
       }
 
       return id;
+   }
+
+   /**
+    * Resolve a caller-supplied role reference to the role it actually refers to. A role
+    * requested with the caller's own org id may in fact be a global role (orgID == null, e.g.
+    * "Administrator"/"Organization Administrator"), which is stored under a different key than
+    * a plain org-scoped lookup would try -- fall back to the global key only when the direct
+    * lookup already found nothing, so a genuine org-scoped role of the same name still wins.
+    *
+    * @return the resolved {@code IdentityID}, or {@code null} if the role does not exist at all.
+    */
+   private IdentityID resolveRoleReference(AuthenticationProvider provider, IdentityID requested) {
+      if(provider.getRole(requested) != null) {
+         return requested;
+      }
+
+      if(requested.orgID != null) {
+         IdentityID globalKey = new IdentityID(requested.name, null);
+
+         if(provider.getRole(globalKey) != null) {
+            return globalKey;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Resolve every role in {@code roles} via {@link #resolveRoleReference}, throwing a
+    * {@link MissingResourceException} naming any role that does not resolve instead of silently
+    * dropping it.
+    */
+   private Set<IdentityID> resolveRoleReferencesOrThrow(List<IdentityID> roles,
+                                                         AuthenticationProvider provider)
+      throws MissingResourceException
+   {
+      Set<IdentityID> resolved = new HashSet<>();
+      List<String> unresolved = new ArrayList<>();
+
+      for(IdentityID role : roles) {
+         IdentityID resolvedRole = resolveRoleReference(provider, role);
+
+         if(resolvedRole == null) {
+            unresolved.add(role.name);
+         }
+         else {
+            resolved.add(resolvedRole);
+         }
+      }
+
+      if(!unresolved.isEmpty()) {
+         throw new MissingResourceException("Role(s) not found: " + String.join(", ", unresolved));
+      }
+
+      return resolved;
    }
 
    /**
