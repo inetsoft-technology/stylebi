@@ -163,6 +163,37 @@ class AssemblyPropertyServiceTest {
       assertNotNull(listed.get("properties"));
    }
 
+   /**
+    * Bug #76809 (VTB-017): {@code primary} was already present, unfiltered, and settable in
+    * {@code list_assembly_properties}'s output the whole time -- the actual defect was that no
+    * entry told a caller that this is the Composer UI's "Visible in External Viewsheets" checkbox.
+    * Every entry now carries a {@code label} field, null for the ordinary aliases that have no
+    * better caption than their own name, and the Composer's own caption for {@code primary}.
+    */
+   @Test
+   @SuppressWarnings("unchecked")
+   void listsThePrimaryLabelAlongsideItsValue() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Map<String, Object> listed = service.list("tok", principal(), "Gauge1");
+      java.util.List<Map<String, Object>> properties =
+         (java.util.List<Map<String, Object>>) listed.get("properties");
+
+      Map<String, Object> primary = properties.stream()
+         .filter(p -> "primary".equals(p.get("name")))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("gauge should list a 'primary' entry"));
+      assertEquals("Visible in External Viewsheets", primary.get("label"));
+
+      Map<String, Object> visible = properties.stream()
+         .filter(p -> "visible".equals(p.get("name")))
+         .findFirst()
+         .orElseThrow(() -> new AssertionError("gauge should list a 'visible' entry"));
+      assertNull(visible.get("label"),
+                 "an ordinary alias with no better caption than its own name has no label");
+   }
+
    @Test
    void refusesAnUnknownAssembly() {
       AssemblyPropertyService service = serviceWith(null, null);

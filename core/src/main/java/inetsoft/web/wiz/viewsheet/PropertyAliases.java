@@ -159,6 +159,30 @@ public final class PropertyAliases {
    private static final Set<String> LOCKED_LIVE_TYPES = Set.of("image", "line", "oval", "rectangle");
 
    /**
+    * Human-readable captions for the handful of aliases whose own name carries no lexical
+    * connection to what the Composer UI actually calls the control it backs (bug #76809, VTB-017:
+    * {@code primary} was present, unfiltered, and already settable the whole time -- the defect
+    * was that nothing in {@code list_assembly_properties}'/{@code get_assembly_properties}'s
+    * output let a caller searching by the UI's own words ever find it). Keyed by alias name, not
+    * by assembly type, because {@link #basicGeneral}/{@link #shapeGeneral} share a single meaning
+    * for {@code primary} (backed by the same {@code VSAssemblyInfo.isPrimary()}/{@code
+    * setPrimary()}) across every assembly type that registers it. An alias with no entry here has
+    * no better caption than its own name; this is deliberately not exhaustive across the file's
+    * 15+ alias tables -- see the class comment for the scope this covers.
+    */
+   private static final Map<String, String> LABELS = Map.of(
+      // BasicGeneralPaneModel.primary / VSAssemblyInfo.isPrimary()/setPrimary(). StyleBI's own,
+      // unlocalized Composer caption for this checkbox --
+      // web/projects/portal/src/app/vsobjects/dialog/basic-general-pane.component.html's
+      // `_#(Visible in External Viewsheets)` label. This registry is a static field initializer
+      // with no catalog/Principal in scope to localize through, so this is the plain English
+      // source string, not a resolved-at-read-time translation; a deployment's own
+      // srinter.properties may still rebrand what its own Composer UI renders (this deployment's
+      // rebrands it to "Visible in External Dashboards"), but the underlying English key is the
+      // best static source of truth this class can offer.
+      "primary", "Visible in External Viewsheets");
+
+   /**
     * {@code basicGeneralPaneModel.enabled} is aliased through the shared {@link #basicGeneral}
     * helper's own comment as dead everywhere -- "the Editable flag wearing the wrong name" -- but
     * only the six input assemblies routed through {@code VSInputService} are confirmed here: their
@@ -212,6 +236,14 @@ public final class PropertyAliases {
    /** Whether {@code assemblyType} is one of the three types {@link #listInput} registers. */
    public static boolean isListInputType(String assemblyType) {
       return LIST_INPUT_TYPES.contains(normalize(assemblyType));
+   }
+
+   /**
+    * The Composer UI's own caption for {@code alias}, if this registry has one -- see
+    * {@link #LABELS}. {@code null} when the alias's own name is the only name it has.
+    */
+   public static String labelFor(String alias) {
+      return LABELS.get(alias);
    }
 
    /**
