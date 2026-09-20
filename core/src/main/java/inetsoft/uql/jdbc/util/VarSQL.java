@@ -144,14 +144,30 @@ public class VarSQL {
                   if(var.startsWith("?")) {
                      sql.append(val);
                   }
-                  else if(inQuote != 0 || embed) {
-                     // if variabled used in quote, replace the var with string
+                  else if(embed) {
+                     // $(@var) intentionally embeds a raw, unescaped SQL
+                     // fragment (e.g. an admin-authored condition/expression
+                     // snippet) rather than a data value, so it is spliced
+                     // in verbatim regardless of quote state
                      if(val != null) {
                         sql.append(val.toString());
                      }
                      // $(@var) should add null to avoid the value missing
-                     else if(embed && sqlType == SQLType.STRING) {
+                     else if(sqlType == SQLType.STRING) {
                         sql.append("null");
+                     }
+                  }
+                  else if(inQuote != 0) {
+                     // variable used inside a quoted string literal - escape
+                     // it so the value can't terminate the literal early or
+                     // splice additional SQL (Bug #76822 / Redmine WSQ-008).
+                     // this covers both a placeholder that fills the whole
+                     // literal ('$(name)') and one that shares it with other
+                     // literal text (e.g. '$(name)%' for STARTING_WITH),
+                     // since only the value itself is escaped, not the
+                     // surrounding literal text
+                     if(val != null) {
+                        sql.append(escapeQuotedLiteralValue(val.toString(), (char) inQuote));
                      }
                   }
                   // if value is an array, replace with ?,?,?,...
@@ -267,6 +283,30 @@ public class VarSQL {
       }
 
       return sqlstr;
+   }
+
+   /**
+    * Escape a value that is being spliced into a SQL string literal so it
+    * cannot terminate the literal early or inject additional SQL. Doubles
+    * the literal's own quote character (the standard, dialect-independent
+    * SQL escape for an embedded quote) and doubles backslashes (so a value
+    * ending in a backslash can't consume the literal's closing quote as an
+    * escaped character under backslash-escape dialects, e.g. default MySQL).
+    */
+   private String escapeQuotedLiteralValue(String value, char quoteChar) {
+      StringBuilder escaped = new StringBuilder(value.length());
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == '\\' || c == quoteChar) {
+            escaped.append(c);
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
    }
 
    /**
