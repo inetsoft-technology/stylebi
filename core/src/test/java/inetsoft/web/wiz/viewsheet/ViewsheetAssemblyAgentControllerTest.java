@@ -3155,9 +3155,12 @@ class ViewsheetAssemblyAgentControllerTest {
       ViewsheetSessionService sessions = realMutatingSessions();
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
-      IdentityID admin = new IdentityID("admin", "host-org");
+      // A genuinely different owner from whatever principal() resolves to -- "admin" alone
+      // resolves to IdentityID("admin", "host-org") in this Spring-context-free test (the
+      // default org fallback), so this fixture must differ by more than just the name.
+      IdentityID someoneElse = new IdentityID("someone-else", "host-org");
       when(rvs.getBookmarks()).thenReturn(List.of(
-         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin, true,
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, someoneElse, true,
                             System.currentTimeMillis())));
       wireMutate(sessions, rvs);
 
@@ -3169,6 +3172,88 @@ class ViewsheetAssemblyAgentControllerTest {
             new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", principal()));
       assertTrue(thrown.getMessage().contains("owned by someone else"));
       verifyNoInteractions(vsBookmarkService);
+   }
+
+   /**
+    * Regression for #76843: {@code getBookmarks()} synthesizes a {@code (Home)} entry
+    * attributed to the calling user when no real one has been persisted for this session (the
+    * case for a Composer/design-mode session, which never writes {@code (Home)} through),
+    * while {@code containsBookmark} -- which only sees real, persisted rows -- reports {@code
+    * false} for the same name. Without inspecting the matched entry's own owner,
+    * {@code requireOwnBookmark} mistook that synthesized self-ownership for "owned by someone
+    * else".
+    */
+   @Test
+   void deleteBookmark_treatsTheSynthesizedHomeBookmarkAsOwnedByTheCaller() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq(VSBookmark.HOME_BOOKMARK), any(IdentityID.class))).thenReturn(false);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, VSBookmarkInfo.ALLSHARE, admin, false,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.deleteBookmark("tok",
+         new ViewsheetAssemblyAgentController.BookmarkNameRequest(VSBookmark.HOME_BOOKMARK), "",
+         principal());
+
+      verify(vsBookmarkService).deleteBookmark(eq("runtime-1"), any(VSEditBookmarkEvent.class),
+         any(Principal.class), any(), eq(""));
+   }
+
+   /** Same #76843 fix, exercised through {@code update_bookmark}. */
+   @Test
+   void updateBookmark_treatsTheSynthesizedHomeBookmarkAsOwnedByTheCaller() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq(VSBookmark.HOME_BOOKMARK), any(IdentityID.class))).thenReturn(false);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, VSBookmarkInfo.ALLSHARE, admin, false,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq(VSBookmark.HOME_BOOKMARK),
+         anyInt(), anyBoolean(), eq(true), any(Principal.class)))
+         .thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest(VSBookmark.HOME_BOOKMARK, null, null),
+         principal());
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq(VSBookmark.HOME_BOOKMARK),
+         anyInt(), anyBoolean(), eq(true), any(Principal.class));
+   }
+
+   /** Same #76843 fix, exercised through {@code set_default_bookmark}. */
+   @Test
+   void setDefaultBookmark_treatsTheSynthesizedHomeBookmarkAsOwnedByTheCaller() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq(VSBookmark.HOME_BOOKMARK), any(IdentityID.class))).thenReturn(false);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, VSBookmarkInfo.ALLSHARE, admin, false,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+      stubSavedAsset(rvs);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(sessions, mock(VSBookmarkService.class));
+      controller.setDefaultBookmark("tok",
+         new ViewsheetAssemblyAgentController.BookmarkNameRequest(VSBookmark.HOME_BOOKMARK), principal());
+
+      ArgumentCaptor<VSBookmark.DefaultBookmark> captor =
+         ArgumentCaptor.forClass(VSBookmark.DefaultBookmark.class);
+      verify(rvs).setDefaultBookmark(captor.capture());
+      assertEquals(VSBookmark.HOME_BOOKMARK, captor.getValue().getName());
    }
 
    /**

@@ -539,16 +539,21 @@ public class ViewsheetAssemblyAgentController {
          return;
       }
 
-      boolean visibleUnderAnotherOwner =
-         rvs.getBookmarks().stream().anyMatch(b -> b.getName().equals(name));
+      VSBookmarkInfo matched = rvs.getBookmarks().stream()
+         .filter(b -> b.getName().equals(name))
+         .findFirst().orElse(null);
 
-      if(visibleUnderAnotherOwner) {
-         throw new IllegalArgumentException(
-            tool + ": bookmark '" + name + "' exists but is owned by someone else -- " + tool +
-            " only works on bookmarks you own.");
+      if(matched == null) {
+         throw new IllegalArgumentException(tool + ": " + notFoundMessage);
       }
 
-      throw new IllegalArgumentException(tool + ": " + notFoundMessage);
+      if(java.util.Objects.equals(matched.getOwner(), ownerOf(user))) {
+         return;
+      }
+
+      throw new IllegalArgumentException(
+         tool + ": bookmark '" + name + "' exists but is owned by someone else -- " + tool +
+         " only works on bookmarks you own.");
    }
 
    private static void requireOk(MessageCommand command, String tool) {
