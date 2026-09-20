@@ -88,9 +88,15 @@ public class VSTableBindingFactory extends VSBindingFactory<TableVSAssembly, Tab
       }
       
       cols.clear();
-      
+
       for(int i = 0; i < refs.size(); i++) {
          cols.addAttribute(refs.get(i));
+      }
+
+      ColumnSelection hidden = info.getHiddenColumns();
+
+      for(DataRef ref : refs) {
+         hidden.removeAttribute(ref);
       }
 
       return assembly;
