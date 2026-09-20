@@ -770,4 +770,49 @@ class PropertyAliasesTest {
          () -> PropertyAliases.resolveForWrite("crosstab",
             "hierarchyPropertyPaneModel.grayedOutFields"));
    }
+
+   // ── bug #76809 (VTB-017): 'primary' is present and writable -- the gap is discoverability ──
+
+   /**
+    * Regression guard against the original bug report's own (incorrect) theory: {@code primary}
+    * must keep resolving to the live {@code basicGeneralPaneModel.primary} field, on crosstab and
+    * on another {@link #basicGeneral} type, for both list()'s alias vocabulary and the raw path.
+    */
+   @Test
+   void primaryStillResolvesForCrosstabAndChart() {
+      assertTrue(PropertyAliases.forType("crosstab").aliases().containsKey("primary"),
+                 "crosstab should still expose 'primary'");
+      assertEquals(
+         "tableViewGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.primary",
+         PropertyAliases.resolve("crosstab", "primary"));
+      assertEquals(
+         "tableViewGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.primary",
+         PropertyAliases.resolveForWrite("crosstab", "primary"),
+         "primary must stay writable, not just readable");
+
+      assertTrue(PropertyAliases.forType("chart").aliases().containsKey("primary"),
+                 "chart should still expose 'primary'");
+      assertEquals(
+         "chartGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.primary",
+         PropertyAliases.resolve("chart", "primary"));
+   }
+
+   /**
+    * The actual fix: {@code primary}'s own name has zero lexical connection to the Composer UI's
+    * caption for it ("Visible in External Viewsheets"). {@link PropertyAliases#labelFor} must
+    * surface that caption so a caller searching by the user's own words (e.g. "external
+    * dashboard") can find it -- and must do so for every {@link #basicGeneral}/{@link
+    * #shapeGeneral} type at once, not just crosstab.
+    */
+   @Test
+   void primaryHasTheComposerUiLabel() {
+      assertEquals("Visible in External Viewsheets", PropertyAliases.labelFor("primary"));
+   }
+
+   /** An alias with no better caption than its own name must not fabricate one. */
+   @Test
+   void anOrdinaryAliasHasNoLabel() {
+      assertNull(PropertyAliases.labelFor("visible"));
+      assertNull(PropertyAliases.labelFor("name"));
+   }
 }

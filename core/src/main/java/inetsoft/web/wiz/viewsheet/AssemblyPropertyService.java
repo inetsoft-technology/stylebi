@@ -191,6 +191,10 @@ public class AssemblyPropertyService {
          property.put("type",
                       PropertyPath.typeOf(entry.modelClass(), alias.getValue()).getSimpleName());
          property.put("value", PropertyPath.get(model, alias.getValue()));
+         // The Composer UI's own caption for this alias, when its own name has none (bug #76809,
+         // VTB-017) -- e.g. "primary" -> "Visible in External Viewsheets". Null, like every other
+         // alias, when PropertyAliases has no better name to offer than the alias itself.
+         property.put("label", PropertyAliases.labelFor(alias.getKey()));
          properties.add(property);
       }
 
