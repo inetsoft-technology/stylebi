@@ -19,10 +19,16 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableDataPath;
+import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,5 +71,66 @@ public class VSFormatTableLensTest {
       Assertions.assertEquals(VSFormatTableLens.class, deserializedTable.getClass());
       formatMap = ((VSFormatTableLens) deserializedTable).getFormatMap();
       Assertions.assertEquals(compositeFormat, formatMap.get(col1Path));
+   }
+
+   // Bug #76831: a table style that leaves foreground unset for a region (e.g. "Normal",
+   // or any style with no dedicated color for this cell) must not discard the object-level
+   // foreground -- it should fall through to the cell instead of being silently dropped.
+   @Test
+   public void testObjectForegroundFallsThroughWhenStyleLeavesItUnset() throws Exception {
+      VSCompositeFormat objFormat = new VSCompositeFormat();
+      VSFormat userFormat = new VSFormat();
+      userFormat.setForeground(Color.RED);
+      objFormat.setUserDefinedFormat(userFormat);
+
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly assembly = new TableVSAssembly(vs, "table1");
+      assembly.setTableStyleValue("Normal");
+      assembly.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, objFormat);
+      vs.addAssembly(assembly);
+
+      ViewsheetSandbox box = new ViewsheetSandbox(vs, RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE,
+                                                  null, testEntry());
+      // XTableUtil's plain DefaultTableLens returns null from getForeground(r,c) for every
+      // cell -- it stands in for a table style that never defines its own color here.
+      VSFormatTableLens table = new VSFormatTableLens(box, "table1",
+                                                       XTableUtil.getDefaultTableLens(), false);
+
+      Assertions.assertEquals(Color.RED, table.getForeground(1, 0));
+   }
+
+   // Bug #76831 regression guard: when the table style DOES define an explicit color for a
+   // region (e.g. Colorful1's white header text), the object-level foreground must still be
+   // discarded so the style's own color wins, per mergeColor's cellf-first priority.
+   @Test
+   public void testObjectForegroundStaysStrippedWhenStyleDefinesItsOwnColor() throws Exception {
+      VSCompositeFormat objFormat = new VSCompositeFormat();
+      VSFormat userFormat = new VSFormat();
+      userFormat.setForeground(Color.RED);
+      objFormat.setUserDefinedFormat(userFormat);
+
+      Viewsheet vs = new Viewsheet();
+      TableVSAssembly assembly = new TableVSAssembly(vs, "table1");
+      assembly.setTableStyleValue("Normal");
+      assembly.getFormatInfo().setFormat(VSAssemblyInfo.OBJECTPATH, objFormat);
+      vs.addAssembly(assembly);
+
+      ViewsheetSandbox box = new ViewsheetSandbox(vs, RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE,
+                                                  null, testEntry());
+      TableLens styledLens = new DefaultTableLens(XTableUtil.getDefaultData()) {
+         @Override
+         public Color getForeground(int r, int c) {
+            return Color.WHITE;
+         }
+      };
+      VSFormatTableLens table = new VSFormatTableLens(box, "table1", styledLens, false);
+
+      Assertions.assertEquals(Color.WHITE, table.getForeground(1, 0));
+   }
+
+   private static AssetEntry testEntry() {
+      return new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                            "test/VSFormatTableLensTest", null,
+                            OrganizationManager.getInstance().getCurrentOrgID());
    }
 }
