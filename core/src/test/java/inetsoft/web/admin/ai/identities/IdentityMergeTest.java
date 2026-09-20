@@ -310,18 +310,31 @@ class IdentityMergeTest {
       assertEquals(current.getRoles(), merged.getRoles());
    }
 
-   // spec.id is refused at validation before the merge ever runs (section 2.3 item 3) -- this
-   // asserts the merge itself never reads it either, as defense in depth: even if spec.getId()
-   // somehow carried a value here, the merged id must still be currentOrgId.
-   @Test void mergeOrganizationNeverReadsSpecId() {
+   // bug-76834: organization id rename is a real, supported capability -- reserved-id/duplicate-id
+   // validated by IdentityChangePlanService.resolveUpdateOrganization before this ever runs, so the
+   // merge itself just needs to prefer spec.getId() when present, mirroring mergeUser/mergeGroup/
+   // mergeRole's own renamedOrCurrent pattern for their name field. Renamed from
+   // mergeOrganizationNeverReadsSpecId, which asserted the opposite, now-removed invariant.
+   @Test void mergeOrganizationPrefersSpecIdWhenPresent() {
       SecurityOrganization current = fullOrganization("org1");
       IdentitySpec spec = new IdentitySpec();
-      spec.setId("some-other-id");
+      spec.setId("org2");
       spec.setOrgName("New Org Name");
 
       SecurityOrganization merged = IdentityMerge.mergeOrganization(current, spec, "org1");
 
-      assertEquals("org1", merged.getId());
+      assertEquals("org2", merged.getId());
+   }
+
+   @Test void mergeOrganizationFallsBackToCurrentOrgIdWhenSpecIdIsAbsentOrBlank() {
+      SecurityOrganization current = fullOrganization("org1");
+      IdentitySpec spec = new IdentitySpec();
+      spec.setOrgName("New Org Name");
+
+      assertEquals("org1", IdentityMerge.mergeOrganization(current, spec, "org1").getId());
+
+      spec.setId("   ");
+      assertEquals("org1", IdentityMerge.mergeOrganization(current, spec, "org1").getId());
    }
 
    @Test void mergeOrganizationMembershipFieldsAreAlwaysCopiedFromCurrentVerbatim() {

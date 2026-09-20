@@ -340,12 +340,77 @@ public class IdentityChangePlanService {
       requireUnseen(label, key, seenKeys);
       SecurityOrganization existing =
          requireGet(label, () -> securityService.getOrganization(organizationId, user), key);
+
+      if(!isAbsent(spec.getId())) {
+         String proposedId = spec.getId().trim();
+
+         if(!proposedId.equalsIgnoreCase(organizationId)) {
+            requireNotReservedOrganizationIdRename(label, organizationId, proposedId);
+            requireNoDuplicateOrganizationId(label, organizationId, proposedId, user);
+         }
+      }
+
       String before = IdentityProjection.projectOrganization(existing, organizationId);
       SecurityOrganization merged = IdentityMerge.mergeOrganization(existing, spec, organizationId);
-      String proposed = IdentityProjection.projectOrganization(merged, organizationId);
+      String proposed = IdentityProjection.projectOrganization(merged, merged.getId());
       return new PlanChange(key, organizationId, before, proposed, AdminChangeRecord.RISK_HIGH,
                             AdminChangeRecord.SCOPE_STORAGE, true,
                             "update organization " + organizationId);
+   }
+
+   /**
+    * The narrower, update-only counterpart to {@link #requireNotProtectedOrganization} (delete-
+    * only) -- refuses an id-changing update only when the id is ACTUALLY changing and either side
+    * of that change is the default/self organization's id, mirroring {@code
+    * UserTreeService.editOrganization}'s own conditional guard (lines 1257-1261). Deliberately not
+    * a reuse of {@link #requireNotProtectedOrganization}: that helper fires unconditionally on the
+    * default/self org's CURRENT id, which would wrongly refuse a plain orgName/locale-only update
+    * of the default/self organization -- behavior this area's own charter (counter-assertion 6,
+    * see {@link #resolveUpdate}'s doc comment) requires to keep working.
+    */
+   private static void requireNotReservedOrganizationIdRename(String label, String currentId,
+                                                               String proposedId)
+   {
+      if(Organization.getDefaultOrganizationID().equalsIgnoreCase(currentId) ||
+         Organization.getDefaultOrganizationID().equalsIgnoreCase(proposedId))
+      {
+         throw new IllegalArgumentException(
+            label + ".spec.id: \"" + Organization.getDefaultOrganizationID() + "\" is the " +
+            "default organization's id; renaming it away, or renaming another organization to " +
+            "it, is refused");
+      }
+
+      if(Organization.getSelfOrganizationID().equalsIgnoreCase(currentId) ||
+         Organization.getSelfOrganizationID().equalsIgnoreCase(proposedId))
+      {
+         throw new IllegalArgumentException(
+            label + ".spec.id: \"" + Organization.getSelfOrganizationID() + "\" is the self " +
+            "organization's id; renaming it away, or renaming another organization to it, is " +
+            "refused");
+      }
+   }
+
+   /**
+    * Mirrors {@code UserTreeService.checkDuplicateOrgIDs}'s id branch (lines 1311-1328) -- refuses
+    * an id-changing update whose proposed id case-insensitively collides with any OTHER existing
+    * organization's id. {@code SecurityService.updateOrganization}'s own call chain has no such
+    * check (confirmed by reading it in full); without this, a colliding rename would interleave
+    * {@code copyOrganizationInternal}'s writes against whatever organization already lives at the
+    * target id.
+    */
+   private void requireNoDuplicateOrganizationId(String label, String currentId, String proposedId,
+                                                 Principal user)
+      throws Exception
+   {
+      for(SecurityOrganization other : securityService.getOrganizations(user).getOrganizations()) {
+         if(other.getId() != null && !other.getId().equalsIgnoreCase(currentId) &&
+            other.getId().equalsIgnoreCase(proposedId))
+         {
+            throw new IllegalArgumentException(
+               label + ".spec.id: \"" + proposedId + "\" is already the id of another " +
+               "organization; organization ids must be unique");
+         }
+      }
    }
 
    /**
@@ -475,10 +540,14 @@ public class IdentityChangePlanService {
    }
 
    /**
-    * The three verb-specific refusals {@code update} adds on top of {@link #requireLegalFields}'s
-    * unchanged unitType-ownership check (design section 2.3/9), plus the at-least-one-field
-    * requirement (item 4). Additive -- does not modify {@link #requireLegalFields}'s own signature
-    * or behavior; {@code create}'s call site is untouched.
+    * The two verb-specific field refusals {@code update} adds on top of {@link
+    * #requireLegalFields}'s unchanged unitType-ownership check (design section 2.3/9), plus the
+    * at-least-one-field requirement (item 4). {@code spec.id} on organization update is no longer
+    * refused here (bug-76834) -- it is a real, supported rename, validated instead in {@link
+    * #resolveUpdateOrganization} (reserved-id / duplicate-id checks, which need a live read of
+    * every organization and so cannot run in this static, spec-only method). Additive -- does not
+    * modify {@link #requireLegalFields}'s own signature or behavior; {@code create}'s call site is
+    * untouched.
     */
    static void requireLegalFieldsForUpdate(String label, IdentityUnitType unitType, IdentitySpec spec) {
       requireLegalFields(label, unitType, spec);
@@ -500,13 +569,6 @@ public class IdentityChangePlanService {
             "resolved id, never from the request body). Omit it; use \"name:orgId\" in the " +
             "top-level id if you need to disambiguate which organization's identity you're " +
             "targeting.");
-      }
-
-      if(unitType == IdentityUnitType.ORGANIZATION && !isAbsent(spec.getId())) {
-         throw new IllegalArgumentException(label + ".spec.id: not used for verb=\"update\" on " +
-            "unitType=\"organization\" — the organization's own id is fixed by the id " +
-            "argument you're targeting; renaming an organization's id (as opposed to its display " +
-            "name, spec.orgName) is out of scope for update in this cut.");
       }
 
       requireAtLeastOneField(label, unitType, spec);
@@ -543,7 +605,7 @@ public class IdentityChangePlanService {
             spec.getOrgAdmin() != null;
          break;
       default:
-         anyPresent = spec.getOrgName() != null || spec.getLocale() != null ||
+         anyPresent = spec.getId() != null || spec.getOrgName() != null || spec.getLocale() != null ||
             spec.getTheme() != null || spec.getProperties() != null;
          break;
       }

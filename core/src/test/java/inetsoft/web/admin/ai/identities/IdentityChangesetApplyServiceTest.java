@@ -41,7 +41,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -573,6 +575,72 @@ class IdentityChangesetApplyServiceTest {
       // (unlike organization-delete, declared permanently non-compensable), design section 8.
       verify(securityService).updateOrganization(eq("org1"),
          argThat(req -> "Org One".equals(req.getName())), eq(user));
+   }
+
+   // bug-76834: organization id rename is a real, supported capability -- SecurityService
+   // .updateOrganization(id, request, principal) already relocates the organization to
+   // request.getId() when it differs from the target `id` (confirmed by reading its full call
+   // chain down through IdentityService.setOrganizationInfo/copyOrganizationInternal); this test
+   // exercises the merge+apply+verify wiring that lets spec.id reach it.
+   @Test void appliesAnUpdateOrganizationIdRenameAndVerifiesAtTheNewId() throws Exception {
+      SecurityOrganization before = existingOrganization("org1");
+      SecurityOrganization after = existingOrganization("org2");
+
+      when(securityService.getOrganization(eq("org1"), eq(user))).thenReturn(before);
+      when(securityService.getOrganization(eq("org2"), eq(user))).thenReturn(after);
+      when(securityService.getOrganizations(eq(user))).thenReturn(organizationList("org1"));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId("org2");
+      IdentityChangeRequest change = updateOrganization("org1", spec);
+
+      var result = service.apply(applyRequest("rename org1 to org2", change), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
+      // Forward: updateOrganization called with the ORIGINAL id as the target, request carrying
+      // the NEW id (SecurityService.updateOrganization's own contract -- confirmed by reading it).
+      verify(securityService).updateOrganization(eq("org1"),
+         argThat(req -> "org2".equals(req.getId())), eq(user));
+      // Verified at the NEW id, not the original -- verifying at "org1" after a genuine rename
+      // would misreport a successful rename as "organization not found after update" (the bug
+      // this fix closes in applyUpdateOrganization).
+      verify(securityService).getOrganization(eq("org2"), eq(user));
+   }
+
+   // The one claim in the diagnosis that was traced through the full deterministic call chain but
+   // never executed before this test: rollback of an id-changing update must target the
+   // organization's CURRENT (post-rename) id and restore the ORIGINAL id, not the reverse.
+   @Test void rollsBackAnOrganizationIdRenameToTheOriginalIdWhenALaterEntryFails() throws Exception {
+      SecurityOrganization before = existingOrganization("org1");
+      SecurityOrganization after = existingOrganization("org2");
+      IdentityID carol = new IdentityID("carol", "host-org");
+
+      when(securityService.getOrganization(eq("org1"), eq(user))).thenReturn(before);
+      when(securityService.getOrganization(eq("org2"), eq(user))).thenReturn(after);
+      when(securityService.getOrganizations(eq(user))).thenReturn(organizationList("org1"));
+      when(securityService.getRole(eq(carol), eq(user)))
+         .thenThrow(new MissingResourceException("free"));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId("org2");
+      IdentityChangeRequest renameOrg = updateOrganization("org1", spec);
+      IdentityChangeRequest createCarolRole = createRole("carol");
+
+      var result = service.apply(applyRequest("rename then failing create", renameOrg,
+                                               createCarolRole), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      // Forward: renames org1 -> org2 (updateOrganization called with the ORIGINAL id, request
+      // carrying the NEW id).
+      verify(securityService).updateOrganization(eq("org1"),
+         argThat(req -> "org2".equals(req.getId())), eq(user));
+      // Rollback: targets the CURRENT/live id ("org2", where the organization actually lives
+      // after the forward rename) with `before` passed unmodified -- `before`'s own captured id
+      // ("org1") is what drives updateOrganization's rename-back, mirroring
+      // rollbackUpdatedUser's updateUser(undo.afterId, undo.beforeUser, user) shape.
+      verify(securityService).updateOrganization(eq("org2"),
+         argThat(req -> "org1".equals(req.getId())), eq(user));
    }
 
    // bug-76715: confirms defaultRole/sysAdmin round-trip through Undo.updatedRole's replay-
@@ -1117,6 +1185,13 @@ class IdentityChangesetApplyServiceTest {
       o.setId(id);
       o.setName("Org One");
       return o;
+   }
+
+   private static SecurityOrganizationList organizationList(String... ids) {
+      SecurityOrganizationList list = new SecurityOrganizationList();
+      list.setOrganizations(Arrays.stream(ids).map(IdentityChangesetApplyServiceTest::existingOrganization)
+                                .collect(Collectors.toList()));
+      return list;
    }
 
    /** Small local enum so assertions read clearly without importing the raw string constants
