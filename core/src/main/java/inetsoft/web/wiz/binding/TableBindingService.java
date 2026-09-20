@@ -551,8 +551,20 @@ public class TableBindingService {
             }
          }
 
+         // Mutate a CLONE, not the assembly's own live info -- table.getVSAssemblyInfo()
+         // returns that live field directly (AbstractVSAssembly.getVSAssemblyInfo(), no
+         // defensive copy). Passing the live object itself into apply() would make
+         // AbstractVSAssembly.setVSAssemblyInfo()'s this.info.copyInfo(info) a self-comparison
+         // -- TableDataVSAssemblyInfo.copyInputDataInfo()'s Tool.equalsContent(sinfo, tinfo.sinfo)
+         // check is always "equal" against itself, so VSAssembly.INPUT_DATA_CHANGED is never set
+         // and the refresh/recompute dispatch a real column-header click triggers silently does
+         // not happen. Same clone-first shape as HideColumnsDialogService
+         // .setColumnOptionDialogModel() (the delegate setFieldVisibility above already uses
+         // correctly) -- info.clone() deep-clones sinfo too (TableDataVSAssemblyInfo.clone(false)),
+         // so mutating the clone's SortInfo never touches the live one until apply() commits it.
          TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) table.getVSAssemblyInfo();
-         SortInfo sinfo = info.getSortInfo();
+         TableDataVSAssemblyInfo clone = (TableDataVSAssemblyInfo) info.clone();
+         SortInfo sinfo = clone.getSortInfo();
          sinfo = sinfo == null ? new SortInfo() : sinfo;
          SortRef sortRef = new SortRef(base);
 
@@ -564,8 +576,8 @@ public class TableBindingService {
             sinfo.addSort(sortRef);
          }
 
-         info.setSortInfo(sinfo);
-         assemblyInfoHandler.apply(rvs, info, null, false, false, false, false, dispatcher,
+         clone.setSortInfo(sinfo);
+         assemblyInfoHandler.apply(rvs, clone, null, false, false, false, false, dispatcher,
                                    null, null, linkUri, null);
       });
    }

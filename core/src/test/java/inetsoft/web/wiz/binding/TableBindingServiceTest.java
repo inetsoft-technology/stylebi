@@ -1279,11 +1279,71 @@ class TableBindingServiceTest {
 
    // ── set_table_column_sort (bug-76806) ──────────────────────────────────────
 
+   /**
+    * Review round 1 (04-review-r1.md) found setColumnSort originally passed the assembly's
+    * LIVE VSAssemblyInfo into VSAssemblyInfoHandler.apply() (mutated in place, same object),
+    * which made AbstractVSAssembly.setVSAssemblyInfo()'s {@code this.info.copyInfo(info)} a
+    * self-comparison -- TableDataVSAssemblyInfo.copyInputDataInfo()'s
+    * {@code Tool.equalsContent(sinfo, tinfo.sinfo)} diff is always "equal" against itself, so
+    * {@code VSAssembly.INPUT_DATA_CHANGED} was never set and the refresh a real column-header
+    * click triggers silently didn't happen. The fix clones first (mirroring
+    * HideColumnsDialogService.setColumnOptionDialogModel()'s already-correct pattern), which
+    * means the mutation is staged on a clone until {@code apply()} commits it -- a genuinely
+    * inert mocked handler (as every OTHER test in this file uses for
+    * VSAssemblyInfoHandler) no longer observes any effect on {@code table.getSortInfo()} at
+    * all, since nothing ever calls {@code assembly.setVSAssemblyInfo(...)}.
+    *
+    * <p>This stub performs {@code apply()}'s one essential commit step --
+    * {@code assembly.setVSAssemblyInfo(info)}, exercising the REAL {@code copyInfo}/hint
+    * mechanism through the real {@code TableVSAssembly} -- without any of {@code apply()}'s
+    * refresh/dispatch side effects, so these tests can observe genuinely-committed state
+    * across sequential calls the same way the real handler would, without needing
+    * CoreLifecycleService/ParameterService/DataSourceRegistry wired up for every test.
+    * {@link #setColumnSortProducesAGenuineInputDataChangedHint} below uses a fully real
+    * {@link inetsoft.web.binding.handler.VSAssemblyInfoHandler} instead, since verifying the
+    * hint value itself is the one thing this stub deliberately skips.
+    */
+   private static inetsoft.web.binding.handler.VSAssemblyInfoHandler committingAssemblyInfoHandler()
+      throws Exception
+   {
+      inetsoft.web.binding.handler.VSAssemblyInfoHandler handler =
+         mock(inetsoft.web.binding.handler.VSAssemblyInfoHandler.class);
+
+      doAnswer(invocation -> {
+         RuntimeViewsheet rvs = invocation.getArgument(0);
+         inetsoft.uql.viewsheet.internal.VSAssemblyInfo info = invocation.getArgument(1);
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(info.getAbsoluteName2());
+
+         if(assembly != null) {
+            assembly.setVSAssemblyInfo(info);
+         }
+
+         return null;
+      }).when(handler).apply(
+         any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
+         any(), any(), any(), any(), any());
+
+      return handler;
+   }
+
+   private static TableBindingService serviceWithCommittingHandler(
+      ViewsheetSessionService sessions, BindingModel model, VSBindingModelService bindings)
+      throws Exception
+   {
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenReturn(model);
+      return new TableBindingService(
+         sessions, binding, bindings,
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class),
+         committingAssemblyInfoHandler());
+   }
+
    @Test
    void setColumnSortSetsAnExplicitAscendingOrder() throws Exception {
       TableVSAssembly table = tableWithColumns("TableView2", "product_id", "product_name");
       ViewsheetSessionService sessions = sessionsFor(table);
-      TableBindingService service = serviceWith(
+      TableBindingService service = serviceWithCommittingHandler(
          sessions, new TableBindingModel(), mock(VSBindingModelService.class));
 
       service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
@@ -1296,7 +1356,7 @@ class TableBindingServiceTest {
    void setColumnSortAcceptsCaseInsensitiveDirectionAndColumnName() throws Exception {
       TableVSAssembly table = tableWithColumns("TableView2", "product_id");
       ViewsheetSessionService sessions = sessionsFor(table);
-      TableBindingService service = serviceWith(
+      TableBindingService service = serviceWithCommittingHandler(
          sessions, new TableBindingModel(), mock(VSBindingModelService.class));
 
       service.setColumnSort("tok", principal(), "TableView2", "PRODUCT_ID", "DESC", null);
@@ -1309,7 +1369,7 @@ class TableBindingServiceTest {
    void setColumnSortReplacesAPreviousDirectionOnTheSameColumn() throws Exception {
       TableVSAssembly table = tableWithColumns("TableView2", "product_id");
       ViewsheetSessionService sessions = sessionsFor(table);
-      TableBindingService service = serviceWith(
+      TableBindingService service = serviceWithCommittingHandler(
          sessions, new TableBindingModel(), mock(VSBindingModelService.class));
 
       service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
@@ -1325,7 +1385,7 @@ class TableBindingServiceTest {
    void setColumnSortNoneRemovesTheColumnsSort() throws Exception {
       TableVSAssembly table = tableWithColumns("TableView2", "product_id");
       ViewsheetSessionService sessions = sessionsFor(table);
-      TableBindingService service = serviceWith(
+      TableBindingService service = serviceWithCommittingHandler(
          sessions, new TableBindingModel(), mock(VSBindingModelService.class));
 
       service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
@@ -1346,7 +1406,7 @@ class TableBindingServiceTest {
    void setColumnSortIsAdditiveAcrossDifferentColumns() throws Exception {
       TableVSAssembly table = tableWithColumns("TableView2", "product_id", "product_name");
       ViewsheetSessionService sessions = sessionsFor(table);
-      TableBindingService service = serviceWith(
+      TableBindingService service = serviceWithCommittingHandler(
          sessions, new TableBindingModel(), mock(VSBindingModelService.class));
 
       service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
@@ -1358,6 +1418,72 @@ class TableBindingServiceTest {
                   orderOf(table.getSortInfo(), "product_id"));
       assertEquals(Integer.valueOf(inetsoft.report.StyleConstants.SORT_DESC),
                   orderOf(table.getSortInfo(), "product_name"));
+   }
+
+   /**
+    * Directly proves review round 1's blocker is fixed: uses a fully REAL
+    * {@link inetsoft.web.binding.handler.VSAssemblyInfoHandler} (its own external
+    * collaborators mocked) instead of the inert/committing stubs the other tests in this
+    * block use, so {@code copyInfo}'s hint computation genuinely runs end to end, and asserts
+    * the hint reaching {@code CoreLifecycleService.execute(...)} actually carries
+    * {@code VSAssembly.INPUT_DATA_CHANGED} -- the exact bit the review traced as silently
+    * unset by the pre-fix (live-object, no-clone) code, where a self-comparison against the
+    * assembly's own already-mutated field always computed {@code NONE_CHANGED} instead.
+    */
+   @Test
+   void setColumnSortProducesAGenuineInputDataChangedHint() throws Exception {
+      TableVSAssembly table = tableWithColumns("TableView2", "product_id", "product_name");
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(table);
+      when(vs.getViewsheetInfo()).thenReturn(new inetsoft.uql.viewsheet.ViewsheetInfo());
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      // apply()'s removeVariable() step (info/oinfo both DataVSAssemblyInfo) unconditionally
+      // dereferences box.getAssetQuerySandbox().getVariableTable() before it even checks
+      // whether there is a precondition list to diff -- needs a non-null AssetQuerySandbox to
+      // avoid an NPE unrelated to what this test is actually verifying.
+      when(sandbox.getAssetQuerySandbox()).thenReturn(
+         mock(inetsoft.report.composition.execution.AssetQuerySandbox.class));
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      inetsoft.web.viewsheet.service.CoreLifecycleService coreLifecycleService =
+         mock(inetsoft.web.viewsheet.service.CoreLifecycleService.class);
+      inetsoft.web.binding.handler.VSAssemblyInfoHandler realHandler =
+         new inetsoft.web.binding.handler.VSAssemblyInfoHandler(
+            coreLifecycleService,
+            mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
+            mock(inetsoft.web.viewsheet.service.ParameterService.class),
+            mock(inetsoft.uql.service.DataSourceRegistry.class));
+
+      TableBindingService service = new TableBindingService(
+         sessions, mock(VSBindingService.class), mock(VSBindingModelService.class),
+         mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class), realHandler);
+
+      service.setColumnSort("tok", principal(), "TableView2", "product_id", "asc", null);
+
+      ArgumentCaptor<Integer> hintCaptor = ArgumentCaptor.forClass(Integer.class);
+      verify(coreLifecycleService).execute(
+         eq(rvs), anyString(), any(), hintCaptor.capture(), anyBoolean(), any());
+
+      int hint = hintCaptor.getValue();
+      assertTrue((hint & VSAssembly.INPUT_DATA_CHANGED) != 0,
+                "the hint reaching CoreLifecycleService.execute() must include " +
+                "INPUT_DATA_CHANGED -- passing the assembly's live (uncloned) VSAssemblyInfo " +
+                "into apply() (the pre-fix bug) makes copyInfo's diff a self-comparison, " +
+                "always NONE_CHANGED, regardless of what actually changed");
    }
 
    @Test
@@ -1424,7 +1550,7 @@ class TableBindingServiceTest {
       TableVSAssembly table = new TableVSAssembly(new Viewsheet(), "TableView2");
       table.setVSAssemblyInfo(info);
       ViewsheetSessionService sessions = sessionsFor(table);
-      TableBindingService service = serviceWith(
+      TableBindingService service = serviceWithCommittingHandler(
          sessions, new TableBindingModel(), mock(VSBindingModelService.class));
 
       service.setColumnSort("tok", principal(), "TableView2", "product_id", "desc", null);
@@ -1468,7 +1594,7 @@ class TableBindingServiceTest {
       TableBindingService service = new TableBindingService(
          sessions, binding, mock(VSBindingModelService.class), refModelService,
          mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class),
-         mock(inetsoft.web.binding.handler.VSAssemblyInfoHandler.class));
+         committingAssemblyInfoHandler());
 
       service.setColumnSort("tok", principal(), "TableView2", "product_id", "desc", null);
 
