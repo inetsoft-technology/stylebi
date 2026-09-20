@@ -34,7 +34,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -460,16 +462,65 @@ class IdentityChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("spec.orgId"));
    }
 
-   @Test void resolveUpdateRefusesIdOnOrganization() {
+   // bug-76834: organization id rename is a real, supported capability -- the field is no longer
+   // refused outright. Renamed from resolveUpdateRefusesIdOnOrganization, which asserted the old
+   // unconditional refusal this fix removes.
+
+   @Test void resolveUpdateAllowsRenamingAnOrganizationId() throws Exception {
+      when(securityService.getOrganization(eq("org1"), eq(user)))
+         .thenReturn(existingOrganization("org1"));
+      when(securityService.getOrganizations(eq(user))).thenReturn(organizationList("org1"));
       IdentitySpec spec = new IdentitySpec();
-      spec.setId("some-other-id");
+      spec.setId("org2");
+      IdentityChangeRequest change = updateOrganization("org1", spec);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+      PlanChange planChange = plan.changes().get(0);
+      assertTrue(planChange.proposedValue().contains("id=org2"));
+   }
+
+   @Test void resolveUpdateRefusesRenamingAnOrganizationToTheDefaultOrganizationId() throws Exception {
+      when(securityService.getOrganization(eq("org1"), eq(user)))
+         .thenReturn(existingOrganization("org1"));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId(Organization.getDefaultOrganizationID());
       IdentityChangeRequest change = updateOrganization("org1", spec);
 
       IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
          () -> service.resolve(request("task", List.of(change)), user));
       assertTrue(ex.getMessage().contains("spec.id"));
-      assertTrue(ex.getMessage().contains("out of scope for update"));
-      verifyNoInteractions(securityService);
+      assertTrue(ex.getMessage().contains("default organization"));
+      // The reserved-id check is cheap (no live read) and short-circuits before the duplicate-id
+      // check's full organization-list scan.
+      verify(securityService, never()).getOrganizations(any());
+   }
+
+   @Test void resolveUpdateRefusesRenamingTheDefaultOrganizationAwayFromItsId() throws Exception {
+      String defaultId = Organization.getDefaultOrganizationID();
+      when(securityService.getOrganization(eq(defaultId), eq(user)))
+         .thenReturn(existingOrganization(defaultId));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId("some-other-id");
+      IdentityChangeRequest change = updateOrganization(defaultId, spec);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("spec.id"));
+      assertTrue(ex.getMessage().contains("default organization"));
+   }
+
+   @Test void resolveUpdateRefusesRenamingAnOrganizationToAnotherOrganizationsId() throws Exception {
+      when(securityService.getOrganization(eq("org1"), eq(user)))
+         .thenReturn(existingOrganization("org1"));
+      when(securityService.getOrganizations(eq(user))).thenReturn(organizationList("org1", "org2"));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId("org2");
+      IdentityChangeRequest change = updateOrganization("org1", spec);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("spec.id"));
+      assertTrue(ex.getMessage().contains("already the id of another organization"));
    }
 
    @Test void resolveUpdateStillEnforcesTheDiscriminatorConfusionDefense() {
@@ -875,5 +926,12 @@ class IdentityChangePlanServiceTest {
       o.setId(id);
       o.setName("Org One");
       return o;
+   }
+
+   private static SecurityOrganizationList organizationList(String... ids) {
+      SecurityOrganizationList list = new SecurityOrganizationList();
+      list.setOrganizations(Arrays.stream(ids).map(IdentityChangePlanServiceTest::existingOrganization)
+                                .collect(Collectors.toList()));
+      return list;
    }
 }

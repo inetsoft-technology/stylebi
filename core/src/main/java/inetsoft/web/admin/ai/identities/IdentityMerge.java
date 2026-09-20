@@ -101,16 +101,16 @@ final class IdentityMerge {
    }
 
    /**
-    * {@code currentOrgId} is always the id this method sets on the merged DTO -- {@code
-    * spec.getId()} is never read here, even defensively: it is refused at validation time
-    * (section 2.3 item 3) before the merge ever runs, so it is guaranteed absent by the time this
-    * runs; the merge still never reads it, as defense in depth.
+    * {@code spec.getId()}'s value when present and non-blank (a real, validated rename -- reserved-
+    * id/duplicate-id checked by {@code IdentityChangePlanService.resolveUpdateOrganization} before
+    * this ever runs, bug-76834), {@code currentOrgId} otherwise -- mirrors {@code mergeUser}/{@code
+    * mergeGroup}/{@code mergeRole}'s own {@link #renamedOrCurrent} pattern for their name field.
     */
    static SecurityOrganization mergeOrganization(SecurityOrganization current, IdentitySpec spec,
                                                  String currentOrgId)
    {
       SecurityOrganization merged = new SecurityOrganization();
-      merged.setId(currentOrgId);
+      merged.setId(renamedOrCurrent(spec.getId(), currentOrgId));
       merged.setName(spec.getOrgName() != null ? spec.getOrgName() : current.getName());
       merged.setLocale(spec.getLocale() != null ? spec.getLocale() : current.getLocale());
       merged.setTheme(spec.getTheme() != null ? spec.getTheme() : current.getTheme());

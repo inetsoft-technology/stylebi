@@ -753,9 +753,14 @@ public class IdentityChangesetApplyService {
    }
 
    /**
-    * Organization's own id never changes on update (refused at validation, spec.id is always
-    * absent by the time this runs) -- there is no separate "after id" to track, unlike the
-    * user/group/role update paths above.
+    * Organization's own id CAN change on update since bug-76834 (validated at preview time by
+    * {@code IdentityChangePlanService.resolveUpdateOrganization} -- reserved-id/duplicate-id
+    * checks). {@code afterId} tracks the post-update id (equal to {@code organizationId} when the
+    * update didn't change it), mirroring the {@code IdentityID afterId = merged.getIdentityID()}
+    * pattern {@code applyUpdateUser}/{@code applyUpdateGroup}/{@code applyUpdateRole} already use
+    * for their own name-rename case -- verifying against the pre-update {@code organizationId}
+    * here would misreport a genuinely successful rename as "not found after update", since the
+    * organization no longer lives at its old id.
     */
    private void applyUpdateOrganization(String txId, String task, String key, String rawId,
                                         IdentitySpec spec, String backupRef, String reviewOutcome,
@@ -770,11 +775,12 @@ public class IdentityChangesetApplyService {
 
       securityService.updateOrganization(organizationId, merged, user);
 
-      SecurityOrganization after = tryGet(() -> securityService.getOrganization(organizationId, user));
+      String afterId = merged.getId();
+      SecurityOrganization after = tryGet(() -> securityService.getOrganization(afterId, user));
       boolean verified = after != null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
       String afterProjection =
-         verified ? IdentityProjection.projectOrganization(after, organizationId) : null;
+         verified ? IdentityProjection.projectOrganization(after, afterId) : null;
       results.add(new IdentityApplyOutcome(key, beforeProjection, afterProjection, status,
                                            verified ? null : "organization not found after update",
                                            null));
@@ -782,7 +788,7 @@ public class IdentityChangesetApplyService {
                 beforeProjection, afterProjection, status, backupRef, reviewOutcome, user);
 
       if(verified) {
-         undoable.add(Undo.updatedOrganization(key, organizationId, before));
+         undoable.add(Undo.updatedOrganization(key, organizationId, afterId, before));
       }
    }
 
@@ -998,17 +1004,19 @@ public class IdentityChangesetApplyService {
       }
    }
 
-   /** Organization's own id never changes on update, so there is no separate after-id to restore
-    * from -- {@link Undo#organizationId} already names the (unchanging) identity to call {@code
-    * updateOrganization} on. Compensable (unlike organization delete, declared permanently
-    * non-compensable by design) -- a real, useful improvement, not a gap being closed (design
-    * section 8). */
+   /** Organization's own id can now change on update (bug-76834) -- {@link
+    * Undo#afterOrganizationId} names the CURRENT (live, post-update) id to target, {@link
+    * Undo#beforeOrganization} carries the ORIGINAL id via its own captured {@code getId()}, so
+    * this call is itself a (reusable, no-new-capability) rename back to the old id, mirroring
+    * {@code rollbackUpdatedUser}'s own {@code updateUser(undo.afterId, undo.beforeUser, user)}
+    * shape. Compensable (unlike organization delete, declared permanently non-compensable by
+    * design) -- a real, useful improvement, not a gap being closed (design section 8). */
    private void rollbackUpdatedOrganization(String txId, String task, Undo undo, String backupRef,
                                             String reviewOutcome, Principal user,
                                             List<RollbackFailure> failures)
       throws Exception
    {
-      securityService.updateOrganization(undo.organizationId, undo.beforeOrganization, user);
+      securityService.updateOrganization(undo.afterOrganizationId, undo.beforeOrganization, user);
       boolean verified =
          tryGet(() -> securityService.getOrganization(undo.organizationId, user)) != null;
       writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_EDIT,
@@ -1299,32 +1307,32 @@ public class IdentityChangesetApplyService {
                   UPDATED_USER, UPDATED_GROUP, UPDATED_ROLE, UPDATED_ORGANIZATION }
 
       static Undo createdUser(String key, IdentityID id) {
-         return new Undo(Kind.CREATED_USER, key, id, null, null, null, null, null, null);
+         return new Undo(Kind.CREATED_USER, key, id, null, null, null, null, null, null, null);
       }
 
       static Undo createdGroup(String key, IdentityID id) {
-         return new Undo(Kind.CREATED_GROUP, key, id, null, null, null, null, null, null);
+         return new Undo(Kind.CREATED_GROUP, key, id, null, null, null, null, null, null, null);
       }
 
       static Undo createdRole(String key, IdentityID id) {
-         return new Undo(Kind.CREATED_ROLE, key, id, null, null, null, null, null, null);
+         return new Undo(Kind.CREATED_ROLE, key, id, null, null, null, null, null, null, null);
       }
 
       static Undo createdOrganization(String key, String organizationId) {
          return new Undo(Kind.CREATED_ORGANIZATION, key, null, null, organizationId, null, null,
-                         null, null);
+                         null, null, null);
       }
 
       static Undo deletedUser(String key, IdentityID id, SecurityUser before) {
-         return new Undo(Kind.DELETED_USER, key, id, null, null, before, null, null, null);
+         return new Undo(Kind.DELETED_USER, key, id, null, null, null, before, null, null, null);
       }
 
       static Undo deletedGroup(String key, IdentityID id, SecurityGroup before) {
-         return new Undo(Kind.DELETED_GROUP, key, id, null, null, null, before, null, null);
+         return new Undo(Kind.DELETED_GROUP, key, id, null, null, null, null, before, null, null);
       }
 
       static Undo deletedRole(String key, IdentityID id, SecurityRole before) {
-         return new Undo(Kind.DELETED_ROLE, key, id, null, null, null, null, before, null);
+         return new Undo(Kind.DELETED_ROLE, key, id, null, null, null, null, null, before, null);
       }
 
       /** {@code beforeId}/{@code afterId} differ exactly when {@code spec.name} renamed the
@@ -1332,36 +1340,42 @@ public class IdentityChangesetApplyService {
        * {@code afterId} is the post-update id, needed to look the identity up for rollback since
        * it may live under a new name now. */
       static Undo updatedUser(String key, IdentityID beforeId, IdentityID afterId, SecurityUser before) {
-         return new Undo(Kind.UPDATED_USER, key, beforeId, afterId, null, before, null, null, null);
+         return new Undo(Kind.UPDATED_USER, key, beforeId, afterId, null, null, before, null, null, null);
       }
 
       static Undo updatedGroup(String key, IdentityID beforeId, IdentityID afterId, SecurityGroup before) {
-         return new Undo(Kind.UPDATED_GROUP, key, beforeId, afterId, null, null, before, null, null);
+         return new Undo(Kind.UPDATED_GROUP, key, beforeId, afterId, null, null, null, before, null, null);
       }
 
       static Undo updatedRole(String key, IdentityID beforeId, IdentityID afterId, SecurityRole before) {
-         return new Undo(Kind.UPDATED_ROLE, key, beforeId, afterId, null, null, null, before, null);
+         return new Undo(Kind.UPDATED_ROLE, key, beforeId, afterId, null, null, null, null, before, null);
       }
 
-      /** No separate {@code afterId} -- organization's own id never changes on update (refused at
-       * validation). Unlike organization delete (declared permanently non-compensable), this
-       * rollback IS compensable, hence the new {@link #beforeOrganization} field (organization had
-       * no existing "before" field on {@code Undo} until now, since delete never added one to
-       * {@code undoable}). */
-      static Undo updatedOrganization(String key, String organizationId, SecurityOrganization before) {
-         return new Undo(Kind.UPDATED_ORGANIZATION, key, null, null, organizationId, null, null,
-                         null, before);
+      /** {@code organizationId}/{@code afterOrganizationId} differ exactly when {@code spec.id}
+       * renamed the organization (bug-76834) -- mirrors {@code updatedUser}/{@code updatedGroup}/
+       * {@code updatedRole}'s own {@code beforeId}/{@code afterId} pair, just {@code String}-typed
+       * instead of {@link IdentityID} since an organization's id isn't one. Unlike organization
+       * delete (declared permanently non-compensable), this rollback IS compensable, hence the
+       * {@link #beforeOrganization} field (organization had no existing "before" field on {@code
+       * Undo} until now, since delete never added one to {@code undoable}). */
+      static Undo updatedOrganization(String key, String organizationId, String afterOrganizationId,
+                                      SecurityOrganization before)
+      {
+         return new Undo(Kind.UPDATED_ORGANIZATION, key, null, null, organizationId,
+                         afterOrganizationId, null, null, null, before);
       }
 
       private Undo(Kind kind, String key, IdentityID userId, IdentityID afterId,
-                  String organizationId, SecurityUser beforeUser, SecurityGroup beforeGroup,
-                  SecurityRole beforeRole, SecurityOrganization beforeOrganization)
+                  String organizationId, String afterOrganizationId, SecurityUser beforeUser,
+                  SecurityGroup beforeGroup, SecurityRole beforeRole,
+                  SecurityOrganization beforeOrganization)
       {
          this.kind = kind;
          this.key = key;
          this.userId = userId;
          this.afterId = afterId;
          this.organizationId = organizationId;
+         this.afterOrganizationId = afterOrganizationId;
          this.beforeUser = beforeUser;
          this.beforeGroup = beforeGroup;
          this.beforeRole = beforeRole;
@@ -1378,7 +1392,14 @@ public class IdentityChangesetApplyService {
        * post-update id, needed to look the identity up for rollback since a rename means it may no
        * longer live under {@link #userId}'s name. */
       final IdentityID afterId;
+      /** For {@code UPDATED_ORGANIZATION}, the ORIGINAL (pre-update) id -- for every other
+       * organization {@code Kind}, the identity's (unchanging) id. */
       final String organizationId;
+      /** Only set for {@code UPDATED_ORGANIZATION} -- the post-update id (equal to {@link
+       * #organizationId} when the update didn't change it), needed to target rollback's {@code
+       * updateOrganization} call at the organization's current, live location. The {@link
+       * String}-typed sibling of {@link #afterId}. */
+      final String afterOrganizationId;
       final SecurityUser beforeUser;
       final SecurityGroup beforeGroup;
       final SecurityRole beforeRole;
