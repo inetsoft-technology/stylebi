@@ -73,19 +73,30 @@ public class SelectionBindingService {
    }
 
    /**
-    * @param columns  one or more column names, as reported by {@code list_bindable_fields}. A
-    *                 selection list or calendar accepts exactly one; a selection tree accepts one
-    *                 or more, in hierarchy order; a range slider accepts one (a single range) or
-    *                 more (a composite range).
-    * @param measure  selection list only — an optional aggregate/bar-chart measure column. Ignored
-    *                 for every other type.
-    * @param force    discards an existing binding to a different table, the way
-    *                 {@code set_table_source}'s {@code force} does.
+    * @param columns        one or more column names, as reported by
+    *                       {@code list_bindable_fields}. A selection list or calendar accepts
+    *                       exactly one; a selection tree accepts one or more, in hierarchy order,
+    *                       or none at all when {@code parentIdColumn}/{@code idColumn}/
+    *                       {@code labelColumn} are given instead; a range slider accepts one (a
+    *                       single range) or more (a composite range).
+    * @param measure        selection list only — an optional aggregate/bar-chart measure column.
+    *                       Ignored for every other type.
+    * @param parentIdColumn selection tree only, together with {@code idColumn}/
+    *                       {@code labelColumn} — builds an arbitrary-depth tree from one flat,
+    *                       self-referencing table instead of a fixed {@code columns} hierarchy.
+    *                       All three must be given together, and never combined with a non-empty
+    *                       {@code columns}.
+    * @param idColumn       see {@code parentIdColumn}.
+    * @param labelColumn    see {@code parentIdColumn}.
+    * @param force          discards an existing binding to a different table, the way
+    *                       {@code set_table_source}'s {@code force} does.
     */
    public Map<String, Object> setSource(String sessionToken, Principal user, String assemblyName,
                                         String table, List<String> columns,
                                         List<String> additionalTables, String measure,
-                                        boolean force, String linkUri) throws Exception
+                                        String parentIdColumn, String idColumn,
+                                        String labelColumn, boolean force, String linkUri)
+      throws Exception
    {
       if(table == null || table.isBlank()) {
          throw new IllegalArgumentException(
@@ -93,7 +104,15 @@ public class SelectionBindingService {
             "list_bindable_fields reports what this assembly can bind to.");
       }
 
-      if(columns == null || columns.isEmpty()) {
+      boolean idMode = validateIdModeFields(parentIdColumn, idColumn, labelColumn);
+
+      if(idMode && columns != null && !columns.isEmpty()) {
+         throw new IllegalArgumentException(
+            "set_selection_source's 'columns' cannot be combined with 'parentIdColumn'/" +
+            "'idColumn'/'labelColumn' — pick one hierarchy shape per call.");
+      }
+
+      if(!idMode && (columns == null || columns.isEmpty())) {
          throw new IllegalArgumentException(
             "set_selection_source requires at least one column in 'columns'.");
       }
@@ -111,8 +130,8 @@ public class SelectionBindingService {
          // table or crosstab would also see before it has a source of its own.
          List<BindableTable> tables = fieldsService.list(runtimeId, null, user);
          String resolvedTable = resolveTable(tables, assemblyName, table);
-         List<BindableField> resolvedColumns =
-            resolveColumns(tables, assemblyName, resolvedTable, columns);
+         List<BindableField> resolvedColumns = resolveColumns(
+            tables, assemblyName, resolvedTable, columns == null ? List.of() : columns);
          List<String> resolvedAdditional = resolveAdditionalTables(tables, assemblyName, additional);
 
          if(assembly instanceof SelectionListVSAssembly) {
@@ -134,21 +153,42 @@ public class SelectionBindingService {
             result.put("bound", "single");
          }
          else if(assembly instanceof SelectionTreeVSAssembly) {
-            requireArity(assemblyName, "a selection tree", resolvedColumns, 1, null);
             SelectionTreePropertyDialogModel model =
                selectionTreeService.getSelectionTreePropertyModel(runtimeId, assemblyName, user);
             SelectionTreePaneModel pane = model.getSelectionTreePaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
             pane.setAdditionalTables(resolvedAdditional);
-            // Hierarchy levels, not the id/parent-id/label mode — the shape set_selection_source
-            // exposes is an ordered column list, matching TimeSlider's own SingleTimeInfo/
-            // CompositeTimeInfo choice below rather than the ID-hierarchy alternative.
-            pane.setMode(SelectionTreeVSAssemblyInfo.COLUMN);
-            pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
+
+            if(idMode) {
+               BindableField resolvedParentId = resolveColumns(
+                  tables, assemblyName, resolvedTable, List.of(parentIdColumn)).get(0);
+               BindableField resolvedId = resolveColumns(
+                  tables, assemblyName, resolvedTable, List.of(idColumn)).get(0);
+               BindableField resolvedLabel = resolveColumns(
+                  tables, assemblyName, resolvedTable, List.of(labelColumn)).get(0);
+
+               pane.setMode(SelectionTreeVSAssemblyInfo.ID);
+               pane.setParentId(resolvedParentId.column());
+               pane.setId(resolvedId.column());
+               pane.setLabel(resolvedLabel.column());
+               pane.setParentIdRef(columnRef(resolvedTable, resolvedParentId));
+               pane.setIdRef(columnRef(resolvedTable, resolvedId));
+               pane.setLabelRef(columnRef(resolvedTable, resolvedLabel));
+            }
+            else {
+               requireArity(assemblyName, "a selection tree", resolvedColumns, 1, null);
+               // Hierarchy levels, not the id/parent-id/label mode — the shape
+               // set_selection_source exposes is an ordered column list, matching TimeSlider's
+               // own SingleTimeInfo/CompositeTimeInfo choice below rather than the ID-hierarchy
+               // alternative.
+               pane.setMode(SelectionTreeVSAssemblyInfo.COLUMN);
+               pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
+               result.put("levels", resolvedColumns.size());
+            }
+
             selectionTreeService.setSelectionTreePropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
-            result.put("levels", resolvedColumns.size());
          }
          else if(assembly instanceof TimeSliderVSAssembly) {
             requireArity(assemblyName, "a range slider", resolvedColumns, 1, null);
@@ -231,6 +271,31 @@ public class SelectionBindingService {
          "'" + assemblyName + "' is already bound to '" + currentTable + "'. Repointing to '" +
          resolvedTable + "' would discard that binding, so it is refused unless force:true is " +
          "set.");
+   }
+
+   /**
+    * @return true when all three ID-hierarchy fields are given. Mirrors the plugin's own
+    *         client-side check ({@code selectionTools.ts:612-625}), enforced again here since
+    *         this is a public HTTP endpoint any client can call directly, not only through the
+    *         plugin.
+    */
+   private static boolean validateIdModeFields(String parentIdColumn, String idColumn,
+                                               String labelColumn)
+   {
+      int given = (isBlank(parentIdColumn) ? 0 : 1) + (isBlank(idColumn) ? 0 : 1) +
+         (isBlank(labelColumn) ? 0 : 1);
+
+      if(given > 0 && given < 3) {
+         throw new IllegalArgumentException(
+            "set_selection_source's 'parentIdColumn', 'idColumn' and 'labelColumn' are " +
+            "required together for a selection tree's ID-hierarchy mode.");
+      }
+
+      return given == 3;
+   }
+
+   private static boolean isBlank(String s) {
+      return s == null || s.isBlank();
    }
 
    private static void requireArity(String assemblyName, String typeLabel,
