@@ -90,11 +90,19 @@ import java.util.List;
  *                         this shelf/assembly kind (e.g. Crosstab). Read-only here; write it with
  *                         {@code set_table_field_visibility}, not through this ref -- see
  *                         {@code TableBindingService#setFieldVisibility}.
+ * @param timeSeries       a crosstab/table dimension's "As Time Series" flag
+ *                         ({@code VSDimensionRef#isTimeSeries}), rows/cols/groups shelves only --
+ *                         mirrors the Composer binding pane's own checkbox
+ *                         ({@code group-option.component.ts}), used for gap-filling sparse date
+ *                         data under Date Comparison/Running Total calculators. {@code null}
+ *                         leaves it unchanged on write; a matched previous ref's value is
+ *                         preserved rather than reset -- see
+ *                         {@link inetsoft.web.wiz.binding.TableBindingMutator#copyOf}.
  */
 public record FieldRef(String column, String type, String aggregate, String dateLevel,
                        String namedGroup, Integer chartType, Integer runtimeChartType,
                        NamedGroupValues namedGroupValues, CalculateInfo calculateInfo,
-                       String label, Boolean secondaryY, Boolean visible) {
+                       String label, Boolean secondaryY, Boolean visible, Boolean timeSeries) {
    /**
     * Every caller but the chart read builds a ref with no chart type. Kept so that adding the
     * components did not touch forty-odd construction sites that have nothing to do with charts.
@@ -103,7 +111,7 @@ public record FieldRef(String column, String type, String aggregate, String date
                    String namedGroup)
    {
       this(column, type, aggregate, dateLevel, namedGroup, null, null, null, null, null, null,
-           null);
+           null, null);
    }
 
    /** A chart ref whose design-time type is all the read has to report. */
@@ -111,7 +119,7 @@ public record FieldRef(String column, String type, String aggregate, String date
                    String namedGroup, Integer chartType)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, null, null, null, null, null,
-           null);
+           null, null);
    }
 
    /**
@@ -122,7 +130,7 @@ public record FieldRef(String column, String type, String aggregate, String date
                    String namedGroup, Integer chartType, Integer runtimeChartType)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType, null, null,
-           null, null, null);
+           null, null, null, null);
    }
 
    /**
@@ -134,7 +142,7 @@ public record FieldRef(String column, String type, String aggregate, String date
                    NamedGroupValues namedGroupValues)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
-           namedGroupValues, null, null, null, null);
+           namedGroupValues, null, null, null, null, null);
    }
 
    /**
@@ -146,7 +154,7 @@ public record FieldRef(String column, String type, String aggregate, String date
                    NamedGroupValues namedGroupValues, CalculateInfo calculateInfo)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
-           namedGroupValues, calculateInfo, null, null, null);
+           namedGroupValues, calculateInfo, null, null, null, null);
    }
 
    /**
@@ -158,7 +166,7 @@ public record FieldRef(String column, String type, String aggregate, String date
                    NamedGroupValues namedGroupValues, CalculateInfo calculateInfo, String label)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
-           namedGroupValues, calculateInfo, label, null, null);
+           namedGroupValues, calculateInfo, label, null, null, null);
    }
 
    /**
@@ -172,7 +180,7 @@ public record FieldRef(String column, String type, String aggregate, String date
                    Boolean secondaryY)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
-           namedGroupValues, calculateInfo, null, secondaryY, null);
+           namedGroupValues, calculateInfo, null, secondaryY, null, null);
    }
 
    /**
@@ -186,7 +194,21 @@ public record FieldRef(String column, String type, String aggregate, String date
                    Boolean secondaryY)
    {
       this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
-           namedGroupValues, calculateInfo, label, secondaryY, null);
+           namedGroupValues, calculateInfo, label, secondaryY, null, null);
+   }
+
+   /**
+    * The shape before {@code timeSeries} was added — kept so that addition did not touch every
+    * call site that already named {@code visible} (this was the record's own canonical
+    * constructor before {@code timeSeries} was appended).
+    */
+   public FieldRef(String column, String type, String aggregate, String dateLevel,
+                   String namedGroup, Integer chartType, Integer runtimeChartType,
+                   NamedGroupValues namedGroupValues, CalculateInfo calculateInfo, String label,
+                   Boolean secondaryY, Boolean visible)
+   {
+      this(column, type, aggregate, dateLevel, namedGroup, chartType, runtimeChartType,
+           namedGroupValues, calculateInfo, label, secondaryY, visible, null);
    }
 
    /**

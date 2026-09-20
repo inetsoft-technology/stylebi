@@ -187,6 +187,30 @@ class FieldRefFactoryTest {
       assertNull(ref.aggregate(), "a dimension has no aggregate");
    }
 
+   // ── timeSeries (bug #76793) ───────────────────────────────────────────────
+
+   @Test
+   void readsADimensionsTimeSeriesFlag() {
+      BDimensionRefModel model = new BDimensionRefModel();
+      model.setColumnValue("Order Date");
+      model.setDateLevel("4");
+      model.setTimeSeries(true);
+
+      FieldRef ref = FieldRefFactory.from(model);
+
+      assertEquals(Boolean.TRUE, ref.timeSeries());
+   }
+
+   @Test
+   void readsADimensionsTimeSeriesFlagAsFalseWhenUnset() {
+      BDimensionRefModel model = new BDimensionRefModel();
+      model.setColumnValue("Order Date");
+
+      FieldRef ref = FieldRefFactory.from(model);
+
+      assertEquals(Boolean.FALSE, ref.timeSeries());
+   }
+
    @Test
    void readsAMeasureAsItsColumnAndFormula() {
       BAggregateRefModel model = new BAggregateRefModel();

@@ -310,11 +310,13 @@ public final class FieldRefFactory {
 
             return new FieldRef(dimension.getColumnValue(), DIMENSION, null,
                                 dimension.getDateLevel(), null, null, null,
-                                new FieldRef.NamedGroupValues(clauses, null));
+                                new FieldRef.NamedGroupValues(clauses, null), null, null, null,
+                                null, dimension.isTimeSeries());
          }
 
          return new FieldRef(dimension.getColumnValue(), DIMENSION, null,
-                             dimension.getDateLevel(), ngInfo == null ? null : ngInfo.getName());
+                             dimension.getDateLevel(), ngInfo == null ? null : ngInfo.getName(),
+                             null, null, null, null, null, null, null, dimension.isTimeSeries());
       }
 
       // A bare ColumnRefModel is a Table detail column, and its alias round-trips through this
