@@ -75,8 +75,9 @@ public class ChartLinePaneModel implements Serializable {
       plotDesc.setTrendPerColor(trendPerColor);
       plotDesc.setProjectTrendLineForward(projectForward);
 
-      Set all = new HashSet(Arrays.asList(measures));
-      all.removeAll(Arrays.asList(trendLineMeasures));
+      Set all = new HashSet(Arrays.asList(measures == null ? new String[0] : measures));
+      all.removeAll(Arrays.asList(
+         trendLineMeasures == null ? new String[0] : trendLineMeasures));
       plotDesc.getTrendLineExcludedMeasures().clear();
       plotDesc.getTrendLineExcludedMeasures().addAll(all);
    }
@@ -269,9 +270,26 @@ public class ChartLinePaneModel implements Serializable {
 
    /**
     * Gets array index by name.
+    *
+    * <p>A {@code name} that matches nothing in {@code arr} quietly falls through to index 0 --
+    * this loop never throws or reports a miss, by design (see the "trendLineType" entry in
+    * {@code PropertyPath}'s {@code CONSTRAINED_STRINGS}, which exists specifically because this
+    * silent fallback makes an unrecognised token look accepted). {@code null} is just another
+    * unmatched value and must fall through the same way: a chart whose {@code ChartDescriptor}
+    * was still null when the property model was last read (a chart with no plot customization
+    * yet -- see {@code ChartPropertyDialogService#getChartPropertyDialogModel0}'s own
+    * {@code chartDescriptor != null} guard) round-trips a {@code ChartLinePaneModel} with
+    * {@code trendLineType} left at its Java default, null, and {@code String.equals} called ON a
+    * null receiver throws instead of silently failing to match -- turning an ordinary property
+    * write (e.g. just the chart's title) into a 500 for every such chart, confirmed live via
+    * composer-chat's set_assembly_properties.
     */
    private int getIndexByName(String[] arr, String name) {
       int index = 0;
+
+      if(name == null) {
+         return index;
+      }
 
       for(int i = 0; i < arr.length; i++) {
          if(name.equals(arr[i])) {
