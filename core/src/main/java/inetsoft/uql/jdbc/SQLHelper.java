@@ -3854,6 +3854,20 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Whether this dialect treats a backslash as an escape character inside a
+    * {@code '...'} string literal (e.g. MySQL/MariaDB in their default
+    * {@code sql_mode}). Most dialects (Postgres with the default
+    * {@code standard_conforming_strings=on}, Oracle, SQL Server, DB2, and
+    * others) do not, and a backslash is just a literal character there —
+    * the default is {@code false}.
+    *
+    * @return {@code true} if backslash is a string-literal escape character.
+    */
+   public boolean isBackslashEscapeChar() {
+      return false;
+   }
+
+   /**
     * Create a query that limits the output to the specified number of rows.
     */
    protected String generateMaxRowsClause(String sql, int maxrows) {
