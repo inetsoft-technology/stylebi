@@ -122,9 +122,7 @@ public class ChartPropertyDialogService {
          tipPaneModel.getTipCustomizeDialogModel();
       SizePositionPaneModel sizePositionPaneModel =
          chartGeneralPaneModel.getSizePositionPaneModel();
-      ChartLinePaneModel chartLinePaneModel = result.getChartLinePaneModel();
-
-      if(chartLinePaneModel == null && chartDescriptor != null) {
+      if(chartDescriptor != null) {
          ChartLinePaneModel linePaneModel =
             new ChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor());
 
@@ -240,11 +238,7 @@ public class ChartPropertyDialogService {
                                                  chartStyle == GraphTypes.CHART_AREA ||
                                                  chartStyle == GraphTypes.CHART_AREA_STACK));
 
-      ChartAdvancedPaneModel chartAdvancedPaneModel = result.getChartAdvancedPaneModel();
-
-      if(chartAdvancedPaneModel == null) {
-         chartAdvancedPaneModel = new ChartAdvancedPaneModel(chartAssemblyInfo);
-      }
+      ChartAdvancedPaneModel chartAdvancedPaneModel = new ChartAdvancedPaneModel(chartAssemblyInfo);
 
       chartAdvancedPaneModel.setGlossyEffectSupported(
          this.chartPropertyService.isSupported(vsChartInfo, "effectEnabled", false));

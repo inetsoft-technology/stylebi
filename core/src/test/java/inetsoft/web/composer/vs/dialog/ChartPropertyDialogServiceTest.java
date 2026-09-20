@@ -20,8 +20,10 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AssemblyRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
@@ -44,9 +46,12 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Dimension;
+import java.awt.Point;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -253,6 +258,72 @@ class ChartPropertyDialogServiceTest {
 
       assertTrue(advancedPane.isEnableDrilling(),
                   "enableDrilling must not be normalized on a bar chart");
+   }
+
+   /**
+    * Regression test for bug #76826: commit 9a572fc60 turned
+    * {@code ChartPropertyDialogModel.getChartAdvancedPaneModel()} into an always-non-null
+    * lazy-init getter, which silently made {@code getChartPropertyDialogModel0}'s
+    * {@code if(chartAdvancedPaneModel == null)} guard dead code, so the real
+    * {@code chartAssemblyInfo}-populated {@code ChartAdvancedPaneModel} (and its
+    * {@code chartPlotOptionsPaneModel}) was never built -- crashing
+    * ChartPlotOptionsPaneComponent's template on a null model.
+    */
+   @Test
+   void getChartPropertyDialogModel0PopulatesChartPlotOptionsPaneModelForAFoundAssembly()
+      throws Exception
+   {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVSChartInfo(new VSChartInfo());
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(chartAssembly);
+      when(chartAssembly.getVSAssemblyInfo()).thenReturn(info);
+      when(chartAssembly.getDependedWSAssemblies()).thenReturn(new AssemblyRef[0]);
+      when(dialogService.getAssemblyPosition(any(), any())).thenReturn(new Point(0, 0));
+      when(dialogService.getAssemblySize(any(), any())).thenReturn(new Dimension(1, 1));
+      when(vsObjectPropertyService.getSupportedTablePopComponents(any(), nullable(String.class), any(Boolean.class)))
+         .thenReturn(new String[0]);
+
+      ChartPropertyDialogModel result =
+         service.getChartPropertyDialogModel0("Chart1", "Viewsheet1", null);
+
+      assertNotNull(result.getChartAdvancedPaneModel().getChartPlotOptionsPaneModel(),
+                     "chartPlotOptionsPaneModel must be populated for an ordinary, found chart, " +
+                     "not left null by a dead getChartAdvancedPaneModel()==null guard");
+   }
+
+   /**
+    * Parallel assertion for the {@code chartLinePaneModel} half of the same defect (bug #76826):
+    * the identical dead-guard shape left every {@code ChartLinePaneModel} sent to the client as a
+    * bare, all-defaults object, silently dropping every Line-tab setting.
+    */
+   @Test
+   void getChartPropertyDialogModel0PopulatesChartLinePaneModelFromTheRealChartDescriptor()
+      throws Exception
+   {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVSChartInfo(new VSChartInfo());
+      PlotDescriptor plotDescriptor = info.getChartDescriptor().getPlotDescriptor();
+      plotDescriptor.setFacetGrid(true);
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(chartAssembly);
+      when(chartAssembly.getVSAssemblyInfo()).thenReturn(info);
+      when(chartAssembly.getDependedWSAssemblies()).thenReturn(new AssemblyRef[0]);
+      when(dialogService.getAssemblyPosition(any(), any())).thenReturn(new Point(0, 0));
+      when(dialogService.getAssemblySize(any(), any())).thenReturn(new Dimension(1, 1));
+      when(vsObjectPropertyService.getSupportedTablePopComponents(any(), nullable(String.class), any(Boolean.class)))
+         .thenReturn(new String[0]);
+
+      ChartPropertyDialogModel result =
+         service.getChartPropertyDialogModel0("Chart1", "Viewsheet1", null);
+
+      assertTrue(result.getChartLinePaneModel().isFacetGrid(),
+                 "chartLinePaneModel must reflect the real chart descriptor's facet grid setting, " +
+                 "not a bare all-defaults object left by a dead getChartLinePaneModel()==null guard");
    }
 
    @Mock VSObjectPropertyService vsObjectPropertyService;
