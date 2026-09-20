@@ -499,6 +499,10 @@ public class JDBCHandler extends XHandler {
          sql = applyQueryFilter(conn, sql, params, user);
          VarSQL varsql = new VarSQL();
          varsql.setSQLType(isproc ? VarSQL.SQLType.PROC : VarSQL.SQLType.STATEMENT);
+         // MySQL/MariaDB treat backslash as a string-literal escape character in
+         // their default sql_mode; most other dialects (Postgres with
+         // standard_conforming_strings, Oracle, SQL Server, DB2, etc.) don't.
+         varsql.setBackslashIsEscapeChar(xds.getDatabaseType() == JDBCDataSource.JDBC_MYSQL);
          sql = varsql.replaceVariables(sql, params);
          List<Object> vars = varsql.getParameterValues();
          List<String> names = varsql.getParameterNames();

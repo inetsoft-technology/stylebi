@@ -44,6 +44,20 @@ public class VarSQL {
    }
 
    /**
+    * Set whether the target database's SQL dialect treats a backslash as an
+    * escape character inside a {@code '...'} string literal (e.g. MySQL/MariaDB
+    * in their default {@code sql_mode}). Most dialects (PostgreSQL with the
+    * default {@code standard_conforming_strings=on}, Oracle, SQL Server, DB2,
+    * and others) do not, and a backslash is just a literal character there —
+    * the default is {@code false}. This only affects how a value spliced into
+    * a quoted {@code $(name)} placeholder (see {@link #replaceVariables}) is
+    * escaped; callers that know the target dialect should set it accordingly.
+    */
+   public void setBackslashIsEscapeChar(boolean backslashIsEscapeChar) {
+      this.backslashIsEscapeChar = backslashIsEscapeChar;
+   }
+
+   /**
     * Get the values of the parameters used in the SQL.
     */
    public List<Object> getParameterValues() {
@@ -287,11 +301,16 @@ public class VarSQL {
 
    /**
     * Escape a value that is being spliced into a SQL string literal so it
-    * cannot terminate the literal early or inject additional SQL. Doubles
-    * the literal's own quote character (the standard, dialect-independent
-    * SQL escape for an embedded quote) and doubles backslashes (so a value
-    * ending in a backslash can't consume the literal's closing quote as an
-    * escaped character under backslash-escape dialects, e.g. default MySQL).
+    * cannot terminate the literal early or inject additional SQL. Always
+    * doubles the literal's own quote character (the standard,
+    * dialect-independent SQL escape for an embedded quote, safe on every
+    * supported dialect). Additionally doubles backslashes, but only when
+    * {@link #backslashIsEscapeChar} says the target dialect treats backslash
+    * as a string-literal escape character (e.g. default MySQL/MariaDB) — on
+    * dialects where backslash has no special meaning inside a literal
+    * (Postgres with standard_conforming_strings, Oracle, SQL Server, DB2,
+    * etc.), doubling it unconditionally would corrupt any value containing a
+    * genuine literal backslash.
     */
    private String escapeQuotedLiteralValue(String value, char quoteChar) {
       StringBuilder escaped = new StringBuilder(value.length());
@@ -299,7 +318,7 @@ public class VarSQL {
       for(int i = 0; i < value.length(); i++) {
          char c = value.charAt(i);
 
-         if(c == '\\' || c == quoteChar) {
+         if(c == quoteChar || (backslashIsEscapeChar && c == '\\')) {
             escaped.append(c);
          }
 
@@ -326,6 +345,7 @@ public class VarSQL {
    }
 
    private SQLType sqlType = SQLType.STATEMENT;
+   private boolean backslashIsEscapeChar = false;
    private List<Object> params = new ArrayList();
    private List<String> names = new ArrayList();
    private static final Logger LOG = LoggerFactory.getLogger(VarSQL.class);

@@ -99,14 +99,18 @@ public class VarSQLTest {
    }
 
    /**
-    * A value containing a trailing backslash must not be able to consume
-    * the literal's own closing quote as an escaped character under
-    * backslash-escape SQL dialects (e.g. default MySQL).
+    * MySQL/MariaDB (default sql_mode) treat backslash as a string-literal
+    * escape character, so a value containing a trailing backslash must not
+    * be able to consume the literal's own closing quote as an escaped
+    * character there. Only applies when the caller opts in via
+    * setBackslashIsEscapeChar(true), matching how JDBCHandler detects the
+    * MySQL dialect before calling replaceVariables().
     */
    @Test
-   void quotedPlaceholder_trailingBackslash_doesNotConsumeClosingQuote() {
+   void quotedPlaceholder_mysqlDialect_trailingBackslashDoubled() {
       VarSQL varSql = new VarSQL();
       varSql.setSQLType(VarSQL.SQLType.STATEMENT);
+      varSql.setBackslashIsEscapeChar(true);
       VariableTable vars = new VariableTable();
       vars.put("companyName", "foo\\");
 
@@ -115,6 +119,29 @@ public class VarSQLTest {
 
       assertEquals(
          "SELECT * FROM CUSTOMERS WHERE COMPANY_NAME = 'foo\\\\' AND 1=1", result);
+   }
+
+   /**
+    * ANSI-standard dialects (Postgres with standard_conforming_strings,
+    * Oracle, SQL Server, DB2, etc.) do not treat backslash as special inside
+    * a '...' literal, so a value containing a genuine literal backslash
+    * (e.g. a Windows path) must round-trip unmodified — only the quote
+    * character is doubled, never the backslash. This is the default
+    * (setBackslashIsEscapeChar not called), matching JDBCHandler's behavior
+    * for every non-MySQL dialect.
+    */
+   @Test
+   void quotedPlaceholder_ansiDialect_backslashNotDoubled() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STATEMENT);
+      VariableTable vars = new VariableTable();
+      vars.put("path", "C:\\Users\\bob");
+
+      String result = varSql.replaceVariables(
+         "SELECT * FROM FILES WHERE PATH = '$(path)'", vars);
+
+      assertEquals(
+         "SELECT * FROM FILES WHERE PATH = 'C:\\Users\\bob'", result);
    }
 
    /**
