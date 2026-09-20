@@ -1476,4 +1476,55 @@ class TableBindingMutatorTest {
          assertEquals("Tiers", region.getNamedGroupInfo().getName());
       }
    }
+
+   // ── timeSeries (bug #76793) ─────────────────────────────────────────────────
+
+   @Test
+   void settingTimeSeriesTrueOnAWriteAppliesItToTheDimension() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(new FieldRef("Order Date", "dimension", null, "quarter", null, null, null, null,
+                              null, null, null, null, true)));
+
+      assertTrue(model.getRows().get(0).isTimeSeries());
+   }
+
+   /**
+    * The refuter's required addition to the diagnosis's fix-direction: a write that omits
+    * {@code timeSeries} must not silently reset a previously-set {@code true} back to
+    * {@code false} -- copyOf() must forward the matched previous ref's value, the same as it
+    * already does for sort/ranking (VTB-004).
+    */
+   @Test
+   void resubmittingWithNoTimeSeriesKeyPreservesItsPriorState() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(new FieldRef("Order Date", "dimension", null, "quarter", null, null, null, null,
+                              null, null, null, null, true)));
+
+      // The filed repro: resubmit the same field (same column + date level, so copyOf() matches
+      // it to the previous ref) with no 'timeSeries' key at all.
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(new FieldRef("Order Date", "dimension", null, "quarter", null)));
+
+      assertTrue(model.getRows().get(0).isTimeSeries(),
+         "a write that omits 'timeSeries' must preserve the shelf position's prior state, not " +
+         "reset it to false");
+   }
+
+   @Test
+   void explicitlySettingTimeSeriesFalseClearsAPreviouslySetFlag() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(new FieldRef("Order Date", "dimension", null, "quarter", null, null, null, null,
+                              null, null, null, null, true)));
+
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(new FieldRef("Order Date", "dimension", null, "quarter", null, null, null, null,
+                              null, null, null, null, false)));
+
+      assertFalse(model.getRows().get(0).isTimeSeries(),
+         "an explicit 'timeSeries: false' must still win over the prior state");
+   }
 }

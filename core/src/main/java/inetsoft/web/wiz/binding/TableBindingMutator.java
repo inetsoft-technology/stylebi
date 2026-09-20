@@ -467,6 +467,10 @@ public final class TableBindingMutator {
             ref.setDateLevel(DateLevels.normalize(field.dateLevel()));
          }
 
+         if(field.timeSeries() != null) {
+            ref.setTimeSeries(field.timeSeries());
+         }
+
          if(field.namedGroupValues() != null || (field.namedGroup() != null && rvs != null)) {
             try {
                ref.setNamedGroupInfo(
@@ -520,7 +524,17 @@ public final class TableBindingMutator {
       return previousUnset && incomingUnset || Objects.equals(previousLevel, incomingLevel);
    }
 
-   /** A copy of {@code previous}'s sort/ranking, for a field matched at the same position. */
+   /**
+    * A copy of {@code previous}'s sort/ranking, for a field matched at the same position.
+    *
+    * <p>{@code timeSeries} is carried forward here too, not just applied in {@link
+    * #dimensions} when the incoming field names it -- a fresh {@code BDimensionRefModel}
+    * defaults it to {@code false}, so a write that omits {@code timeSeries} (the common case:
+    * every write that is not specifically about this flag) would otherwise silently reset a
+    * previously-set {@code true} back to {@code false}. {@link #dimensions}'s own
+    * apply-if-present branch runs after this and overwrites it when the incoming field does
+    * carry a value, so an explicit write still wins.
+    */
    private static BDimensionRefModel copyOf(BDimensionRefModel previous) {
       BDimensionRefModel ref = new BDimensionRefModel();
       ref.setOrder(previous.getOrder());
@@ -532,6 +546,7 @@ public final class TableBindingMutator {
       ref.setRankingCol(previous.getRankingCol());
       ref.setGroupOthers(previous.isGroupOthers());
       ref.setOthers(previous.isOthers());
+      ref.setTimeSeries(previous.isTimeSeries());
       return ref;
    }
 
