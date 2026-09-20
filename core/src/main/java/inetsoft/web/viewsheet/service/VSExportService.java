@@ -376,7 +376,8 @@ public class VSExportService {
          else {
             writeViewsheetExport(
                rvs, response.getOutputStream(), principal, format, previewPrintLayout, print, match,
-               expandSelections, current, bookmarks, csvConfig, excelToCSV);
+               expandSelections, current, bookmarks, onlyDataComponents, csvConfig, null,
+               excelToCSV, exportAllTabbedCrosstab);
          }
       }
       finally {
@@ -699,16 +700,6 @@ public class VSExportService {
       }
 
       return tmpDir;
-   }
-
-   private void writeViewsheetExport(RuntimeViewsheet rvs, OutputStream out, Principal principal,
-                                     int format, boolean previewPrintLayout, boolean print,
-                                     boolean match, boolean expandSelections, boolean current,
-                                     String[] bookmarks, CSVConfig csvConfig,
-                                     boolean excelToCSV) throws Exception
-   {
-      writeViewsheetExport(rvs, out, principal, format, previewPrintLayout, print, match,
-         expandSelections, current, bookmarks, false, csvConfig, null, excelToCSV, false);
    }
 
    private void writeViewsheetExport(RuntimeViewsheet rvs, OutputStream out, Principal principal,
