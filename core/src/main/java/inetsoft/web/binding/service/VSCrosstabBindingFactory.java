@@ -582,8 +582,15 @@ public class VSCrosstabBindingFactory
    }
 
    private void updateDataRefGroupInfo(VSDimensionRef nref, VSDimensionRef oref) {
-      nref.setNamedGroupInfo(
-         (XNamedGroupInfo) Tool.clone(oref.getNamedGroupInfo()));
+      // Only fall back to the old live ref's namedGroupInfo when the freshly-built ref
+      // doesn't already carry one of its own -- i.e. the incoming model didn't specify a
+      // grouping for this field. If the incoming model explicitly resolved a new
+      // namedGroupInfo for an already-bound field (e.g. an inline namedGroupValues), keep
+      // it instead of clobbering it with the old value (bug #76809 / VTB-019).
+      if(nref.getNamedGroupInfo() == null) {
+         nref.setNamedGroupInfo((XNamedGroupInfo) Tool.clone(oref.getNamedGroupInfo()));
+      }
+
       nref.setGroupType(oref.getGroupType());
       nref.setDataRef((DataRef) Tool.clone(oref.getDataRef()));
    }
