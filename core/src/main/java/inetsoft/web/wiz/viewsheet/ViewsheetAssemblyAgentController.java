@@ -616,6 +616,9 @@ public class ViewsheetAssemblyAgentController {
                                    @RequestParam(required = false) Boolean match,
                                    @RequestParam(required = false) Boolean expandSelections,
                                    @RequestParam(required = false) Boolean current,
+                                   @RequestParam(required = false) Boolean onlyDataComponents,
+                                   @RequestParam(required = false) Boolean exportAllTabbedTables,
+                                   @RequestParam(required = false) String bookmarks,
                                    Principal user, HttpServletResponse servletResponse)
       throws Exception
    {
@@ -653,11 +656,14 @@ public class ViewsheetAssemblyAgentController {
       }
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
+      String[] bookmarkNames = bookmarks == null || bookmarks.isEmpty() ?
+         new String[0] : bookmarks.split(",");
 
       try {
          exportService.exportViewsheet(rvs, formatType, match == null || match,
             expandSelections != null && expandSelections, current == null || current, false, false,
-            new String[0], false, new ExportResponse(out), user);
+            bookmarkNames, false, onlyDataComponents != null && onlyDataComponents, null,
+            exportAllTabbedTables != null && exportAllTabbedTables, new ExportResponse(out), user);
       }
       catch(ScriptException e) {
          throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
