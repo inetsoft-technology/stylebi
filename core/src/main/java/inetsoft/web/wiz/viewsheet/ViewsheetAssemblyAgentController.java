@@ -470,21 +470,31 @@ public class ViewsheetAssemblyAgentController {
             }
          }
 
-         requireOwnBookmark(rvs, name, user, "update_bookmark",
+         IdentityID targetOwner = requireOwnBookmark(rvs, name, user, "update_bookmark",
             "no bookmark named '" + name + "' exists yet. Use create_bookmark for a new one.");
 
          // 'type'/'readOnly' omitted means "leave the existing visibility alone" -- refresh the
          // captured state only. Only defaulted (private/read-only) when there is, unexpectedly,
-         // no existing bookmark to read a current value from.
+         // no existing bookmark to read a current value from. Scoped to the RESOLVED TARGET
+         // owner (which may be someone else's bookmark being overridden) rather than the
+         // caller, so an override without 'type'/'readOnly' inherits the existing shared
+         // bookmark's own values, not a nonexistent caller-owned one.
          VSBookmarkInfo existing = rvs.getBookmarks().stream()
-            .filter(b -> b.getName().equals(name) && java.util.Objects.equals(b.getOwner(), ownerOf(user)))
+            .filter(b -> b.getName().equals(name) && java.util.Objects.equals(b.getOwner(), targetOwner))
             .findFirst().orElse(null);
          int type = request.type() != null ? toTypeInt(request.type())
             : existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
          boolean readOnly = request.readOnly() != null ? request.readOnly()
             : existing != null ? existing.isReadOnly() : true;
 
-         requireOk(vsBookmarkService.addBookmarkToViewSheet(rvs, name, type, readOnly, true, user),
+         // Write under the resolved target owner (mirroring VSBookmarkService.saveBookmark's own
+         // "Override" branch, minus the heavier SRPrincipal construction that branch uses --
+         // addBookmarkToViewSheet only ever calls getName() on this owner-principal argument, so
+         // a minimal Principal suffices), not unconditionally the caller -- otherwise this would
+         // silently create a new, distinct bookmark under the caller's own identity instead of
+         // overriding the shared one the guard just approved.
+         requireOk(vsBookmarkService.addBookmarkToViewSheet(
+                      rvs, name, type, readOnly, true, principalOf(targetOwner), user),
                    "update_bookmark");
       });
    }
@@ -509,11 +519,11 @@ public class ViewsheetAssemblyAgentController {
       String name = requireBookmarkName(request.name(), "delete_bookmark");
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         requireOwnBookmark(rvs, name, user, "delete_bookmark",
+         IdentityID targetOwner = requireOwnBookmark(rvs, name, user, "delete_bookmark",
             "no bookmark named '" + name + "'. list_bookmarks reports what exists.");
 
          VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
-            .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(ownerOf(user)).build())
+            .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(targetOwner).build())
             .confirmed(false)
             .build();
          vsBookmarkService.deleteBookmark(runtimeId, event, user, dispatcher, linkUri);
@@ -531,7 +541,11 @@ public class ViewsheetAssemblyAgentController {
       String name = requireBookmarkName(request.name(), "set_default_bookmark");
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
-         requireOwnBookmark(rvs, name, user, "set_default_bookmark",
+         // set_default_bookmark never writes to the target bookmark's own data -- it only points
+         // the CALLER's own default pointer at it (mirroring VSBookmarkService.setDefaultBookmark,
+         // which performs no ownership/writability check at all) -- so this only needs the
+         // bookmark to be visible to the caller, not owned or writable by them.
+         IdentityID targetOwner = requireVisibleBookmark(rvs, name, user, "set_default_bookmark",
             "no bookmark named '" + name + "'. list_bookmarks reports what exists.");
 
          if(rvs.getViewsheet().getRuntimeEntry().getScope() == AssetRepository.TEMPORARY_SCOPE) {
@@ -540,7 +554,7 @@ public class ViewsheetAssemblyAgentController {
                "be set.");
          }
 
-         rvs.setDefaultBookmark(new VSBookmark.DefaultBookmark(name, ownerOf(user)));
+         rvs.setDefaultBookmark(new VSBookmark.DefaultBookmark(name, targetOwner));
       });
    }
 
@@ -586,19 +600,35 @@ public class ViewsheetAssemblyAgentController {
       return IdentityID.getIdentityIDFromKey(user.getName());
    }
 
+   /** A minimal {@link Principal} standing in for a resolved bookmark owner -- for passing into
+    *  {@code addBookmarkToViewSheet}'s owner-principal argument, which only ever reads
+    *  {@code getName()} off it, never {@code instanceof}-checks or casts it. */
+   private static Principal principalOf(IdentityID owner) {
+      return owner::convertToKey;
+   }
+
    /**
-    * Guards update_bookmark/delete_bookmark/set_default_bookmark: all three only operate on the
-    * caller's OWN bookmarks, but {@code list_bookmarks} shows shared/group bookmarks owned by
-    * other users too. Without this, an agent that sees such a bookmark via list_bookmarks and
-    * then tries to act on it gets a plain "no bookmark named X" -- indistinguishable from "that
-    * name is free" -- and is liable to retry via create_bookmark instead of realizing it simply
-    * doesn't own the one it saw.
+    * Guards update_bookmark/delete_bookmark: both only operate on a bookmark the caller either
+    * owns outright, or is allowed to write to per {@link RuntimeViewsheet#bookmarkWritable} (a
+    * shared/group bookmark whose owner marked it {@code readOnly:false}) -- the same "override a
+    * shared bookmark" permission the native Viewer's own save-bookmark dialog grants. Without
+    * this, an agent that sees such a bookmark via list_bookmarks and then tries to act on it gets
+    * a plain "no bookmark named X" -- indistinguishable from "that name is free" -- and is liable
+    * to retry via create_bookmark instead of realizing it simply doesn't own the one it saw.
+    *
+    * @return the RESOLVED TARGET OWNER to use for the write/delete that follows -- the caller's
+    *         own identity when they already own a same-named bookmark, otherwise the matched
+    *         bookmark's actual owner. Callers must thread this value through rather than
+    *         defaulting back to the caller's own identity, or the write/delete would silently
+    *         land on a different, non-existent {@code (name, caller)} bookmark instead of the
+    *         one this guard just approved.
     */
-   private static void requireOwnBookmark(RuntimeViewsheet rvs, String name, Principal user,
-                                          String tool, String notFoundMessage)
+   private static IdentityID requireOwnBookmark(RuntimeViewsheet rvs, String name, Principal user,
+                                                String tool, String notFoundMessage)
+      throws Exception
    {
       if(rvs.containsBookmark(name, ownerOf(user))) {
-         return;
+         return ownerOf(user);
       }
 
       VSBookmarkInfo matched = rvs.getBookmarks().stream()
@@ -609,8 +639,8 @@ public class ViewsheetAssemblyAgentController {
          throw new IllegalArgumentException(tool + ": " + notFoundMessage);
       }
 
-      if(java.util.Objects.equals(matched.getOwner(), ownerOf(user))) {
-         return;
+      if(rvs.bookmarkWritable(name, matched.getOwner())) {
+         return matched.getOwner();
       }
 
       throw new IllegalArgumentException(
@@ -666,6 +696,34 @@ public class ViewsheetAssemblyAgentController {
       }
 
       return matches.get(0).getOwner();
+   }
+
+   /**
+    * Guards set_default_bookmark: unlike update_bookmark/delete_bookmark, setting a bookmark as
+    * the caller's own default never writes to the target bookmark's own data -- it only points
+    * the CALLER's own default pointer at it (mirroring {@code VSBookmarkService.setDefaultBookmark},
+    * which performs no ownership/writability check on the target at all). So this only requires
+    * the bookmark to exist and be visible to the caller (own, shared, or group -- {@code readOnly}
+    * or not), never {@link RuntimeViewsheet#bookmarkWritable}.
+    *
+    * @return the RESOLVED TARGET OWNER, same contract as {@link #requireOwnBookmark}.
+    */
+   private static IdentityID requireVisibleBookmark(RuntimeViewsheet rvs, String name, Principal user,
+                                                     String tool, String notFoundMessage)
+   {
+      if(rvs.containsBookmark(name, ownerOf(user))) {
+         return ownerOf(user);
+      }
+
+      VSBookmarkInfo matched = rvs.getBookmarks().stream()
+         .filter(b -> b.getName().equals(name))
+         .findFirst().orElse(null);
+
+      if(matched == null) {
+         throw new IllegalArgumentException(tool + ": " + notFoundMessage);
+      }
+
+      return matched.getOwner();
    }
 
    private static void requireOk(MessageCommand command, String tool) {
