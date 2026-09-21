@@ -171,12 +171,16 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
          addFunctionProperty(getClass(), "isDiscrete", siparams);
 
          // group
-         addFunctionProperty(getClass(), "setTopN", siiparams);
-         addFunctionProperty(getClass(), "getTopN", siparams);
-         addFunctionProperty(getClass(), "setTopNSummaryCol", ssiparams);
-         addFunctionProperty(getClass(), "getTopNSummaryCol", siparams);
-         addFunctionProperty(getClass(), "setTopNReverse", sbiparams);
-         addFunctionProperty(getClass(), "isTopNReverse", siparams);
+         // strict arity: a wrong-count call (e.g. the 1-arg setTopNReverse(true) that
+         // Rhino-parity padding would otherwise silently turn into
+         // setTopNReverse("true", false, 0), a no-op on a bogus "true"-named field) must
+         // be rejected with a clear error naming the expected signature, not padded.
+         addFunctionProperty(getClass(), "setTopN", true, siiparams);
+         addFunctionProperty(getClass(), "getTopN", true, siparams);
+         addFunctionProperty(getClass(), "setTopNSummaryCol", true, ssiparams);
+         addFunctionProperty(getClass(), "getTopNSummaryCol", true, siparams);
+         addFunctionProperty(getClass(), "setTopNReverse", true, sbiparams);
+         addFunctionProperty(getClass(), "isTopNReverse", true, siparams);
          addFunctionProperty(getClass(), "setColumnOrder", siooparams);
          addFunctionProperty(getClass(), "getColumnOrder", siparams);
          addFunctionProperty(getClass(), "setGroupOrder", siiparams);
@@ -1275,6 +1279,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * @param type the field column type
     */
    public void setTopN(String field, int n, int type) {
+      requireTopNField("setTopN", field);
       DataRef ref = createDataRef(field);
 
       if(type == ChartConstants.AESTHETIC_COLOR ||
@@ -1331,6 +1336,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * @return the top n if exists, <code>0</code> otherwise
     */
    public int getTopN(String field, int type) {
+      requireTopNField("getTopN", field);
       DataRef ref = createDataRef(field);
 
       if(type == ChartConstants.AESTHETIC_COLOR ||
@@ -1385,6 +1391,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * @param type the field column type
     */
    public void setTopNSummaryCol(String field, String sumfield, int type) {
+      requireTopNField("setTopNSummaryCol", field);
       DataRef ref = createDataRef(field);
 
       if(type == ChartConstants.AESTHETIC_COLOR ||
@@ -1444,6 +1451,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * @return the summary column if exists, <code>null</code> otherwise
     */
    public String getTopNSummaryCol(String field, int type) {
+      requireTopNField("getTopNSummaryCol", field);
       DataRef ref = createDataRef(field);
 
       if(type == ChartConstants.AESTHETIC_COLOR ||
@@ -1498,6 +1506,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * @param type the field column type
     */
    public void setTopNReverse(String field, boolean reserve, int type) {
+      requireTopNField("setTopNReverse", field);
       DataRef ref = createDataRef(field);
 
       if(type == ChartConstants.AESTHETIC_COLOR ||
@@ -1558,6 +1567,7 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
     * or not reverse
     */
    public boolean isTopNReverse(String field, int type) {
+      requireTopNField("isTopNReverse", field);
       DataRef ref = createDataRef(field);
 
       if(type == ChartConstants.AESTHETIC_COLOR ||
@@ -2109,6 +2119,21 @@ public abstract class AbstractChartBindingScriptable extends PropertyScriptable 
       }
       else {
          LOG.warn("Geographic column not found: {}", field);
+      }
+   }
+
+   /**
+    * Guard the six bindingInfo TopN/isTopNReverse script functions against a missing
+    * field name, which otherwise reaches createDataRef(null) and NPEs (surfaced to script
+    * authors as an opaque "Failed to invoke script function" error). A blank/omitted field
+    * most commonly means the caller passed too few arguments and GraalJS's Rhino-parity
+    * argument padding silently defaulted the leading String field parameter to null -- see
+    * ScriptFunction#coerce.
+    */
+   private void requireTopNField(String function, String field) {
+      if(field == null || field.isEmpty()) {
+         throw new IllegalArgumentException(
+            "bindingInfo." + function + "(): a field name is required as the first argument");
       }
    }
 

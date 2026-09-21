@@ -77,6 +77,17 @@ public abstract class PropertyScriptable implements ScriptScope, Cloneable {
    }
 
    /**
+    * Add a script function property that rejects a wrong-argument-count call instead of
+    * padding missing arguments to their Java defaults. Opt-in, for registrations where a
+    * leading String key/field-name parameter makes silent default-padding produce a
+    * plausible-but-wrong result (e.g. bindingInfo.setTopNReverse(true) padding into
+    * setTopNReverse("true", false, 0)) rather than an ordinary omitted trailing flag.
+    */
+   public void addFunctionProperty(Class cls, String name, boolean strictArity, Class ...params) {
+      addProperty(name, new ScriptFunction(this, cls, name, strictArity, params));
+   }
+
+   /**
     * Add a property to this scriptable.
     * @name property name.
     * @param obj value as a String, Boolean, Number, or Scriptable.
