@@ -1112,23 +1112,33 @@
   },
   "createBulletGraph" : {
     "!type" : "fn(measure: ?, ranges: ?, target: ?, color: ?, xdims: ?, ydims: ?, opts: ?) -> ?",
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createBulletGraph"
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createBulletGraph",
+    "!sample" : true
   },
   "createCirclePackingGraph" : {
     "!type" : "fn() -> ?",
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createCirclePackingGraph"
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createCirclePackingGraph",
+    "!sample" : true
+  },
+  "createIcicleGraph" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createIcicleGraph",
+    "!sample" : true
   },
   "createMekkoGraph" : {
     "!type" : "fn() -> ?",
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createMekkoGraph"
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createMekkoGraph",
+    "!sample" : true
   },
   "createSunburstGraph" : {
     "!type" : "fn() -> ?",
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createSunburstGraph"
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createSunburstGraph",
+    "!sample" : true
   },
   "createTreemap" : {
     "!type" : "fn() -> ?",
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createTreemap"
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createTreemap",
+    "!sample" : true
   },
   "dataBinding" : {
     "!type" : "fn() -> ?"

@@ -20,6 +20,7 @@ package inetsoft.web.wiz.script;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.web.wiz.pairing.*;
+import inetsoft.web.wiz.script.model.FunctionSignature;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 import org.springframework.web.server.ResponseStatusException;
@@ -385,5 +386,31 @@ class ViewsheetAgentControllerTest {
 
       assertRefusesCalcFieldReason(() -> controller.image(
          PANE_TOKEN, null, null, "calcField", "Query1", "Margin", null, null, agent));
+   }
+
+   /**
+    * Belt-and-braces coverage for the {@code sample} field's REST round-trip: proves
+    * {@code signature()}'s response actually serializes it, using the real
+    * {@link ScriptApiService} rather than a mock, so a regression in either
+    * {@code ScriptApiService.lookup} or the {@link FunctionSignature} record itself would be
+    * caught here even without a live server.
+    */
+   @Test
+   void signatureEndpointReportsSampleFlagForADocumentedSampleFunction() {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      ViewsheetAgentController controller = new ViewsheetAgentController(feature,
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(ScriptEditService.class), mock(ScriptReadService.class),
+         mock(ScriptExecuteService.class), mock(ScriptContextService.class),
+         new ScriptApiService(), mock(ScriptImageService.class), mock(ViewsheetService.class),
+         mock(SheetAgentBroadcastService.class));
+
+      FunctionSignature sample = controller.signature("createMekkoGraph");
+      assertTrue(sample.sample());
+
+      FunctionSignature builtin = controller.signature("dateAdd");
+      assertFalse(builtin.sample());
    }
 }

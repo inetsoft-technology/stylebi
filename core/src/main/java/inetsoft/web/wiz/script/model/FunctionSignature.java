@@ -21,4 +21,4 @@ package inetsoft.web.wiz.script.model;
  * Best-effort result of {@code get_function_signature} (the static "Layer A" metadata lookup).
  * Deliberately minimal for this slice — see {@code ScriptApiService} javadoc.
  */
-public record FunctionSignature(String name, boolean found, String type, String url) {}
+public record FunctionSignature(String name, boolean found, String type, String url, boolean sample) {}
