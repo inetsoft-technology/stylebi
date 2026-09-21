@@ -487,9 +487,17 @@ public class HierarchyDimensionService {
       public void write(String runtimeId, Object model, String linkUri, Principal user,
                         CapturingCommandDispatcher dispatcher) throws Exception
       {
-         chartService.setChartPropertyModel(runtimeId, assemblyName,
-                                            (ChartPropertyDialogModel) model, linkUri, user,
-                                            dispatcher);
+         // Narrow, cube-only write (Redmine #76861 VCX-001) -- routing this through the whole
+         // ChartPropertyDialogService.setChartPropertyModel dialog save unconditionally touches
+         // every other pane (e.g. the Trend Line pane), which can NPE on a fresh chart whose
+         // ChartDescriptor was never populated by a human through that dialog. See
+         // ChartPropertyDialogService.setChartHierarchy's own class doc.
+         //
+         // The model's own revision is still threaded through (not dropped along with the rest
+         // of the wide model) so a Chart hierarchy write keeps the same stale-write refusal its
+         // CrosstabTarget sibling has via setCrosstabPropertyModel.
+         chartService.setChartHierarchy(runtimeId, assemblyName, pane(model), linkUri, user,
+                                        dispatcher, ((ChartPropertyDialogModel) model).getRevision());
       }
 
       private final String assemblyName;

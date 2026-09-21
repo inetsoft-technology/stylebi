@@ -1782,6 +1782,12 @@ public class VSObjectPropertyService {
          cRef.setDataType(refModel.getDataType());
          cRef.setDescription(refModel.getDescription());
          member.setDataRef(cRef);
+         // Redmine #76861 VCX-002: without an explicit name, getName() falls back to
+         // dataRef.getName(), which is entity-qualified (e.g. "Customer.Region"). The runtime
+         // drill-down lookup (VSUtil.getCubeNextLevelRef/findDimension/getScope) matches this
+         // member against a row-shelf ref's bare attribute (e.g. "Region"), so an entity-qualified
+         // fallback name never matches and the hierarchy is silently never found.
+         member.setName(refModel.getAttribute());
          result.addLevel(member);
       }
 
