@@ -125,7 +125,9 @@ public class FormVO extends VisualObject {
       float red = (float) (color.getRed() / 255.0);
       float green = (float) (color.getGreen() / 255.0);
       float blue = (float) (color.getBlue() / 255.0);
-      float alpha = (float) ((form.getAlpha()) / 100.0);
+      float colorAlpha = color.getAlpha() / 255f;
+      float formAlpha = form.getAlpha() / 100f;
+      float alpha = colorAlpha * formAlpha;
       Color color1 = new Color(red, green, blue, alpha);
       g2.setColor(color1);
       g2.setStroke(GTool.getStroke(form.getLine()));
