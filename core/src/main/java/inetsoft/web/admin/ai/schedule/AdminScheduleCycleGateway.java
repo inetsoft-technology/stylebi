@@ -226,6 +226,39 @@ public class AdminScheduleCycleGateway {
       return asset;
    }
 
+   /**
+    * The cycle's currently-granted permission object, or {@code null} if none is set -- exposed
+    * only so the apply service can capture it BEFORE a delete (fix for review round 1's Finding
+    * 1: {@code ScheduleCycleService#deleteCycle} erases this permission on delete, and, until
+    * this fix, nothing captured it beforehand, so a delete-rollback could only restore
+    * name+conditions, silently dropping any non-default grant).
+    */
+   Permission currentPermission(String name, String orgId) {
+      return securityEngine.getPermission(ResourceType.SCHEDULE_CYCLE,
+                                          ScheduleCycleService.getCyclePermissionID(name, orgId));
+   }
+
+   /**
+    * Overwrites the fresh-default state {@link #createCycle} just built (a default permission
+    * grant to whoever is running the rollback, and a {@code CycleInfo} stamped with the rollback
+    * -time principal/timestamp) with the CAPTURED pre-delete {@code info}/{@code permission} --
+    * called only by delete-rollback, after {@link #createCycle}, so a rolled-back delete restores
+    * the cycle's original access grants and audit metadata (createdBy/created), not merely its
+    * name+conditions (fix for review round 1's Finding 1). {@code permission} may be {@code
+    * null} (matches {@code ScheduleCycleService#removeCyclePermission}'s own use of a {@code
+    * null} permission to mean "no explicit grant").
+    */
+   void restoreCycleState(String name, String orgId, DataCycleManager.CycleInfo info,
+                          Permission permission)
+      throws Exception
+   {
+      dataCycleManager.setCycleInfo(name, orgId, info);
+      dataCycleManager.save();
+      securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE,
+                                   ScheduleCycleService.getCyclePermissionID(name, orgId),
+                                   permission);
+   }
+
    /** Projects {@code asset} into the same XML text {@code DataCycleManager.DataCycleAsset}
     * already knows how to write (design §5.4) -- zero new projection logic, a straight reuse of
     * an existing, already-public serialization method. */

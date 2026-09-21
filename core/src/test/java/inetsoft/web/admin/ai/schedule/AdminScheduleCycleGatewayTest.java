@@ -35,12 +35,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.Vector;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -223,6 +225,58 @@ class AdminScheduleCycleGatewayTest {
 
       verify(dataCycleManager).removeDataCycle(eq("Cycle1"), eq("host-org"));
       verify(dataCycleManager).save();
+   }
+
+   @Test
+   void currentPermission_readsViaTheCyclePermissionResourceId() {
+      String permissionId = ScheduleCycleService.getCyclePermissionID("Cycle1", "host-org");
+      Permission stored = new Permission();
+      when(securityEngine.getPermission(eq(ResourceType.SCHEDULE_CYCLE), eq(permissionId)))
+         .thenReturn(stored);
+
+      assertSame(stored, gateway.currentPermission("Cycle1", "host-org"));
+   }
+
+   /**
+    * The regression this fix is for (review round 1, Finding 1): {@code createCycle} (as called
+    * by delete-rollback) grants a FRESH default permission to whoever runs the rollback --
+    * {@code restoreCycleState} must overwrite that default with the CAPTURED original
+    * (non-default) permission and {@code CycleInfo}, not leave the fresh one in place. Without
+    * {@code restoreCycleState} (pre-fix), nothing ever re-asserted the original permission after
+    * {@code createCycle}'s own default grant, so a delete-rollback would silently narrow a
+    * cycle's access to only the rollback-running principal.
+    */
+   @Test
+   void restoreCycleState_overwritesCreateCyclesFreshDefaultWithTheCapturedOriginal() throws Exception {
+      // Simulate rollbackDelete's own sequence: createCycle first (grants a fresh default
+      // permission for "user" and stamps a fresh CycleInfo)...
+      ScheduleCycleChangeRequest.ScheduleCycleSpec spec =
+         new ScheduleCycleChangeRequest.ScheduleCycleSpec("Cycle1", List.of(everyDayWire()));
+      gateway.createCycle(spec, user);
+
+      // ...capture what createCycle actually granted, to prove restoreCycleState's own later
+      // call is a genuinely DIFFERENT, non-default object, not a no-op re-assertion of the same
+      // default grant.
+      ArgumentCaptor<Permission> freshDefaultCaptor = ArgumentCaptor.forClass(Permission.class);
+      verify(securityEngine).setPermission(eq(ResourceType.SCHEDULE_CYCLE), anyString(),
+                                           freshDefaultCaptor.capture());
+      Permission freshDefault = freshDefaultCaptor.getValue();
+
+      DataCycleManager.CycleInfo originalInfo = new DataCycleManager.CycleInfo("Cycle1", "host-org");
+      originalInfo.setCreatedBy("originalCreator");
+      Permission originalPermission = new Permission();
+      originalPermission.setUserGrantsForOrg(ResourceAction.READ, Set.of("secondUser"), "host-org");
+
+      gateway.restoreCycleState("Cycle1", "host-org", originalInfo, originalPermission);
+
+      verify(dataCycleManager).setCycleInfo(eq("Cycle1"), eq("host-org"), same(originalInfo));
+      ArgumentCaptor<Permission> finalCaptor = ArgumentCaptor.forClass(Permission.class);
+      verify(securityEngine, times(2)).setPermission(eq(ResourceType.SCHEDULE_CYCLE), anyString(),
+                                                      finalCaptor.capture());
+      Permission lastGrant = finalCaptor.getValue();
+      assertSame(originalPermission, lastGrant,
+                "the LAST permission grant must be the captured original, not createCycle's own fresh default");
+      assertNotSame(freshDefault, lastGrant);
    }
 
    private static inetsoft.web.api.schedule.TimeCondition everyDayWire() {

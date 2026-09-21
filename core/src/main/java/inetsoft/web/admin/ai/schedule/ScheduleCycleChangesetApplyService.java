@@ -19,6 +19,7 @@ package inetsoft.web.admin.ai.schedule;
 
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.Permission;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.ai.*;
@@ -230,6 +231,13 @@ public class ScheduleCycleChangesetApplyService {
       String name = change.property();
       DataCycleManager.DataCycleAsset before = cycleGateway.currentAsset(name, orgId);
       String beforeProjection = AdminScheduleCycleGateway.projectXml(before);
+      // Captured alongside conditions (fix for review round 1's Finding 1): the pre-delete
+      // permission grant and CycleInfo (createdBy/created), neither of which the real
+      // ScheduleCycleService#deleteCycle primitive preserves on its own -- without capturing
+      // them here, rollbackDelete's own createCycle call would grant a fresh default permission
+      // to whoever runs the rollback and stamp a fresh CycleInfo, silently dropping any other
+      // user/role/group previously granted access and the original creation metadata.
+      Permission beforePermission = cycleGateway.currentPermission(name, orgId);
 
       cycleGateway.deleteCycles(List.of(name), user);
 
@@ -242,9 +250,10 @@ public class ScheduleCycleChangesetApplyService {
                 user, ActionRecord.OBJECT_TYPE_CYCLE);
 
       if(verified) {
-         // The pre-delete conditions were captured above -- rollback can fully recreate the
-         // cycle (decision D7's own load-bearing "delete is fully compensable" claim).
-         undoable.add(Undo.delete(name, before.getConditions()));
+         // The pre-delete conditions/permission/info were captured above -- rollback can fully
+         // recreate the cycle (decision D7's own load-bearing "delete is fully compensable"
+         // claim), now including its original access grants and audit metadata.
+         undoable.add(Undo.delete(name, before.getConditions(), before.getInfo(), beforePermission));
       }
    }
 
@@ -330,6 +339,11 @@ public class ScheduleCycleChangesetApplyService {
       cycleGateway.createCycle(restoreSpec, user);
 
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(user);
+      // createCycle just granted a FRESH default permission (to whoever is running this
+      // rollback) and stamped a fresh CycleInfo -- overwrite both with the captured pre-delete
+      // originals (fix for review round 1's Finding 1) so the restored cycle's access grants
+      // and audit metadata match what existed before the delete, not a fresh default.
+      cycleGateway.restoreCycleState(undo.name, orgId, undo.info, undo.permission);
       boolean verified = cycleGateway.currentAsset(undo.name, orgId) != null;
       writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_CREATE,
                 AdminChangeRecord.ACTION_ROLLBACK, AdminChangeRecord.RISK_HIGH, null, null,
@@ -399,27 +413,32 @@ public class ScheduleCycleChangesetApplyService {
       private enum Kind { CREATE, UPDATE, DELETE }
 
       static Undo create(String name) {
-         return new Undo(Kind.CREATE, name, name, null, null);
+         return new Undo(Kind.CREATE, name, name, null, null, null, null);
       }
 
       static Undo update(String currentName, String beforeName,
                          List<inetsoft.sree.schedule.ScheduleCondition> conditions)
       {
-         return new Undo(Kind.UPDATE, currentName, currentName, beforeName, conditions);
+         return new Undo(Kind.UPDATE, currentName, currentName, beforeName, conditions, null, null);
       }
 
-      static Undo delete(String name, List<inetsoft.sree.schedule.ScheduleCondition> conditions) {
-         return new Undo(Kind.DELETE, name, name, null, conditions);
+      static Undo delete(String name, List<inetsoft.sree.schedule.ScheduleCondition> conditions,
+                         DataCycleManager.CycleInfo info, Permission permission)
+      {
+         return new Undo(Kind.DELETE, name, name, null, conditions, info, permission);
       }
 
       private Undo(Kind kind, String key, String name, String beforeName,
-                   List<inetsoft.sree.schedule.ScheduleCondition> conditions)
+                   List<inetsoft.sree.schedule.ScheduleCondition> conditions,
+                   DataCycleManager.CycleInfo info, Permission permission)
       {
          this.kind = kind;
          this.key = key;
          this.name = name;
          this.beforeName = beforeName;
          this.conditions = conditions;
+         this.info = info;
+         this.permission = permission;
       }
 
       final Kind kind;
@@ -431,6 +450,14 @@ public class ScheduleCycleChangesetApplyService {
       /** UPDATE/DELETE: the original conditions, captured for a full rollback inverse. Unused
        * for CREATE. */
       final List<inetsoft.sree.schedule.ScheduleCondition> conditions;
+      /** DELETE only: the pre-delete {@code CycleInfo} (createdBy/created), restored on rollback
+       * instead of the fresh one {@code createCycle} builds (fix for review round 1's Finding
+       * 1). Unused for CREATE/UPDATE. */
+      final DataCycleManager.CycleInfo info;
+      /** DELETE only: the pre-delete permission grant, restored on rollback instead of the fresh
+       * default grant {@code createCycle} makes (fix for review round 1's Finding 1). May be
+       * {@code null} (no explicit grant existed). Unused for CREATE/UPDATE. */
+      final Permission permission;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleCycleChangesetApplyService.class);

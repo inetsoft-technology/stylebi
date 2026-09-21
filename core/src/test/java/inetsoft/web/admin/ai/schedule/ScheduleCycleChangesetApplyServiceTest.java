@@ -20,6 +20,8 @@ package inetsoft.web.admin.ai.schedule;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.Permission;
+import inetsoft.sree.security.ResourceAction;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.ai.AdminBackupService;
@@ -40,6 +42,7 @@ import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -227,6 +230,49 @@ class ScheduleCycleChangesetApplyServiceTest {
       verify(cycleGateway).createCycle(argThat(s -> "Cycle1".equals(s.name()) &&
          s.conditions().size() == original.getConditions().size()), eq(user));
       assertNotNull(cycle1State[0], "Cycle1 must be recreated after rollback");
+   }
+
+   /**
+    * Review round 1's Finding 1: {@code createCycle} (called by delete-rollback) grants a FRESH
+    * default permission to whoever is running the rollback, and stamps a fresh {@code CycleInfo}
+    * -- unless the pre-delete permission/info are captured at apply time and re-asserted after
+    * {@code createCycle}, any OTHER user/role/group previously granted access to the cycle (and
+    * its original createdBy/created metadata) is silently dropped. This test grants "Cycle1" a
+    * non-default permission (READ to "secondUser", distinct from the applying "user") before
+    * delete, then forces the same delete-then-rollback shape as the test above, and asserts the
+    * EXACT captured permission/info objects are the ones threaded into the gateway's own
+    * restoration call -- not a fresh default rebuilt at rollback time.
+    */
+   @Test void deleteRollbackRestoresTheOriginalPermissionAndCycleInfoNotAFreshDefault()
+      throws Exception
+   {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.dependentMvNames("Cycle1")).thenReturn(List.of());
+      when(cycleGateway.cycleExists("BadCycle", user)).thenReturn(false);
+
+      DataCycleManager.DataCycleAsset original = asset("Cycle1");
+      DataCycleManager.CycleInfo originalInfo = original.getInfo();
+      originalInfo.setCreatedBy("originalCreator");
+
+      Permission originalPermission = new Permission();
+      originalPermission.setUserGrantsForOrg(ResourceAction.READ, Set.of("secondUser"), "host-org");
+      when(cycleGateway.currentPermission(eq("Cycle1"), eq("host-org")))
+         .thenReturn(originalPermission);
+
+      DataCycleManager.DataCycleAsset[] cycle1State = { original };
+      when(cycleGateway.currentAsset(eq("Cycle1"), eq("host-org"))).thenAnswer(inv -> cycle1State[0]);
+      doAnswer(inv -> { cycle1State[0] = null; return null; })
+         .when(cycleGateway).deleteCycles(eq(List.of("Cycle1")), eq(user));
+      doAnswer(inv -> { cycle1State[0] = original; return null; })
+         .when(cycleGateway).createCycle(argThat(s -> "Cycle1".equals(s.name())), eq(user));
+      when(cycleGateway.currentAsset(eq("BadCycle"), eq("host-org"))).thenReturn(null);
+
+      ApplyResult result = apply(deleteChange("Cycle1"), createChange("BadCycle"));
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(cycleGateway).restoreCycleState(eq("Cycle1"), eq("host-org"), same(originalInfo),
+                                             same(originalPermission));
    }
 
    // -------------------------------------------------------------------------
