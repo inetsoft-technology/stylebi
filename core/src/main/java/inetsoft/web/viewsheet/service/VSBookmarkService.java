@@ -277,7 +277,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       String name = Tool.defaultIfNull(vsBookmarkInfoModel.name(), "");
       IdentityID owner = Tool.defaultIfNull(vsBookmarkInfoModel.owner(), new IdentityID("", ""));
 
-      IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+      IdentityID user = owner;
 
       if(!value.confirmed()) {
          final List<ScheduleTask> tasksUsingBookmark =
@@ -298,7 +298,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
 
       try {
          VSBookmarkInfo currBookmark = rvs.getOpenedBookmark();
-         VSBookmarkInfo bookmarkInfo = rvs.getBookmarkInfo(name, IdentityID.getIdentityIDFromKey(principal.getName()));
+         VSBookmarkInfo bookmarkInfo = rvs.getBookmarkInfo(name, owner);
          rvs.removeBookmark(name, owner);
          AuditRecordUtils.executeBookmarkRecord(
             rvs.getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE, null);
