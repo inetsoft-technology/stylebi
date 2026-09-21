@@ -549,6 +549,171 @@ class ProviderChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("lock the calling session out"));
    }
 
+   @Test void resolveShouldAllowAuthenticationDeleteWhenCallerResolvesViaLiveStoreRoles() throws Exception {
+      // bug 76860 (docs/teams/2026-09-21-bug-76860-provider-delete-preflight-deep/02-root-cause.md):
+      // callerRetainsSysAdmin (ProviderChangePlanService.java:1040-1054) only reproduces
+      // OrganizationManager.isSiteAdmin's branch 1 -- a direct JWT-baked role match via getRole().
+      // It does not reproduce branch 3 (provider.getRoles(userIdentity) + getAllRoles() +
+      // isSystemAdministratorRole, OrganizationManager.java:95-100). Here the single surviving
+      // provider ("Primary", matching the reporter's own single-provider post-delete chain)
+      // deliberately does NOT recognize the caller's JWT-baked CALLER_ROLE via getRole() (branch 1
+      // fails, by construction), but DOES resolve the caller to system-administrator via the
+      // per-user getRoles(IdentityID) overload (branch 3 would succeed). This currently fails --
+      // the current code wrongly refuses this delete. It must pass once the fix adds an additive
+      // branch-3 reproduction alongside the existing branch-1 check.
+      IdentityID callerUser = new IdentityID("caller", "host-org");
+      IdentityID sysAdminRole = new IdentityID("SysAdminRole", "host-org");
+      lenient().when(user.getName()).thenReturn(callerUser.convertToKey());
+
+      AuthenticationProvider primary = mock(AuthenticationProvider.class);
+      lenient().when(primary.getProviderName()).thenReturn("Primary");
+      // check 1 (providerHasSysAdmins, deployment-wide floor): satisfied via sysAdminRole.
+      lenient().when(primary.getRoles()).thenReturn(new IdentityID[] { sysAdminRole });
+      lenient().when(primary.isSystemAdministratorRole(sysAdminRole)).thenReturn(true);
+      lenient().when(primary.getRoleMembers(sysAdminRole))
+         .thenReturn(new Identity[] { mock(Identity.class) });
+      // branch 1 (the only branch the current code reproduces): the caller's JWT-baked role is not
+      // recognized by this provider at all.
+      lenient().when(primary.getRole(CALLER_ROLE)).thenReturn(null);
+      lenient().when(primary.isSystemAdministratorRole(CALLER_ROLE)).thenReturn(false);
+      // branch 3 (not yet implemented by callerRetainsSysAdmin): the caller's own USER identity
+      // resolves directly to the system-administrator role via the per-user getRoles(IdentityID)
+      // overload -- this is the live-store path branches 2/3 of isSiteAdmin(Principal) consult and
+      // the current preflight never does.
+      lenient().when(primary.getRoles(callerUser)).thenReturn(new IdentityID[] { sysAdminRole });
+      lenient().when(primary.getRole(sysAdminRole)).thenReturn(new Role(sysAdminRole));
+
+      // A freshly-created, role-less provider being deleted (bug 76860's own repro shape) -- never
+      // queried beyond getProviderName() once simulatedAuthenticationProviders() filters it out.
+      AuthenticationProvider probe = mock(AuthenticationProvider.class);
+      lenient().when(probe.getProviderName()).thenReturn("A-BS-08-KeyVault-DB-Probe");
+
+      stubAuthenticationChain(List.of(primary, probe),
+                              List.of("Primary", "A-BS-08-KeyVault-DB-Probe"));
+      when(authenticationProviderService.getAuthenticationProvider("A-BS-08-KeyVault-DB-Probe"))
+         .thenReturn(dbModel("A-BS-08-KeyVault-DB-Probe"));
+
+      ResolvedPlan plan = service.resolve(
+         request("task", List.of(deleteAuth("A-BS-08-KeyVault-DB-Probe"))), user);
+      assertEquals(1, plan.changes().size());
+   }
+
+   @Test void resolveRefusesAuthenticationDeleteWhenNaiveUnionWouldWronglyAllow() throws Exception {
+      // bug 76860 fix-correctness regression (02-root-cause.md rows 4-5): the fix's branch-2/3
+      // reproduction must dispatch getRoles(IdentityID) chain-order-aware, first-non-empty-provider-
+      // wins -- exactly like the real AuthenticationChain.getRoles(IdentityID) -- not as a naive
+      // per-provider-independent union. Provider "first" is queried first (chain order) and returns
+      // a non-empty but non-admin result for the caller's user identity; provider "second" would ALSO
+      // resolve the caller to system-administrator via getRoles(IdentityID), but a chain-faithful
+      // dispatch never reaches it, because "first" already returned non-empty. A naive per-provider
+      // union (try each independently, OR the results) would wrongly ALLOW this delete -- the
+      // dangerous direction, since the caller would actually be locked out post-delete. Branch 1 is
+      // deliberately made to fail on both providers so this test isolates branch 2/3's own dispatch.
+      IdentityID callerUser = new IdentityID("caller", "host-org");
+      IdentityID nonAdminRole = new IdentityID("NonAdminRole", "host-org");
+      IdentityID otherSysAdminRole = new IdentityID("OtherSysAdminRole", "host-org");
+      lenient().when(user.getName()).thenReturn(callerUser.convertToKey());
+
+      AuthenticationProvider first = mock(AuthenticationProvider.class);
+      lenient().when(first.getProviderName()).thenReturn("first");
+      lenient().when(first.getRoles()).thenReturn(new IdentityID[0]);
+      lenient().when(first.getRole(CALLER_ROLE)).thenReturn(null); // branch 1 fails
+      lenient().when(first.isSystemAdministratorRole(CALLER_ROLE)).thenReturn(false);
+      lenient().when(first.getRoles(callerUser)).thenReturn(new IdentityID[] { nonAdminRole });
+      lenient().when(first.getRole(nonAdminRole)).thenReturn(new Role(nonAdminRole));
+      lenient().when(first.isSystemAdministratorRole(nonAdminRole)).thenReturn(false);
+
+      AuthenticationProvider second = mock(AuthenticationProvider.class);
+      lenient().when(second.getProviderName()).thenReturn("second");
+      lenient().when(second.getRole(CALLER_ROLE)).thenReturn(null); // branch 1 fails
+      lenient().when(second.isSystemAdministratorRole(CALLER_ROLE)).thenReturn(false);
+      // check 1 (providerHasSysAdmins, deployment-wide floor): satisfied via otherSysAdminRole,
+      // independent of the per-user getRoles(IdentityID) dispatch this test is really about.
+      lenient().when(second.getRoles()).thenReturn(new IdentityID[] { otherSysAdminRole });
+      lenient().when(second.isSystemAdministratorRole(otherSysAdminRole)).thenReturn(true);
+      lenient().when(second.getRoleMembers(otherSysAdminRole))
+         .thenReturn(new Identity[] { mock(Identity.class) });
+      // "second" WOULD resolve the caller to system-administrator via getRoles(IdentityID) -- but a
+      // chain-faithful dispatch must never reach this, since "first" already answered non-empty.
+      lenient().when(second.getRoles(callerUser)).thenReturn(new IdentityID[] { otherSysAdminRole });
+      lenient().when(second.getRole(otherSysAdminRole)).thenReturn(new Role(otherSysAdminRole));
+
+      AuthenticationProvider victim = mock(AuthenticationProvider.class);
+      lenient().when(victim.getProviderName()).thenReturn("victim");
+
+      stubAuthenticationChain(List.of(first, second, victim), List.of("first", "second", "victim"));
+      when(authenticationProviderService.getAuthenticationProvider("victim")).thenReturn(fileModel("victim"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(deleteAuth("victim"))), user));
+      assertTrue(ex.getMessage().contains("lock the calling session out"));
+   }
+
+   @Test void resolveAllowsAuthenticationDeleteWhenSysAdminParentRoleLivesOnAnotherProvider() throws Exception {
+      // bug 76860 fix-correctness regression (02-root-cause.md row 6): the fix's branch-2/3 parent-
+      // role expansion (AuthenticationProvider.getAllRoles's default BFS, which resolves getRole()
+      // against "this") must resolve getRole chain-wide across simulated, not per-provider-isolated.
+      // The caller's direct role is known only to provider "a"; that role's PARENT role -- the one
+      // actually flagged system-administrator -- is known only to a different provider, "b". A
+      // per-provider-isolated walk (each provider expanding only against its own getRole()) would
+      // never discover the parent (provider "a" doesn't know about it), and would wrongly REFUSE.
+      IdentityID callerUser = new IdentityID("caller", "host-org");
+      IdentityID directRole = new IdentityID("DirectRole", "host-org");
+      IdentityID parentSysAdminRole = new IdentityID("ParentSysAdminRole", "host-org");
+      lenient().when(user.getName()).thenReturn(callerUser.convertToKey());
+
+      AuthenticationProvider a = mock(AuthenticationProvider.class);
+      lenient().when(a.getProviderName()).thenReturn("a");
+      lenient().when(a.getRoles()).thenReturn(new IdentityID[0]);
+      lenient().when(a.getRole(CALLER_ROLE)).thenReturn(null); // branch 1 fails
+      lenient().when(a.isSystemAdministratorRole(CALLER_ROLE)).thenReturn(false);
+      lenient().when(a.getRoles(callerUser)).thenReturn(new IdentityID[] { directRole });
+      lenient().when(a.getRole(directRole)).thenReturn(new Role(directRole, new IdentityID[] { parentSysAdminRole }));
+      lenient().when(a.isSystemAdministratorRole(directRole)).thenReturn(false);
+      lenient().when(a.getRole(parentSysAdminRole)).thenReturn(null); // "a" does not know this role
+
+      AuthenticationProvider b = mock(AuthenticationProvider.class);
+      lenient().when(b.getProviderName()).thenReturn("b");
+      lenient().when(b.getRole(CALLER_ROLE)).thenReturn(null); // branch 1 fails
+      lenient().when(b.isSystemAdministratorRole(CALLER_ROLE)).thenReturn(false);
+      // check 1 (providerHasSysAdmins, deployment-wide floor): satisfied via parentSysAdminRole.
+      lenient().when(b.getRoles()).thenReturn(new IdentityID[] { parentSysAdminRole });
+      lenient().when(b.getRole(parentSysAdminRole)).thenReturn(new Role(parentSysAdminRole));
+      lenient().when(b.isSystemAdministratorRole(parentSysAdminRole)).thenReturn(true);
+      lenient().when(b.getRoleMembers(parentSysAdminRole))
+         .thenReturn(new Identity[] { mock(Identity.class) });
+
+      AuthenticationProvider victim = mock(AuthenticationProvider.class);
+      lenient().when(victim.getProviderName()).thenReturn("victim");
+
+      stubAuthenticationChain(List.of(a, b, victim), List.of("a", "b", "victim"));
+      when(authenticationProviderService.getAuthenticationProvider("victim")).thenReturn(fileModel("victim"));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(deleteAuth("victim"))), user);
+      assertEquals(1, plan.changes().size());
+   }
+
+   @Test void resolveAllowsAuthenticationDeleteWhenCallerResolvesOnlyViaBranchOne() throws Exception {
+      // bug 76860 fix-correctness regression: confirms the additive OR still works when branch 2/3
+      // is silent -- the VirtualAuthenticationProvider shape (00-map.md): a provider that resolves
+      // the caller correctly via getRole()/isSystemAdministratorRole() (branch 1) while relying on
+      // getRoles(IdentityID)'s no-op-default-shaped silence (unstubbed here, so Mockito's own default
+      // answer for an array-returning method -- an empty array -- stands in for it). Must still ALLOW.
+      IdentityID callerUser = new IdentityID("caller", "host-org");
+      lenient().when(user.getName()).thenReturn(callerUser.convertToKey());
+
+      AuthenticationProvider keep = sysAdminProvider("keep"); // resolves CALLER_ROLE via branch 1
+      // getRoles(callerUser) intentionally left unstubbed -- Mockito's default answer for it is []).
+      AuthenticationProvider victim = mock(AuthenticationProvider.class);
+      lenient().when(victim.getProviderName()).thenReturn("victim");
+
+      stubAuthenticationChain(List.of(keep, victim), List.of("keep", "victim"));
+      when(authenticationProviderService.getAuthenticationProvider("victim")).thenReturn(fileModel("victim"));
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(deleteAuth("victim"))), user);
+      assertEquals(1, plan.changes().size());
+   }
+
    @Test void resolveAllowsDeleteOfDatabaseTypedAuthenticationProvider() throws Exception {
       // bug 76716: DATABASE delete's own rollback-recreate risk is no longer excluded once create
       // supports it -- the same checkProviderTypeLicensed gate that guards a genuine new DATABASE
