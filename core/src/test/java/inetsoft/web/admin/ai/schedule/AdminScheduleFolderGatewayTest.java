@@ -67,11 +67,18 @@ class AdminScheduleFolderGatewayTest {
    @Mock private Principal user;
    private AdminScheduleFolderGateway gateway;
 
-   @BeforeEach void setUp() {
+   @BeforeEach void setUp() throws Exception {
       gateway = new AdminScheduleFolderGateway(
          taskFolderService, scheduleService, scheduleManager, securityEngine, scheduleTaskService);
       lenient().when(taskFolderService.getFolderEntry(anyString()))
          .thenAnswer(inv -> entry(inv.getArgument(0)));
+      // Default-granted so the existing createFolder/renameFolder/moveFolder tests below (which
+      // exercise their own path-arithmetic/delegation logic, not permission enforcement) keep
+      // passing now that those three methods duplicate ScheduleTaskFolderService's own pre-mutation
+      // permission checks (bug #76856, fix round 2). Permission-refusal itself is covered by the
+      // ScheduleFolderChangesetApplyServiceTest real-gateway regression tests.
+      lenient().when(taskFolderService.checkFolderPermission(anyString(), any(), any(ResourceAction.class)))
+         .thenReturn(true);
    }
 
    // -------------------------------------------------------------------------
@@ -221,6 +228,10 @@ class AdminScheduleFolderGatewayTest {
    // null here would silently reintroduce that footgun; this test fails loud if a future
    // "simplification" of renameFolder ever does.
    @Test void renameFolderSendsAnEmptyNameIdentityIdNotANullOwner() throws Exception {
+      // renameFolder's own folder-existence check (bug #76856, fix round 2) needs "A" to resolve;
+      // an unstubbed getTaskFolder would otherwise return null and throw FileNotFoundException
+      // before ever reaching taskFolderService.renameFolder.
+      when(taskFolderService.getTaskFolder(entry("A").toIdentifier())).thenReturn(new AssetFolder());
       ArgumentCaptor<EditTaskFolderDialogModel> captor = ArgumentCaptor.forClass(EditTaskFolderDialogModel.class);
       when(taskFolderService.renameFolder(captor.capture(), eq(user))).thenReturn(null);
 

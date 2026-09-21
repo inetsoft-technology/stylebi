@@ -160,7 +160,7 @@ class ScheduleFolderChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("snap-ref", result.backupRef());
-      verify(folderGateway).createFolder("NewFolder", user);
+      verify(folderGateway).createFolder(eq("NewFolder"), eq(user), any(AtomicBoolean.class));
    }
 
    // A later entry's failure at APPLY time (not preview/resolve time) rolls an earlier, already-
@@ -192,7 +192,7 @@ class ScheduleFolderChangesetApplyServiceTest {
       ApplyResult result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
-      verify(folderGateway).createFolder("NewFolder", user);
+      verify(folderGateway).createFolder(eq("NewFolder"), eq(user), any(AtomicBoolean.class));
       verify(folderGateway).deleteFolder("Missing", user);
       verify(folderGateway).deleteFolder("NewFolder", user);
    }
@@ -396,6 +396,10 @@ class ScheduleFolderChangesetApplyServiceTest {
          new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "A", null)
             .toIdentifier()))
          .thenReturn(new AssetFolder());
+      // renameFolder's own DELETE/WRITE permission checks (bug #76856, round 2) must pass here, or
+      // the real gateway throws before ever reaching taskFolderService.renameFolder at all.
+      lenient().when(realTaskFolderService.checkFolderPermission(
+         eq("A"), eq(user), any(ResourceAction.class))).thenReturn(true);
       ArgumentCaptor<EditTaskFolderDialogModel> captor = ArgumentCaptor.forClass(EditTaskFolderDialogModel.class);
       when(realTaskFolderService.renameFolder(captor.capture(), eq(user))).thenReturn(null);
       when(backupService.backup(anyString())).thenReturn("snap-ref");
@@ -412,6 +416,54 @@ class ScheduleFolderChangesetApplyServiceTest {
                      "existing owner in ScheduleTaskFolderService#changeFolder, it does not preserve it");
       assertEquals("", model.owner().name);
       assertNull(model.owner().orgID);
+   }
+
+   // -------------------------------------------------------------------------
+   // bug #76856, fix round 2: renameFolder/moveFolder/createFolder each perform their own
+   // permission checks strictly before their own mutating call (see
+   // AdminScheduleFolderGateway#renameFolder(String, String, Principal, AtomicBoolean)'s own
+   // javadoc) -- the same bug pattern already closed for moveTask one layer deeper. Wired through
+   // a REAL AdminScheduleFolderGateway (backed by a mocked ScheduleTaskFolderService), same shape
+   // as the moveTask real-gateway test above.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesARenameThroughTheRealGatewayAndPropagatesItsPermissionRefusal() throws Exception {
+      ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
+      ScheduleService realScheduleService = mock(ScheduleService.class);
+      AdminScheduleFolderGateway realGateway = new AdminScheduleFolderGateway(
+         realTaskFolderService, realScheduleService, mock(ScheduleManager.class),
+         mock(SecurityEngine.class), mock(ScheduleTaskService.class));
+      ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
+      ScheduleFolderChangesetApplyService realApplyService =
+         new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
+
+      lenient().when(realTaskFolderService.getFolderEntry(anyString())).thenAnswer(inv ->
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        (String) inv.getArgument(0), null));
+      // Only "A" (the rename's source) exists -- "B" must NOT, matching the owner-preservation
+      // test's own convention above.
+      lenient().when(realTaskFolderService.getTaskFolder(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "A", null)
+            .toIdentifier()))
+         .thenReturn(new AssetFolder());
+      // checkFolderPermission left unstubbed -- Mockito's default boolean answer is false, so
+      // renameFolder's own DELETE check fails, throwing strictly before
+      // taskFolderService.renameFolder (its own mutating call).
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest rename = renameChange("A", "B");
+      ResolvedPlan preview = realPlanService.resolve(planRequest(rename), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), rename);
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = realApplyService.apply(req, user);
+
+      // The permission refusal fires strictly before renameFolder's own mutating call
+      // (taskFolderService.renameFolder), so nothing was ever mutated -- with an empty undoable
+      // list, rollback trivially succeeds and the result is STATUS_ROLLED_BACK, not
+      // STATUS_ROLLBACK_FAILED (bug #76856, round 2: the same gap already closed for moveTask).
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(realTaskFolderService, never()).renameFolder(any(), any());
    }
 
    // -------------------------------------------------------------------------

@@ -197,8 +197,11 @@ public class ScheduleFolderChangesetApplyService {
                             List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
-      mutationEntered.set(true);
-      folderGateway.createFolder(path, user);
+      // createFolder's own addFolder calls throw strictly before ITS mutating write, so
+      // mutationEntered must be threaded through rather than set here -- setting it before this
+      // call would (incorrectly) mark a pure permission refusal as a partial-mutation risk (bug
+      // 76856), the same reasoning applyMoveTask already documents for moveTask.
+      folderGateway.createFolder(path, user, mutationEntered);
 
       AssetFolder after = folderGateway.findFolder(path);
       boolean verified = after != null;
@@ -224,8 +227,10 @@ public class ScheduleFolderChangesetApplyService {
       AssetFolder before = folderGateway.findFolder(oldPath);
       String beforeProjection = ScheduleFolderXmlProjection.project(oldPath, before);
 
-      mutationEntered.set(true);
-      folderGateway.renameFolder(oldPath, newPath, user);
+      // renameFolder's own DELETE/WRITE permission checks and folder-existence check throw
+      // strictly before ITS mutating call, so mutationEntered must be threaded through rather than
+      // set here -- see applyCreate's own comment above.
+      folderGateway.renameFolder(oldPath, newPath, user, mutationEntered);
 
       String normalizedNewPath = AdminScheduleFolderGateway.normalizePath(newPath);
       AssetFolder after = folderGateway.findFolder(normalizedNewPath);
@@ -255,8 +260,10 @@ public class ScheduleFolderChangesetApplyService {
       String resultingPath =
          AdminScheduleFolderGateway.joinPath(targetPath, AdminScheduleFolderGateway.leafOf(path));
 
-      mutationEntered.set(true);
-      folderGateway.moveFolder(path, targetPath, user);
+      // moveFolder's own WRITE-on-target and DELETE-on-source permission checks throw strictly
+      // before ITS mutating call, so mutationEntered must be threaded through rather than set here
+      // -- see applyCreate's own comment above.
+      folderGateway.moveFolder(path, targetPath, user, mutationEntered);
 
       AssetFolder after = folderGateway.findFolder(resultingPath);
       boolean verified = after != null && (resultingPath.equals(path) || folderGateway.findFolder(path) == null);
