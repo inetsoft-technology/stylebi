@@ -322,22 +322,14 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return;
       }
 
-      if(rangeValues == null) {
-         rangeValues = new DynamicValue[val.length];
-      }
-      else if(rangeValues.length < val.length) {
-         DynamicValue[] arr = new DynamicValue[val.length];
-         System.arraycopy(rangeValues, 0, arr, 0, rangeValues.length);
-         rangeValues = arr;
-      }
+      DynamicValue[] arr = new DynamicValue[val.length];
 
       for(int i = 0; i < val.length; i++) {
-         if(rangeValues[i] == null) {
-            rangeValues[i] = new DynamicValue("0", XSchema.DOUBLE);
-         }
-
-         rangeValues[i].setRValue(val[i]);
+         arr[i] = new DynamicValue("0", XSchema.DOUBLE);
+         arr[i].setRValue(val[i]);
       }
+
+      rangeValues = arr;
    }
 
    /**
@@ -414,13 +406,14 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return;
       }
 
-      rangeColorsValue = rangeColorsValue != null ?
-         rangeColorsValue : new DynamicValue2[colors.length];
-      int length = Math.min(rangeColorsValue.length, colors.length);
+      DynamicValue2[] arr = new DynamicValue2[colors.length];
 
-      for(int i = 0; i< length; i++) {
-         rangeColorsValue[i].setRValue(colors[i]);
+      for(int i = 0; i < colors.length; i++) {
+         arr[i] = new DynamicValue2(null, XSchema.COLOR);
+         arr[i].setRValue(colors[i]);
       }
+
+      rangeColorsValue = arr;
    }
 
    /**

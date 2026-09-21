@@ -113,20 +113,21 @@ public class BulletGraphGauge extends VSGauge {
 
       if(ranges != null) {
          Color[] colors = info.getRangeColors();
+         int colorCount = colors == null ? 0 : colors.length;
 
          if(ranges.length > 0) {
             presenter.setRange1(ranges[0]);
-            presenter.setColor1(colors[0]);
+            presenter.setColor1(colorCount > 0 ? colors[0] : null);
          }
 
          if(ranges.length > 1) {
             presenter.setRange2(ranges[1]);
-            presenter.setColor2(colors[1]);
+            presenter.setColor2(colorCount > 1 ? colors[1] : null);
          }
 
          if(ranges.length > 2) {
             presenter.setRange3(ranges[2]);
-            presenter.setColor3(colors[2]);
+            presenter.setColor3(colorCount > 2 ? colors[2] : null);
          }
       }
 
