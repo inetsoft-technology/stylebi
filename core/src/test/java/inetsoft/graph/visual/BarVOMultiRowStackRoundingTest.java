@@ -32,6 +32,8 @@ import inetsoft.test.SreeHome;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -74,8 +76,17 @@ class BarVOMultiRowStackRoundingTest {
     * x-categories, each split into {@code valuesPerCategory.length} rows. Mirrors how a real
     * chart with X=Year, Y=Sum(Total), color=Product:Category is rendered internally: ONE
     * element dim ("Cat"), ONE var ("m1"), and multiple DATA ROWS sharing the same "Cat" value.
+    *
+    * <p>{@code stackGroup} matters: {@code GraphGenerator.initElement()}
+    * (core/src/main/java/inetsoft/report/composition/graph/GraphGenerator.java, the
+    * {@code GraphTypes.isStack(chartType2)} block) unconditionally calls {@code
+    * setStackGroup(true)} on every {@code IntervalElement} for any stacked bar chart type,
+    * including CHART_BAR_STACK — so {@code true} is the value real production code actually
+    * uses for this bug's own chart type, not the default {@code false}. Both values are
+    * exercised here (mirroring {@link IntervalElementStackOutermostTest}'s own convention) so
+    * a difference between the two paths is visible rather than silently assumed.</p>
     */
-   private GGraph buildMultiRowStack(double[] cat1Values, double[] cat2Values) {
+   private GGraph buildMultiRowStack(double[] cat1Values, double[] cat2Values, boolean stackGroup) {
       List<Object[]> rows = new ArrayList<>();
       rows.add(new Object[] { "Cat", "m1" });
 
@@ -101,8 +112,7 @@ class BarVOMultiRowStackRoundingTest {
       element.addDim("Cat");
       element.addVar("m1");
       element.setCollisionModifier(GraphElement.MOVE_STACK);
-      // stackGroup defaults to false — matches GraphGenerator's plain (non-funnel/pareto/
-      // waterfall) bar_stack construction path, which never calls setStackGroup().
+      element.setStackGroup(stackGroup);
 
       EGraph egraph = new EGraph();
       egraph.addElement(element);
@@ -130,12 +140,13 @@ class BarVOMultiRowStackRoundingTest {
     * across bars (there is no explicit reset of the "top" accumulator between categories in
     * the non-stackGroup case, so this is the concrete risk the diagnosis flagged).
     */
-   @Test
-   void multiRowSingleVar_perBarAccountingIsIsolated() {
+   @ParameterizedTest
+   @ValueSource(booleans = {false, true})
+   void multiRowSingleVar_perBarAccountingIsIsolated(boolean stackGroup) {
       double[] catA = { 100.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 }; // sum = 106
       double[] catB = { 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0 };   // sum = 35
 
-      GGraph ggraph = buildMultiRowStack(catA, catB);
+      GGraph ggraph = buildMultiRowStack(catA, catB, stackGroup);
 
       assertEquals(14, ggraph.getGeometryCount(), "7 rows x 2 categories = 14 segments");
 
@@ -203,8 +214,10 @@ class BarVOMultiRowStackRoundingTest {
     * activation, fed into applyStackRounding()'s nested Area.intersect ("both ends") branch,
     * produces a degenerate (near-zero-area) shape for the dominant segment.
     */
-   @Test
-   void longTailStack_outermostSegment_doubleArcZoneDoesNotProduceDegenerateShape()
+   @ParameterizedTest
+   @ValueSource(booleans = {false, true})
+   void longTailStack_outermostSegment_doubleArcZoneDoesNotProduceDegenerateShape(
+      boolean stackGroup)
       throws Exception
    {
       // 6 tiny segments (sum = 3.0) then 1 dominant segment (1000.0) on top — the dominant
@@ -213,7 +226,7 @@ class BarVOMultiRowStackRoundingTest {
       double[] longTail = { 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1000.0 };
       double[] otherBar = { 10.0, 10.0 };
 
-      GGraph ggraph = buildMultiRowStack(longTail, otherBar);
+      GGraph ggraph = buildMultiRowStack(longTail, otherBar, stackGroup);
       List<IntervalGeometry> rowAGeoms = collectGeoms(ggraph).stream()
          .filter(g -> g.getRowIndex() < longTail.length)
          .sorted((a, b) -> Integer.compare(a.getSubRowIndex(), b.getSubRowIndex()))
