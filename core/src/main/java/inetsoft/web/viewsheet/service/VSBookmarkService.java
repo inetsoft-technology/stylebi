@@ -670,6 +670,7 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
                       principal.getName() == null ? new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()) :
                       IdentityID.getIdentityIDFromKey(principal.getName()), readOnly);
       vs.getRuntimeEntry().setProperty("keepAnnoVis", null);
+      cluster.sendMessage(new ViewsheetBookmarkChangedEvent(rvs.getEntry()));
       return messageCommand;
    }
 
