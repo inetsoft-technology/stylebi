@@ -260,4 +260,49 @@ class ScriptFunctionTest {
       assertTrue(t.called);
       assertEquals('\0', t.ch, "omitted char argument should default to '\\0'");
    }
+
+   // Bug #76862: an opt-in strict-arity function must reject a wrong-argument-count call
+   // instead of silently padding, so a caller aiming at a 3-arg field-keyed method (e.g.
+   // bindingInfo.setTopNReverse(field, reverse, type)) who only supplies 1 argument gets a
+   // clear error rather than the argument binding to the wrong parameter.
+   @Test
+   void strictArityRejectsTooFewArguments() {
+      Target t = new Target();
+      ScriptFunction fn = new ScriptFunction(
+         t, Target.class, "setActionVisible", true, String.class, boolean.class);
+      ctx.getBindings("js").putMember("setActionVisible", fn);
+
+      Exception ex = assertThrows(RuntimeException.class,
+         () -> ctx.eval("js", "setActionVisible('Edit')"));
+      assertFalse(t.called, "strict-arity function must not invoke the method at all");
+      assertTrue(ex.getMessage().contains("setActionVisible"));
+   }
+
+   @Test
+   void strictArityAllowsExactArgumentCount() {
+      Target t = new Target();
+      ScriptFunction fn = new ScriptFunction(
+         t, Target.class, "setActionVisible", true, String.class, boolean.class);
+      ctx.getBindings("js").putMember("setActionVisible", fn);
+
+      ctx.eval("js", "setActionVisible('Edit', true)");
+
+      assertTrue(t.called);
+      assertEquals("Edit", t.name);
+      assertTrue(t.visible);
+   }
+
+   @Test
+   void nonStrictFunctionStillPadsMissingArguments() {
+      // Default (non-strict) registrations must be unaffected by the new opt-in flag.
+      Target t = new Target();
+      ScriptFunction fn = new ScriptFunction(
+         t, Target.class, "setActionVisible", false, String.class, boolean.class);
+      ctx.getBindings("js").putMember("setActionVisible", fn);
+
+      ctx.eval("js", "setActionVisible('Edit')");
+
+      assertTrue(t.called);
+      assertFalse(t.visible, "non-strict function should still pad the omitted argument");
+   }
 }

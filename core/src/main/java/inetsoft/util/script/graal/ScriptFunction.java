@@ -44,9 +44,27 @@ public class ScriptFunction implements ProxyExecutable {
     * @param params the method parameter types.
     */
    public ScriptFunction(Object target, Class<?> cls, String name, Class<?>... params) {
+      this(target, cls, name, false, params);
+   }
+
+   /**
+    * @param target      the receiver for instance methods (may be null for static).
+    * @param cls         the class declaring the method.
+    * @param name        the method name.
+    * @param strictArity if {@code true}, reject a call whose argument count does not
+    *                    exactly match the declared parameter count instead of padding
+    *                    missing arguments to their Java defaults (see {@link #execute}).
+    *                    Opt-in, and false for every other registration -- the default
+    *                    Rhino-parity padding behavior is unchanged elsewhere.
+    * @param params      the method parameter types.
+    */
+   public ScriptFunction(Object target, Class<?> cls, String name, boolean strictArity,
+                          Class<?>... params)
+   {
       this.target = target;
       this.method = findMethod(cls, name, params);
       this.name = name;
+      this.strictArity = strictArity;
    }
 
    /**
@@ -59,6 +77,7 @@ public class ScriptFunction implements ProxyExecutable {
       this.target = target;
       this.method = method;
       this.name = method == null ? null : method.getName();
+      this.strictArity = false;
    }
 
    private static Method findMethod(Class<?> cls, String name, Class<?>... params) {
@@ -77,8 +96,14 @@ public class ScriptFunction implements ProxyExecutable {
          throw new IllegalStateException("Script function not found: " + name);
       }
 
+      Class<?>[] ptypes = method.getParameterTypes();
+
+      if(strictArity && arguments.length != ptypes.length) {
+         throw new IllegalArgumentException(name + "() expects " + ptypes.length +
+            " argument" + (ptypes.length == 1 ? "" : "s") + ", got " + arguments.length);
+      }
+
       try {
-         Class<?>[] ptypes = method.getParameterTypes();
          Object[] args = new Object[ptypes.length];
 
          for(int i = 0; i < ptypes.length; i++) {
@@ -305,6 +330,7 @@ public class ScriptFunction implements ProxyExecutable {
    private final Object target;
    private final Method method;
    private final String name;
+   private final boolean strictArity;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScriptFunction.class);
 }
