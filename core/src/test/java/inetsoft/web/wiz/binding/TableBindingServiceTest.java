@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.binding.controller.VSBindingModelService;
+import inetsoft.web.binding.handler.SetTableHeaderAliasHandler;
 import inetsoft.web.binding.event.ApplyVSAssemblyInfoEvent;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
@@ -1499,6 +1500,219 @@ class TableBindingServiceTest {
       List<FieldRef> rows = shelves.get("rows");
       assertEquals(Boolean.TRUE, rows.get(0).visible(), "Region is not hidden");
       assertEquals(Boolean.FALSE, rows.get(1).visible(), "State is hidden");
+   }
+
+   // ── bug #76882: crosstab cols-shelf label/visibility resolution ────────────
+
+   /**
+    * Regression test for bug #76882 (VTB-024 incidental finding): with exactly one row
+    * dimension and one column dimension, the corner box {@code findHeaderCell}'s {@code
+    * "Cell [row,col]"} positional match resolves against collapses to a single cell ({@code
+    * Cell [0,0]}) -- the row dimension's own title cell. Before the fix,
+    * {@code enrichCrosstabLabelsAndVisibility} iterated {@code cols} through this same
+    * mechanism and spuriously matched that row-dimension corner cell, leaking "Region"'s own
+    * {@code MESSAGE_FORMAT} alias onto the untouched "Category" column-dimension shelf entry.
+    * The fix removes {@code cols} from that shelf loop entirely; this proves the row dimension's
+    * real label still reads correctly while the column dimension's stays {@code null} instead of
+    * leaking.
+    */
+   @Test
+   void readDoesNotLeakARowLabelOntoAColsShelfEntry() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(existing, "cols", List.of(dim("Category")));
+
+      VSDimensionRef liveRegion = new VSDimensionRef();
+      liveRegion.setGroupColumnValue("Region");
+      VSDimensionRef liveCategory = new VSDimensionRef();
+      liveCategory.setGroupColumnValue("Category");
+      VSCrosstabInfo crossInfo = new VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveRegion });
+      crossInfo.setDesignColHeaders(new inetsoft.uql.erm.DataRef[]{ liveCategory });
+
+      inetsoft.uql.viewsheet.FormatInfo formatInfo = new inetsoft.uql.viewsheet.FormatInfo();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getCrosstabInfo())
+         .thenReturn(new inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo());
+      when(assembly.getAbsoluteName()).thenReturn("Crosstab1");
+      when(assembly.getFormatInfo()).thenReturn(formatInfo);
+
+      // A crosstab with exactly one row dimension and one column dimension: the corner box is a
+      // single cell, so the row dimension's own title cell is "Cell [0,0]" -- already relabeled,
+      // simulating a prior set_column_labels(rows[0], "Region VTB024") call.
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(1);
+      inetsoft.report.TableDataPath corner = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" });
+      when(lens.getTableDataPath(0, 0)).thenReturn(corner);
+      SetTableHeaderAliasHandler.setAlias(corner, formatInfo, "Region VTB024");
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      Map<String, Object> read =
+         serviceWith(sessions, existing, mock(VSBindingModelService.class))
+            .read("tok", principal(), "Crosstab1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, List<FieldRef>> shelves =
+         (Map<String, List<FieldRef>>) (Map<String, ?>) read.get("shelves");
+      assertEquals("Region VTB024", shelves.get("rows").get(0).label(),
+                   "the row dimension's own relabel must still read back correctly");
+      assertNull(shelves.get("cols").get(0).label(),
+                 "the untouched column dimension must not inherit the row dimension's label");
+
+      @SuppressWarnings("unchecked")
+      Map<String, String> columnLabels = (Map<String, String>) read.get("columnLabels");
+      assertEquals("Region VTB024", columnLabels.get("Region"));
+      assertFalse(columnLabels.containsKey("Category"),
+                  "'Category' must not appear in columnLabels with the leaked 'Region' label");
+   }
+
+   /**
+    * Write-side counterpart of {@link #readDoesNotLeakARowLabelOntoAColsShelfEntry}: {@code
+    * set_column_labels} must refuse a crosstab column-dimension target outright rather than
+    * risk the identical collision on write (silently overwriting an unrelated row dimension's
+    * real header alias).
+    */
+   @Test
+   void setColumnLabelsRefusesACrosstabColsShelfTarget() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(existing, "cols", List.of(dim("Category")));
+
+      VSDimensionRef liveRegion = new VSDimensionRef();
+      liveRegion.setGroupColumnValue("Region");
+      VSDimensionRef liveCategory = new VSDimensionRef();
+      liveCategory.setGroupColumnValue("Category");
+      VSCrosstabInfo crossInfo = new VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveRegion });
+      crossInfo.setDesignColHeaders(new inetsoft.uql.erm.DataRef[]{ liveCategory });
+
+      inetsoft.uql.viewsheet.FormatInfo formatInfo = new inetsoft.uql.viewsheet.FormatInfo();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getAbsoluteName()).thenReturn("Crosstab1");
+      when(assembly.getFormatInfo()).thenReturn(formatInfo);
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(1);
+      inetsoft.report.TableDataPath corner = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" });
+      when(lens.getTableDataPath(0, 0)).thenReturn(corner);
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      TableBindingService service =
+         serviceWith(sessions, existing, mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setColumnLabels(
+            "tok", principal(), "Crosstab1", Map.of("Category", "Sales Category"), null));
+
+      assertTrue(thrown.getMessage().contains("cols[0]"));
+      assertNull(formatInfo.getFormat(corner),
+                 "the refused write must not touch the row dimension's own corner cell");
+   }
+
+   /**
+    * {@code set_crosstab_column_visibility}'s sibling of {@link
+    * #setColumnLabelsRefusesACrosstabColsShelfTarget} -- same collision, same refusal.
+    */
+   @Test
+   void setCrosstabColumnVisibilityRefusesAColsShelfTarget() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(existing, "cols", List.of(dim("Category")));
+
+      VSDimensionRef liveRegion = new VSDimensionRef();
+      liveRegion.setGroupColumnValue("Region");
+      VSDimensionRef liveCategory = new VSDimensionRef();
+      liveCategory.setGroupColumnValue("Category");
+      VSCrosstabInfo crossInfo = new VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveRegion });
+      crossInfo.setDesignColHeaders(new inetsoft.uql.erm.DataRef[]{ liveCategory });
+
+      inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo tableInfo =
+         new inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getCrosstabInfo()).thenReturn(tableInfo);
+      when(assembly.getAbsoluteName()).thenReturn("Crosstab1");
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(1);
+      when(lens.getTableDataPath(0, 0)).thenReturn(new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" }));
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      TableBindingService service =
+         serviceWith(sessions, existing, mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setCrosstabColumnVisibility(
+            "tok", principal(), "Crosstab1", List.of("Category"), null, false));
+
+      assertTrue(thrown.getMessage().contains("cols[0]"));
+      assertFalse(tableInfo.hasHiddenColumn(),
+                  "the refused write must not hide the row dimension's own lens column");
    }
 
    // ── set_table_column_sort (bug-76806) ──────────────────────────────────────
