@@ -24,9 +24,11 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -363,7 +365,25 @@ class ScheduleFolderChangesetApplyServiceTest {
       ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), moveTask);
       req.setReviewOutcome("approved");
 
-      ApplyResult result = realApplyService.apply(req, user);
+      ApplyResult result;
+
+      // Scoped to this test only: moveTask's own ScheduleTaskModel.builder().fromTask(...) call
+      // (strictly between the task-level checkPermission check above and the target-folder
+      // checkFolderPermission check this test means to exercise) resolves Catalog.getCatalog()
+      // and, via SUtil.getUserAlias(task.getOwner()), the SecurityEngine.getSecurity() static
+      // singleton -- neither has a Spring context to resolve against in this plain-Mockito test,
+      // and either would throw ShutdownException before ever reaching checkFolderPermission.
+      try(MockedStatic<Catalog> catalogStatic =
+             mockStatic(Catalog.class, withSettings().strictness(Strictness.LENIENT));
+          MockedStatic<SecurityEngine> securityEngineStatic =
+             mockStatic(SecurityEngine.class, withSettings().strictness(Strictness.LENIENT)))
+      {
+         catalogStatic.when(Catalog::getCatalog).thenReturn(mock(Catalog.class));
+         SecurityEngine staticSecurityEngine = mock(SecurityEngine.class);
+         when(staticSecurityEngine.getSecurityProvider()).thenReturn(mock(SecurityProvider.class));
+         securityEngineStatic.when(SecurityEngine::getSecurity).thenReturn(staticSecurityEngine);
+         result = realApplyService.apply(req, user);
+      }
 
       // The target-folder WRITE refusal fires strictly before moveTask's own mutating call
       // (moveScheduleItems), so nothing was ever mutated -- STATUS_ROLLED_BACK, not
