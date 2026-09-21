@@ -22,6 +22,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -772,8 +773,9 @@ public class ProviderChangePlanService {
          }
 
          IdentityID[] callerRoles = callerRoles(user);
+         IdentityID callerId = callerId(user);
 
-         if(!callerRetainsSysAdmin(simulated, callerRoles)) {
+         if(!callerRetainsSysAdmin(simulated, callerRoles, callerId)) {
             throw new IllegalArgumentException(
                label + ": updating authentication provider \"" + name + "\" would resolve none of " +
                "the calling session's own roles to system-administrator against the edited chain -- " +
@@ -969,21 +971,25 @@ public class ProviderChangePlanService {
     *   <li>Deployment-wide invariant, reproducing {@code AuthenticationProviderService
     *       .providerHasSysAdmins}'s own predicate against a simulated post-removal chain (never
     *       mutating the live chain).</li>
-    *   <li>Caller-specific: using the same simulated list, reproduce {@code AuthenticationChain
-    *       .isSystemAdministratorRole}'s "first provider that defines this role" resolution against
-    *       the calling principal's own JWT-baked roles ({@code ((XPrincipal) principal).getRoles()},
-    *       the same source {@code OrganizationManager.isSiteAdmin}'s own first, decisive branch
-    *       reads). This can fire even when check 1 passes -- the deployment as a whole may retain
-    *       system-administrator capability through a different provider/role while this specific
-    *       caller loses theirs.</li>
+    *   <li>Caller-specific: using the same simulated list, reproduce {@code
+    *       OrganizationManager.isSiteAdmin(Principal)}'s own resolution against the calling
+    *       principal. This can fire even when check 1 passes -- the deployment as a whole may
+    *       retain system-administrator capability through a different provider/role while this
+    *       specific caller loses theirs.</li>
     * </ol>
-    * {@code OrganizationManager.isSiteAdmin(Principal)} also has a second, fallback branch that
-    * re-reads the live user's stored roles via {@code SecurityProvider.getUser(...)} when the
-    * JWT-baked roles alone don't resolve to sys-admin (community/core/.../OrganizationManager.java:
-    * 125-140, read directly in this pass) -- this preflight does not reproduce that fallback branch,
-    * matching 01-spec.md section 4's own stated trace (JWT-baked roles only). Recorded as an
-    * open item in 04-build-java.md rather than silently expanding this preflight's scope beyond what
-    * was specified.
+    * Bug 76860: {@code OrganizationManager.isSiteAdmin(Principal)} has three sequential resolution
+    * branches (direct JWT-baked role match; a live-store user's own {@code getRoles()} expanded via
+    * role-parent inheritance; {@code getRoles(IdentityID)} + parent expansion via the {@code
+    * isSiteAdmin(AuthenticationProvider, IdentityID)} overload), not just the first. This check
+    * reproduces branch 1 directly ({@link #callerRetainsSysAdmin}'s per-role loop) and branches 2/3
+    * by calling the existing {@code isSiteAdmin(AuthenticationProvider, IdentityID)} overload once
+    * against a {@link SimulatedAuthenticationChainView} adapter over {@code simulated} -- never by
+    * instantiating a real {@link AuthenticationChain} (its constructor registers a permanent
+    * {@code DataSpace} listener and its only public setter persists to the live config file, either
+    * of which would be a dangerous side effect of a read-only preflight check), and never by
+    * querying {@code simulated}'s providers independently and OR-ing/looping the per-provider
+    * results (that diverges from {@code AuthenticationChain}'s own first-non-empty-provider-wins,
+    * cross-provider-parent-resolving semantics and can produce a false ALLOW).
     */
    /** Package-visible so {@link ProviderChangesetApplyService} can re-run this exact check at apply
     * time against the freshly-read live chain (01-spec.md section 6 step 2a: a concurrent change
@@ -1002,8 +1008,9 @@ public class ProviderChangePlanService {
       }
 
       IdentityID[] callerRoles = callerRoles(user);
+      IdentityID callerId = callerId(user);
 
-      if(!callerRetainsSysAdmin(simulated, callerRoles)) {
+      if(!callerRetainsSysAdmin(simulated, callerRoles, callerId)) {
          throw new IllegalArgumentException(
             label + ": deleting authentication provider \"" + name + "\" would resolve none of the " +
             "calling session's own roles to system-administrator against the remaining chain -- " +
@@ -1031,14 +1038,29 @@ public class ProviderChangePlanService {
       return new IdentityID[0];
    }
 
+   /** The calling principal's own user identity (as opposed to {@link #callerRoles}' JWT-baked role
+    * identities) -- bug 76860's branch 2/3 reproduction needs this to call {@code
+    * provider.getRoles(IdentityID)}, which takes a user identity, not a role identity. {@code
+    * IdentityID.getIdentityIDFromKey} is null-safe (returns {@code null}, not a throw, on a name it
+    * can't parse); {@link #callerRetainsSysAdmin} treats a {@code null} result as "branch 2/3
+    * contributes nothing", the same as before this fix existed. */
+   private static IdentityID callerId(Principal user) {
+      return user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
+   }
+
    private static boolean providerHasSysAdmins(AuthenticationProvider provider) {
       return Arrays.stream(provider.getRoles())
          .anyMatch(role -> provider.isSystemAdministratorRole(role) &&
                           provider.getRoleMembers(role).length > 0);
    }
 
+   /** Additive: ORs the existing branch-1 reproduction (the per-role loop below, unchanged) with a
+    * branch-2/3 reproduction (bug 76860) -- never replaces branch-1, since a real, shipped provider
+    * ({@code VirtualAuthenticationProvider}) resolves correctly via {@code getRole()} while relying
+    * on {@code getRoles(IdentityID)}'s no-op default, and a branch-2/3-only check would wrongly
+    * refuse it. */
    private static boolean callerRetainsSysAdmin(List<AuthenticationProvider> simulated,
-                                                IdentityID[] callerRoles)
+                                                IdentityID[] callerRoles, IdentityID callerId)
    {
       for(IdentityID roleId : callerRoles) {
          Optional<AuthenticationProvider> resolving = simulated.stream()
@@ -1050,7 +1072,94 @@ public class ProviderChangePlanService {
          }
       }
 
-      return false;
+      if(callerId == null) {
+         return false;
+      }
+
+      return OrganizationManager.getInstance()
+         .isSiteAdmin(new SimulatedAuthenticationChainView(simulated), callerId);
+   }
+
+   /**
+    * Adapts {@code simulated} (a post-delete/post-edit {@code List<AuthenticationProvider>}, never
+    * the live chain) into a single {@link AuthenticationProvider} whose {@link #getRoles(IdentityID)}
+    * / {@link #getRole(IdentityID)} / {@link #isSystemAdministratorRole(IdentityID)} reproduce
+    * {@link AuthenticationChain}'s own chain-wide resolution -- first-non-empty-wins for role
+    * listing, first-match across every provider for role lookup and admin classification -- so that
+    * calling {@code OrganizationManager.isSiteAdmin(AuthenticationProvider, IdentityID)} once
+    * against this adapter correctly reproduces branches 2/3 of {@code isSiteAdmin(Principal)} across
+    * the whole {@code simulated} chain, not a single arbitrarily-chosen provider (bug 76860: a
+    * per-provider-independent dispatch diverges from the real chain and can produce a false ALLOW).
+    * {@link AuthenticationProvider#getAllRoles(IdentityID[])}'s default implementation calls {@code
+    * this.getRole(...)}, so this adapter's chain-faithful {@code getRole} makes the parent-role BFS
+    * chain-faithful too, with no separate override needed. Every other {@link AuthenticationProvider}
+    * method is unreachable from {@code isSiteAdmin(AuthenticationProvider, IdentityID)}'s call graph
+    * and throws -- a call reaching one would mean this adapter is being reused somewhere it
+    * shouldn't be. Never wraps or instantiates a real {@link AuthenticationChain}: its constructor
+    * registers a permanent {@code DataSpace} listener and its only public setter persists the
+    * post-delete/post-edit provider list to the live config file, either of which would corrupt live
+    * security state as a side effect of what must stay a read-only preflight check.
+    */
+   private static final class SimulatedAuthenticationChainView implements AuthenticationProvider {
+      SimulatedAuthenticationChainView(List<AuthenticationProvider> simulated) {
+         this.simulated = simulated;
+      }
+
+      @Override
+      public IdentityID[] getRoles(IdentityID userIdentity) {
+         return simulated.stream()
+            .map(p -> p.getRoles(userIdentity))
+            .filter(roles -> roles != null && roles.length > 0)
+            .findFirst()
+            .orElse(new IdentityID[0]);
+      }
+
+      @Override
+      public Role getRole(IdentityID roleIdentity) {
+         return simulated.stream()
+            .map(p -> p.getRole(roleIdentity))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
+      }
+
+      @Override
+      public boolean isSystemAdministratorRole(IdentityID roleIdentity) {
+         return simulated.stream()
+            .filter(p -> p.getRole(roleIdentity) != null)
+            .findFirst()
+            .map(p -> p.isSystemAdministratorRole(roleIdentity))
+            .orElse(false);
+      }
+
+      @Override public User getUser(IdentityID userIdentity) { throw unsupported(); }
+      @Override public IdentityID[] getUsers() { throw unsupported(); }
+      @Override public Organization getOrganization(String id) { throw unsupported(); }
+      @Override public String getOrgIdFromName(String name) { throw unsupported(); }
+      @Override public String getOrgNameFromID(String id) { throw unsupported(); }
+      @Override public String[] getOrganizationIDs() { throw unsupported(); }
+      @Override public String[] getOrganizationNames() { throw unsupported(); }
+      @Override public IdentityID[] getUsers(IdentityID groupIdentity) { throw unsupported(); }
+      @Override public String[] getEmails(IdentityID userIdentity) { throw unsupported(); }
+      @Override public IdentityID[] getIndividualUsers() { throw unsupported(); }
+      @Override public IdentityID[] getRoles() { throw unsupported(); }
+      @Override public Group getGroup(IdentityID groupIdentity) { throw unsupported(); }
+      @Override public IdentityID[] getGroups() { throw unsupported(); }
+      @Override public boolean authenticate(IdentityID userIdentity, Object credential) { throw unsupported(); }
+      @Override public Identity findIdentity(Identity identity) { throw unsupported(); }
+      @Override public void tearDown() { throw unsupported(); }
+      @Override public String getProviderName() { throw unsupported(); }
+      @Override public void setProviderName(String providerName) { throw unsupported(); }
+
+      private static UnsupportedOperationException unsupported() {
+         return new UnsupportedOperationException(
+            "SimulatedAuthenticationChainView only implements getRoles(IdentityID)/" +
+            "getRole(IdentityID)/isSystemAdministratorRole(IdentityID) -- it exists solely to be " +
+            "passed to OrganizationManager.isSiteAdmin(AuthenticationProvider, IdentityID), which " +
+            "never calls any other AuthenticationProvider method");
+      }
+
+      private final List<AuthenticationProvider> simulated;
    }
 
    /** 01-spec.md section 4: a new, minimal floor this spec proposes -- no
