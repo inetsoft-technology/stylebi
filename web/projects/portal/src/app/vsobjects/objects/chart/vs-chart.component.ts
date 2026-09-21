@@ -94,6 +94,7 @@ import { DataTipService } from "../data-tip/data-tip.service";
 import { SelectableObject } from "../selectable-object";
 import { DetailDndInfo } from "../table/detail-dnd-info";
 import { SortInfo } from "../table/sort-info";
+import { plotResizerLength } from "./plot-resizer-length";
 import { VSChartActionHandler } from "./services/vs-chart-action-handler";
 import { VSChartService } from "./services/vs-chart.service";
 import { GraphTypes } from "../../../common/graph-types";
@@ -295,7 +296,9 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                   CHART_PLOT_RESIZE_URL, new VSChartPlotResizeEvent(this.model, true, 0, false));
                break;
             case "chart resize-plot":
-               this.model.showPlotResizers = true;
+               if(this.horizontalResizerLength || this.verticalResizerLength) {
+                  this.model.showPlotResizers = true;
+               }
                break;
             case "chart show-data":
                this.showData();
@@ -1463,6 +1466,14 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    get chartContainerBounds(): Rectangle {
       return new Rectangle(this.model.objectFormat.left, this.model.objectFormat.top,
          this.model.objectFormat.width, this.model.objectFormat.height);
+   }
+
+   get horizontalResizerLength(): number | null {
+      return plotResizerLength(this.model.plot?.layoutBounds.width);
+   }
+
+   get verticalResizerLength(): number | null {
+      return plotResizerLength(this.model.plot?.layoutBounds.height);
    }
 
    get showDCIcon(): boolean {
