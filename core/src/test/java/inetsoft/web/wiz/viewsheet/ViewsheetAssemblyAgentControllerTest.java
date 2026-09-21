@@ -3370,6 +3370,114 @@ class ViewsheetAssemblyAgentControllerTest {
       verify(rvs, never()).setDefaultBookmark(any());
    }
 
+   @Test
+   void gotoBookmark_refusesWhenNoBookmarkOfThatNameIsVisible() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Missing"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.getBookmarks()).thenReturn(List.of());
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.gotoBookmark("tok",
+            new ViewsheetAssemblyAgentController.GotoBookmarkRequest("Missing", null), "",
+            principal()));
+      assertTrue(thrown.getMessage().contains("no bookmark named"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   @Test
+   void gotoBookmark_refusesAmbiguousNameWithoutOwner() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      IdentityID alice = new IdentityID("alice", "host-org");
+      IdentityID bob = new IdentityID("bob", "host-org");
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, alice, true,
+                            System.currentTimeMillis()),
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, bob, true,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.gotoBookmark("tok",
+            new ViewsheetAssemblyAgentController.GotoBookmarkRequest("Q1 Report", null), "",
+            principal()));
+      assertTrue(thrown.getMessage().contains("alice"));
+      assertTrue(thrown.getMessage().contains("bob"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   @Test
+   void gotoBookmark_resolvesToCallersOwnBookmarkWhenOwnerOmitted() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.gotoBookmark("tok",
+         new ViewsheetAssemblyAgentController.GotoBookmarkRequest("Q1 Report", null), "",
+         principal());
+
+      ArgumentCaptor<VSEditBookmarkEvent> captor = ArgumentCaptor.forClass(VSEditBookmarkEvent.class);
+      verify(vsBookmarkService).gotoBookmark(eq("runtime-1"), captor.capture(),
+         any(Principal.class), any(), eq(""));
+      assertEquals(IdentityID.getIdentityIDFromKey("admin"),
+         captor.getValue().vsBookmarkInfoModel().owner());
+   }
+
+   @Test
+   void gotoBookmark_resolvesByExplicitOwnerAmongSeveralVisible() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      IdentityID bob = new IdentityID("bob", "host-org");
+      when(rvs.getBookmarks()).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE, admin, true,
+                            System.currentTimeMillis()),
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, bob, true,
+                            System.currentTimeMillis())));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.gotoBookmark("tok",
+         new ViewsheetAssemblyAgentController.GotoBookmarkRequest("Q1 Report", "bob"), "",
+         principal());
+
+      ArgumentCaptor<VSEditBookmarkEvent> captor = ArgumentCaptor.forClass(VSEditBookmarkEvent.class);
+      verify(vsBookmarkService).gotoBookmark(eq("runtime-1"), captor.capture(),
+         any(Principal.class), any(), eq(""));
+      assertEquals(bob, captor.getValue().vsBookmarkInfoModel().owner());
+   }
+
+   @Test
+   void gotoBookmark_delegatesToVsBookmarkServiceGotoBookmark() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.gotoBookmark("tok",
+         new ViewsheetAssemblyAgentController.GotoBookmarkRequest("Q1 Report", null), "",
+         principal());
+
+      verify(vsBookmarkService).gotoBookmark(eq("runtime-1"), any(VSEditBookmarkEvent.class),
+         any(Principal.class), any(), eq(""));
+   }
+
    private static void stubSavedAsset(RuntimeViewsheet rvs) {
       Viewsheet vs = mock(Viewsheet.class);
       AssetEntry entry = mock(AssetEntry.class);
