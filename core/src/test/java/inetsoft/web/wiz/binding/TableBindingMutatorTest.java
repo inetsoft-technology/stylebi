@@ -675,6 +675,57 @@ class TableBindingMutatorTest {
       assertTrue(thrown.getMessage().contains("Sales"), "name what is actually bound");
    }
 
+   /**
+    * Bug #76766: a {@code "$(ComponentName)"} sortByField/measure names no bound aggregate by
+    * construction -- it resolves against a live Form component's value at render time, not
+    * against this assembly's aggregates shelf now -- so {@code requireKnownMeasure} must not
+    * refuse it as "not a bound aggregate" the way a genuinely unbound literal name is refused.
+    */
+   @Test
+   void acceptsADynamicSortByFieldWithoutMatchingAnyBoundAggregate() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      TableBindingMutator.setSort(model, "rows", "Region", null,
+         new DimensionSortRanking.Sort("value_desc", "$(Spinner1)", null));
+
+      assertEquals("$(Spinner1)", model.getRows().get(0).getSortByCol());
+   }
+
+   @Test
+   void acceptsADynamicRankingMeasureWithoutMatchingAnyBoundAggregate() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      TableBindingMutator.setRanking(model, "rows", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "$(Spinner1)", null));
+
+      assertEquals("$(Spinner1)", model.getRows().get(0).getRankingCol());
+   }
+
+   /**
+    * A genuinely unbound LITERAL name must still be refused exactly as before -- the new dynamic-
+    * value early return must not widen into accepting an arbitrary unresolved string.
+    */
+   @Test
+   void stillRefusesAnUnboundLiteralSortByFieldNotShapedLikeADynamicReference() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(new FieldRef("Sales", "measure", "sum", null, null)));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.setSort(model, "rows", "Region", null,
+            new DimensionSortRanking.Sort("value_desc", "$Spinner1", null)));
+
+      assertTrue(thrown.getMessage().contains("$Spinner1"));
+   }
+
    @Test
    void refusesToSortAColumnThatIsNotOnTheShelf() {
       CrosstabBindingModel model = new CrosstabBindingModel();
