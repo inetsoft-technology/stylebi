@@ -441,6 +441,16 @@ public class AdminScheduleFolderGateway {
     * caller (bug #76856: {@link inetsoft.web.admin.ai.schedule.ScheduleFolderChangesetApplyService})
     * that needs to distinguish "nothing was ever touched" from "a real partial-mutation risk" cannot
     * do so by observing only whether this method as a whole threw.
+    *
+    * <p>{@code moveScheduleItems} also performs its OWN {@code WRITE}-on-target permission check
+    * (bug #76856: {@link ScheduleTaskFolderService#moveScheduleItems}) strictly before its mutating
+    * {@code changeFolder}/task-move call -- the same check {@link #moveFolder(String, String,
+    * Principal, AtomicBoolean)} already duplicates for a folder move, and one this method's own
+    * task-level checks above do not cover (they check the {@code SCHEDULE_TASK} resource, never
+    * anything on the target folder). Duplicated here (via {@link
+    * ScheduleTaskFolderService#checkFolderPermission}, the same public method {@code
+    * moveScheduleItems} itself is built on) so {@code mutationEntered} can be set immediately
+    * before, not after, the mutating call.
     */
    public void moveTask(String taskId, String targetPath, Principal user, AtomicBoolean mutationEntered)
       throws Exception
@@ -469,6 +479,11 @@ public class AdminScheduleFolderGateway {
       }
 
       AssetEntry targetEntry = taskFolderService.getFolderEntry(normalizePath(targetPath));
+
+      if(!taskFolderService.checkFolderPermission(targetEntry.getPath(), user, ResourceAction.WRITE)) {
+         throw new UnauthorizedAccessException();
+      }
+
       mutationEntered.set(true);
       taskFolderService.moveScheduleItems(
          new ScheduleTaskModel[]{ model }, new String[0], targetEntry, user);

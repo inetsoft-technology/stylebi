@@ -317,6 +317,62 @@ class ScheduleFolderChangesetApplyServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // moveTask's residual, deeper-layered instance of bug #76856 (round 3): moveScheduleItems
+   // performs its OWN WRITE-on-target check (ScheduleTaskFolderService.moveScheduleItems), a
+   // check moveTask's own task-level pre-checks above never cover. Distinct from the
+   // permission-refusal test above, which fails at the TASK-level check; this one passes the
+   // task-level check and fails at the newly-duplicated target-folder WRITE check instead.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesAMoveTaskThroughTheRealGatewayAndPropagatesTheTargetFolderPermissionRefusal()
+      throws Exception
+   {
+      ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
+      ScheduleService realScheduleService = mock(ScheduleService.class);
+      ScheduleManager realScheduleManager = mock(ScheduleManager.class);
+      SecurityEngine realSecurityEngine = mock(SecurityEngine.class);
+      ScheduleTaskService realScheduleTaskService = mock(ScheduleTaskService.class);
+      AdminScheduleFolderGateway realGateway = new AdminScheduleFolderGateway(
+         realTaskFolderService, realScheduleService, realScheduleManager, realSecurityEngine,
+         realScheduleTaskService);
+      ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
+      ScheduleFolderChangesetApplyService realApplyService =
+         new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
+
+      ScheduleTask task = new ScheduleTask("task1");
+      task.setOwner(new IdentityID("admin", "host-org"));
+      task.setPath("Old");
+      lenient().when(realScheduleManager.getScheduleTask("task1")).thenReturn(task);
+      lenient().when(realTaskFolderService.getFolderEntry(anyString())).thenAnswer(inv ->
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        (String) inv.getArgument(0), null));
+      lenient().when(realTaskFolderService.getTaskFolder(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Target", null)
+            .toIdentifier()))
+         .thenReturn(new AssetFolder());
+      // The task-level check passes -- unlike the permission-refusal test above -- so this reaches
+      // moveTask's newly-added target-folder WRITE check instead. checkFolderPermission is left
+      // unstubbed, so Mockito's default boolean answer (false) fails it, strictly before
+      // moveScheduleItems (moveTask's own mutating call).
+      when(realSecurityEngine.checkPermission(
+         user, ResourceType.SCHEDULE_TASK, "task1", ResourceAction.WRITE)).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest moveTask = moveTaskChange("task1", "Target");
+      ResolvedPlan preview = realPlanService.resolve(planRequest(moveTask), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), moveTask);
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = realApplyService.apply(req, user);
+
+      // The target-folder WRITE refusal fires strictly before moveTask's own mutating call
+      // (moveScheduleItems), so nothing was ever mutated -- STATUS_ROLLED_BACK, not
+      // STATUS_ROLLBACK_FAILED.
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(realTaskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
+   }
+
+   // -------------------------------------------------------------------------
    // applyDelete's pre-mutation throw surface (bug #76856): countContainedTasks0's own unguarded
    // getTaskFolder call for a nested schedule-task-folder entry (see AdminScheduleFolderGateway's
    // countContainedTasks0) can throw strictly before deleteFolder's own mutating call. Wired
