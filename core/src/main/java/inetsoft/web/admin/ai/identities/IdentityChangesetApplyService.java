@@ -676,7 +676,24 @@ public class IdentityChangesetApplyService {
       String beforeProjection = IdentityProjection.projectUser(before);
       SecurityUser merged = IdentityMerge.mergeUser(before, spec, id);
 
-      securityService.updateUser(id, merged, user);
+      try {
+         securityService.updateUser(id, merged, user);
+      }
+      catch(Exception e) {
+         if(e instanceof SecurityService.PreMutationRefusalException &&
+            isUnchangedSince(() -> securityService.getUser(id, user), beforeProjection,
+                             IdentityProjection::projectUser))
+         {
+            results.add(new IdentityApplyOutcome(key, beforeProjection, null,
+               AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+            writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                      beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
+                      user);
+            return;
+         }
+
+         throw e;
+      }
 
       // Re-verify via the merged identity's OWN id -- if spec.name renamed the user, that is the
       // NEW id, not the original `id` variable used to call updateUser above (design section 4/11's
@@ -707,7 +724,24 @@ public class IdentityChangesetApplyService {
       String beforeProjection = IdentityProjection.projectGroup(before, id);
       SecurityGroup merged = IdentityMerge.mergeGroup(before, spec, id);
 
-      securityService.updateGroup(id, merged, user);
+      try {
+         securityService.updateGroup(id, merged, user);
+      }
+      catch(Exception e) {
+         if(e instanceof SecurityService.PreMutationRefusalException &&
+            isUnchangedSince(() -> securityService.getGroup(id, user), beforeProjection,
+                             g -> IdentityProjection.projectGroup(g, id)))
+         {
+            results.add(new IdentityApplyOutcome(key, beforeProjection, null,
+               AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+            writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                      beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
+                      user);
+            return;
+         }
+
+         throw e;
+      }
 
       IdentityID afterId = merged.getIdentityID();
       SecurityGroup after = tryGet(() -> securityService.getGroup(afterId, user));
@@ -735,7 +769,24 @@ public class IdentityChangesetApplyService {
       String beforeProjection = IdentityProjection.projectRole(before, id);
       SecurityRole merged = IdentityMerge.mergeRole(before, spec, id);
 
-      securityService.updateRole(id, merged, user);
+      try {
+         securityService.updateRole(id, merged, user);
+      }
+      catch(Exception e) {
+         if(e instanceof SecurityService.PreMutationRefusalException &&
+            isUnchangedSince(() -> securityService.getRole(id, user), beforeProjection,
+                             r -> IdentityProjection.projectRole(r, id)))
+         {
+            results.add(new IdentityApplyOutcome(key, beforeProjection, null,
+               AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+            writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                      beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
+                      user);
+            return;
+         }
+
+         throw e;
+      }
 
       IdentityID afterId = merged.getIdentityID();
       SecurityRole after = tryGet(() -> securityService.getRole(afterId, user));
@@ -773,7 +824,25 @@ public class IdentityChangesetApplyService {
       String beforeProjection = IdentityProjection.projectOrganization(before, organizationId);
       SecurityOrganization merged = IdentityMerge.mergeOrganization(before, spec, organizationId);
 
-      securityService.updateOrganization(organizationId, merged, user);
+      try {
+         securityService.updateOrganization(organizationId, merged, user);
+      }
+      catch(Exception e) {
+         if(e instanceof SecurityService.PreMutationRefusalException &&
+            isUnchangedSince(() -> securityService.getOrganization(organizationId, user),
+                             beforeProjection,
+                             o -> IdentityProjection.projectOrganization(o, organizationId)))
+         {
+            results.add(new IdentityApplyOutcome(key, beforeProjection, null,
+               AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
+            writeAudit(txId, task, key, ActionRecord.ACTION_NAME_EDIT, AdminChangeRecord.ACTION_APPLY,
+                      beforeProjection, null, AdminChangeRecord.STATUS_FAILED, backupRef, reviewOutcome,
+                      user);
+            return;
+         }
+
+         throw e;
+      }
 
       String afterId = merged.getId();
       SecurityOrganization after = tryGet(() -> securityService.getOrganization(afterId, user));

@@ -290,61 +290,68 @@ public class SecurityService {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       final User oldUser = securityProvider.getUser(id);
+      EditUserPaneModel userModel;
 
-      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
-                                           id.convertToKey(), ResourceAction.ADMIN))
-      {
-         throw new UnauthorizedAccessException("Permission denied to update user");
-      }
-
-      if(provider.getUser(id) == null) {
-         if(securityProvider.getUser(id) == null) {
-            throw new MissingResourceException(id.name);
+      try {
+         if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                              id.convertToKey(), ResourceAction.ADMIN))
+         {
+            throw new UnauthorizedAccessException("Permission denied to update user");
          }
 
-         throw new InvalidResourceException();
+         if(provider.getUser(id) == null) {
+            if(securityProvider.getUser(id) == null) {
+               throw new MissingResourceException(id.name);
+            }
+
+            throw new InvalidResourceException();
+         }
+
+         // Use the validated org from the path/query, not the request body, so a caller can't
+         // smuggle a different org into the body and pull in members from another tenant.
+         List<IdentityID> groupIds = request.getGroups() == null ? null : request.getGroups().stream()
+            .map(n -> new IdentityID(n, id.orgID)).collect(Collectors.toList());
+
+         List<IdentityModel> parentGroups =
+            filterPermittedIds(groupIds, ResourceType.SECURITY_GROUP,
+                               securityProvider, principal)
+               .stream()
+               .map(group -> IdentityModel.builder()
+                  .identityID(group)
+                  .type(Identity.GROUP)
+                  .build())
+               .collect(Collectors.toList());
+
+         EditUserPaneModel.Builder builder = EditUserPaneModel.builder()
+            .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
+            .oldName(id.name)
+            .organization(id.orgID)
+            .alias(request.getAlias())
+            .locale(toLocaleLabel(request.getLocale()))
+            .status(request.isActive() || principal.getName().equals(id.convertToKey()))
+            .theme(request.getTheme())
+            .members(parentGroups);
+
+         if(request.getEmails() != null) {
+            builder.email(String.join(",", request.getEmails()));
+         }
+
+         if(request.getRoles() != null) {
+            builder = builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
+               filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
+         }
+
+         if(request.getAdminIdentities() != null) {
+            builder = builder.permittedIdentities(
+               convertAdminIdentitiesModel(request.getAdminIdentities(), securityProvider, principal));
+         }
+
+         userModel = builder.build();
+      }
+      catch(Exception e) {
+         throw new PreMutationRefusalException(e.getMessage(), e);
       }
 
-      // Use the validated org from the path/query, not the request body, so a caller can't
-      // smuggle a different org into the body and pull in members from another tenant.
-      List<IdentityID> groupIds = request.getGroups() == null ? null : request.getGroups().stream()
-         .map(n -> new IdentityID(n, id.orgID)).collect(Collectors.toList());
-
-      List<IdentityModel> parentGroups =
-         filterPermittedIds(groupIds, ResourceType.SECURITY_GROUP,
-                            securityProvider, principal)
-            .stream()
-            .map(group -> IdentityModel.builder()
-               .identityID(group)
-               .type(Identity.GROUP)
-               .build())
-            .collect(Collectors.toList());
-
-      EditUserPaneModel.Builder builder = EditUserPaneModel.builder()
-         .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
-         .oldName(id.name)
-         .organization(id.orgID)
-         .alias(request.getAlias())
-         .locale(toLocaleLabel(request.getLocale()))
-         .status(request.isActive() || principal.getName().equals(id.convertToKey()))
-         .theme(request.getTheme())
-         .members(parentGroups);
-
-      if(request.getEmails() != null) {
-         builder.email(String.join(",", request.getEmails()));
-      }
-
-      if(request.getRoles() != null) {
-         builder = builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
-            filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
-      }
-
-      if(request.getAdminIdentities() != null) {
-         builder = builder.permittedIdentities(
-            convertAdminIdentitiesModel(request.getAdminIdentities(), securityProvider, principal));
-      }
-
-      EditUserPaneModel userModel = builder.build();
       IdentityID oldId = new IdentityID(userModel.oldName(), userModel.organization());
       IdentityID newId = new IdentityID(userModel.name(), userModel.organization());
       identityService.setIdentity(oldUser, userModel, provider, principal);
@@ -562,74 +569,81 @@ public class SecurityService {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       final Group oldGroup = securityProvider.getGroup(identityID);
+      EditGroupPaneModel groupModel;
 
-      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
-                                           identityID.convertToKey(), ResourceAction.ADMIN))
-      {
-         throw new UnauthorizedAccessException("Permission denied to update group");
-      }
-
-      if(provider.getGroup(identityID) == null) {
-         if(securityProvider.getGroup(identityID) == null) {
-            throw new MissingResourceException(identityID.name);
+      try {
+         if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
+                                              identityID.convertToKey(), ResourceAction.ADMIN))
+         {
+            throw new UnauthorizedAccessException("Permission denied to update group");
          }
 
-         throw new InvalidResourceException();
+         if(provider.getGroup(identityID) == null) {
+            if(securityProvider.getGroup(identityID) == null) {
+               throw new MissingResourceException(identityID.name);
+            }
+
+            throw new InvalidResourceException();
+         }
+
+         List<IdentityID> memberIds = null;
+         List<IdentityID> memberUserIds = null;
+
+         if(request.getMemberGroups() != null) {
+            // Use the validated org from the path/query, not the request body, so a caller can't
+            // smuggle a different org into the body and pull in members from another tenant.
+            memberIds = request.getMemberGroups().stream()
+               .map(n -> new IdentityID(n, identityID.orgID)).collect(Collectors.toList());
+         }
+
+         List<IdentityModel> members =
+            filterPermittedIds(memberIds, ResourceType.SECURITY_GROUP,
+                               securityProvider, principal)
+               .stream()
+               .map(group -> IdentityModel.builder()
+                  .identityID(group)
+                  .type(Identity.GROUP)
+                  .build())
+               .collect(Collectors.toList());
+
+         if(request.getMemberUsers() != null) {
+            memberUserIds = request.getMemberUsers().stream()
+               .map(n -> new IdentityID(n, identityID.orgID)).collect(Collectors.toList());
+         }
+
+         members.addAll(
+            filterPermittedIds(memberUserIds, ResourceType.SECURITY_USER,
+                               securityProvider, principal)
+               .stream()
+               .map(user -> IdentityModel.builder()
+                  .identityID(user)
+                  .type(Identity.USER)
+                  .build())
+               .collect(Collectors.toList()));
+
+         EditGroupPaneModel.Builder builder = EditGroupPaneModel.builder()
+            .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
+            .oldName(identityID.name)
+            .theme(request.getTheme())
+            .organization(identityID.orgID)
+            .members(members);
+
+         if(request.getRoles() != null) {
+            builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
+               filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
+         }
+
+         if(request.getAdminIdentities() != null) {
+            builder = builder.permittedIdentities(
+               convertAdminIdentitiesModel(request.getAdminIdentities(), securityProvider, principal));
+         }
+
+         groupModel = builder.build();
+      }
+      catch(Exception e) {
+         throw new PreMutationRefusalException(e.getMessage(), e);
       }
 
-      List<IdentityID> memberIds = null;
-      List<IdentityID> memberUserIds = null;
-
-      if(request.getMemberGroups() != null) {
-         // Use the validated org from the path/query, not the request body, so a caller can't
-         // smuggle a different org into the body and pull in members from another tenant.
-         memberIds = request.getMemberGroups().stream()
-            .map(n -> new IdentityID(n, identityID.orgID)).collect(Collectors.toList());
-      }
-
-      List<IdentityModel> members =
-         filterPermittedIds(memberIds, ResourceType.SECURITY_GROUP,
-                            securityProvider, principal)
-            .stream()
-            .map(group -> IdentityModel.builder()
-               .identityID(group)
-               .type(Identity.GROUP)
-               .build())
-            .collect(Collectors.toList());
-
-      if(request.getMemberUsers() != null) {
-         memberUserIds = request.getMemberUsers().stream()
-            .map(n -> new IdentityID(n, identityID.orgID)).collect(Collectors.toList());
-      }
-
-      members.addAll(
-         filterPermittedIds(memberUserIds, ResourceType.SECURITY_USER,
-                            securityProvider, principal)
-            .stream()
-            .map(user -> IdentityModel.builder()
-               .identityID(user)
-               .type(Identity.USER)
-               .build())
-            .collect(Collectors.toList()));
-
-      EditGroupPaneModel.Builder builder = EditGroupPaneModel.builder()
-         .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
-         .oldName(identityID.name)
-         .theme(request.getTheme())
-         .organization(identityID.orgID)
-         .members(members);
-
-      if(request.getRoles() != null) {
-         builder.roles(new ArrayList<>(resolveRoleReferencesOrThrow(
-            filterSystemAdminRoles(request.getRoles(), securityProvider, principal), provider)));
-      }
-
-      if(request.getAdminIdentities() != null) {
-         builder = builder.permittedIdentities(
-            convertAdminIdentitiesModel(request.getAdminIdentities(), securityProvider, principal));
-      }
-
-      EditGroupPaneModel groupModel = builder.build();
       IdentityID oldId = new IdentityID(groupModel.oldName(), groupModel.organization());
       IdentityID newId = new IdentityID(groupModel.name(), groupModel.organization());
 
@@ -913,86 +927,93 @@ public class SecurityService {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       final Organization oldOrganization = securityProvider.getOrganization(id);
+      EditOrganizationPaneModel organizationModel;
 
-      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
-                                           id, ResourceAction.ADMIN))
-      {
-         throw new UnauthorizedAccessException("Permission denied to update organization");
-      }
-
-      if(provider.getOrganization(id) == null) {
-         if(securityProvider.getOrganization(id) == null) {
-            throw new MissingResourceException(id);
+      try {
+         if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                              id, ResourceAction.ADMIN))
+         {
+            throw new UnauthorizedAccessException("Permission denied to update organization");
          }
 
-         throw new InvalidResourceException();
+         if(provider.getOrganization(id) == null) {
+            if(securityProvider.getOrganization(id) == null) {
+               throw new MissingResourceException(id);
+            }
+
+            throw new InvalidResourceException();
+         }
+
+         List<String> requestGroups = request.getMemberUsers() == null ?
+            Collections.emptyList() : request.getMemberGroups();
+         List<IdentityID> memberGroupIds = requestGroups.stream()
+            .map(n -> new IdentityID(n, id)).collect(Collectors.toList());
+
+         List<IdentityModel> members =
+            filterPermittedIds(memberGroupIds, ResourceType.SECURITY_GROUP,
+                               securityProvider, principal, true)
+               .stream()
+               .map(group -> IdentityModel.builder()
+                  .identityID(new IdentityID(group.name, request.getId()))
+                  .type(Identity.GROUP)
+                  .build())
+               .collect(Collectors.toList());
+
+         List<String> requestUsers = request.getMemberUsers() == null ?
+            Collections.emptyList() : request.getMemberUsers();
+         List<IdentityID> memberUserIds = requestUsers.stream()
+            .map(n -> new IdentityID(n, id)).collect(Collectors.toList());
+
+         members.addAll(
+            filterPermittedIds(memberUserIds, ResourceType.SECURITY_USER,
+                               securityProvider, principal, true)
+               .stream()
+               .map(user -> IdentityModel.builder()
+                  .identityID(new IdentityID(user.name, request.getId()))
+                  .type(Identity.USER)
+                  .build())
+               .collect(Collectors.toList()));
+
+         List<String> requestRoles = request.getRoles() == null ?
+            Collections.emptyList() : request.getRoles();
+         List<IdentityID> memberRoleIds = requestRoles.stream()
+            .map(n -> new IdentityID(n, id)).collect(Collectors.toList());
+
+         members.addAll(
+            filterPermittedIds(memberRoleIds, ResourceType.SECURITY_ROLE,
+                               securityProvider, principal, true)
+               .stream()
+               .map(role -> IdentityModel.builder()
+                  .identityID(new IdentityID(role.name, request.getId()))
+                  .type(Identity.ROLE)
+                  .build())
+               .collect(Collectors.toList()));
+
+         EditOrganizationPaneModel.Builder builder = EditOrganizationPaneModel.builder()
+            .name(request.getName())
+            .id(request.getId())
+            .oldName(oldOrganization.getName())
+            .locale(toLocaleLabel(request.getLocale()))
+            .theme(request.getTheme())
+            .members(members);
+
+         if(request.getRoles() != null) {
+            List<IdentityID> roles = request.getRoles().stream()
+               .map(role -> new IdentityID(role, request.getId())).collect(Collectors.toList());
+            builder.roles(roles);
+         }
+
+         if(request.getAdminIdentities() != null) {
+            builder = builder.permittedIdentities(
+               convertAdminIdentitiesModel(request.getAdminIdentities(), securityProvider, principal));
+         }
+
+         organizationModel = builder.build();
+      }
+      catch(Exception e) {
+         throw new PreMutationRefusalException(e.getMessage(), e);
       }
 
-      List<String> requestGroups = request.getMemberUsers() == null ?
-         Collections.emptyList() : request.getMemberGroups();
-      List<IdentityID> memberGroupIds = requestGroups.stream()
-         .map(n -> new IdentityID(n, id)).collect(Collectors.toList());
-
-      List<IdentityModel> members =
-         filterPermittedIds(memberGroupIds, ResourceType.SECURITY_GROUP,
-                            securityProvider, principal, true)
-            .stream()
-            .map(group -> IdentityModel.builder()
-               .identityID(new IdentityID(group.name, request.getId()))
-               .type(Identity.GROUP)
-               .build())
-            .collect(Collectors.toList());
-
-      List<String> requestUsers = request.getMemberUsers() == null ?
-         Collections.emptyList() : request.getMemberUsers();
-      List<IdentityID> memberUserIds = requestUsers.stream()
-         .map(n -> new IdentityID(n, id)).collect(Collectors.toList());
-
-      members.addAll(
-         filterPermittedIds(memberUserIds, ResourceType.SECURITY_USER,
-                            securityProvider, principal, true)
-            .stream()
-            .map(user -> IdentityModel.builder()
-               .identityID(new IdentityID(user.name, request.getId()))
-               .type(Identity.USER)
-               .build())
-            .collect(Collectors.toList()));
-
-      List<String> requestRoles = request.getRoles() == null ?
-         Collections.emptyList() : request.getRoles();
-      List<IdentityID> memberRoleIds = requestRoles.stream()
-         .map(n -> new IdentityID(n, id)).collect(Collectors.toList());
-
-      members.addAll(
-         filterPermittedIds(memberRoleIds, ResourceType.SECURITY_ROLE,
-                            securityProvider, principal, true)
-            .stream()
-            .map(role -> IdentityModel.builder()
-               .identityID(new IdentityID(role.name, request.getId()))
-               .type(Identity.ROLE)
-               .build())
-            .collect(Collectors.toList()));
-
-      EditOrganizationPaneModel.Builder builder = EditOrganizationPaneModel.builder()
-         .name(request.getName())
-         .id(request.getId())
-         .oldName(oldOrganization.getName())
-         .locale(toLocaleLabel(request.getLocale()))
-         .theme(request.getTheme())
-         .members(members);
-
-      if(request.getRoles() != null) {
-         List<IdentityID> roles = request.getRoles().stream()
-            .map(role -> new IdentityID(role, request.getId())).collect(Collectors.toList());
-         builder.roles(roles);
-      }
-
-      if(request.getAdminIdentities() != null) {
-         builder = builder.permittedIdentities(
-            convertAdminIdentitiesModel(request.getAdminIdentities(), securityProvider, principal));
-      }
-
-      EditOrganizationPaneModel organizationModel = builder.build();
       IdentityID oldId = new IdentityID(organizationModel.oldName(), provider.getOrgIdFromName(organizationModel.oldName()));
       IdentityID newId = new IdentityID(organizationModel.name(), organizationModel.id());
 
@@ -1302,85 +1323,92 @@ public class SecurityService {
       SecurityProvider securityProvider = this.securityEngine.getSecurityProvider();
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       final Role oldRole = securityProvider.getRole(roleId);
+      EditRolePaneModel roleModel;
 
-      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
-                                           roleId.convertToKey(), ResourceAction.ADMIN))
-      {
-         throw new UnauthorizedAccessException("Permission denied to update role");
-      }
-
-      if(provider.getRole(roleId) == null) {
-         if(securityProvider.getRole(roleId) == null) {
-            throw new MissingResourceException(roleId.name);
+      try {
+         if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                              roleId.convertToKey(), ResourceAction.ADMIN))
+         {
+            throw new UnauthorizedAccessException("Permission denied to update role");
          }
 
-         throw new InvalidResourceException();
+         if(provider.getRole(roleId) == null) {
+            if(securityProvider.getRole(roleId) == null) {
+               throw new MissingResourceException(roleId.name);
+            }
+
+            throw new InvalidResourceException();
+         }
+
+         // Use the validated org from the path/query, not the request body, to prevent an org
+         // admin from smuggling a different org into the body and writing a role cross-tenant.
+         String orgID = roleId.orgID;
+         List<String> assignedUsers = request.getAssignedUsers();
+         List<String> assignedGroups = request.getAssignedGroups();
+         List<IdentityID> userIds = assignedUsers == null ? new ArrayList<>() : assignedUsers.stream()
+            .map(n -> new IdentityID(n, orgID)).toList();
+         List<IdentityID> groupIds = assignedGroups == null ? new ArrayList<>() : assignedGroups.stream()
+            .map(n -> new IdentityID(n, orgID)).toList();
+
+         List<IdentityModel> asssignedIDs =
+            filterPermittedIds(userIds, ResourceType.SECURITY_USER,
+                               securityProvider, principal)
+               .stream()
+               .map(group -> IdentityModel.builder()
+                  .identityID(group)
+                  .type(Identity.USER)
+                  .build())
+               .collect(Collectors.toList());
+
+         asssignedIDs.addAll(
+            filterPermittedIds(groupIds, ResourceType.SECURITY_GROUP,
+                               securityProvider, principal)
+               .stream()
+               .map(user -> IdentityModel.builder()
+                  .identityID(user)
+                  .type(Identity.GROUP)
+                  .build())
+               .collect(Collectors.toList()));
+
+         EditRolePaneModel.Builder builder = EditRolePaneModel.builder()
+            .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
+            .oldName(roleId.name)
+            .organization(orgID)
+            // request already carries either the caller's override or the current value, preserved
+            // by IdentityMerge.mergeRole before this method is called from the identities apply path
+            // -- reading info/provider's OWN current state here (as this used to) would make request's
+            // value inert. A raw REST caller who omits the field gets Boolean.TRUE.equals(null) ==
+            // false, the same blind-overwrite-on-omission contract every other field in this builder
+            // already has (description/theme below never fall back to the current value either).
+            .defaultRole(Boolean.TRUE.equals(request.getDefaultRole()))
+            .isSysAdmin(Boolean.TRUE.equals(request.getSysAdmin()))
+            // Deliberately NOT the same blind-overwrite-on-omission contract as defaultRole/sysAdmin
+            // above: orgAdmin's caller is IdentityMerge.mergeRole, whose own omit-preserves-current-
+            // value semantics (see its comment) depend on this falling back to the role's current
+            // server-side state rather than false when request.getOrgAdmin() is null. A raw REST
+            // caller who omits the field gets the role's unchanged current orgAdmin status, not a
+            // reset to false -- do not "fix" this to match defaultRole/sysAdmin's pattern.
+            .isOrgAdmin(request.getOrgAdmin() != null ? request.getOrgAdmin() :
+                       provider.isOrgAdministratorRole(roleId))
+            .description(request.getDescription())
+            .theme(request.getTheme())
+            .members(asssignedIDs);
+
+         if(request.getInheritedRoles() != null) {
+            builder.roles(filterSystemAdminRoles(request.getInheritedRoles(), securityProvider, principal));
+         }
+
+         if(request.getAdminIdentities() != null) {
+            builder = builder.permittedIdentities(
+               convertAdminIdentitiesModel(request.getAdminIdentities(), securityProvider, principal));
+         }
+
+         roleModel = builder.build();
+      }
+      catch(Exception e) {
+         throw new PreMutationRefusalException(e.getMessage(), e);
       }
 
-      // Use the validated org from the path/query, not the request body, to prevent an org
-      // admin from smuggling a different org into the body and writing a role cross-tenant.
-      String orgID = roleId.orgID;
-      List<String> assignedUsers = request.getAssignedUsers();
-      List<String> assignedGroups = request.getAssignedGroups();
-      List<IdentityID> userIds = assignedUsers == null ? new ArrayList<>() : assignedUsers.stream()
-         .map(n -> new IdentityID(n, orgID)).toList();
-      List<IdentityID> groupIds = assignedGroups == null ? new ArrayList<>() : assignedGroups.stream()
-         .map(n -> new IdentityID(n, orgID)).toList();
-
-      List<IdentityModel> asssignedIDs =
-         filterPermittedIds(userIds, ResourceType.SECURITY_USER,
-                            securityProvider, principal)
-            .stream()
-            .map(group -> IdentityModel.builder()
-               .identityID(group)
-               .type(Identity.USER)
-               .build())
-            .collect(Collectors.toList());
-
-      asssignedIDs.addAll(
-         filterPermittedIds(groupIds, ResourceType.SECURITY_GROUP,
-                            securityProvider, principal)
-            .stream()
-            .map(user -> IdentityModel.builder()
-               .identityID(user)
-               .type(Identity.GROUP)
-               .build())
-            .collect(Collectors.toList()));
-
-      EditRolePaneModel.Builder builder = EditRolePaneModel.builder()
-         .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
-         .oldName(roleId.name)
-         .organization(orgID)
-         // request already carries either the caller's override or the current value, preserved
-         // by IdentityMerge.mergeRole before this method is called from the identities apply path
-         // -- reading info/provider's OWN current state here (as this used to) would make request's
-         // value inert. A raw REST caller who omits the field gets Boolean.TRUE.equals(null) ==
-         // false, the same blind-overwrite-on-omission contract every other field in this builder
-         // already has (description/theme below never fall back to the current value either).
-         .defaultRole(Boolean.TRUE.equals(request.getDefaultRole()))
-         .isSysAdmin(Boolean.TRUE.equals(request.getSysAdmin()))
-         // Deliberately NOT the same blind-overwrite-on-omission contract as defaultRole/sysAdmin
-         // above: orgAdmin's caller is IdentityMerge.mergeRole, whose own omit-preserves-current-
-         // value semantics (see its comment) depend on this falling back to the role's current
-         // server-side state rather than false when request.getOrgAdmin() is null. A raw REST
-         // caller who omits the field gets the role's unchanged current orgAdmin status, not a
-         // reset to false -- do not "fix" this to match defaultRole/sysAdmin's pattern.
-         .isOrgAdmin(request.getOrgAdmin() != null ? request.getOrgAdmin() :
-                    provider.isOrgAdministratorRole(roleId))
-         .description(request.getDescription())
-         .theme(request.getTheme())
-         .members(asssignedIDs);
-
-      if(request.getInheritedRoles() != null) {
-         builder.roles(filterSystemAdminRoles(request.getInheritedRoles(), securityProvider, principal));
-      }
-
-      if(request.getAdminIdentities() != null) {
-         builder = builder.permittedIdentities(
-            convertAdminIdentitiesModel(request.getAdminIdentities(), securityProvider, principal));
-      }
-
-      EditRolePaneModel roleModel = builder.build();
       IdentityID oldId = new IdentityID(roleModel.oldName(), roleModel.organization());
       IdentityID newId = new IdentityID(roleModel.name(), roleModel.organization());
 
@@ -1878,10 +1906,24 @@ public class SecurityService {
     * from "unknown state" (e.g. {@code IdentityChangesetApplyService}) must check for this type
     * specifically rather than inferring safety from the exception's message or from re-reading
     * the identity's own fields alone.
+    * <p>
+    * Also thrown by {@link #updateUser}/{@link #updateGroup}/{@link #updateRole}/
+    * {@link #updateOrganization} for a failure in their own precondition segment -- permission
+    * check, existence check, or request-model building -- which is likewise guaranteed to run
+    * entirely before {@code IdentityService.setIdentity} is ever called, i.e. before any entity
+    * of any kind has been mutated. This is a narrower boundary than delete's own: it does NOT
+    * cover a failure inside {@code setIdentity} itself (e.g. the duplicate-rename-name check, or
+    * any of the cross-entity mutations {@code setUserInfo}/{@code setGroupInfo}/
+    * {@code setRoleInfo}/{@code setOrganizationInfo} perform before their own entity's write) --
+    * those remain unwrapped and surface as whatever exception type they naturally throw.
     */
    public static class PreMutationRefusalException extends Exception {
       public PreMutationRefusalException(String message) {
          super(message);
+      }
+
+      public PreMutationRefusalException(String message, Throwable cause) {
+         super(message, cause);
       }
    }
 
