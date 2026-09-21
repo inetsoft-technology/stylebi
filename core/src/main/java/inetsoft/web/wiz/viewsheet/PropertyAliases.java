@@ -1179,6 +1179,16 @@ public final class PropertyAliases {
       aliases.put("maxRowsWarning", "vsOptionsPane.maxRowsWarning");
       aliases.put("hideNotifications", "vsOptionsPane.hideNotifications");
       aliases.put("listOnPortalTree", "vsOptionsPane.listOnPortalTree");
+      // The "Customize" button under Prompt for Parameters (Redmine #76739) — a plain
+      // String[]/String[] pair on ViewsheetParametersDialogModel, genuinely applied by
+      // setViewsheetInfo via ViewsheetSettingsService.setViewsheetParameterInfo. Unlike
+      // selectDataSourceDialogModel.dataSource below, this needs no resolution step -- a bare
+      // JSON array of parameter names coerces onto String[] the same way any other array-typed
+      // leaf does (see PropertyPath.coerce) -- so a plain alias is enough.
+      aliases.put("enabledParameters",
+                  "vsOptionsPane.viewsheetParametersDialogModel.enabledParameters");
+      aliases.put("disabledParameters",
+                  "vsOptionsPane.viewsheetParametersDialogModel.disabledParameters");
       // filtersPane and localizationPane are deliberately NOT aliased.
       //
       // They are read-only, and they are whole object graphs rather than properties: aliasing them
@@ -1196,6 +1206,15 @@ public final class PropertyAliases {
       //
       // onDemandMvEnabled is absent for the same reason: it is a capability flag computed in the
       // getter from SreeEnv, never read by the setter. createMv is the real property.
+      //
+      // selectDataSourceDialogModel.dataSource -- the Options dialog's "Select"/"Clear" data
+      // source buttons -- is deliberately NOT aliased here either (Redmine #76739), even though
+      // setViewsheetInfo genuinely applies it. Every alias in this vocabulary is a plain scalar
+      // leaf value PropertyPath.coerce can build from JSON alone; this field needs a resolved,
+      // permission-checked AssetEntry instead, the same resolution attach_base_worksheet and
+      // create_viewsheet already share (ViewsheetAssemblyAgentController.resolveDataSourceEntry).
+      // set_viewsheet_data_source is the dedicated tool for that -- see
+      // ViewsheetAssemblyAgentController.setDataSource / SheetPropertyService.setDataSource.
       return aliases;
    }
 }
