@@ -94,16 +94,42 @@ public class DateComparisonService {
     *                     {@code CustomPeriods}, a peer to the standard period shape above, not a
     *                     variant of it. Mutually exclusive with {@code periods}/{@code level}/
     *                     {@code endDate}/{@code endToday}/{@code toDate}/{@code inclusive} and
-    *                     with {@code interval} (StyleBI does not expose interval sub-windows for
-    *                     a custom period — see {@code DateComparisonInfo.getIntervalConditions()},
-    *                     ticket 64217). Each {@link CustomPeriod}'s {@code start}/{@code end} must
-    *                     be a literal date string — expressions and variables are not supported
-    *                     (see {@link CustomPeriod}).
+    *                     with {@code interval}/{@code intervalEndDate}/{@code intervalEndToday}
+    *                     (StyleBI does not expose interval sub-windows for a custom period — see
+    *                     {@code DateComparisonInfo.getIntervalConditions()}, ticket 64217). Each
+    *                     {@link CustomPeriod}'s {@code start}/{@code end} must be a literal date
+    *                     string — expressions and variables are not supported (see
+    *                     {@link CustomPeriod}).
+    * @param intervalEndDate the interval's own literal cutoff — StyleBI's "Use Range End Date"
+    *                     control ({@code IntervalPaneModel.intervalEndDate}), independent of the
+    *                     period's own {@code endDate}/{@code endToday}. Only meaningful when
+    *                     {@code interval} is set to something other than {@code "all"}. Requires
+    *                     {@code intervalEndToday} not be {@code true} in the same call.
+    * @param intervalEndToday the interval's own "track today" flag ({@code IntervalPaneModel
+    *                     .endDayAsToDate}) — a second anchor, independent of the period-level
+    *                     {@code endToday}. {@code true} (StyleBI's own default) means the
+    *                     interval's cutoff follows whatever the period's own end anchor resolves
+    *                     to; {@code false} means the literal {@code intervalEndDate} is used
+    *                     instead. Only meaningful when {@code interval} is set to something other
+    *                     than {@code "all"}. Omitting both this and {@code intervalEndDate} is a
+    *                     no-op — the interval's own anchor is left exactly as it already is.
     */
    public record Comparison(Integer periods, String level, String endDate, boolean endToday,
                             String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
                             String comparisonOption, String shareAssembly, Boolean toDate,
-                            Boolean inclusive, List<CustomPeriod> customPeriods) {
+                            Boolean inclusive, List<CustomPeriod> customPeriods,
+                            String intervalEndDate, Boolean intervalEndToday) {
+      /** Backward-compatible with every call site that predates {@code intervalEndDate}/
+       *  {@code intervalEndToday}. */
+      public Comparison(Integer periods, String level, String endDate, boolean endToday,
+                        String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
+                        String comparisonOption, String shareAssembly, Boolean toDate,
+                        Boolean inclusive, List<CustomPeriod> customPeriods)
+      {
+         this(periods, level, endDate, endToday, interval, useFacet, onlyShowMostRecentDate,
+              comparisonOption, shareAssembly, toDate, inclusive, customPeriods, null, null);
+      }
+
       /** Backward-compatible with every call site that predates {@code customPeriods}. */
       public Comparison(Integer periods, String level, String endDate, boolean endToday,
                         String interval, Boolean useFacet, Boolean onlyShowMostRecentDate,
@@ -111,7 +137,7 @@ public class DateComparisonService {
                         Boolean inclusive)
       {
          this(periods, level, endDate, endToday, interval, useFacet, onlyShowMostRecentDate,
-              comparisonOption, shareAssembly, toDate, inclusive, null);
+              comparisonOption, shareAssembly, toDate, inclusive, null, null, null);
       }
    }
 
@@ -614,6 +640,14 @@ public class DateComparisonService {
          return;
       }
 
+      // Runs unconditionally, ahead of the setsPeriod() gating below: intervalEndDate/
+      // intervalEndToday's own gating (interval must be present and not "all") is independent of
+      // whether any OTHER period field is being touched in this call, and must be checked before
+      // setsPeriod()'s short-circuit for a call that sets nothing but these two fields — otherwise
+      // "interval absent" would never be caught, or would surface as the wrong (endDate/endToday)
+      // error below instead of naming the real problem.
+      requireIntervalEndAnchorIsGated(comparison);
+
       boolean hasEnd = comparison.endDate() != null && !comparison.endDate().isBlank();
 
       // The anchor is only required when the period is actually being set. Demanding it on every
@@ -646,6 +680,40 @@ public class DateComparisonService {
       if(comparison.periods() != null && comparison.periods() < 1) {
          throw new IllegalArgumentException(
             "'periods' must be at least 1, got " + comparison.periods() + ".");
+      }
+   }
+
+   /**
+    * {@code intervalEndDate}/{@code intervalEndToday} are the interval's own second end-anchor —
+    * StyleBI's "Use Range End Date" control — independent of the period's own {@code endDate}/
+    * {@code endToday} checked just above. Both fields are optional (omitting them is a no-op),
+    * but when either is present it must be usable: StyleBI's own dialog only shows this control
+    * ({@code showEndDate()} in {@code date-comparison-interval-pane.component.ts}) for an
+    * {@code interval} other than {@code "all"}, so accepting it without a non-"all" interval
+    * would store a setting the rendering engine never reads.
+    */
+   private static void requireIntervalEndAnchorIsGated(Comparison comparison) {
+      boolean hasIntervalEndDate = comparison.intervalEndDate() != null &&
+         !comparison.intervalEndDate().isBlank();
+
+      if(hasIntervalEndDate && Boolean.TRUE.equals(comparison.intervalEndToday())) {
+         throw new IllegalArgumentException(
+            "'intervalEndDate' and 'intervalEndToday:true' cannot both be set. When the " +
+            "interval's own cutoff tracks today the literal date is discarded — the same " +
+            "silent-discard problem the period-level 'endDate'/'endToday' guard above exists " +
+            "to prevent. Pick one.");
+      }
+
+      if(!hasIntervalEndDate && comparison.intervalEndToday() == null) {
+         return;
+      }
+
+      if(comparison.interval() == null || "all".equalsIgnoreCase(comparison.interval().trim())) {
+         throw new IllegalArgumentException(
+            "'intervalEndDate'/'intervalEndToday' only apply when 'interval' is set to " +
+            "something other than 'all' — StyleBI's own 'Use Range End Date' control is only " +
+            "shown for a *ToDate/same* interval, never 'all'. Pass 'interval', or drop " +
+            "'intervalEndDate'/'intervalEndToday'.");
       }
    }
 
@@ -687,11 +755,14 @@ public class DateComparisonService {
             "period, or drop it to set a standard one.");
       }
 
-      if(comparison.interval() != null) {
+      if(comparison.interval() != null || comparison.intervalEndDate() != null ||
+         comparison.intervalEndToday() != null)
+      {
          throw new IllegalArgumentException(
-            "'interval' cannot be combined with 'customPeriods'. StyleBI's date-comparison " +
-            "engine does not expose an interval sub-window (e.g. monthToDate) for a custom " +
-            "period. Drop 'interval', or use 'periods'/'level' instead of 'customPeriods'.");
+            "'interval'/'intervalEndDate'/'intervalEndToday' cannot be combined with " +
+            "'customPeriods'. StyleBI's date-comparison engine does not expose an interval " +
+            "sub-window (e.g. monthToDate) for a custom period. Drop them, or use " +
+            "'periods'/'level' instead of 'customPeriods'.");
       }
    }
 
@@ -804,6 +875,21 @@ public class DateComparisonService {
 
       if(comparison.interval() != null && interval != null) {
          setDynamic(interval.getLevel(), normalizeInterval(comparison.interval()));
+      }
+
+      // The interval's own second end-anchor — StyleBI's "Use Range End Date" control,
+      // independent of the period's endDate/endToday just above. Both fields are optional;
+      // omitting them both leaves endDayAsToDate at whatever it already is (Java default true),
+      // a complete no-op for every caller that predates this pair.
+      if(interval != null && comparison.intervalEndToday() != null) {
+         interval.setEndDayAsToDate(comparison.intervalEndToday());
+      }
+
+      if(interval != null && comparison.intervalEndDate() != null &&
+         !comparison.intervalEndDate().isBlank())
+      {
+         interval.setEndDayAsToDate(false);
+         setDynamic(interval.getIntervalEndDate(), comparison.intervalEndDate());
       }
    }
 
@@ -1017,6 +1103,8 @@ public class DateComparisonService {
       out.put("level", describeCode(interval.getLevel(), DateComparisonService::intervalWord));
       out.put("granularity", value(interval.getGranularity()));
       out.put("endDayAsToDate", interval.isEndDayAsToDate());
+      out.put("intervalEndDate",
+              interval.isEndDayAsToDate() ? null : value(interval.getIntervalEndDate()));
       out.put("inclusive", interval.isInclusive());
       return out;
    }

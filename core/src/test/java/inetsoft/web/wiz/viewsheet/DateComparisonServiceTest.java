@@ -573,6 +573,144 @@ class DateComparisonServiceTest {
       assertTrue(thrown.getMessage().contains("interval"), thrown.getMessage());
    }
 
+   // ── the interval's own end anchor (DCG-022) ──────────────────────────────
+
+   /**
+    * DCG-022: {@code intervalEndDate}/{@code intervalEndToday} are a second, independent
+    * end-anchor scoped to the interval sub-window (StyleBI's "Use Range End Date" control),
+    * structurally separate from the period's own {@code endToday}/{@code endDate} set alongside
+    * it. Setting the interval's cutoff to a fixed day-of-quarter template while the period itself
+    * still auto-anchors on today must round-trip both anchors independently on read-back.
+    */
+   @Test
+   void setsAndReadsBackTheIntervalsOwnEndAnchorIndependentlyOfThePeriods() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
+         4, "quarter", null, true, "quarterToDate", null, null, null, null, null, null, null,
+         "2026-01-10", false), "");
+
+      StandardPeriodPaneModel standard =
+         model.getPeriodPaneModel().getStandardPeriodPaneModel();
+      assertTrue(standard.isToDayAsEndDay(),
+                 "the period's own end anchor must be untouched by the interval's own anchor");
+      assertFalse(model.getIntervalPaneModel().isEndDayAsToDate());
+      assertEquals("2026-01-10", model.getIntervalPaneModel().getIntervalEndDate().getValue());
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart1");
+      @SuppressWarnings("unchecked")
+      Map<String, Object> intervalOut = (Map<String, Object>) read.get("interval");
+      assertEquals(false, intervalOut.get("endDayAsToDate"));
+      assertEquals("2026-01-10", intervalOut.get("intervalEndDate"));
+      @SuppressWarnings("unchecked")
+      Map<String, Object> periodOut = (Map<String, Object>) read.get("period");
+      assertEquals(true, periodOut.get("endToday"),
+                  "the period's own endToday must still read back true, unaffected by the " +
+                  "interval's own anchor being set independently");
+   }
+
+   /**
+    * Omitting both new fields entirely must be a complete no-op — the whole point of the
+    * additive design is zero behaviour change for every caller that predates this pair. A call
+    * that touches the interval's level (and the period, to satisfy the pre-existing end-anchor
+    * requirement for setting {@code interval} at all) but never mentions {@code intervalEndDate}/
+    * {@code intervalEndToday} must leave whatever the interval's own anchor already was alone.
+    */
+   @Test
+   void omittingBothNewFieldsLeavesTheIntervalsOwnAnchorUntouched() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getIntervalPaneModel().setEndDayAsToDate(false);
+      model.getIntervalPaneModel().setIntervalEndDate(dynamic());
+      model.getIntervalPaneModel().getIntervalEndDate().setValue("2026-01-10");
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
+         4, "quarter", "2026-03-31", false, "quarterToDate", null, null, null, null, null, null,
+         null, null, null), "");
+
+      assertFalse(model.getIntervalPaneModel().isEndDayAsToDate(),
+                  "omitting both fields must leave the interval's own end anchor exactly as it " +
+                  "was, not reset it back to the Java default");
+      assertEquals("2026-01-10", model.getIntervalPaneModel().getIntervalEndDate().getValue());
+   }
+
+   /**
+    * StyleBI's own dialog only shows the "Use Range End Date" control ({@code showEndDate()} in
+    * {@code date-comparison-interval-pane.component.ts}) for an interval other than {@code "all"}
+    * — setting either new field without a non-"all" {@code interval} in the same call is
+    * refused, naming both fields, rather than silently stored where the rendering engine never
+    * reads it.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "'', ''",
+      "all, ''",
+      "'', 'false'"
+   })
+   void refusesTheIntervalsOwnEndAnchorWithoutANonAllInterval(String interval, String endToday) {
+      String normalizedInterval = interval.isEmpty() ? null : interval;
+      Boolean intervalEndToday = endToday.isEmpty() ? null : Boolean.valueOf(endToday);
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, normalizedInterval, null, null, null, null, null, null, null,
+         "2026-01-10", intervalEndToday);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains("intervalEndDate"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("'all'"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesIntervalEndTodayAloneWithoutANonAllInterval() {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, null, null, null, null, null, null, null, null, null, false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains("intervalEndToday"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesBothTheIntervalsLiteralDateAndItsTodayAnchor() {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, "quarterToDate", null, null, null, null, null, null, null,
+         "2026-01-10", true);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains("intervalEndDate"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("intervalEndToday"), thrown.getMessage());
+   }
+
+   /**
+    * {@code customPeriods} already excludes {@code interval} outright (ticket 64217) — the new
+    * fields are meaningful only inside the {@code interval} path, so they naturally inherit that
+    * same exclusion. Mirrors {@link #refusesCustomPeriodsCombinedWithInterval} but names
+    * {@code intervalEndDate} specifically, with no {@code interval} field in the same call at
+    * all, confirming the exclusion isn't accidentally keyed off {@code interval} alone.
+    */
+   @Test
+   void refusesCustomPeriodsCombinedWithIntervalEndDateAlone() {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, null, null, null, null, null, null, null,
+         java.util.List.of(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")),
+         "2026-01-10", null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains("intervalEndDate"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("customPeriods"), thrown.getMessage());
+   }
+
    // ── customPeriods ─────────────────────────────────────────────────────────
 
    /**
