@@ -797,4 +797,155 @@ class PropertyPathTest {
       assertTrue(thrown.getMessage().contains("dimensions[0]"), "name the offending index");
       assertTrue(thrown.getMessage().contains("VSDimensionModel"), "name the bean type");
    }
+
+   // ── bug #76888: DynamicValueModel-shaped bean targets ─────────────────────
+   //
+   // CalendarAdvancedPaneModel.min/max (and DatePeriodModel/IntervalPaneModel/
+   // StandardPeriodPaneModel's own DynamicValueModel-typed fields) are plain multi-field beans
+   // with no primitive/String/enum/array shape of their own, so every raw dotted-path write to
+   // one fell through to the unconditional final throw regardless of the JSON's content. The fix
+   // is gated on target declaring a public one-argument String constructor -- the same signal
+   // that keeps the still-deliberately-refused VSDimensionModel case (immediately above) refused,
+   // since VSDimensionModel has no such constructor.
+
+   /** Mirrors DynamicValueModel's own shape closely enough to exercise the fix generically. */
+   public static class StringConstructible {
+      public StringConstructible() {
+      }
+
+      public StringConstructible(String value) {
+         this.value = value;
+         this.type = value != null && value.startsWith("$(") && value.endsWith(")")
+            ? "VARIABLE" : "VALUE";
+      }
+
+      public Object getValue() { return value; }
+      public void setValue(Object value) { this.value = value; }
+      public String getType() { return type; }
+      public void setType(String type) { this.type = type; }
+      public String getDataType() { return dataType; }
+      public void setDataType(String dataType) { this.dataType = dataType; }
+
+      private Object value;
+      private String type;
+      private String dataType;
+   }
+
+   public static class DynamicValueHolder {
+      public StringConstructible getBound() { return bound; }
+      public void setBound(StringConstructible bound) { this.bound = bound; }
+
+      private StringConstructible bound;
+   }
+
+   @Test
+   void buildsAStringConstructibleBeanFromABareString() {
+      DynamicValueHolder target = new DynamicValueHolder();
+
+      PropertyPath.set(target, "bound", "2026-01-01");
+
+      assertEquals("2026-01-01", target.getBound().getValue());
+      assertEquals("VALUE", target.getBound().getType(),
+                   "the one-argument constructor's own auto-detection decides the type");
+   }
+
+   @Test
+   void aBareStringThatLooksLikeAComponentReferenceAutoDetectsThroughTheStringConstructor() {
+      DynamicValueHolder target = new DynamicValueHolder();
+
+      PropertyPath.set(target, "bound", "$(Spinner1)");
+
+      assertEquals("$(Spinner1)", target.getBound().getValue());
+      assertEquals("VARIABLE", target.getBound().getType(),
+                   "the same auto-detection the plain DynamicValueModel(String) constructor does");
+   }
+
+   @Test
+   void buildsAStringConstructibleBeanFromAFullJsonObject() {
+      DynamicValueHolder target = new DynamicValueHolder();
+
+      PropertyPath.set(target, "bound",
+                       Map.of("value", "2026-01-01", "type", "VALUE", "dataType", "date"));
+
+      assertEquals("2026-01-01", target.getBound().getValue());
+      assertEquals("VALUE", target.getBound().getType());
+      assertEquals("date", target.getBound().getDataType());
+   }
+
+   @Test
+   void jsonObjectKeysAreReadCaseInsensitively() {
+      DynamicValueHolder target = new DynamicValueHolder();
+
+      PropertyPath.set(target, "bound", Map.of("VALUE", "2026-01-01", "TYPE", "VALUE"));
+
+      assertEquals("2026-01-01", target.getBound().getValue());
+      assertEquals("VALUE", target.getBound().getType());
+   }
+
+   @Test
+   void aJsonObjectWithNoExplicitTypeAutoDetectsFromItsOwnValueEntry() {
+      DynamicValueHolder target = new DynamicValueHolder();
+
+      PropertyPath.set(target, "bound", Map.of("value", "$(Foo)"));
+
+      assertEquals("$(Foo)", target.getBound().getValue());
+      assertEquals("VARIABLE", target.getBound().getType(),
+                   "no 'type' key must not silently default to VALUE for a variable reference");
+   }
+
+   @Test
+   void anExplicitTypeInTheJsonObjectIsNeverSecondGuessedEvenIfItLooksLikeAReference() {
+      DynamicValueHolder target = new DynamicValueHolder();
+
+      PropertyPath.set(target, "bound", Map.of("value", "$(Foo)", "type", "EXPRESSION"));
+
+      assertEquals("EXPRESSION", target.getBound().getType(),
+                   "an explicit type always wins over auto-detection");
+   }
+
+   @Test
+   void anUnrecognizedJsonObjectKeyIsRefusedRatherThanSilentlyIgnored() {
+      DynamicValueHolder target = new DynamicValueHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "bound", Map.of("value", "x", "bogus", "y")));
+
+      assertTrue(thrown.getMessage().contains("bogus"), "name the offending key");
+      assertTrue(thrown.getMessage().contains("StringConstructible"), "name the bean type");
+   }
+
+   /**
+    * Regression guard for the gate itself: a Map value against a bean with no one-argument
+    * String constructor (e.g. VSDimensionModel, exercised above) must still be refused -- this
+    * fix must not turn into a general JSON-object-to-any-bean capability.
+    */
+   public static class NoStringConstructor {
+      public NoStringConstructor() {
+      }
+
+      public String getName() { return name; }
+      public void setName(String name) { this.name = name; }
+
+      private String name;
+   }
+
+   public static class NoStringConstructorHolder {
+      public NoStringConstructor getBean() { return bean; }
+      public void setBean(NoStringConstructor bean) { this.bean = bean; }
+
+      private NoStringConstructor bean;
+   }
+
+   @Test
+   void aJsonObjectForABeanWithNoStringConstructorIsStillRefused() {
+      NoStringConstructorHolder target = new NoStringConstructorHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "bean", Map.of("name", "x")));
+
+      assertTrue(thrown.getMessage().contains("bean"), "name the property");
+      assertTrue(thrown.getMessage().contains("NoStringConstructor"), "name the bean type");
+   }
 }
