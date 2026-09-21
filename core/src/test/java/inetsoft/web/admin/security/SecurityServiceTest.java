@@ -378,8 +378,14 @@ class SecurityServiceTest {
       request.setIdentityID(userId);
       request.setLocale("English(America)");
 
-      assertThrows(InvalidResourceException.class,
-                   () -> service.updateUser(userId, request, principal));
+      // Bug #76855: updateUser's own precondition/model-building segment now wraps any thrown
+      // exception (this one included) as PreMutationRefusalException -- see
+      // SecurityService.PreMutationRefusalException's javadoc -- so this asserts on the new
+      // wrapper type, with the original InvalidResourceException preserved as its cause.
+      SecurityService.PreMutationRefusalException ex = assertThrows(
+         SecurityService.PreMutationRefusalException.class,
+         () -> service.updateUser(userId, request, principal));
+      assertInstanceOf(InvalidResourceException.class, ex.getCause());
       verify(identityService, never()).setIdentity(any(), any(), any(), any());
    }
 
@@ -767,9 +773,12 @@ class SecurityServiceTest {
       request.setIdentityID(userId);
       request.setRoles(List.of(noSuchRole));
 
-      MissingResourceException ex = assertThrows(MissingResourceException.class,
+      // Bug #76855: wrapped as PreMutationRefusalException now -- see the locale test above.
+      SecurityService.PreMutationRefusalException ex = assertThrows(
+         SecurityService.PreMutationRefusalException.class,
          () -> service.updateUser(userId, request, principal));
-      assertTrue(ex.getMessage().contains("NoSuchRole"));
+      assertInstanceOf(MissingResourceException.class, ex.getCause());
+      assertTrue(ex.getCause().getMessage().contains("NoSuchRole"));
       verify(identityService, never()).setIdentity(any(), any(), any(), any());
    }
 
@@ -1684,8 +1693,11 @@ class SecurityServiceTest {
       request.setName(orgName);
       request.setLocale("English(America)");
 
-      assertThrows(InvalidResourceException.class,
-                   () -> service.updateOrganization(orgId, request, principal));
+      // Bug #76855: wrapped as PreMutationRefusalException now -- see updateUser's locale test.
+      SecurityService.PreMutationRefusalException ex = assertThrows(
+         SecurityService.PreMutationRefusalException.class,
+         () -> service.updateOrganization(orgId, request, principal));
+      assertInstanceOf(InvalidResourceException.class, ex.getCause());
       verify(identityService, never()).setIdentity(any(), any(), any(), any());
    }
 

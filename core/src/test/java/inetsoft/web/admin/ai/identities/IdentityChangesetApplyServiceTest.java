@@ -766,10 +766,7 @@ class IdentityChangesetApplyServiceTest {
 
    // -------------------------------------------------------------------------
    // create-side pre-mutation validation refusals must not be misreported as rollback-failed
-   // (bug 76790 -- same family as bug 76444 above, but for create* instead of delete*; the
-   // update* methods are a deliberately separate follow-up, NOT fixed here, because their
-   // backing IdentityService calls have real cross-entity side effects before their final
-   // persist that a plain entity-projection re-check cannot see -- see bug 76790's diagnosis).
+   // (bug 76790 -- same family as bug 76444 above, but for create* instead of delete*).
    // -------------------------------------------------------------------------
 
    @Test void userCreateRefusedByValidationReportsPlainFailedNotRollbackFailed() throws Exception {
@@ -859,6 +856,165 @@ class IdentityChangesetApplyServiceTest {
       assertNotNull(result.rollbackFailures());
       assertEquals(1, result.rollbackFailures().size());
       verify(securityService, times(3)).getOrganization(eq(orgId), eq(user));
+   }
+
+   // -------------------------------------------------------------------------
+   // update-side pre-mutation validation refusals must not be misreported as rollback-failed
+   // (bug 76855 -- same family as bug 76444/76790 above, but for update* instead of delete*/
+   // create*. Unlike those two, update*'s own SecurityService call has REAL cross-entity side
+   // effects (addOrganizationMember for user/group, checkInheritRoles for role,
+   // updateOrganizationMembers + dashboard/replet-registry/DataSpace migration for organization)
+   // that run inside IdentityService.setIdentity, before the primary entity's own record write --
+   // so the fix does NOT wrap the whole updateX() call the way create/delete do. Instead,
+   // SecurityService.updateUser/Group/Role/Organization now wrap only their OWN precondition
+   // segment (permission check, existence check, request-model building) -- everything strictly
+   // before identityService.setIdentity(...) is called, which has no provider-mutating call of
+   // any kind -- and rethrow as PreMutationRefusalException. Anything past that boundary (inside
+   // setIdentity itself) is deliberately left as "unknown state"/rollback-failed, unchanged.)
+   // -------------------------------------------------------------------------
+
+   @Test void userUpdateRefusedByValidationReportsPlainFailedNotRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      SecurityUser existing = existingUser(id);
+      // Every getUser call -- resolve() helper, apply()'s internal re-resolve, applyUpdateUser's
+      // own before-capture, then this fix's post-throw re-check -- sees the identical, untouched
+      // user, since updateUser's own precondition segment never reaches setIdentity.
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existing);
+      doThrow(new SecurityService.PreMutationRefusalException("Permission denied to update user"))
+         .when(securityService).updateUser(eq(id), any(SecurityUser.class), eq(user));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setAlias("New Alias");
+      var result = service.apply(applyRequest("update bob", updateUser("bob", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNull(result.rollbackFailures());
+   }
+
+   @Test void groupUpdateRefusedByValidationReportsPlainFailedNotRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("analysts", "host-org");
+      SecurityGroup existing = existingGroup(id);
+      when(securityService.getGroup(eq(id), eq(user))).thenReturn(existing);
+      doThrow(new SecurityService.PreMutationRefusalException("Permission denied to update group"))
+         .when(securityService).updateGroup(eq(id), any(SecurityGroup.class), eq(user));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setParentGroups(List.of("Contractors"));
+      var result = service.apply(applyRequest("update analysts", updateGroup("analysts", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNull(result.rollbackFailures());
+   }
+
+   @Test void roleUpdateRefusedByValidationReportsPlainFailedNotRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("viewer", "host-org");
+      SecurityRole existing = existingRole(id);
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(existing);
+      doThrow(new SecurityService.PreMutationRefusalException("Permission denied to update role"))
+         .when(securityService).updateRole(eq(id), any(SecurityRole.class), eq(user));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDescription("New description");
+      var result = service.apply(applyRequest("update viewer", updateRole("viewer", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNull(result.rollbackFailures());
+   }
+
+   @Test void organizationUpdateRefusedByValidationReportsPlainFailedNotRollbackFailed()
+      throws Exception
+   {
+      String orgId = "qa-org";
+      SecurityOrganization existing = existingOrganization(orgId);
+      when(securityService.getOrganization(eq(orgId), eq(user))).thenReturn(existing);
+      doThrow(new SecurityService.PreMutationRefusalException(
+         "Permission denied to update organization"))
+         .when(securityService).updateOrganization(eq(orgId), any(SecurityOrganization.class), eq(user));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setOrgName("New Org Name");
+      var result =
+         service.apply(applyRequest("update qa-org", updateOrganization(orgId, spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertEquals(AdminChangeRecordStatus.FAILED, statusOf(result.results().get(0).status()));
+      assertNull(result.rollbackFailures());
+   }
+
+   @Test void userUpdateAmbiguousMidMutationFailureStillReportsRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      SecurityUser existing = existingUser(id);
+      // Plain Exception (NOT PreMutationRefusalException) -- the shape a failure INSIDE
+      // IdentityService.setUserInfo's own cross-entity mutation (e.g. addOrganizationMember,
+      // which runs before the user's own record write) would produce. Even with the user's own
+      // projection provably unchanged, the fix must not attempt (or trust) the safe re-check for
+      // any exception type other than PreMutationRefusalException -- must still report
+      // rollback-failed, proving the fix does not over-widen the safe classification.
+      when(securityService.getUser(eq(id), eq(user))).thenReturn(existing);
+      doThrow(new Exception("Failed to update identity " + id + "."))
+         .when(securityService).updateUser(eq(id), any(SecurityUser.class), eq(user));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setAlias("New Alias");
+      var result = service.apply(applyRequest("update bob", updateUser("bob", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertEquals(1, result.rollbackFailures().size());
+   }
+
+   @Test void groupUpdateAmbiguousMidMutationFailureStillReportsRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("analysts", "host-org");
+      SecurityGroup existing = existingGroup(id);
+      when(securityService.getGroup(eq(id), eq(user))).thenReturn(existing);
+      doThrow(new Exception("Failed to update identity " + id + "."))
+         .when(securityService).updateGroup(eq(id), any(SecurityGroup.class), eq(user));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setParentGroups(List.of("Contractors"));
+      var result = service.apply(applyRequest("update analysts", updateGroup("analysts", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertEquals(1, result.rollbackFailures().size());
+   }
+
+   @Test void roleUpdateAmbiguousMidMutationFailureStillReportsRollbackFailed() throws Exception {
+      IdentityID id = new IdentityID("viewer", "host-org");
+      SecurityRole existing = existingRole(id);
+      when(securityService.getRole(eq(id), eq(user))).thenReturn(existing);
+      doThrow(new Exception("Failed to update identity " + id + "."))
+         .when(securityService).updateRole(eq(id), any(SecurityRole.class), eq(user));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setDescription("New description");
+      var result = service.apply(applyRequest("update viewer", updateRole("viewer", spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertEquals(1, result.rollbackFailures().size());
+   }
+
+   @Test void organizationUpdateAmbiguousMidMutationFailureStillReportsRollbackFailed()
+      throws Exception
+   {
+      String orgId = "qa-org";
+      SecurityOrganization existing = existingOrganization(orgId);
+      when(securityService.getOrganization(eq(orgId), eq(user))).thenReturn(existing);
+      doThrow(new Exception("Failed to update identity " + orgId + "."))
+         .when(securityService).updateOrganization(eq(orgId), any(SecurityOrganization.class), eq(user));
+
+      IdentitySpec spec = new IdentitySpec();
+      spec.setOrgName("New Org Name");
+      var result =
+         service.apply(applyRequest("update qa-org", updateOrganization(orgId, spec)), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      assertNotNull(result.rollbackFailures());
+      assertEquals(1, result.rollbackFailures().size());
    }
 
    // -------------------------------------------------------------------------
