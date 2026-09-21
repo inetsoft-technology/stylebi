@@ -682,6 +682,87 @@ class ChartRegionPropertyServiceTest {
       verifyNoInteractions(h.regions);
    }
 
+   /**
+    * DCG-015: a blank alias used to pass this check (only null was refused), reach
+    * {@code AxisPropertyDialogModel.updateAxisPropertyDialogModel}, and be silently rewritten to
+    * {@code null} ("no override") there -- {@code ok:true}, axis label unchanged. Refused here by
+    * name instead, before any model round-trip.
+    */
+   @Test
+   void refusesABlankAxisAlias() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("aliases", List.of(Map.of("value", "West", "alias", ""))),
+                             ""));
+
+      assertTrue(thrown.getMessage().matches("(?is).*(blank|empty|whitespace).*"),
+                 thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Same discard point, reached via whitespace instead of a bare empty string. */
+   @Test
+   void refusesAWhitespaceOnlyAxisAlias() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                             Map.of("aliases", List.of(Map.of("value", "West", "alias", " "))),
+                             ""));
+
+      assertTrue(thrown.getMessage().matches("(?is).*(blank|empty|whitespace).*"),
+                 thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   /**
+    * DCG-015's own finding: {@code region:"legend"} shares the identical
+    * {@code parseAliasEntries} gate and the identical discard pattern in
+    * {@code LegendFormatDialogModel.updateLegendFormatDialogModel} -- not covered by the live
+    * regression test, which only exercises axis.
+    */
+   @Test
+   void refusesABlankLegendAlias() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("aliases", List.of(Map.of("value", "2022", "alias", ""))),
+                             ""));
+
+      assertTrue(thrown.getMessage().matches("(?is).*(blank|empty|whitespace).*"),
+                 thrown.getMessage());
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Control: the fix must not overreach into refusing legitimate short-but-non-blank aliases. */
+   @Test
+   void stillAcceptsAOneCharacterAxisAlias() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.getAliasPaneModel().setAliasList(new ModelAlias[] {
+         new ModelAlias("West", "West", "West"),
+      });
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("aliases", List.of(Map.of("value", "West", "alias", "-"))), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("-", captor.getValue().getAliasPaneModel().getAliasList()[0].getAlias());
+   }
+
    @Test
    void refusesANonArrayAliasesValue() {
       Harness h = harness();
