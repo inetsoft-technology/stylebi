@@ -372,6 +372,8 @@ public class ViewsheetAssemblyAgentController {
 
    public record BookmarkNameRequest(String name) {}
 
+   public record GotoBookmarkRequest(String name, String owner) {}
+
    /**
     * {@code list_bookmarks}. {@link RuntimeViewsheet#getBookmarks()} already resolves to the
     * caller's own visible set (their own bookmarks plus any shared/group ones others made
@@ -512,6 +514,36 @@ public class ViewsheetAssemblyAgentController {
       });
    }
 
+   /**
+    * {@code goto_bookmark}. Switches the runtime to an existing bookmark's saved state --
+    * selections, filter conditions and input values -- unlike update/delete/set_default, this is
+    * NOT restricted to the caller's own bookmarks: any bookmark visible via
+    * {@link #listBookmarks} (including one shared by another user) can be applied, the same as
+    * clicking it in the Viewer's own bookmark dropdown. {@code owner} disambiguates when more
+    * than one visible bookmark shares {@code name}; omitted, it resolves to the caller's own
+    * bookmark of that name, or the sole visible one if only one exists.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/goto")
+   public void gotoBookmark(@PathVariable String sessionToken,
+                            @RequestBody GotoBookmarkRequest request,
+                            @RequestParam(required = false, defaultValue = "") String linkUri,
+                            Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "goto_bookmark");
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         IdentityID owner = resolveVisibleBookmarkOwner(rvs, name, request.owner(), user);
+
+         VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
+            .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(owner).build())
+            .confirmed(false)
+            .build();
+         vsBookmarkService.gotoBookmark(runtimeId, event, user, dispatcher, linkUri);
+      });
+   }
+
    private static String requireBookmarkName(String name, String tool) {
       if(name == null || name.isBlank()) {
          throw new IllegalArgumentException(tool + " requires 'name' -- the bookmark's name.");
@@ -554,6 +586,56 @@ public class ViewsheetAssemblyAgentController {
       throw new IllegalArgumentException(
          tool + ": bookmark '" + name + "' exists but is owned by someone else -- " + tool +
          " only works on bookmarks you own.");
+   }
+
+   /**
+    * Resolves which visible bookmark named {@code name} to switch to when more than one owner
+    * could match -- goto is deliberately NOT restricted to the caller's own bookmarks (see
+    * {@link #gotoBookmark}), so unlike {@link #requireOwnBookmark} this searches the full visible
+    * set ({@code rvs.getBookmarks()}), not just the caller's own.
+    */
+   private static IdentityID resolveVisibleBookmarkOwner(RuntimeViewsheet rvs, String name,
+                                                          String ownerArg, Principal user)
+   {
+      IdentityID self = ownerOf(user);
+
+      if(VSBookmark.HOME_BOOKMARK.equals(name)) {
+         return self;
+      }
+
+      if(ownerArg != null && !ownerArg.isBlank()) {
+         return rvs.getBookmarks().stream()
+            .filter(b -> b.getName().equals(name) && b.getOwner() != null
+                       && b.getOwner().getName().equals(ownerArg))
+            .findFirst()
+            .map(VSBookmarkInfo::getOwner)
+            .orElseThrow(() -> new IllegalArgumentException(
+               "goto_bookmark: no bookmark named '" + name + "' owned by '" + ownerArg +
+               "' is visible to you. list_bookmarks reports what exists."));
+      }
+
+      if(rvs.containsBookmark(name, self)) {
+         return self;
+      }
+
+      List<VSBookmarkInfo> matches = rvs.getBookmarks().stream()
+         .filter(b -> b.getName().equals(name)).collect(Collectors.toList());
+
+      if(matches.isEmpty()) {
+         throw new IllegalArgumentException(
+            "goto_bookmark: no bookmark named '" + name + "'. list_bookmarks reports what exists.");
+      }
+
+      if(matches.size() > 1) {
+         String owners = matches.stream()
+            .map(b -> b.getOwner() == null ? "(unknown)" : b.getOwner().getName())
+            .collect(Collectors.joining(", "));
+         throw new IllegalArgumentException(
+            "goto_bookmark: more than one visible bookmark is named '" + name +
+            "' (owned by: " + owners + "). Pass 'owner' to disambiguate.");
+      }
+
+      return matches.get(0).getOwner();
    }
 
    private static void requireOk(MessageCommand command, String tool) {
