@@ -57,7 +57,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -148,7 +147,7 @@ public class AdminScheduleGateway {
       task = convertTask(new ScheduleTask(name, owner, enabled, deleteIfNotScheduledToRun, startDate, endDate, description, locale, executeAsID));
 
       conditions.stream()
-         .map(this::convertCondition)
+         .map(ScheduleConditionConverter::convertCondition)
          .filter(Objects::nonNull)
          .forEach(task::addCondition);
 
@@ -300,7 +299,7 @@ public class AdminScheduleGateway {
       inetsoft.sree.schedule.ScheduleTask task = getTask(taskId, user);
       ScheduleConditionList list = new ScheduleConditionList();
       task.getConditionStream()
-         .map(this::convertCondition)
+         .map(ScheduleConditionConverter::convertCondition)
          .forEach(list.getConditions()::add);
       return list;
    }
@@ -318,7 +317,7 @@ public class AdminScheduleGateway {
 
       task.getConditionStream().forEach(c -> {
          try {
-            list.add(convertCondition(c));
+            list.add(ScheduleConditionConverter.convertCondition(c));
          }
          catch(IllegalArgumentException e) {
             list.add(new UnsupportedScheduleItem(c.getClass().getName()));
@@ -545,107 +544,6 @@ public class AdminScheduleGateway {
       }
 
       return result;
-   }
-
-   private inetsoft.sree.schedule.ScheduleCondition convertCondition(ScheduleCondition condition) {
-      if(condition instanceof TimeCondition) {
-         return convertCondition((TimeCondition) condition);
-      }
-      else if(condition instanceof CompletionCondition) {
-         return convertCondition((CompletionCondition) condition);
-      }
-      else {
-         throw new IllegalArgumentException("Unsupported condition type: " + condition);
-      }
-   }
-
-   private inetsoft.sree.schedule.TimeCondition convertCondition(TimeCondition condition) {
-      inetsoft.sree.schedule.TimeCondition output = new inetsoft.sree.schedule.TimeCondition();
-      final TimeCondition.Type type = condition.getType();
-      output.setType(type.value());
-
-      if(condition.getTimeRange() != null) {
-         TimeRange range = TimeRange.getTimeRanges().stream()
-            .filter(r -> r.getName().equals(condition.getTimeRange()))
-            .findFirst()
-            .orElse(null);
-         output.setTimeRange(range);
-      }
-
-      if(condition.getTimeZone() != null) {
-         output.setTimeZone(TimeZone.getTimeZone(condition.getTimeZone()));
-      }
-
-      output.setHour(condition.getHour());
-      output.setMinute(condition.getMinute());
-      output.setSecond(condition.getSecond());
-
-      switch(type) {
-      case AT:
-         final OffsetDateTime date = condition.getDate();
-         Objects.requireNonNull(date, "ISO 8601 Date is required for \"AT\" type");
-         output.setDate(Date.from(date.toInstant()));
-         break;
-      case EVERY_DAY:
-         output.setInterval(condition.getInterval());
-         output.setWeekdayOnly(condition.isWeekdayOnly());
-         break;
-      case EVERY_WEEK:
-      case DAY_OF_WEEK:
-         output.setInterval(condition.getInterval());
-         output.setDaysOfWeek(condition.getDaysOfWeek());
-         break;
-      case EVERY_MONTH:
-         output.setDayOfMonth(condition.getDayOfMonth());
-         output.setWeekOfMonth(condition.getWeekOfMonth());
-         output.setDayOfWeek(condition.getDayOfWeek());
-         output.setMonthsOfYear(condition.getMonthsOfYear());
-         break;
-      case WEEK_OF_MONTH:
-         output.setWeekOfMonth(condition.getWeekOfMonth());
-         output.setDayOfWeek(condition.getDayOfWeek());
-         output.setMonthsOfYear(condition.getMonthsOfYear());
-         break;
-      case DAY_OF_MONTH:
-         output.setDayOfMonth(condition.getDayOfMonth());
-         output.setMonthsOfYear(condition.getMonthsOfYear());
-         break;
-      case EVERY_HOUR:
-         output.setHourEnd(condition.getHourEnd());
-         output.setMinuteEnd(condition.getMinuteEnd());
-         output.setSecondEnd(condition.getSecondEnd());
-         output.setHourlyInterval(condition.getHourlyInterval());
-      default:
-         output.setDayOfMonth(condition.getDayOfMonth());
-         output.setDayOfWeek(condition.getDayOfWeek());
-         output.setWeekOfMonth(condition.getWeekOfMonth());
-         output.setInterval(condition.getInterval());
-         output.setDaysOfWeek(condition.getDaysOfWeek());
-         output.setMonthsOfYear(condition.getMonthsOfYear());
-         output.setWeekdayOnly(condition.isWeekdayOnly());
-         break;
-      }
-
-      return output;
-   }
-
-   private inetsoft.sree.schedule.CompletionCondition convertCondition(CompletionCondition condition) {
-      inetsoft.sree.schedule.CompletionCondition output =
-         new inetsoft.sree.schedule.CompletionCondition();
-      output.setTaskName(ScheduleManager.getTaskId(condition.getOwner(), condition.getTaskName(), null));
-      return output;
-   }
-
-   private ScheduleCondition convertCondition(inetsoft.sree.schedule.ScheduleCondition condition) {
-      if(condition instanceof inetsoft.sree.schedule.TimeCondition) {
-         return new TimeCondition((inetsoft.sree.schedule.TimeCondition) condition);
-      }
-      else if(condition instanceof inetsoft.sree.schedule.CompletionCondition) {
-         return new CompletionCondition((inetsoft.sree.schedule.CompletionCondition) condition);
-      }
-      else {
-         throw new IllegalArgumentException("Unsupported condition type: " + condition);
-      }
    }
 
    private inetsoft.sree.schedule.ScheduleAction convertAction(ScheduleAction action) {
