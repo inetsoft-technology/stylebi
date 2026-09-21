@@ -191,7 +191,16 @@ public class ScriptExecuteService {
          Object value = scope.execute(text, assemblyName);
          List<String> unrecognized = new ArrayList<>();
          List<String> rejected = new ArrayList<>();
-         Set<String> declaredLocals = declaredLocals(text);
+
+         // Sound only when exactly one assembly is tracked (ASSEMBLY/ASSEMBLY_ONCLICK): the
+         // script text is that one execution context's complete source, so "declared as a
+         // local anywhere in it" reliably means "this write is that local, not a real
+         // property write." For VS_INIT/VS_LOAD, several assemblies are tracked from the same
+         // shared script text, and a name being a local somewhere in it says nothing about
+         // which assembly's dotted write it landed on -- applying the filter there could hide
+         // a genuinely wrong Other.assembly.prop write that merely shares a bare name with an
+         // unrelated local. Left unfiltered for that case, same as before this fix.
+         Set<String> declaredLocals = assemblyName != null ? declaredLocals(text) : Set.of();
 
          for(Map.Entry<String, VSAScriptable> entry : trackedScriptables.entrySet()) {
             for(String name : entry.getValue().getUnrecognizedWrites()) {

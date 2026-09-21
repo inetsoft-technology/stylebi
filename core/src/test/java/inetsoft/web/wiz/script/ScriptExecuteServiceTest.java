@@ -335,6 +335,44 @@ class ScriptExecuteServiceTest {
       verify(submit2).resetUnrecognizedWrites();
    }
 
+   /**
+    * Round-1 review Finding 1 on bug #76853 (VSD-010): the declared-locals filter must NOT
+    * apply across assemblies for VS_INIT/VS_LOAD. Submit2 gets a genuinely wrong dotted write
+    * ("label" isn't a real Submit property, same as the pre-existing
+    * {@code executeExcludesTargetFromChangedAndReportsUnrecognizedPropertyWrite} case), and the
+    * script separately declares an unrelated {@code var label} used only for Submit1 -- a
+    * bare-name coincidence that has nothing to do with the Calc-collision/with-scope mechanism
+    * this bug's filter targets. The write must still be reported, proving the filter (correctly
+    * scoped to the single-assembly ASSEMBLY/ASSEMBLY_ONCLICK case above) does not also swallow
+    * it here.
+    */
+   @Test
+   void executeDoesNotFilterADeclaredLocalNameCollisionAcrossDifferentAssembliesInVsInit()
+      throws Exception
+   {
+      String script = "var label = 'helper text for Submit1';\n" +
+         "Submit1.toolTip = label;\n" +
+         "Submit2.label = 'helper text for Submit1';";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), nullable(String.class))).thenReturn(null);
+
+      VSAScriptable submit1 = mock(VSAScriptable.class);
+      when(submit1.getUnrecognizedWrites()).thenReturn(List.of());
+      VSAScriptable submit2 = mock(VSAScriptable.class);
+      when(submit2.getUnrecognizedWrites()).thenReturn(List.of("label"));
+
+      Map<String, VSAScriptable> scriptables = new LinkedHashMap<>();
+      scriptables.put("Submit1", submit1);
+      scriptables.put("Submit2", submit2);
+      RuntimeViewsheet rvs = viewsheetWithVsScript(false, script, scope, scriptables);
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, ScriptTarget.parse("vs-init"), false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of("Submit2.label"), result.unrecognizedProperties());
+   }
+
    @Test
    void executeReportsARealPropertyWriteFromVsInitNormallyWithNoUnrecognizedProperties()
       throws Exception
