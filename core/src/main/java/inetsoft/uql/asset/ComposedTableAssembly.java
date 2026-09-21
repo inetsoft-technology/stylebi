@@ -337,6 +337,15 @@ public abstract class ComposedTableAssembly extends AbstractTableAssembly {
    public void renameDepended(String oname, String nname) {
       super.renameDepended(oname, nname);
 
+      // Same self-rename guard as renameAggregateInfo below: these column selection/sort refs
+      // can share the exact same ColumnRef object as a group/aggregate ref (see
+      // WorksheetMutationSupport#applyAggregateInfo, which reuses the column selection's
+      // ColumnRef rather than cloning it), so renaming them here on a self-rename would corrupt
+      // the same ref renameAggregateInfo's guard was added to protect.
+      if(Tool.equals(getName(), nname)) {
+         return;
+      }
+
       renameColumnSelection(getColumnSelection(false), oname, nname);
       renameColumnSelection(getColumnSelection(true), oname, nname);
       renameSortInfo(oname, nname);
@@ -368,6 +377,17 @@ public abstract class ComposedTableAssembly extends AbstractTableAssembly {
                                              String oname, String nname,
                                              Worksheet ws) {
       super.renameConditionListWrapper(conds, oname, nname, ws);
+
+      // Same self-rename guard as renameAggregateInfo/renameDepended above: a RankingCondition
+      // (e.g. topns) or ConditionItem attribute can share the exact same AggregateRef/ColumnRef
+      // instance as the table's own AggregateInfo (see WorksheetMutationSupport#applyAggregateInfo's
+      // no-clone ref sharing), so requalifying it here on a self-rename would corrupt that shared
+      // ref even though the other guards above already protect the AggregateInfo/column-selection
+      // paths. The base super() call above is unrelated (only rewrites variable/subquery text) and
+      // must still run unconditionally.
+      if(Tool.equals(getName(), nname)) {
+         return;
+      }
 
       for(int i = 0; i < conds.getConditionSize(); i += 2) {
          ConditionItem item = conds.getConditionItem(i);
@@ -434,6 +454,12 @@ public abstract class ComposedTableAssembly extends AbstractTableAssembly {
     */
    @Override
    protected void renameAggregateInfo(String oname, String nname) {
+      // See AbstractTableAssembly#renameAggregateInfo: this composed table's own group/aggregate
+      // refs must not be requalified when the rename is of this table itself, not a dependency.
+      if(Tool.equals(getName(), nname)) {
+         return;
+      }
+
       super.renameAggregateInfo(oname, nname);
       GroupRef[] groups = ginfo.getGroups();
 
