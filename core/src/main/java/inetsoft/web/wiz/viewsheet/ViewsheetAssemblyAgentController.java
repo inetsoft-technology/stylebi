@@ -110,6 +110,7 @@ public class ViewsheetAssemblyAgentController {
                                    SelectionRuntimeService selectionService,
                                    CalendarDisplayService calendarService,
                                    InputValueService inputService,
+                                   AssemblyMaxModeService maxModeService,
                                    FormTableRowService formTableRowService,
                                    ColumnOptionService columnOptionService,
                                    ParameterCollectionService parameterCollectionService,
@@ -148,6 +149,7 @@ public class ViewsheetAssemblyAgentController {
       this.selectionService = selectionService;
       this.calendarService = calendarService;
       this.inputService = inputService;
+      this.maxModeService = maxModeService;
       this.formTableRowService = formTableRowService;
       this.columnOptionService = columnOptionService;
       this.parameterCollectionService = parameterCollectionService;
@@ -1266,6 +1268,28 @@ public class ViewsheetAssemblyAgentController {
       return inputService.setValue(sessionToken, user, request.assembly(), request.value(), linkUri);
    }
 
+   /**
+    * {@code set_assembly_maximized}. Toggles an assembly's runtime Maximize/Restore state --
+    * the title-bar "Show Enlarged"/"Show Actual Size" button -- distinct from the assembly's
+    * persisted design-time size ({@code edit(op:"resize")}).
+    *
+    * @param width  optional override for the maximized size, in place of a fixed default (there
+    *               is no real browser viewport for a headless caller to measure). Ignored when
+    *               {@code maximized} is false.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/assembly/max-mode")
+   public Map<String, Object> setAssemblyMaxMode(@PathVariable String sessionToken,
+                                                 @RequestBody MaxModeRequest request,
+                                                 @RequestParam(required = false, defaultValue = "")
+                                                 String linkUri,
+                                                 Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return maxModeService.setMaxMode(sessionToken, user, request.assembly(), request.maximized(),
+                                       request.width(), request.height(), linkUri);
+   }
+
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/form-table/insert-row")
    public Map<String, Object> formTableInsertRow(@PathVariable String sessionToken,
                                                  @RequestBody FormTableInsertRowRequest request,
@@ -1388,6 +1412,7 @@ public class ViewsheetAssemblyAgentController {
                                         Boolean rangeComparison) {}
    public record CalendarDatesRequest(String assembly, java.util.List<String> dates) {}
    public record InputValueRequest(String assembly, java.util.List<Object> value) {}
+   public record MaxModeRequest(String assembly, boolean maximized, Integer width, Integer height) {}
 
    /** {@code mode}: "insert" (the default -- shifts {@code index} and after down one) or
     *  "append" (inserts after {@code index} instead). Anything else is treated as "insert". */
@@ -2715,6 +2740,7 @@ public class ViewsheetAssemblyAgentController {
    private final SelectionRuntimeService selectionService;
    private final CalendarDisplayService calendarService;
    private final InputValueService inputService;
+   private final AssemblyMaxModeService maxModeService;
    private final FormTableRowService formTableRowService;
    private final ColumnOptionService columnOptionService;
    private final ParameterCollectionService parameterCollectionService;
