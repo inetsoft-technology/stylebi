@@ -166,6 +166,40 @@ class RangeOutputVSAssemblyInfoTest {
       invokePrivateFillRanges(thermometer, "fillRanges");
    }
 
+   /**
+    * Fix-round r1 (review): the two tests above use non-null colors, so they never enter the
+    * inner "set the range color same with previous one when the color is null" fallback -- which
+    * had its own, separate bounds bug (checked {@code ranges.length} instead of
+    * {@code colors.length}) that only trips when the shorter colors array's last entry is null.
+    */
+   @Test
+   void horizontalThermometerRendersPartiallyWhenShorterColorsArrayEndsInNull() throws Exception {
+      ThermometerVSAssemblyInfo info = new ThermometerVSAssemblyInfo();
+      info.setMin("0");
+      info.setMax("100");
+      info.setRanges(new Object[] { "30", "60", "90" });
+      info.setRangeColors(new Color[] { Color.RED, null });
+
+      VSHorizontalThermometer thermometer = new VSHorizontalThermometer();
+      thermometer.setAssemblyInfo(info);
+
+      invokePrivateFillRanges(thermometer, "fillRanges");
+   }
+
+   @Test
+   void verticalThermometerRendersPartiallyWhenShorterColorsArrayEndsInNull() throws Exception {
+      ThermometerVSAssemblyInfo info = new ThermometerVSAssemblyInfo();
+      info.setMin("0");
+      info.setMax("100");
+      info.setRanges(new Object[] { "30", "60", "90" });
+      info.setRangeColors(new Color[] { Color.RED, null });
+
+      VSVerticalThermometer thermometer = new VSVerticalThermometer();
+      thermometer.setAssemblyInfo(info);
+
+      invokePrivateFillRanges(thermometer, "fillRanges");
+   }
+
    @Test
    void slidingScaleRendersPartiallyInsteadOfThrowingOnLengthMismatch() throws Exception {
       SlidingScaleVSAssemblyInfo info = new SlidingScaleVSAssemblyInfo();

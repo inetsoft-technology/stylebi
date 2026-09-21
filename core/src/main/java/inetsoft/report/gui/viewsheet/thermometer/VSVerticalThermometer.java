@@ -100,7 +100,7 @@ public class VSVerticalThermometer extends VSThermometer {
 
          // set the range color same with previous one when the color is null
          if(colors[i] == null) {
-            if(i < ranges.length - 1 && colors[i + 1] != null) {
+            if(i < colors.length - 1 && colors[i + 1] != null) {
                colors[i] = colors[i + 1];
             }
             else {
