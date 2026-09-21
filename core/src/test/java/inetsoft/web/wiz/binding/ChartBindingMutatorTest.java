@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.binding;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.VSChartGeoRef;
@@ -424,6 +425,151 @@ class ChartBindingMutatorTest {
          () -> ChartBindingMutator.setSort(model, "y", "Sales", null,
             new DimensionSortRanking.Sort("asc", null, null)));
       assertTrue(thrown.getMessage().contains("Sales"));
+   }
+
+   // ── sort/ranking survives a shelf rewrite (bug #76881, porting VTB-004/Redmine #76574) ────
+   //
+   // setShelf/FieldRefFactory.toChartRef used to build a brand-new ChartDimensionRefModel for
+   // every dimension on every write, discarding order/sortByCol/rankingOpt/rankingN/rankingCol/
+   // manualOrder/groupOthers/others even for a field that did not change -- the same defect
+   // shape VTB-004 closed for TableBindingMutator.dimensions(), never ported to this chart
+   // path. Matches a new field to the shelf's own previous list by same absolute index + same
+   // column (case-insensitive) + same date level, mirroring dimensions()'s matches()/copyOf().
+
+   @Test
+   void resubmittingTheIdenticalXShelfPreservesSortAndRanking() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("value_desc", "Sales", null));
+      ChartBindingMutator.setRanking(model, "x", "Region", null,
+         new DimensionSortRanking.Ranking("top", 5, "Sales", null));
+
+      // The filed repro: resubmit the identical field list to the same shelf.
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+
+      Map<?, ?> region = (Map<?, ?>) ChartBindingMutator.describeSorts(model, "x").get("Region");
+      assertEquals("value_desc", region.get("direction"),
+         "an unchanged x dimension's sort must survive a shelf resubmission");
+      assertEquals("Sales", region.get("sortByField"));
+      assertEquals("top", region.get("ranking"));
+      assertEquals("5", region.get("rankingN"));
+      assertEquals("Sales", region.get("rankingMeasure"));
+   }
+
+   @Test
+   void resubmittingTheIdenticalYShelfPreservesSortOnADimension() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setSort(model, "y", "Region", null,
+         new DimensionSortRanking.Sort("desc", null, null));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+
+      Map<?, ?> region = (Map<?, ?>) ChartBindingMutator.describeSorts(model, "y").get("Region");
+      assertEquals("desc", region.get("direction"),
+         "an unchanged y dimension's sort must survive a shelf resubmission");
+   }
+
+   @Test
+   void resubmittingTheIdenticalGroupShelfPreservesSortAndRanking() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ChartBindingMutator.setShelf(model, "group",
+         List.of(new FieldRef("Category", "dimension", null, null, null)));
+      ChartBindingMutator.setSort(model, "group", "Category", null,
+         new DimensionSortRanking.Sort("value_desc", "Sales", null));
+
+      ChartBindingMutator.setShelf(model, "group",
+         List.of(new FieldRef("Category", "dimension", null, null, null)));
+
+      Map<?, ?> category =
+         (Map<?, ?>) ChartBindingMutator.describeSorts(model, "group").get("Category");
+      assertEquals("value_desc", category.get("direction"),
+         "an unchanged group dimension's sort must survive a shelf resubmission");
+      assertEquals("Sales", category.get("sortByField"));
+   }
+
+   @Test
+   void addingAFieldToXPreservesAnExistingDimensionsSortAndRanking() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ChartBindingMutator.setSort(model, "x", "Region", null,
+         new DimensionSortRanking.Sort("desc", null, null));
+
+      // An ordinary incremental edit -- append a second dimension -- not a literal resend.
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null),
+                 new FieldRef("Category", "dimension", null, null, null)));
+
+      Map<?, ?> region = (Map<?, ?>) ChartBindingMutator.describeSorts(model, "x").get("Region");
+      assertEquals("desc", region.get("direction"),
+         "REGION stays at index 0, so appending CATEGORY after it must not reset its sort");
+   }
+
+   @Test
+   void resubmittingADuplicateBoundColumnOnXKeepsEachOccurrencesSortSeparate() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Order Date", "dimension", null, "year", null),
+                 new FieldRef("Order Date", "dimension", null, "quarter", null)));
+      ChartBindingMutator.setSort(model, "x", "Order Date", 0,
+         new DimensionSortRanking.Sort("desc", null, null));
+      ChartBindingMutator.setSort(model, "x", "Order Date", 1,
+         new DimensionSortRanking.Sort("manual", null, List.of("Q1", "Q2", "Q3", "Q4")));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Order Date", "dimension", null, "year", null),
+                 new FieldRef("Order Date", "dimension", null, "quarter", null)));
+
+      assertEquals(XConstants.SORT_DESC,
+         ((ChartDimensionRefModel) model.getXFields().get(0)).getOrder(),
+         "the year occurrence's sort must not cross-contaminate with the quarter occurrence's");
+      assertEquals(XConstants.SORT_SPECIFIC,
+         ((ChartDimensionRefModel) model.getXFields().get(1)).getOrder());
+      assertEquals(List.of("Q1", "Q2", "Q3", "Q4"),
+         ((ChartDimensionRefModel) model.getXFields().get(1)).getManualOrder());
+   }
+
+   /**
+    * Mirrors {@code TableBindingMutatorTest}'s identical PR #5178 review finding, ported to the
+    * chart path: {@code order} copied forward from a matched previous ref can carry a stray
+    * {@code SORT_SPECIFIC} bit once the incoming field no longer supplies the named group
+    * backing it.
+    */
+   @Test
+   void resubmittingANamedGroupedDimensionWithoutNamedGroupClearsSortSpecific() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef.NamedGroupValues coastal = new FieldRef.NamedGroupValues(
+         List.of(new FieldRef.NamedGroupValues.Clause("West", List.of("CA", "OR"))), null);
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null, null, null, coastal)));
+      assertEquals(XConstants.SORT_SPECIFIC,
+         ((ChartDimensionRefModel) model.getXFields().get(0)).getOrder());
+
+      // Resubmit REGION at the same index WITHOUT namedGroupValues -- dropping it.
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Region", "dimension", null, null, null)));
+
+      ChartDimensionRefModel dimension = (ChartDimensionRefModel) model.getXFields().get(0);
+      assertEquals(0, dimension.getOrder() & XConstants.SORT_SPECIFIC,
+         "order must not be left with the SORT_SPECIFIC bit set once the named group backing " +
+         "it is dropped");
+      assertNull(dimension.getNamedGroupInfo());
    }
 
    // ── org column-count limit (L3-Group1 finding G1-1) ───────────────────────

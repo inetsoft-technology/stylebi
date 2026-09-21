@@ -36,8 +36,10 @@ import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
 import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -62,6 +64,18 @@ class TableBindingMutatorTest {
 
    private static FieldRef measure(String column, String aggregate) {
       return new FieldRef(column, "measure", aggregate, null, null);
+   }
+
+   private static RunningTotalCalcInfo runningTotal(String aggregate) {
+      RunningTotalCalcInfo calc = new RunningTotalCalcInfo();
+      calc.setAggregate(aggregate);
+      return calc;
+   }
+
+   private static FieldRef measureWithCalc(String column, String aggregate,
+                                           RunningTotalCalcInfo calc)
+   {
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null, calc);
    }
 
    // ── crosstab shelves ──────────────────────────────────────────────────────
@@ -974,6 +988,113 @@ class TableBindingMutatorTest {
          "removing the referenced aggregate neither clears nor validates a preserved ranking " +
          "reference -- it goes stale rather than erroring, a pre-existing gap noted for the " +
          "record, not fixed here");
+   }
+
+   // ── calculateInfo survives an aggregates shelf rewrite (bug #76881) ────────
+   //
+   // aggregates() used to build a brand-new BAggregateRefModel on every write with no previous
+   // list to fall back to at all -- VTB-004's own 03-fix.md explicitly left this shelf unfixed.
+   // FieldRef.calculateInfo's own javadoc already documents null as "leave it unchanged", so a
+   // matched previous ref's calculateInfo is copied forward only when the incoming field's own
+   // is null; an incoming field that supplies its own still overrides it. Matched by same
+   // absolute index + same column (case-insensitive) + same formula (case-insensitive).
+
+   @Test
+   void resubmittingTheIdenticalAggregatesShelfPreservesCalculateInfo() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum"))));
+
+      // The filed repro: resubmit the identical field list (omitting calculateInfo, the way an
+      // agent resubmitting only one changed field on the shelf would) via set_table_fields'
+      // backing call.
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
+
+      BAggregateRefModel sales = model.getAggregates().get(0);
+      assertNotNull(sales.getCalculateInfo(),
+         "an unchanged aggregate's calculateInfo must survive a shelf resubmission");
+      assertEquals("Sum", ((RunningTotalCalcInfo) sales.getCalculateInfo()).getAggregate());
+   }
+
+   @Test
+   void resubmittingAnAggregateWithANewCalculateInfoOverridesThePreservedOne() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum"))));
+
+      // The incoming field DOES supply its own calculateInfo -- it must win, not the preserved
+      // one, proving the fix's copy-forward-only-when-absent design doesn't block an explicit
+      // override.
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Average"))));
+
+      BAggregateRefModel sales = model.getAggregates().get(0);
+      assertEquals("Average", ((RunningTotalCalcInfo) sales.getCalculateInfo()).getAggregate(),
+         "an incoming field's own calculateInfo must override a matched previous one");
+   }
+
+   @Test
+   void resubmittingADuplicateBoundAggregateColumnKeepsEachFormulasCalculateInfoSeparate() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Total", "Sum", runningTotal("Sum")),
+                 measure("Total", "Average")));
+
+      // Resubmit both occurrences unchanged, omitting calculateInfo on both.
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measure("Total", "Sum"), measure("Total", "Average")));
+
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo(),
+         "the Sum occurrence's calculateInfo must survive");
+      assertNull(model.getAggregates().get(1).getCalculateInfo(),
+         "the Average occurrence never had a calculateInfo and must not inherit the Sum one");
+   }
+
+   /**
+    * Regression guard for the fix, not a new capability: the refuter's own throwaway tests
+    * already showed {@code addField}/{@code removeField}/{@code moveField} preserve an
+    * untouched aggregate's {@code calculateInfo} today, via their {@code read()}-then-{@code
+    * setShelf()} round trip (an accident of {@code FieldRef}'s own wire shape, not a
+    * preservation mechanism) -- confirms the fix does not disturb that already-working path.
+    */
+   @Test
+   void addFieldPreservesAnUntouchedAggregatesCalculateInfo() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum"))));
+
+      TableBindingMutator.addField(model, "aggregates", measure("Quantity", "Sum"), null);
+
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo(),
+         "adding a different field to the shelf must not reset SALES's calculateInfo");
+   }
+
+   @Test
+   void removeFieldPreservesAnUntouchedAggregatesCalculateInfo() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum")),
+                 measure("Quantity", "Sum")));
+
+      TableBindingMutator.removeField(model, "aggregates", "Quantity");
+
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo(),
+         "removing a different field from the shelf must not reset SALES's calculateInfo");
+   }
+
+   @Test
+   void moveFieldPreservesAnUntouchedAggregatesCalculateInfo() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum")),
+                 measure("Quantity", "Sum")));
+
+      TableBindingMutator.moveField(model, "aggregates", "rows", "Quantity", null);
+
+      assertNotNull(model.getAggregates().get(0).getCalculateInfo(),
+         "moving a different field off the shelf must not reset SALES's calculateInfo");
    }
 
    // ── column labels (2d Phase 2) ────────────────────────────────────────────

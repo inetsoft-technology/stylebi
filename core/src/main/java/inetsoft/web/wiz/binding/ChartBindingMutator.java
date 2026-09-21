@@ -19,6 +19,7 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -110,18 +111,31 @@ public final class ChartBindingMutator {
       requireColumnLimit(chartInfo, readShelf(model, name).size(), fields == null ? 0 : fields.size());
       requireNoMapDimensionOnXY(chartInfo, name, fields);
 
-      // Only x/y ever carry a per-measure chartType (multi-style) -- group's aggregates have
-      // none to lose, so this is skipped there rather than harmlessly doing nothing every call.
-      List<ChartRefModel> oldRefs = "x".equals(name) || "y".equals(name)
-         ? new ArrayList<>(readShelf(model, name)) : List.of();
+      // Captured before the overwrite below, for two independent, unrelated "restore state
+      // across a shelf rewrite" mechanisms below: preserveChartTypes (aggregate refs on x/y
+      // only) and the dimension sort/ranking preservation loop (all three shelves -- bug
+      // #76881, porting VTB-004/TableBindingMutator.dimensions()'s own previous-state matching).
+      List<ChartRefModel> oldRefs = new ArrayList<>(readShelf(model, name));
 
       List<ChartRefModel> refs = new ArrayList<>();
+      List<FieldRef> fieldList = fields == null ? List.<FieldRef>of() : fields;
 
-      for(FieldRef field : fields == null ? List.<FieldRef>of() : fields) {
-         refs.add(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
+      for(int i = 0; i < fieldList.size(); i++) {
+         FieldRef field = fieldList.get(i);
+         ChartRefModel ref = FieldRefFactory.toChartRef(field, rvs, source, refModelService);
+
+         if(ref instanceof ChartDimensionRefModel dimension && i < oldRefs.size() &&
+            oldRefs.get(i) instanceof ChartDimensionRefModel previous && matches(previous, field))
+         {
+            preserveDimensionState(previous, dimension, field);
+         }
+
+         refs.add(ref);
       }
 
-      if(!oldRefs.isEmpty()) {
+      // Only x/y ever carry a per-measure chartType (multi-style) -- group's aggregates have
+      // none to lose, so this is skipped there rather than harmlessly doing nothing every call.
+      if(("x".equals(name) || "y".equals(name)) && !oldRefs.isEmpty()) {
          preserveChartTypes(oldRefs, refs);
       }
 
@@ -201,6 +215,77 @@ public final class ChartBindingMutator {
    private static boolean sameMeasure(ChartAggregateRefModel a, ChartAggregateRefModel b) {
       return equalsIgnoreCaseOrBothNull(a.getColumnValue(), b.getColumnValue()) &&
              equalsIgnoreCaseOrBothNull(a.getFormula(), b.getFormula());
+   }
+
+   /**
+    * Carries a matched dimension's sort/ranking state across a shelf rewrite -- porting VTB-004
+    * (Redmine #76574, {@code TableBindingMutator.dimensions()}'s own {@code matches()}/{@code
+    * copyOf()}) to the chart x/y/group path, which never had it (bug #76881). {@code
+    * FieldRefFactory.toChartRef} already applied {@code dimension}'s own {@code columnValue}/
+    * {@code dateLevel}/{@code namedGroupInfo} (+ forced {@code order = SORT_SPECIFIC} when a
+    * named group is present) before this runs, so this only ever touches the fields {@code
+    * toChartRef} does not set from {@code field} at all: {@code sortByCol}, {@code manualOrder},
+    * {@code rankingOption}/{@code rankingN}/{@code rankingCol}, {@code groupOthers}, {@code
+    * others}, {@code timeSeries}.
+    *
+    * <p>{@code order} is copied forward too, but only when the incoming field does not itself
+    * carry a named group -- an incoming {@code namedGroupValues}/{@code namedGroup} already won
+    * that field via {@code toChartRef}'s own forced {@code SORT_SPECIFIC}, and copying over it
+    * here would silently discard what the caller just asked for. When {@code order} IS copied
+    * forward, it can carry a stray {@code SORT_SPECIFIC} bit from a matched previous ref whose
+    * named group this incoming field no longer supplies -- stripped by the same self-heal
+    * {@code TableBindingMutator.dimensions()} applies, mirroring {@code
+    * BDimensionRefModel.createDataRef()}'s own conversion-time self-heal.
+    */
+   private static void preserveDimensionState(ChartDimensionRefModel previous,
+                                               ChartDimensionRefModel dimension, FieldRef field)
+   {
+      dimension.setSortByCol(previous.getSortByCol());
+      dimension.setManualOrder(previous.getManualOrder() == null
+         ? null : new ArrayList<>(previous.getManualOrder()));
+      dimension.setRankingOption(previous.getRankingOption());
+      dimension.setRankingN(previous.getRankingN());
+      dimension.setRankingCol(previous.getRankingCol());
+      dimension.setGroupOthers(previous.isGroupOthers());
+      dimension.setOthers(previous.isOthers());
+      dimension.setTimeSeries(previous.isTimeSeries());
+
+      boolean incomingSuppliesGroup =
+         field.namedGroupValues() != null || field.namedGroup() != null;
+
+      if(!incomingSuppliesGroup) {
+         dimension.setOrder(previous.getOrder());
+
+         if((dimension.getOrder() & XConstants.SORT_SPECIFIC) != 0 &&
+            (dimension.getNamedGroupInfo() == null || dimension.getNamedGroupInfo().getType() == 0) &&
+            (dimension.getManualOrder() == null || dimension.getManualOrder().isEmpty()))
+         {
+            dimension.setOrder(dimension.getOrder() & ~XConstants.SORT_SPECIFIC);
+         }
+      }
+   }
+
+   /** Whether {@code previous} is the same occurrence of the same column as {@code field} --
+    *  same identity {@code TableBindingMutator.dimensions()}'s own {@code matches()} uses. */
+   private static boolean matches(BDimensionRefModel previous, FieldRef field) {
+      if(previous == null || field.column() == null) {
+         return false;
+      }
+
+      String previousColumn = previous.getColumnValue() == null
+         ? previous.getName() : previous.getColumnValue();
+
+      if(previousColumn == null || !previousColumn.equalsIgnoreCase(field.column())) {
+         return false;
+      }
+
+      String previousLevel = previous.getDateLevel();
+      String incomingLevel = DateLevels.normalize(field.dateLevel());
+      boolean previousUnset = previousLevel == null || previousLevel.isBlank() ||
+         "-1".equals(previousLevel);
+      boolean incomingUnset = incomingLevel == null || "-1".equals(incomingLevel);
+
+      return previousUnset && incomingUnset || Objects.equals(previousLevel, incomingLevel);
    }
 
    /** Case-insensitive like the rest of this class's column/measure-name matching (e.g.
