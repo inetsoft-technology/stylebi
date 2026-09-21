@@ -1428,10 +1428,28 @@ public class IdentityService {
                                       List<IdentityModel> permittedIdentities,
                                       String newOrgId)
    {
-      String currOrgId = newOrgId;
+      // newOrgId is the explicit target org for this permission write. Callers that don't know
+      // it (or pass "") must still resolve to an explicit org: newID/oldID carry the identity's
+      // own org id in every real call site (including an ORGANIZATION rename, where newID's org
+      // id is the org being renamed *to*). Falling back to the ambient current org here is what
+      // caused bug #76866 -- a rename applied from a different org context silently tagged the
+      // migrated grant with the wrong org.
+      String orgId;
 
-      if(newOrgId == null || newOrgId.isEmpty()) {
-         currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      if(newOrgId != null && !newOrgId.isEmpty()) {
+         orgId = newOrgId;
+      }
+      else if(newID.getOrgID() != null && !newID.getOrgID().isEmpty()) {
+         orgId = newID.getOrgID();
+      }
+      else if(oldID.getOrgID() != null && !oldID.getOrgID().isEmpty()) {
+         orgId = oldID.getOrgID();
+      }
+      else {
+         throw new IllegalArgumentException(
+            "setIdentityPermissions: no explicit organization id available for " + resourceType +
+            " (newOrgId, newID.orgID, and oldID.orgID are all null/empty); refusing to fall back " +
+            "to the ambient current org");
       }
 
       ResourceAction action;
@@ -1529,8 +1547,6 @@ public class IdentityService {
          }
       }
 
-      String orgId = newOrgId == null || Tool.isEmptyString(newOrgId) ? currOrgId : newOrgId;
-
       if(permission == null) {
          permission = new Permission();
       }
@@ -1545,7 +1561,11 @@ public class IdentityService {
          permission.updateGrantAllByOrg(orgId, true);
       }
 
-      authzProvider.setPermission(resourceType, newID, permission);
+      // Explicit orgId here too -- the storage key itself must be scoped to the resolved org
+      // (same reasoning as the internal grant tag above), or a later rename's migration filter
+      // (which matches on storage-key orgId) can silently skip this entry, same as bug #76866's
+      // Defect A.
+      authzProvider.setPermission(resourceType, newID, permission, orgId);
    }
 
    private ResourceType getResourceType(int type) {

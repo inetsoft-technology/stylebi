@@ -48,6 +48,10 @@ package inetsoft.sree.security;
  * Scenario 9 (renaming an org's ID re-scopes a member's own directly-granted permission to the
  * new org rather than dropping it -- Bug #75721, the USER + org-ID-change combination that
  * scenarios 2 (ROLE + org-ID change) and 3 (USER + same-org username rename) did not cover).
+ * Scenario 10 (an organization's own SECURITY_ORGANIZATION self-grant must be written keyed by
+ * (org name, org id) -- Organization.getIdentityID()'s own shape -- not (org id, org id), or a
+ * later rename's migration filter can never see it, leaving it permanently orphaned and
+ * unreadable by every real reader -- Bug #76866).
  */
 
 import inetsoft.sree.RepletRegistryManager;
@@ -62,8 +66,10 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.ThreadContext;
+import inetsoft.web.admin.security.AdminIdentities;
 import inetsoft.web.admin.security.IdentityModel;
 import inetsoft.web.admin.security.IdentityService;
+import inetsoft.web.admin.security.SecurityService;
 import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import inetsoft.web.admin.security.user.UserTreeService;
 import org.junit.jupiter.api.*;
@@ -724,6 +730,88 @@ public class PermissionMatrixOrgLifecycleTest {
          // and must be cleaned up explicitly so they do not leak into later tests sharing storage.
          chain.removePermission(ResourceType.VIEWSHEET, RESOURCE, toOrgId);
          fileProvider.removeUser(new IdentityID("alice", toOrgId));
+      }
+   }
+
+   // ── scenario 10: an organization's own SECURITY_ORGANIZATION self-grant must be written
+   //    keyed by (org name, org id) -- matching Organization.getIdentityID()'s own shape --
+   //    so a later org-ID rename can migrate it, and every real reader (e.g.
+   //    DefaultCheckPermissionStrategy.checkOrgAdminPermission(), which reads
+   //    new IdentityID(provider.getOrgNameFromID(orgID), orgID)) can find it (Bug #76866).
+   //    SecurityService.createOrganization() used to key it (org id, org id) instead, which
+   //    IdentityService.updateIdentityPermissions()'s SECURITY_ORGANIZATION path-migration
+   //    special case (keyed on the org's *name*) could never match, leaving the grant
+   //    permanently orphaned at the old key and never migrated to the new one. ──
+
+   @Test
+   void renameOrgId_selfGrantWrittenViaOrganizationIdentityIDShape_migratesToTargetOrgAndRemovesSourceKey()
+      throws Exception
+   {
+      String fromOrgId = "orglifecycle_selfgrant_from";
+      String fromOrgName = "OrgLifecycleSelfGrantFrom";
+      String toOrgId = "orglifecycle_selfgrant_to";
+      String toOrgName = "OrgLifecycleSelfGrantTo";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(fromOrgName, fromOrgId)
+         .addOrg(toOrgName, toOrgId)
+         .addUser("selfgrantadmin", fromOrgId, "password")
+         .setup();
+
+      AuthorizationChain chain = SecurityEngine.getSecurity().getAuthorizationChain()
+         .orElseThrow(() -> new AssertionError("expected an AuthorizationChain"));
+      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      SRPrincipal admin = builder.principalOf("selfgrantadmin", fromOrgId);
+
+      // Exact call SecurityService.createOrganization() makes to write the org's own
+      // self-grant: the private setIdentityPermissions(IdentityID, ResourceType,
+      // SecurityProvider, Principal, AdminIdentities), keyed by organization.getIdentityID()
+      // (name^id) -- not new IdentityID(oid, oid) (id^id), which is what the bug used before
+      // the fix. It's private, so it's invoked via reflection, matching the existing precedent
+      // for private-method probes in this test suite (e.g. scenario 4/6's).
+      SecurityService securityService = new SecurityService(
+         SecurityEngine.getSecurity(), null, null, null, null, null, null, null);
+
+      AdminIdentities ids = new AdminIdentities();
+      ids.setUsers(List.of(new IdentityID("selfgrantadmin", fromOrgId)));
+
+      ReflectionTestUtils.invokeMethod(securityService, "setIdentityPermissions",
+         new IdentityID(fromOrgName, fromOrgId), ResourceType.SECURITY_ORGANIZATION,
+         securityProvider, admin, ids);
+
+      Permission selfGrant = chain.getPermission(ResourceType.SECURITY_ORGANIZATION,
+         new IdentityID(fromOrgName, fromOrgId), fromOrgId);
+      assertNotNull(selfGrant, "precondition: the self-grant must be readable via the org's " +
+                    "own (name, id) shape -- the shape every real reader uses");
+      assertTrue(selfGrant.getOrgScopedUserGrants(ResourceAction.ADMIN, fromOrgId).stream()
+                    .anyMatch(id -> id.name.equals("selfgrantadmin")),
+                "precondition: selfgrantadmin must hold the org's own ADMIN grant before rename");
+
+      try {
+         IdentityService identityService = new IdentityService(
+            SecurityEngine.getSecurity(), securityProvider, null, null, null, null, null, null, null, null,
+            null, null, null, null, Optional.empty(), null, null, null, null, null, null,
+            null, null, null, null, null, null, null, Optional.empty());
+
+         identityService.updateIdentityPermissions(Identity.ORGANIZATION,
+            new IdentityID(fromOrgName, fromOrgId), new IdentityID(toOrgName, toOrgId),
+            fromOrgId, toOrgId, true);
+
+         assertNull(chain.getPermission(ResourceType.SECURITY_ORGANIZATION,
+                   new IdentityID(fromOrgName, fromOrgId), fromOrgId),
+                   "rename must remove the source org's self-grant key, not leave it orphaned " +
+                   "(Bug #76866)");
+
+         Permission migrated = chain.getPermission(ResourceType.SECURITY_ORGANIZATION,
+            new IdentityID(toOrgName, toOrgId), toOrgId);
+         assertNotNull(migrated, "rename must migrate the self-grant to the target org's key");
+         assertTrue(migrated.getOrgScopedUserGrants(ResourceAction.ADMIN, toOrgId).stream()
+                       .anyMatch(id -> id.name.equals("selfgrantadmin")),
+                   "the migrated self-grant must still carry the admin grantee");
+      }
+      finally {
+         chain.removePermission(ResourceType.SECURITY_ORGANIZATION,
+            new IdentityID(toOrgName, toOrgId), toOrgId);
       }
    }
 
