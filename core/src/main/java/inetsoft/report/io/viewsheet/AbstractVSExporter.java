@@ -1110,12 +1110,31 @@ public abstract class AbstractVSExporter implements VSExporter {
       for(int i = 0; i < tableLens.getColCount(); i++) {
          Object object = tableLens.getObject(row, i);
 
-         if(Tool.equals(Tool.toString(object), "")) {
+         if(Tool.equals(Tool.toString(object), "") && !isMergedContinuationCell(tableLens, row, i)) {
             return false;
          }
       }
 
       return true;
+   }
+
+   /**
+    * Check if the cell at (row, col) is blank because it's a continuation row of a
+    * vertically spanning (merged) cell anchored at an earlier row, as opposed to being
+    * genuinely empty/hidden. Such rows should not be exempted from the height budget in
+    * getRegionRowCount(), since a merged-cell group still occupies real vertical space.
+    */
+   private boolean isMergedContinuationCell(TableLens tableLens, int row, int col) {
+      for(int r = row - 1; r >= 0; r--) {
+         Object object = tableLens.getObject(r, col);
+
+         if(!Tool.equals(Tool.toString(object), "")) {
+            Dimension span = tableLens.getSpan(r, col);
+            return span != null && r + span.height > row;
+         }
+      }
+
+      return false;
    }
 
    /**
