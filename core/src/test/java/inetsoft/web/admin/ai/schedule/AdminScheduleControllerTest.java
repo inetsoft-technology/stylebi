@@ -54,6 +54,9 @@ class AdminScheduleControllerTest {
    @Mock private AdminScheduleFolderGateway folderGateway;
    @Mock private ScheduleFolderChangePlanService folderPlanService;
    @Mock private ScheduleFolderChangesetApplyService folderApplyService;
+   @Mock private AdminScheduleCycleGateway cycleGateway;
+   @Mock private ScheduleCycleChangePlanService cyclePlanService;
+   @Mock private ScheduleCycleChangesetApplyService cycleApplyService;
    @Mock private Principal principal;
    @Mock private OrganizationManager orgManager;
    private AdminScheduleController controller;
@@ -61,7 +64,8 @@ class AdminScheduleControllerTest {
 
    @BeforeEach void setup() {
       controller = new AdminScheduleController(scheduleGateway, planService, applyService,
-         folderGateway, folderPlanService, folderApplyService);
+         folderGateway, folderPlanService, folderApplyService, cycleGateway, cyclePlanService,
+         cycleApplyService);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);

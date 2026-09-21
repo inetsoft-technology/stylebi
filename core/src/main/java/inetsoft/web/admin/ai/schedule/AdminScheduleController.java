@@ -50,7 +50,10 @@ public class AdminScheduleController {
                                   ScheduleChangesetApplyService applyService,
                                   AdminScheduleFolderGateway folderGateway,
                                   ScheduleFolderChangePlanService folderPlanService,
-                                  ScheduleFolderChangesetApplyService folderApplyService)
+                                  ScheduleFolderChangesetApplyService folderApplyService,
+                                  AdminScheduleCycleGateway cycleGateway,
+                                  ScheduleCycleChangePlanService cyclePlanService,
+                                  ScheduleCycleChangesetApplyService cycleApplyService)
    {
       this.scheduleGateway = scheduleGateway;
       this.planService = planService;
@@ -58,6 +61,9 @@ public class AdminScheduleController {
       this.folderGateway = folderGateway;
       this.folderPlanService = folderPlanService;
       this.folderApplyService = folderApplyService;
+      this.cycleGateway = cycleGateway;
+      this.cyclePlanService = cyclePlanService;
+      this.cycleApplyService = cycleApplyService;
    }
 
    @Secured(@RequiredPermission(
@@ -210,6 +216,69 @@ public class AdminScheduleController {
       return folderGateway.getFolder(path, user);
    }
 
+   /**
+    * Resolves a Scheduled Cycle change plan without mutating anything (bug #76848, design §3.2).
+    * Same shape as {@link #preview}/{@link #previewFolders}.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/cycles",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/cycles/preview")
+   public ResolvedPlan previewCycles(@RequestBody ScheduleCycleChangePlanRequest req, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      return cyclePlanService.resolve(req, user);
+   }
+
+   /**
+    * Applies a reviewed Scheduled Cycle change plan, all-or-nothing. Same status contract as
+    * {@link #apply}/{@link #applyFolders}.
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/cycles",
+      actions = ResourceAction.ACCESS))
+   @PostMapping("/api/wiz/v1/admin/schedule/cycles/apply")
+   public ApplyResult applyCycles(@RequestBody ScheduleCycleApplyRequest req, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      return cycleApplyService.apply(req, user);
+   }
+
+   /** Every Scheduled Cycle the caller may see (bug #76848, design §3.2). */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/cycles",
+      actions = ResourceAction.ACCESS))
+   @GetMapping("/api/wiz/v1/admin/schedule/cycles")
+   public List<ScheduleCycleView> listCycles(Principal user) throws Exception {
+      requireSiteAdmin(user);
+      return cycleGateway.listCycles(user);
+   }
+
+   /**
+    * Reads one Scheduled Cycle. Unlike {@link #getFolder}, a nonexistent name is a 404 ({@code
+    * MissingResourceException}), not a {@code found:false} 200 -- the wiz tool layer translates
+    * that into {@code found:false} instead (design §3.2, since {@link ScheduleCycleView} carries
+    * no {@code found} sentinel field of its own).
+    */
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.EM_COMPONENT, resource = "settings/schedule/cycles",
+      actions = ResourceAction.ACCESS))
+   @GetMapping("/api/wiz/v1/admin/schedule/cycles/{name}")
+   public ScheduleCycleView getCycle(@PathVariable("name") String name, Principal user)
+      throws Exception
+   {
+      requireSiteAdmin(user);
+      ScheduleCycleView view = cycleGateway.getCycle(name, user);
+
+      if(view == null) {
+         throw new inetsoft.web.security.auth.MissingResourceException(name);
+      }
+
+      return view;
+   }
+
    /** Same rationale and shape as {@code AdminAiController#requireSiteAdmin} -- see there. */
    private void requireSiteAdmin(Principal user) {
       AdminAiCallerGuard.requireBearerAuthenticatedRequest();
@@ -259,4 +328,7 @@ public class AdminScheduleController {
    private final AdminScheduleFolderGateway folderGateway;
    private final ScheduleFolderChangePlanService folderPlanService;
    private final ScheduleFolderChangesetApplyService folderApplyService;
+   private final AdminScheduleCycleGateway cycleGateway;
+   private final ScheduleCycleChangePlanService cyclePlanService;
+   private final ScheduleCycleChangesetApplyService cycleApplyService;
 }
