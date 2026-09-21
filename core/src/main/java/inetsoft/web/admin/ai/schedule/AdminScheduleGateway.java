@@ -692,9 +692,7 @@ public class AdminScheduleGateway {
          output.setBookmarks(action.getBookmarkNames().toArray(new String[0]));
          output.setBookmarkUsers(action.getBookmarkUsers().toArray(new IdentityID[0]));
          output.setBookmarkTypes(action.getBookmarkTypes() != null
-            ? action.getBookmarkTypes().stream()
-                 .mapToInt(ViewsheetAction.BookmarkType::code)
-                 .toArray()
+            ? convertBookmarkTypes(action.getBookmarkTypes())
             : action.getBookmarkNames().stream()
                  .mapToInt(n -> ViewsheetAction.BookmarkType.PRIVATE.code())
                  .toArray());
@@ -763,6 +761,23 @@ public class AdminScheduleGateway {
       output.setViewsheetRequest(request);
 
       return output;
+   }
+
+   private int[] convertBookmarkTypes(List<ViewsheetAction.BookmarkType> bookmarkTypes) {
+      int[] codes = new int[bookmarkTypes.size()];
+
+      for(int i = 0; i < bookmarkTypes.size(); i++) {
+         ViewsheetAction.BookmarkType type = bookmarkTypes.get(i);
+
+         if(type == null) {
+            throw new IllegalArgumentException(
+               "bookmarkTypes[" + i + "] is not a recognized bookmark type");
+         }
+
+         codes[i] = type.code();
+      }
+
+      return codes;
    }
 
    private Object convertParameter(Map map) {
