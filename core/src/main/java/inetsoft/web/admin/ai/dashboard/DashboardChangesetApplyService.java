@@ -37,6 +37,7 @@ import org.springframework.stereotype.Component;
 import java.security.Principal;
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -106,22 +107,31 @@ public class DashboardChangesetApplyService {
          List<Undo> undoable = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
          boolean failed = false;
+         // Whether the item that threw (if any) had already entered its own mutating call before
+         // the throw -- only that case is a genuine partial-mutation risk that must force
+         // STATUS_ROLLBACK_FAILED on its own; a throw that fires strictly before the mutating call
+         // means the item was never touched, so it must not by itself override an otherwise
+         // fully-verified rollback (bug 76856, mirroring bug 76808's DataSourceChangesetApplyService
+         // fix).
+         boolean unknownStateMutationEntered = false;
          List<DashboardChangeRequest> originals = req.getChanges();
 
          for(int i = 0; i < plan.changes().size(); i++) {
             PlanChange change = plan.changes().get(i);
             DashboardChangeRequest original = originals.get(i);
             String key = change.property();
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                applyOne(txId, reviewedTask, key, original, user, backupRef, reviewOutcome, results,
-                       undoable);
+                       undoable, mutationEntered);
             }
             catch(Exception e) {
                results.add(new DashboardApplyOutcome(key, null, null,
                   AdminChangeRecord.STATUS_FAILED, messageOf(e)));
                unknownStateFailures.add(new RollbackFailure(key,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               unknownStateMutationEntered = mutationEntered.get();
                failed = true;
                break;
             }
@@ -137,14 +147,19 @@ public class DashboardChangesetApplyService {
                                             backupRef, Collections.unmodifiableList(results), null);
          }
 
-         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, reviewedTask, undoable, backupRef, reviewOutcome, user));
+         List<RollbackFailure> rollbackOwnFailures =
+            rollback(txId, reviewedTask, undoable, backupRef, reviewOutcome, user);
 
-         if(failures.isEmpty()) {
+         // An unknownStateFailures entry only forces rollback-failed when that item's own mutating
+         // call had actually been entered (a real partial-mutation risk); if it never touched the
+         // dashboard, it must not by itself override an otherwise fully-verified rollback.
+         if(rollbackOwnFailures.isEmpty() && !unknownStateMutationEntered) {
             return new DashboardApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK,
                                             backupRef, Collections.unmodifiableList(results), null);
          }
 
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollbackOwnFailures);
          LOG.error("Dashboard changeset {} rollback failed; units still changed: {}", txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
          return new DashboardApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED,
@@ -158,7 +173,8 @@ public class DashboardChangesetApplyService {
 
    private void applyOne(String txId, String task, String key, DashboardChangeRequest original,
                          Principal user, String backupRef, String reviewOutcome,
-                         List<DashboardApplyOutcome> results, List<Undo> undoable)
+                         List<DashboardApplyOutcome> results, List<Undo> undoable,
+                         AtomicBoolean mutationEntered)
       throws Exception
    {
       String unitType = DashboardChangePlanService.requireUnitType("change", original.getUnitType());
@@ -168,22 +184,22 @@ public class DashboardChangesetApplyService {
 
          if(DashboardChangeRequest.VERB_CREATE.equals(verb)) {
             applyDashboardCreate(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
          else if(DashboardChangeRequest.VERB_UPDATE.equals(verb)) {
             applyDashboardUpdate(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
          else {
             applyDashboardDelete(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
 
          return;
       }
 
       applyDashboardFolderReorder(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                  undoable);
+                                  undoable, mutationEntered);
    }
 
    // ---------------------------------------------------------------- dashboard create
@@ -191,7 +207,8 @@ public class DashboardChangesetApplyService {
    private void applyDashboardCreate(String txId, String task, String key,
                                      DashboardChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<DashboardApplyOutcome> results, List<Undo> undoable)
+                                     List<DashboardApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       IdentityID owner = DashboardChangePlanService.parseOwner(original.getOwner());
@@ -207,6 +224,7 @@ public class DashboardChangesetApplyService {
 
       NewRepositoryFolderRequest addReq = new NewRepositoryFolderRequest();
       addReq.setOwner(owner);
+      mutationEntered.set(true);
       repositoryDashboardService.addDashboard(addReq, user);
       String placeholderName = addReq.getPath();
 
@@ -243,7 +261,8 @@ public class DashboardChangesetApplyService {
    private void applyDashboardUpdate(String txId, String task, String key,
                                      DashboardChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<DashboardApplyOutcome> results, List<Undo> undoable)
+                                     List<DashboardApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       IdentityID owner = DashboardChangePlanService.parseOwner(original.getOwner());
@@ -277,6 +296,7 @@ public class DashboardChangesetApplyService {
 
       String beforeProjection = DashboardChangePlanService.projectDashboard(
          oname, current.description(), current.viewsheet(), current.enable());
+      mutationEntered.set(true);
       RepositoryDashboardSettingsModel after = repositoryDashboardService.setSettings(oname, model, owner, user);
       boolean verified = after != null;
       String status = verified ? AdminChangeRecord.STATUS_VERIFIED : AdminChangeRecord.STATUS_FAILED;
@@ -301,7 +321,8 @@ public class DashboardChangesetApplyService {
    private void applyDashboardDelete(String txId, String task, String key,
                                      DashboardChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<DashboardApplyOutcome> results, List<Undo> undoable)
+                                     List<DashboardApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       IdentityID owner = DashboardChangePlanService.parseOwner(original.getOwner());
@@ -319,6 +340,7 @@ public class DashboardChangesetApplyService {
       String beforeProjection = DashboardChangePlanService.projectDashboard(
          oname, current.description(), current.viewsheet(), current.enable());
 
+      mutationEntered.set(true);
       repositoryDashboardService.delete(registryName, owner);
 
       boolean verified = registry.getDashboard(registryName) == null;
@@ -340,7 +362,8 @@ public class DashboardChangesetApplyService {
    private void applyDashboardFolderReorder(String txId, String task, String key,
                                             DashboardChangeRequest original, Principal user,
                                             String backupRef, String reviewOutcome,
-                                            List<DashboardApplyOutcome> results, List<Undo> undoable)
+                                            List<DashboardApplyOutcome> results, List<Undo> undoable,
+                                            AtomicBoolean mutationEntered)
       throws Exception
    {
       IdentityID owner = DashboardChangePlanService.parseOwner(original.getOwner());
@@ -348,6 +371,7 @@ public class DashboardChangesetApplyService {
       List<String> before = readFolderOrderAtApply(owner, user);
       String beforeProjection = String.join("|", before);
 
+      mutationEntered.set(true);
       writeFolderOrder(owner, requested, user);
 
       List<String> after = readFolderOrderAtApply(owner, user);

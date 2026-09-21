@@ -233,6 +233,45 @@ class DashboardChangesetApplyServiceTest {
                  "rollback must remove the dashboard create just applied");
    }
 
+   /**
+    * Direct regression test for bug 76856: a SECOND item's own precondition check throwing
+    * BEFORE its mutating call ever runs must not, by itself, force {@code STATUS_ROLLBACK_FAILED}
+    * once every actually-applied item (here, the first item's create) rolls back cleanly. The
+    * concurrent out-of-band creation of the second item's target name is simulated as a side
+    * effect of the first item's own successful {@code setSettings} call, landing strictly between
+    * {@code apply()}'s top-level plan re-resolve and the second item's own turn in the loop.
+    */
+   @Test void preMutationThrowOnSecondItemDoesNotForceRollbackFailed() throws Exception {
+      DashboardChangeRequest create1 = createDashboardChange("OtherDashboard");
+      DashboardChangeRequest create2 = createDashboardChange("Dashboard1");
+
+      when(repositoryDashboardService.setSettings(anyString(), any(), any(), eq(user)))
+         .thenAnswer(inv -> {
+            RepositoryDashboardSettingsModel model = inv.getArgument(1);
+            IdentityID owner = inv.getArgument(2);
+            String onameKey = DashboardChangePlanService.fixDashboardName(model.oname(), owner);
+            String newKey = DashboardChangePlanService.fixDashboardName(model.name(), owner);
+            dashboardStore.remove(onameKey);
+            RepositoryDashboardSettingsModel stored = dashboardSettings(
+               newKey, model.description(), model.viewsheet(), model.enable(), model.permissions());
+            dashboardStore.put(newKey, stored);
+
+            if("OtherDashboard".equals(model.name())) {
+               dashboardStore.put("Dashboard1__GLOBAL",
+                  dashboardSettings("Dashboard1__GLOBAL", "concurrent", vsAssetId(), true, null));
+            }
+
+            return stored;
+         });
+
+      var result = service.apply(applyRequest("mixed", create1, create2), user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertFalse(dashboardStore.containsKey("OtherDashboard__GLOBAL"),
+                 "the first item's create must have been rolled back");
+      verify(repositoryDashboardService, times(1)).addDashboard(any(), eq(user));
+   }
+
    /** Owner-scoped dashboards are stored WITHOUT the {@code __GLOBAL} suffix. */
    @Test void appliesAnOwnerScopedDashboardCreateAndReportsApplied() throws Exception {
       DashboardChangeRequest change = createDashboardChange("Dashboard1");
