@@ -437,6 +437,49 @@ class ProviderChangesetApplyServiceTest {
       assertEquals(AdminChangeRecord.STATUS_FAILED, victimOutcome.status());
       assertTrue(victimOutcome.error().contains("does not exist"));
       assertFalse(victimOutcome.error().contains("NullPointerException"));
+      // bug 76856: this throw fires strictly before removeAuthenticationProvider (the only
+      // mutating call in applyDeleteAuthentication) is ever reached, so nothing was ever mutated
+      // and there is nothing to roll back -- the overall status must not be forced to
+      // rollback-failed by a pre-mutation throw alone.
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+   }
+
+   @Test void bug76856APreMutationDeleteRaceThrowDoesNotForceRollbackFailedForAnEarlierAppliedChange()
+      throws Exception
+   {
+      seedHealthyAuthentication("p1", "victim");
+      ProviderApplyRequest req = applyRequest("create p2 then delete victim",
+         createFile(ProviderChain.AUTHENTICATION, "p2"), deleteAuth("victim"));
+      // "victim" is present for the plan-resolve/apply-time-re-resolve reads (invoked via
+      // applyRequest()'s own plan.resolve() and apply()'s internal re-resolve); only the unguarded
+      // read inside applyDeleteAuthentication itself hits a provider that vanished from the live
+      // chain in the split second after apply()'s own preflight re-check already passed -- same
+      // stack-frame-targeted mock technique deleteRaceUnknownNameAtApplyTimeSurfacesAsCleanFailedOutcomeNotNpe
+      // uses, applied here to a second, distinct provider name in a multi-item plan.
+      AuthenticationProviderModel victimModel = authModels.get("victim");
+      when(authenticationProviderService.getAuthenticationProvider("victim")).thenAnswer(inv -> {
+         boolean fromUnguardedCallSite = Arrays.stream(Thread.currentThread().getStackTrace())
+            .anyMatch(frame -> frame.getClassName().equals(ProviderChangesetApplyService.class.getName())
+                             && frame.getMethodName().equals("applyDeleteAuthentication"));
+
+         if(fromUnguardedCallSite) {
+            throw new MessageException("Authentication provider named \"victim\" does not exist");
+         }
+
+         return victimModel;
+      });
+
+      var result = service.apply(req, user);
+
+      // The earlier change (creating p2) is fully rolled back -- and, since the second change's
+      // own pre-mutation throw touched nothing, the whole changeset is reported rolled back, not
+      // rollback-failed (bug 76856's own description: "earlier item's rollback succeeds cleanly,
+      // yet the whole changeset is still reported rollback-failed").
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      assertFalse(authChainNames.contains("p2"));
+      assertTrue(authChainNames.contains("victim")); // never removed, since the throw was pre-mutation
    }
 
    // -------------------------------------------------------------------------
