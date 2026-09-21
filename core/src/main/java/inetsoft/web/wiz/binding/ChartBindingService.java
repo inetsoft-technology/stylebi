@@ -728,8 +728,12 @@ public class ChartBindingService {
       Integer reportedRuntime =
          !model.isMultiStyles() && runtime != GraphTypes.CHART_AUTO ? runtime : null;
 
+      // isMultiStyles(chart) reads the live VSChartInfo, not the design-only value model.
+      // isMultiStyles() reports above -- DCG-013: a date comparison can force the live value to
+      // true while the design flag (and set_chart_type's own multi:false) stays false, and
+      // requireNotMultiAesthetic checks the live value, not this one.
       return new ChartTypeState(assemblyName, model.getChartType(), reportedRuntime,
-                                model.isMultiStyles(), model.isSeparated(),
+                                model.isMultiStyles(), isMultiStyles(chart), model.isSeparated(),
                                 model.isStackMeasures());
    }
 

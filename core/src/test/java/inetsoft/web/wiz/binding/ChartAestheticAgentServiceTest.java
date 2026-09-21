@@ -364,6 +364,62 @@ class ChartAestheticAgentServiceTest {
       return chart;
    }
 
+   // ── DCG-013: date comparison forcing multi-style at runtime ──────────────
+   //
+   // isMultiAesthetic() delegates to VSChartInfo.isMultiStyles(), which a changeAndValue/
+   // percentChangeAndValue date comparison forces to true regardless of the persisted design
+   // flag (ChartDcProcessor.changeMultiStyle()). set_chart_type(multi:false), the ordinary
+   // remediation this guard names below, only ever writes the design flag and cannot clear this —
+   // so the DC-forced case needs its own message, pointing at clear_date_comparison instead.
+
+   @Test
+   void refusesSettingAFieldWhileADateComparisonForcesMultiStyleAndNamesTheRealCause() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(dateComparisonForcedMultiStyleChartAssembly()), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setField("tok", principal(), "Chart1", "color",
+                                new FieldRef("Region", "dimension", null, null, null), null, ""));
+      String message = thrown.getMessage().toLowerCase();
+      assertTrue(message.contains("date comparison"), thrown.getMessage());
+      assertTrue(message.contains("clear_date_comparison"), thrown.getMessage());
+      assertFalse(message.contains("turn multi-style off"),
+                 "the dead-end remediation must not be offered as the fix for the DC-forced " +
+                    "case: " + thrown.getMessage());
+   }
+
+   /**
+    * The ordinary user-toggled-{@code multi} case still gets its original message: only the
+    * DC-forced branch (an active date comparison with the design flag off) should repoint the
+    * caller at {@code clear_date_comparison}.
+    */
+   @Test
+   void refusesSettingAFieldOnAnOrdinaryMultiStyleChartWithTheOriginalMessage() {
+      ChartAestheticAgentService service = serviceWith(
+         sessionsFor(multiStyleChartAssembly()), new ChartBindingModel(),
+         mock(ChangeChartAestheticService.class));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> service.setField("tok", principal(), "Chart1", "color",
+                                new FieldRef("Region", "dimension", null, null, null), null, ""));
+      String message = thrown.getMessage().toLowerCase();
+      assertTrue(message.contains("set_chart_type"), thrown.getMessage());
+      assertFalse(message.contains("date comparison"), thrown.getMessage());
+   }
+
+   private static ChartVSAssembly dateComparisonForcedMultiStyleChartAssembly() {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiAesthetic()).thenReturn(true);
+      when(info.isAppliedDateComparison()).thenReturn(true);
+      when(info.isDesignMultiStyles()).thenReturn(false);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+      return chart;
+   }
+
    private static ChartVSAssembly relationChartAssembly() {
       VSChartInfo info = mock(VSChartInfo.class);
       when(info.getChartType()).thenReturn(GraphTypes.CHART_NETWORK);

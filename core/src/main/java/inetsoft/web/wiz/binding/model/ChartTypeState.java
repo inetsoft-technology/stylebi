@@ -84,13 +84,30 @@ package inetsoft.web.wiz.binding.model;
  * to drift, while the plugin already owns the one facing the agent and already echoes names back
  * from {@code set_chart_type}.
  *
- * @param assembly         the chart's name
- * @param chartType        the assembly-level GraphTypes code
- * @param runtimeChartType the code the last render resolved to, or null where the assembly-level
- *                         value is not maintained
- * @param multiStyles      whether each measure carries its own type
- * @param separated        separated rather than merged graphs
- * @param stackMeasures    whether measures are stacked
+ * <p><b>{@code runtimeMultiStyles} (DCG-013) is not the same value as {@code multiStyles}.</b>
+ * {@code multiStyles} above is read from {@code VSChartInfo.isDesignMultiStyles()} — the
+ * persisted setting {@code set_chart_type}'s {@code multi} writes. This field is read from the
+ * live {@code VSChartInfo.isMultiStyles()}, which a {@code changeAndValue}/
+ * {@code percentChangeAndValue} date comparison forces to {@code true} at runtime
+ * ({@code ChartDcProcessor.changeMultiStyle()}) independent of that design setting. The two agree
+ * outside that case; while such a comparison is active they can diverge, and
+ * {@code set_aesthetic_field}'s multi-style guard ({@code ChartAestheticAgentService.
+ * requireNotMultiAesthetic}) checks this value, not {@code multiStyles} — a caller that only read
+ * {@code multiStyles} had no way to anticipate that guard firing, or to tell that
+ * {@code set_chart_type(multi:false)} could never clear it while the comparison stayed applied.
+ *
+ * @param assembly            the chart's name
+ * @param chartType           the assembly-level GraphTypes code
+ * @param runtimeChartType    the code the last render resolved to, or null where the
+ *                            assembly-level value is not maintained
+ * @param multiStyles         whether each measure carries its own type, per the persisted design
+ *                            setting
+ * @param runtimeMultiStyles  whether the chart is rendering multi-style right now — may be
+ *                            {@code true} even when {@code multiStyles} is {@code false}, while an
+ *                            active date comparison forces it
+ * @param separated           separated rather than merged graphs
+ * @param stackMeasures       whether measures are stacked
  */
 public record ChartTypeState(String assembly, int chartType, Integer runtimeChartType,
-                             boolean multiStyles, boolean separated, boolean stackMeasures) {}
+                             boolean multiStyles, boolean runtimeMultiStyles, boolean separated,
+                             boolean stackMeasures) {}

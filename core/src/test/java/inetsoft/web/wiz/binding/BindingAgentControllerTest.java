@@ -240,7 +240,7 @@ class BindingAgentControllerTest {
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
       ChartTypeState state =
-         new ChartTypeState("Chart1", 1, 5, true, true, false);
+         new ChartTypeState("Chart1", 1, 5, true, true, true, false);
       ChartBindingService chartService = mock(ChartBindingService.class);
       when(chartService.readChartType(eq("tok"), any(), eq("Chart1"))).thenReturn(state);
 

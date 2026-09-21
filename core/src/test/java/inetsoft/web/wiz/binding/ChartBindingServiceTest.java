@@ -1275,6 +1275,59 @@ class ChartBindingServiceTest {
       assertNull(readTypeOf(model).runtimeChartType());
    }
 
+   // ── DCG-013: live vs. design multi-style ──────────────────────────────────
+   //
+   // multiStyles above is read from the design-only VSChartInfo.isDesignMultiStyles(). A
+   // changeAndValue/percentChangeAndValue date comparison forces the *live* isMultiStyles() to
+   // true independent of that design flag (ChartDcProcessor.changeMultiStyle()), and
+   // set_aesthetic_field's guard (ChartAestheticAgentService.requireNotMultiAesthetic) checks the
+   // live value, not the design one. Before this field existed, a caller reading get_chart_type
+   // saw multiStyles: false and had no way to anticipate that guard firing, or that
+   // set_chart_type(multi:false) could never clear the value it actually checks.
+
+   @Test
+   void reportsRuntimeMultiStyleSeparatelyFromTheDesignFlagWhenADateComparisonForcesIt()
+      throws Exception
+   {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_LINE);
+      model.setMultiStyles(false);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(true);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      ChartTypeState state =
+         harnessWithAssembly(chart, model, mock(ChangeChartRefService.class),
+                             mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                             mock(ChangeSeparateStatusService.class))
+            .readChartType("tok", principal(), "Chart1");
+
+      assertFalse(state.multiStyles(), "the design setting is still reported as off");
+      assertTrue(state.runtimeMultiStyles(),
+                 "the live value the guard checks must be reported too, and it disagrees here");
+   }
+
+   @Test
+   void runtimeMultiStyleMatchesTheDesignFlagOutsideADateComparison() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setChartType(GraphTypes.CHART_LINE);
+      model.setMultiStyles(false);
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isMultiStyles()).thenReturn(false);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      ChartTypeState state =
+         harnessWithAssembly(chart, model, mock(ChangeChartRefService.class),
+                             mock(ChangeChartTypeService.class), mock(SwapXYBindingService.class),
+                             mock(ChangeSeparateStatusService.class))
+            .readChartType("tok", principal(), "Chart1");
+
+      assertFalse(state.multiStyles());
+      assertFalse(state.runtimeMultiStyles(), "no date comparison is forcing a divergence here");
+   }
+
    /**
     * A hard cast would have surfaced as a ClassCastException and a 500, throwing away the sentence
     * the sibling read produces for the same situation.

@@ -335,6 +335,15 @@ public class ChartAestheticAgentService {
     * swap-axes case. The render-layer defect this exposes is consequently real but UI-unreachable
     * — a standalone StyleBI engine issue, not a wiz/native parity gap, and out of this lane's
     * scope to fix.
+    *
+    * <p><b>DCG-013:</b> {@code info.isMultiAesthetic()} delegates to {@code VSChartInfo.
+    * isMultiStyles()}, which a {@code changeAndValue}/{@code percentChangeAndValue} date
+    * comparison forces to {@code true} at runtime ({@code ChartDcProcessor.changeMultiStyle()})
+    * regardless of the persisted design flag ({@code isDesignMultiStyles()}). In that state, this
+    * guard's usual remediation is a dead end: {@code set_chart_type(multi:false)} only ever
+    * writes the design flag ({@code ChangeSeparateStatusProcessor.process}), and the live/DC
+    * override still wins on the very next read. Only clearing the comparison actually changes the
+    * value this guard checks, so the DC-forced branch below names that instead.
     */
    private void requireNotMultiAesthetic(String sessionToken, Principal user, String assemblyName)
       throws Exception
@@ -344,6 +353,17 @@ public class ChartAestheticAgentService {
       VSChartInfo info = chart.getVSChartInfo();
 
       if(info != null && info.isMultiAesthetic()) {
+         if(info.isAppliedDateComparison() && !info.isDesignMultiStyles()) {
+            throw new IllegalArgumentException(
+               "This chart is multi-style right now because its active date comparison " +
+               "(changeAndValue/percentChangeAndValue) forces multi-style rendering, even " +
+               "though the design setting is off — binding a field here would corrupt the " +
+               "chart's rendering with no way to undo it. set_chart_type(multi:false) cannot " +
+               "turn this off while the comparison is active, since it only writes the design " +
+               "flag. Call clear_date_comparison first, bind the field, then reapply the " +
+               "comparison if it is still wanted.");
+         }
+
          throw new IllegalArgumentException(
             "This chart is multi-style, and binding a field here while multi-style is already " +
             "on corrupts the chart's rendering with no way to undo it. Turn multi-style off " +
