@@ -1156,6 +1156,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -1163,6 +1164,10 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(FormTableRowService.class),
+                                          mock(ColumnOptionService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           mock(SheetAgentBroadcastService.class),
                                           mock(SheetOpenService.class),
@@ -1170,7 +1175,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    /** Same as the two-arg {@code controllerWith(sessions, propertyService)} above, but with
@@ -1195,6 +1201,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(AssemblyHyperlinkService.class),
                                           mock(ChartElementService.class),
                                           mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
                                           mock(AssemblyConditionService.class),
                                           mock(AssemblyHighlightService.class),
                                           mock(DateComparisonService.class),
@@ -1202,6 +1209,10 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(SelectionRuntimeService.class),
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
+                                          mock(FormTableRowService.class),
+                                          mock(ColumnOptionService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
                                           mock(inetsoft.analytic.composition.ViewsheetService.class),
                                           broadcast,
                                           mock(SheetOpenService.class),
@@ -1209,7 +1220,8 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(LayoutReadService.class),
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
-                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class));
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
    // ---------------------------------------------------------------------------
