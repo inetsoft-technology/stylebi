@@ -1296,7 +1296,8 @@ public class ViewsheetAction extends ScheduleAction {
             }
          }
 
-         return null;
+         throw new IllegalArgumentException("Unrecognized bookmark type \"" + value +
+            "\" (expected \"private\", \"all_share\", or \"group_share\")");
       }
 
       public static BookmarkType fromCode(int code) {
