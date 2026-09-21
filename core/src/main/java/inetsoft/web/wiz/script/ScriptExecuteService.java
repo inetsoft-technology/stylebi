@@ -36,9 +36,11 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -78,6 +80,17 @@ public class ScriptExecuteService {
    // this service never touches.
    private static final Pattern WS_RUNQUERY_LITERAL =
       Pattern.compile("runQuery\\s*\\(\\s*[\"'](ws:[^\"']+)[\"']");
+
+   // Bug #76853 (VSD-010): a script-local var/let/const whose name collides (case-insensitively --
+   // see BindingRootProxy's Calc builtin scope, which resolves last-resort via a
+   // CASE_INSENSITIVE_ORDER TreeMap) with a registered global "Calc" scripting function name (e.g.
+   // CalcDateTime.maxDate) and is assigned a primitive value gets routed through
+   // BindingRootProxy.putMember -> VSAScriptable.putMember, landing in unrecognizedWrites even
+   // though it is an ordinary local, not a real assembly-property write. Filtering the script's own
+   // declared locals out of unrecognizedProperties here fixes the false positive without touching
+   // that shared scope-emulation code (which every script kind in the product depends on).
+   private static final Pattern DECLARATION_KEYWORD = Pattern.compile("\\b(?:var|let|const)\\b");
+   private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_$][\\w$]*");
 
    @Autowired
    public ScriptExecuteService(ScriptReadService readService) {
@@ -178,9 +191,17 @@ public class ScriptExecuteService {
          Object value = scope.execute(text, assemblyName);
          List<String> unrecognized = new ArrayList<>();
          List<String> rejected = new ArrayList<>();
+         Set<String> declaredLocals = declaredLocals(text);
 
          for(Map.Entry<String, VSAScriptable> entry : trackedScriptables.entrySet()) {
             for(String name : entry.getValue().getUnrecognizedWrites()) {
+               // A name the script itself declares via var/let/const is an ordinary script-local,
+               // not a real assembly-property write, even though it reached this tracking (see
+               // the DECLARATION_KEYWORD field comment above for why) -- exclude it.
+               if(declaredLocals.contains(name)) {
+                  continue;
+               }
+
                // ASSEMBLY/ASSEMBLY_ONCLICK already name the one assembly in the message below,
                // so the bare property name is unambiguous there. VS_INIT/VS_LOAD can touch
                // several different assemblies, so qualify with which one to avoid conflating
@@ -409,6 +430,127 @@ public class ScriptExecuteService {
       catch(Exception ex) {
          return null;
       }
+   }
+
+   /**
+    * Best-effort extraction of every name this script text declares via {@code var}/{@code let}/
+    * {@code const}, so a write to it can be excluded from {@code unrecognizedProperties} (see the
+    * {@link #DECLARATION_KEYWORD} field comment). Comments and string/template literals are
+    * stripped first so a keyword appearing inside either can't produce a false declared-local.
+    *
+    * <p>Limitation: only plain identifier declarators are recognized -- a destructuring target
+    * (e.g. {@code var [a, b] = ...} or {@code var {a, b} = ...}) is not extracted. This only risks
+    * under-filtering (a real declared local still reported as unrecognized), never
+    * over-filtering a genuine unrecognized property write, so it is safe to leave unhandled for
+    * this lightweight, non-parser-based scan.</p>
+    */
+   private static Set<String> declaredLocals(String scriptText) {
+      String stripped = stripCommentsAndStrings(scriptText);
+      Set<String> names = new HashSet<>();
+      Matcher keyword = DECLARATION_KEYWORD.matcher(stripped);
+
+      while(keyword.find()) {
+         int pos = keyword.end();
+         int depth = 0;
+         boolean atDeclaratorStart = true;
+
+         while(pos < stripped.length()) {
+            char c = stripped.charAt(pos);
+
+            if(Character.isWhitespace(c)) {
+               pos++;
+               continue;
+            }
+
+            if(atDeclaratorStart) {
+               Matcher id = IDENTIFIER.matcher(stripped);
+               id.region(pos, stripped.length());
+
+               if(!id.lookingAt()) {
+                  // Destructuring pattern or malformed declaration -- give up on this
+                  // declaration's remaining declarators; see method javadoc.
+                  break;
+               }
+
+               names.add(id.group());
+               pos = id.end();
+               atDeclaratorStart = false;
+               continue;
+            }
+
+            if(c == '(' || c == '[' || c == '{') {
+               depth++;
+            }
+            else if(c == ')' || c == ']' || c == '}') {
+               if(depth == 0) {
+                  break;
+               }
+
+               depth--;
+            }
+            else if(depth == 0 && c == ';') {
+               break;
+            }
+            else if(depth == 0 && c == ',') {
+               atDeclaratorStart = true;
+            }
+
+            pos++;
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * Drops comment and string/template-literal content from {@code text} so a later scan (e.g.
+    * {@link #declaredLocals}) can't be fooled by {@code var}/{@code let}/{@code const} appearing
+    * inside either. Not a full lexer -- e.g. a regex literal containing a quote character can
+    * desync this, a limitation shared with any non-parser-based scan of script text.
+    */
+   private static String stripCommentsAndStrings(String text) {
+      StringBuilder out = new StringBuilder(text.length());
+      int i = 0;
+      int n = text.length();
+
+      while(i < n) {
+         char c = text.charAt(i);
+
+         if(c == '/' && i + 1 < n && text.charAt(i + 1) == '/') {
+            while(i < n && text.charAt(i) != '\n') {
+               i++;
+            }
+         }
+         else if(c == '/' && i + 1 < n && text.charAt(i + 1) == '*') {
+            i += 2;
+
+            while(i + 1 < n && !(text.charAt(i) == '*' && text.charAt(i + 1) == '/')) {
+               i++;
+            }
+
+            i = Math.min(i + 2, n);
+         }
+         else if(c == '\'' || c == '"' || c == '`') {
+            char quote = c;
+            i++;
+
+            while(i < n && text.charAt(i) != quote) {
+               if(text.charAt(i) == '\\' && i + 1 < n) {
+                  i++;
+               }
+
+               i++;
+            }
+
+            i++;
+         }
+         else {
+            out.append(c);
+            i++;
+         }
+      }
+
+      return out.toString();
    }
 
    private static String firstDestructiveGlobal(String scriptText) {

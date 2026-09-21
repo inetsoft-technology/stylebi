@@ -117,6 +117,68 @@ class ScriptExecuteServiceTest {
    }
 
    /**
+    * Bug #76853 (VSD-010): {@code maxDate} collides (case-insensitively -- see
+    * BindingRootProxy's Calc builtin scope) with the registered Calc scripting function
+    * {@code CalcDateTime.maxDate}, so a real GraalJS run routes its writes through
+    * VSAScriptable.putMember into unrecognizedWrites even though it is an ordinary script-local
+    * declared with {@code var}. Reproduces that reported shape (the exact repro script, and
+    * {@code getUnrecognizedWrites()} mocked to the same 4-entries-per-loop the real engine
+    * produces) and confirms {@code execute()}'s declared-locals filter excludes it.
+    */
+   @Test
+   void executeExcludesADeclaredLocalFromUnrecognizedPropertiesEvenIfItCollidesWithACalcFunctionName()
+      throws Exception
+   {
+      String script = "var maxVal = -1;\nvar maxDate = null;\n" +
+         "for(var i = 0; i < 3; i++) {\n  maxVal = i;\n  maxDate = \"x\" + i;\n}";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(scriptable.getUnrecognizedWrites())
+         .thenReturn(List.of("maxDate", "maxDate", "maxDate", "maxDate"));
+
+      RuntimeViewsheet rvs = viewsheetWithAssemblyScript(script, scope, scriptable);
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1");
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, target, false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(target.toString()), result.changed());
+      assertNull(result.unrecognizedProperties());
+   }
+
+   /**
+    * Per the refuter's correction to the VSD-010 diagnosis, the Calc-function-name collision
+    * itself is case-insensitive, but the declared-locals filter must not rely on that -- it
+    * works purely off "was this exact identifier declared as a script-local," so a case-variant
+    * collision (which a live engine also flags, per the refuter's experiment) must be excluded
+    * too, driven only by the exact-name match against the script's own {@code var} declaration.
+    */
+   @Test
+   void executeExcludesADeclaredLocalFromUnrecognizedPropertiesForACaseVariantCollisionToo()
+      throws Exception
+   {
+      String script = "var MAXVAL = -1;\nvar MAXDATE = null;\nMAXDATE = \"x\";";
+      ViewsheetScope scope = mock(ViewsheetScope.class);
+      when(scope.execute(eq(script), eq("Submit1"))).thenReturn(null);
+
+      VSAScriptable scriptable = mock(VSAScriptable.class);
+      when(scriptable.getUnrecognizedWrites()).thenReturn(List.of("MAXDATE", "MAXDATE"));
+
+      RuntimeViewsheet rvs = viewsheetWithAssemblyScript(script, scope, scriptable);
+      ScriptTarget target = ScriptTarget.of(ScriptTarget.Kind.ASSEMBLY_MAIN, "Submit1");
+      ScriptExecuteService svc = new ScriptExecuteService(new ScriptReadService());
+
+      ScriptExecResult result = svc.runLive(rvs, target, false);
+
+      assertTrue(result.ok());
+      assertEquals(List.of(target.toString()), result.changed());
+      assertNull(result.unrecognizedProperties());
+   }
+
+   /**
     * Bug #76104: "position" IS a registered scriptable property (unlike "label" above), so it
     * must not be reported as "not a recognized scriptable property" -- but its setter silently
     * declined to apply the value (Composer design-mode session, not a live viewer runtime), so
