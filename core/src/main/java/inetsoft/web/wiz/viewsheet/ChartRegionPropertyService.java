@@ -395,6 +395,16 @@ public class ChartRegionPropertyService {
                "(what to show instead); got " + map + ".");
          }
 
+         String aliasText = String.valueOf(map.get("alias"));
+
+         if(aliasText.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+               "'aliases[" + i + "].alias' is blank/whitespace-only, which this region's " +
+               "underlying model treats as \"no override\" and silently reverts to the default " +
+               "label -- not a way to force a genuinely empty tick/legend label. Use a " +
+               "non-blank placeholder instead.");
+         }
+
          parsed.add(map);
       }
 
