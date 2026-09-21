@@ -413,6 +413,33 @@ public class SelectionRuntimeService {
                selections.applySelection(runtimeId, assemblyName, event, user, dispatcher, linkUri);
             }
          }
+         else if(assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode()) {
+            // selectedPaths()'s recursion only descends into a CompositeSelectionValue when the
+            // composite itself is isSelected() -- correct for a fixed-hierarchy tree, where a
+            // select always marks every ancestor along the way too, but wrong for an ID-mode
+            // tree, where updateIDSelectionTree marks only the exact matched node(s) and never
+            // propagates to ancestors (by design -- see its own doc comment: a node's value can
+            // recur under different parents, so "parent selected" has no single meaning). A
+            // selected subtree whose own root node isn't itself selected -- e.g. after
+            // select_subtree, which deliberately leaves the ID-mode root unselected -- would make
+            // selectedPaths() stop at that root and report nothing to clear at all. So an ID-mode
+            // tree counts every selected node directly (countSelected has no isSelected() gate on
+            // the recursion) and clears via a full wipe instead of a per-value deselect diff --
+            // the same "empty values + APPLY" branch of doApplySelection that unselectAll already
+            // uses (via event == null, the same branch per its own `||` guard) for a container's
+            // native Clear gesture. clearedCount here therefore counts nodes (ancestors included
+            // when independently selected), not leaf paths the way the non-ID branch's
+            // selectedPaths()-based count does -- the two are not directly comparable.
+            int cleared = countSelected(assembly);
+            result.put("clearedCount", cleared);
+
+            if(cleared > 0) {
+               ApplySelectionListEvent event = new ApplySelectionListEvent();
+               event.setType(ApplySelectionListEvent.Type.APPLY);
+               selections.applySelection(runtimeId, assemblyName, event, user, dispatcher,
+                                         linkUri);
+            }
+         }
          else {
             List<List<String>> current = selectedPaths(assembly);
             result.put("clearedCount", current.size());
@@ -769,6 +796,46 @@ public class SelectionRuntimeService {
       }
 
       return paths;
+   }
+
+   /** Every currently selected node, counted directly — what an ID-mode tree's "clear" counts. */
+   private static int countSelected(SelectionVSAssembly assembly) {
+      SelectionList list = selectionListOf(assembly);
+      return countSelected(list == null ? null : list.getSelectionValues());
+   }
+
+   /**
+    * The recursion {@link #selectedPaths(SelectionValue[])} cannot substitute for on an ID-mode
+    * tree: that method only descends into a {@link CompositeSelectionValue} when the composite
+    * itself is {@code isSelected()}, which an ID-mode select never guarantees (unlike a
+    * fixed-hierarchy select, an ID-mode match never marks ancestors). This recurses into every
+    * composite unconditionally and counts every node whose own flag is set, ancestors included --
+    * so it counts nodes, not leaf paths, and is not directly comparable to the non-ID branch's
+    * {@code selectedPaths()}-based count.
+    */
+   static int countSelected(SelectionValue[] values) {
+      if(values == null) {
+         return 0;
+      }
+
+      int count = 0;
+
+      for(SelectionValue value : values) {
+         if(value == null) {
+            continue;
+         }
+
+         if(value.isSelected()) {
+            count++;
+         }
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList childList = composite.getSelectionList();
+            count += countSelected(childList == null ? null : childList.getSelectionValues());
+         }
+      }
+
+      return count;
    }
 
    /**
