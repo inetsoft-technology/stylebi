@@ -429,8 +429,15 @@ public class ViewsheetAssemblyAgentController {
       });
    }
 
-   /** {@code update_bookmark}. Refuses when {@code name} does NOT already exist -- the mirror
-    *  image of {@link #createBookmark}'s own collision guard. */
+   /**
+    * {@code update_bookmark}. Refuses when {@code name} does NOT already exist -- the mirror
+    * image of {@link #createBookmark}'s own collision guard. Also refuses a concurrent-edit
+    * conflict -- {@code bookmarkUpdated}/{@code checkBookmark} are called before
+    * {@link #requireOwnBookmark}, since {@code requireOwnBookmark}'s own {@code containsBookmark}
+    * call unconditionally refreshes {@code rvs}'s in-memory bookmark baseline for this owner, and
+    * running the conflict checks after that would always compare a just-refreshed baseline against
+    * itself and never detect anything.
+    */
    @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/update")
    public void updateBookmark(@PathVariable String sessionToken,
                               @RequestBody SaveBookmarkRequest request, Principal user)
@@ -440,6 +447,29 @@ public class ViewsheetAssemblyAgentController {
       String name = requireBookmarkName(request.name(), "update_bookmark");
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         IdentityID owner = ownerOf(user);
+
+         if(rvs.bookmarkUpdated(name, owner)) {
+            throw new IllegalArgumentException(
+               "update_bookmark: bookmark '" + name + "' was modified by someone else since it " +
+               "was last read. Call list_bookmarks to see its current state before overwriting it.");
+         }
+
+         if(!rvs.checkBookmark(name, owner)) {
+            // checkBookmark alone can't distinguish "deleted since this session last saw it" from
+            // "never existed" -- it's a stateless, always-fresh existence check with no reference
+            // to this session's own cached baseline. getBookmarkInfo is a side-effect-free read of
+            // that cached baseline: non-null means this session did know the name, so a fresh
+            // "not found" here means someone else deleted it; null means it falls through to
+            // requireOwnBookmark's own generic not-found message below (an ordinary typo, or a
+            // name that never existed, must not be misreported as a deletion).
+            if(rvs.getBookmarkInfo(name, owner) != null) {
+               throw new IllegalArgumentException(
+                  "update_bookmark: bookmark '" + name + "' was deleted by someone else. Use " +
+                  "create_bookmark if you want to recreate it.");
+            }
+         }
+
          requireOwnBookmark(rvs, name, user, "update_bookmark",
             "no bookmark named '" + name + "' exists yet. Use create_bookmark for a new one.");
 

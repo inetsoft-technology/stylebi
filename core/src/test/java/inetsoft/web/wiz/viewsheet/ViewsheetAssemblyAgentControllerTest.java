@@ -3127,6 +3127,116 @@ class ViewsheetAssemblyAgentControllerTest {
          eq(VSBookmarkInfo.ALLSHARE), eq(false), eq(true), any(Principal.class));
    }
 
+   // ---------------------------------------------------------------------------
+   // update_bookmark concurrent-edit conflict detection -- bug #76846. bookmarkUpdated/
+   // checkBookmark/getBookmarkInfo must all run BEFORE requireOwnBookmark's own containsBookmark
+   // call, since containsBookmark unconditionally refreshes rvs's in-memory bookmark baseline for
+   // this owner and running the conflict checks after that would always compare a just-refreshed
+   // baseline against itself.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void updateBookmark_succeedsNormallyWhenNoConflict() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.bookmarkUpdated(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.checkBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class))).thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
+         principal());
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class));
+   }
+
+   @Test
+   void updateBookmark_refusesWhenModifiedBySomeoneElse() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.bookmarkUpdated(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("was modified by someone else"));
+      verifyNoInteractions(vsBookmarkService);
+      // The ordering fix itself: bookmarkUpdated must be checked BEFORE requireOwnBookmark's own
+      // containsBookmark call ever refreshes the in-memory baseline it needs to compare against.
+      verify(rvs, never()).containsBookmark(anyString(), any(IdentityID.class));
+   }
+
+   @Test
+   void updateBookmark_refusesWhenDeletedBySomeoneElse() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.bookmarkUpdated(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.checkBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      // Non-null: this session's own cached baseline DID know this name -- distinguishes a real
+      // deletion from an ordinary typo/never-existed name (checkBookmark alone cannot tell the
+      // two apart, since it is a stateless, always-fresh existence check).
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), any(IdentityID.class))).thenReturn(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE,
+                            IdentityID.getIdentityIDFromKey("admin"), false,
+                            System.currentTimeMillis()));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("was deleted by someone else"));
+      verifyNoInteractions(vsBookmarkService);
+      verify(rvs, never()).containsBookmark(anyString(), any(IdentityID.class));
+   }
+
+   /**
+    * A typo'd/never-existed name must NOT be misreported as a deletion: {@code checkBookmark}
+    * alone cannot distinguish "deleted since this session last saw it" from "never existed" --
+    * only a name this session's own cached baseline ({@code getBookmarkInfo}) actually knew about
+    * gets the "deleted by someone else" wording. Everything else falls through to
+    * {@code requireOwnBookmark}'s existing, generic not-found message.
+    */
+   @Test
+   void updateBookmark_typoStillGetsTheGenericNotFoundMessageNotAFalseDeletedReport() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.bookmarkUpdated(eq("Q1 Reprot"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.checkBookmark(eq("Q1 Reprot"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.getBookmarkInfo(eq("Q1 Reprot"), any(IdentityID.class))).thenReturn(null);
+      when(rvs.containsBookmark(eq("Q1 Reprot"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.getBookmarks()).thenReturn(List.of());
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Reprot", null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("no bookmark named"));
+      assertFalse(thrown.getMessage().contains("deleted"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
    @Test
    void deleteBookmark_refusesWhenTheNameDoesNotExist() throws Exception {
       ViewsheetSessionService sessions = realMutatingSessions();
