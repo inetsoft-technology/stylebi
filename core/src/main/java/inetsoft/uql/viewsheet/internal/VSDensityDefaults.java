@@ -85,7 +85,16 @@ public final class VSDensityDefaults {
     * the valid modes, shared by the EM density control and the browser body-class whitelist.
     */
    public static String normalizeMode(String mode) {
-      return COMFORTABLE.equals(mode) || COMPACT.equals(mode) || DENSE.equals(mode) ? mode : DENSE;
+      return isValidMode(mode) ? mode : DENSE;
+   }
+
+   /**
+    * Whether this is one of the three recognized modes. For a writer that must reject an unknown
+    * value rather than clamp it - normalizeMode's fallback to dense would pin a dashboard to a
+    * tier nobody chose, where rejecting leaves it inheriting the org.
+    */
+   public static boolean isValidMode(String mode) {
+      return COMFORTABLE.equals(mode) || COMPACT.equals(mode) || DENSE.equals(mode);
    }
 
    /**

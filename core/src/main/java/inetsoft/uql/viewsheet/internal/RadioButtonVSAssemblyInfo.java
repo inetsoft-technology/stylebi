@@ -433,10 +433,13 @@ public class RadioButtonVSAssemblyInfo extends ListInputVSAssemblyInfo
          getPixelSize().height % 2 == 0 &&
             VSDensityDefaults.isControlHeight(getPixelSize().height / 2)))
       {
+         int oldHeight = getPixelSize().height;
          int newHeight = 2 * VSDensityDefaults.controlHeight(ctx);
          setPixelSize(new Dimension(getPixelSize().width, newHeight));
 
-         if(getCellHeight() == AssetUtil.defh) {
+         // the ratio the last seed left, not the legacy default: on a density re-fire the cell is
+         // already off defh, and a stranded one overflows the container's new content height
+         if(getCellHeight() == oldHeight - getTitleHeight()) {
             setCellHeight(newHeight - getTitleHeight());
          }
       }

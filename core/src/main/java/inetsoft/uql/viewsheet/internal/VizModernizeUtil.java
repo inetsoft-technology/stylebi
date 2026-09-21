@@ -31,8 +31,11 @@ import java.util.function.Predicate;
  * the targets and the mark, and seedAll does the stamping, seeding and shared-frame invalidation.
  * They live in this package because seedChromeDefaults is protected.
  *
- * Nothing here is automatic - unmarked content is never modernized and marked content is never
- * reverted unless somebody asks. A mixed dashboard stays mixed either way.
+ * Nothing here is automatic - none of it runs unless somebody asks. modernize and revert are the
+ * one-way pair and leave a mixed dashboard mixed: modernize touches only unmarked content, revert
+ * only marked. applyMark is the per-dashboard switch and deliberately does not - it moves every
+ * target that differs, so setting a mode or dark on a mixed dashboard stamps the deliberately
+ * legacy assemblies too, which is what a per-dashboard control means.
  */
 public final class VizModernizeUtil {
    private VizModernizeUtil() {
@@ -57,7 +60,7 @@ public final class VizModernizeUtil {
       VizMark mark = VizMark.fromGate();
       // unmarked(), not applyMark()'s differing predicate: an already-marked sibling (e.g. dark)
       // must survive a light-gated modernize untouched, which "differs from target mark" would not
-      return mark == null ? 0 : seedAll(vs, mark, unmarked(vs), true);
+      return mark == null ? 0 : seedAll(vs, mark, unmarked(vs), true, true);
    }
 
    /**
@@ -92,7 +95,7 @@ public final class VizModernizeUtil {
     * MODERN_LIGHT to MODERN_DARK flip, which neither of the one-way operations above can reach.
     */
    public static int applyMark(Viewsheet vs, VizMark mark) {
-      return seedAll(vs, mark, collect(vs, info -> info.getVizMark() != mark), true);
+      return seedAll(vs, mark, collect(vs, info -> info.getVizMark() != mark), true, true);
    }
 
    /**
@@ -101,18 +104,25 @@ public final class VizModernizeUtil {
     * density-derived control-height substitution.
     */
    public static int reseed(Viewsheet vs) {
-      return seedAll(vs, null, collect(vs, info -> true), false);
+      // mark is inert here: nothing is stamped, so every target keeps the one it has
+      return seedAll(vs, null, collect(vs, info -> true), false, false);
    }
 
+   /**
+    * Seeds every target, optionally stamping it first. A transition context may be built only when
+    * a mark actually moves: it is what lets a seed replace the measure-to-colour ramp, a value an
+    * author can reach, so a density change must not claim it.
+    */
    private static int seedAll(Viewsheet vs, VizMark mark, List<VSAssemblyInfo> targets,
-                              boolean stamp)
+                              boolean stamp, boolean transition)
    {
       for(VSAssemblyInfo info : targets) {
          if(stamp) {
             info.setVizMark(mark);
          }
 
-         info.seedChromeDefaults(VizContext.ofTransition(vs, info.getVizMark()));
+         info.seedChromeDefaults(transition ?
+            VizContext.ofTransition(vs, info.getVizMark()) : VizContext.of(info));
       }
 
       if(!targets.isEmpty()) {

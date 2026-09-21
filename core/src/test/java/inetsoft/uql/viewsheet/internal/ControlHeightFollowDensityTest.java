@@ -384,11 +384,14 @@ class ControlHeightFollowDensityTest {
       CheckBoxVSAssemblyInfo info = new CheckBoxVSAssemblyInfo();
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
       assertEquals(60, info.getPixelSize().height, "the doubled comfortable tier");
+      assertEquals(60 - info.getTitleHeight(), info.getCellHeight());
 
       SreeEnv.setProperty("viewsheet.density", "dense");
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
       assertEquals(48, info.getPixelSize().height, "the doubled dense tier");
+      assertEquals(48 - info.getTitleHeight(), info.getCellHeight(),
+                   "a stranded cell height overflows the container's new content height");
    }
 
    @Test
@@ -401,6 +404,8 @@ class ControlHeightFollowDensityTest {
       info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
 
       assertEquals(48, info.getPixelSize().height);
+      assertEquals(48 - info.getTitleHeight(), info.getCellHeight(),
+                   "a stranded cell height overflows the container's new content height");
    }
 
    @Test

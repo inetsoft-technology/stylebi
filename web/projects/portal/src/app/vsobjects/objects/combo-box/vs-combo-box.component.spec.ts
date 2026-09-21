@@ -108,4 +108,15 @@ describe("VSComboBox dropdown dark resolution", () => {
       expect(panel).not.toBeNull();
       expect(panel.classList.contains("viz-dark")).toBe(false);
    });
+
+   it("carries its own assembly's density, which no ancestor can supply", () => {
+      comboBox.model.vizModern = true;
+      comboBox.model.vizDensity = "comfortable";
+
+      const panel = openDropdown();
+
+      expect(panel).not.toBeNull();
+      expect(panel.classList.contains("viz-density-comfortable")).toBe(true);
+      expect(panel.classList.contains("viz-density-dense")).toBe(false);
+   });
 });

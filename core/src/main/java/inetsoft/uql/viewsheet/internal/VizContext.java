@@ -90,6 +90,10 @@ public final class VizContext {
     * deliberately unlike the mark, which VizModernizeUtil.collect() leaves to the embedded asset.
     */
    private static String densityOf(VSAssemblyInfo info) {
+      // getViewsheet() is the PARENT, so a sheet's own info resolves the org's density rather than
+      // that sheet's. Harmless while ViewsheetVSAssemblyInfo.seedChromeDefaults reads only
+      // ctx.modern, and every real density reader is on an assembly info that has its sheet set -
+      // but anything density-derived seeded onto the sheet's own info needs ofTransition instead.
       Viewsheet vs = info == null ? null : info.getViewsheet();
 
       for(Viewsheet parent; vs != null && (parent = vs.getViewsheet()) != null; vs = parent) {

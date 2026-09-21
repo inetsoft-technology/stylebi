@@ -22,6 +22,7 @@ import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.internal.VSCustomizedAction;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.util.OrderedMap;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -566,7 +567,8 @@ public class ViewsheetInfo implements AssetObject {
    }
 
    public void setVizDensity(String vizDensity) {
-      this.vizDensity = vizDensity == null || vizDensity.isEmpty() ? null : vizDensity;
+      // unrecognized rejects to null rather than clamping, so the dashboard keeps inheriting
+      this.vizDensity = VSDensityDefaults.isValidMode(vizDensity) ? vizDensity : null;
    }
 
    /**
@@ -773,8 +775,9 @@ public class ViewsheetInfo implements AssetObject {
       writer.print(" snapGrid=\"" + snapGrid + "\"");
 
       if(vizDensity != null) {
-         // omitted when unset, so an untouched sheet's file does not change
-         writer.print(" vizDensity=\"" + vizDensity + "\"");
+         // omitted when unset, so an untouched sheet's file does not change; escaped as well as
+         // whitelisted, so a value that ever reaches here unvalidated cannot break the start tag
+         writer.print(" vizDensity=\"" + Tool.escape(vizDensity) + "\"");
       }
 
       writer.print(" balancePadding=\"" + balancePadding + "\"");
@@ -847,7 +850,7 @@ public class ViewsheetInfo implements AssetObject {
          this.snapGrid = Integer.parseInt(prop);
       }
 
-      this.vizDensity = Tool.getAttribute(elem, "vizDensity");
+      setVizDensity(Tool.getAttribute(elem, "vizDensity"));
 
       this.desc = Tool.decodeNL(Tool.getAttribute(elem, "description"));
 

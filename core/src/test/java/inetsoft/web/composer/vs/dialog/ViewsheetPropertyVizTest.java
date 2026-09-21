@@ -110,6 +110,27 @@ class ViewsheetPropertyVizTest {
       assertTrue(ViewsheetPropertyDialogService.vizDensityChanged("compact", ""));
    }
 
+   @Test
+   void anUnrecognizedDensityIsRejectedRatherThanStored() {
+      // the value is deserialized straight from the client payload, so it is whitelisted before it
+      // can reach ViewsheetInfo and be written into the stored XML
+      assertNull(ViewsheetPropertyDialogService.normalizeVizDensity("roomy"));
+      assertNull(ViewsheetPropertyDialogService.normalizeVizDensity("dense\" mv=\"3"));
+   }
+
+   @Test
+   void anUnrecognizedDensityDoesNotReadAsAChangeFromInherited() {
+      assertFalse(ViewsheetPropertyDialogService.vizDensityChanged(null, "roomy"),
+                  "rejecting to null leaves the dashboard inheriting, so nothing moved");
+   }
+
+   @Test
+   void eachValidDensitySurvivesNormalization() {
+      for(String mode : new String[]{ "dense", "compact", "comfortable" }) {
+         assertEquals(mode, ViewsheetPropertyDialogService.normalizeVizDensity(mode));
+      }
+   }
+
    private Viewsheet modernSheet(VizMark mark) {
       SreeEnv.setProperty("viewsheet.modernVisualization", "false");
       Viewsheet vs = new Viewsheet();

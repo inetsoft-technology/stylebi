@@ -105,11 +105,35 @@ class ViewsheetInfoVizDensityTest {
    }
 
    @Test
-   void anUnrecognizedSheetValueClampsToDense() {
+   void anUnrecognizedSheetValueIsRejectedSoTheOrgStillApplies() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
       ViewsheetInfo info = new ViewsheetInfo();
       info.setVizDensity("roomy");
 
-      assertEquals("dense", VSDensityDefaults.mode(info));
+      assertNull(info.getVizDensity(), "rejected rather than clamped, so inheriting survives");
+      assertEquals("comfortable", VSDensityDefaults.mode(info));
+   }
+
+   @Test
+   void anAttributeInjectionAttemptNeverReachesTheStoredXml() {
+      ViewsheetInfo info = new ViewsheetInfo();
+      info.setVizDensity("dense\" mv=\"3");
+
+      assertNull(info.getVizDensity());
+      assertFalse(writeXml(info).contains("mv=\"3\""),
+                  "an injected attribute would duplicate a written one and break the start tag");
+   }
+
+   @Test
+   void anUnrecognizedAttributeInAStoredFileParsesAsInherited() throws Exception {
+      ViewsheetInfo info = new ViewsheetInfo();
+      info.setVizDensity("compact");
+      String edited = writeXml(info).replace("vizDensity=\"compact\"", "vizDensity=\"roomy\"");
+
+      ViewsheetInfo parsed = new ViewsheetInfo();
+      parsed.parseXML(Tool.parseXML(new StringReader(edited)).getDocumentElement());
+
+      assertNull(parsed.getVizDensity(), "a hand-edited file cannot seed an invalid mode");
    }
 
    private String writeXml(ViewsheetInfo info) {

@@ -760,6 +760,61 @@ class VizModernizeUtilTest {
    }
 
    @Test
+   void applyMarkSkipsATargetAlreadyOnTheTargetMark() {
+      // why the dialog runs reseed as well as applyMark rather than as its else: an assembly that
+      // already carries the target mark is collected by neither, and keeps the old density tier
+      Viewsheet vs = legacySheet();
+      TextVSAssembly pasted = (TextVSAssembly) vs.getAssembly("Text1");
+      pasted.getVSAssemblyInfo().setVizMark(VizMark.MODERN_DARK);
+
+      assertEquals(2, VizModernizeUtil.applyMark(vs, VizMark.MODERN_DARK),
+                   "the table and the sheet move; the pasted assembly is skipped");
+      assertEquals(3, VizModernizeUtil.reseed(vs),
+                   "reseed is the traversal that still reaches the skipped one");
+   }
+
+   @Test
+   void reseedLeavesADeliberateRampAlone() {
+      // reseed is the density path and moves no mark, so it must not build a transition context -
+      // that flag is what lets a seed replace the measure-to-colour ramp, a value an author chose
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      chart.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setVisualFrame(new BluesColorFrame());
+      chart.getVSChartInfo().setColorField(colorRef);
+      vs.addAssembly(chart);
+
+      VizModernizeUtil.reseed(vs);
+
+      assertInstanceOf(BluesColorFrame.class,
+                       chart.getVSChartInfo().getColorField().getVisualFrame(),
+                       "a density change must not repaint a modern chart's chosen ramp");
+   }
+
+   @Test
+   void reseedLeavesAnUnmarkedSiblingsRampAlone() {
+      // the mixed dashboard, the other direction: reseed collects unmarked content too, so a
+      // transition context would repaint a legacy chart's deliberate ramp as well
+      gateOff();
+      Viewsheet vs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.getVSAssemblyInfo().initDefaultFormat();
+      VSAestheticRef colorRef = new VSAestheticRef();
+      colorRef.setVisualFrame(new TealColorFrame());
+      chart.getVSChartInfo().setColorField(colorRef);
+      vs.addAssembly(chart);
+
+      VizModernizeUtil.reseed(vs);
+
+      assertInstanceOf(TealColorFrame.class,
+                       chart.getVSChartInfo().getColorField().getVisualFrame(),
+                       "a density change must not repaint an unmarked chart's chosen ramp");
+   }
+
+   @Test
    void reseedTouchesEveryTargetWithoutMovingAnyMark() {
       Viewsheet vs = legacySheet();
       gateOn();

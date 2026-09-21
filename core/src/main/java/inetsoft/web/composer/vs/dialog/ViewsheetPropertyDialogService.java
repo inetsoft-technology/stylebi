@@ -90,7 +90,8 @@ public class ViewsheetPropertyDialogService {
     * inherited density round-tripping through the dialog is never mistaken for a change.
     */
    static String normalizeVizDensity(String density) {
-      return density == null || density.isEmpty() ? null : density;
+      // whitelisted, not just emptied: the value is deserialized straight from the client payload
+      return VSDensityDefaults.isValidMode(density) ? density : null;
    }
 
    static boolean vizDensityChanged(String oldDensity, String newDensity) {
@@ -337,8 +338,10 @@ public class ViewsheetPropertyDialogService {
       if(targetMark != viewsheet.getVSAssemblyInfo().getVizMark()) {
          VizModernizeUtil.applyMark(viewsheet, targetMark);
       }
-      else if(densityChanged) {
-         // no mark moved, so applyMark collects nothing; control heights still have to re-fire
+
+      // not an else: applyMark skips a target already carrying the target mark, so when both move
+      // at once that target would keep the old density tier
+      if(densityChanged) {
          VizModernizeUtil.reseed(viewsheet);
       }
 
