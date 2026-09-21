@@ -51,7 +51,7 @@ public class ScriptApiService {
     */
    public FunctionSignature lookup(String name) {
       if(name == null || name.isBlank()) {
-         return new FunctionSignature(name, false, null, null);
+         return new FunctionSignature(name, false, null, null, false);
       }
 
       JsonNode r = root();
@@ -69,12 +69,13 @@ public class ScriptApiService {
       }
 
       if(node == null || node.isMissingNode()) {
-         return new FunctionSignature(name, false, null, null);
+         return new FunctionSignature(name, false, null, null, false);
       }
 
       String type = node.path("!type").asText(null);
       String url = node.path("!url").asText(null);
-      return new FunctionSignature(name, true, type, url);
+      boolean sample = node.path("!sample").asBoolean(false);
+      return new FunctionSignature(name, true, type, url, sample);
    }
 
    private synchronized JsonNode root() {

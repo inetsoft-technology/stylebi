@@ -80,4 +80,23 @@ class ScriptApiServiceTest {
       assertFalse(service.lookup("showReport").found());
       assertFalse(service.lookup("reprint").found());
    }
+
+   @Test
+   void flagsDocumentedSampleCodeFunctions() {
+      // Special Chart Functions are documented in UtilityObjects.md as sample code that must be
+      // copied into a Script Library function before they're callable, not registered globals.
+      assertTrue(service.lookup("createMekkoGraph").sample());
+      assertTrue(service.lookup("createTreemap").sample());
+      assertTrue(service.lookup("createIcicleGraph").sample());
+   }
+
+   @Test
+   void doesNotFlagGenuineGlobalsAsSampleCode() {
+      assertFalse(service.lookup("dateAdd").sample());
+   }
+
+   @Test
+   void doesNotFlagUnknownNameAsSampleCode() {
+      assertFalse(service.lookup("doesNotExist").sample());
+   }
 }
