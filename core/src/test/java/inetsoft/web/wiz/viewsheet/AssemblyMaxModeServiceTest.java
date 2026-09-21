@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -55,15 +56,20 @@ class AssemblyMaxModeServiceTest {
       verifyNoInteractions(sessions);
    }
 
-   /** A null override (the "use the default" case) is not a validation failure. */
+   /**
+    * A null override (the "use the default" case) is not a validation failure -- a real,
+    * non-blank assembly name, so the only guard left to pass is the width/height one, and
+    * verifying {@code sessions.mutate(...)} is actually reached (not just "no exception") is
+    * what proves both null checks were passed rather than short-circuited by an unrelated guard.
+    */
    @Test
    void allowsANullWidthAndHeight() throws Exception {
       AssemblyMaxModeService service = harness();
 
-      assertThrows(IllegalArgumentException.class,
-         () -> service.setMaxMode("tok", mock(Principal.class), "", true, null, null, ""));
-      // Reaches the (unrelated) 'assembly' guard rather than a width/height one -- confirms null
-      // does not itself trip the new check.
+      service.setMaxMode("tok", mock(Principal.class), "TableView1", true, null, null, "");
+
+      verify(sessions).mutate(eq("tok"), any(Principal.class),
+                              any(ViewsheetSessionService.Mutation.class));
    }
 
    private AssemblyMaxModeService harness() {
