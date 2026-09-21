@@ -1483,12 +1483,13 @@ public class ViewsheetAssemblyAgentController {
                                        Boolean useFacet, Boolean onlyShowMostRecentDate,
                                        String comparisonOption, String shareAssembly,
                                        Boolean toDate, Boolean inclusive,
-                                       List<DateComparisonService.CustomPeriod> customPeriods) {
+                                       List<DateComparisonService.CustomPeriod> customPeriods,
+                                       String intervalEndDate, Boolean intervalEndToday) {
       DateComparisonService.Comparison comparison() {
          return new DateComparisonService.Comparison(
             periods, level, endDate, Boolean.TRUE.equals(endToday), interval, useFacet,
             onlyShowMostRecentDate, comparisonOption, shareAssembly, toDate, inclusive,
-            customPeriods);
+            customPeriods, intervalEndDate, intervalEndToday);
       }
    }
 
