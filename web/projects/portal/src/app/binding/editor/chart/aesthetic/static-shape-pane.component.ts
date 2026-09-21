@@ -26,7 +26,7 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { createAssetEntry } from "../../../../../../../shared/data/asset-entry";
+import { assetEntryOrgId } from "../../../../../../../shared/data/asset-entry";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { ChartConfig } from "../../../../common/util/chart-config";
 import { StyleConstants } from "../../../../common/util/style-constants";
@@ -159,11 +159,7 @@ export class StaticShapePane implements OnInit {
    }
 
    private getAssetOrgId(): string {
-      if(this.assetId) {
-         return createAssetEntry(this.assetId).organization;
-      }
-
-      return null;
+      return assetEntryOrgId(this.assetId);
    }
 
 }
