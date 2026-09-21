@@ -75,7 +75,9 @@ public class AssemblyMaxModeService {
    /**
     * @param width  optional caller-supplied override for the maximized size (e.g. from a prior
     *               render the caller already knows the effective canvas dimensions of). Ignored
-    *               when {@code maximized} is false.
+    *               when {@code maximized} is false. Must be positive when given -- refused
+    *               loud rather than silently building a degenerate {@link Dimension}, since this
+    *               service is reachable directly and not only through the plugin's own tool.
     * @param height see {@code width}.
     */
    public Map<String, Object> setMaxMode(String sessionToken, Principal user, String assemblyName,
@@ -86,6 +88,14 @@ public class AssemblyMaxModeService {
       if(assemblyName == null || assemblyName.isBlank()) {
          throw new IllegalArgumentException(
             "'assembly' is required — name the assembly to maximize or restore.");
+      }
+
+      if(width != null && width <= 0) {
+         throw new IllegalArgumentException("'width' must be a positive number, got " + width + ".");
+      }
+
+      if(height != null && height <= 0) {
+         throw new IllegalArgumentException("'height' must be a positive number, got " + height + ".");
       }
 
       Dimension maxSize = maximized
