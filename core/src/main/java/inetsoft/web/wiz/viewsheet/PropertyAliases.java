@@ -98,13 +98,18 @@ public final class PropertyAliases {
     * methods in full: {@code shadow}/{@code editable} (on the shared
     * {@code basicGeneralPaneModel}, inherited from the outputGeneral() shape but never applied
     * for a data assembly -- see {@link #dataGeneral}), {@code container} (VSDialogService's
-    * setAssemblySize/setAssemblyPosition never call isContainer()), and the type-specific
-    * capability flags below.
+    * setAssemblySize/setAssemblyPosition never call isContainer()), {@code cellHeight} (bug
+    * #76871 -- {@code SizePositionPaneModel.cellHeight} is genuinely live for
+    * SelectionList/SelectionTree/CheckBox/RadioButton, but neither dialog service's apply method
+    * ever calls {@code getCellHeight()}, because a plain Table/Crosstab has no such concept on
+    * {@code TableVSAssemblyInfo}/{@code CrosstabVSAssemblyInfo} for it to land on), and the
+    * type-specific capability flags below.
     */
    private static final Map<String, Set<String>> DEAD_FIELDS = Map.of(
-      "table", Set.of("shadow", "editable", "container", "shrinkEnabled", "formVisible"),
+      "table", Set.of("shadow", "editable", "container", "shrinkEnabled", "formVisible",
+                      "cellHeight"),
       "crosstab", Set.of("shadow", "editable", "container", "crosstabInfoNull",
-                         "sortOthersLastEnabled", "dateComparisonSupport"));
+                         "sortOthersLastEnabled", "dateComparisonSupport", "cellHeight"));
 
    /**
     * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}
