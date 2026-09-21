@@ -38,6 +38,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -165,6 +166,13 @@ public class ViewsheetChangesetApplyService {
          List<Undo> undoable = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
          boolean failed = false;
+         // Whether the item that threw (if any) had already entered its own mutating call before
+         // the throw -- only that case is a genuine partial-mutation risk that must force
+         // STATUS_ROLLBACK_FAILED on its own; a throw that fires strictly before the mutating call
+         // means the item was never touched, so it must not by itself override an otherwise
+         // fully-verified rollback (bug #76856, mirroring bug #76808's DataSourceChangesetApplyService
+         // fix).
+         boolean unknownStateMutationEntered = false;
 
          List<ViewsheetChangeRequest> originals = req.getChanges();
 
@@ -172,10 +180,11 @@ public class ViewsheetChangesetApplyService {
             PlanChange change = plan.changes().get(i);
             ViewsheetChangeRequest original = originals.get(i);
             String key = change.property();
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                applyOne(txId, reviewedTask, key, original, user, backupRef, reviewOutcome, results,
-                       undoable);
+                       undoable, mutationEntered);
             }
             catch(Exception e) {
                // A throw carries no verifiable before/after evidence for THIS change -- must never
@@ -184,6 +193,7 @@ public class ViewsheetChangesetApplyService {
                   AdminChangeRecord.STATUS_FAILED, messageOf(e), null));
                unknownStateFailures.add(new RollbackFailure(key,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               unknownStateMutationEntered = mutationEntered.get();
                failed = true;
                break;
             }
@@ -199,14 +209,19 @@ public class ViewsheetChangesetApplyService {
                                             backupRef, Collections.unmodifiableList(results), null);
          }
 
-         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, reviewedTask, undoable, backupRef, reviewOutcome, user));
+         List<RollbackFailure> rollbackOwnFailures =
+            rollback(txId, reviewedTask, undoable, backupRef, reviewOutcome, user);
 
-         if(failures.isEmpty()) {
+         // An unknownStateFailures entry only forces rollback-failed when that item's own mutating
+         // call had actually been entered (a real partial-mutation risk); if it never touched
+         // anything, it must not by itself override an otherwise fully-verified rollback.
+         if(rollbackOwnFailures.isEmpty() && !unknownStateMutationEntered) {
             return new ViewsheetApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK,
                                             backupRef, Collections.unmodifiableList(results), null);
          }
 
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollbackOwnFailures);
          LOG.error("Viewsheet changeset {} rollback failed; units still changed: {}", txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
          return new ViewsheetApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED,
@@ -220,7 +235,8 @@ public class ViewsheetChangesetApplyService {
 
    private void applyOne(String txId, String task, String key, ViewsheetChangeRequest original,
                          Principal user, String backupRef, String reviewOutcome,
-                         List<ViewsheetApplyOutcome> results, List<Undo> undoable)
+                         List<ViewsheetApplyOutcome> results, List<Undo> undoable,
+                         AtomicBoolean mutationEntered)
       throws Exception
    {
       String unitType = ViewsheetChangePlanService.requireUnitType("change", original.getUnitType());
@@ -230,15 +246,15 @@ public class ViewsheetChangesetApplyService {
 
          if(ViewsheetChangeRequest.VERB_RENAME.equals(verb)) {
             applyViewsheetRename(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
          else if(ViewsheetChangeRequest.VERB_UPDATE.equals(verb)) {
             applyViewsheetUpdate(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
          else {
             applyViewsheetDelete(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
 
          return;
@@ -249,15 +265,15 @@ public class ViewsheetChangesetApplyService {
 
          if(ViewsheetChangeRequest.VERB_RENAME.equals(verb)) {
             applyWorksheetRename(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
          else if(ViewsheetChangeRequest.VERB_UPDATE.equals(verb)) {
             applyWorksheetUpdate(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
          else {
             applyWorksheetDelete(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                                 undoable);
+                                 undoable, mutationEntered);
          }
 
          return;
@@ -267,19 +283,19 @@ public class ViewsheetChangesetApplyService {
 
       if(ViewsheetChangeRequest.VERB_CREATE.equals(verb)) {
          applyFolderCreate(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                           undoable);
+                           undoable, mutationEntered);
       }
       else if(ViewsheetChangeRequest.VERB_DELETE.equals(verb)) {
          applyFolderDelete(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                           undoable);
+                           undoable, mutationEntered);
       }
       else if(ViewsheetChangeRequest.VERB_UPDATE.equals(verb)) {
          applyFolderUpdate(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                           undoable);
+                           undoable, mutationEntered);
       }
       else {
          applyFolderRename(txId, task, key, original, user, backupRef, reviewOutcome, results,
-                           undoable);
+                           undoable, mutationEntered);
       }
    }
 
@@ -288,7 +304,8 @@ public class ViewsheetChangesetApplyService {
    private void applyViewsheetRename(String txId, String task, String key,
                                      ViewsheetChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable)
+                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       // Section 2/6: re-resolve fresh, AT APPLY TIME -- never trust anything computed at preview.
@@ -310,6 +327,7 @@ public class ViewsheetChangesetApplyService {
       IdentityID owner = global ? null : ViewsheetFolderService.parseOwner(original.getOwner());
       String newPath = original.getNewPath();
 
+      mutationEntered.set(true);
       viewsheetApiService.renameViewsheet(assetId, newPath, global, owner, user);
 
       // Re-read via the NEW location to confirm the change landed and capture the viewsheet's NEW
@@ -335,7 +353,8 @@ public class ViewsheetChangesetApplyService {
    private void applyViewsheetDelete(String txId, String task, String key,
                                      ViewsheetChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable)
+                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       String assetId = original.getAssetId();
@@ -363,6 +382,7 @@ public class ViewsheetChangesetApplyService {
       String advisory = buildDeleteAdvisory(lookup, "viewsheet");
 
       String beforeProjection = ViewsheetProjection.projectViewsheet(current);
+      mutationEntered.set(true);
       viewsheetApiService.deleteViewsheet(assetId, user);
 
       Sheet after = planService.findViewsheetById(user, assetId);
@@ -384,7 +404,8 @@ public class ViewsheetChangesetApplyService {
    private void applyViewsheetUpdate(String txId, String task, String key,
                                      ViewsheetChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable)
+                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       String assetId = original.getAssetId();
@@ -405,6 +426,7 @@ public class ViewsheetChangesetApplyService {
       String beforeProjection =
          ViewsheetProjection.projectViewsheetUpdate(current, beforeMetadata.alias(), beforeMetadata.description());
 
+      mutationEntered.set(true);
       viewsheetApiService.updateMetadata(assetId, mergedAlias, mergedDescription, user);
 
       ViewsheetService.Metadata afterMetadata = viewsheetApiService.getViewsheetMetadata(assetId, user);
@@ -430,7 +452,8 @@ public class ViewsheetChangesetApplyService {
    private void applyWorksheetRename(String txId, String task, String key,
                                      ViewsheetChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable)
+                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       String assetId = original.getAssetId();
@@ -451,6 +474,7 @@ public class ViewsheetChangesetApplyService {
       IdentityID owner = global ? null : ViewsheetFolderService.parseOwner(original.getOwner());
       String newPath = original.getNewPath();
 
+      mutationEntered.set(true);
       worksheetApiService.renameWorksheet(assetId, newPath, global, owner, user);
 
       Sheet after = planService.findWorksheetByLocation(user, newPath, global, owner);
@@ -474,7 +498,8 @@ public class ViewsheetChangesetApplyService {
    private void applyWorksheetDelete(String txId, String task, String key,
                                      ViewsheetChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable)
+                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       String assetId = original.getAssetId();
@@ -496,6 +521,7 @@ public class ViewsheetChangesetApplyService {
       String advisory = buildDeleteAdvisory(lookup, "worksheet");
 
       String beforeProjection = ViewsheetProjection.projectWorksheet(current);
+      mutationEntered.set(true);
       worksheetApiService.deleteWorksheet(assetId, user);
 
       Sheet after = planService.findWorksheetById(user, assetId);
@@ -576,7 +602,8 @@ public class ViewsheetChangesetApplyService {
    private void applyWorksheetUpdate(String txId, String task, String key,
                                      ViewsheetChangeRequest original, Principal user,
                                      String backupRef, String reviewOutcome,
-                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable)
+                                     List<ViewsheetApplyOutcome> results, List<Undo> undoable,
+                                     AtomicBoolean mutationEntered)
       throws Exception
    {
       String assetId = original.getAssetId();
@@ -597,6 +624,7 @@ public class ViewsheetChangesetApplyService {
       String beforeProjection =
          ViewsheetProjection.projectWorksheetUpdate(current, beforeMetadata.alias(), beforeMetadata.description());
 
+      mutationEntered.set(true);
       worksheetApiService.updateMetadata(assetId, mergedAlias, mergedDescription, user);
 
       WorksheetService.Metadata afterMetadata = worksheetApiService.getWorksheetSettingsMetadata(assetId, user);
@@ -622,7 +650,7 @@ public class ViewsheetChangesetApplyService {
    private void applyFolderCreate(String txId, String task, String key,
                                   ViewsheetChangeRequest original, Principal user, String backupRef,
                                   String reviewOutcome, List<ViewsheetApplyOutcome> results,
-                                  List<Undo> undoable)
+                                  List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       IdentityID owner = resolveOwner(original.getOwner());
@@ -633,6 +661,7 @@ public class ViewsheetChangesetApplyService {
       GetViewsheetFolderResult before = folderService.getFolder(fullPath, owner);
       String beforeProjection = ViewsheetProjection.projectFolder(before);
 
+      mutationEntered.set(true);
       viewsheetApiService.addFolder(
          original.getParentFolder(), folderName, original.getAlias(), original.getDescription(),
          owner, user);
@@ -660,7 +689,7 @@ public class ViewsheetChangesetApplyService {
    private void applyFolderDelete(String txId, String task, String key,
                                   ViewsheetChangeRequest original, Principal user, String backupRef,
                                   String reviewOutcome, List<ViewsheetApplyOutcome> results,
-                                  List<Undo> undoable)
+                                  List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       IdentityID owner = resolveOwner(original.getOwner());
@@ -691,6 +720,7 @@ public class ViewsheetChangesetApplyService {
 
       String beforeProjection = ViewsheetProjection.projectFolder(before);
 
+      mutationEntered.set(true);
       viewsheetApiService.removeFolder(normalizedPath, owner, user);
 
       GetViewsheetFolderResult after = folderService.getFolder(normalizedPath, owner);
@@ -718,7 +748,7 @@ public class ViewsheetChangesetApplyService {
    private void applyFolderRename(String txId, String task, String key,
                                   ViewsheetChangeRequest original, Principal user, String backupRef,
                                   String reviewOutcome, List<ViewsheetApplyOutcome> results,
-                                  List<Undo> undoable)
+                                  List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       IdentityID owner = resolveOwner(original.getOwner());
@@ -736,6 +766,7 @@ public class ViewsheetChangesetApplyService {
 
       String beforeProjection = ViewsheetProjection.projectFolder(before);
 
+      mutationEntered.set(true);
       viewsheetApiService.renameFolder(normalizedOld, normalizedNew, owner, user);
 
       GetViewsheetFolderResult afterNew = folderService.getFolder(normalizedNew, owner);
@@ -761,7 +792,7 @@ public class ViewsheetChangesetApplyService {
    private void applyFolderUpdate(String txId, String task, String key,
                                   ViewsheetChangeRequest original, Principal user, String backupRef,
                                   String reviewOutcome, List<ViewsheetApplyOutcome> results,
-                                  List<Undo> undoable)
+                                  List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       IdentityID owner = resolveOwner(original.getOwner());
@@ -783,6 +814,7 @@ public class ViewsheetChangesetApplyService {
          description != null ? normalizeClearedField(description) : before.description();
       String beforeProjection = ViewsheetProjection.projectFolder(before);
 
+      mutationEntered.set(true);
       folderService.updateFolderMetadata(normalizedPath, owner, mergedAlias, mergedDescription, user);
 
       GetViewsheetFolderResult after = folderService.getFolder(normalizedPath, owner);
