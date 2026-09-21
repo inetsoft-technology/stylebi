@@ -52,6 +52,7 @@ import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -214,7 +215,7 @@ class ScheduleFolderChangesetApplyServiceTest {
       ApplyResult result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      verify(folderGateway).moveTask("task1", "Target", user);
+      verify(folderGateway).moveTask(eq("task1"), eq("Target"), eq(user), any(AtomicBoolean.class));
    }
 
    // Verification is a live read-back of the task's own folder, not just "did moveTask throw" --
@@ -260,7 +261,7 @@ class ScheduleFolderChangesetApplyServiceTest {
       ApplyResult result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
-      verify(folderGateway).moveTask("task1", "Target", user);
+      verify(folderGateway).moveTask(eq("task1"), eq("Target"), eq(user), any(AtomicBoolean.class));
       verify(folderGateway).moveTask("task1", "Old", user);
    }
 
@@ -306,11 +307,63 @@ class ScheduleFolderChangesetApplyServiceTest {
 
       ApplyResult result = realApplyService.apply(req, user);
 
-      // A throw carries no verifiable evidence -- treated as STATUS_ROLLBACK_FAILED (nothing to
-      // roll back for the one entry that threw), matching AdminChangesetApplyService's own
-      // "state unknown" convention for a thrown, not returned, failure.
-      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      // The permission refusal fires strictly before moveTask's own mutating call
+      // (moveScheduleItems), so nothing was ever mutated -- with an empty undoable list, rollback
+      // trivially succeeds and the result is STATUS_ROLLED_BACK, not STATUS_ROLLBACK_FAILED (bug
+      // #76856: a throw only forces rollback-failed when the item's own mutating call was actually
+      // entered).
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       verify(realTaskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // applyDelete's pre-mutation throw surface (bug #76856): countContainedTasks0's own unguarded
+   // getTaskFolder call for a nested schedule-task-folder entry (see AdminScheduleFolderGateway's
+   // countContainedTasks0) can throw strictly before deleteFolder's own mutating call. Wired
+   // through a REAL AdminScheduleFolderGateway/plan service, same shape as the moveTask test above.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesADeleteThroughTheRealGatewayAndPropagatesAPreMutationCountFailure() throws Exception {
+      ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
+      ScheduleService realScheduleService = mock(ScheduleService.class);
+      AdminScheduleFolderGateway realGateway = new AdminScheduleFolderGateway(
+         realTaskFolderService, realScheduleService, mock(ScheduleManager.class),
+         mock(SecurityEngine.class), mock(ScheduleTaskService.class));
+      ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
+      ScheduleFolderChangesetApplyService realApplyService =
+         new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
+
+      AssetEntry childEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Parent/Child", null);
+      AssetFolder parentFolder = new AssetFolder();
+      parentFolder.addEntry(childEntry);
+
+      lenient().when(realTaskFolderService.getFolderEntry("Parent")).thenAnswer(inv ->
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        "Parent", null));
+      when(realTaskFolderService.getTaskFolder(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Parent",
+                        null).toIdentifier()))
+         .thenReturn(parentFolder);
+      // The first two calls succeed (folder reports empty, so the plan does not require force):
+      // once for this test's own explicit preview resolve, once for apply()'s own internal
+      // re-resolve of the same plan. The third call -- applyDelete's own re-run of the same
+      // preflight, inside the apply loop -- throws, strictly before deleteFolder's own mutating
+      // call (scheduleService.removeScheduleFolders).
+      when(realTaskFolderService.getTaskFolder(childEntry.toIdentifier()))
+         .thenReturn(new AssetFolder(), new AssetFolder())
+         .thenThrow(new RuntimeException("storage layer failure"));
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest delete = deleteChangeForce("Parent");
+      ResolvedPlan preview = realPlanService.resolve(planRequest(delete), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), delete);
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = realApplyService.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(realScheduleService, never()).removeScheduleFolders(any(), any());
    }
 
    // -------------------------------------------------------------------------

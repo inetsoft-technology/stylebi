@@ -40,6 +40,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -336,6 +337,20 @@ public class AdminScheduleFolderGateway {
     * is ever called is the only place that is caught.
     */
    public void moveTask(String taskId, String targetPath, Principal user) throws Exception {
+      moveTask(taskId, targetPath, user, new AtomicBoolean());
+   }
+
+   /**
+    * Same as {@link #moveTask(String, String, Principal)}, but reports via {@code mutationEntered}
+    * whether the actual mutating call ({@code taskFolderService.moveScheduleItems}) was reached --
+    * this method's own permission/removable checks above throw strictly BEFORE that call, so a
+    * caller (bug #76856: {@link inetsoft.web.admin.ai.schedule.ScheduleFolderChangesetApplyService})
+    * that needs to distinguish "nothing was ever touched" from "a real partial-mutation risk" cannot
+    * do so by observing only whether this method as a whole threw.
+    */
+   public void moveTask(String taskId, String targetPath, Principal user, AtomicBoolean mutationEntered)
+      throws Exception
+   {
       ScheduleTask task = scheduleManager.getScheduleTask(taskId);
 
       if(task == null) {
@@ -360,6 +375,7 @@ public class AdminScheduleFolderGateway {
       }
 
       AssetEntry targetEntry = taskFolderService.getFolderEntry(normalizePath(targetPath));
+      mutationEntered.set(true);
       taskFolderService.moveScheduleItems(
          new ScheduleTaskModel[]{ model }, new String[0], targetEntry, user);
    }
