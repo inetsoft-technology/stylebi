@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
@@ -230,6 +231,15 @@ public final class PropertyPath {
          return null;
       }
 
+      // An Object-typed setter (e.g. DynamicValueModel.setValue) accepts anything by
+      // declaration, so there is nothing to coerce -- handing it back through the
+      // number/String/enum checks below would misapply them (a Long would hit the numeric
+      // branch and be truncated to whatever target-less parsing it falls into) for a target
+      // that never asked for any of that.
+      if(target == Object.class) {
+         return value;
+      }
+
       String text = String.valueOf(value).trim();
 
       // Checked before the pass-through below, which would otherwise hand a String straight to a
@@ -317,8 +327,162 @@ public final class PropertyPath {
          return array;
       }
 
+      // Two bean-building cases for a target coerce() cannot otherwise reach: a plain
+      // multi-field model with a String-driven constructor (e.g. DynamicValueModel's
+      // value/type/dataType, auto-detected from one string), and a JSON object supplying the
+      // model's fields directly. Both are gated on target actually declaring a public
+      // one-argument String constructor -- deliberately, not just as an optimization: that
+      // constructor is the signal that target belongs to the DynamicValueModel family (also
+      // DatePeriodModel/IntervalPaneModel/StandardPeriodPaneModel's own DynamicValueModel-typed
+      // fields, the same leaf type), not a hook for arbitrary JSON-object beans. Without this
+      // gate, a Map value for a bean-array element like VSDimensionModel (no such constructor)
+      // would start building successfully here -- reopening the gap bug #76771/VCG-008
+      // deliberately leaves refused, whose fix lives in HierarchyDimensionService instead (see
+      // PropertyPathTest.aBeanArrayElementFromAJsonObjectIsRefusedNamingTheBeanTypeAndIndex).
+      Constructor<?> stringCtor = stringConstructor(target);
+
+      if(stringCtor != null) {
+         if(value instanceof String) {
+            return buildFromString(stringCtor, text, target, path);
+         }
+
+         if(value instanceof Map<?, ?> map) {
+            return coerceMap(map, stringCtor, target, path);
+         }
+      }
+
       throw new IllegalArgumentException(
          "'" + path + "' expects " + simpleName(target) + ", which '" + value + "' is not.");
+   }
+
+   private static Constructor<?> stringConstructor(Class<?> target) {
+      try {
+         return target.getConstructor(String.class);
+      }
+      catch(NoSuchMethodException e) {
+         return null;
+      }
+   }
+
+   private static Object buildFromString(Constructor<?> stringCtor, String text, Class<?> target,
+                                         String path)
+   {
+      try {
+         return stringCtor.newInstance(text);
+      }
+      catch(ReflectiveOperationException e) {
+         throw new IllegalArgumentException(
+            "'" + path + "' expects " + simpleName(target) + "; building one from '" + text +
+            "' failed: " + rootMessage(e), e);
+      }
+   }
+
+   /**
+    * Builds a plain bean from a JSON object -- the counterpart to the array branch above, for a
+    * target {@code coerce} cannot otherwise construct. Only called once the caller has already
+    * confirmed {@code target} has a public one-argument {@code String} constructor
+    * ({@code stringCtor}) -- see the gate's own comment in {@link #coerce} for why that matters.
+    *
+    * <p>When the map holds exactly one entry, {@code value}, and it is a String, that entry is
+    * routed through {@code stringCtor} (via {@link #buildFromString}) instead of the
+    * no-arg-constructor-plus-setters path below -- this is what makes {@code {"value":
+    * "$(Foo)"}} auto-detect a variable reference the same way a bare {@code "$(Foo)"} string
+    * would, rather than being written through as a literal value with the rest of the bean left
+    * at whatever the target's own default is. This is deliberately narrow (map.size() == 1, not
+    * merely "no type key") rather than the more permissive "no type" alone -- a size check that
+    * only looks for an absent type could otherwise skip validating every OTHER key in the map
+    * (an unrecognized one included) by taking this shortcut instead of the setters path below,
+    * which is exactly the "nothing here is ever silently skipped" defect this class exists to
+    * avoid. Any map with a second key -- named {@code type} or not -- always takes the setters
+    * path, so every key is always resolved against a real setter or refused by name.
+    */
+   private static Object coerceMap(Map<?, ?> map, Constructor<?> stringCtor, Class<?> target,
+                                   String path)
+   {
+      if(map.size() == 1) {
+         Object bareValue = valueForKeyIgnoreCase(map, "value");
+
+         if(bareValue instanceof String text) {
+            return buildFromString(stringCtor, text.trim(), target, path);
+         }
+      }
+
+      Constructor<?> noArgCtor;
+
+      try {
+         noArgCtor = target.getConstructor();
+      }
+      catch(NoSuchMethodException e) {
+         throw new IllegalArgumentException(
+            "'" + path + "' expects " + simpleName(target) + ", which a JSON object cannot " +
+            "build (" + simpleName(target) + " has no public no-argument constructor).");
+      }
+
+      Object instance;
+
+      try {
+         instance = noArgCtor.newInstance();
+      }
+      catch(ReflectiveOperationException e) {
+         throw new IllegalArgumentException(
+            "'" + path + "' expects " + simpleName(target) + "; constructing one failed: " +
+            rootMessage(e), e);
+      }
+
+      for(Map.Entry<?, ?> entry : map.entrySet()) {
+         String key = String.valueOf(entry.getKey());
+         Method setter = setterForIgnoreCase(target, key);
+
+         if(setter == null) {
+            throw new IllegalArgumentException(
+               "Cannot set '" + path + "': '" + key + "' is not a writable property of " +
+               simpleName(target) + ". " + available(target));
+         }
+
+         try {
+            setter.invoke(instance,
+               coerce(entry.getValue(), setter.getParameterTypes()[0], path + "." + key));
+         }
+         catch(IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalArgumentException(
+               "Setting '" + path + "." + key + "' failed: " + rootMessage(e), e);
+         }
+      }
+
+      return instance;
+   }
+
+   private static Object valueForKeyIgnoreCase(Map<?, ?> map, String key) {
+      for(Map.Entry<?, ?> entry : map.entrySet()) {
+         if(String.valueOf(entry.getKey()).equalsIgnoreCase(key)) {
+            return entry.getValue();
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Case-insensitive counterpart to {@link #setterFor}, for a JSON object's own key spellings
+    * ({@code "VALUE"}, {@code "dataType"}, {@code "DataType"}, ...) rather than the
+    * property-path segment spellings {@link #writerFor} already handles.
+    */
+   private static Method setterForIgnoreCase(Class<?> type, String property) {
+      for(Method method : type.getMethods()) {
+         if(method.getParameterCount() != 1) {
+            continue;
+         }
+
+         String name = method.getName();
+
+         if(name.length() > 3 && name.startsWith("set") &&
+            decapitalize(name.substring(3)).equalsIgnoreCase(property))
+         {
+            return method;
+         }
+      }
+
+      return null;
    }
 
    // ── reflection helpers ────────────────────────────────────────────────────

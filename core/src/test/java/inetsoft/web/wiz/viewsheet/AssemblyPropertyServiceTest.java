@@ -31,6 +31,7 @@ import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.model.vs.CheckboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
+import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
@@ -1246,6 +1247,80 @@ class AssemblyPropertyServiceTest {
       service.set("tok", principal(), "Calendar1", Map.of("showType", "calendar"), "");
 
       assertEquals(1, model.getCalendarAdvancedPaneModel().getShowType());
+   }
+
+   // ── calendarAdvancedPaneModel.min/max: DynamicValueModel coercion (bug #76888) ────────────
+   //
+   // min/max are DynamicValueModel-typed (value/type/dataType), not a plain scalar, so there was
+   // previously no shape of raw dotted-path value coerce() could turn into one -- every write hit
+   // the same unconditional throw regardless of content (PropertyPath.coerce()'s missing bean/Map
+   // case). These exercise the fix through the real AssemblyPropertyService.set() entry point,
+   // the same one set_assembly_properties calls.
+
+   @Test
+   void writesCalendarMinFromAStructuredJsonObjectWithAnExplicitType() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calendar1", Map.of(
+         "calendarAdvancedPaneModel.min",
+         Map.of("value", "2026-01-01", "type", "VALUE", "dataType", "date")), "");
+
+      DynamicValueModel min = model.getCalendarAdvancedPaneModel().getMin();
+      assertEquals("2026-01-01", min.getValue());
+      assertEquals("VALUE", min.getType());
+      assertEquals("date", min.getDataType());
+   }
+
+   /**
+    * No explicit {@code type} in the JSON object -- must auto-detect {@code VARIABLE} from the
+    * {@code value} entry's own shape, the same way a bare {@code "$(Foo)"} string does, rather
+    * than silently defaulting to {@code VALUE} and storing an unresolved literal.
+    */
+   @Test
+   void writesCalendarMinFromAJsonObjectWithNoExplicitTypeAutoDetectingAVariableReference()
+      throws Exception
+   {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calendar1",
+                  Map.of("calendarAdvancedPaneModel.min", Map.of("value", "$(Foo)")), "");
+
+      DynamicValueModel min = model.getCalendarAdvancedPaneModel().getMin();
+      assertEquals("$(Foo)", min.getValue());
+      assertEquals(DynamicValueModel.VARIABLE, min.getType(),
+                   "a missing type must not silently default to VALUE for a variable reference");
+   }
+
+   @Test
+   void writesCalendarMinFromABareLiteralString() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calendar1",
+                  Map.of("calendarAdvancedPaneModel.min", "2026-01-01"), "");
+
+      DynamicValueModel min = model.getCalendarAdvancedPaneModel().getMin();
+      assertEquals("2026-01-01", min.getValue());
+      assertEquals(DynamicValueModel.VALUE, min.getType());
+   }
+
+   @Test
+   void writesCalendarMinFromABareComponentReferenceString() throws Exception {
+      CalendarPropertyDialogModel model = new CalendarPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithCalendar(mock(CalendarVSAssembly.class), model);
+
+      service.set("tok", principal(), "Calendar1",
+                  Map.of("calendarAdvancedPaneModel.min", "$(Spinner1)"), "");
+
+      DynamicValueModel min = model.getCalendarAdvancedPaneModel().getMin();
+      assertEquals("$(Spinner1)", min.getValue());
+      assertEquals(DynamicValueModel.VARIABLE, min.getType());
    }
 
    @Test
