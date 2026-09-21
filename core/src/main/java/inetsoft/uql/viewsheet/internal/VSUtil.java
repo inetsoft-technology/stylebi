@@ -3576,8 +3576,18 @@ public final class VSUtil {
    public static int getScope(String mname, XDimension dim, int dlevel) {
       for(int i = 0; i < dim.getLevelCount(); i++) {
          XCubeMember mbr = dim.getLevelAt(i);
+         boolean matches = mbr.getName().equals(mname);
 
-         if(mbr.getName().equals(mname)) {
+         // a VS-authored custom hierarchy member's name may be entity-qualified (e.g.
+         // "Customer.Region") when built from a joined/multi-table logical model, while
+         // mname here is looked up as the bare attribute (e.g. "Region"). Fall back to the
+         // underlying ref's bare attribute so drill resolution still finds the member.
+         if(!matches && mbr instanceof VSDimensionMember) {
+            DataRef mbrRef = mbr.getDataRef();
+            matches = mbrRef != null && Tool.equals(mbrRef.getAttribute(), mname);
+         }
+
+         if(matches) {
             if(mbr instanceof VSDimensionMember) {
                int level2 = ((VSDimensionMember) mbr).getDateOption();
 

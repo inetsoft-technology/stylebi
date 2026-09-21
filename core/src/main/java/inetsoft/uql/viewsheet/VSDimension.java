@@ -90,8 +90,21 @@ public class VSDimension implements XDimension {
    @Override
    public int getScope(String levelName) {
       for(int scope = 0; scope < members.size(); scope++) {
-         if(((XCubeMember) members.get(scope)).getName().equals(levelName)) {
+         XCubeMember member = (XCubeMember) members.get(scope);
+
+         if(member.getName().equals(levelName)) {
 	    return scope;
+         }
+
+         // member's name may be entity-qualified (e.g. "Customer.Region") when built from a
+         // joined/multi-table logical model, but callers resolving a drill level (icon
+         // visibility and drill-click resolution alike) look it up by the bare attribute
+         // (e.g. "Region"). Fall back to matching the underlying ref's bare attribute so a
+         // custom hierarchy built from a joined source still resolves.
+         DataRef ref = member.getDataRef();
+
+         if(ref != null && Tool.equals(ref.getAttribute(), levelName)) {
+            return scope;
          }
       }
 
