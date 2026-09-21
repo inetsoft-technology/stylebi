@@ -167,6 +167,15 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    // input for create and edit calc field
    @Input() isCalc: boolean = false;
    @Input() createCalcField: boolean = false;
+   /**
+    * True only when this dialog is authoring a brand-new calc field (opened via
+    * `VsBindingTreeActions.openCalculationDialog()`) rather than editing an existing one --
+    * unlike `createCalcField` above, which is set `true` on the edit path too and is not a
+    * reliable create-vs-edit signal. Threaded into `deriveEditorContext()`'s `calcField` case
+    * as `pending`, so mint validation can accept the pre-assigned name (e.g. "CalcField1")
+    * this dialog opens with, which intentionally does not exist on the runtime yet.
+    */
+   @Input() isNewCalcField: boolean = false;
    @Input() calcType: string;
    @Input() calcFieldsGroup: string[] = [];
 
@@ -277,7 +286,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       const assembly = this.contextTable ?? this.assemblyName;
 
       if(this.isCalc) {
-         return { kind: "calcField", assembly, name: this.formulaName };
+         return { kind: "calcField", assembly, name: this.formulaName,
+                  pending: this.isNewCalcField };
       }
 
       if(this.isCondition) {

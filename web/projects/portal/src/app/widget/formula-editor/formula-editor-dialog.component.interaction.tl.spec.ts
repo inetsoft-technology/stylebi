@@ -394,7 +394,7 @@ describe("FormulaEditorDialog — lifecycle and initForm [Group 5, Risk 3]", () 
 
          expect(followFocusService.pushFocus).toHaveBeenCalledWith(
             "vs-1", comp.socketConnection,
-            { kind: "calcField", assembly: "Query1", name: "Margin" });
+            { kind: "calcField", assembly: "Query1", name: "Margin", pending: false });
       });
 
       it("does not push when the location is not addressable (canPair is false)", () => {
@@ -435,7 +435,7 @@ describe("FormulaEditorDialog — lifecycle and initForm [Group 5, Risk 3]", () 
 
          expect(followFocusService.popFocus).toHaveBeenCalledWith(
             "vs-1", comp.socketConnection,
-            { kind: "calcField", assembly: "Query1", name: "Margin" });
+            { kind: "calcField", assembly: "Query1", name: "Margin", pending: false });
       });
 
       /*
@@ -463,7 +463,7 @@ describe("FormulaEditorDialog — lifecycle and initForm [Group 5, Risk 3]", () 
 
          expect(followFocusService.popFocus).toHaveBeenCalledWith(
             "vs-1", comp.socketConnection,
-            { kind: "calcField", assembly: "Query1", name: "OldName" });
+            { kind: "calcField", assembly: "Query1", name: "OldName", pending: false });
       });
 
       it("does not pop on ngOnDestroy when Follow Focus was off at open (no push happened)", () => {

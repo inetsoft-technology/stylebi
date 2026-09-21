@@ -61,7 +61,7 @@ describe("FormulaEditorDialog — editorContext", () => {
       comp.formulaName = "Margin";
 
       expect(comp.editorContext).toEqual(
-         { kind: "calcField", assembly: "Query1", name: "Margin" });
+         { kind: "calcField", assembly: "Query1", name: "Margin", pending: false });
    });
 
    /*
@@ -172,7 +172,7 @@ describe("FormulaEditorDialog — editorContext", () => {
       comp.formulaName = "Margin";
 
       expect(comp.editorContext).toEqual(
-         { kind: "calcField", assembly: "Table1", name: "Margin" });
+         { kind: "calcField", assembly: "Table1", name: "Margin", pending: false });
    });
 
    it("falls back to assemblyName for a calcField's table when contextTable is absent", () => {
@@ -182,7 +182,7 @@ describe("FormulaEditorDialog — editorContext", () => {
       comp.formulaName = "Margin";
 
       expect(comp.editorContext).toEqual(
-         { kind: "calcField", assembly: "Table2", name: "Margin" });
+         { kind: "calcField", assembly: "Table2", name: "Margin", pending: false });
    });
 });
 
