@@ -801,9 +801,9 @@ public class ChartDcProcessor {
 
       if(dcInfo != null && !dcInfo.invalid()) {
          if(dcInfo.isValuePlus()) {
-            vsChartInfo.setRuntimeSeparated(false);
-            List<ChartAggregateRef> aggs = vsChartInfo.getAestheticAggregateRefs(true);
             boolean preferLine = dcInfo.isUseFacet();
+            vsChartInfo.setRuntimeSeparated(preferLine);
+            List<ChartAggregateRef> aggs = vsChartInfo.getAestheticAggregateRefs(true);
 
             for(ChartAggregateRef agg : aggs) {
                if(agg == null) {
