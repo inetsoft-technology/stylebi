@@ -23,6 +23,7 @@ import inetsoft.web.wiz.binding.model.AssemblyBinding;
 import inetsoft.web.wiz.binding.model.ChartTypeState;
 import inetsoft.web.wiz.binding.model.BindableTable;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
+import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.*;
 import inetsoft.web.wiz.viewsheet.ViewsheetFormatService;
@@ -525,6 +526,27 @@ public class BindingAgentController {
       requireEnabled();
       tableService.setFieldVisibility(sessionToken, user, request.assembly(), request.column(),
                                       request.visible(), linkUri);
+   }
+
+   public record CrosstabColumnVisibilityRequest(String assembly, List<String> columns,
+                                                 List<ColumnVisibilityEntry> entries,
+                                                 boolean visible) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/crosstab/column-visibility")
+   public Map<String, Object> setCrosstabColumnVisibility(
+      @PathVariable String sessionToken,
+      @RequestBody CrosstabColumnVisibilityRequest request,
+      Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      List<String> applied = tableService.setCrosstabColumnVisibility(
+         sessionToken, user, request.assembly(), request.columns(), request.entries(),
+         request.visible());
+      Map<String, Object> out = new LinkedHashMap<>();
+      out.put("applied", applied);
+
+      return out;
    }
 
    public record CellBindingRequest(String assembly, Integer row, Integer col,

@@ -910,8 +910,13 @@ public final class TableBindingMutator {
 
    // ── column labels (2d Phase 2) ────────────────────────────────────────────
 
-   /** One resolved shelf position a {@code labels}/{@code entries} column key refers to. */
-   private record ShelfIndex(String shelf, int index) {}
+   /**
+    * One resolved shelf position a {@code labels}/{@code entries} column key refers to. Package-
+    * private rather than {@code private}: {@code TableBindingService}'s
+    * {@code set_crosstab_column_visibility} write shares this same resolution via {@link
+    * #resolveVisibilityTarget} below, not just {@code set_column_labels}.
+    */
+   record ShelfIndex(String shelf, int index) {}
 
    /**
     * What a Table-branch write leaves for the caller to rekey on the live assembly. {@code
@@ -1022,6 +1027,31 @@ public final class TableBindingMutator {
    private static ShelfIndex resolveColumnLabelTarget(BaseTableBindingModel model, String shelf,
                                                       String column, Integer index)
    {
+      return resolveShelfTarget(model, shelf, column, index,
+                                "a label for it would never be shown");
+   }
+
+   /**
+    * The same name-first column resolution {@link #resolveColumnLabelTarget} uses for {@code
+    * set_column_labels}, shared here so {@code set_crosstab_column_visibility} (in {@code
+    * TableBindingService}) gets identical addressing, ambiguity refusal, and shelf/index
+    * disambiguation instead of a second copy of the same scan.
+    */
+   static ShelfIndex resolveVisibilityTarget(BaseTableBindingModel model, String shelf,
+                                             String column, Integer index)
+   {
+      return resolveShelfTarget(model, shelf, column, index, "it has nothing to hide or show");
+   }
+
+   /**
+    * @param notBoundReason substituted into "... is not bound on this assembly, so {@code
+    *                       notBoundReason}." when {@code column} matches nothing -- the one
+    *                       feature-specific piece of an otherwise shared resolution.
+    */
+   private static ShelfIndex resolveShelfTarget(BaseTableBindingModel model, String shelf,
+                                                String column, Integer index,
+                                                String notBoundReason)
+   {
       List<String> shelves = shelf == null || shelf.isBlank()
          ? shelvesOf(model) : List.of(requireShelf(model, shelf));
 
@@ -1075,8 +1105,8 @@ public final class TableBindingMutator {
       }
 
       throw new IllegalArgumentException(
-         "'" + column + "' is not bound on this assembly, so a label for it would never be " +
-         "shown. Bound columns: " +
+         "'" + column + "' is not bound on this assembly, so " + notBoundReason +
+         ". Bound columns: " +
          (present.isEmpty() ? "(none)" : String.join(", ", present)) + ".");
    }
 

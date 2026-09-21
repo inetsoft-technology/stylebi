@@ -1132,6 +1132,77 @@ class TableBindingMutatorTest {
                                                              Map.of(), List.of()));
    }
 
+   // ── crosstab column visibility (bug #76869, VTB-030) ──────────────────────
+
+   /**
+    * {@code resolveVisibilityTarget} shares {@code set_column_labels}' own name-first resolver
+    * ({@code resolveShelfTarget}) -- the ordinary, unambiguous case resolves a bare column name to
+    * its binding-order shelf position with no {@code shelf}/{@code index} needed from the caller.
+    */
+   @Test
+   void resolvesAnUnambiguousColumnToItsShelfPosition() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Sales", "Sum")));
+
+      TableBindingMutator.ShelfIndex rowTarget =
+         TableBindingMutator.resolveVisibilityTarget(model, null, "Region", null);
+      assertEquals("rows", rowTarget.shelf());
+      assertEquals(0, rowTarget.index());
+
+      TableBindingMutator.ShelfIndex aggTarget =
+         TableBindingMutator.resolveVisibilityTarget(model, null, "Sum(Sales)", null);
+      assertEquals("aggregates", aggTarget.shelf());
+      assertEquals(0, aggTarget.index());
+   }
+
+   /** A column bound twice (a Year/Quarter drill) cannot be hidden unambiguously by bare name. */
+   @Test
+   void refusesAnAmbiguousVisibilityTargetForADuplicateBoundColumn() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dim("Order Date"), dim("Order Date")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.resolveVisibilityTarget(model, null, "Order Date", null));
+
+      assertTrue(thrown.getMessage().contains("ambiguous"));
+      assertTrue(thrown.getMessage().contains("entries"));
+   }
+
+   /** An explicit {@code index} disambiguates what a bare column name cannot. */
+   @Test
+   void indexDisambiguatesADuplicateBoundVisibilityTarget() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows",
+         List.of(dim("Order Date"), dim("Order Date")));
+
+      TableBindingMutator.ShelfIndex second =
+         TableBindingMutator.resolveVisibilityTarget(model, "rows", "Order Date", 1);
+
+      assertEquals("rows", second.shelf());
+      assertEquals(1, second.index());
+   }
+
+   /**
+    * The "not bound" message is feature-specific text, not {@code set_column_labels}' "a label
+    * for it would never be shown" -- confirming {@code resolveShelfTarget}'s shared error path was
+    * actually parameterized, not just copy-pasted with the label wording left in place.
+    */
+   @Test
+   void namesAnUnboundColumnWithVisibilitySpecificWording() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> TableBindingMutator.resolveVisibilityTarget(model, null, "Profit", null));
+
+      assertTrue(thrown.getMessage().contains("nothing to hide or show"));
+      assertFalse(thrown.getMessage().contains("label"));
+   }
+
    // ── options (2d Phase 3) ──────────────────────────────────────────────────
 
    /**

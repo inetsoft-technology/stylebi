@@ -31,6 +31,7 @@ import inetsoft.uql.asset.SortInfo;
 import inetsoft.uql.asset.SortRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -51,6 +52,7 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.HideColumnsDialogModel;
 import inetsoft.web.composer.vs.dialog.HideColumnsDialogService;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
+import inetsoft.web.wiz.binding.model.ColumnVisibilityEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -419,8 +421,9 @@ public class TableBindingService {
     * <p>Crosstab is refused by name rather than silently no-op'd: {@code
     * CrosstabVSAssemblyInfo.hiddenColumns} is keyed by a rendered lens column's {@code
     * TableDataPath} + header occurrence, not by field name, so this single
-    * {@code assembly + column} contract does not map onto it without new resolution logic
-    * (which pivoted occurrence(s) to hide) this call does not have.
+    * {@code assembly + column} contract does not map onto it. {@link #setCrosstabColumnVisibility}
+    * below is the Crosstab-shaped sibling, addressed the same name-first way but resolved down to
+    * that occurrence server-side.
     */
    public void setFieldVisibility(String sessionToken, Principal user, String assemblyName,
                                   String column, boolean visible, String linkUri) throws Exception
@@ -432,8 +435,8 @@ public class TableBindingService {
             throw new IllegalArgumentException(
                "'" + assemblyName + "' is " +
                (liveAssembly instanceof CrosstabVSAssembly ? "a Crosstab" : "not a Table") +
-               " -- set_table_field_visibility only supports Table right now. Crosstab " +
-               "hide/show is a separate, not-yet-built capability.");
+               " -- set_table_field_visibility only supports Table. Use " +
+               "set_crosstab_column_visibility for a Crosstab's row/col/aggregate occurrence.");
          }
 
          HideColumnsDialogModel current =
@@ -464,6 +467,156 @@ public class TableBindingService {
          hideColumnsService.setColumnOptionDialogModel(runtimeId, assemblyName, updated, user,
                                                        dispatcher, linkUri);
       });
+   }
+
+   /**
+    * {@link #setFieldVisibility}'s Crosstab-shaped sibling: hides one or more rendered pivot
+    * occurrences by <em>name</em> (matching this plugin's own established name-first addressing
+    * convention -- see {@code set_column_labels}/{@code set_column_widths}), or unhides
+    * everything at once. There is deliberately no selective per-column show, matching the native
+    * Composer's own pivot-header Hide/Show action ({@code ComposerVSTableService.hideColumns}):
+    * {@code showColumns()} there always sends an empty column list, and {@code
+    * CrosstabVSAssemblyInfo.clearHiddenColumns()} has no other mode.
+    *
+    * <p>Hide resolves each {@code columns}/{@code entries} item the same way {@link
+    * #setColumnLabels} resolves a Crosstab label -- {@link TableBindingMutator#resolveVisibilityTarget}
+    * (name/shelf/index -&gt; binding-order shelf position) -&gt; {@link #liveCrosstabRef} (shelf
+    * position -&gt; live {@code DataRef}) -&gt; {@link SetTableHeaderAliasHandler#findHeaderCell}
+    * (live {@code DataRef} -&gt; rendered lens column index) -&gt; {@code
+    * CrosstabVSAssemblyInfo.addHiddenColumn(col, lens)}. This is the same binding-order addressing
+    * {@code get_table_binding}'s own shelf arrays already expose, resolved down to the rendered
+    * lens's own occurrence-keyed index space the caller has no way to observe directly (see this
+    * method's own design note in 03-fix.md for why a raw rendered-grid index was rejected as the
+    * tool's own contract).
+    *
+    * @param columns bare column names to hide (the ordinary, unambiguous case) -- ignored/must be
+    *                empty when {@code visible} is {@code true}.
+    * @param entries disambiguated {@code {shelf, column, index}} entries, for a column bound more
+    *                than once -- same role as {@code set_column_labels}'s {@code entries}.
+    * @param visible {@code false} to hide everything named by {@code columns}/{@code entries};
+    *                {@code true} to unhide every currently-hidden column at once (which is why
+    *                {@code columns}/{@code entries} must be empty in that direction -- there is
+    *                nothing for them to select).
+    * @return one line per column actually hidden, e.g. {@code "Customer:State -> hidden"}, or a
+    *         single {@code "shown every hidden column"} line for the show direction.
+    */
+   public List<String> setCrosstabColumnVisibility(String sessionToken, Principal user,
+                                                    String assemblyName, List<String> columns,
+                                                    List<ColumnVisibilityEntry> entries,
+                                                    boolean visible)
+      throws Exception
+   {
+      boolean hasColumns = columns != null && !columns.isEmpty();
+      boolean hasEntries = entries != null && !entries.isEmpty();
+
+      if(visible && (hasColumns || hasEntries)) {
+         throw new IllegalArgumentException(
+            "visible:true (show) unhides every hidden column on a Crosstab at once and takes " +
+            "no column list -- there is no selective per-column show, matching the native " +
+            "Composer's own Hide/Show action. Omit 'columns'/'entries' to show everything.");
+      }
+
+      if(!visible && !hasColumns && !hasEntries) {
+         throw new IllegalArgumentException(
+            "set_crosstab_column_visibility needs at least one column to hide -- 'columns' or " +
+            "'entries'.");
+      }
+
+      List<String> applied = new ArrayList<>();
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         BaseTableBindingModel model = requireTableBinding(rvs, assemblyName);
+         VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(!(liveAssembly instanceof CrosstabVSAssembly crosstab)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " +
+               (liveAssembly instanceof TableVSAssembly ? "a Table" : "not a Crosstab") +
+               " -- set_crosstab_column_visibility only supports Crosstab. Use " +
+               "set_table_field_visibility for a Table.");
+         }
+
+         CrosstabVSAssemblyInfo tableInfo = crosstab.getCrosstabInfo();
+
+         if(visible) {
+            tableInfo.clearHiddenColumns();
+            applied.add("shown every hidden column");
+         }
+         else {
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isEmpty()) {
+               throw new IllegalStateException(
+                  "'" + assemblyName + "' has no active render sandbox right now, so its " +
+                  "columns cannot be resolved.");
+            }
+
+            String oname = crosstab.getAbsoluteName();
+            boolean detail = oname.startsWith(Assembly.DETAIL);
+
+            if(detail) {
+               oname = oname.substring(Assembly.DETAIL.length());
+            }
+
+            VSTableLens lens = box.get().getVSTableLens(oname, detail);
+            VSCrosstabInfo crossInfo = crosstab.getVSCrosstabInfo();
+            List<String> requestedNames = new ArrayList<>();
+            List<TableBindingMutator.ShelfIndex> targets = new ArrayList<>();
+
+            if(hasColumns) {
+               for(String column : columns) {
+                  requestedNames.add(column);
+                  targets.add(TableBindingMutator.resolveVisibilityTarget(
+                     model, null, column, null));
+               }
+            }
+
+            if(hasEntries) {
+               for(ColumnVisibilityEntry entry : entries) {
+                  if(entry == null || entry.column() == null || entry.column().isBlank()) {
+                     throw new IllegalArgumentException(
+                        "Each 'entries' item needs 'column' -- the bound column's name.");
+                  }
+
+                  requestedNames.add(entry.column());
+                  targets.add(TableBindingMutator.resolveVisibilityTarget(
+                     model, entry.shelf(), entry.column(), entry.index()));
+               }
+            }
+
+            for(int i = 0; i < targets.size(); i++) {
+               TableBindingMutator.ShelfIndex target = targets.get(i);
+               DataRef ref = liveCrosstabRef(crossInfo, target.shelf(), target.index());
+
+               if(ref == null) {
+                  throw new IllegalArgumentException(
+                     "'" + target.shelf() + "[" + target.index() + "]' no longer resolves on " +
+                     "the live assembly -- the binding may have changed since this call was " +
+                     "validated.");
+               }
+
+               SetTableHeaderAliasHandler.HeaderCell cell =
+                  SetTableHeaderAliasHandler.findHeaderCell(lens, ref, target.index());
+
+               if(cell == null) {
+                  throw new IllegalArgumentException(
+                     "Could not find '" + target.shelf() + "[" + target.index() + "]' on the " +
+                     "rendered header of '" + assemblyName + "' -- it may not currently render " +
+                     "(suppressed or filtered out by the crosstab's current shape).");
+               }
+
+               tableInfo.addHiddenColumn(cell.col(), lens);
+               applied.add(requestedNames.get(i) + " -> hidden");
+            }
+         }
+
+         ApplyVSAssemblyInfoEvent event = new ApplyVSAssemblyInfoEvent();
+         event.setName(assemblyName);
+         event.setBinding(model);
+         bindingModelService.setBinding(runtimeId, event, user, dispatcher);
+      });
+
+      return applied;
    }
 
    /**
@@ -1060,7 +1213,7 @@ public class TableBindingService {
          VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
 
          if(liveAssembly instanceof CrosstabVSAssembly crosstab) {
-            enrichCrosstabLabels(rvs, crosstab, shelfFields);
+            enrichCrosstabLabelsAndVisibility(rvs, crosstab, shelfFields);
          }
       }
       else if(model instanceof TableBindingModel) {
@@ -1180,15 +1333,27 @@ public class TableBindingService {
 
    /**
     * Best-effort: a Crosstab label is a {@code MESSAGE_FORMAT} {@code FormatInfo} entry at the
-    * bound column's header {@code TableDataPath}, which only a rendered {@code VSTableLens} can
-    * resolve (see {@code TableBindingMutator.CrosstabTarget}'s javadoc — the same reason the
-    * write side needs one). Swallows any render failure and leaves every {@code label} at its
-    * default {@code null} rather than failing a read that would otherwise succeed — matching this
+    * bound column's header {@code TableDataPath}, and a Crosstab's hidden state ({@code
+    * CrosstabVSAssemblyInfo.isColumnHidden}) is keyed by a rendered lens column index -- both need
+    * the same rendered {@code VSTableLens}/{@code DataRef} resolution per shelf entry, so they are
+    * folded into one enrichment pass rather than resolving each entry's header cell twice.
+    * Swallows any render failure and leaves every {@code label}/{@code visible} at its default
+    * {@code null} rather than failing a read that would otherwise succeed — matching this
     * codebase's established fail-open stance for anything that needs a live render just to
     * disclose more, not to validate.
+    *
+    * <p>{@code visible} is left {@code null} (not {@code false}) when the entry's header cell
+    * cannot be found in the rendered lens at all -- that can mean genuinely suppressed/filtered
+    * for a reason unrelated to {@code hiddenColumns}, not necessarily hidden, so this does not
+    * guess. When the cell <em>is</em> found, {@code isColumnHidden(col, lens)} is definitive and
+    * precise: a hidden dimension's header cell resolves through the same {@code
+    * CrossFilterDataDescriptor} computation as any other bound column's (see {@code
+    * SetTableHeaderAliasHandler.findHeaderCell}'s own javadoc), so there is no proxy/guesswork
+    * needed here the way an unresolved {@code findHeaderPath() == null} would have been.
     */
-   private static void enrichCrosstabLabels(RuntimeViewsheet rvs, CrosstabVSAssembly crosstab,
-                                            Map<String, List<FieldRef>> shelfFields)
+   private static void enrichCrosstabLabelsAndVisibility(RuntimeViewsheet rvs,
+                                                         CrosstabVSAssembly crosstab,
+                                                         Map<String, List<FieldRef>> shelfFields)
    {
       try {
          Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
@@ -1207,6 +1372,7 @@ public class TableBindingService {
          VSTableLens lens = box.get().getVSTableLens(oname, detail);
          VSCrosstabInfo crossInfo = crosstab.getVSCrosstabInfo();
          FormatInfo formatInfo = crosstab.getFormatInfo();
+         CrosstabVSAssemblyInfo tableInfo = crosstab.getCrosstabInfo();
 
          for(String shelf : List.of("rows", "cols", "aggregates")) {
             List<FieldRef> fields = shelfFields.get(shelf);
@@ -1222,12 +1388,22 @@ public class TableBindingService {
                   continue;
                }
 
-               TableDataPath path = SetTableHeaderAliasHandler.findHeaderPath(lens, ref, i);
-               String label = path == null ? null : readAlias(formatInfo, path);
+               SetTableHeaderAliasHandler.HeaderCell cell =
+                  SetTableHeaderAliasHandler.findHeaderCell(lens, ref, i);
+
+               if(cell == null) {
+                  continue;
+               }
+
+               FieldRef field = fields.get(i);
+               String label = readAlias(formatInfo, cell.path());
 
                if(label != null) {
-                  fields.set(i, withLabel(fields.get(i), label));
+                  field = withLabel(field, label);
                }
+
+               field = withVisibility(field, !tableInfo.isColumnHidden(cell.col(), lens));
+               fields.set(i, field);
             }
          }
       }

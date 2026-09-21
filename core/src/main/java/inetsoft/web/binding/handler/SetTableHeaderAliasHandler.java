@@ -126,6 +126,25 @@ public class SetTableHeaderAliasHandler {
     *                 name instead).
     */
    public static TableDataPath findHeaderPath(VSTableLens lens, DataRef dataRef, int colIndex) {
+      HeaderCell cell = findHeaderCell(lens, dataRef, colIndex);
+      return cell == null ? null : cell.path();
+   }
+
+   /**
+    * {@link #findHeaderPath} plus the {@code (row, col)} coordinate {@link #scanHeaderRegion}
+    * already finds internally but previously discarded -- needed by a caller that must reach
+    * {@code CrosstabVSAssemblyInfo.addHiddenColumn(int, XTable)}/{@code isColumnHidden}, which
+    * take a raw lens column index, not a {@link TableDataPath}. A hidden dimension's header cell
+    * resolves here exactly like any other bound column's: {@code VSTableLens.getTableDataPath}
+    * delegates straight to the crosstab's {@code CrossFilterDataDescriptor}, whose {@code
+    * getCellDataPath}/{@code getColDataPath} compute a cell's path purely from the crosstab's own
+    * row/col header indexes and tuples -- with no reference anywhere to {@code
+    * CrosstabVSAssemblyInfo.hiddenColumns} or any width/visibility state. "Hidden" only ever
+    * overlays {@code getColumnWidth2} (zero width); it cannot change what {@code
+    * getTableDataPath} returns for that column, so this scan locates a hidden column's header
+    * cell the same way it locates a visible one's.
+    */
+   public static HeaderCell findHeaderCell(VSTableLens lens, DataRef dataRef, int colIndex) {
       int headerRows = lens.getHeaderRowCount();
       int headerCols = lens.getHeaderColCount();
       int colCount = lens.getColCount();
@@ -134,8 +153,8 @@ public class SetTableHeaderAliasHandler {
       // The top headerRows rows are header rows by definition, regardless of column --
       // side-by-side aggregate headers live here past the headerCols rectangle.
       int rowArmColBound = colCount < 0 ? headerCols : colCount;
-      TableDataPath found = scanHeaderRegion(lens, dataRef, colIndex, 0, headerRows, 0,
-                                             rowArmColBound);
+      HeaderCell found = scanHeaderRegion(lens, dataRef, colIndex, 0, headerRows, 0,
+                                          rowArmColBound);
 
       if(found != null) {
          return found;
@@ -148,9 +167,12 @@ public class SetTableHeaderAliasHandler {
       return scanHeaderRegion(lens, dataRef, colIndex, headerRows, colArmRowBound, 0, headerCols);
    }
 
-   private static TableDataPath scanHeaderRegion(VSTableLens lens, DataRef dataRef, int colIndex,
-                                                  int rowStart, int rowEnd, int colStart,
-                                                  int colEnd)
+   /** {@code findHeaderCell}'s result: the header's {@code TableDataPath} plus where it was found. */
+   public record HeaderCell(TableDataPath path, int row, int col) {}
+
+   private static HeaderCell scanHeaderRegion(VSTableLens lens, DataRef dataRef, int colIndex,
+                                              int rowStart, int rowEnd, int colStart,
+                                              int colEnd)
    {
       for(int row = rowStart; row < rowEnd; row++) {
          for(int col = colStart; col < colEnd; col++) {
@@ -164,7 +186,7 @@ public class SetTableHeaderAliasHandler {
             if(ClearTableHeaderAliasHandler.matchAgg(dataRef, segments) ||
                ClearTableHeaderAliasHandler.matchDim(dataRef, segments, colIndex))
             {
-               return path;
+               return new HeaderCell(path, row, col);
             }
          }
       }
