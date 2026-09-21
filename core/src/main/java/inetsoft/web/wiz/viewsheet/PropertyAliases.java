@@ -102,14 +102,18 @@ public final class PropertyAliases {
     * #76871 -- {@code SizePositionPaneModel.cellHeight} is genuinely live for
     * SelectionList/SelectionTree/CheckBox/RadioButton, but neither dialog service's apply method
     * ever calls {@code getCellHeight()}, because a plain Table/Crosstab has no such concept on
-    * {@code TableVSAssemblyInfo}/{@code CrosstabVSAssemblyInfo} for it to land on), and the
-    * type-specific capability flags below.
+    * {@code TableVSAssemblyInfo}/{@code CrosstabVSAssemblyInfo} for it to land on), {@code
+    * scaleVertical} (bug #76883 -- same shape as {@code cellHeight}: genuinely live for Text via
+    * {@code TextPropertyDialogService}/{@code TextVSAssemblyInfo}, but neither Table's nor
+    * Crosstab's apply method ever calls {@code isScaleVertical()}), and the type-specific
+    * capability flags below.
     */
    private static final Map<String, Set<String>> DEAD_FIELDS = Map.of(
       "table", Set.of("shadow", "editable", "container", "shrinkEnabled", "formVisible",
-                      "cellHeight"),
+                      "cellHeight", "scaleVertical"),
       "crosstab", Set.of("shadow", "editable", "container", "crosstabInfoNull",
-                         "sortOthersLastEnabled", "dateComparisonSupport", "cellHeight"));
+                         "sortOthersLastEnabled", "dateComparisonSupport", "cellHeight",
+                         "scaleVertical"));
 
    /**
     * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}

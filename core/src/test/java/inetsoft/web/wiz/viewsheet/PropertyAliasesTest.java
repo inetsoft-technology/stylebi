@@ -632,6 +632,12 @@ class PropertyAliasesTest {
       assertThrows(IllegalArgumentException.class,
                    () -> PropertyAliases.resolveForWrite("table",
                       "tableViewGeneralPaneModel.sizePositionPaneModel.cellHeight"));
+
+      // scaleVertical (bug #76883), same shape as cellHeight -- genuinely live for Text, but
+      // neither getTableViewPropertyDialogModel nor setTablePropertyModel ever touches it.
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("table",
+                      "tableViewGeneralPaneModel.sizePositionPaneModel.scaleVertical"));
    }
 
    @Test
@@ -653,6 +659,11 @@ class PropertyAliasesTest {
       assertThrows(IllegalArgumentException.class,
                    () -> PropertyAliases.resolveForWrite("crosstab",
                       "tableViewGeneralPaneModel.sizePositionPaneModel.cellHeight"));
+
+      // scaleVertical (bug #76883), same shape as table's -- Crosstab has no such concept either.
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("crosstab",
+                      "tableViewGeneralPaneModel.sizePositionPaneModel.scaleVertical"));
    }
 
    /**
