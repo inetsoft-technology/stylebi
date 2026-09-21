@@ -1090,6 +1090,22 @@ class TableBindingServiceTest {
       return selection;
    }
 
+   /** A ColumnSelection holding one real, visible {@code ColumnRef} per given column name --
+    *  what {@code TableVSAssemblyInfo#getVisibleColumns} actually requires: it filters out any
+    *  entry that is not a {@code ColumnRef} (a bare {@code AttributeRef}, like {@link
+    *  #columnSelectionOf} builds, is silently dropped), unlike {@code HideColumnsDialogModel}'s
+    *  own by-name comparison which does not care about the ref's runtime type. */
+   private static inetsoft.uql.ColumnSelection columnRefSelectionOf(String... names) {
+      inetsoft.uql.ColumnSelection selection = new inetsoft.uql.ColumnSelection();
+
+      for(String name : names) {
+         selection.addAttribute(
+            new inetsoft.uql.asset.ColumnRef(new inetsoft.uql.erm.AttributeRef(null, name)));
+      }
+
+      return selection;
+   }
+
    private static inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsServiceReturning(
       String runtimeId, String assemblyName, List<String> available, List<String> hidden)
       throws Exception
@@ -1178,6 +1194,115 @@ class TableBindingServiceTest {
 
       Exception thrown = assertThrows(Exception.class,
          () -> service.setFieldVisibility("tok", principal(), "Crosstab1", "Year", false, null));
+
+      assertTrue(thrown.getMessage().contains("Crosstab1"));
+      assertTrue(thrown.getMessage().toLowerCase().contains("crosstab"));
+   }
+
+   // ── set_table_column_sort (bug-76871, column-sort-404) ──────────────────
+   // Before this fix, the wiz tool's REST call had no server-side route at all -- this class's
+   // own tests below exercise the method the new BindingAgentController#setTableColumnSort route
+   // delegates to; the route itself is covered separately by a MockMvc-level regression test
+   // asserting the pre-fix 404 and the post-fix dispatch (see BindingAgentController's own
+   // "table/column-sort" route and its request-binding test).
+
+   @Test
+   void setColumnSortAddsAnAscendingSortOnABoundColumn() throws Exception {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf("Region", "Sales"));
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getInfo()).thenReturn(info);
+      ViewsheetSessionService sessions = sessionsFor(table);
+
+      serviceWith(sessions, new TableBindingModel(), mock(VSBindingModelService.class))
+         .setColumnSort("tok", principal(), "Table1", "Region", "asc", null);
+
+      ArgumentCaptor<inetsoft.uql.asset.SortInfo> captor =
+         ArgumentCaptor.forClass(inetsoft.uql.asset.SortInfo.class);
+      verify(table).setSortInfo(captor.capture());
+      inetsoft.uql.asset.SortRef[] sorts = captor.getValue().getSorts();
+      assertEquals(1, sorts.length);
+      assertEquals(inetsoft.report.StyleConstants.SORT_ASC, sorts[0].getOrder());
+   }
+
+   @Test
+   void setColumnSortIsAdditiveWithAnExistingSortOnAnotherColumn() throws Exception {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf("Region", "Sales"));
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getInfo()).thenReturn(info);
+
+      inetsoft.uql.asset.SortInfo existing = new inetsoft.uql.asset.SortInfo();
+      inetsoft.uql.asset.SortRef existingRef =
+         new inetsoft.uql.asset.SortRef(info.getVisibleColumns().getAttribute("Sales"));
+      existingRef.setOrder(inetsoft.report.StyleConstants.SORT_DESC);
+      existing.addSort(existingRef);
+      when(table.getSortInfo()).thenReturn(existing);
+
+      ViewsheetSessionService sessions = sessionsFor(table);
+
+      serviceWith(sessions, new TableBindingModel(), mock(VSBindingModelService.class))
+         .setColumnSort("tok", principal(), "Table1", "Region", "asc", null);
+
+      ArgumentCaptor<inetsoft.uql.asset.SortInfo> captor =
+         ArgumentCaptor.forClass(inetsoft.uql.asset.SortInfo.class);
+      verify(table).setSortInfo(captor.capture());
+      assertEquals(2, captor.getValue().getSortCount(),
+                  "the existing Sales sort must survive the additive Region sort, matching a " +
+                  "Viewer shift-click rather than a plain click");
+   }
+
+   @Test
+   void setColumnSortRemovesAnExistingSortWhenDirectionIsNone() throws Exception {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf("Region", "Sales"));
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getInfo()).thenReturn(info);
+
+      inetsoft.uql.asset.SortInfo existing = new inetsoft.uql.asset.SortInfo();
+      inetsoft.uql.asset.SortRef existingRef =
+         new inetsoft.uql.asset.SortRef(info.getVisibleColumns().getAttribute("Region"));
+      existingRef.setOrder(inetsoft.report.StyleConstants.SORT_ASC);
+      existing.addSort(existingRef);
+      when(table.getSortInfo()).thenReturn(existing);
+
+      ViewsheetSessionService sessions = sessionsFor(table);
+
+      serviceWith(sessions, new TableBindingModel(), mock(VSBindingModelService.class))
+         .setColumnSort("tok", principal(), "Table1", "Region", "none", null);
+
+      ArgumentCaptor<inetsoft.uql.asset.SortInfo> captor =
+         ArgumentCaptor.forClass(inetsoft.uql.asset.SortInfo.class);
+      verify(table).setSortInfo(captor.capture());
+      assertEquals(0, captor.getValue().getSortCount());
+   }
+
+   @Test
+   void setColumnSortRefusesAnUnboundColumn() throws Exception {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setColumnSelection(columnRefSelectionOf("Region"));
+      TableVSAssembly table = mock(TableVSAssembly.class);
+      when(table.getInfo()).thenReturn(info);
+      ViewsheetSessionService sessions = sessionsFor(table);
+      TableBindingService service =
+         serviceWith(sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnSort("tok", principal(), "Table1", "ghost_col", "asc", null));
+
+      assertTrue(thrown.getMessage().contains("ghost_col"));
+      assertTrue(thrown.getMessage().contains("not bound"));
+      verify(table, never()).setSortInfo(any());
+   }
+
+   @Test
+   void setColumnSortRefusesACrosstabByName() {
+      ViewsheetSessionService sessions = sessionsFor(mock(CrosstabVSAssembly.class));
+      TableBindingService service = serviceWith(
+         sessions, new CrosstabBindingModel(), mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setColumnSort("tok", principal(), "Crosstab1", "Year", "asc", null));
 
       assertTrue(thrown.getMessage().contains("Crosstab1"));
       assertTrue(thrown.getMessage().toLowerCase().contains("crosstab"));
@@ -1326,11 +1451,20 @@ class TableBindingServiceTest {
       ViewsheetSessionService sessions, BindingModel model, VSBindingModelService bindings,
       inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService)
    {
+      return serviceWith(sessions, model, bindings, hideColumnsService,
+                         mock(inetsoft.web.viewsheet.service.CoreLifecycleService.class));
+   }
+
+   private static TableBindingService serviceWith(
+      ViewsheetSessionService sessions, BindingModel model, VSBindingModelService bindings,
+      inetsoft.web.composer.vs.dialog.HideColumnsDialogService hideColumnsService,
+      inetsoft.web.viewsheet.service.CoreLifecycleService coreLifecycleService)
+   {
       VSBindingService binding = mock(VSBindingService.class);
       when(binding.createModel(any())).thenReturn(model);
       return new TableBindingService(sessions, binding, bindings,
                                      mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
-                                     hideColumnsService);
+                                     hideColumnsService, coreLifecycleService);
    }
 
    private static Principal principal() {

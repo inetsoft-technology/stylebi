@@ -386,7 +386,8 @@ class BindingAgentControllerTest {
       TableBindingService tableService = new TableBindingService(
          sessions, binding, mock(inetsoft.web.binding.controller.VSBindingModelService.class),
          mock(inetsoft.web.binding.service.DataRefModelFactoryService.class),
-         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class));
+         mock(inetsoft.web.composer.vs.dialog.HideColumnsDialogService.class),
+         mock(inetsoft.web.viewsheet.service.CoreLifecycleService.class));
 
       // A listing failure -- not merely an inconclusive listing -- is what reaches this guard:
       // resolveSourceTable's own try/catch turns a read failure into a null source rather than a

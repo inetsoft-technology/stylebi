@@ -525,6 +525,20 @@ public class BindingAgentController {
                                       request.visible(), linkUri);
    }
 
+   public record TableColumnSortRequest(String assembly, String column, String direction) {}
+
+   @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/column-sort")
+   public void setTableColumnSort(@PathVariable String sessionToken,
+                                  @RequestBody TableColumnSortRequest request,
+                                  @RequestParam(required = false, defaultValue = "") String linkUri,
+                                  Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      tableService.setColumnSort(sessionToken, user, request.assembly(), request.column(),
+                                 request.direction(), linkUri);
+   }
+
    public record CellBindingRequest(String assembly, Integer row, Integer col,
                                     Map<String, Object> binding) {}
 

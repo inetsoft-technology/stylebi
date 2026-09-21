@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.binding;
 
+import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
@@ -25,6 +26,9 @@ import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.SortInfo;
+import inetsoft.uql.asset.SortRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
@@ -44,6 +48,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.HideColumnsDialogModel;
 import inetsoft.web.composer.vs.dialog.HideColumnsDialogService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.viewsheet.ViewsheetSessionService;
@@ -74,13 +79,15 @@ public class TableBindingService {
                               VSBindingService binding,
                               VSBindingModelService bindingModelService,
                               DataRefModelFactoryService refModelService,
-                              HideColumnsDialogService hideColumnsService)
+                              HideColumnsDialogService hideColumnsService,
+                              CoreLifecycleService coreLifecycleService)
    {
       this.sessions = sessions;
       this.binding = binding;
       this.bindingModelService = bindingModelService;
       this.refModelService = refModelService;
       this.hideColumnsService = hideColumnsService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    /**
@@ -455,6 +462,95 @@ public class TableBindingService {
 
          hideColumnsService.setColumnOptionDialogModel(runtimeId, assemblyName, updated, user,
                                                        dispatcher, linkUri);
+      });
+   }
+
+   /**
+    * A plain Table's own interactive column sort -- the same underlying state {@code
+    * BaseTableSortColumnController}'s STOMP {@code /table/sort-column} handler mutates on a real
+    * Viewer column-header click ({@code TableVSAssembly#getSortInfo}), reached here with an
+    * explicit {@code direction} instead of that handler's ASC -> DESC -> NONE click toggle.
+    *
+    * <p>Unlike {@link #setSort}/{@link #setRanking} above -- a <em>different</em> mechanism that
+    * mutates a Crosstab/Table's design-time dimension-shelf sort inside {@link
+    * BaseTableBindingModel} -- this mutates the live {@link TableVSAssembly}'s runtime {@link
+    * SortInfo} directly, the same state a Viewer click affects and {@code
+    * BaseTableBindingModel} does not model at all.
+    *
+    * <p>Always additive (matching a Viewer shift-click, never a plain click): an existing sort on
+    * a different column is left alone, so building a multi-column sort is one call per column.
+    *
+    * <p>Crosstab is refused by name, the same posture {@link #setFieldVisibility} takes -- a
+    * Crosstab's own column sort is a different mechanism ({@code
+    * BaseTableSortColumnController#sortColumnAction}) with no equivalent wiring here.
+    */
+   public void setColumnSort(String sessionToken, Principal user, String assemblyName,
+                             String column, String direction, String linkUri) throws Exception
+   {
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSAssembly liveAssembly = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(!(liveAssembly instanceof TableVSAssembly table)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " +
+               (liveAssembly instanceof CrosstabVSAssembly ? "a Crosstab" : "not a Table") +
+               " -- set_table_column_sort only supports a plain Table. Use set_field_sort for " +
+               "a Crosstab's dimension-shelf sort instead.");
+         }
+
+         ColumnSelection columns = ((TableVSAssemblyInfo) table.getInfo()).getVisibleColumns();
+         DataRef columnRef = columns.getAttribute(column);
+
+         if(columnRef == null) {
+            List<String> bound = new ArrayList<>();
+
+            for(int i = 0; i < columns.getAttributeCount(); i++) {
+               bound.add(columns.getAttribute(i).getName());
+            }
+
+            throw new IllegalArgumentException(
+               "'" + column + "' is not bound on '" + assemblyName + "'. It holds: " +
+               (bound.isEmpty() ? "(nothing)" : String.join(", ", bound)) +
+               ". Add it with add_table_field or set_table_fields first.");
+         }
+
+         // Sorting is done before an alias is applied, so the setting goes on the base data ref
+         // -- same rule BaseTableSortColumnService.tableSortColumn follows.
+         if(columnRef instanceof ColumnRef) {
+            DataRef oref = columnRef;
+            columnRef = ((ColumnRef) columnRef).getDataRef();
+
+            if(!(columnRef instanceof ColumnRef)) {
+               columnRef = new ColumnRef(columnRef);
+               ((ColumnRef) columnRef).setDataType(oref.getDataType());
+            }
+         }
+
+         SortInfo sinfo = table.getSortInfo();
+
+         if(sinfo == null) {
+            sinfo = new SortInfo();
+         }
+
+         SortRef existing = sinfo.getSort(columnRef);
+         int position = existing != null && sinfo.containsSort(existing)
+            ? Arrays.asList(sinfo.getSorts()).indexOf(existing) : sinfo.getSortCount();
+         SortRef ref = new SortRef(columnRef);
+
+         if("none".equals(direction)) {
+            sinfo.removeSort(ref);
+         }
+         else {
+            ref.setOrder("desc".equals(direction) ? StyleConstants.SORT_DESC : StyleConstants.SORT_ASC);
+            ref.setPosition(position);
+            sinfo.addSort(ref);
+         }
+
+         table.setSortInfo(sinfo);
+
+         coreLifecycleService.execute(rvs, assemblyName, linkUri, VSAssembly.INPUT_DATA_CHANGED,
+                                      dispatcher);
+         coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
       });
    }
 
@@ -1237,4 +1333,5 @@ public class TableBindingService {
    private final VSBindingModelService bindingModelService;
    private final DataRefModelFactoryService refModelService;
    private final HideColumnsDialogService hideColumnsService;
+   private final CoreLifecycleService coreLifecycleService;
 }
