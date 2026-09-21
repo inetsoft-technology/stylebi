@@ -1138,12 +1138,60 @@ class SelectionRuntimeServiceTest {
       assertEquals(List.of(), SelectionRuntimeService.selectedPaths(null));
    }
 
+   /**
+    * bug-76875: an ID-mode tree's own {@code countSelected} counts every independently-selected
+    * node directly, with no {@code isSelected()} gate on the recursion the way
+    * {@link #selectedPaths(SelectionValue[])} has -- unlike a fixed-hierarchy select, an ID-mode
+    * match never marks its ancestors, so gating on the composite's own flag (as
+    * {@code selectedPaths} does) would miss every descendant under an unselected composite.
+    *
+    * <p>Asserted over the flat value array, same limitation as {@code selectedPaths}'s own tests:
+    * {@code SelectionList} cannot be constructed or mocked outside a Spring context, so a real
+    * composite-with-selected-children shape cannot be exercised here -- only the flat counting
+    * logic and null-safety.
+    */
+   @Test
+   void countsEveryIndependentlySelectedNodeRegardlessOfItsOwnValue() {
+      SelectionValue east = mock(SelectionValue.class);
+      when(east.isSelected()).thenReturn(true);
+
+      SelectionValue west = mock(SelectionValue.class);
+      when(west.isSelected()).thenReturn(false);
+
+      SelectionValue nullValued = mock(SelectionValue.class);
+      when(nullValued.isSelected()).thenReturn(true);
+      when(nullValued.getValue()).thenReturn(null);
+
+      int count = SelectionRuntimeService.countSelected(
+         new SelectionValue[]{ east, west, null, nullValued });
+
+      assertEquals(2, count, "unselected and null values must not be counted");
+      assertEquals(0, SelectionRuntimeService.countSelected(null));
+   }
+
    /** Nothing selected means nothing to send, rather than an empty apply. */
    @Test
    void doesNotCallTheEndpointWhenThereIsNothingSelected() throws Exception {
       Harness h = harness(list(XConstants.SORT_ASC, false, null));
 
       Map<String, Object> result = h.service.clearSelection("tok", principal(), "Filter1", "");
+
+      assertEquals(0, result.get("clearedCount"));
+      verifyNoInteractions(h.selections);
+   }
+
+   /**
+    * bug-76875: an ID-mode tree must go through the {@code countSelected} branch, not
+    * {@code selectedPaths}, and must not NPE when the underlying {@code SelectionList} is null
+    * (unstubbed, same shape a domain-less/empty tree presents in production).
+    */
+   @Test
+   void doesNotCallTheEndpointWhenAnIdModeTreeHasNothingSelected() throws Exception {
+      SelectionTreeVSAssembly idTree = tree(XConstants.SORT_ASC, false);
+      when(idTree.isIDMode()).thenReturn(true);
+      Harness h = harness(idTree);
+
+      Map<String, Object> result = h.service.clearSelection("tok", principal(), "Tree1", "");
 
       assertEquals(0, result.get("clearedCount"));
       verifyNoInteractions(h.selections);
