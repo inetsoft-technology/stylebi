@@ -595,6 +595,13 @@ class PropertyAliasesTest {
       assertThrows(IllegalArgumentException.class,
                    () -> PropertyAliases.resolveForWrite("table",
                       "tableViewGeneralPaneModel.sizePositionPaneModel.container"));
+
+      // cellHeight (bug #76871): genuinely live for SelectionList/SelectionTree/CheckBox/
+      // RadioButton, but a plain Table has no such concept -- neither getTableViewPropertyDialogModel
+      // nor setTablePropertyModel ever touches it.
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("table",
+                      "tableViewGeneralPaneModel.sizePositionPaneModel.cellHeight"));
    }
 
    @Test
@@ -611,6 +618,11 @@ class PropertyAliasesTest {
       assertThrows(IllegalArgumentException.class,
                    () -> PropertyAliases.resolveForWrite("crosstab",
                       "tableViewGeneralPaneModel.sizePositionPaneModel.container"));
+
+      // cellHeight (bug #76871), same shape as table's -- Crosstab has no such concept either.
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("crosstab",
+                      "tableViewGeneralPaneModel.sizePositionPaneModel.cellHeight"));
    }
 
    /**
