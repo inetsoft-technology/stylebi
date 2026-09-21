@@ -907,7 +907,14 @@ public class SecurityService {
             customThemesManager.setOrgSelectedTheme(request.getTheme(), oid);
          }
 
-         setIdentityPermissions(new IdentityID(request.getId(), request.getId()),
+         // organization.getIdentityID() (name^id), not new IdentityID(oid, oid) (id^id) -- the
+         // rename mechanism (IdentityService.updateIdentityPermissions()'s SECURITY_ORGANIZATION
+         // path-migration special case, and every real permission read of this grant such as
+         // DefaultCheckPermissionStrategy.checkOrgAdminPermission()) expects the org's own self
+         // grant to be keyed by (org name, org id), matching Organization.getIdentityID()'s own
+         // convention; keying it by (org id, org id) instead left the grant permanently
+         // unreadable/unmigratable after a rename (part of bug #76866).
+         setIdentityPermissions(organization.getIdentityID(),
                                 ResourceType.SECURITY_ORGANIZATION, securityProvider, principal,
                                 request.getAdminIdentities());
       }
@@ -1732,7 +1739,10 @@ public class SecurityService {
       permission.setGroupGrantsForOrg(action, groupGrants, orgId);
       permission.setRoleGrantsForOrg(action, roleGrants, orgId);
       permission.setOrganizationGrantsForOrg(action, organizationGrants, orgId);
-      authzProvider.setPermission(resourceType, identityID, permission);
+      // Pass orgId explicitly so the storage key itself is scoped to the org's own id, not
+      // whatever org happens to be ambient at write time (bug #76866) -- otherwise a later
+      // org rename's migration filter (which matches on storage-key orgId) can never find it.
+      authzProvider.setPermission(resourceType, identityID, permission, orgId);
    }
 
    private AdminIdentities getIdentityPermissions(IdentityID resourceID, ResourceType resourceType,
