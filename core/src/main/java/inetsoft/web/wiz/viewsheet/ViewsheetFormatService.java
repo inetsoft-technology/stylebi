@@ -51,6 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -83,7 +84,13 @@ public class ViewsheetFormatService {
     *                   target that reaches rendered body text (e.g. {@code color}/font color) once
     *                   a table style applies -- see {@link #requireTarget}
     * @param field      required when {@code target} is {@code "text"} — the column currently
-    *                   bound to the chart's text aesthetic channel
+    *                   bound to the chart's text aesthetic channel. Optional when {@code target}
+    *                   is {@code "data"}: scopes the write to one named column of a plain
+    *                   Table's body cells (matched against that column's currently rendered
+    *                   header text) instead of the whole body; null/blank keeps today's
+    *                   whole-table behavior. Not supported against a Crosstab under
+    *                   {@code "data"} -- refused rather than silently ignored. Unused for any
+    *                   other target.
     */
    public record FormatRequest(List<String> assemblies,
                                VSObjectFormatInfoModel format,
@@ -445,7 +452,7 @@ public class ViewsheetFormatService {
                ArrayList<TableDataPath[]> data = new ArrayList<>();
 
                for(String name : request.assemblies()) {
-                  data.add(computeDataRegionPaths(rvs, name));
+                  data.add(computeDataRegionPaths(rvs, name, request.field()));
                }
 
                event.setData(data);
@@ -457,8 +464,8 @@ public class ViewsheetFormatService {
    }
 
    /**
-    * Computes the {@code TableDataPath[]} for a Crosstab/Table's whole data (body) region --
-    * one entry per distinct cell path the assembly's own live-rendered table actually reports,
+    * Computes the {@code TableDataPath[]} for a Crosstab/Table's data (body) region -- one
+    * entry per distinct cell path the assembly's own live-rendered table actually reports,
     * mirroring what a human dragging over every data cell in the native Composer UI would send
     * (see {@code FormatPainterService}'s {@code paths != null} branch). Computed from the live
     * lens rather than the binding alone because a Crosstab's body paths encode structural
@@ -469,9 +476,30 @@ public class ViewsheetFormatService {
     * label cells (the header row/column text, distinct from the assembly's own title bar) are
     * excluded -- only the body region is "data".
     *
-    * @throws IllegalArgumentException if {@code name} does not resolve to a Crosstab or Table
+    * <p>When {@code field} is non-blank, the result is narrowed to just that one column's
+    * paths. The caller's typed column name is resolved to a column INDEX first (scanning the
+    * live lens's rendered header row, the same convention
+    * {@code TableBindingService.setColumnWidths}'s {@code scanForColumnMatch} uses, refusing
+    * loud on 0 or more than 1 match), and paths are then filtered by
+    * {@link TableDataDescriptor#isColDataPath} against that resolved index -- never by
+    * string-comparing the caller's typed value against {@code path.getPath()[0]} directly.
+    * {@code isColDataPath} and the rendered-header scan key off two notions of "this column's
+    * header" that are not guaranteed to agree (see {@code DefaultTableDataDescriptor.getHeader}'s
+    * own comment) -- e.g. after a column renamed via {@code set_column_labels} or a script-set
+    * header -- so resolving to an index once and filtering by that same index on both sides is
+    * what keeps the two notions from ever needing to agree with each other.
+    *
+    * <p>Column-scoping via {@code field} is only supported for a plain Table -- a Crosstab's
+    * body region is refused loud rather than silently ignoring {@code field} or attempting a
+    * filter that doesn't map onto its structurally nested body.
+    *
+    * @throws IllegalArgumentException if {@code name} does not resolve to a Crosstab or Table,
+    *                                  if {@code field} is given against a Crosstab, or if
+    *                                  {@code field} matches zero or more than one rendered
+    *                                  column
     */
-   private static TableDataPath[] computeDataRegionPaths(RuntimeViewsheet rvs, String name)
+   private static TableDataPath[] computeDataRegionPaths(RuntimeViewsheet rvs, String name,
+                                                          String field)
       throws Exception
    {
       Viewsheet viewsheet = rvs.getViewsheet();
@@ -482,6 +510,14 @@ public class ViewsheetFormatService {
             "set_format: target 'data' only applies to a Crosstab or Table assembly; '" + name +
             "' is " + (assembly == null ? "not found" :
                        assembly.getClass().getSimpleName()) + ".");
+      }
+
+      boolean hasField = field != null && !field.isBlank();
+
+      if(hasField && assembly instanceof CrosstabVSAssembly) {
+         throw new IllegalArgumentException(
+            "set_format: 'field' is only supported for a plain Table body under target " +
+            "'data', not a Crosstab ('" + name + "'); omit 'field' to format the whole body.");
       }
 
       Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
@@ -499,6 +535,7 @@ public class ViewsheetFormatService {
       TableDataDescriptor desc = lens.getDescriptor();
       LinkedHashSet<TableDataPath> paths = new LinkedHashSet<>();
       int colCount = lens.getColCount();
+      Integer resolvedCol = hasField ? resolveColumnIndex(lens, field, name) : null;
 
       // Bounded defensively against a pathological lens that never stops reporting more rows --
       // the distinct path SET is small regardless of row count (a body path encodes structural
@@ -508,13 +545,56 @@ public class ViewsheetFormatService {
          for(int col = 0; col < colCount; col++) {
             TableDataPath path = desc.getCellDataPath(row, col);
 
-            if(path != null && path.getType() != TableDataPath.HEADER) {
+            if(path != null && path.getType() != TableDataPath.HEADER &&
+               (resolvedCol == null || desc.isColDataPath(resolvedCol, path)))
+            {
                paths.add(path);
             }
          }
       }
 
       return paths.toArray(new TableDataPath[0]);
+   }
+
+   /**
+    * Resolves a caller-typed column name to its rendered column index, scanning
+    * {@code lens}'s header row for a matching rendered cell value -- the same convention
+    * {@code TableBindingService.setColumnWidths}'s {@code scanForColumnMatch} uses against the
+    * live {@code VSTableLens}. Kept local to this class rather than shared, since the two
+    * call sites resolve against different row ranges ({@code setColumnWidths} also scans
+    * frozen header columns, which a plain Table's data-region format has no equivalent of).
+    *
+    * @throws IllegalArgumentException if {@code field} matches zero or more than one column
+    */
+   private static int resolveColumnIndex(VSTableLens lens, String field, String assemblyName) {
+      int headerRows = lens.getHeaderRowCount();
+      int colCount = lens.getColCount();
+      List<Integer> matches = new ArrayList<>();
+
+      for(int row = 0; row < headerRows; row++) {
+         for(int col = 0; col < colCount; col++) {
+            Object val = lens.getObject(row, col);
+
+            if(Objects.equals(field, val == null ? null : val.toString()) &&
+               !matches.contains(col))
+            {
+               matches.add(col);
+            }
+         }
+      }
+
+      if(matches.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'" + field + "' is not a visible column on '" + assemblyName + "' right now.");
+      }
+
+      if(matches.size() > 1) {
+         throw new IllegalArgumentException(
+            "'" + field + "' matches " + matches.size() + " rendered columns on '" +
+            assemblyName + "' -- format cannot be scoped by name when it's ambiguous.");
+      }
+
+      return matches.get(0);
    }
 
    private static final int MAX_DATA_REGION_ROWS = 100_000;
