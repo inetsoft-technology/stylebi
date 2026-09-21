@@ -28,4 +28,11 @@ export interface EditorContext {
    assembly?: string;
    name?: string;
    table?: string;
+   /**
+    * For kind == "calcField" only: true when this names a field being created (the browser's
+    * "New Calculated Field" dialog pre-assigns a real, unique name before the user has clicked
+    * OK), so the field intentionally does not exist on the runtime yet. Omitted/false for an
+    * edit, where the named field must already exist. Ignored for every other kind.
+    */
+   pending?: boolean;
 }

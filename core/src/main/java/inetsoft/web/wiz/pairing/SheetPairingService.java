@@ -23,6 +23,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.TableAssembly;
+import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -218,7 +219,26 @@ public class SheetPairingService {
                "editorContext kind 'calcField' requires 'table' (or 'assembly') and 'name'");
          }
 
-         if(!(rs instanceof RuntimeViewsheet rvs) || rvs.getViewsheet().getCalcField(table, name) == null) {
+         if(!(rs instanceof RuntimeViewsheet rvs)) {
+            throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+               "Calculated field not found: " + table + "." + name);
+         }
+
+         if(ctx.pending()) {
+            // Create flow (New Calculated Field, not yet OK'd): the name is real but was
+            // pre-assigned specifically because it does NOT exist on the runtime yet -- validate
+            // the owning table instead of the not-yet-created field.
+            Worksheet baseWs = rvs.getViewsheet().getBaseWorksheet();
+
+            if(baseWs == null || baseWs.getAssembly(table) == null) {
+               throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
+                  "Table not found: " + table);
+            }
+
+            return;
+         }
+
+         if(rvs.getViewsheet().getCalcField(table, name) == null) {
             throw new PairingException(PairingException.Kind.INVALID_ARGUMENT,
                "Calculated field not found: " + table + "." + name);
          }

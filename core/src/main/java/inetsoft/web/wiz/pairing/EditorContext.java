@@ -41,6 +41,18 @@ package inetsoft.web.wiz.pairing;
  * instead (as the current browser wiring does, mirroring {@code ScriptTarget}'s own
  * {@code assemblyName()} javadoc), {@code assembly} is accepted as the table name too — the
  * intent is unambiguous either way. {@code name} is the calc field's own name.
+ *
+ * <p>{@code pending}, for {@code kind == "calcField"} only, marks a create flow: the browser's
+ * "New Calculated Field" dialog pre-assigns a real, unique name (e.g. {@code "CalcField1"})
+ * before the user has clicked OK, so the field named here intentionally does not exist on the
+ * runtime yet. Mint validation accepts that case instead of requiring the field to already
+ * exist, as it does for an edit ({@code pending} absent/false, the default). Ignored for every
+ * other kind.
  */
-public record EditorContext(String kind, String assembly, String name, String table) {
+public record EditorContext(String kind, String assembly, String name, String table,
+                             boolean pending)
+{
+   public EditorContext(String kind, String assembly, String name, String table) {
+      this(kind, assembly, name, table, false);
+   }
 }

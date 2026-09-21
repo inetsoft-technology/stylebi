@@ -280,6 +280,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
          calcDialog.isCalc = true;
          calcDialog.calcType = "detail";
          calcDialog.createCalcField = true;
+         calcDialog.isNewCalcField = true;
          calcDialog.formulaType = FormulaType.SCRIPT;
          calcDialog.expression = "";
          calcDialog.vsId = this.runtimeId;

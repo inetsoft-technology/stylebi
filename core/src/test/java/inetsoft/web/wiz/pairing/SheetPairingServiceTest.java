@@ -66,6 +66,11 @@ import static org.mockito.Mockito.when;
  *                            (table aliased from 'assembly', matching the real browser wiring)
  * [EditorContext: calc miss] mint refuses a calcField editorContext naming a field the
  *                            runtime does not have
+ * [EditorContext: calc pending ok]   mint accepts a calcField editorContext with 'pending' set
+ *                            (New Calculated Field, not yet OK'd) naming a table the runtime
+ *                            has, even though the pre-assigned field name does not exist yet
+ * [EditorContext: calc pending miss] mint refuses a pending calcField editorContext naming a
+ *                            table the runtime does not have
  * [EditorContext: worksheet] the same assembly check applies to worksheet runtimes
  * [EditorContext: worksheet ok] mint accepts an editorContext naming a table the worksheet
  *                            runtime has (positive path for the WORKSHEET arm)
@@ -323,6 +328,44 @@ class SheetPairingServiceTest {
       String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx);
 
       assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   @Test
+   void mintsAPendingCalcFieldEditorContextForACreateFlowNamingATableTheRuntimeHas()
+      throws PairingException
+   {
+      // "New Calculated Field": the name (e.g. "CalcField1") is pre-assigned by the browser
+      // specifically because it does NOT exist yet -- getCalcField is deliberately left
+      // unstubbed (Mockito default null) to assert this path never calls it.
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      Worksheet baseWs = mock(Worksheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getBaseWorksheet()).thenReturn(baseWs);
+      when(baseWs.getAssembly("Query1")).thenReturn(mock(Assembly.class));
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+      EditorContext ctx = new EditorContext("calcField", "Query1", "CalcField1", null, true);
+
+      String code = svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx);
+
+      assertEquals(ctx, svc.peek(code).editorContext());
+   }
+
+   @Test
+   void refusesAPendingCalcFieldEditorContextNamingATableTheRuntimeDoesNotHave() {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      Worksheet baseWs = mock(Worksheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(vs.getBaseWorksheet()).thenReturn(baseWs);
+      when(baseWs.getAssembly("NoSuchTable")).thenReturn(null);
+      SheetPairingService svc = serviceWithViewsheetRuntime(rvs);
+      EditorContext ctx = new EditorContext("calcField", "NoSuchTable", "CalcField1", null, true);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.mint("vs-1", "user", "sock-1", "user", SheetType.VIEWSHEET, ctx));
+      assertTrue(ex.getMessage().contains("NoSuchTable"),
+                 "message must name what was asked for: " + ex.getMessage());
    }
 
    @Test
