@@ -875,24 +875,8 @@ export namespace ChartTool {
                         context.stroke();
 
                         // compute full-bar bounds from whichever offset is available
-                        let ex = x, ey = y, ew = w, eh = h;
-
-                        if(outerOffset != null) {
-                           switch(dir) {
-                           case 0: ey = y - outerOffset; eh = stackDim; break;
-                           case 1: ey = y + h + outerOffset - stackDim; eh = stackDim; break;
-                           case 2: ex = x + w + outerOffset - stackDim; ew = stackDim; break;
-                           case 3: ex = x - outerOffset; ew = stackDim; break;
-                           }
-                        }
-                        else {
-                           switch(dir ^ 1) {
-                           case 0: ey = y - innerOffset; eh = stackDim; break;
-                           case 1: ey = y + h + innerOffset - stackDim; eh = stackDim; break;
-                           case 2: ex = x + w + innerOffset - stackDim; ew = stackDim; break;
-                           case 3: ex = x - innerOffset; ew = stackDim; break;
-                           }
-                        }
+                        const { ex, ey, ew, eh } = computeStackedBarFullBounds(
+                           x, y, w, h, dir, stackDim, outerOffset, innerOffset);
 
                         if(outerOffset != null && innerOffset != null) {
                            // both ends rounded: use nested clips to intersect
@@ -1510,6 +1494,41 @@ export namespace ChartTool {
    export function isAxis(areaName: string): boolean {
       return areaName === "bottom_x_axis" || areaName === "top_x_axis" || areaName === "left_y_axis" ||
          areaName === "right_y_axis";
+   }
+
+   /**
+    * Reconstruct the full (unclipped) stacked bar's screen bounds from ONE segment's own
+    * rect plus the corner-rounding offset metadata GraphBuilder sends for it. Mirrors
+    * BarVO.computeFullBarBounds on the Java side: both call sites there compute the SAME
+    * full-bar rectangle from a single segment's own interval/cumulative/total, and this does
+    * the same reconstruction here so both the outer-end and inner-end rounded shapes are
+    * built from one consistent rectangle (matching Java's Area-intersection approach) —
+    * see bug-76870.
+    */
+   export function computeStackedBarFullBounds(
+      x: number, y: number, w: number, h: number, dir: number, stackDim: number,
+      outerOffset: number | null | undefined, innerOffset: number | null | undefined
+   ): { ex: number, ey: number, ew: number, eh: number } {
+      let ex = x, ey = y, ew = w, eh = h;
+
+      if(outerOffset != null) {
+         switch(dir) {
+         case 0: ey = y - outerOffset; eh = stackDim; break;
+         case 1: ey = y + h + outerOffset - stackDim; eh = stackDim; break;
+         case 2: ex = x + w + outerOffset - stackDim; ew = stackDim; break;
+         case 3: ex = x - outerOffset; ew = stackDim; break;
+         }
+      }
+      else {
+         switch(dir ^ 1) {
+         case 0: ey = y - innerOffset; eh = stackDim; break;
+         case 1: ey = y + h + innerOffset - stackDim; eh = stackDim; break;
+         case 2: ex = x + w + innerOffset - stackDim; ew = stackDim; break;
+         case 3: ex = x - innerOffset; ew = stackDim; break;
+         }
+      }
+
+      return { ex, ey, ew, eh };
    }
 
    /**
