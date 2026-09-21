@@ -19,6 +19,8 @@
 package inetsoft.report.composition.graph.calc;
 
 import inetsoft.graph.data.CalcColumn;
+import inetsoft.graph.data.DataSet;
+import inetsoft.graph.data.DataSetIndex;
 import inetsoft.report.composition.graph.BrushDataSet;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossFilter;
@@ -569,6 +571,55 @@ public class ValueOfColumnTest {
       // "Others" sorts last, so its previous is hour 5 (id=10).
       result = valueOfColumn.calculate(vsDataSet, 2, false, false);
       assertEquals(10, result);
+   }
+
+   /**
+    * Regression test for Bug #76890: PREVIOUS_QUARTER/PREVIOUS_YEAR's "first period" guard
+    * (getMinDate()) must be evaluated against the full comparison window, not the local data
+    * of a single facet cell. A 2-dimension axis like "Quarter(Date) x Category" makes
+    * Quarter(Date) the outer/facet dimension, so each facet cell's DataSet contains only one
+    * quarter's rows. Before the fix, getMinDate() scanned that narrow per-cell data and always
+    * found the cell's own single quarter as the minimum, so the guard fired for every row in
+    * every cell -- not just the chart's true first quarter -- turning every
+    * "Change from previous quarter" value to INVALID/null.
+    */
+   @Test
+   void testPreviousQuarterNotBlockedByFacetCellLocalMinDate() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_QUARTER);
+      valueOfColumn.setDim("Quarter(Date)");
+      // Category is the plot axis inner dim, NOT the DC date dim -- the shape that makes
+      // Quarter(Date) the facet (outer) dimension for a real chart.
+      valueOfColumn.setInnerDim("Category");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "Quarter(Date)", "Category", "id" },
+         { toDate("2021-04-01"), "Educational", 411 },
+         { toDate("2021-04-01"), "Personal", 440 },
+         { toDate("2021-07-01"), "Educational", 401 },
+         { toDate("2021-07-01"), "Personal", 465 },
+      });
+
+      VSDimensionRef quarterVsRef = mock(VSDimensionRef.class);
+      when(quarterVsRef.getFullName()).thenReturn("Quarter(Date)");
+      VSDimensionRef categoryVsRef = mock(VSDimensionRef.class);
+      when(categoryVsRef.getFullName()).thenReturn("Category");
+      vsDataSet = new VSDataSet(tb, new VSDataRef[] { quarterVsRef, categoryVsRef });
+
+      // Simulate the facet cell for Q3 2021: only rows 2 and 3 (Quarter(Date) = 2021-07-01).
+      java.util.Map<String, Object> cond = new java.util.HashMap<>();
+      cond.put("Quarter(Date)", toDate("2021-07-01"));
+      DataSetIndex index =
+         new DataSetIndex(vsDataSet, java.util.Set.of("Quarter(Date)"), true);
+      DataSet facetCellQ3 = index.createSubDataSet(cond, false);
+
+      // Q3 is not the chart's first quarter (Q2 exists in the root dataset), so both rows
+      // must resolve to Q2's real values, not INVALID.
+      Object educationalResult = valueOfColumn.calculate(facetCellQ3, 0, true, false);
+      assertEquals(411, educationalResult);
+
+      Object personalResult = valueOfColumn.calculate(facetCellQ3, 1, false, true);
+      assertEquals(440, personalResult);
    }
 
    /**
