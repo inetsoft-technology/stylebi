@@ -182,11 +182,13 @@ class AdminChangeFaultInjectionIntegrationTest {
       ApplyResult applied = service.apply(request("t",
          "test.faultinjection.apply.throw.r2", "x"), principal);
 
-      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, applied.status());
-      assertEquals(1, applied.rollbackFailures().size());
-      assertEquals("test.faultinjection.apply.throw.r2",
-                   applied.rollbackFailures().get(0).property());
-      assertTrue(applied.rollbackFailures().get(0).error().contains("state unknown"));
+      // AdminChangeFaultInjectedException is tagged NoMutationAttempted (it fires before the
+      // try block in applyChange that touches SreeEnv), so this is treated the same as any other
+      // failed-but-provably-untouched change: rolled back cleanly, not rollback-failed.
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, applied.status());
+      assertNull(applied.rollbackFailures());
+      assertEquals(AdminChangeRecord.STATUS_FAILED, applied.results().get(0).status());
+      assertNotNull(applied.results().get(0).error());
       // Plan resolution legitimately reads the current value to compute the hash - the fault
       // fires only inside applyChange, after resolution - so only a read, never a write, happens.
       sreeEnv.verify(() -> SreeEnv.setProperty(anyString(), anyString()), never());

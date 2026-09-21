@@ -208,13 +208,19 @@ public class AdminChangesetApplyService {
                }
             }
             catch(Exception e) {
-               // A throw is a failed change, not a reason to abandon the rollback - but unlike a
-               // reported failure, it carries no before/after evidence, so this property's state is
-               // unknown and must never be reported as rolled back.
+               // A throw is a failed change, not a reason to abandon the rollback of everything
+               // else - that stays unconditional. But whether THIS property's own state is
+               // "unknown" depends on where the throw came from: AdminChangeService tags the
+               // throw sources that are proven to fire before any SreeEnv mutation is attempted
+               // (NoMutationAttempted), so only a throw NOT carrying that proof is unknown state.
                results.add(new ApplyOutcome(change.property(), null, null,
                                             AdminChangeRecord.STATUS_FAILED, messageOf(e)));
-               unknownStateFailures.add(new RollbackFailure(change.property(),
-                  "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+
+               if(!(e instanceof AdminChangeService.NoMutationAttempted)) {
+                  unknownStateFailures.add(new RollbackFailure(change.property(),
+                     "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               }
+
                failed = true;
                break;
             }
