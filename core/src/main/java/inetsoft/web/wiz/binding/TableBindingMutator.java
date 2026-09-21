@@ -698,6 +698,19 @@ public final class TableBindingMutator {
    }
 
    /**
+    * Same shape check as {@code VSUtil.isVariableValue(String)}, duplicated locally rather than
+    * called directly for the same reason {@link #MULTI_ARG_FORMULA_NAMES} duplicates {@code
+    * AggregateFormula} instead of calling it: {@code VSUtil}'s static initializer constructs a
+    * {@code DataCache} that requires a live Spring application context, which is not available
+    * from a plain unit-test context (fails with {@code NoClassDefFoundError} there) -- confirmed
+    * by running {@code TableBindingMutatorTest} directly against {@code VSUtil.isVariableValue}
+    * before choosing this duplication instead.
+    */
+   private static boolean isVariableValue(String value) {
+      return value != null && value.startsWith("$(") && value.endsWith(")");
+   }
+
+   /**
     * The {@code getFormulaName()} of every {@code AggregateFormula} whose {@code isTwoColumns()}
     * or {@code hasN()} is {@code true} (a second column or an N beyond the bound column). Kept
     * as a literal set rather than calling {@code AggregateFormula.getFormula(String)}/{@code
@@ -722,6 +735,16 @@ public final class TableBindingMutator {
     * #MULTI_ARG_FORMULA_NAMES}), a {@code formula(column, ...)} prefix match, since {@code
     * FieldRef} carries no second-column or N value to reconstruct the exact full name the
     * product would render.
+    *
+    * <p>A {@code "$(ComponentName)"} dynamic value (bug #76766) is exempt from all of this: it
+    * resolves against a live Form component's value at render time, not against this assembly's
+    * bound aggregates now, and {@code BDimensionRefModel.createDataRef()} already writes it into
+    * {@code VSDimensionRef}'s own dynamic-value-aware setters unconditionally. Checked with
+    * {@link #isVariableValue}, matching {@code VSUtil.isVariableValue}'s own narrower shape
+    * rather than also allowing a {@code "=script"} expression ({@code VSUtil.isDynamicValue}):
+    * the plugin surface calling this endpoint only ever sends the {@code "$(...)"} form for
+    * {@code sortByField}/{@code measure} today, so accepting only that form keeps this gate
+    * catching an accidental {@code "="}-prefixed value the same way it always has.
     */
    private static void requireKnownMeasure(BaseTableBindingModel model, String measure,
                                            String param)
@@ -749,6 +772,10 @@ public final class TableBindingMutator {
                multiArgPrefixes.add(field.aggregate() + "(" + field.column() + ",");
             }
          }
+      }
+
+      if(isVariableValue(measure)) {
+         return;
       }
 
       if(known.stream().noneMatch(name -> name.equalsIgnoreCase(measure)) &&
