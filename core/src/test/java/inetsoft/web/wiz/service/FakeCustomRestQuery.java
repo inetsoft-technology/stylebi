@@ -191,6 +191,16 @@ public class FakeCustomRestQuery extends TabularQuery {
 
    public void setLookupURL(int i, String url) {
       if(url == null) {
+         // Mirrors RestJsonQuery.setLookupURL(index, null): clear-and-trim, not a no-op -- code
+         // review, PR #5391, finding B2's regression tests need this to actually work.
+         if(i < lookupUrls.size()) {
+            lookupUrls.set(i, null);
+
+            while(!lookupUrls.isEmpty() && lookupUrls.get(lookupUrls.size() - 1) == null) {
+               lookupUrls.remove(lookupUrls.size() - 1);
+            }
+         }
+
          return;
       }
 
@@ -212,6 +222,21 @@ public class FakeCustomRestQuery extends TabularQuery {
    }
 
    public void setLookupJsonPath(int i, String jsonPath) {
+      if(jsonPath == null) {
+         // Mirrors RestJsonQuery.setLookupJsonPath(index, null): clear-and-trim.
+         if(i < lookupJsonPaths.size()) {
+            lookupJsonPaths.set(i, null);
+
+            while(!lookupJsonPaths.isEmpty() &&
+               lookupJsonPaths.get(lookupJsonPaths.size() - 1) == null)
+            {
+               lookupJsonPaths.remove(lookupJsonPaths.size() - 1);
+            }
+         }
+
+         return;
+      }
+
       if(i < lookupJsonPaths.size()) {
          lookupJsonPaths.set(i, jsonPath);
       }
@@ -223,13 +248,33 @@ public class FakeCustomRestQuery extends TabularQuery {
    }
 
    public void setLookupKey(int i, String key) {
+      if(key == null) {
+         // Mirrors RestJsonQuery.setLookupKey(index, null): clear-and-trim.
+         if(i < lookupKeys.size()) {
+            lookupKeys.set(i, null);
+
+            while(!lookupKeys.isEmpty() && lookupKeys.get(lookupKeys.size() - 1) == null) {
+               lookupKeys.remove(lookupKeys.size() - 1);
+            }
+         }
+
+         return;
+      }
+
       if(i < lookupKeys.size()) {
          lookupKeys.set(i, key);
       }
    }
 
+   /**
+    * Gated on {@code lookupUrls.size()}, not this list's own size -- mirrors
+    * {@code RestJsonQuery.getLookupIgnoreBaseUrl(int)}, so a level whose URL was truncated (see
+    * {@code TabularEndpointBindingSupport}'s lookup-chain truncation, code review PR #5391 finding
+    * B2) reads back as cleared even though this fixture's own truncation loop only trims
+    * {@code lookupUrls}/{@code lookupJsonPaths}/{@code lookupKeys}, same as the real connector.
+    */
    public boolean getLookupIgnoreBaseUrl(int i) {
-      return i < lookupIgnoreBaseUrl.size() && lookupIgnoreBaseUrl.get(i);
+      return i < lookupUrls.size() && i < lookupIgnoreBaseUrl.size() && lookupIgnoreBaseUrl.get(i);
    }
 
    public void setLookupIgnoreBaseUrl(int i, boolean ignoreBaseUrl) {

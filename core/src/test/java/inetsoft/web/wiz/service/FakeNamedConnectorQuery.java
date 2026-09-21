@@ -354,6 +354,18 @@ public class FakeNamedConnectorQuery extends TabularQuery {
     */
    private void setLookupEndpoint(String name, int index) {
       if(name == null) {
+         // Mirrors EndpointJsonQuery.setLookupEndpoint(null, index): clear-and-trim, not a no-op
+         // -- code review, PR #5391, finding B2's regression tests need this to actually work.
+         if(index < lookupEndpoints.size()) {
+            lookupEndpoints.set(index, null);
+
+            while(!lookupEndpoints.isEmpty() &&
+               lookupEndpoints.get(lookupEndpoints.size() - 1) == null)
+            {
+               lookupEndpoints.remove(lookupEndpoints.size() - 1);
+            }
+         }
+
          return;
       }
 

@@ -1228,10 +1228,12 @@ public class WorksheetAgentController {
             TabularEndpointBindingSupport.requireRowCapWhenPaged(
                scratchQuery, req.endpoint(), dsName);
 
-            if(req.lookup() != null && !req.lookup().isEmpty()) {
-               TabularEndpointBindingSupport.applyLookupChain(scratchQuery, pmap, req.lookup(),
-                  req.lookupExpandArrays(), req.lookupTopLevelOnly(), req.endpoint(), dsName);
-            }
+            // Called even when 'lookup' is absent/shorter than before (code review, PR #5391,
+            // finding B2): scratchQuery is a clone of the LIVE query, so a stale lookup chain from
+            // before this edit is still there unless applyLookupChain's own truncation clears it.
+            TabularEndpointBindingSupport.applyLookupChain(scratchQuery, pmap,
+               req.lookup() != null ? req.lookup() : List.of(),
+               req.lookupExpandArrays(), req.lookupTopLevelOnly(), req.endpoint(), dsName);
 
             target = req.endpoint();
          }
@@ -1252,10 +1254,12 @@ public class WorksheetAgentController {
             TabularEndpointBindingSupport.requireRowCapWhenPaged(
                scratchQuery, req.suffix(), dsName);
 
-            if(req.customLookups() != null && !req.customLookups().isEmpty()) {
-               TabularEndpointBindingSupport.applyCustomLookupChain(
-                  scratchQuery, pmap, req.customLookups(), dsName);
-            }
+            // Called even when 'customLookups' is absent/shorter than before (code review, PR
+            // #5391, finding B2): scratchQuery is a clone of the LIVE query, and nothing resets a
+            // custom lookup chain when suffix changes, so applyCustomLookupChain's own truncation
+            // must run to clear whatever the prior edit left behind.
+            TabularEndpointBindingSupport.applyCustomLookupChain(scratchQuery, pmap,
+               req.customLookups() != null ? req.customLookups() : List.of(), dsName);
 
             target = req.suffix();
          }
@@ -1297,6 +1301,27 @@ public class WorksheetAgentController {
          TabularTableAssemblyInfo scratchInfo =
             (TabularTableAssemblyInfo) scratchAssembly.getTableInfo();
          scratchInfo.setQuery(scratchQuery);
+
+         // Seed the scratch assembly's own column selection AND aggregate info with clones of the
+         // LIVE assembly's (code review, PR #5391, finding B1): loadColumnSelection's expression-
+         // column preservation logic reads the ASSEMBLY's prior selection, not the query's, to
+         // carry forward renames (rename_column), expression columns (add_expression_column), and
+         // per-column visibility. A brand-new scratch assembly's prior selection is empty, so
+         // without this seed every such customization would be silently dropped when newColumns
+         // is committed onto the live assembly below. Mirrors what the human-driven path
+         // (TabularQueryDialogService.setUpTable) already does by calling loadColumnSelection on
+         // the LIVE assembly directly; cloned so the scratch assembly still cannot touch live
+         // state before the edit is accepted.
+         //
+         // Aggregate info matters too: loadColumnSelection only preserves a GROUPED expression
+         // column when its group's own referenced attributes still exist in the new column set
+         // (TabularTableAssembly.loadColumnSelection's aggInfo.containsGroup(ref) branch) --
+         // without seeding it, the scratch assembly's aggregate info is the empty default every
+         // fresh TabularTableAssembly starts with, so containsGroup() is always false and every
+         // expression column (including ones that really are grouped) takes the unconditional
+         // "not a group" path, silently skipping that dependency check.
+         scratchAssembly.setColumnSelection(liveAssembly.getColumnSelection(false).clone(), false);
+         scratchAssembly.setAggregateInfo((AggregateInfo) liveAssembly.getAggregateInfo().clone());
          scratchAssembly.loadColumnSelection(new VariableTable(), true, null);
 
          ColumnSelection newColumns = scratchAssembly.getColumnSelection(false);

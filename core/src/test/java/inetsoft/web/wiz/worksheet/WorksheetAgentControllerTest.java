@@ -1258,6 +1258,223 @@ class WorksheetAgentControllerTest {
    }
 
    /**
+    * Code-review follow-up (PR #5391, finding B2): {@code EndpointJsonQuery.setEndpoint} only
+    * clears a previously-set lookup chain when the endpoint value actually CHANGES, so an edit
+    * that keeps the same endpoint but supplies a SHORTER chain must not leave the dropped
+    * trailing level active -- otherwise a table edited from a 2-level "Join With" chain down to
+    * 1 level would silently keep querying the old, deeper lookup. Two sequential edits against
+    * the SAME live assembly: the first establishes a 2-level chain, the second (same endpoint)
+    * supplies only 1 level.
+    */
+   @Test
+   void editTableShortensLookupChainClearingTrailingLevel() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of("Repos", List.of("repoId")));
+      liveQuery.setEndpoint("Repos");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      // Two edit_table calls against the SAME live assembly (unlike this file's other edit_table
+      // tests, which only ever edit once): XQuery.clone() deep-clones datasource, so the first
+      // edit's commit hands the SECOND edit a query whose datasource is whatever ds.clone()
+      // returns -- an unstubbed Mockito mock method returns null, which would otherwise fail the
+      // second edit's own "has no bound datasource" guard.
+      when(ds.clone()).thenReturn(ds);
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Calendars");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(any(), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      // First edit: "Repos" -> "Issues" -> "Comments" is a real 2-level chain in
+      // FakeNamedConnectorQuery's ENDPOINT_MAP. "id" is Repos' own required parameter
+      // (PARAM_MAP/REQUIRED_PARAM_NAMES).
+      EditRequest first = editTableRequest("Calendars", "Repos", Map.of("id", "42"),
+         List.of("Issues", "Comments"), null, null, null, null);
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET13a", first, agent));
+
+      TabularQuery afterFirst = ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertEquals("Issues", ((FakeColumnProducingNamedConnectorQuery) afterFirst).getLookupEndpoint0());
+      assertEquals("Comments", ((FakeColumnProducingNamedConnectorQuery) afterFirst).getLookupEndpoint1());
+
+      // Second edit: same endpoint, chain shortened to 1 level -- the dropped level 1 must clear.
+      EditRequest second = editTableRequest("Calendars", "Repos", Map.of("id", "42"),
+         List.of("Issues"), null, null, null, null);
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET13b", second, agent));
+
+      TabularQuery afterSecond = ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertEquals("Issues", ((FakeColumnProducingNamedConnectorQuery) afterSecond).getLookupEndpoint0(),
+         "the kept level must survive");
+      assertNull(((FakeColumnProducingNamedConnectorQuery) afterSecond).getLookupEndpoint1(),
+         "the dropped trailing level must not linger from the prior, longer chain");
+   }
+
+   /**
+    * Code-review follow-up (PR #5391, finding B2): unlike the named-connector form, nothing
+    * resets a custom lookup chain when {@code suffix} changes -- a table edited from
+    * {@code /widgets} (with a customLookups chain keyed on widget ids) to {@code /gadgets}
+    * must not keep querying the old, {@code /widgets}-shaped lookup URL.
+    */
+   @Test
+   void editTableSuffixChangeClearsStaleCustomLookupChain() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingCustomRestQuery liveQuery = new FakeColumnProducingCustomRestQuery();
+      liveQuery.setColumnsBySuffix(Map.of(
+         "/widgets", List.of("widgetId"),
+         "/gadgets", List.of("gadgetId")));
+      liveQuery.setSuffix("/widgets");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      // See editTableShortensLookupChainClearingTrailingLevel's comment: two edit_table calls
+      // against the same live assembly need datasource to survive XQuery.clone().
+      when(ds.clone()).thenReturn(ds);
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Widgets");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(any(), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      // First edit: establish a customLookups chain on /widgets.
+      Map<String, Object> firstBody = new java.util.LinkedHashMap<>();
+      firstBody.put("op", "edit_table");
+      firstBody.put("table", "Widgets");
+      firstBody.put("suffix", "/widgets");
+      firstBody.put("customLookups", List.of(Map.of(
+         "url", "/widgets/{param1}/parts", "jsonPath", "$.parts", "key", "id")));
+      ObjectMapper mapper = new WebConfig().objectMapper();
+      EditRequest first = mapper.readValue(mapper.writeValueAsString(firstBody), EditRequest.class);
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET14a", first, agent));
+
+      TabularQuery afterFirst = ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertEquals("/widgets/{param1}/parts",
+         ((FakeColumnProducingCustomRestQuery) afterFirst).getLookupUrl0());
+
+      // Second edit: suffix changes to /gadgets, customLookups omitted -- the old chain must clear.
+      EditRequest second = editTableRequest(
+         "Widgets", null, null, null, "/gadgets", null, null, null);
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET14b", second, agent));
+
+      TabularQuery afterSecond = ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).getQuery();
+      assertEquals("/gadgets", ((FakeColumnProducingCustomRestQuery) afterSecond).getSuffix());
+      assertNull(((FakeColumnProducingCustomRestQuery) afterSecond).getLookupUrl0(),
+         "the OLD suffix's customLookups chain must not survive a suffix change");
+   }
+
+   /**
+    * Code-review follow-up (PR #5391, finding B1): the scratch assembly used to compute the new
+    * column set is brand new, so {@code TabularTableAssembly.loadColumnSelection}'s alias/
+    * expression-column preservation logic -- which reads the ASSEMBLY's own prior selection, not
+    * the query's -- saw nothing to preserve and dropped a prior {@code rename_column} alias and
+    * {@code add_expression_column} column when the new columns were committed. Sets up both
+    * directly (the same mutation {@code WorksheetEditService.Editor#renameColumn} and {@code
+    * WorksheetMutationSupport#addExpressionColumn} perform), then edits the table to a different
+    * endpoint and asserts both survive alongside the new endpoint's own column.
+    */
+   @Test
+   void editTablePreservesColumnAliasAndExpressionColumnAcrossAnEdit() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      FakeColumnProducingNamedConnectorQuery liveQuery = new FakeColumnProducingNamedConnectorQuery();
+      liveQuery.setColumnsByEndpoint(Map.of(
+         "Repos", List.of("repoId", "repoName"),
+         "Issues", List.of("repoId", "repoName", "issueId")));
+      liveQuery.setEndpoint("Repos");
+      JDBCDataSource ds = mock(JDBCDataSource.class);
+      when(ds.getFullName()).thenReturn("MyDatasource");
+      liveQuery.setDataSource(ds);
+
+      Worksheet ws = new Worksheet();
+      TabularTableAssembly liveAssembly = new TabularTableAssembly(ws, "Repos");
+      ((TabularTableAssemblyInfo) liveAssembly.getTableInfo()).setQuery(liveQuery);
+      ws.addAssembly(liveAssembly);
+      liveAssembly.loadColumnSelection(new VariableTable(), true, null);
+
+      // Simulate a prior rename_column("repoName" -> "projectName") ...
+      ColumnRef repoNameRef = (ColumnRef) liveAssembly.getColumnSelection(false).getAttribute("repoName");
+      repoNameRef.setAlias("projectName");
+
+      // ... and a prior add_expression_column("fullName", ...).
+      WorksheetMutationSupport.addExpressionColumn(
+         liveAssembly, "fullName", "field['repoId']", "string", false);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ET16"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("MyDatasource"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      XRepository xrepository = mock(XRepository.class);
+      when(xrepository.getDataSource(eq("MyDatasource"))).thenReturn(mock(TabularDataSource.class));
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         xrepository, mock(QueryManagerService.class));
+
+      EditRequest req = editTableRequest("Repos", "Issues", null, null, null, null, null, null);
+      assertDoesNotThrow(() -> ctrl.edit("TOK-ET16", req, agent));
+
+      ColumnSelection newColumns = liveAssembly.getColumnSelection(false);
+      ColumnRef newRepoName = (ColumnRef) newColumns.getAttribute("repoName");
+      assertNotNull(newRepoName, "the renamed column must still be present under its raw name");
+      assertEquals("projectName", newRepoName.getAlias(),
+         "the prior rename_column alias must survive edit_table");
+      assertNotNull(newColumns.getAttribute("fullName"),
+         "the prior add_expression_column column must survive edit_table");
+      assertNotNull(newColumns.getAttribute("issueId"),
+         "the new endpoint's own column must still be present");
+   }
+
+   /**
     * Code-review follow-up (PR #5391, finding 2): the "Table has no query"/"no bound datasource"
     * branches editTabularTable itself guards on had no direct test.
     */

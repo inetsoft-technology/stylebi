@@ -55,6 +55,13 @@ public final class TabularEndpointBindingSupport {
    private TabularEndpointBindingSupport() {}
 
    /**
+    * {@code EndpointJsonQuery.LOOKUP_QUERY_LIMIT} -- core cannot import the connector-module
+    * constant, so this is a literal with a comment, same as this file already does for other
+    * connector-side facts.
+    */
+   private static final int MAX_LOOKUP_DEPTH = 5;
+
+   /**
     * Set the endpoint and its parameter values on a NAMED CONNECTOR's tabular query (one whose
     * query class exposes an {@code endpoint} property), and return the URL suffix that results.
     *
@@ -211,14 +218,20 @@ public final class TabularEndpointBindingSupport {
     * every write because {@code EndpointJsonQuery.setLookupEndpoint} SILENTLY NO-OPS on an
     * unknown name rather than throwing. Must run AFTER the base endpoint is set and verified:
     * index 0's valid choices are read off THAT endpoint.
+    *
+    * <p>Also truncates every level from {@code lookup.size()} through the connector's max depth
+    * (code review, PR #5391, finding B2): {@code EndpointJsonQuery.setEndpoint} only clears a
+    * previously-set chain when the endpoint value actually CHANGES, so an {@code edit_table} that
+    * keeps the same endpoint but supplies a shorter (or empty) {@code lookup} would otherwise
+    * leave the old, longer chain in place. {@code setLookupEndpoint(null, i)} is the connector's
+    * own documented way to clear and trim a level, so this is safe to call unconditionally --
+    * on a query that never had a chain this deep, it is a no-op.</p>
     */
    public static void applyLookupChain(TabularQuery query, Map<String, PropertyMeta> pmap,
                                        List<String> lookup, Boolean expandArrays,
                                        Boolean topLevelOnly, String baseEndpoint, String dsName)
    {
-      if(lookup.size() > 5 /* EndpointJsonQuery.LOOKUP_QUERY_LIMIT -- core cannot import the
-                              connector-module constant, so this is a literal with a comment, same
-                              as this file already does for other connector-side facts */) {
+      if(lookup.size() > MAX_LOOKUP_DEPTH) {
          throw new IllegalArgumentException(
             "lookup has " + lookup.size() + " entries; a chain can be at most 5 levels deep.");
       }
@@ -263,6 +276,10 @@ public final class TabularEndpointBindingSupport {
          }
       }
 
+      for(int i = lookup.size(); i < MAX_LOOKUP_DEPTH; i++) {
+         clearProperty(pmap, query, "lookupEndpoint" + i);
+      }
+
       setOptionalProperty(pmap, query, "lookupExpanded", expandArrays);
       setOptionalProperty(pmap, query, "lookupTopLevelOnly", topLevelOnly);
    }
@@ -272,6 +289,18 @@ public final class TabularEndpointBindingSupport {
     * level's four properties ({@code lookupUrl}/{@code lookupJsonPath}/{@code lookupKey}/
     * {@code lookupIgnoreBaseUrl}{i}) silently no-op past index 4 -- read back every write for the
     * same reason {@link #applyLookupChain} does for the named-connector case.
+    *
+    * <p>Also truncates every level from {@code customLookups.size()} through the connector's max
+    * depth (code review, PR #5391, finding B2): unlike {@code applyLookupChain}'s underlying
+    * {@code EndpointJsonQuery.setEndpoint}, nothing here resets a stale chain when the request
+    * changes {@code suffix} without restating the full {@code customLookups} chain, so an
+    * {@code edit_table} that shortens or drops the chain would otherwise leave the old levels'
+    * URL/jsonPath/key active. {@code setLookupUrl}{i}{@code (null)}/{@code setLookupJsonPath}{i}
+    * {@code (null)}/{@code setLookupKey}{i}{@code (null)} are RestJsonQuery's own documented way to
+    * clear and trim a level, so this is safe to call unconditionally -- on a query that never had
+    * a chain this deep, it is a no-op. {@code lookupIgnoreBaseUrl}{i} is left alone: both the real
+    * connector and this call's own read is gated by {@code lookupUrl}{i}'s presence, so it self-
+    * clears once the URL is gone.</p>
     *
     * <p>Within one level, {@code lookupUrl}{i} MUST be set before the other three: it is what
     * grows the connector's backing lists to include index {@code i} at all (see
@@ -290,7 +319,7 @@ public final class TabularEndpointBindingSupport {
                                              List<WorksheetMutationSupport.CustomLookupSpec> customLookups,
                                              String dsName)
    {
-      if(customLookups.size() > 5) {
+      if(customLookups.size() > MAX_LOOKUP_DEPTH) {
          throw new IllegalArgumentException(
             "customLookups has " + customLookups.size() +
             " entries; a chain can be at most 5 levels deep.");
@@ -317,6 +346,12 @@ public final class TabularEndpointBindingSupport {
          setOptionalProperty(pmap, query, "lookupKey" + i, level.key());
          setOptionalProperty(pmap, query, "lookupIgnoreBaseUrl" + i,
             level.ignoreBaseUrl() == null ? Boolean.FALSE : level.ignoreBaseUrl());
+      }
+
+      for(int i = customLookups.size(); i < MAX_LOOKUP_DEPTH; i++) {
+         clearProperty(pmap, query, "lookupUrl" + i);
+         clearProperty(pmap, query, "lookupJsonPath" + i);
+         clearProperty(pmap, query, "lookupKey" + i);
       }
    }
 
@@ -407,6 +442,24 @@ public final class TabularEndpointBindingSupport {
 
       if(prop != null) {
          prop.setValue(query, value);
+      }
+   }
+
+   /**
+    * Unconditionally write {@code null} to a property when the connector exposes it -- unlike
+    * {@link #setOptionalProperty}, which treats a null value as "nothing to do." Used to truncate
+    * a lookup chain's trailing levels, where {@code null} IS the write (see
+    * {@code EndpointJsonQuery.setLookupEndpoint}/{@code RestJsonQuery.setLookupURL}, both of which
+    * clear-and-trim on a null argument). A missing property is left alone, same as
+    * {@link #setOptionalProperty}.
+    */
+   private static void clearProperty(Map<String, PropertyMeta> pmap, TabularQuery query,
+                                     String name)
+   {
+      PropertyMeta prop = pmap.get(name);
+
+      if(prop != null) {
+         prop.setValue(query, null);
       }
    }
 
