@@ -213,7 +213,9 @@ public class DateComparisonService {
     * has no rendering effect on it (the comparison's period level already matches its interval
     * granularity, with no value-plus rendering to fall back on either), reports
     * {@code useFacetInapplicable:true} and a {@code reason}
-    * (see {@link #describeUseFacetInapplicable}).
+    * (see {@link #describeUseFacetInapplicable}). For a standard period where the caller left
+    * {@code toDate} unspecified, reports the {@code toDate} value actually in effect and
+    * {@code toDateDefaulted:true} (see {@link #describeToDateDefaulted}).
     */
    public Map<String, Object> set(String sessionToken, Principal user, String assemblyName,
                                   Comparison comparison, String linkUri) throws Exception
@@ -242,6 +244,7 @@ public class DateComparisonService {
          result.putAll(describeChartTypeOverride(rvs, assemblyName, beforeChartType));
          result.putAll(describeDateComparisonInactive(rvs, assemblyName));
          result.putAll(describeUseFacetInapplicable(rvs, assemblyName, comparison));
+         result.putAll(describeToDateDefaulted(model, comparison));
       });
 
       return result;
@@ -540,6 +543,47 @@ public class DateComparisonService {
          "matches its interval granularity — there is no separate breakdown left to place on " +
          "the opposite axis. A finer interval granularity than the period level (e.g. a " +
          "quarterly breakdown within a yearly comparison) is needed for useFacet to take effect.");
+      return out;
+   }
+
+   /**
+    * {@code toDate} defaults to {@code true} for a brand-new standard period
+    * ({@code StandardPeriodPaneModel.java}'s own field default, matching StyleBI's own dialog),
+    * and is otherwise left at whatever it was previously set to when a call omits it — neither
+    * of which the caller can see from the schema or the response alone. Reports the {@code
+    * toDate} value actually in effect only when the caller left it unspecified on a call that
+    * touched a standard period; a caller who passed {@code toDate} explicitly (either value)
+    * already knows what's in effect and gets nothing here.
+    *
+    * <p>Note: the underlying runtime domain object, {@code StandardPeriods}, declares its own
+    * {@code toDate} field with no initializer (Java default {@code false}) — a second, harmless
+    * default that disagrees with the PaneModel's {@code true} in isolation. It's never actually
+    * read: {@code StandardPeriodPaneModel.toDateComparisonPeriods()} unconditionally stamps the
+    * runtime field from the PaneModel's value before every use.
+    */
+   private static Map<String, Object> describeToDateDefaulted(DateComparisonPaneModel model,
+                                                                Comparison comparison)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(comparison.toDate() != null || !setsPeriod(comparison)) {
+         return out;
+      }
+
+      PeriodPaneModel periods = model.getPeriodPaneModel();
+
+      if(periods == null || periods.isCustom()) {
+         return out;
+      }
+
+      StandardPeriodPaneModel standard = periods.getStandardPeriodPaneModel();
+
+      if(standard == null) {
+         return out;
+      }
+
+      out.put("toDate", standard.isToDate());
+      out.put("toDateDefaulted", true);
       return out;
    }
 

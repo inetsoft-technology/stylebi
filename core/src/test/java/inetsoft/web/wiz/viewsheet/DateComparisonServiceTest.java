@@ -463,6 +463,70 @@ class DateComparisonServiceTest {
       assertEquals(true, period.get("toDate"));
    }
 
+   // ── toDate default disclosure (DCG-017) ──────────────────────────────────
+
+   /**
+    * DCG-017: {@code toDate} defaults to {@code true} for a brand-new standard period, matching
+    * StyleBI's own dialog, but neither the schema nor the response used to say so. A caller who
+    * omits it on a call that otherwise touches a standard period must be told what's in effect.
+    */
+   @Test
+   void discloseToDateDefaultedWhenOmittedOnAStandardPeriodCall() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertEquals(true, result.get("toDateDefaulted"));
+      assertEquals(true, result.get("toDate"));
+   }
+
+   @Test
+   void doesNotDiscloseToDateDefaultedWhenPassedExplicitlyTrue() throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", "2026-03-31", false, null, null, null, null, null, true, null);
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertFalse(result.containsKey("toDateDefaulted"));
+   }
+
+   @Test
+   void doesNotDiscloseToDateDefaultedWhenPassedExplicitlyFalse() throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", "2026-03-31", false, null, null, null, null, null, false, null);
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertFalse(result.containsKey("toDateDefaulted"));
+   }
+
+   /** A call that touches no period field at all has nothing to disclose. */
+   @Test
+   void doesNotDiscloseToDateDefaultedWhenNoPeriodFieldWasTouched() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertFalse(result.containsKey("toDateDefaulted"));
+   }
+
+   /** A custom period has no {@code toDate} concept at all; nothing to disclose. */
+   @Test
+   void doesNotDiscloseToDateDefaultedForACustomPeriod() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      Map<String, Object> result = harness(model).service.set("tok", principal(), "Chart1",
+         customPeriods(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")), "");
+
+      assertFalse(result.containsKey("toDateDefaulted"));
+   }
+
    // ── interval-level normalization ─────────────────────────────────────────
 
    /**
@@ -758,7 +822,7 @@ class DateComparisonServiceTest {
    }
 
    @Test
-   void returnsAnEmptyMapWhenTheLevelDidNotActuallyChange() throws Exception {
+   void doesNotReportARetargetedDimensionWhenTheLevelDidNotActuallyChange() throws Exception {
       VSDimensionRef before = mock(VSDimensionRef.class);
       when(before.getName()).thenReturn("Order Date");
       when(before.getDateLevel()).thenReturn(XConstants.MONTH_DATE_GROUP);
@@ -774,17 +838,17 @@ class DateComparisonServiceTest {
       Map<String, Object> result =
          h.service.set("tok", principal(), "Crosstab1", comparison("2026-03-31", false), "");
 
-      assertTrue(result.isEmpty());
+      assertFalse(result.containsKey("retargetedDimension"));
    }
 
    @Test
-   void returnsAnEmptyMapWhenTheAssemblyIsNotACrosstab() throws Exception {
+   void doesNotReportARetargetedDimensionWhenTheAssemblyIsNotACrosstab() throws Exception {
       Harness h = harness(model(), null);
 
       Map<String, Object> result =
          h.service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
 
-      assertTrue(result.isEmpty());
+      assertFalse(result.containsKey("retargetedDimension"));
    }
 
    /**
