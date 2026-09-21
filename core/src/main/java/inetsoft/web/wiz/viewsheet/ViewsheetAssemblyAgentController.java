@@ -52,6 +52,7 @@ import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.util.MessageException;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
@@ -805,11 +806,18 @@ public class ViewsheetAssemblyAgentController {
     * already fully handled.
     *
     * <p>{@code target} (a single table/chart assembly) is only supported for {@code format=PNG}
-    * so far, reusing {@link #image}'s own {@link ScriptImageService#getAssemblyImage} -- a single
-    * table/chart to Excel/CSV/PDF/PowerPoint/HTML/Snapshot needs a materially different mechanism
+    * (reusing {@link #image}'s own {@link ScriptImageService#getAssemblyImage}) and
+    * {@code format=CSV} (via {@link CSVConfig#setExportAssemblies}, the same per-assembly filter
+    * StyleBI's own Export dialog's CSV table-select checkbox uses) -- a single table/chart to
+    * Excel/PDF/PowerPoint/HTML/Snapshot needs a materially different mechanism
     * ({@code AssemblyImageServiceProxy}'s cluster-aware table/chart export, per
     * {@code ExportController}'s own {@code /export/vs-table}/{@code /export/vs-chart} split) not
-    * yet wired here; refused by name rather than silently exporting the whole sheet instead.
+    * yet wired here; refused by name rather than silently exporting the whole sheet instead. A CSV
+    * export forces {@code match=false} regardless of the caller's own {@code match} value --
+    * {@code exportAssemblies} scopes CSV to the full table data, and a viewport-clipped export
+    * would silently contradict that, mirroring {@code ExportController}/
+    * {@code WizExportController}'s own established "always expand tables when export to csv"
+    * convention.
     */
    @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/export")
    public ResponseEntity<?> export(@PathVariable String sessionToken,
@@ -835,36 +843,57 @@ public class ViewsheetAssemblyAgentController {
       RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
       int formatType = toFormatType(format);
 
+      CSVConfig csvConfig = null;
+
       if(target != null && !target.isBlank()) {
-         if(formatType != FileFormatInfo.EXPORT_TYPE_PNG) {
+         if(formatType != FileFormatInfo.EXPORT_TYPE_PNG && formatType != FileFormatInfo.EXPORT_TYPE_CSV) {
             throw new IllegalArgumentException(
-               "export_viewsheet: 'target' is only supported with format=PNG for now (a single " +
-               "table/chart export to Excel/PowerPoint/PDF/HTML/CSV is not yet implemented) -- " +
-               "omit 'target' to export the whole viewsheet in '" + format + "', or use " +
-               "get_viewsheet_image for a PNG preview of just this assembly.");
+               "export_viewsheet: 'target' is only supported with format=PNG or format=CSV for " +
+               "now (a single table/chart export to Excel/PowerPoint/PDF/HTML/Snapshot is not yet " +
+               "implemented) -- omit 'target' to export the whole viewsheet in '" + format + "', " +
+               "or use get_viewsheet_image for a PNG preview of just this assembly.");
          }
 
-         ScriptImageService.ChartImage image;
+         if(formatType == FileFormatInfo.EXPORT_TYPE_PNG) {
+            ScriptImageService.ChartImage image;
 
-         try {
-            image = imageService.getAssemblyImage(rvs, target, null, null, user);
-         }
-         catch(ScriptException e) {
-            throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+            try {
+               image = imageService.getAssemblyImage(rvs, target, null, null, user);
+            }
+            catch(ScriptException e) {
+               throw new PairingException(PairingException.Kind.INTERNAL, e.getMessage(), e);
+            }
+
+            writeAttachment(servletResponse, image.pngBytes(), "image/png", target + ".png");
+            return null;
          }
 
-         writeAttachment(servletResponse, image.pngBytes(), "image/png", target + ".png");
-         return null;
+         // formatType == EXPORT_TYPE_CSV: scope to just this one table/crosstab/calc table via
+         // CSVConfig#exportAssemblies, the same per-assembly filter StyleBI's own Export dialog's
+         // CSV table-select checkbox uses (CSVVSExporter#needExport). Validated up front -- a
+         // target that resolves to no assembly would otherwise match nothing in that filter and
+         // silently stream an empty zip with a 200, rather than failing loud.
+         if(rvs.getViewsheet().getAssembly(target) == null) {
+            throw new PairingException("No such assembly \"" + target + "\"");
+         }
+
+         csvConfig = new CSVConfig();
+         csvConfig.setExportAssemblies(List.of(target));
       }
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       String[] bookmarkNames = bookmarks == null || bookmarks.isEmpty() ?
          new String[0] : bookmarks.split(",");
+      // CSV data must always be fully expanded rather than clipped to the on-screen layout,
+      // regardless of what the caller asked for via 'match' -- mirrors ExportController /
+      // WizExportController's own "always expand tables when export to csv" convention.
+      boolean effectiveMatch = formatType == FileFormatInfo.EXPORT_TYPE_CSV ?
+         false : match == null || match;
 
       try {
-         exportService.exportViewsheet(rvs, formatType, match == null || match,
+         exportService.exportViewsheet(rvs, formatType, effectiveMatch,
             expandSelections != null && expandSelections, current == null || current, false, false,
-            bookmarkNames, false, onlyDataComponents != null && onlyDataComponents, null,
+            bookmarkNames, false, onlyDataComponents != null && onlyDataComponents, csvConfig,
             exportAllTabbedTables != null && exportAllTabbedTables, new ExportResponse(out), user);
       }
       catch(ScriptException e) {

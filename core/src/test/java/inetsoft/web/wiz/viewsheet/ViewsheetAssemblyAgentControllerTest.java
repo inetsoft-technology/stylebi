@@ -19,6 +19,8 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.io.csv.CSVConfig;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -4389,11 +4391,49 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
       HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
 
-      controller.export("tok", "CSV", null, null, null, null, null, null, null, principal(),
+      // PDF rather than CSV -- format=CSV forces match=false unconditionally (bug 76858), which
+      // would otherwise mask the omitted-defaults-to-true behavior this test exists to check.
+      controller.export("tok", "PDF", null, null, null, null, null, null, null, principal(),
+         servletResponse);
+
+      verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_PDF),
+         eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
+         eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("export.pdf"));
+   }
+
+   /**
+    * Bug 76858: CSV data must always be fully expanded rather than clipped to the on-screen
+    * layout, regardless of what the caller asked for via {@code match} -- mirrors
+    * {@code ExportController}/{@code WizExportController}'s own established "always expand
+    * tables when export to csv" convention. Without this, a caller relying on the documented
+    * {@code match} default (or passing {@code match:true} explicitly) would silently get a
+    * viewport-clipped CSV rather than the full table.
+    */
+   @Test
+   void export_forcesMatchFalseForCsvEvenWhenCallerAsksForMatchTrue() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExportBytes(exportService, new byte[] { 9 });
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(Principal.class),
+         eq(ResourceType.VIEWSHEET_TOOLBAR_ACTION), eq("Export"), eq(ResourceAction.READ)))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+
+      controller.export("tok", "CSV", null, true, null, null, null, null, null, principal(),
          servletResponse);
 
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_CSV),
-         eq(true), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
+         eq(false), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
          eq(false), isNull(), eq(false), any(ExportResponse.class), any(Principal.class));
       // CSV's real payload is a zip archive (VSExportService#getSuffix), not a literal .csv file
       // -- confirmed live against a real export. A wrong extension here would actively mislead
@@ -4444,10 +4484,13 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    /**
-    * A single table/chart export to anything but PNG needs {@code AssemblyImageServiceProxy}'s
-    * cluster-aware table/chart export mechanism ({@code ExportController}'s own
-    * {@code /export/vs-table}/{@code /export/vs-chart} split), not yet wired here -- refused by
-    * name rather than silently exporting the whole sheet instead.
+    * A single table/chart export to anything but PNG or CSV needs
+    * {@code AssemblyImageServiceProxy}'s cluster-aware table/chart export mechanism
+    * ({@code ExportController}'s own {@code /export/vs-table}/{@code /export/vs-chart} split),
+    * not yet wired here -- refused by name rather than silently exporting the whole sheet
+    * instead. CSV (bug 76858) has its own, materially different mechanism --
+    * {@link CSVConfig#setExportAssemblies} -- and is no longer rejected here; see
+    * {@code export_scopedToATargetWithCsvFormatBuildsCsvConfigForThatAssembly} below.
     */
    @Test
    void export_refusesATargetWithANonPngFormat() throws Exception {
@@ -4503,6 +4546,80 @@ class ViewsheetAssemblyAgentControllerTest {
       ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
       verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
       assertTrue(disposition.getValue().contains("Chart1.png"));
+      verifyNoInteractions(exportService);
+   }
+
+   /**
+    * Bug 76858: {@code target} + {@code format=CSV} scopes the export to just that one
+    * table/crosstab/calc table via {@link CSVConfig#setExportAssemblies}, the same per-assembly
+    * filter StyleBI's own Export dialog's CSV table-select checkbox already uses
+    * ({@code CSVVSExporter#needExport}) -- rather than falling back to a whole-viewsheet export
+    * or being rejected the way every other non-PNG format still is. {@code match} is forced to
+    * {@code false} here too (see {@code export_forcesMatchFalseForCsvEvenWhenCallerAsksForMatchTrue}).
+    */
+   @Test
+   void export_scopedToATargetWithCsvFormatBuildsCsvConfigForThatAssembly() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("TableView1")).thenReturn(mock(VSAssembly.class));
+
+      VSExportService exportService = mock(VSExportService.class);
+      stubExportBytes(exportService, new byte[] { 9 });
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+      HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
+
+      controller.export("tok", "CSV", "TableView1", true, null, null, null, null, null,
+         principal(), servletResponse);
+
+      ArgumentCaptor<CSVConfig> csvConfigCaptor = ArgumentCaptor.forClass(CSVConfig.class);
+      verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_CSV),
+         eq(false), eq(false), eq(true), eq(false), eq(false), any(String[].class), eq(false),
+         eq(false), csvConfigCaptor.capture(), eq(false), any(ExportResponse.class),
+         any(Principal.class));
+      assertEquals(List.of("TableView1"), csvConfigCaptor.getValue().getExportAssemblies());
+      ArgumentCaptor<String> disposition = ArgumentCaptor.forClass(String.class);
+      verify(servletResponse).setHeader(eq("Content-Disposition"), disposition.capture());
+      assertTrue(disposition.getValue().contains("export.zip"));
+   }
+
+   /**
+    * Bug 76858: without this validation, a misspelled/nonexistent {@code target} would match no
+    * real assembly in {@code CSVVSExporter#needExport}'s filter and silently stream an empty zip
+    * with {@code ok:true} -- the exact "plausible-but-wrong, no error" failure mode CLAUDE.md's
+    * tool-misuse rule warns against. Mirrors {@code ScriptImageService#getAssemblyImage}'s
+    * existing nonexistent-target check on the PNG path.
+    */
+   @Test
+   void export_refusesANonexistentTargetForCsvFormatInsteadOfSilentlyExportingNothing()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("NoSuchTable")).thenReturn(null);
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> controller.export("tok", "CSV", "NoSuchTable", null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
+      assertTrue(ex.getMessage().contains("NoSuchTable"));
       verifyNoInteractions(exportService);
    }
 
