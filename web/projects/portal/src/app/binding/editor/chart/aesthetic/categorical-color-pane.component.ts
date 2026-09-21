@@ -111,7 +111,7 @@ export class CategoricalColorPane extends CategoricalFramePane implements OnInit
       let params = new HttpParams();
       const orgId = assetEntryOrgId(this.assetId);
 
-      // hosts without an assembly resolve through the org gate
+      // send the organization only when the asset ID carries one
       if(orgId) {
          params = params.set("orgId", orgId);
       }
