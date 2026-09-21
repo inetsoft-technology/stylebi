@@ -53,3 +53,11 @@ export function createAssetEntry(assetId: string): AssetEntry {
 
    return assetEntry;
 }
+
+/**
+ * An asset ID's organization, or null when the ID is absent, malformed or
+ * carries no organization segment.
+ */
+export function assetEntryOrgId(assetId: string): string {
+   return createAssetEntry(assetId)?.organization ?? null;
+}
