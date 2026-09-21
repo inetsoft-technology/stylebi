@@ -351,6 +351,57 @@ class ScheduleChangesetApplyServiceTest {
       verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
    }
 
+   // applyDelete's OWN before-state read (scheduleManager.getScheduleTask), one statement before
+   // captureSpec even runs, is not covered by captureSpec's own try/catch -- a throw there must
+   // still be reported as rolled back, not rollback-failed, since removeScheduleTask was never
+   // reached (bug 76856).
+   @Test void deleteBeforeStateReadFailurePriorToCaptureSpecIsRolledBackNotRollbackFailed()
+      throws Exception
+   {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)   // preview
+         .thenReturn(existing)   // re-resolve inside apply()
+         .thenThrow(new RuntimeException("storage read failed")); // apply: before-state read
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
+   }
+
+   // Same gap, a different one of the three unwrapped preamble statements: ScheduleXmlProjection
+   // .project(beforeTask) organically NPEs when the before-task's owner is null (ScheduleTask
+   // #writeXML unconditionally calls owner.convertToKey()) -- still strictly before
+   // removeScheduleTask, so it must still resolve to rolled back.
+   @Test void deleteBeforeStateProjectionFailureWithNullOwnerIsRolledBackNotRollbackFailed()
+      throws Exception
+   {
+      inetsoft.sree.schedule.ScheduleTask existing = sreeTask("t1", "admin");
+      inetsoft.sree.schedule.ScheduleTask nullOwnerTask = new inetsoft.sree.schedule.ScheduleTask();
+      nullOwnerTask.setName("t1");
+      nullOwnerTask.setEnabled(true);
+      when(scheduleManager.getScheduleTask("t1"))
+         .thenReturn(existing)        // preview
+         .thenReturn(existing)        // re-resolve inside apply()
+         .thenReturn(nullOwnerTask);  // apply: before-state read, owner unset
+      when(scheduleGateway.hasOwnerAdminPermission(any(), any(), eq(user))).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleApplyRequest req = applyRequest("delete a task", deleteChange("t1"));
+
+      ApplyResult result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      assertNull(result.rollbackFailures());
+      verify(scheduleGateway, never()).removeScheduleTask(anyString(), any(), eq(user));
+   }
+
    // The rollback-path regression proof: even when the first change's own apply narrative and the
    // second change's failure trigger a rollback, the rollback's OWN writeAudit call (a separate
    // call site from applyCreate/applyDelete -- see rollback()'s ACTION_ROLLBACK writeAudit calls)

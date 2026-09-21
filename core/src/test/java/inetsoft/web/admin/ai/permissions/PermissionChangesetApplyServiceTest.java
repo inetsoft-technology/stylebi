@@ -379,6 +379,50 @@ class PermissionChangesetApplyServiceTest {
                   result.rollbackFailures().get(0).property());
    }
 
+   // A throw that fires strictly BEFORE any mutating call (here: applyCreate's own before-capture
+   // read for the second item) must not by itself force rollback-failed when the rest of the batch
+   // was applied, verified, and then cleanly rolled back.
+   @Test void preMutationThrowOnSecondItemStillReportsRolledBackWhenFirstItemRollsBackCleanly()
+      throws Exception
+   {
+      Permission withBob = new Permission();
+      withBob.setUserGrantsForOrg(ResourceAction.READ, Set.of("bob"), "host-org");
+      Permission empty = new Permission();
+
+      when(securityProvider.getPermission(ResourceType.ASSET, "Examples/Census", null))
+         .thenReturn(null,        // resolve(probe): bob's before
+                    null,         // resolve(req) inside apply: bob's before
+                    null,         // applyCreate(bob): before-capture -- no prior entry
+                    withBob,      // applyCreate(bob): after-verify -- bob now present
+                    empty,        // rollback of bob's create: fresh post-delete read -- empty
+                    null);        // rollback of bob's create: final verify read -- entry gone
+      when(securityProvider.getPermission(ResourceType.ASSET, "Examples/Beta", null))
+         .thenReturn(null)        // resolve(probe): carol's before
+         .thenReturn(null)        // resolve(req) inside apply: carol's before
+         .thenThrow(new IllegalStateException("provider unavailable")); // applyCreate(carol):
+                                                                        // before-capture throws
+      when(securityService.getPermissionGrant(anyString(), eq("ASSET"), anyString(), eq("USER"),
+         eq(user))).thenReturn(null);
+
+      PermissionChangeRequest bobChange = grantChange("bob", List.of("READ"));
+      PermissionChangeRequest carolChange = grantChange("carol", List.of("READ"));
+      carolChange.setResourcePath("Examples/Beta");
+      PermissionApplyRequest req = applyRequest("two grants", bobChange, carolChange);
+
+      var result = service.apply(req, user);
+
+      assertEquals(inetsoft.web.admin.ai.AdminChangesetApplyService.STATUS_ROLLED_BACK,
+                  result.status());
+      assertNull(result.rollbackFailures());
+      verify(securityService, times(1)).createPermissionGrant(eq("Examples/Census"), eq("ASSET"),
+         any(PermissionGrant.class), eq(user));
+      verify(securityService, never()).createPermissionGrant(eq("Examples/Beta"), anyString(),
+         any(PermissionGrant.class), any());
+      verify(securityService).deletePermissionGrant(eq("Examples/Census"), eq("ASSET"),
+         eq("bob~;~host-org"), eq("USER"), eq(user));
+      verify(securityProvider).removePermission(ResourceType.ASSET, "Examples/Census", null);
+   }
+
    // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------

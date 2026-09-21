@@ -35,11 +35,14 @@ import inetsoft.web.admin.schedule.model.ScheduleTaskModel;
 import inetsoft.web.admin.schedule.model.TaskListModel;
 import inetsoft.web.security.auth.MissingResourceException;
 import inetsoft.web.security.auth.UnauthorizedAccessException;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -209,6 +212,26 @@ public class AdminScheduleFolderGateway {
     * addFolder} itself applies at the leaf.
     */
    public void createFolder(String path, Principal user) throws Exception {
+      createFolder(path, user, new AtomicBoolean());
+   }
+
+   /**
+    * Same as {@link #createFolder(String, Principal)}, but reports via {@code mutationEntered}
+    * whether any of the loop's underlying {@code taskFolderService.addFolder} calls was actually
+    * reached -- {@code addFolder} performs its OWN permission check (bug #76856:
+    * {@link ScheduleTaskFolderService#addFolder}, {@code WRITE} on the segment's parent path)
+    * strictly before its own mutating writes, so a segment whose permission check fails must not
+    * be conflated with "nothing was ever created". The check is duplicated here (via {@link
+    * ScheduleTaskFolderService#checkFolderPermission}, the same public method {@code addFolder}
+    * itself is built on) so {@code mutationEntered} can be set immediately before, not after, each
+    * segment's actual mutating call.
+    *
+    * <p>{@code mutationEntered} is set at most once and never reset: once an earlier segment in
+    * the "mkdir -p" walk has actually created a folder, a LATER segment's permission failure is
+    * still a genuine partial-mutation risk for the walk as a whole, even though that later segment
+    * itself never mutated anything.
+    */
+   public void createFolder(String path, Principal user, AtomicBoolean mutationEntered) throws Exception {
       String normalized = normalizePath(path);
       String[] segments = normalized.split("/");
       StringBuilder built = new StringBuilder();
@@ -232,6 +255,12 @@ public class AdminScheduleFolderGateway {
          }
 
          AssetEntry parentEntry = taskFolderService.getFolderEntry(parentPath);
+
+         if(!taskFolderService.checkFolderPermission(parentPath, user, ResourceAction.WRITE)) {
+            throw new UnauthorizedAccessException();
+         }
+
+         mutationEntered.set(true);
          taskFolderService.addFolder(
             parentEntry, currentPath, parentPath, AssetRepository.GLOBAL_SCOPE, user);
       }
@@ -252,13 +281,46 @@ public class AdminScheduleFolderGateway {
     * closed here rather than left for a future caller to trip over.
     */
    public AssetEntry renameFolder(String oldPath, String newPath, Principal user) throws Exception {
+      return renameFolder(oldPath, newPath, user, new AtomicBoolean());
+   }
+
+   /**
+    * Same as {@link #renameFolder(String, String, Principal)}, but reports via {@code
+    * mutationEntered} whether the actual mutating call ({@code taskFolderService.renameFolder}'s
+    * own {@code changeFolder}) was reached -- {@code taskFolderService.renameFolder} performs its
+    * OWN {@code DELETE}/{@code WRITE} permission checks and a folder-existence check (bug #76856:
+    * {@link ScheduleTaskFolderService#renameFolder}) strictly before that mutating call, so this
+    * gateway's own opaque passthrough would otherwise mark a pure permission/not-found refusal as
+    * a partial-mutation risk, the same bug pattern {@link #moveTask(String, String, Principal,
+    * AtomicBoolean)} already closes one layer deeper. Both checks are duplicated here (via {@link
+    * ScheduleTaskFolderService#checkFolderPermission} and {@link #findFolder}, the same
+    * public members {@code renameFolder} itself is built on) so {@code mutationEntered} can be set
+    * immediately before, not after, the mutating call.
+    */
+   public AssetEntry renameFolder(String oldPath, String newPath, Principal user,
+                                  AtomicBoolean mutationEntered)
+      throws Exception
+   {
+      String normalizedOldPath = normalizePath(oldPath);
+
+      if(!taskFolderService.checkFolderPermission(normalizedOldPath, user, ResourceAction.DELETE) ||
+         !taskFolderService.checkFolderPermission(normalizedOldPath, user, ResourceAction.WRITE))
+      {
+         throw new UnauthorizedAccessException();
+      }
+
+      if(findFolder(normalizedOldPath) == null) {
+         throw new FileNotFoundException(normalizedOldPath);
+      }
+
       EditTaskFolderDialogModel model = EditTaskFolderDialogModel.builder()
-         .oldPath(normalizePath(oldPath))
+         .oldPath(normalizedOldPath)
          .folderName(leafOf(newPath))
          .owner(new IdentityID("", null))
          .securityEnabled(false)
          .build();
 
+      mutationEntered.set(true);
       return taskFolderService.renameFolder(model, user);
    }
 
@@ -285,8 +347,41 @@ public class AdminScheduleFolderGateway {
     * shared service" posture (§3 decision 3, §6.1).
     */
    public void moveFolder(String path, String targetPath, Principal user) throws Exception {
+      moveFolder(path, targetPath, user, new AtomicBoolean());
+   }
+
+   /**
+    * Same as {@link #moveFolder(String, String, Principal)}, but reports via {@code
+    * mutationEntered} whether the actual mutating call ({@code
+    * taskFolderService.moveScheduleItems}'s own {@code changeFolder}) was reached -- {@code
+    * moveScheduleItems} performs its OWN {@code WRITE}-on-target and, per folder, {@code
+    * DELETE}-on-source permission checks (bug #76856: {@link
+    * ScheduleTaskFolderService#moveScheduleItems}) strictly before that mutating call, the same
+    * bug pattern {@link #moveTask(String, String, Principal, AtomicBoolean)} already closes one
+    * layer deeper. Both checks are duplicated here (via {@link
+    * ScheduleTaskFolderService#checkFolderPermission}, the same public method {@code
+    * moveScheduleItems} itself is built on, with the identical "moving into itself/a descendant
+    * skips the DELETE check" condition) so {@code mutationEntered} can be set immediately before,
+    * not after, the mutating call.
+    */
+   public void moveFolder(String path, String targetPath, Principal user, AtomicBoolean mutationEntered)
+      throws Exception
+   {
+      String normalizedPath = normalizePath(path);
       AssetEntry targetEntry = taskFolderService.getFolderEntry(normalizePath(targetPath));
-      taskFolderService.moveScheduleItems(null, new String[]{ normalizePath(path) }, targetEntry, user);
+
+      if(!taskFolderService.checkFolderPermission(targetEntry.getPath(), user, ResourceAction.WRITE)) {
+         throw new UnauthorizedAccessException();
+      }
+
+      if(!StringUtils.startsWith(targetEntry.getPath(), normalizedPath) &&
+         !taskFolderService.checkFolderPermission(normalizedPath, user, ResourceAction.DELETE))
+      {
+         throw new UnauthorizedAccessException();
+      }
+
+      mutationEntered.set(true);
+      taskFolderService.moveScheduleItems(null, new String[]{ normalizedPath }, targetEntry, user);
    }
 
    /**
@@ -336,6 +431,30 @@ public class AdminScheduleFolderGateway {
     * is ever called is the only place that is caught.
     */
    public void moveTask(String taskId, String targetPath, Principal user) throws Exception {
+      moveTask(taskId, targetPath, user, new AtomicBoolean());
+   }
+
+   /**
+    * Same as {@link #moveTask(String, String, Principal)}, but reports via {@code mutationEntered}
+    * whether the actual mutating call ({@code taskFolderService.moveScheduleItems}) was reached --
+    * this method's own permission/removable checks above throw strictly BEFORE that call, so a
+    * caller (bug #76856: {@link inetsoft.web.admin.ai.schedule.ScheduleFolderChangesetApplyService})
+    * that needs to distinguish "nothing was ever touched" from "a real partial-mutation risk" cannot
+    * do so by observing only whether this method as a whole threw.
+    *
+    * <p>{@code moveScheduleItems} also performs its OWN {@code WRITE}-on-target permission check
+    * (bug #76856: {@link ScheduleTaskFolderService#moveScheduleItems}) strictly before its mutating
+    * {@code changeFolder}/task-move call -- the same check {@link #moveFolder(String, String,
+    * Principal, AtomicBoolean)} already duplicates for a folder move, and one this method's own
+    * task-level checks above do not cover (they check the {@code SCHEDULE_TASK} resource, never
+    * anything on the target folder). Duplicated here (via {@link
+    * ScheduleTaskFolderService#checkFolderPermission}, the same public method {@code
+    * moveScheduleItems} itself is built on) so {@code mutationEntered} can be set immediately
+    * before, not after, the mutating call.
+    */
+   public void moveTask(String taskId, String targetPath, Principal user, AtomicBoolean mutationEntered)
+      throws Exception
+   {
       ScheduleTask task = scheduleManager.getScheduleTask(taskId);
 
       if(task == null) {
@@ -360,6 +479,12 @@ public class AdminScheduleFolderGateway {
       }
 
       AssetEntry targetEntry = taskFolderService.getFolderEntry(normalizePath(targetPath));
+
+      if(!taskFolderService.checkFolderPermission(targetEntry.getPath(), user, ResourceAction.WRITE)) {
+         throw new UnauthorizedAccessException();
+      }
+
+      mutationEntered.set(true);
       taskFolderService.moveScheduleItems(
          new ScheduleTaskModel[]{ model }, new String[0], targetEntry, user);
    }

@@ -30,6 +30,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -97,6 +98,12 @@ public class ProviderChangesetApplyService {
          List<Undo> undoable = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
          boolean failed = false;
+         // Whether the item that threw (if any) had already entered its own mutating call before
+         // the throw -- only that case is a genuine partial-mutation risk that must force
+         // STATUS_ROLLBACK_FAILED on its own; a throw that fires strictly before the mutating call
+         // means the item was never touched, so it must not by itself override an otherwise
+         // fully-verified rollback (bug 76856, mirroring DataSourceChangesetApplyService's fix).
+         boolean unknownStateMutationEntered = false;
 
          List<ProviderChangeRequest> originals = req.getChanges();
 
@@ -104,10 +111,11 @@ public class ProviderChangesetApplyService {
             PlanChange change = plan.changes().get(i);
             ProviderChangeRequest original = originals.get(i);
             String key = change.property();
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                applyOne(txId, reviewedTask, key, original, user, backupRef, reviewOutcome, results,
-                       undoable);
+                       undoable, mutationEntered);
             }
             catch(Exception e) {
                // A throw carries no verifiable before/after evidence for THIS change -- must never
@@ -116,6 +124,7 @@ public class ProviderChangesetApplyService {
                                                     messageOf(e), null));
                unknownStateFailures.add(new RollbackFailure(key,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               unknownStateMutationEntered = mutationEntered.get();
                failed = true;
                break;
             }
@@ -132,9 +141,8 @@ public class ProviderChangesetApplyService {
          }
 
          Map<String, String> rollbackAdvisories = new LinkedHashMap<>();
-         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, reviewedTask, undoable, backupRef, reviewOutcome, user,
-                                  rollbackAdvisories));
+         List<RollbackFailure> rollbackOwnFailures = rollback(txId, reviewedTask, undoable, backupRef,
+                                                              reviewOutcome, user, rollbackAdvisories);
          // Merge each rollback's own disclosure (the "restored at the end of the chain, not its
          // original position" notice, 01-spec.md section 6/11) into that entry's ORIGINAL outcome
          // record -- the advisory is a first-class field on the outcome the caller sees, not a log
@@ -143,11 +151,16 @@ public class ProviderChangesetApplyService {
             .map(o -> mergeAdvisory(o, rollbackAdvisories.get(o.property())))
             .collect(Collectors.toList());
 
-         if(failures.isEmpty()) {
+         // An unknownStateFailures entry only forces rollback-failed when that item's own mutating
+         // call had actually been entered (a real partial-mutation risk); if it never touched a
+         // provider, it must not by itself override an otherwise fully-verified rollback.
+         if(rollbackOwnFailures.isEmpty() && !unknownStateMutationEntered) {
             return new ProviderApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK,
                                            backupRef, Collections.unmodifiableList(finalResults), null);
          }
 
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollbackOwnFailures);
          LOG.error("Provider changeset {} rollback failed; providers still changed: {}", txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
          return new ProviderApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED,
@@ -161,7 +174,8 @@ public class ProviderChangesetApplyService {
 
    private void applyOne(String txId, String task, String key, ProviderChangeRequest original,
                          Principal user, String backupRef, String reviewOutcome,
-                         List<ProviderApplyOutcome> results, List<Undo> undoable)
+                         List<ProviderApplyOutcome> results, List<Undo> undoable,
+                         AtomicBoolean mutationEntered)
       throws Exception
    {
       ProviderChain chain = ProviderChangePlanService.requireChain("change", original.getChain());
@@ -170,11 +184,11 @@ public class ProviderChangesetApplyService {
       if(ProviderChangeRequest.VERB_CREATE.equals(original.getVerb())) {
          if(chain == ProviderChain.AUTHENTICATION) {
             applyCreateAuthentication(txId, task, key, name, original, backupRef, reviewOutcome,
-                                     user, results, undoable);
+                                     user, results, undoable, mutationEntered);
          }
          else {
             applyCreateAuthorization(txId, task, key, name, backupRef, reviewOutcome, user, results,
-                                    undoable);
+                                    undoable, mutationEntered);
          }
 
          return;
@@ -183,11 +197,11 @@ public class ProviderChangesetApplyService {
       if(ProviderChangeRequest.VERB_DUPLICATE.equals(original.getVerb())) {
          if(chain == ProviderChain.AUTHENTICATION) {
             applyDuplicateAuthentication(txId, task, key, name, original, backupRef, reviewOutcome,
-                                        user, results, undoable);
+                                        user, results, undoable, mutationEntered);
          }
          else {
             applyDuplicateAuthorization(txId, task, key, name, original, backupRef, reviewOutcome,
-                                       user, results, undoable);
+                                       user, results, undoable, mutationEntered);
          }
 
          return;
@@ -198,17 +212,17 @@ public class ProviderChangesetApplyService {
          // plan.resolve() (called at the top of apply(), before this loop is ever reached) would
          // have thrown for that case -- verb=update only ever reaches here for chain=authentication.
          applyUpdateAuthentication(txId, task, key, name, original, backupRef, reviewOutcome, user,
-                                  results, undoable);
+                                  results, undoable, mutationEntered);
          return;
       }
 
       if(chain == ProviderChain.AUTHENTICATION) {
          applyDeleteAuthentication(txId, task, key, name, backupRef, reviewOutcome, user, results,
-                                  undoable);
+                                  undoable, mutationEntered);
       }
       else {
          applyDeleteAuthorization(txId, task, key, name, backupRef, reviewOutcome, user, results,
-                                 undoable);
+                                 undoable, mutationEntered);
       }
    }
 
@@ -217,7 +231,8 @@ public class ProviderChangesetApplyService {
    private void applyCreateAuthentication(String txId, String task, String key, String name,
                                           ProviderChangeRequest original, String backupRef,
                                           String reviewOutcome, Principal user,
-                                          List<ProviderApplyOutcome> results, List<Undo> undoable)
+                                          List<ProviderApplyOutcome> results, List<Undo> undoable,
+                                          AtomicBoolean mutationEntered)
       throws Exception
    {
       AuthenticationProviderModel.Builder builder = AuthenticationProviderModel.builder()
@@ -236,6 +251,7 @@ public class ProviderChangesetApplyService {
       }
 
       try {
+         mutationEntered.set(true);
          authenticationProviderService.addAuthenticationProvider(builder.build(), name, user);
       }
       catch(Exception e) {
@@ -270,7 +286,8 @@ public class ProviderChangesetApplyService {
 
    private void applyCreateAuthorization(String txId, String task, String key, String name,
                                          String backupRef, String reviewOutcome, Principal user,
-                                         List<ProviderApplyOutcome> results, List<Undo> undoable)
+                                         List<ProviderApplyOutcome> results, List<Undo> undoable,
+                                         AtomicBoolean mutationEntered)
       throws Exception
    {
       AuthorizationProviderModel model = AuthorizationProviderModel.builder()
@@ -279,6 +296,7 @@ public class ProviderChangesetApplyService {
          .build();
 
       try {
+         mutationEntered.set(true);
          authorizationProviderService.addAuthorizationProvider(model, name, user);
       }
       catch(Exception e) {
@@ -320,7 +338,8 @@ public class ProviderChangesetApplyService {
    private void applyDuplicateAuthentication(String txId, String task, String key, String name,
                                              ProviderChangeRequest original, String backupRef,
                                              String reviewOutcome, Principal user,
-                                             List<ProviderApplyOutcome> results, List<Undo> undoable)
+                                             List<ProviderApplyOutcome> results, List<Undo> undoable,
+                                             AtomicBoolean mutationEntered)
       throws Exception
    {
       AuthenticationProviderModel source;
@@ -354,6 +373,7 @@ public class ProviderChangesetApplyService {
          ((ImmutableAuthenticationProviderModel) source).withProviderName(newName);
 
       try {
+         mutationEntered.set(true);
          authenticationProviderService.addAuthenticationProvider(duplicated, newName, user);
       }
       catch(Exception e) {
@@ -388,7 +408,8 @@ public class ProviderChangesetApplyService {
    private void applyDuplicateAuthorization(String txId, String task, String key, String name,
                                             ProviderChangeRequest original, String backupRef,
                                             String reviewOutcome, Principal user,
-                                            List<ProviderApplyOutcome> results, List<Undo> undoable)
+                                            List<ProviderApplyOutcome> results, List<Undo> undoable,
+                                            AtomicBoolean mutationEntered)
       throws Exception
    {
       AuthorizationProviderModel source;
@@ -422,6 +443,7 @@ public class ProviderChangesetApplyService {
          ((ImmutableAuthorizationProviderModel) source).withProviderName(newName);
 
       try {
+         mutationEntered.set(true);
          authorizationProviderService.addAuthorizationProvider(duplicated, newName, user);
       }
       catch(Exception e) {
@@ -527,7 +549,8 @@ public class ProviderChangesetApplyService {
    private void applyUpdateAuthentication(String txId, String task, String key, String name,
                                           ProviderChangeRequest original, String backupRef,
                                           String reviewOutcome, Principal user,
-                                          List<ProviderApplyOutcome> results, List<Undo> undoable)
+                                          List<ProviderApplyOutcome> results, List<Undo> undoable,
+                                          AtomicBoolean mutationEntered)
       throws Exception
    {
       AuthenticationProviderModel before;
@@ -606,6 +629,7 @@ public class ProviderChangesetApplyService {
       }
 
       try {
+         mutationEntered.set(true);
          authenticationProviderService.editAuthenticationProvider(name, proposed, user);
       }
       catch(Exception e) {
@@ -647,7 +671,8 @@ public class ProviderChangesetApplyService {
     */
    private void applyDeleteAuthentication(String txId, String task, String key, String name,
                                           String backupRef, String reviewOutcome, Principal user,
-                                          List<ProviderApplyOutcome> results, List<Undo> undoable)
+                                          List<ProviderApplyOutcome> results, List<Undo> undoable,
+                                          AtomicBoolean mutationEntered)
       throws Exception
    {
       AuthenticationProviderModel before = authenticationProviderService.getAuthenticationProvider(name);
@@ -681,6 +706,7 @@ public class ProviderChangesetApplyService {
          return;
       }
 
+      mutationEntered.set(true);
       authenticationProviderService.removeAuthenticationProvider(index, name, user);
 
       boolean verified = indexOfName(authenticationProviderService.getProviderListModel().providers(),
@@ -699,7 +725,8 @@ public class ProviderChangesetApplyService {
 
    private void applyDeleteAuthorization(String txId, String task, String key, String name,
                                          String backupRef, String reviewOutcome, Principal user,
-                                         List<ProviderApplyOutcome> results, List<Undo> undoable)
+                                         List<ProviderApplyOutcome> results, List<Undo> undoable,
+                                         AtomicBoolean mutationEntered)
       throws Exception
    {
       AuthorizationProviderModel before = authorizationProviderService.getAuthorizationProvider(name);
@@ -731,6 +758,7 @@ public class ProviderChangesetApplyService {
          return;
       }
 
+      mutationEntered.set(true);
       authorizationProviderService.removeAuthorizationProvider(index, name, user);
 
       boolean verified = indexOfName(authorizationProviderService.getProviderListModel().providers(),

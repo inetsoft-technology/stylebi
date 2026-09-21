@@ -168,6 +168,15 @@ class AdminChangesetApplyServiceTest {
       return r;
    }
 
+   /** A throw tagged as provably pre-mutation, the same as AdminChangeService's own guards. */
+   private static final class NoMutationTestException extends RuntimeException
+      implements AdminChangeService.NoMutationAttempted
+   {
+      NoMutationTestException(String message) {
+         super(message);
+      }
+   }
+
    private void stub(String key, String value) {
       sreeEnv.when(() -> SreeEnv.getProperty(key, false, false)).thenReturn(value);
    }
@@ -620,17 +629,45 @@ class AdminChangesetApplyServiceTest {
       ApplyResult applied = service.apply(
          request("t", "max.rows", "500", "mail.smtp.host", "new"), principal);
 
-      // NOTE (deviation from the reviewer's literal instruction - see task-6-report.md
-      // "Post-review follow-up" section): a thrown apply carries no before/after evidence, so
-      // per the SAME review's Finding 1 rule ("must NOT be silently reported as rolled back ...
-      // so the final status becomes rollback-failed"), this scenario cannot be "rolled-back"
-      // either - mail.smtp.host's true state is unknown even though max.rows was cleanly undone.
+      // A bare IllegalStateException carries no proof of when it fired relative to SreeEnv
+      // mutation (unlike AdminChangeService.NoMutationAttempted's tagged throw sources), so this
+      // scenario cannot be "rolled-back" either - mail.smtp.host's true state is unknown even
+      // though max.rows was cleanly undone.
       assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, applied.status());
       assertEquals(1, applied.rollbackFailures().size());
       assertEquals("mail.smtp.host", applied.rollbackFailures().get(0).property());
       ApplyOutcome failed = applied.results().get(1);
       assertEquals(AdminChangeRecord.STATUS_FAILED, failed.status());
       assertTrue(failed.error().contains("boom"));
+      verify(changeService).applyChange(argThat(
+         r -> AdminChangeRecord.ACTION_ROLLBACK.equals(r.getAction())
+            && "query.runtime.maxrow".equals(r.getProperty())
+            && "100".equals(r.getValue())), eq(principal));
+   }
+
+   @Test
+   void rollsBackCleanlyWhenAnApplyThrowsANoMutationAttemptedException() throws Exception {
+      // Unlike a bare throw (rollsBackWhenAnApplyThrows above), a throw tagged
+      // NoMutationAttempted is proven to have fired before any SreeEnv mutation - so once the
+      // earlier item's own rollback succeeds cleanly, the changeset is rolled-back, not
+      // rollback-failed.
+      stub("query.runtime.maxrow", "100");
+      stub("mail.smtp.host", "old");
+      when(changeService.applyChange(any(), eq(principal)))
+         .thenReturn(result("query.runtime.maxrow", "100", "500",
+                            AdminChangeRecord.STATUS_VERIFIED, null))
+         .thenThrow(new NoMutationTestException("blank"))
+         .thenReturn(result("query.runtime.maxrow", "500", "100",
+                            AdminChangeRecord.STATUS_VERIFIED, null));
+
+      ApplyResult applied = service.apply(
+         request("t", "max.rows", "500", "mail.smtp.host", "new"), principal);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, applied.status());
+      assertNull(applied.rollbackFailures());
+      ApplyOutcome failed = applied.results().get(1);
+      assertEquals(AdminChangeRecord.STATUS_FAILED, failed.status());
+      assertTrue(failed.error().contains("blank"));
       verify(changeService).applyChange(argThat(
          r -> AdminChangeRecord.ACTION_ROLLBACK.equals(r.getAction())
             && "query.runtime.maxrow".equals(r.getProperty())

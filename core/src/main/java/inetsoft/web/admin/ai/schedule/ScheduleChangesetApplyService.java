@@ -32,6 +32,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -113,6 +114,13 @@ public class ScheduleChangesetApplyService {
          List<Undo> undoable = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
          boolean failed = false;
+         // Whether the item that threw (if any) had already entered its own mutating call
+         // (addScheduleTask/removeScheduleTask) before the throw -- only that case is a genuine
+         // partial-mutation risk that must force STATUS_ROLLBACK_FAILED on its own; a throw that
+         // fires strictly before the mutating call means the item was never touched, so it must
+         // not by itself override an otherwise fully-verified rollback (bug 76856, mirroring bug
+         // 76808's DataSourceChangesetApplyService fix).
+         boolean unknownStateMutationEntered = false;
 
          List<ScheduleChangeRequest> originals = req.getChanges();
 
@@ -120,27 +128,17 @@ public class ScheduleChangesetApplyService {
             PlanChange change = plan.changes().get(i);
             ScheduleChangeRequest original = originals.get(i);
             String taskId = change.property();
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                if(ScheduleChangeRequest.VERB_CREATE.equals(original.getVerb())) {
                   applyCreate(txId, reviewedTask, taskId, original.getSpec(), backupRef,
-                             req.getReviewOutcome(), user, results, undoable);
+                             req.getReviewOutcome(), user, results, undoable, mutationEntered);
                }
                else {
                   applyDelete(txId, reviewedTask, taskId, backupRef, req.getReviewOutcome(), user,
-                             results, undoable);
+                             results, undoable, mutationEntered);
                }
-            }
-            catch(PreflightCaptureFailedException e) {
-               // Thrown only from applyDelete's captureSpec call, which runs entirely before any
-               // mutating call -- unlike a throw from the mutation itself, this proves nothing
-               // was changed, so it must NOT contribute an unknown-state RollbackFailure (there is
-               // nothing to roll back). Same shape as IdentityChangesetApplyService's non-
-               // compensable-delete branch.
-               results.add(new ApplyOutcome(taskId, null, null, AdminChangeRecord.STATUS_FAILED,
-                                            messageOf(e.getCause())));
-               failed = true;
-               break;
             }
             catch(Exception e) {
                // A throw carries no verifiable before/after evidence for THIS change -- unlike a
@@ -151,6 +149,7 @@ public class ScheduleChangesetApplyService {
                                             messageOf(e)));
                unknownStateFailures.add(new RollbackFailure(taskId,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               unknownStateMutationEntered = mutationEntered.get();
                failed = true;
                break;
             }
@@ -166,15 +165,19 @@ public class ScheduleChangesetApplyService {
                                    Collections.unmodifiableList(results), null);
          }
 
-         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, reviewedTask, undoable, backupRef, req.getReviewOutcome(),
-                                  user));
+         List<RollbackFailure> rollbackOwnFailures =
+            rollback(txId, reviewedTask, undoable, backupRef, req.getReviewOutcome(), user);
 
-         if(failures.isEmpty()) {
+         // An unknownStateFailures entry only forces rollback-failed when that item's own mutating
+         // call had actually been entered (a real partial-mutation risk); if it never touched the
+         // task, it must not by itself override an otherwise fully-verified rollback.
+         if(rollbackOwnFailures.isEmpty() && !unknownStateMutationEntered) {
             return new ApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK, backupRef,
                                    Collections.unmodifiableList(results), null);
          }
 
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollbackOwnFailures);
          LOG.error("Schedule-task changeset {} rollback failed; tasks still changed: {}", txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
          return new ApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, backupRef,
@@ -189,11 +192,12 @@ public class ScheduleChangesetApplyService {
    private void applyCreate(String txId, String task, String taskId,
                             CreateScheduleTaskRequest spec, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
-                            List<Undo> undoable)
+                            List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       ScheduleTaskMetaData meta = new ScheduleTaskMetaData(spec.getName(),
                                                             spec.getOwner().convertToKey());
+      mutationEntered.set(true);
       scheduleGateway.addScheduleTask(meta, spec.isEnabled(), spec.isDeleteIfNotScheduledToRun(),
          spec.getStartDate(), spec.getEndDate(), spec.getDescription(), spec.getLocale(),
          spec.getExecuteAsID(), spec.getConditions(), spec.getActions(), spec.getOwner().getOrgID(),
@@ -215,7 +219,7 @@ public class ScheduleChangesetApplyService {
 
    private void applyDelete(String txId, String task, String taskId, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
-                            List<Undo> undoable)
+                            List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       // Authoritative before-state, captured DURING apply -- not the preview-time snapshot -- per
@@ -223,17 +227,12 @@ public class ScheduleChangesetApplyService {
       inetsoft.sree.schedule.ScheduleTask beforeTask = scheduleManager.getScheduleTask(taskId);
       String before = ScheduleXmlProjection.project(beforeTask);
       String orgId = beforeTask == null ? null : beforeTask.getOwner().getOrgID();
-      CreateScheduleTaskRequest recreateSpec;
+      // Read-only, runs strictly before removeScheduleTask below -- a throw here (or from the
+      // before-state read above) proves nothing was mutated yet, distinct from a throw
+      // during/after the mutating call, which mutationEntered below distinguishes.
+      CreateScheduleTaskRequest recreateSpec = captureSpec(taskId, orgId, user);
 
-      try {
-         recreateSpec = captureSpec(taskId, orgId, user);
-      }
-      catch(Exception e) {
-         // Read-only, runs strictly before removeScheduleTask below -- a throw here proves
-         // nothing was mutated yet, distinct from a throw during/after the mutating call.
-         throw new PreflightCaptureFailedException(e);
-      }
-
+      mutationEntered.set(true);
       scheduleGateway.removeScheduleTask(taskId, orgId, user);
 
       boolean verified = scheduleManager.getScheduleTask(taskId) == null;
@@ -383,15 +382,6 @@ public class ScheduleChangesetApplyService {
       final String orgId;
       /** Only set when {@code originalVerb} is {@code delete} -- the snapshot to re-create from. */
       final CreateScheduleTaskRequest recreateSpec;
-   }
-
-   /** Signals that {@link #applyDelete}'s preflight {@link #captureSpec} call failed, strictly
-    * before the mutating {@code removeScheduleTask} call -- distinct from a throw during/after
-    * the mutating call, which leaves the post-mutation state genuinely unknown. */
-   private static final class PreflightCaptureFailedException extends RuntimeException {
-      PreflightCaptureFailedException(Throwable cause) {
-         super(cause);
-      }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleChangesetApplyService.class);

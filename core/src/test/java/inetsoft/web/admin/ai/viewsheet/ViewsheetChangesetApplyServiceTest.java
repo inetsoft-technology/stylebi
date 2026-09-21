@@ -896,6 +896,42 @@ class ViewsheetChangesetApplyServiceTest {
       assertTrue(result.rollbackFailures().get(0).property().startsWith("viewsheet:"));
    }
 
+   /** Bug #76856: a throw carrying no verifiable evidence for ITS OWN item was forcing
+    * STATUS_ROLLBACK_FAILED unconditionally, even when that item's own mutating call was never
+    * entered and every other entry in the plan rolled back cleanly. Reproduced here via a second
+    * item's target vanishing "concurrently" (simulated as a side effect of the first item's own
+    * mutating call) between apply()'s own resolve() re-check and the delete's own pre-mutation
+    * current == null check -- the second item's own deleteViewsheet call is never reached. */
+   @Test void preMutationThrowOnDeleteDoesNotForceRollbackFailedWhenNothingWasMutated()
+      throws Exception
+   {
+      String secondVsId = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         "Examples/Second", null, "host-org").toIdentifier();
+      viewsheetStore.put(secondVsId,
+         new Sheet(secondVsId, "Examples/Second", "Examples/Second", true, null, null));
+
+      doAnswer(inv -> {
+         String parentFolder = inv.getArgument(0);
+         String folderName = inv.getArgument(1);
+         IdentityID owner = inv.getArgument(4);
+         String fullPath = ViewsheetFolderService.computeFolderFullPath(parentFolder, folderName, owner);
+         folderStore.put(folderKey(fullPath, owner), true);
+         viewsheetStore.remove(secondVsId);
+         return null;
+      }).when(viewsheetApiService).addFolder(any(), anyString(), any(), any(), any(), eq(user));
+
+      ViewsheetChangeRequest create = createFolderChange("Examples", "New Folder", null);
+      ViewsheetChangeRequest delete = deleteViewsheetChange(secondVsId);
+      ViewsheetApplyRequest req = applyRequest("mixed", true, create, delete);
+
+      var result = service.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(viewsheetApiService, never()).deleteViewsheet(eq(secondVsId), eq(user));
+      assertFalse(folderStore.getOrDefault(folderKey("Examples/New Folder", null), false),
+         "item A's folder create must have rolled back cleanly");
+   }
+
    // -------------------------------------------------------------------------
    // taskToken audit-pinning: the audit record must carry the PREVIEWED task narrative, never the
    // apply call's own (possibly diverged) task field -- covers both source-read points (the main

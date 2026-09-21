@@ -210,6 +210,13 @@ public class AdminChangeService {
    }
 
    /**
+    * Marks an exception from {@link #applyChange} as proven to have occurred before any
+    * {@code SreeEnv} mutation was attempted for this change - safe for a caller to treat as an
+    * ordinary failed change rather than a change whose server-side state is unknown.
+    */
+   public interface NoMutationAttempted {}
+
+   /**
     * Rejects null/blank required fields up front, before any {@code SreeEnv}
     * mutation or audit write. A record with a blank transactionId or property
     * is unqueryable (getChangeset filters by transactionId), so persisting it
@@ -217,7 +224,7 @@ public class AdminChangeService {
     */
    private void requireNonBlank(String fieldName, String value) {
       if(value == null || value.trim().isEmpty()) {
-         throw new IllegalArgumentException(fieldName + ": must not be blank");
+         throw new ValidationFailure(fieldName + ": must not be blank");
       }
    }
 
@@ -234,9 +241,22 @@ public class AdminChangeService {
          !AdminChangeRecord.ACTION_ROLLBACK.equals(action) &&
          !AdminChangeRecord.ACTION_RESTORE.equals(action))
       {
-         throw new IllegalArgumentException("action: must be one of " +
+         throw new ValidationFailure("action: must be one of " +
             AdminChangeRecord.ACTION_APPLY + ", " + AdminChangeRecord.ACTION_ROLLBACK +
             ", " + AdminChangeRecord.ACTION_RESTORE);
+      }
+   }
+
+   /**
+    * Thrown by {@link #requireNonBlank}/{@link #requireValidAction}, both of which run before the
+    * {@code try} block in {@link #applyChange} that touches {@code SreeEnv} - so a caller catching
+    * this (or the plain {@link IllegalArgumentException} it extends) knows nothing was mutated.
+    */
+   private static final class ValidationFailure extends IllegalArgumentException
+      implements NoMutationAttempted
+   {
+      ValidationFailure(String message) {
+         super(message);
       }
    }
 
@@ -333,7 +353,9 @@ public class AdminChangeService {
     * Thrown only by {@link FaultInjectionProbe} in {@code throw} mode. Never thrown in a real
     * deployment - see that class's javadoc for the two gates that must both hold first.
     */
-   public static final class AdminChangeFaultInjectedException extends RuntimeException {
+   public static final class AdminChangeFaultInjectedException extends RuntimeException
+      implements NoMutationAttempted
+   {
       public AdminChangeFaultInjectedException(String property, String action) {
          super("fault injection: forced throw for " + property + " (" + action + ")");
       }

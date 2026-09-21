@@ -32,6 +32,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -101,6 +102,14 @@ public class PermissionChangesetApplyService {
          List<Undo> undoable = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
          boolean failed = false;
+         // Whether the item that threw (if any) had already entered its own mutating call
+         // (createPermissionGrant/updatePermissionGrant/deletePermissionGrant) before the throw --
+         // only that case is a genuine partial-mutation risk that must force
+         // STATUS_ROLLBACK_FAILED on its own; a throw that fires strictly before the mutating call
+         // means the item was never touched, so it must not by itself override an otherwise
+         // fully-verified rollback (bug 76856, mirroring bug 76808's DataSourceChangesetApplyService
+         // fix).
+         boolean unknownStateMutationEntered = false;
 
          List<PermissionChangeRequest> originals = req.getChanges();
 
@@ -108,10 +117,11 @@ public class PermissionChangesetApplyService {
             PlanChange change = plan.changes().get(i);
             PermissionChangeRequest original = originals.get(i);
             String key = change.property();
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                applyOne(txId, reviewedTask, key, original, currentOrgId, reviewOutcome, user, results,
-                       undoable);
+                       undoable, mutationEntered);
             }
             catch(Exception e) {
                // A throw carries no verifiable before/after evidence for THIS change -- must
@@ -121,6 +131,7 @@ public class PermissionChangesetApplyService {
                                             messageOf(e)));
                unknownStateFailures.add(new RollbackFailure(key,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               unknownStateMutationEntered = mutationEntered.get();
                failed = true;
                break;
             }
@@ -136,14 +147,19 @@ public class PermissionChangesetApplyService {
                                    Collections.unmodifiableList(results), null);
          }
 
-         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, reviewedTask, undoable, reviewOutcome, user));
+         List<RollbackFailure> rollbackOwnFailures =
+            rollback(txId, reviewedTask, undoable, reviewOutcome, user);
 
-         if(failures.isEmpty()) {
+         // An unknownStateFailures entry only forces rollback-failed when that item's own mutating
+         // call had actually been entered (a real partial-mutation risk); if it never touched
+         // storage, it must not by itself override an otherwise fully-verified rollback.
+         if(rollbackOwnFailures.isEmpty() && !unknownStateMutationEntered) {
             return new ApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK, null,
                                    Collections.unmodifiableList(results), null);
          }
 
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollbackOwnFailures);
          LOG.error("Permission changeset {} rollback failed; grants still changed: {}", txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
          return new ApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, null,
@@ -157,7 +173,8 @@ public class PermissionChangesetApplyService {
 
    private void applyOne(String txId, String task, String key, PermissionChangeRequest original,
                          String currentOrgId, String reviewOutcome, Principal user,
-                         List<ApplyOutcome> results, List<Undo> undoable)
+                         List<ApplyOutcome> results, List<Undo> undoable,
+                         AtomicBoolean mutationEntered)
       throws Exception
    {
       ResourceType resourceType =
@@ -170,22 +187,25 @@ public class PermissionChangesetApplyService {
 
       if(PermissionChangeRequest.VERB_CREATE.equals(original.getVerb())) {
          applyCreate(txId, task, key, resourceType, resourcePath, identityType, identityId,
-                    original.getActions(), currentOrgId, reviewOutcome, user, results, undoable);
+                    original.getActions(), currentOrgId, reviewOutcome, user, results, undoable,
+                    mutationEntered);
       }
       else if(PermissionChangeRequest.VERB_UPDATE.equals(original.getVerb())) {
          applyUpdate(txId, task, key, resourceType, resourcePath, identityType, identityId,
-                    original.getActions(), currentOrgId, reviewOutcome, user, results, undoable);
+                    original.getActions(), currentOrgId, reviewOutcome, user, results, undoable,
+                    mutationEntered);
       }
       else {
          applyDelete(txId, task, key, resourceType, resourcePath, identityType, identityId,
-                    currentOrgId, reviewOutcome, user, results, undoable);
+                    currentOrgId, reviewOutcome, user, results, undoable, mutationEntered);
       }
    }
 
    private void applyCreate(String txId, String task, String key, ResourceType resourceType,
                             String resourcePath, String identityType, IdentityID identityId,
                             List<String> actions, String orgId, String reviewOutcome,
-                            Principal user, List<ApplyOutcome> results, List<Undo> undoable)
+                            Principal user, List<ApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
       throws Exception
    {
       // Authoritative before-state, captured DURING apply, per spec section 2.5 of the guide.
@@ -199,6 +219,7 @@ public class PermissionChangesetApplyService {
       grant.setIdentityID(identityId);
       grant.setType(identityType);
       grant.setActions(actions);
+      mutationEntered.set(true);
       securityService.createPermissionGrant(resourcePath, resourceType.name(), grant, user);
 
       Permission rawAfter = securityEngine.getSecurityProvider()
@@ -223,7 +244,8 @@ public class PermissionChangesetApplyService {
    private void applyUpdate(String txId, String task, String key, ResourceType resourceType,
                             String resourcePath, String identityType, IdentityID identityId,
                             List<String> newActions, String orgId, String reviewOutcome,
-                            Principal user, List<ApplyOutcome> results, List<Undo> undoable)
+                            Principal user, List<ApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
       throws Exception
    {
       Permission rawBefore = securityEngine.getSecurityProvider()
@@ -235,6 +257,7 @@ public class PermissionChangesetApplyService {
       newGrant.setIdentityID(identityId);
       newGrant.setType(identityType);
       newGrant.setActions(newActions);
+      mutationEntered.set(true);
       securityService.updatePermissionGrant(resourcePath, resourceType.name(),
          identityId.convertToKey(), identityType, newGrant, user);
 
@@ -260,7 +283,8 @@ public class PermissionChangesetApplyService {
    private void applyDelete(String txId, String task, String key, ResourceType resourceType,
                             String resourcePath, String identityType, IdentityID identityId,
                             String orgId, String reviewOutcome, Principal user,
-                            List<ApplyOutcome> results, List<Undo> undoable)
+                            List<ApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
       throws Exception
    {
       // Authoritative before-state, captured DURING apply, not the preview-time snapshot -- per
@@ -270,6 +294,7 @@ public class PermissionChangesetApplyService {
       List<String> priorActions = new ArrayList<>(
          PermissionProjection.actionsFor(rawBefore, identityType, identityId, orgId));
 
+      mutationEntered.set(true);
       securityService.deletePermissionGrant(resourcePath, resourceType.name(),
          identityId.convertToKey(), identityType, user);
 

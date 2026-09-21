@@ -24,9 +24,11 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.AdminChangeRecord;
@@ -52,6 +54,7 @@ import org.mockito.quality.Strictness;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -159,7 +162,7 @@ class ScheduleFolderChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
       assertEquals("snap-ref", result.backupRef());
-      verify(folderGateway).createFolder("NewFolder", user);
+      verify(folderGateway).createFolder(eq("NewFolder"), eq(user), any(AtomicBoolean.class));
    }
 
    // A later entry's failure at APPLY time (not preview/resolve time) rolls an earlier, already-
@@ -191,7 +194,7 @@ class ScheduleFolderChangesetApplyServiceTest {
       ApplyResult result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
-      verify(folderGateway).createFolder("NewFolder", user);
+      verify(folderGateway).createFolder(eq("NewFolder"), eq(user), any(AtomicBoolean.class));
       verify(folderGateway).deleteFolder("Missing", user);
       verify(folderGateway).deleteFolder("NewFolder", user);
    }
@@ -214,7 +217,7 @@ class ScheduleFolderChangesetApplyServiceTest {
       ApplyResult result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_APPLIED, result.status());
-      verify(folderGateway).moveTask("task1", "Target", user);
+      verify(folderGateway).moveTask(eq("task1"), eq("Target"), eq(user), any(AtomicBoolean.class));
    }
 
    // Verification is a live read-back of the task's own folder, not just "did moveTask throw" --
@@ -260,7 +263,7 @@ class ScheduleFolderChangesetApplyServiceTest {
       ApplyResult result = service.apply(req, user);
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
-      verify(folderGateway).moveTask("task1", "Target", user);
+      verify(folderGateway).moveTask(eq("task1"), eq("Target"), eq(user), any(AtomicBoolean.class));
       verify(folderGateway).moveTask("task1", "Old", user);
    }
 
@@ -306,11 +309,137 @@ class ScheduleFolderChangesetApplyServiceTest {
 
       ApplyResult result = realApplyService.apply(req, user);
 
-      // A throw carries no verifiable evidence -- treated as STATUS_ROLLBACK_FAILED (nothing to
-      // roll back for the one entry that threw), matching AdminChangesetApplyService's own
-      // "state unknown" convention for a thrown, not returned, failure.
-      assertEquals(AdminChangesetApplyService.STATUS_ROLLBACK_FAILED, result.status());
+      // The permission refusal fires strictly before moveTask's own mutating call
+      // (moveScheduleItems), so nothing was ever mutated -- with an empty undoable list, rollback
+      // trivially succeeds and the result is STATUS_ROLLED_BACK, not STATUS_ROLLBACK_FAILED (bug
+      // #76856: a throw only forces rollback-failed when the item's own mutating call was actually
+      // entered).
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       verify(realTaskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // moveTask's residual, deeper-layered instance of bug #76856 (round 3): moveScheduleItems
+   // performs its OWN WRITE-on-target check (ScheduleTaskFolderService.moveScheduleItems), a
+   // check moveTask's own task-level pre-checks above never cover. Distinct from the
+   // permission-refusal test above, which fails at the TASK-level check; this one passes the
+   // task-level check and fails at the newly-duplicated target-folder WRITE check instead.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesAMoveTaskThroughTheRealGatewayAndPropagatesTheTargetFolderPermissionRefusal()
+      throws Exception
+   {
+      ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
+      ScheduleService realScheduleService = mock(ScheduleService.class);
+      ScheduleManager realScheduleManager = mock(ScheduleManager.class);
+      SecurityEngine realSecurityEngine = mock(SecurityEngine.class);
+      ScheduleTaskService realScheduleTaskService = mock(ScheduleTaskService.class);
+      AdminScheduleFolderGateway realGateway = new AdminScheduleFolderGateway(
+         realTaskFolderService, realScheduleService, realScheduleManager, realSecurityEngine,
+         realScheduleTaskService);
+      ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
+      ScheduleFolderChangesetApplyService realApplyService =
+         new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
+
+      ScheduleTask task = new ScheduleTask("task1");
+      task.setOwner(new IdentityID("admin", "host-org"));
+      task.setPath("Old");
+      lenient().when(realScheduleManager.getScheduleTask("task1")).thenReturn(task);
+      lenient().when(realTaskFolderService.getFolderEntry(anyString())).thenAnswer(inv ->
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        (String) inv.getArgument(0), null));
+      lenient().when(realTaskFolderService.getTaskFolder(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Target", null)
+            .toIdentifier()))
+         .thenReturn(new AssetFolder());
+      // The task-level check passes -- unlike the permission-refusal test above -- so this reaches
+      // moveTask's newly-added target-folder WRITE check instead. checkFolderPermission is left
+      // unstubbed, so Mockito's default boolean answer (false) fails it, strictly before
+      // moveScheduleItems (moveTask's own mutating call).
+      when(realSecurityEngine.checkPermission(
+         user, ResourceType.SCHEDULE_TASK, "task1", ResourceAction.WRITE)).thenReturn(true);
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest moveTask = moveTaskChange("task1", "Target");
+      ResolvedPlan preview = realPlanService.resolve(planRequest(moveTask), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), moveTask);
+      req.setReviewOutcome("approved");
+
+      ApplyResult result;
+
+      // Scoped to this test only: moveTask's own ScheduleTaskModel.builder().fromTask(...) call
+      // (strictly between the task-level checkPermission check above and the target-folder
+      // checkFolderPermission check this test means to exercise) resolves Catalog.getCatalog()
+      // and, via SUtil.getUserAlias(task.getOwner()), the SecurityEngine.getSecurity() static
+      // singleton -- neither has a Spring context to resolve against in this plain-Mockito test,
+      // and either would throw ShutdownException before ever reaching checkFolderPermission.
+      try(MockedStatic<Catalog> catalogStatic =
+             mockStatic(Catalog.class, withSettings().strictness(Strictness.LENIENT));
+          MockedStatic<SecurityEngine> securityEngineStatic =
+             mockStatic(SecurityEngine.class, withSettings().strictness(Strictness.LENIENT)))
+      {
+         catalogStatic.when(Catalog::getCatalog).thenReturn(mock(Catalog.class));
+         SecurityEngine staticSecurityEngine = mock(SecurityEngine.class);
+         when(staticSecurityEngine.getSecurityProvider()).thenReturn(mock(SecurityProvider.class));
+         securityEngineStatic.when(SecurityEngine::getSecurity).thenReturn(staticSecurityEngine);
+         result = realApplyService.apply(req, user);
+      }
+
+      // The target-folder WRITE refusal fires strictly before moveTask's own mutating call
+      // (moveScheduleItems), so nothing was ever mutated -- STATUS_ROLLED_BACK, not
+      // STATUS_ROLLBACK_FAILED.
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(realTaskFolderService, never()).moveScheduleItems(any(), any(), any(), any());
+   }
+
+   // -------------------------------------------------------------------------
+   // applyDelete's pre-mutation throw surface (bug #76856): countContainedTasks0's own unguarded
+   // getTaskFolder call for a nested schedule-task-folder entry (see AdminScheduleFolderGateway's
+   // countContainedTasks0) can throw strictly before deleteFolder's own mutating call. Wired
+   // through a REAL AdminScheduleFolderGateway/plan service, same shape as the moveTask test above.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesADeleteThroughTheRealGatewayAndPropagatesAPreMutationCountFailure() throws Exception {
+      ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
+      ScheduleService realScheduleService = mock(ScheduleService.class);
+      AdminScheduleFolderGateway realGateway = new AdminScheduleFolderGateway(
+         realTaskFolderService, realScheduleService, mock(ScheduleManager.class),
+         mock(SecurityEngine.class), mock(ScheduleTaskService.class));
+      ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
+      ScheduleFolderChangesetApplyService realApplyService =
+         new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
+
+      AssetEntry childEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+         AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Parent/Child", null);
+      AssetFolder parentFolder = new AssetFolder();
+      parentFolder.addEntry(childEntry);
+
+      lenient().when(realTaskFolderService.getFolderEntry("Parent")).thenAnswer(inv ->
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        "Parent", null));
+      when(realTaskFolderService.getTaskFolder(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "Parent",
+                        null).toIdentifier()))
+         .thenReturn(parentFolder);
+      // The first two calls succeed (folder reports empty, so the plan does not require force):
+      // once for this test's own explicit preview resolve, once for apply()'s own internal
+      // re-resolve of the same plan. The third call -- applyDelete's own re-run of the same
+      // preflight, inside the apply loop -- throws, strictly before deleteFolder's own mutating
+      // call (scheduleService.removeScheduleFolders).
+      when(realTaskFolderService.getTaskFolder(childEntry.toIdentifier()))
+         .thenReturn(new AssetFolder(), new AssetFolder())
+         .thenThrow(new RuntimeException("storage layer failure"));
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest delete = deleteChangeForce("Parent");
+      ResolvedPlan preview = realPlanService.resolve(planRequest(delete), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), delete);
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = realApplyService.apply(req, user);
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(realScheduleService, never()).removeScheduleFolders(any(), any());
    }
 
    // -------------------------------------------------------------------------
@@ -343,6 +472,10 @@ class ScheduleFolderChangesetApplyServiceTest {
          new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "A", null)
             .toIdentifier()))
          .thenReturn(new AssetFolder());
+      // renameFolder's own DELETE/WRITE permission checks (bug #76856, round 2) must pass here, or
+      // the real gateway throws before ever reaching taskFolderService.renameFolder at all.
+      lenient().when(realTaskFolderService.checkFolderPermission(
+         eq("A"), eq(user), any(ResourceAction.class))).thenReturn(true);
       ArgumentCaptor<EditTaskFolderDialogModel> captor = ArgumentCaptor.forClass(EditTaskFolderDialogModel.class);
       when(realTaskFolderService.renameFolder(captor.capture(), eq(user))).thenReturn(null);
       when(backupService.backup(anyString())).thenReturn("snap-ref");
@@ -359,6 +492,54 @@ class ScheduleFolderChangesetApplyServiceTest {
                      "existing owner in ScheduleTaskFolderService#changeFolder, it does not preserve it");
       assertEquals("", model.owner().name);
       assertNull(model.owner().orgID);
+   }
+
+   // -------------------------------------------------------------------------
+   // bug #76856, fix round 2: renameFolder/moveFolder/createFolder each perform their own
+   // permission checks strictly before their own mutating call (see
+   // AdminScheduleFolderGateway#renameFolder(String, String, Principal, AtomicBoolean)'s own
+   // javadoc) -- the same bug pattern already closed for moveTask one layer deeper. Wired through
+   // a REAL AdminScheduleFolderGateway (backed by a mocked ScheduleTaskFolderService), same shape
+   // as the moveTask real-gateway test above.
+   // -------------------------------------------------------------------------
+
+   @Test void appliesARenameThroughTheRealGatewayAndPropagatesItsPermissionRefusal() throws Exception {
+      ScheduleTaskFolderService realTaskFolderService = mock(ScheduleTaskFolderService.class);
+      ScheduleService realScheduleService = mock(ScheduleService.class);
+      AdminScheduleFolderGateway realGateway = new AdminScheduleFolderGateway(
+         realTaskFolderService, realScheduleService, mock(ScheduleManager.class),
+         mock(SecurityEngine.class), mock(ScheduleTaskService.class));
+      ScheduleFolderChangePlanService realPlanService = new ScheduleFolderChangePlanService(realGateway);
+      ScheduleFolderChangesetApplyService realApplyService =
+         new ScheduleFolderChangesetApplyService(realPlanService, realGateway, backupService);
+
+      lenient().when(realTaskFolderService.getFolderEntry(anyString())).thenAnswer(inv ->
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
+                        (String) inv.getArgument(0), null));
+      // Only "A" (the rename's source) exists -- "B" must NOT, matching the owner-preservation
+      // test's own convention above.
+      lenient().when(realTaskFolderService.getTaskFolder(
+         new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, "A", null)
+            .toIdentifier()))
+         .thenReturn(new AssetFolder());
+      // checkFolderPermission left unstubbed -- Mockito's default boolean answer is false, so
+      // renameFolder's own DELETE check fails, throwing strictly before
+      // taskFolderService.renameFolder (its own mutating call).
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+
+      ScheduleFolderChangeRequest rename = renameChange("A", "B");
+      ResolvedPlan preview = realPlanService.resolve(planRequest(rename), user);
+      ScheduleFolderApplyRequest req = applyRequest(preview.planHash(), preview.taskToken(), rename);
+      req.setReviewOutcome("approved");
+
+      ApplyResult result = realApplyService.apply(req, user);
+
+      // The permission refusal fires strictly before renameFolder's own mutating call
+      // (taskFolderService.renameFolder), so nothing was ever mutated -- with an empty undoable
+      // list, rollback trivially succeeds and the result is STATUS_ROLLED_BACK, not
+      // STATUS_ROLLBACK_FAILED (bug #76856, round 2: the same gap already closed for moveTask).
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(realTaskFolderService, never()).renameFolder(any(), any());
    }
 
    // -------------------------------------------------------------------------

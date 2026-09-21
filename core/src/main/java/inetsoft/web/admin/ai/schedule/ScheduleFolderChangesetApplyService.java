@@ -30,6 +30,7 @@ import java.security.Principal;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
@@ -102,6 +103,13 @@ public class ScheduleFolderChangesetApplyService {
          List<Undo> undoable = new ArrayList<>();
          List<RollbackFailure> unknownStateFailures = new ArrayList<>();
          boolean failed = false;
+         // Whether the item that threw (if any) had already entered its own mutating call
+         // (createFolder/renameFolder/moveFolder/moveTask/deleteFolder) before the throw -- only
+         // that case is a genuine partial-mutation risk that must force STATUS_ROLLBACK_FAILED on
+         // its own; a throw that fires strictly before the mutating call means the item was never
+         // touched, so it must not by itself override an otherwise fully-verified rollback (bug
+         // 76856, mirroring bug 76808's DataSourceChangesetApplyService fix).
+         boolean unknownStateMutationEntered = false;
 
          List<ScheduleFolderChangeRequest> originals = req.getChanges();
 
@@ -109,28 +117,29 @@ public class ScheduleFolderChangesetApplyService {
             PlanChange change = plan.changes().get(i);
             ScheduleFolderChangeRequest original = originals.get(i);
             String path = change.property();
+            AtomicBoolean mutationEntered = new AtomicBoolean(false);
 
             try {
                switch(original.getVerb()) {
                case ScheduleFolderChangeRequest.VERB_CREATE:
                   applyCreate(txId, reviewedTask, path, backupRef, req.getReviewOutcome(), user,
-                             results, undoable);
+                             results, undoable, mutationEntered);
                   break;
                case ScheduleFolderChangeRequest.VERB_RENAME:
                   applyRename(txId, reviewedTask, path, original.getNewPath(), backupRef,
-                             req.getReviewOutcome(), user, results, undoable);
+                             req.getReviewOutcome(), user, results, undoable, mutationEntered);
                   break;
                case ScheduleFolderChangeRequest.VERB_MOVE:
                   applyMove(txId, reviewedTask, path, original.getTargetPath(), backupRef,
-                           req.getReviewOutcome(), user, results, undoable);
+                           req.getReviewOutcome(), user, results, undoable, mutationEntered);
                   break;
                case ScheduleFolderChangeRequest.VERB_MOVE_TASK:
                   applyMoveTask(txId, reviewedTask, path, original.getTargetPath(), backupRef,
-                               req.getReviewOutcome(), user, results, undoable);
+                               req.getReviewOutcome(), user, results, undoable, mutationEntered);
                   break;
                default:
                   applyDelete(txId, reviewedTask, path, backupRef, req.getReviewOutcome(), user,
-                             results, undoable);
+                             results, undoable, mutationEntered);
                   break;
                }
             }
@@ -142,6 +151,7 @@ public class ScheduleFolderChangesetApplyService {
                                             messageOf(e)));
                unknownStateFailures.add(new RollbackFailure(path,
                   "state unknown: apply did not return a verifiable outcome (" + messageOf(e) + ")"));
+               unknownStateMutationEntered = mutationEntered.get();
                failed = true;
                break;
             }
@@ -157,15 +167,19 @@ public class ScheduleFolderChangesetApplyService {
                                    Collections.unmodifiableList(results), null);
          }
 
-         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
-         failures.addAll(rollback(txId, reviewedTask, undoable, backupRef, req.getReviewOutcome(),
-                                  user));
+         List<RollbackFailure> rollbackOwnFailures =
+            rollback(txId, reviewedTask, undoable, backupRef, req.getReviewOutcome(), user);
 
-         if(failures.isEmpty()) {
+         // An unknownStateFailures entry only forces rollback-failed when that item's own mutating
+         // call had actually been entered (a real partial-mutation risk); if it never touched the
+         // folder tree, it must not by itself override an otherwise fully-verified rollback.
+         if(rollbackOwnFailures.isEmpty() && !unknownStateMutationEntered) {
             return new ApplyResult(txId, AdminChangesetApplyService.STATUS_ROLLED_BACK, backupRef,
                                    Collections.unmodifiableList(results), null);
          }
 
+         List<RollbackFailure> failures = new ArrayList<>(unknownStateFailures);
+         failures.addAll(rollbackOwnFailures);
          LOG.error("Schedule-task-folder changeset {} rollback failed; folders still changed: {}",
                   txId,
                   failures.stream().map(RollbackFailure::property).collect(Collectors.joining(", ")));
@@ -180,10 +194,14 @@ public class ScheduleFolderChangesetApplyService {
 
    private void applyCreate(String txId, String task, String path, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
-                            List<Undo> undoable)
+                            List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
-      folderGateway.createFolder(path, user);
+      // createFolder's own addFolder calls throw strictly before ITS mutating write, so
+      // mutationEntered must be threaded through rather than set here -- setting it before this
+      // call would (incorrectly) mark a pure permission refusal as a partial-mutation risk (bug
+      // 76856), the same reasoning applyMoveTask already documents for moveTask.
+      folderGateway.createFolder(path, user, mutationEntered);
 
       AssetFolder after = folderGateway.findFolder(path);
       boolean verified = after != null;
@@ -202,13 +220,17 @@ public class ScheduleFolderChangesetApplyService {
 
    private void applyRename(String txId, String task, String oldPath, String newPath,
                             String backupRef, String reviewOutcome, Principal user,
-                            List<ApplyOutcome> results, List<Undo> undoable)
+                            List<ApplyOutcome> results, List<Undo> undoable,
+                            AtomicBoolean mutationEntered)
       throws Exception
    {
       AssetFolder before = folderGateway.findFolder(oldPath);
       String beforeProjection = ScheduleFolderXmlProjection.project(oldPath, before);
 
-      folderGateway.renameFolder(oldPath, newPath, user);
+      // renameFolder's own DELETE/WRITE permission checks and folder-existence check throw
+      // strictly before ITS mutating call, so mutationEntered must be threaded through rather than
+      // set here -- see applyCreate's own comment above.
+      folderGateway.renameFolder(oldPath, newPath, user, mutationEntered);
 
       String normalizedNewPath = AdminScheduleFolderGateway.normalizePath(newPath);
       AssetFolder after = folderGateway.findFolder(normalizedNewPath);
@@ -228,7 +250,8 @@ public class ScheduleFolderChangesetApplyService {
 
    private void applyMove(String txId, String task, String path, String targetPath,
                           String backupRef, String reviewOutcome, Principal user,
-                          List<ApplyOutcome> results, List<Undo> undoable)
+                          List<ApplyOutcome> results, List<Undo> undoable,
+                          AtomicBoolean mutationEntered)
       throws Exception
    {
       AssetFolder before = folderGateway.findFolder(path);
@@ -237,7 +260,10 @@ public class ScheduleFolderChangesetApplyService {
       String resultingPath =
          AdminScheduleFolderGateway.joinPath(targetPath, AdminScheduleFolderGateway.leafOf(path));
 
-      folderGateway.moveFolder(path, targetPath, user);
+      // moveFolder's own WRITE-on-target and DELETE-on-source permission checks throw strictly
+      // before ITS mutating call, so mutationEntered must be threaded through rather than set here
+      // -- see applyCreate's own comment above.
+      folderGateway.moveFolder(path, targetPath, user, mutationEntered);
 
       AssetFolder after = folderGateway.findFolder(resultingPath);
       boolean verified = after != null && (resultingPath.equals(path) || folderGateway.findFolder(path) == null);
@@ -268,13 +294,18 @@ public class ScheduleFolderChangesetApplyService {
     */
    private void applyMoveTask(String txId, String task, String taskId, String targetPath,
                               String backupRef, String reviewOutcome, Principal user,
-                              List<ApplyOutcome> results, List<Undo> undoable)
+                              List<ApplyOutcome> results, List<Undo> undoable,
+                              AtomicBoolean mutationEntered)
       throws Exception
    {
       String beforePath = folderGateway.getTaskPath(taskId);
       String normalizedTargetPath = AdminScheduleFolderGateway.normalizePath(targetPath);
 
-      folderGateway.moveTask(taskId, targetPath, user);
+      // moveTask's own permission/removable checks throw strictly before ITS mutating call
+      // (taskFolderService.moveScheduleItems), so mutationEntered must be threaded through rather
+      // than set here -- setting it before this call would (incorrectly) mark a pure permission
+      // refusal as a partial-mutation risk (bug #76856).
+      folderGateway.moveTask(taskId, targetPath, user, mutationEntered);
 
       String afterPath = folderGateway.getTaskPath(taskId);
       boolean verified = afterPath != null &&
@@ -293,7 +324,7 @@ public class ScheduleFolderChangesetApplyService {
 
    private void applyDelete(String txId, String task, String path, String backupRef,
                             String reviewOutcome, Principal user, List<ApplyOutcome> results,
-                            List<Undo> undoable)
+                            List<Undo> undoable, AtomicBoolean mutationEntered)
       throws Exception
    {
       AssetFolder before = folderGateway.findFolder(path);
@@ -304,6 +335,7 @@ public class ScheduleFolderChangesetApplyService {
       int containedTaskCount = folderGateway.countContainedTasks(path);
       String risk = containedTaskCount == 0 ? AdminChangeRecord.RISK_LOW : AdminChangeRecord.RISK_HIGH;
 
+      mutationEntered.set(true);
       folderGateway.deleteFolder(path, user);
 
       boolean verified = folderGateway.findFolder(path) == null;
