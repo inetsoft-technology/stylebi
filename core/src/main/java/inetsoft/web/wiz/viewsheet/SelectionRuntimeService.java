@@ -69,16 +69,23 @@ import java.util.*;
  * throw {@code NullPointerException}; and every one of them throws {@code ClassCastException} on a
  * name that exists but is not a selection assembly. There is no server behaviour worth forwarding.
  *
- * <p><b>An active search string silently narrows what an apply touches.</b> When one is set and the
- * assembly is not single-select, {@code applySelection} runs
- * {@code olist = olist.findAll(search, true)} before applying, so the write lands on the filtered
- * subset. This class reads it and reports it rather than pretending the apply was global, and
- * {@link #setSelection(String, Principal, String, List, List, String, Boolean, Boolean, String,
- * String) setSelection}'s {@code search} parameter can set one before the apply runs, the same as
- * typing into the widget's own search box (bug-76758). Either way, {@code setSearchString} writes
- * both {@code search} and {@code search2}, only {@code search2} is persisted, and <b>nothing in the
- * repository ever parses {@code search2} back</b> — so a search string never survives a reopen,
- * exactly like the interactive widget's own search box.
+ * <p><b>An active search string narrows what a values apply touches.</b> {@code VSSelectionService}'s
+ * own apply path ({@code doApplySelection}) has no search-awareness at all — its
+ * {@code olist.findAll(search, true)} call runs afterwards, from {@code afterSelectionListUpdate},
+ * and merges previously-selected-but-now-hidden values back in rather than filtering the new
+ * request. So this class does the filtering itself, before ever calling {@code applySelection}:
+ * when a search is active and the assembly is not single-select, {@link #setSelection(String,
+ * Principal, String, List, List, String, Boolean, Boolean, String, String) setSelection} drops any
+ * requested value the search would hide (the same case-insensitive substring match
+ * {@code SelectionValue.match}/{@code CompositeSelectionValue.match} give the widget's own search
+ * box) and discloses exactly what was dropped, rather than a bare, unconditional claim that
+ * scoping happened (bug-76854). {@code setSelection}'s {@code search} parameter can set the search
+ * string before that same apply runs, the same as typing into the widget's own search box
+ * (bug-76758). Either way, {@code setSearchString} writes both {@code search} and {@code search2},
+ * only {@code search2} is persisted, and <b>nothing in the repository ever parses {@code search2}
+ * back</b> — so a search string never survives a reopen, exactly like the interactive widget's own
+ * search box. {@code deselect} is deliberately left unscoped by search for now — see the note at
+ * the {@code hasDeselect} block in {@code setSelection}.
  */
 @Service
 public class SelectionRuntimeService {
@@ -238,15 +245,16 @@ public class SelectionRuntimeService {
                   "it multi-select first.");
             }
 
+            boolean idMode = assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode();
+            SelectionList domain = isValueMatchable(assembly) ? selectionListOf(assembly) : null;
+
             if(isValueMatchable(assembly)) {
                // doApplySelection matches each requested value against the live domain and
                // silently drops anything that doesn't resolve -- no exception, no counter,
                // nothing the caller could observe. Refuse a typo'd value by name, atomically,
                // before applying anything, rather than reporting an inflated count for a
                // partially-applied result.
-               boolean idMode = assembly instanceof SelectionTreeVSAssembly tree && tree.isIDMode();
-               List<List<String>> unmatched =
-                  findUnmatchedPaths(selectionListOf(assembly), values, idMode);
+               List<List<String>> unmatched = findUnmatchedPaths(domain, values, idMode);
 
                if(!unmatched.isEmpty()) {
                   throw new IllegalArgumentException(
@@ -256,12 +264,25 @@ public class SelectionRuntimeService {
             }
 
             String activeSearch = searchString(info);
+            List<List<String>> effectiveValues = values;
 
             if(activeSearch != null && !activeSearch.isBlank() && !single) {
-               // Not a refusal: the apply is legitimate, but it lands on the filtered subset and
-               // nothing in the result would otherwise say so. Reads whatever is live on `info`,
-               // which the `search` parameter above may have just set for this same call.
-               result.put("scopedBySearch", activeSearch);
+               // Not a refusal: the apply is legitimate for whatever still matches, but
+               // doApplySelection itself has no search-awareness at all -- it would otherwise
+               // apply every requested value regardless of the active search (bug-76854). Filter
+               // down to the subset SelectionValue.match (the same case-insensitive substring
+               // rule the widget's own search box narrows by) would still show, and disclose
+               // exactly what got dropped rather than a bare, unconditional echo of the search
+               // string.
+               List<List<String>> matching = filterBySearch(domain, values, idMode, activeSearch);
+               List<List<String>> dropped = new ArrayList<>(values);
+               dropped.removeAll(matching);
+
+               if(!dropped.isEmpty()) {
+                  result.put("scopedBySearch", activeSearch);
+                  result.put("scopedBySearchDropped", dropped);
+                  effectiveValues = matching;
+               }
             }
 
             if(!single && isPathDiffable(assembly) && !Boolean.TRUE.equals(additive)) {
@@ -270,8 +291,11 @@ public class SelectionRuntimeService {
                // be turned off explicitly, or it stays selected alongside them. Single-select
                // already gets a full reset for free via unselectChildren. additive:true is the
                // caller explicitly opting out of this replace behaviour -- see the javadoc above.
+               // Diffs against effectiveValues (the post-search-filter set), not the raw request,
+               // so a value the search dropped is not treated as "kept" and excluded from the
+               // deselect it would otherwise need.
                List<List<String>> currentPaths = selectedPaths(assembly);
-               List<List<String>> toRemove = toDeselect(currentPaths, values);
+               List<List<String>> toRemove = toDeselect(currentPaths, effectiveValues);
 
                if(!toRemove.isEmpty()) {
                   selections.applySelection(runtimeId, assemblyName,
@@ -302,14 +326,21 @@ public class SelectionRuntimeService {
                }
             }
             else {
-               selections.applySelection(runtimeId, assemblyName, applyEvent(values), user, dispatcher,
-                                         linkUri);
+               selections.applySelection(runtimeId, assemblyName, applyEvent(effectiveValues), user,
+                                         dispatcher, linkUri);
             }
 
-            result.put("valuesSelected", values.size());
+            result.put("valuesSelected", effectiveValues.size());
          }
 
          if(hasDeselect) {
+            // Deliberately not scoped by the active search the way values is above (bug-76854).
+            // The charter's own repro only exercised values under search; scoping deselect too is
+            // a reasonable extrapolation (a deselect names things by value the same way a select
+            // does) but not a confirmed defect, and deselect's own semantics cut the other way --
+            // "deselect a value the search box currently hides" is a plausible, useful call
+            // (clearing a selection made before the caller searched), not obviously a mistake to
+            // refuse. Left as its own, narrower-scoped follow-up rather than folded in here.
             if(!isPathDiffable(assembly)) {
                throw new IllegalArgumentException(
                   "'" + assemblyName + "' is " + describe(assembly) + " -- 'deselect' only works " +
@@ -913,6 +944,111 @@ public class SelectionRuntimeService {
       }
 
       return unmatched;
+   }
+
+   /**
+    * {@code paths} narrowed down to the ones that resolve to a value the active search string
+    * would still show -- {@code doApplySelection} has no search-awareness of its own, so this is
+    * what actually makes {@code search} scope a values apply rather than merely being disclosed as
+    * having done so (bug-76854). Skipped (returns {@code paths} unchanged) when the domain isn't
+    * known yet, the same cannot-tell convention {@link #findUnmatchedPaths(SelectionList, List, boolean)}
+    * uses.
+    */
+   private static List<List<String>> filterBySearch(SelectionList domain, List<List<String>> paths,
+                                                     boolean idMode, String search)
+   {
+      if(domain == null) {
+         return paths;
+      }
+
+      return filterBySearch(domain.getSelectionValues(), paths, idMode, search);
+   }
+
+   /**
+    * Split out from its {@code SelectionList} container so it is testable, the same reason
+    * {@link #findUnmatchedPaths(SelectionValue[], List, boolean)} is. Reuses that method's own
+    * path-resolution walk ({@link #matchesSearchPath}/{@link #matchesSearchAnywhere} mirror
+    * {@link #matchesPath}/{@link #matchesAnywhere} exactly, substituting a search-match test for an
+    * existence test at the point a path resolves to a value) so the two checks -- does this value
+    * exist at all, does it match the active search -- stay in lockstep as the domain-walking logic
+    * evolves.
+    */
+   static List<List<String>> filterBySearch(SelectionValue[] domain, List<List<String>> paths,
+                                            boolean idMode, String search)
+   {
+      List<List<String>> matching = new ArrayList<>();
+
+      for(List<String> path : paths) {
+         String[] segments = path.toArray(new String[0]);
+         boolean matches = idMode ? matchesSearchAnywhere(domain, segments, search)
+                                   : matchesSearchPath(domain, segments, 0, search);
+
+         if(matches) {
+            matching.add(path);
+         }
+      }
+
+      return matching;
+   }
+
+   /**
+    * {@link #matchesPath} with a search-match test in place of the found/not-found test at the
+    * point a path resolves to a value -- {@code recursive=true} on that final
+    * {@code SelectionValue.match} call is what lets a whole parent node selected as a composite
+    * match via a matching descendant, the same recursive semantics
+    * {@code CompositeSelectionValue.match} gives the widget's own search box.
+    */
+   private static boolean matchesSearchPath(SelectionValue[] level, String[] path, int index,
+                                            String search)
+   {
+      if(level == null) {
+         return false;
+      }
+
+      SelectionValue value = findByValue(level, path[index]);
+
+      if(value == null) {
+         return false;
+      }
+
+      if(value instanceof CompositeSelectionValue composite && index < path.length - 1) {
+         SelectionList childList = composite.getSelectionList();
+         return matchesSearchPath(childList == null ? null : childList.getSelectionValues(), path,
+                                  index + 1, search);
+      }
+
+      return value.match(search, true);
+   }
+
+   /** {@link #matchesAnywhere} with a search-match test alongside the existence test. */
+   private static boolean matchesSearchAnywhere(SelectionValue[] level, String[] path,
+                                                String search)
+   {
+      if(level == null) {
+         return false;
+      }
+
+      for(SelectionValue value : level) {
+         if(value == null) {
+            continue;
+         }
+
+         if(Tool.contains(path, value.getValue(), true, true, true) && value.match(search, true)) {
+            return true;
+         }
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList childList = composite.getSelectionList();
+
+            if(matchesSearchAnywhere(childList == null ? null : childList.getSelectionValues(),
+                                     path, search))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**

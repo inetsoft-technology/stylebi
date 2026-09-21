@@ -199,18 +199,26 @@ class SelectionRuntimeServiceTest {
    }
 
    /**
-    * <b>An active search string narrows what the apply touches</b> —
-    * {@code olist = olist.findAll(search, true)} runs first — so the result has to say so. It is not
-    * a refusal: the apply is legitimate, it just did not land on the whole list.
+    * <b>Superseded by bug-76854.</b> This used to assert {@code scopedBySearch} fired merely
+    * because a search string happened to be active — true here even though "East" actually
+    * matches "Eas" and nothing would ever have been dropped, which is exactly the gap that let a
+    * value NOT matching the search land unfiltered (the reporter's repro). The disclosure now
+    * requires knowing something was actually excluded, which needs a real domain; this harness
+    * cannot supply one ({@code SelectionList} cannot be mocked or constructed outside a Spring
+    * context — see {@link #aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath}),
+    * so the safe behaviour here is the same "cannot tell" skip
+    * {@link #skipsValidationWhenTheDomainIsntKnownYet} already exercises for unmatched-value
+    * validation. The actual filtering logic is unit tested directly against
+    * {@link SelectionRuntimeService#filterBySearch(SelectionValue[], List, boolean, String)} below.
     */
    @Test
-   void disclosesThatASearchStringScopedTheApply() throws Exception {
+   void omitsScopedBySearchWhenTheDomainIsntKnownYetEvenWithAnActiveSearch() throws Exception {
       Harness h = harness(list(XConstants.SORT_ASC, false, "Eas"));
 
       Map<String, Object> result = h.service.setSelection(
          "tok", principal(), "Filter1", List.of(List.of("East")), null, null, null, null, "");
 
-      assertEquals("Eas", result.get("scopedBySearch"));
+      assertFalse(result.containsKey("scopedBySearch"));
    }
 
    /** No search string, no scoping claim — presence of the key is the signal. */
@@ -250,12 +258,14 @@ class SelectionRuntimeServiceTest {
    }
 
    /**
-    * {@code scopedBySearch} reads {@code info.getSearchString()} live, so a search set in this same
-    * call has to show up there too, not just as {@code searchSet} -- the two disclosures cover
-    * different things (what was requested vs. what the values-apply actually saw).
+    * <b>Superseded by bug-76854</b> the same way {@link #omitsScopedBySearchWhenTheDomainIsntKnownYetEvenWithAnActiveSearch}
+    * is — {@code scopedBySearch} still reads {@code info.getSearchString()} live (a search set in
+    * this same call still has to be visible to it, not just to {@code searchSet}), but firing the
+    * disclosure now also needs to know something was dropped, which this domain-less harness can't
+    * supply.
     */
    @Test
-   void scopedBySearchReflectsASearchStringSetInTheSameCall() throws Exception {
+   void omitsScopedBySearchWhenSearchIsSetInTheSameCallButDomainIsntKnown() throws Exception {
       Harness h = harness(list(XConstants.SORT_ASC, false, "Sm"));
 
       Map<String, Object> result = h.service.setSelection(
@@ -263,7 +273,7 @@ class SelectionRuntimeServiceTest {
          "");
 
       assertEquals("Sm", result.get("searchSet"));
-      assertEquals("Sm", result.get("scopedBySearch"));
+      assertFalse(result.containsKey("scopedBySearch"));
    }
 
    /** A range slider has no search box -- the existing sortOrder refusal's counterpart. */
@@ -620,6 +630,145 @@ class SelectionRuntimeServiceTest {
          new SelectionValue[]{ east }, List.of(List.of("Nope")), true);
 
       assertEquals(List.of(List.of("Nope")), unmatched);
+   }
+
+   // ── search-scoped filtering (bug-76854: set_selection applied a value the active search would
+   // have hidden, and unconditionally claimed the write was scoped whether or not it actually was)
+
+   /**
+    * The reporter's own repro, isolated to the matching primitive: "Business" does not contain
+    * "Ga" ({@code SelectionValue.match}'s case-insensitive substring rule), so it must be dropped
+    * rather than passed through to the apply the old code sent unfiltered. {@code match} is
+    * stubbed directly rather than relying on a mock executing the real
+    * {@code getLabel().toLowerCase().contains(...)} body (a plain Mockito mock does not run
+    * inherited real method logic) — this asserts {@code filterBySearch} correctly acts on whatever
+    * {@code match} reports, the same way {@link #refusesATypoedValueRatherThanSilentlyDroppingIt}
+    * stubs {@code getValue()} directly rather than exercising a real domain lookup.
+    */
+   @Test
+   void excludesAValueThatDoesNotMatchTheActiveSearch() {
+      SelectionValue business = mock(SelectionValue.class);
+      when(business.getValue()).thenReturn("Business");
+      when(business.match("Ga", true)).thenReturn(false);
+
+      List<List<String>> matching = SelectionRuntimeService.filterBySearch(
+         new SelectionValue[]{ business }, List.of(List.of("Business")), false, "Ga");
+
+      assertEquals(List.of(), matching);
+   }
+
+   /**
+    * The reporter's exact mixed-request repro (values Business and Games under search Ga) — only
+    * Games matches, so only Games may land.
+    */
+   @Test
+   void keepsOnlyTheMatchingValueFromAMixedRequest() {
+      SelectionValue business = mock(SelectionValue.class);
+      when(business.getValue()).thenReturn("Business");
+      when(business.match("Ga", true)).thenReturn(false);
+      SelectionValue games = mock(SelectionValue.class);
+      when(games.getValue()).thenReturn("Games");
+      when(games.match("Ga", true)).thenReturn(true);
+
+      List<List<String>> matching = SelectionRuntimeService.filterBySearch(
+         new SelectionValue[]{ business, games },
+         List.of(List.of("Business"), List.of("Games")), false, "Ga");
+
+      assertEquals(List.of(List.of("Games")), matching);
+   }
+
+   /** Nothing to drop when every requested value already matches — the happy path is unaffected. */
+   @Test
+   void keepsEveryValueWhenAllOfThemMatch() {
+      SelectionValue games = mock(SelectionValue.class);
+      when(games.getValue()).thenReturn("Games");
+      when(games.match("Ga", true)).thenReturn(true);
+      SelectionValue gadgets = mock(SelectionValue.class);
+      when(gadgets.getValue()).thenReturn("Gadgets");
+      when(gadgets.match("Ga", true)).thenReturn(true);
+
+      List<List<String>> matching = SelectionRuntimeService.filterBySearch(
+         new SelectionValue[]{ games, gadgets },
+         List.of(List.of("Games"), List.of("Gadgets")), false, "Ga");
+
+      assertEquals(List.of(List.of("Games"), List.of("Gadgets")), matching);
+   }
+
+   /**
+    * {@code filterBySearch} must forward the search string to {@code match} exactly as given —
+    * case-insensitivity is {@code SelectionValue.match}'s own contract (already covered at that
+    * class's own level), not something this method should re-implement or subtly alter (e.g. by
+    * re-casing it) before delegating.
+    */
+   @Test
+   void forwardsTheSearchStringToMatchUnaltered() {
+      SelectionValue games = mock(SelectionValue.class);
+      when(games.getValue()).thenReturn("Games");
+      when(games.match("GA", true)).thenReturn(true);
+
+      List<List<String>> matching = SelectionRuntimeService.filterBySearch(
+         new SelectionValue[]{ games }, List.of(List.of("Games")), false, "GA");
+
+      assertEquals(List.of(List.of("Games")), matching);
+      verify(games).match("GA", true);
+   }
+
+   /**
+    * A whole composite node selected as itself (path length 1, not descending into a child) has to
+    * be resolved with {@code recursive=true} on {@code CompositeSelectionValue.match} — the
+    * semantics that let a parent whose own label doesn't match still count as matching because a
+    * descendant does, the same as the widget's own search box keeps a parent expanded/visible when
+    * one of its children matches. Stubbed directly rather than via a real child list: {@code
+    * SelectionList} cannot be constructed or mocked outside a Spring context (see
+    * {@link #aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath}), so this asserts
+    * that {@code filterBySearch} calls {@code match} with recursive semantics, not that
+    * {@code CompositeSelectionValue} itself recurses correctly (a different class, already covered
+    * elsewhere).
+    */
+   @Test
+   void matchesAWholeCompositeNodeRecursivelyViaADescendant() {
+      CompositeSelectionValue east = mock(CompositeSelectionValue.class);
+      when(east.getValue()).thenReturn("East");
+      when(east.match("Ga", true)).thenReturn(true);
+
+      List<List<String>> matching = SelectionRuntimeService.filterBySearch(
+         new SelectionValue[]{ east }, List.of(List.of("East")), false, "Ga");
+
+      assertEquals(List.of(List.of("East")), matching);
+   }
+
+   /** The mirror of the above: no descendant matches either, so the whole node is dropped too. */
+   @Test
+   void dropsAWholeCompositeNodeWhenNoDescendantMatches() {
+      CompositeSelectionValue east = mock(CompositeSelectionValue.class);
+      when(east.getValue()).thenReturn("East");
+      when(east.match("Ga", true)).thenReturn(false);
+
+      List<List<String>> matching = SelectionRuntimeService.filterBySearch(
+         new SelectionValue[]{ east }, List.of(List.of("East")), false, "Ga");
+
+      assertEquals(List.of(), matching);
+   }
+
+   /**
+    * ID mode matches by scanning the whole tree for a node whose value appears anywhere in the
+    * requested path array (mirroring {@code matchesAnywhere}) — the search-match test has to ride
+    * along the same scan, not a segment-by-segment descent.
+    */
+   @Test
+   void filtersAnIdModeValueByTheSameAnywhereScan() {
+      SelectionValue games = mock(SelectionValue.class);
+      when(games.getValue()).thenReturn("Games");
+      when(games.match("Ga", true)).thenReturn(true);
+      SelectionValue business = mock(SelectionValue.class);
+      when(business.getValue()).thenReturn("Business");
+      when(business.match("Ga", true)).thenReturn(false);
+
+      List<List<String>> matching = SelectionRuntimeService.filterBySearch(
+         new SelectionValue[]{ games, business },
+         List.of(List.of("Games"), List.of("Business")), true, "Ga");
+
+      assertEquals(List.of(List.of("Games")), matching);
    }
 
    // ── the diff-and-deselect step (bug-76548: set_selection accumulated instead of replacing) ────
