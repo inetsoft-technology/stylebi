@@ -1277,6 +1277,230 @@ class TableBindingServiceTest {
       assertTrue(thrown.getMessage().toLowerCase().contains("crosstab"));
    }
 
+   // ── set_crosstab_column_visibility (bug #76869, VTB-030) ───────────────────
+
+   /**
+    * Hide resolves a bare column name -- the ordinary, unambiguous case -- all the way down to a
+    * real rendered lens column index, and {@code CrosstabVSAssemblyInfo.addHiddenColumn} is
+    * called with that real index, not a stand-in for the raw shelf position. "Region" (shelf
+    * position 0) stays untouched; only "State" (shelf position 1, rendered at lens column 1) is
+    * hidden.
+    */
+   @Test
+   void setCrosstabColumnVisibilityHidesAColumnByNameAtItsRealLensIndex() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region"), dim("State")));
+
+      VSDimensionRef liveRegion = new VSDimensionRef();
+      liveRegion.setGroupColumnValue("Region");
+      VSDimensionRef liveState = new VSDimensionRef();
+      liveState.setGroupColumnValue("State");
+      VSCrosstabInfo crossInfo = new VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveRegion, liveState });
+
+      inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo tableInfo =
+         new inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getCrosstabInfo()).thenReturn(tableInfo);
+      when(assembly.getAbsoluteName()).thenReturn("Crosstab1");
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(2);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(1);
+      inetsoft.report.TableDataPath col0 = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" });
+      inetsoft.report.TableDataPath col1 = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,1]" });
+      when(lens.getTableDataPath(0, 0)).thenReturn(col0);
+      when(lens.getTableDataPath(0, 1)).thenReturn(col1);
+
+      // CrosstabVSAssemblyInfo.getColKey (addHiddenColumn/isColumnHidden's own key) reads the
+      // lens's *descriptor* independently of getTableDataPath -- a real CrosstabVSAssemblyInfo is
+      // used here (rather than mocking addHiddenColumn/isColumnHidden away) specifically so this
+      // test proves the real hidden-column bookkeeping, so this needs its own stub too.
+      inetsoft.report.TableDataDescriptor descriptor = mock(inetsoft.report.TableDataDescriptor.class);
+      when(lens.getDescriptor()).thenReturn(descriptor);
+      when(descriptor.getColDataPath(0)).thenReturn(col0);
+      when(descriptor.getColDataPath(1)).thenReturn(col1);
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      doAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return null;
+      }).when(sessions).mutate(anyString(), any(Principal.class), any());
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = serviceWith(sessions, existing, bindings)
+         .setCrosstabColumnVisibility(
+            "tok", principal(), "Crosstab1", List.of("State"), null, false);
+
+      assertTrue(tableInfo.isColumnHidden(1, lens), "the resolved column (lens index 1) must be hidden");
+      assertFalse(tableInfo.isColumnHidden(0, lens), "an untouched sibling column must stay visible");
+      assertEquals(List.of("State -> hidden"), applied);
+   }
+
+   /**
+    * Show is unconditional and takes no column list -- matching the native Composer's own
+    * Hide/Show action, which has no selective per-column show either.
+    */
+   @Test
+   void setCrosstabColumnVisibilityShowClearsEveryHiddenColumn() throws Exception {
+      inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo tableInfo =
+         new inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo();
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(0);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      inetsoft.report.TableDataDescriptor descriptor = mock(inetsoft.report.TableDataDescriptor.class);
+      when(lens.getDescriptor()).thenReturn(descriptor);
+      when(descriptor.getColDataPath(0)).thenReturn(new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" }));
+      tableInfo.addHiddenColumn(0, lens);
+      assertTrue(tableInfo.hasHiddenColumn(), "test setup must actually start with a hidden column");
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getCrosstabInfo()).thenReturn(tableInfo);
+
+      VSBindingModelService bindings = mock(VSBindingModelService.class);
+      List<String> applied = harness(assembly, new CrosstabBindingModel(), bindings)
+         .setCrosstabColumnVisibility("tok", principal(), "Crosstab1", null, null, true);
+
+      assertFalse(tableInfo.hasHiddenColumn());
+      assertEquals(List.of("shown every hidden column"), applied);
+   }
+
+   @Test
+   void setCrosstabColumnVisibilityRefusesShowWithAColumnList() {
+      TableBindingService service = serviceWith(
+         mock(ViewsheetSessionService.class), new CrosstabBindingModel(),
+         mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setCrosstabColumnVisibility(
+            "tok", principal(), "Crosstab1", List.of("Region"), null, true));
+
+      assertTrue(thrown.getMessage().contains("no selective per-column show"));
+   }
+
+   @Test
+   void setCrosstabColumnVisibilityRefusesHideWithNoColumns() {
+      TableBindingService service = serviceWith(
+         mock(ViewsheetSessionService.class), new CrosstabBindingModel(),
+         mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.setCrosstabColumnVisibility(
+            "tok", principal(), "Crosstab1", null, null, false));
+
+      assertTrue(thrown.getMessage().contains("at least one column to hide"));
+   }
+
+   @Test
+   void setCrosstabColumnVisibilityRefusesATableByName() {
+      ViewsheetSessionService sessions = sessionsFor(mock(TableVSAssembly.class));
+      TableBindingService service = serviceWith(
+         sessions, new TableBindingModel(), mock(VSBindingModelService.class));
+
+      Exception thrown = assertThrows(Exception.class,
+         () -> service.setCrosstabColumnVisibility(
+            "tok", principal(), "Table1", List.of("Region"), null, false));
+
+      assertTrue(thrown.getMessage().contains("Table1"));
+      assertTrue(thrown.getMessage().toLowerCase().contains("crosstab"));
+   }
+
+   /**
+    * Read side of bug #76869 (VTB-030): {@code get_table_binding}'s {@code visible} was
+    * unconditionally {@code null} for every Crosstab shelf entry before this, hidden or not (see
+    * {@code enrichCrosstabLabelsAndVisibility}, formerly {@code enrichCrosstabLabels}, which
+    * previously never touched {@code visible} at all). "Region" (lens column 0, not hidden) and
+    * "State" (lens column 1, hidden) share the same live/lens fixture the write-side hide test
+    * above uses, so both directions of this bug are proven against the same rendered shape.
+    */
+   @Test
+   void readReportsCrosstabColumnVisibilityFromHiddenColumns() throws Exception {
+      CrosstabBindingModel existing = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(existing, "rows", List.of(dim("Region"), dim("State")));
+
+      VSDimensionRef liveRegion = new VSDimensionRef();
+      liveRegion.setGroupColumnValue("Region");
+      VSDimensionRef liveState = new VSDimensionRef();
+      liveState.setGroupColumnValue("State");
+      VSCrosstabInfo crossInfo = new VSCrosstabInfo();
+      crossInfo.setDesignRowHeaders(new inetsoft.uql.erm.DataRef[]{ liveRegion, liveState });
+
+      inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo tableInfo =
+         new inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo();
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(crossInfo);
+      when(assembly.getCrosstabInfo()).thenReturn(tableInfo);
+      when(assembly.getAbsoluteName()).thenReturn("Crosstab1");
+      when(assembly.getFormatInfo()).thenReturn(new inetsoft.uql.viewsheet.FormatInfo());
+
+      inetsoft.report.composition.VSTableLens lens =
+         mock(inetsoft.report.composition.VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(2);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(1);
+      inetsoft.report.TableDataPath col0 = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,0]" });
+      inetsoft.report.TableDataPath col1 = new inetsoft.report.TableDataPath(
+         -1, inetsoft.report.TableDataPath.HEADER, inetsoft.uql.schema.XSchema.STRING,
+         new String[]{ "Cell [0,1]" });
+      when(lens.getTableDataPath(0, 0)).thenReturn(col0);
+      when(lens.getTableDataPath(0, 1)).thenReturn(col1);
+      inetsoft.report.TableDataDescriptor descriptor = mock(inetsoft.report.TableDataDescriptor.class);
+      when(lens.getDescriptor()).thenReturn(descriptor);
+      when(descriptor.getColDataPath(0)).thenReturn(col0);
+      when(descriptor.getColDataPath(1)).thenReturn(col1);
+
+      tableInfo.addHiddenColumn(1, lens); // "State" (lens column 1) starts already hidden
+
+      inetsoft.report.composition.execution.ViewsheetSandbox sandbox =
+         mock(inetsoft.report.composition.execution.ViewsheetSandbox.class);
+      when(sandbox.getVSTableLens("Crosstab1", false)).thenReturn(lens);
+
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getAssembly(anyString())).thenReturn(assembly);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(java.util.Optional.of(sandbox));
+
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
+
+      Map<String, Object> read =
+         serviceWith(sessions, existing, mock(VSBindingModelService.class))
+            .read("tok", principal(), "Crosstab1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, List<FieldRef>> shelves =
+         (Map<String, List<FieldRef>>) (Map<String, ?>) read.get("shelves");
+      List<FieldRef> rows = shelves.get("rows");
+      assertEquals(Boolean.TRUE, rows.get(0).visible(), "Region is not hidden");
+      assertEquals(Boolean.FALSE, rows.get(1).visible(), "State is hidden");
+   }
+
    // ── set_table_column_sort (bug-76806) ──────────────────────────────────────
 
    /**

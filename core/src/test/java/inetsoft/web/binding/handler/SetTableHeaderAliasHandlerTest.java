@@ -114,6 +114,56 @@ class SetTableHeaderAliasHandlerTest {
       assertSame(col0, SetTableHeaderAliasHandler.findHeaderPath(lens, dimension, 0));
    }
 
+   /**
+    * {@code findHeaderCell} is {@code findHeaderPath} plus the {@code col} index a caller needs
+    * to reach {@code CrosstabVSAssemblyInfo.addHiddenColumn}/{@code isColumnHidden} (bug #76869) --
+    * same scan, same match, but the coordinate {@code scanHeaderRegion} finds internally is no
+    * longer discarded.
+    */
+   @Test
+   void findHeaderCellAlsoReturnsTheMatchedColumnIndex() {
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(2);
+      when(lens.getColCount()).thenReturn(2);
+      when(lens.getRowCount()).thenReturn(1);
+
+      TableDataPath col0 = headerPath("Cell [0,0]");
+      TableDataPath col1 = headerPath("Cell [0,1]");
+      when(lens.getTableDataPath(0, 0)).thenReturn(col0);
+      when(lens.getTableDataPath(0, 1)).thenReturn(col1);
+
+      VSDimensionRef dimension = new VSDimensionRef();
+
+      SetTableHeaderAliasHandler.HeaderCell cell1 =
+         SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 1);
+      assertNotNull(cell1);
+      assertSame(col1, cell1.path());
+      assertEquals(0, cell1.row());
+      assertEquals(1, cell1.col());
+
+      SetTableHeaderAliasHandler.HeaderCell cell0 =
+         SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 0);
+      assertNotNull(cell0);
+      assertSame(col0, cell0.path());
+      assertEquals(0, cell0.row());
+      assertEquals(0, cell0.col());
+   }
+
+   @Test
+   void findHeaderCellReturnsNullWhenNoHeaderCellMatches() {
+      VSTableLens lens = mock(VSTableLens.class);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      when(lens.getHeaderColCount()).thenReturn(1);
+      when(lens.getColCount()).thenReturn(1);
+      when(lens.getRowCount()).thenReturn(1);
+      when(lens.getTableDataPath(0, 0)).thenReturn(headerPath("Cell [0,0]"));
+
+      VSDimensionRef dimension = new VSDimensionRef();
+
+      assertNull(SetTableHeaderAliasHandler.findHeaderCell(lens, dimension, 5));
+   }
+
    @Test
    void returnsNullWhenNoHeaderCellMatches() {
       VSTableLens lens = mock(VSTableLens.class);
