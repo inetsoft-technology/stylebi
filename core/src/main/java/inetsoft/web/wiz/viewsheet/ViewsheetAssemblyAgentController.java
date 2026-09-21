@@ -52,7 +52,6 @@ import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.MessageException;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
@@ -72,7 +71,6 @@ import org.slf4j.LoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.Principal;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -377,14 +375,14 @@ public class ViewsheetAssemblyAgentController {
    public record GotoBookmarkRequest(String name, String owner) {}
 
    /**
-    * {@code list_bookmarks}. Reads via {@link VSUtil#getBookmarks(AssetEntry, IdentityID)} --
-    * the same always-fresh, persistent-store read the native UI's own bookmark panel uses
+    * {@code list_bookmarks}. Reads via {@link #visibleBookmarks} -- the same always-fresh,
+    * persistent-store read the native UI's own bookmark panel uses
     * ({@link VSBookmarkService#getBookmarks}, behind {@code /api/vs/bookmark/get-bookmarks}) --
     * rather than {@link RuntimeViewsheet#getBookmarks()}, which only reflects a bookmark another
     * session added/removed once this session's own {@code updateVSBookmark()} runs (today, only
     * on receiving a {@code ViewsheetBookmarkChangedEvent} cluster broadcast; see bug #76844).
     * This tool is a substitute for a UI action, not a new capability with its own semantics, so
-    * it must see what the UI sees: {@code VSUtil.getBookmarks} already resolves to the caller's
+    * it must see what the UI sees: {@link #visibleBookmarks} already resolves to the caller's
     * own visible set (their own bookmarks plus any shared/group ones others made visible to
     * them) and injects the synthetic "(Home)" entry the same way -- no separate filtering needed
     * here either.
@@ -612,17 +610,21 @@ public class ViewsheetAssemblyAgentController {
    /**
     * The caller's full visible bookmark set for {@code rvs}'s asset -- own bookmarks plus any
     * shared/group ones others made visible to them, "(Home)" included -- read the same
-    * always-fresh, persistent-store way the native UI's own bookmark panel does
-    * ({@link VSBookmarkService#getBookmarks}, behind {@code /api/vs/bookmark/get-bookmarks}),
-    * not via {@link RuntimeViewsheet#getBookmarks()}, whose per-runtime cache only reflects
-    * another session's change once this session's own {@code updateVSBookmark()} runs (today,
-    * only on receiving a {@code ViewsheetBookmarkChangedEvent} cluster broadcast; see bug
-    * #76844). Every {@code list_bookmarks}/{@code goto_bookmark}/{@code update_bookmark}/
+    * always-fresh, persistent-store way the native UI's own bookmark panel does, via
+    * {@link VSBookmarkService#getVisibleBookmarks}, not via {@link RuntimeViewsheet#getBookmarks()},
+    * whose per-runtime cache only reflects another session's change once this session's own
+    * {@code updateVSBookmark()} runs (today, only on receiving a
+    * {@code ViewsheetBookmarkChangedEvent} cluster broadcast; see bug #76844). Every
+    * {@code list_bookmarks}/{@code goto_bookmark}/{@code update_bookmark}/
     * {@code set_default_bookmark} lookup below reads through this one helper so none of them can
-    * drift out of sync with what {@link #listBookmarks} itself would report right now.
+    * drift out of sync with what {@link #listBookmarks} itself would report right now. An
+    * instance method (not {@code static}, unlike its neighbors) because it needs the injected
+    * {@code vsBookmarkService} collaborator -- deliberately routed through that service rather
+    * than calling {@link VSUtil#getBookmarks} directly here, so tests can stub one mockable
+    * collaborator method instead of a static utility call.
     */
-   private static List<VSBookmarkInfo> visibleBookmarks(RuntimeViewsheet rvs, Principal user) {
-      return Arrays.asList(VSUtil.getBookmarks(rvs.getEntry(), ownerOf(user)));
+   private List<VSBookmarkInfo> visibleBookmarks(RuntimeViewsheet rvs, Principal user) {
+      return vsBookmarkService.getVisibleBookmarks(rvs.getEntry(), ownerOf(user));
    }
 
    /** A minimal {@link Principal} standing in for a resolved bookmark owner -- for passing into
@@ -648,7 +650,7 @@ public class ViewsheetAssemblyAgentController {
     *         land on a different, non-existent {@code (name, caller)} bookmark instead of the
     *         one this guard just approved.
     */
-   private static IdentityID requireOwnBookmark(RuntimeViewsheet rvs, String name, Principal user,
+   private IdentityID requireOwnBookmark(RuntimeViewsheet rvs, String name, Principal user,
                                                 String tool, String notFoundMessage)
       throws Exception
    {
@@ -679,7 +681,7 @@ public class ViewsheetAssemblyAgentController {
     * {@link #gotoBookmark}), so unlike {@link #requireOwnBookmark} this searches the full visible
     * set ({@link #visibleBookmarks}), not just the caller's own.
     */
-   private static IdentityID resolveVisibleBookmarkOwner(RuntimeViewsheet rvs, String name,
+   private IdentityID resolveVisibleBookmarkOwner(RuntimeViewsheet rvs, String name,
                                                           String ownerArg, Principal user)
    {
       IdentityID self = ownerOf(user);
@@ -733,7 +735,7 @@ public class ViewsheetAssemblyAgentController {
     *
     * @return the RESOLVED TARGET OWNER, same contract as {@link #requireOwnBookmark}.
     */
-   private static IdentityID requireVisibleBookmark(RuntimeViewsheet rvs, String name, Principal user,
+   private IdentityID requireVisibleBookmark(RuntimeViewsheet rvs, String name, Principal user,
                                                      String tool, String notFoundMessage)
    {
       if(rvs.containsBookmark(name, ownerOf(user))) {
