@@ -462,6 +462,21 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       return null;
    }
 
+   /**
+    * The caller's full visible bookmark set for {@code entry} -- own bookmarks plus any
+    * shared/group ones others made visible to them, "(Home)" included -- read fresh from the
+    * persistent store every call via {@link VSUtil#getBookmarks(AssetEntry, IdentityID)}, the
+    * same way {@link #getBookmarks(String, String, Principal)} (the native UI's own bookmark
+    * panel, behind {@code /api/vs/bookmark/get-bookmarks}) already does -- independent of any
+    * per-{@link RuntimeViewsheet} cache or cluster broadcast. Exposed as a plain instance method
+    * (no {@code @ClusterProxyMethod}/{@code @ClusterProxyKey}) for callers that already hold a
+    * resolved {@code AssetEntry} locally, such as {@code ViewsheetAssemblyAgentController}'s
+    * agent-bridge tools (see bug #76844's follow-up fix).
+    */
+   public List<VSBookmarkInfo> getVisibleBookmarks(AssetEntry entry, IdentityID currUser) {
+      return Arrays.asList(VSUtil.getBookmarks(entry, currUser));
+   }
+
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public VSBookmarkInfoModel[] getBookmarks(@ClusterProxyKey String runtimeId, String localTimeZone,
                                              Principal principal) throws Exception
