@@ -492,8 +492,12 @@ public class HierarchyDimensionService {
          // every other pane (e.g. the Trend Line pane), which can NPE on a fresh chart whose
          // ChartDescriptor was never populated by a human through that dialog. See
          // ChartPropertyDialogService.setChartHierarchy's own class doc.
+         //
+         // The model's own revision is still threaded through (not dropped along with the rest
+         // of the wide model) so a Chart hierarchy write keeps the same stale-write refusal its
+         // CrosstabTarget sibling has via setCrosstabPropertyModel.
          chartService.setChartHierarchy(runtimeId, assemblyName, pane(model), linkUri, user,
-                                        dispatcher);
+                                        dispatcher, ((ChartPropertyDialogModel) model).getRevision());
       }
 
       private final String assemblyName;

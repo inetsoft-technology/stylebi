@@ -374,17 +374,45 @@ class ChartPropertyDialogServiceTest {
       pane.setColumnList(new OutputColumnRefModel[0]);
       pane.setDimensions(new VSDimensionModel[] { dimensionModel });
 
-      service.setChartHierarchy("Viewsheet1", "Chart1", pane, "", null, commandDispatcher);
+      service.setChartHierarchy("Viewsheet1", "Chart1", pane, "", null, commandDispatcher, null);
 
       ArgumentCaptor<ChartVSAssemblyInfo> captor = ArgumentCaptor.forClass(ChartVSAssemblyInfo.class);
       verify(vsObjectPropertyService).editObjectProperty(
          eq(rvs), captor.capture(), eq("Chart1"), eq("Chart1"), eq(""),
-         nullable(Principal.class), eq(commandDispatcher), eq(true));
+         nullable(Principal.class), eq(commandDispatcher), eq(true), nullable(Integer.class));
       assertTrue(captor.getValue().getXCube() instanceof VSCube,
                   "the committed assembly info must carry the built cube");
 
       verifyNoInteractions(chartPropertyService, vsChartHandler, dialogService, vsBindingService,
                            assemblyInfoHandler, trapService);
+   }
+
+   /**
+    * Regression test for the reviewer's r1 finding on PR #5458: {@code setChartHierarchy} must
+    * call the revision-aware {@code editObjectProperty} overload with the exact
+    * {@code expectedRevision} it was given, not the revision-less overload that silently skips
+    * the write-conflict check -- restoring parity with {@code setChartPropertyModel}'s own
+    * {@code editObjectProperty(..., value.getRevision())} call.
+    */
+   @Test
+   void setChartHierarchyForwardsTheExpectedRevisionToEditObjectProperty() throws Exception {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVSChartInfo(new VSChartInfo());
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(chartAssembly);
+      when(chartAssembly.getVSAssemblyInfo()).thenReturn(info);
+
+      HierarchyPropertyPaneModel pane = new HierarchyPropertyPaneModel();
+      pane.setColumnList(new OutputColumnRefModel[0]);
+      pane.setDimensions(new VSDimensionModel[0]);
+
+      service.setChartHierarchy("Viewsheet1", "Chart1", pane, "", null, commandDispatcher, 42);
+
+      verify(vsObjectPropertyService).editObjectProperty(
+         eq(rvs), any(ChartVSAssemblyInfo.class), eq("Chart1"), eq("Chart1"), eq(""),
+         nullable(Principal.class), eq(commandDispatcher), eq(true), eq(42));
    }
 
    @Mock VSObjectPropertyService vsObjectPropertyService;

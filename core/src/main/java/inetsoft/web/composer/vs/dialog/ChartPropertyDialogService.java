@@ -526,13 +526,22 @@ public class ChartPropertyDialogService {
     * write has no business depending on the rest of that pane's state being populated. This
     * method only ever calls {@link #setCube} and commits the result, so no sibling pane's
     * nullable field can NPE a write this method never asked it to make.
+    *
+    * @param expectedRevision the write revision the caller's model was read at, or {@code null}
+    *                         if the caller does not participate in write coordination -- see
+    *                         {@link VSObjectPropertyService#editObjectProperty}'s own doc. Threaded
+    *                         through the same way {@link #setChartPropertyModel} and
+    *                         {@code CrosstabPropertyDialogService.setCrosstabPropertyModel} already
+    *                         do, so a Chart hierarchy write keeps the same stale-write refusal its
+    *                         Crosstab sibling has, rather than silently skipping it.
     */
    @ClusterWriteMethod
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setChartHierarchy(@ClusterProxyKey String runtimeId, String objectId,
                                  HierarchyPropertyPaneModel hierarchyPropertyPaneModel,
                                  String linkUri, Principal principal,
-                                 CommandDispatcher commandDispatcher) throws Exception
+                                 CommandDispatcher commandDispatcher,
+                                 Integer expectedRevision) throws Exception
    {
       RuntimeViewsheet viewsheet = viewsheetService.getViewsheet(runtimeId, principal);
       ChartVSAssembly chartAssembly = (ChartVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
@@ -547,7 +556,8 @@ public class ChartPropertyDialogService {
          (ChartVSAssemblyInfo) Tool.clone(chartAssembly.getVSAssemblyInfo());
       setCube(assemblyInfo, hierarchyPropertyPaneModel);
       this.vsObjectPropertyService.editObjectProperty(
-         viewsheet, assemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher, true);
+         viewsheet, assemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher, true,
+         expectedRevision);
       return null;
    }
 

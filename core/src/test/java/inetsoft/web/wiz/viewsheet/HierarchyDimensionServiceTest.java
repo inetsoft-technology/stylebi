@@ -198,7 +198,7 @@ class HierarchyDimensionServiceTest {
       verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
       verify(h.chartService, times(1)).setChartHierarchy(
          anyString(), anyString(), any(HierarchyPropertyPaneModel.class), anyString(),
-         any(Principal.class), any());
+         any(Principal.class), any(), any());
    }
 
    /**
@@ -216,6 +216,29 @@ class HierarchyDimensionServiceTest {
       verify(h.chartService, never()).setChartPropertyModel(
          anyString(), anyString(), any(ChartPropertyDialogModel.class), anyString(),
          any(Principal.class), any());
+   }
+
+   /**
+    * Regression test for the reviewer's r1 finding on PR #5458: narrowing the write to
+    * {@code setChartHierarchy} must not silently drop the write-conflict/revision check
+    * {@code setChartPropertyModel} used to get from the whole {@code ChartPropertyDialogModel}'s
+    * own {@code .getRevision()}. The revision read at the top of this same mutation must still be
+    * the exact value forwarded, not just some non-null value.
+    */
+   @Test
+   void addForwardsTheModelsOwnRevisionForWriteConflictChecking() throws Exception {
+      Harness h = harnessChart(paneWith(column("Country"), column("State")));
+
+      h.service.add("tok", principal(), "Chart1", List.of("Country"), null, "");
+
+      ArgumentCaptor<Integer> revisionCaptor = ArgumentCaptor.forClass(Integer.class);
+      verify(h.chartService).setChartHierarchy(
+         anyString(), anyString(), any(HierarchyPropertyPaneModel.class), anyString(),
+         any(Principal.class), any(), revisionCaptor.capture());
+      assertEquals(PANE_REVISION, revisionCaptor.getValue(),
+                   "the revision read at the top of this mutation must be forwarded so a " +
+                   "concurrent stale write is still refused, the same protection " +
+                   "CrosstabTarget's setCrosstabPropertyModel already has");
    }
 
    @Test
@@ -298,7 +321,7 @@ class HierarchyDimensionServiceTest {
       ArgumentCaptor<HierarchyPropertyPaneModel> captor =
          ArgumentCaptor.forClass(HierarchyPropertyPaneModel.class);
       verify(h.chartService).setChartHierarchy(anyString(), anyString(), captor.capture(),
-                                               anyString(), any(Principal.class), any());
+                                               anyString(), any(Principal.class), any(), any());
       return captor.getValue();
    }
 
@@ -314,7 +337,7 @@ class HierarchyDimensionServiceTest {
       try {
          verify(h.chartService, never()).setChartHierarchy(
             anyString(), anyString(), any(HierarchyPropertyPaneModel.class), anyString(),
-            any(Principal.class), any());
+            any(Principal.class), any(), any());
          verify(h.crosstabService, never()).setCrosstabPropertyModel(
             anyString(), anyString(), any(CrosstabPropertyDialogModel.class), anyString(),
             any(Principal.class), any());
@@ -413,9 +436,14 @@ class HierarchyDimensionServiceTest {
                          sessions, chartService, crosstabService);
    }
 
+   /** Matches what a real read populates it with (rvs.getWriteRevision() at read time) -- see
+    *  the write-conflict regression test below. */
+   private static final int PANE_REVISION = 7;
+
    private static ChartPropertyDialogModel chartModel(HierarchyPropertyPaneModel pane) {
       ChartPropertyDialogModel model = new ChartPropertyDialogModel();
       model.setChartAdvancedPaneModel(new ChartAdvancedPaneModel());
+      model.setRevision(PANE_REVISION);
       model.setHierarchyPropertyPaneModel(pane);
       return model;
    }
