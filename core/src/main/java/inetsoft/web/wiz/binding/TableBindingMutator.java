@@ -151,7 +151,14 @@ public final class TableBindingMutator {
             }
          }
          case "details" -> ((TableBindingModel) model).setDetails(details(refs));
-         default -> model.setAggregates(aggregates(refs));
+         default -> {
+            // Captured before the overwrite below, for the same reason the rows/cols/groups arm
+            // above captures previous -- an unchanged aggregate's calculateInfo (Trend/Calculator)
+            // must not reset to none on every write. Bug #76881, porting VTB-004's own pattern to
+            // this shelf (left unfixed by that fix -- see aggregates()'s own note).
+            List<BAggregateRefModel> previous = model.getAggregates();
+            model.setAggregates(aggregates(refs, previous == null ? List.of() : previous));
+         }
       }
 
       pruneOrphanedSuppression(model);
@@ -550,10 +557,38 @@ public final class TableBindingMutator {
       return ref;
    }
 
-   private static List<BAggregateRefModel> aggregates(List<FieldRef> fields) {
+   /**
+    * @param previous the shelf's own {@code BAggregateRefModel} list before this write, so an
+    *                 unchanged aggregate keeps its {@code calculateInfo} (Trend/Calculator)
+    *                 instead of resetting to none on every write -- the same VTB-004 pattern
+    *                 {@link #dimensions} uses, ported here for bug #76881 (VTB-004's own
+    *                 {@code 03-fix.md} explicitly left this shelf unfixed).
+    *
+    *                 <p>Matched by <b>same absolute index + same column (case-insensitive) +
+    *                 same formula (case-insensitive)</b> -- formula disambiguates a column bound
+    *                 twice under different aggregates the way {@code dateLevel} disambiguates a
+    *                 dimension bound twice at different levels; see {@link #requireKnownMeasure}'s
+    *                 own multi-arg-prefix handling for the same duplicate-bind identity concern
+    *                 on this shelf.
+    *
+    *                 <p>Unlike {@link #dimensions}'s sort/ranking fields -- which {@code
+    *                 FieldRef} carries no value for at all, so {@link #copyOf} always applies
+    *                 unconditionally on a match -- {@code calculateInfo} DOES have a slot on the
+    *                 incoming {@code FieldRef}, and {@code FieldRef.calculateInfo}'s own javadoc
+    *                 already documents {@code null} as "leave it unchanged", not "clear it" (the
+    *                 same contract {@code timeSeries} already gets in {@link #dimensions}). So a
+    *                 matched previous ref's {@code calculateInfo} is copied forward only when the
+    *                 incoming field's own is {@code null}; an incoming field that supplies its
+    *                 own always overrides it, exactly as the pre-existing {@code if(field
+    *                 .calculateInfo() != null)} branch already did before this fix.
+    */
+   private static List<BAggregateRefModel> aggregates(List<FieldRef> fields,
+                                                       List<BAggregateRefModel> previous)
+   {
       List<BAggregateRefModel> out = new ArrayList<>();
 
-      for(FieldRef field : fields) {
+      for(int i = 0; i < fields.size(); i++) {
+         FieldRef field = fields.get(i);
          BAggregateRefModel ref = new BAggregateRefModel();
          ref.setName(field.column());
          ref.setColumnValue(field.column());
@@ -565,11 +600,38 @@ public final class TableBindingMutator {
          if(field.calculateInfo() != null) {
             ref.setCalculateInfo(field.calculateInfo());
          }
+         else {
+            BAggregateRefModel match = i < previous.size() ? previous.get(i) : null;
+
+            if(matches(match, field)) {
+               ref.setCalculateInfo(match.getCalculateInfo());
+            }
+         }
 
          out.add(ref);
       }
 
       return out;
+   }
+
+   /** Whether {@code previous} is the same occurrence of the same measure as {@code field}. */
+   private static boolean matches(BAggregateRefModel previous, FieldRef field) {
+      if(previous == null || field.column() == null) {
+         return false;
+      }
+
+      String previousColumn = previous.getColumnValue() == null
+         ? previous.getName() : previous.getColumnValue();
+
+      if(previousColumn == null || !previousColumn.equalsIgnoreCase(field.column())) {
+         return false;
+      }
+
+      String previousFormula = previous.getFormula();
+      String incomingFormula = field.aggregate();
+
+      return previousFormula == null
+         ? incomingFormula == null : previousFormula.equalsIgnoreCase(incomingFormula);
    }
 
    /**
