@@ -258,24 +258,38 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       for(boolean runtime : new boolean[]{ false, true }) {
          for(AestheticRef ref : info.getAestheticRefs(runtime)) {
-            if(ref != null && ref.getVisualFrame() instanceof CategoricalColorFrame) {
-               CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
-               ccf.setDefaultColors(VSChartPaletteDefaults.seedPalette(ctx));
-               // a per-value color outranks the palette, so the ones a render derived from the old
-               // palette have to go or they keep rendering for the rest of the session
-               ccf.clearDerivedColors();
-            }
-            // transition only, unlike the categorical branch above: this one replaces the frame
-            // outright, and the house ramps are offered to a classic chart too, so on the restore
-            // path - which runs on every state and bookmark restore - it would silently discard a
-            // deliberate Teal. A Modernize or a Revert is the only moment the seeded default is
-            // stale by definition
-            else if(ctx.transition && ref != null
-               && isOtherMarkSeededLinearFrame(ref.getVisualFrame(), ctx))
-            {
-               ref.setVisualFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx));
-            }
+            seedColorFrame(ref, ctx);
          }
+      }
+
+      // A relation chart keeps a VSDimensionRef-backed node color out of getAestheticRefs() so
+      // its dimension stays out of the GROUP BY, so the loop above cannot reach it and a tree
+      // chart's node colors would be the one binding Modernize and Revert never repaint.
+      // GraphUtil.fixVisualFrames0 carries the same branch for the same reason. Seeding is
+      // idempotent, so this is unguarded rather than repeating that exclusion's own test - a
+      // measure-backed node color the loop already reached simply takes the same write twice.
+      if(info instanceof RelationChartInfo) {
+         seedColorFrame(((RelationChartInfo) info).getNodeColorField(), ctx);
+      }
+   }
+
+   private void seedColorFrame(AestheticRef ref, VizContext ctx) {
+      if(ref != null && ref.getVisualFrame() instanceof CategoricalColorFrame) {
+         CategoricalColorFrame ccf = (CategoricalColorFrame) ref.getVisualFrame();
+         ccf.setDefaultColors(VSChartPaletteDefaults.seedPalette(ctx));
+         // a per-value color outranks the palette, so the ones a render derived from the old
+         // palette have to go or they keep rendering for the rest of the session
+         ccf.clearDerivedColors();
+      }
+      // transition only, unlike the categorical branch above: this one replaces the frame
+      // outright, and the house ramps are offered to a classic chart too, so on the restore
+      // path - which runs on every state and bookmark restore - it would silently discard a
+      // deliberate Teal. A Modernize or a Revert is the only moment the seeded default is
+      // stale by definition
+      else if(ctx.transition && ref != null
+         && isOtherMarkSeededLinearFrame(ref.getVisualFrame(), ctx))
+      {
+         ref.setVisualFrame(VSChartPaletteDefaults.defaultLinearFrame(ctx));
       }
    }
 
