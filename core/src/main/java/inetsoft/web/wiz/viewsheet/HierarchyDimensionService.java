@@ -487,9 +487,13 @@ public class HierarchyDimensionService {
       public void write(String runtimeId, Object model, String linkUri, Principal user,
                         CapturingCommandDispatcher dispatcher) throws Exception
       {
-         chartService.setChartPropertyModel(runtimeId, assemblyName,
-                                            (ChartPropertyDialogModel) model, linkUri, user,
-                                            dispatcher);
+         // Narrow, cube-only write (Redmine #76861 VCX-001) -- routing this through the whole
+         // ChartPropertyDialogService.setChartPropertyModel dialog save unconditionally touches
+         // every other pane (e.g. the Trend Line pane), which can NPE on a fresh chart whose
+         // ChartDescriptor was never populated by a human through that dialog. See
+         // ChartPropertyDialogService.setChartHierarchy's own class doc.
+         chartService.setChartHierarchy(runtimeId, assemblyName, pane(model), linkUri, user,
+                                        dispatcher);
       }
 
       private final String assemblyName;

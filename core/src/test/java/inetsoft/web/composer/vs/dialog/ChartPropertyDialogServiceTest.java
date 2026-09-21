@@ -25,12 +25,18 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.VSCube;
+import inetsoft.uql.viewsheet.VSDimension;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.ChartAdvancedPaneModel;
 import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
+import inetsoft.web.composer.model.vs.HierarchyPropertyPaneModel;
+import inetsoft.web.composer.model.vs.OutputColumnRefModel;
+import inetsoft.web.composer.model.vs.VSDimensionMemberModel;
+import inetsoft.web.composer.model.vs.VSDimensionModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.service.ChartPropertyService;
@@ -40,6 +46,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.annotation.DirtiesContext;
@@ -57,6 +64,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -324,6 +333,58 @@ class ChartPropertyDialogServiceTest {
       assertTrue(result.getChartLinePaneModel().isFacetGrid(),
                  "chartLinePaneModel must reflect the real chart descriptor's facet grid setting, " +
                  "not a bare all-defaults object left by a dead getChartLinePaneModel()==null guard");
+   }
+
+   /**
+    * Regression test for Redmine #76861 VCX-001: {@code setChartHierarchy} (the narrow write
+    * {@code HierarchyDimensionService$ChartTarget} now uses) must commit the cube without ever
+    * engaging {@code setChartPropertyModel}'s wide dialog-save dependencies -- the ones a
+    * hierarchy-only write has no business touching, and where the reported NPE actually lived
+    * ({@code chartPropertyService}/{@code vsChartHandler}/{@code dialogService}/
+    * {@code vsBindingService}/{@code assemblyInfoHandler}/{@code trapService} are never even
+    * called). A fresh chart whose ChartDescriptor was never populated through the Properties
+    * dialog is exactly the scenario the reported 500 needed.
+    */
+   @Test
+   void setChartHierarchyCommitsTheCubeWithoutTouchingTheWideDialogDependencies()
+      throws Exception
+   {
+      ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
+      info.setVSChartInfo(new VSChartInfo());
+
+      when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(chartAssembly);
+      when(chartAssembly.getVSAssemblyInfo()).thenReturn(info);
+      when(vsObjectPropertyService.convertModelToVSDimension(any())).thenReturn(new VSDimension());
+
+      OutputColumnRefModel regionColumn = new OutputColumnRefModel();
+      regionColumn.setEntity("Customer");
+      regionColumn.setAttribute("Region");
+      VSDimensionMemberModel memberModel = new VSDimensionMemberModel();
+      memberModel.setDataRef(regionColumn);
+      VSDimensionModel dimensionModel = new VSDimensionModel();
+      dimensionModel.setMembers(new VSDimensionMemberModel[] { memberModel });
+
+      // The real caller (HierarchyDimensionService.add()) always submits a columnList that has
+      // already had every dimension member's own column removed -- see setCube's class doc for
+      // why a columnList that still contains one crashes either way (double-booked measure, or
+      // an UnsupportedOperationException removing from Arrays.asList's fixed-size view).
+      HierarchyPropertyPaneModel pane = new HierarchyPropertyPaneModel();
+      pane.setColumnList(new OutputColumnRefModel[0]);
+      pane.setDimensions(new VSDimensionModel[] { dimensionModel });
+
+      service.setChartHierarchy("Viewsheet1", "Chart1", pane, "", null, commandDispatcher);
+
+      ArgumentCaptor<ChartVSAssemblyInfo> captor = ArgumentCaptor.forClass(ChartVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(
+         eq(rvs), captor.capture(), eq("Chart1"), eq("Chart1"), eq(""),
+         nullable(Principal.class), eq(commandDispatcher), eq(true));
+      assertTrue(captor.getValue().getXCube() instanceof VSCube,
+                  "the committed assembly info must carry the built cube");
+
+      verifyNoInteractions(chartPropertyService, vsChartHandler, dialogService, vsBindingService,
+                           assemblyInfoHandler, trapService);
    }
 
    @Mock VSObjectPropertyService vsObjectPropertyService;

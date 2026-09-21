@@ -196,7 +196,24 @@ class HierarchyDimensionServiceTest {
       h.service.add("tok", principal(), "Chart1", List.of("Country"), null, "");
 
       verify(h.sessions, times(1)).mutate(anyString(), any(Principal.class), any());
-      verify(h.chartService, times(1)).setChartPropertyModel(
+      verify(h.chartService, times(1)).setChartHierarchy(
+         anyString(), anyString(), any(HierarchyPropertyPaneModel.class), anyString(),
+         any(Principal.class), any());
+   }
+
+   /**
+    * Regression test for Redmine #76861 VCX-001: a Chart write must go through the narrow
+    * {@code setChartHierarchy}, never the whole-dialog {@code setChartPropertyModel} -- the
+    * latter unconditionally touches every other pane (e.g. the Trend Line pane), which can NPE
+    * on a chart whose ChartDescriptor was never populated by a human through that dialog.
+    */
+   @Test
+   void addNeverRoutesAChartWriteThroughTheWholeDialogSave() throws Exception {
+      Harness h = harnessChart(paneWith(column("Country"), column("State")));
+
+      h.service.add("tok", principal(), "Chart1", List.of("Country"), null, "");
+
+      verify(h.chartService, never()).setChartPropertyModel(
          anyString(), anyString(), any(ChartPropertyDialogModel.class), anyString(),
          any(Principal.class), any());
    }
@@ -278,11 +295,11 @@ class HierarchyDimensionServiceTest {
    }
 
    private static HierarchyPropertyPaneModel writtenChartPane(Harness h) throws Exception {
-      ArgumentCaptor<ChartPropertyDialogModel> captor =
-         ArgumentCaptor.forClass(ChartPropertyDialogModel.class);
-      verify(h.chartService).setChartPropertyModel(anyString(), anyString(), captor.capture(),
-                                                    anyString(), any(Principal.class), any());
-      return captor.getValue().getHierarchyPropertyPaneModel();
+      ArgumentCaptor<HierarchyPropertyPaneModel> captor =
+         ArgumentCaptor.forClass(HierarchyPropertyPaneModel.class);
+      verify(h.chartService).setChartHierarchy(anyString(), anyString(), captor.capture(),
+                                               anyString(), any(Principal.class), any());
+      return captor.getValue();
    }
 
    private static HierarchyPropertyPaneModel writtenCrosstabPane(Harness h) throws Exception {
@@ -295,8 +312,8 @@ class HierarchyDimensionServiceTest {
 
    private static void assertNoWrite(Harness h) {
       try {
-         verify(h.chartService, never()).setChartPropertyModel(
-            anyString(), anyString(), any(ChartPropertyDialogModel.class), anyString(),
+         verify(h.chartService, never()).setChartHierarchy(
+            anyString(), anyString(), any(HierarchyPropertyPaneModel.class), anyString(),
             any(Principal.class), any());
          verify(h.crosstabService, never()).setCrosstabPropertyModel(
             anyString(), anyString(), any(CrosstabPropertyDialogModel.class), anyString(),

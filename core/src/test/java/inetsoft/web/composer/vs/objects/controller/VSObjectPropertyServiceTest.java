@@ -20,11 +20,16 @@ package inetsoft.web.composer.vs.objects.controller;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
+import inetsoft.web.composer.model.vs.OutputColumnRefModel;
+import inetsoft.web.composer.model.vs.VSDimensionMemberModel;
+import inetsoft.web.composer.model.vs.VSDimensionModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.*;
@@ -38,6 +43,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -129,6 +136,73 @@ class VSObjectPropertyServiceTest {
                                        null, commandDispatcher, true, null));
 
       assertEquals("reached past the check", thrown.getMessage());
+   }
+
+   /**
+    * Regression test for Redmine #76861 VCX-002: without an explicit member name, {@code
+    * VSDimensionMember.getName()} falls back to {@code dataRef.getName()}, which is
+    * entity-qualified (e.g. "Customer.Region"). The runtime drill-down lookup
+    * (VSUtil.getCubeNextLevelRef) matches a member's name against a row-shelf ref's bare
+    * attribute (e.g. "Region"), so the fallback name can never match.
+    */
+   @Test
+   void convertModelToVSDimensionGivesEachMemberAnExplicitBareName() {
+      OutputColumnRefModel column = new OutputColumnRefModel();
+      column.setEntity("Customer");
+      column.setAttribute("Region");
+      VSDimensionMemberModel memberModel = new VSDimensionMemberModel();
+      memberModel.setDataRef(column);
+      VSDimensionModel model = new VSDimensionModel();
+      model.setMembers(new VSDimensionMemberModel[] { memberModel });
+
+      VSDimension dimension = controller.convertModelToVSDimension(model);
+
+      assertEquals("Region", dimension.getLevelAt(0).getName(),
+                   "member's own name must be the bare attribute, not the entity-qualified " +
+                   "dataRef fallback (\"Customer.Region\") a plain row-shelf ref's bare " +
+                   "attribute can never match");
+   }
+
+   /**
+    * The end-to-end version of the same regression: the dimension {@code
+    * convertModelToVSDimension} builds must actually be findable, by the exact lookup
+    * {@code CrosstabDrillHandler.drillDownChild} uses at runtime, from the row-shelf ref's own
+    * bare attribute -- not just "the member has some name now".
+    */
+   @Test
+   void convertModelToVSDimensionProducesADimensionTheRuntimeDrillLookupCanFind() {
+      OutputColumnRefModel region = new OutputColumnRefModel();
+      region.setEntity("Customer");
+      region.setAttribute("Region");
+      VSDimensionMemberModel regionMember = new VSDimensionMemberModel();
+      regionMember.setDataRef(region);
+      // Matches the real caller, HierarchyDimensionService.add(), which always calls
+      // setOption(...) explicitly -- defaulting to NONE_INTERVAL for a non-date column, never
+      // leaving VSDimensionMemberModel's own YEAR_INTERVAL default.
+      regionMember.setOption(DateRangeRef.NONE_INTERVAL);
+
+      OutputColumnRefModel city = new OutputColumnRefModel();
+      city.setEntity("Customer");
+      city.setAttribute("City");
+      VSDimensionMemberModel cityMember = new VSDimensionMemberModel();
+      cityMember.setDataRef(city);
+      cityMember.setOption(DateRangeRef.NONE_INTERVAL);
+
+      VSDimensionModel model = new VSDimensionModel();
+      model.setMembers(new VSDimensionMemberModel[] { regionMember, cityMember });
+
+      VSDimension dimension = controller.convertModelToVSDimension(model);
+      VSCube cube = new VSCube();
+      cube.setDimensions(List.of(dimension));
+
+      // ref.getAttribute() for a plain relational row-shelf binding is the bare attribute,
+      // never entity-qualified (confirmed via AttributeRef.getAttribute()).
+      assertSame(dimension, VSUtil.findDimension(cube, "Region"),
+                 "the 'user created hierarchy in vs' fallback (VSUtil.getCubeNextLevelRef) must " +
+                 "find the dimension by the row-shelf ref's bare attribute");
+      assertEquals(0, VSUtil.getScope("Region", dimension, DateRangeRef.NONE_INTERVAL),
+                   "the current member's scope/index must resolve so the next level (City) can " +
+                   "be looked up");
    }
 
    @Mock CoreLifecycleService coreLifecycleService;

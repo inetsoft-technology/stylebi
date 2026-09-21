@@ -517,6 +517,40 @@ public class ChartPropertyDialogService {
       return null;
    }
 
+   /**
+    * A narrow, cube-only write for {@code add_hierarchy_dimension}/{@code remove_hierarchy_dimension}
+    * (Redmine #76861 VCX-001). {@link #setChartPropertyModel} reuses the whole
+    * Properties-dialog save routine, which unconditionally touches every other pane
+    * (e.g. {@code chartLinePaneModel.updateChartLinePaneModel}) regardless of which field the
+    * caller actually meant to change -- fine for a real dialog commit, but a hierarchy-only
+    * write has no business depending on the rest of that pane's state being populated. This
+    * method only ever calls {@link #setCube} and commits the result, so no sibling pane's
+    * nullable field can NPE a write this method never asked it to make.
+    */
+   @ClusterWriteMethod
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setChartHierarchy(@ClusterProxyKey String runtimeId, String objectId,
+                                 HierarchyPropertyPaneModel hierarchyPropertyPaneModel,
+                                 String linkUri, Principal principal,
+                                 CommandDispatcher commandDispatcher) throws Exception
+   {
+      RuntimeViewsheet viewsheet = viewsheetService.getViewsheet(runtimeId, principal);
+      ChartVSAssembly chartAssembly = (ChartVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+
+      if(chartAssembly == null) {
+         // Same stale-reference degrade as setChartPropertyModel (Redmine #76759 VCG-001) --
+         // nothing to apply this write to.
+         return null;
+      }
+
+      ChartVSAssemblyInfo assemblyInfo =
+         (ChartVSAssemblyInfo) Tool.clone(chartAssembly.getVSAssemblyInfo());
+      setCube(assemblyInfo, hierarchyPropertyPaneModel);
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, assemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher, true);
+      return null;
+   }
+
    private void setCube(ChartVSAssemblyInfo assemblyInfo,
                         HierarchyPropertyPaneModel hierarchyPropertyPaneModel)
    {
