@@ -710,6 +710,173 @@ class ViewsheetFormatServiceTest {
       assertArrayEquals(new TableDataPath[0], captor.getValue().getData().get(0));
    }
 
+   // ── target: "data" + 'field' column scoping (bug 76868) ────────────────────────────────
+
+   /**
+    * {@code field} narrows the result to just the resolved column's own paths, leaving every
+    * other column's path out entirely -- the caller's typed name is resolved to a column index
+    * by scanning the live lens's rendered header row, then paths are filtered by
+    * {@code TableDataDescriptor#isColDataPath} against that resolved index.
+    */
+   @Test
+   void targetDataWithFieldFiltersToJustTheNamedColumn() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("PercentFormat");
+
+      TableDataPath headerPathName = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+         new String[]{ "NAME" });
+      TableDataPath headerPathTotal = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+         new String[]{ "TOTAL" });
+      TableDataPath detailPathName = new TableDataPath(-1, TableDataPath.DETAIL, XSchema.STRING,
+         new String[]{ "NAME" });
+      TableDataPath detailPathTotal = new TableDataPath(-1, TableDataPath.DETAIL, XSchema.DOUBLE,
+         new String[]{ "TOTAL" });
+
+      RuntimeViewsheet rvs = tableRvs("Table1", lens -> {
+         when(lens.getColCount()).thenReturn(2);
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getObject(0, 0)).thenReturn("NAME");
+         when(lens.getObject(0, 1)).thenReturn("TOTAL");
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(true);
+         when(lens.moreRows(2)).thenReturn(false);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         when(desc.getCellDataPath(0, 0)).thenReturn(headerPathName);
+         when(desc.getCellDataPath(0, 1)).thenReturn(headerPathTotal);
+         when(desc.getCellDataPath(1, 0)).thenReturn(detailPathName);
+         when(desc.getCellDataPath(1, 1)).thenReturn(detailPathTotal);
+         when(desc.isColDataPath(1, detailPathTotal)).thenReturn(true);
+         when(desc.isColDataPath(1, detailPathName)).thenReturn(false);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Table1"), format, false, "data", "TOTAL"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      TableDataPath[] paths = captor.getValue().getData().get(0);
+      assertArrayEquals(new TableDataPath[]{ detailPathTotal }, paths,
+                        "only the 'TOTAL' column's own path, not 'NAME''s");
+   }
+
+   @Test
+   void targetDataWithFieldRefusesWhenNoColumnMatches() throws Exception {
+      RuntimeViewsheet rvs = tableRvs("Table1", lens -> {
+         when(lens.getColCount()).thenReturn(1);
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getObject(0, 0)).thenReturn("NAME");
+      });
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Table1"), new VSObjectFormatInfoModel(), false, "data", "NOT_A_COLUMN"),
+            ""));
+      assertTrue(thrown.getMessage().contains("NOT_A_COLUMN"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Table1"), thrown.getMessage());
+   }
+
+   @Test
+   void targetDataWithFieldRefusesWhenTheColumnNameIsAmbiguous() throws Exception {
+      RuntimeViewsheet rvs = tableRvs("Table1", lens -> {
+         when(lens.getColCount()).thenReturn(2);
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getObject(0, 0)).thenReturn("NAME");
+         when(lens.getObject(0, 1)).thenReturn("NAME");
+      });
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Table1"), new VSObjectFormatInfoModel(), false, "data", "NAME"), ""));
+      assertTrue(thrown.getMessage().contains("NAME"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("ambiguous"), thrown.getMessage());
+   }
+
+   /**
+    * A Crosstab's body region is structurally nested (row/col dimension levels, subtotal/
+    * grand-total rows) in a way a single named column doesn't map onto -- refused loud rather
+    * than silently ignoring {@code field} or attempting an unsupported filter.
+    */
+   @Test
+   void targetDataWithFieldRefusesAgainstACrosstab() throws Exception {
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> { });
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "data", "state"), ""));
+      assertTrue(thrown.getMessage().contains("Crosstab"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
+   }
+
+   /**
+    * The resolved column's rendered header text (what {@code lens.getObject} reports, and what
+    * a caller's typed {@code field} is matched against) is not guaranteed to equal that same
+    * column's {@code TableDataPath.getPath()[0]} identity (what {@code isColDataPath} keys off,
+    * via {@code Util.getHeader()}) -- e.g. after a column renamed via {@code set_column_labels}
+    * or a script-set header. Filtering by the RESOLVED INDEX via {@code isColDataPath} (rather
+    * than by string-comparing the caller's typed value against {@code path.getPath()[0]}
+    * directly) must still include the path in that case.
+    */
+   @Test
+   void targetDataWithFieldFiltersByResolvedIndexEvenWhenThePathsOwnHeaderTextDiffers()
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setFormat("PercentFormat");
+
+      // The path's own path[0] identity ("internal_header") deliberately does NOT equal the
+      // rendered/typed column name ("Display Name") -- simulating a renamed column, where
+      // Util.getHeader() and the rendered cell value have diverged.
+      TableDataPath detailPath = new TableDataPath(-1, TableDataPath.DETAIL, XSchema.STRING,
+         new String[]{ "internal_header" });
+
+      RuntimeViewsheet rvs = tableRvs("Table1", lens -> {
+         when(lens.getColCount()).thenReturn(1);
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getObject(0, 0)).thenReturn("Display Name");
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(false);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         when(desc.getCellDataPath(0, 0)).thenReturn(detailPath);
+         // isColDataPath is keyed by index, not by re-comparing the caller's typed string --
+         // mocked true here for column 0, exactly as the real DefaultTableDataDescriptor would
+         // answer for the column this path actually belongs to, string mismatch notwithstanding.
+         when(desc.isColDataPath(0, detailPath)).thenReturn(true);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Table1"), format, false, "data", "Display Name"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      TableDataPath[] paths = captor.getValue().getData().get(0);
+      assertArrayEquals(new TableDataPath[]{ detailPath }, paths,
+                        "the resolved column's path must be included even though its own " +
+                        "path[0] text ('internal_header') differs from the rendered/typed " +
+                        "column name ('Display Name') -- filtering is by resolved index, not " +
+                        "by string-comparing path.getPath()[0] to the caller's typed value");
+   }
+
    // ── set_calc_cell_format / get_calc_cell_format (bug 76679) ────────────────────────────
 
    /**
