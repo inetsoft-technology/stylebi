@@ -3553,7 +3553,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       if(Tool.equals(permission, ResourceAction.READ) && entry.isViewsheet() &&
                            SUtil.isDefaultVSGloballyVisible(user) &&
                            Organization.getDefaultOrganizationID().equalsIgnoreCase(entry.getOrgID()) &&
-                           user != null && !((XPrincipal)user).getOrgId().equals(Organization.getDefaultOrganizationID())) {
+                           user != null && !((XPrincipal)user).getOrgId().equalsIgnoreCase(Organization.getDefaultOrganizationID())) {
          return true;
       }
 
