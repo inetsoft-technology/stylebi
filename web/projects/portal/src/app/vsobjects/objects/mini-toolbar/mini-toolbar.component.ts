@@ -182,13 +182,12 @@ export class MiniToolbar implements OnChanges, OnDestroy {
     *
     * An empty container is a bordered, backgrounded pill that goes fully opaque once the
     * assembly-hover reveal fires, so it must not render with nothing in it. AbstractVSActions
-    * .showingActions empties the list on two rungs: below the 32px control floor, and at dense,
-    * where isAnchoredChromeSuppressed() removes every control from an anchored type.
+    * .showingActions empties the list below the 32px control floor, and per-action suppression via
+    * model.actionNames can empty it at any size.
     *
-    * The content test used to be conditioned on being resident, which missed dense entirely —
-    * dense turns residency off, so it fell to the branch that rendered regardless of content and
-    * drew a sliver above the card. Residency now decides only whether mobile suppresses the
-    * container, not whether its content is checked.
+    * The content test is unconditional rather than conditioned on being resident: the non-resident
+    * branch used to render regardless of content and drew a sliver above the card. Residency
+    * decides only whether mobile suppresses the container, not whether its content is checked.
     */
    get showToolbarContainer(): boolean {
       if(this.mobileDevice && !this.kebabResident) {

@@ -34,10 +34,10 @@ import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
  *
  * PERMANENT. This was the rollout boundary while the slices landed; all five have, so it is now the
  * anchored set. Do not delete it and leave the .viz-modern gate as the only condition — an earlier
- * revision of this comment promised exactly that, and it is unsafe. isAnchoredChromeSuppressed
- * would then be true for every laneless assembly under the gate (text, gauge, image, spinner, and
- * the rest resolve to a zero lane), emptying showingActions for all of them. The composer's mobile
- * toolbar renders that list for whatever assembly is focused, so those toolbars would go blank.
+ * revision of this comment promised exactly that, and it is unsafe. Every laneless assembly under
+ * the gate (text, gauge, image, spinner, and the rest resolve to a zero lane) would then satisfy
+ * isAnchoredChromeSuppressed, so vs-object-container would stop drawing their toolbars, and would
+ * satisfy isAnchoredDesign, so the cap of three would reach types that were never designed for it.
  */
 const ANCHORED_ASSEMBLY_TYPES: ReadonlySet<string> = new Set<string>([
    "vschart",
@@ -90,16 +90,27 @@ export function anchoredLaneHeight(model: VSObjectModel): number {
 }
 
 /**
- * Whether an assembly type's anchored/resident strip design is in effect right now: the modern
- * gate is on, the title lane can hold the 24px strip, and the type is in the anchored set. Lane
- * fit is measured by comparing anchoredLaneHeight against ANCHORED_LANE_MIN. Shared by
- * VSObjectContainerComponent.isKebabResident and AbstractVSActions.resident so the two
- * conditions cannot drift apart.
+ * Whether this assembly carries the modern strip design at all: the gate is on and the type is in
+ * the anchored set. A property of the assembly, not of where a strip is mounted — it holds
+ * wherever the strip is drawn, so the shape of the strip (the cap of three plus the kebab, the
+ * flattened kebab) is the same in the composer's floating mount as in the viewer's lane.
+ *
+ * The two predicates below add the lane term to it. Only the mount site that actually anchors —
+ * vs-object-container — asks those; a host that floats the strip has no lane to fit it into.
+ */
+export function isAnchoredDesign(objectType: string, vizModern: boolean): boolean {
+   return vizModern && isAnchoredAssemblyType(objectType);
+}
+
+/**
+ * Whether the strip can anchor into this assembly's lane: the modern design plus a lane that can
+ * hold the 24px strip, measured by comparing anchoredLaneHeight against ANCHORED_LANE_MIN. Asked
+ * by VSObjectContainerComponent.isKebabResident.
  */
 export function isAnchoredResident(objectType: string, vizModern: boolean,
                                    laneHeight: number): boolean
 {
-   return vizModern && laneHeight >= ANCHORED_LANE_MIN && isAnchoredAssemblyType(objectType);
+   return isAnchoredDesign(objectType, vizModern) && laneHeight >= ANCHORED_LANE_MIN;
 }
 
 /**
@@ -108,7 +119,11 @@ export function isAnchoredResident(objectType: string, vizModern: boolean,
  * height ladder removes every control once a control plus its clearance stops fitting; anchoring
  * and floating are two placements of a control that is not drawn here either way.
  *
- * Lane fit is measured by comparing anchoredLaneHeight against ANCHORED_LANE_MIN.
+ * A lane rule, so it belongs to the mount site that puts the strip in a lane. Applied by
+ * VSObjectContainerComponent alone — the five floating mount sites (composer, binding pane, both
+ * wizard panes, embedded chart) overlay the strip on the assembly and never occupy the lane, so
+ * the fit this measures does not arise there. Applying it in the shared action layer instead
+ * emptied their toolbars too.
  *
  * Deliberately a separate predicate rather than !isAnchoredResident: that would be true for every
  * non-anchored type and gate-off, stripping toolbars users have today.
@@ -116,7 +131,7 @@ export function isAnchoredResident(objectType: string, vizModern: boolean,
 export function isAnchoredChromeSuppressed(objectType: string, vizModern: boolean,
                                            laneHeight: number): boolean
 {
-   return vizModern && laneHeight < ANCHORED_LANE_MIN && isAnchoredAssemblyType(objectType);
+   return isAnchoredDesign(objectType, vizModern) && laneHeight < ANCHORED_LANE_MIN;
 }
 
 @Injectable()

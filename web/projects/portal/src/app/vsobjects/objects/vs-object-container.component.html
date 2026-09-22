@@ -348,7 +348,8 @@
           </vs-viewsheet>
         }
       </div>
-      @if (!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled) {
+      @if (!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled
+           && !isChromeSuppressed(vsObject)) {
         @let anchored = isToolbarAnchored(vsObject);
         @let glyphTone = anchored ? getStripGlyphTone(vsObject) : null;
         <mini-toolbar

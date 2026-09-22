@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { anchoredLaneHeight, isAnchoredAssemblyType, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+import { anchoredLaneHeight, isAnchoredAssemblyType, isAnchoredChromeSuppressed, isAnchoredDesign, isAnchoredResident, MiniToolbarService }
    from "./mini-toolbar.service";
 
 // The anchored set, asserted explicitly rather than left implied. It is now permanent rather than a
@@ -57,6 +57,25 @@ describe("isAnchoredAssemblyType", () => {
       expect(isAnchoredAssemblyType(null)).toBe(false);
       expect(isAnchoredAssemblyType(undefined)).toBe(false);
       expect(isAnchoredAssemblyType("")).toBe(false);
+   });
+});
+
+// The gate-and-type half the two lane predicates are built from, and the whole of what the action
+// layer asks: the strip's shape is a property of the assembly, so it holds in the five mount sites
+// that float the strip as well as in the one that anchors it.
+describe("isAnchoredDesign", () => {
+   it("is true for an anchored type under the gate, at no lane at all", () => {
+      expect(isAnchoredDesign("VSChart", true)).toBe(true);
+      expect(isAnchoredDesign("VSSelectionList", true)).toBe(true);
+   });
+
+   it("is false with the gate off", () => {
+      expect(isAnchoredDesign("VSChart", false)).toBe(false);
+   });
+
+   it("is false for a type outside the anchored set", () => {
+      expect(isAnchoredDesign("VSRangeSlider", true)).toBe(false);
+      expect(isAnchoredDesign("VSText", true)).toBe(false);
    });
 });
 

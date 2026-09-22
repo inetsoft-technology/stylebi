@@ -638,3 +638,60 @@ describe("MiniToolbar rendered - dark floating strip (compiled CSS only)", () =>
       expect(selector).toContain(":not(.mini-toolbar--anchored)");
    });
 });
+
+// The composer's mount: the strip is positioned over the assembly, not inside its title lane, so
+// anchorInTitleLane is never bound there. It went blank whenever the lane fell below the strip's
+// 24px fit threshold - at dense, and at any author-set title height under 24 - because the lane
+// rule was applied to the shared action list instead of to the mount site that anchors.
+describe("MiniToolbar rendered - the floating strip ignores the title lane", () => {
+   afterEach(() => {
+      document.body.classList.remove("viz-density-compact");
+   });
+
+   async function renderFloatingStrip(laneHeight: number, titleVisible: boolean = true) {
+      document.body.classList.add("viz-density-compact");
+      const model: VSChartModel = TestUtils.withTitleLane(
+         TestUtils.createMockVSChartModel("Chart1"), laneHeight);
+      (<any> model).titleVisible = titleVisible;
+      model.vizModern = true;
+      model.objectFormat.width = 2000;
+      model.objectFormat.height = 400;
+      const actions = new ChartActions(model, { getPopComponent: () => "" } as any,
+         ComposerContextProviderFactory(), false, null, null,
+         new MiniToolbarService({ runOutsideAngular: (fn: () => any) => fn() } as any));
+
+      return renderWithActions(actions, false);
+   }
+
+   // Not split out as .mini-toolbar-kebab here: residency is the in-lane treatment, so on a
+   // floating strip the overflow control stays an ordinary trailing button. Three capped actions
+   // plus that one.
+   function buttonIcons(root: HTMLElement): string[] {
+      return Array.from(root.querySelectorAll<HTMLElement>(
+         ".mini-toolbar-button-group button i")).map(i => i.className);
+   }
+
+   // The same three capped actions the anchored strip renders at a 30px lane above, so the lane
+   // changes neither whether the strip draws nor what it carries.
+   it("renders the strip at the dense 20px lane", async () => {
+      const { fixture } = await renderFloatingStrip(20);
+      const root: HTMLElement = fixture.nativeElement;
+
+      expect(root.querySelector(".mini-toolbar-container")).not.toBeNull();
+
+      const icons = buttonIcons(root);
+
+      expect(icons.length).toBe(4);
+      expect(icons[0]).toContain("show-summary-icon");
+      expect(icons[1]).toContain("expand-icon");
+      expect(icons[2]).toContain("edit-icon");
+   });
+
+   it("renders the strip with the title hidden, which resolves to a zero lane", async () => {
+      const { fixture } = await renderFloatingStrip(30, false);
+      const root: HTMLElement = fixture.nativeElement;
+
+      expect(root.querySelector(".mini-toolbar-container")).not.toBeNull();
+      expect(buttonIcons(root).length).toBe(4);
+   });
+});

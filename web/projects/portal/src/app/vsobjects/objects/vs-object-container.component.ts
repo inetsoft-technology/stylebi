@@ -54,7 +54,8 @@ import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
 import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
-import { anchoredLaneHeight, isAnchoredResident, MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
+import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+   from "./mini-toolbar/mini-toolbar.service";
 import { StripGlyphTone, stripGlyphTone } from "./mini-toolbar/strip-glyph-tone";
 import { NavigationKeys } from "./navigation-keys";
 import { SelectionBaseController } from "./selection/selection-base-controller";
@@ -482,11 +483,25 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * Touch has no hover, so a kebab that is resident only while anchored would be unreachable in
     * max mode, where anchoring is off — there is no lane — but the type still carries the design.
     * A lane too short to hold the strip opts out entirely, measured by anchoredLaneHeight against
-    * ANCHORED_LANE_MIN. Such an assembly draws no chrome at all rather than falling back to the
-    * floating strip; that is enforced in the action layer, not here.
+    * ANCHORED_LANE_MIN — see isChromeSuppressed below, which is what stops such an assembly
+    * falling back to the floating strip.
     */
    public isKebabResident(object: VSObjectModel): boolean {
       return isAnchoredResident(object.objectType, object.vizModern, anchoredLaneHeight(object));
+   }
+
+   /**
+    * Whether an anchored type's lane is too short to hold the strip, in which case the assembly
+    * draws no chrome at all — no strip, no kebab, right-click only — rather than falling back to
+    * the floating placement.
+    *
+    * Asked here rather than in the action layer because this is the only mount site that puts the
+    * strip in a lane: the composer, the binding pane, both wizard panes and the embedded chart
+    * overlay it on the assembly instead, and a rule about lane fit must not reach them.
+    */
+   public isChromeSuppressed(object: VSObjectModel): boolean {
+      return isAnchoredChromeSuppressed(object.objectType, object.vizModern,
+                                        anchoredLaneHeight(object));
    }
 
    /**

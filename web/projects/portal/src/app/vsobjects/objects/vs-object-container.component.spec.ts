@@ -152,3 +152,52 @@ describe("VSObjectContainer embedded-viewsheet hover boost", () => {
       expect(comp.getContainerZIndex(vs)).toBeLessThan(6 + DateTipHelper.getPopUpContentBoostZIndex());
    });
 });
+
+// The lane rule lives here, at the one mount site that puts the strip inside the title lane. The
+// five that float it (composer, binding pane, both wizard panes, embedded chart) render the same
+// action list and must not lose their toolbar to a lane they never use, so asking this in the
+// shared action layer is what emptied the composer's floating toolbar at dense.
+describe("VSObjectContainer anchored-lane chrome suppression", () => {
+   const anchored = (laneHeight: number, vizModern = true, objectType = "VSChart") =>
+      makeVSObject({
+         objectType,
+         ...({ vizModern, titleVisible: true, titleFormat: { height: laneHeight } } as any),
+      });
+
+   it("suppresses the strip when the lane cannot hold it", () => {
+      const { comp } = makeComponent();
+
+      expect(comp.isChromeSuppressed(anchored(20))).toBe(true);
+      expect(comp.isChromeSuppressed(anchored(23))).toBe(true);
+   });
+
+   it("draws the strip once the lane holds it, and anchors it", () => {
+      const { comp } = makeComponent();
+
+      expect(comp.isChromeSuppressed(anchored(24))).toBe(false);
+      expect(comp.isChromeSuppressed(anchored(30))).toBe(false);
+      expect(comp.isKebabResident(anchored(30))).toBe(true);
+   });
+
+   it("suppresses a hidden title, which resolves to a zero lane", () => {
+      const { comp } = makeComponent();
+      const titleHidden = makeVSObject({
+         ...({ vizModern: true, titleVisible: false, titleFormat: { height: 30 } } as any),
+      });
+
+      expect(comp.isChromeSuppressed(titleHidden)).toBe(true);
+   });
+
+   it("leaves a short lane alone when the gate is off", () => {
+      const { comp } = makeComponent();
+
+      expect(comp.isChromeSuppressed(anchored(20, false))).toBe(false);
+   });
+
+   it("leaves a type outside the anchored set alone at a short lane", () => {
+      const { comp } = makeComponent();
+
+      expect(comp.isChromeSuppressed(anchored(20, true, "VSRangeSlider"))).toBe(false);
+      expect(comp.isChromeSuppressed(anchored(0, true, "VSText"))).toBe(false);
+   });
+});

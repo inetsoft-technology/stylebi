@@ -133,6 +133,11 @@ than being a rule of its own.
 so `AbstractVSActions` needs an accessor or a cast — the same shape as `getToolbarTop()`'s existing
 `<VSChartModel>` cast for `paddingTop` (`vs-object-container.component.ts:507`).
 
+**Superseded by decision 9 below: the comparison does not belong in `AbstractVSActions` at all.**
+That layer's list is rendered by six mount sites and only one of them anchors, so putting a lane
+rule there removed the floating toolbar from the other five. The cast is still how the container
+reads the lane; the action layer no longer reads it.
+
 **Hard sequencing rule: this must not ship before the lane row.** Every assembly still carrying
 `AssetUtil.defh` has a 20px lane at *every* density until decision 1's row is applied, so a 26px threshold
 fails everywhere and the strip disappears from the entire anchored set — not just dense. The uncommitted
@@ -418,6 +423,60 @@ pattern shows an unset state was never the requirement.
   The token has no consumers today, so nothing disagrees yet; it will the moment something binds it.
 - **The shape of decision 5's control**, whether cell height should get the same treatment, and how
   already-marked assemblies read back when it ships. Listed in full at the end of that decision.
+
+---
+
+## Decision 9 — the lane rule is the anchoring mount site's, not the action layer's
+
+**Added 2026-09-22**, after decisions 3 and 4 shipped and the composer's toolbar disappeared.
+
+**What happened.** Decision 3's "compare the assembly's actual lane height against the strip" was
+built into `AbstractVSActions.showingActions`, which is the action list rendered by **six** mount
+sites. Only one of them anchors: `vs-object-container` binds `anchorInTitleLane`; the composer's
+`editable-object-container`, the binding pane's `vs-object-view`, both wizard panes and
+`embed-chart` mount the same `<mini-toolbar>` positioned over the assembly. The rule therefore
+reached five hosts that have no lane at all, and any assembly whose lane fell below
+`ANCHORED_LANE_MIN` lost its floating toolbar there — every marked assembly at dense (the row's
+20px), and any title height an author set below 24 at any density. Right-click was the only route
+left in the composer, and the composer's mobile toolbar, which renders the same list, went blank
+with it.
+
+This is the invariant [chart-card-seamless-strip-design.md](./chart-card-seamless-strip-design.md)
+§3.1 states outright — *"Only the first binds `anchorInTitleLane`, so the other five render the
+floating strip and are untouched by every rule below. The composer is out by construction, not by
+exception"* — broken by a rule that was written one layer too low to respect it.
+
+**Decided: `isAnchoredChromeSuppressed` is applied by `VSObjectContainer` alone.** The container
+drops the `<mini-toolbar>` element when the lane cannot hold the strip, which is decision 4's
+outcome unchanged — no strip, no kebab, right-click only, and no fallback to the floating
+placement. Nothing in the viewer moves.
+
+**And the lane leaves `AbstractVSActions.resident` with it.** That getter decides the strip's
+*shape* — the cap of three plus the kebab, the kebab-only types, the flattened kebab — which is a
+property of the assembly, not of a lane the floating hosts never use. It is now
+`isAnchoredDesign()`: the gate and the anchored type, no lane term. Leaving the lane in it would
+have fixed the disappearance and replaced it with a worse defect, the composer rendering its
+capped three-button strip at comfortable and the full uncapped legacy toolbar at dense.
+
+**What this costs.** The two conditions are no longer one shared helper: the container asks
+`isAnchoredResident` (design + lane), the action layer asks `isAnchoredDesign` (design alone).
+Decision 3 shared one helper between them precisely so they could not drift, and that is given up
+here — but they were never the same question, and treating them as one is what produced this
+defect. `isAnchoredDesign` is the common half both are built from, so the type set and the gate
+still have a single definition.
+
+**Corrects decision 3's implementation note**, which says the lane comparison needs a `titleFormat`
+accessor or cast in `AbstractVSActions`. It needs neither; the container already has the model in
+hand at the mount site. Decision 4's "enforced in the action layer" reads the same way and is
+likewise superseded.
+
+**Rejected — key the suppression on `ContextProvider.composer`.** It is one line and it is wrong in
+the case that matters: an embedded viewsheet inside the composer canvas renders its children
+through `vs-object-container` with the composer context, so those children anchor while reporting
+`composer === true`. They would have overhung a 20px lane.
+
+**Rejected — let a short lane fall back to the floating strip in the container too.** Decision 4
+rejected this once already, and nothing here reopens it.
 
 ---
 
