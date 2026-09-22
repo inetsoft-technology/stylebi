@@ -20,6 +20,9 @@ package inetsoft.util;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
@@ -147,6 +150,58 @@ class UpgradableReadWriteLockTest {
          assertDoesNotThrow(lock::unlockRead);
       }
 
+      assertLockFree(lock);
+   }
+
+   /**
+    * Bug #76907: restoreLocks() used to reacquire the write lock with an unconditional
+    * block. If another thread held the read lock and could not release it until this
+    * thread first released some unrelated resource it was still holding (in production,
+    * the GraalVM script engine's own execution lock -- see UpgradableReadWriteLock's own
+    * class-level doc on restoreLocks()), the two threads deadlocked forever: this thread
+    * never returned from restoreLocks() to release what the other thread was waiting on.
+    * restoreLocks() must now fail fast with a bounded wait instead of hanging, so the
+    * caller's own exception handling can recover and the other thread can proceed.
+    */
+   @Test
+   void restoreLocksTimesOutInsteadOfHangingWhenWriteLockUnavailable() throws InterruptedException {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(200);
+      lock.lockWrite();
+      lock.unlockAll();
+
+      CountDownLatch readerHoldsLock = new CountDownLatch(1);
+      CountDownLatch releaseReader = new CountDownLatch(1);
+
+      Thread reader = new Thread(() -> {
+         lock.lockRead();
+         readerHoldsLock.countDown();
+
+         try {
+            releaseReader.await();
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+         finally {
+            lock.unlockRead();
+         }
+      });
+      reader.start();
+
+      try {
+         assertTrue(readerHoldsLock.await(5, TimeUnit.SECONDS),
+                     "reader thread never acquired the read lock");
+
+         assertThrows(IllegalStateException.class, lock::restoreLocks,
+                      "restoreLocks() should time out instead of hanging forever when " +
+                      "another thread holds the read lock");
+      }
+      finally {
+         releaseReader.countDown();
+         reader.join(5000);
+      }
+
+      assertFalse(reader.isAlive(), "reader thread did not exit");
       assertLockFree(lock);
    }
 
