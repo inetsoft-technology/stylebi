@@ -377,6 +377,9 @@ public class ViewsheetAssemblyAgentController {
 
    public record GotoBookmarkRequest(String name, String owner) {}
 
+   public record RenameBookmarkRequest(String name, String newName, String type, Boolean readOnly,
+                                        Boolean confirmed) {}
+
    /**
     * {@code list_bookmarks}. Reads via {@link #visibleBookmarks} -- the same always-fresh,
     * persistent-store read the native UI's own bookmark panel uses
@@ -598,9 +601,73 @@ public class ViewsheetAssemblyAgentController {
       });
    }
 
+   /**
+    * {@code rename_bookmark}. Renames an EXISTING bookmark while PRESERVING its saved state
+    * (selections/filters/input values) -- unlike {@link #updateBookmark}, which always overwrites
+    * the saved state with a fresh snapshot of the CURRENT runtime under the given name. Delegates
+    * to {@link VSBookmarkService#renameBookmarkInViewSheet}, which moves the bookmark's own saved
+    * payload via {@link RuntimeViewsheet#editBookmark} rather than re-capturing it (bug #76827).
+    * <p>
+    * Restricted to bookmarks the caller owns outright -- unlike {@link #updateBookmark}/
+    * {@link #deleteBookmark}, which also accept a shared bookmark someone else owns but marked
+    * writable via {@link #requireOwnBookmark}'s broader match. {@link RuntimeViewsheet#editBookmark}
+    * has no owner parameter of its own; it always operates on this runtime viewsheet's own owning
+    * principal's bookmark set, so reusing it on a bookmark actually owned by someone else would
+    * silently target the WRONG bookmark (a same-named one of the caller's own, if any exist) or
+    * fail with an unrelated "bookmark doesn't exist" message -- rather than the intended shared
+    * bookmark. The name-collision and schedule-task-reference pre-checks are done by
+    * {@link VSBookmarkService#renameBookmarkInViewSheet} itself, which {@code requireOk} unwraps
+    * into a thrown, tool-named error the same way every other bookmark write below does.
+    */
+   @PostMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/bookmarks/rename")
+   public void renameBookmark(@PathVariable String sessionToken,
+                              @RequestBody RenameBookmarkRequest request, Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      String name = requireBookmarkName(request.name(), "rename_bookmark");
+      String newName = requireBookmarkName(request.newName(), "rename_bookmark", "newName");
+      boolean confirmed = request.confirmed() != null && request.confirmed();
+
+      if(VSBookmark.HOME_BOOKMARK.equals(name) || VSBookmark.HOME_BOOKMARK.equals(newName)) {
+         throw new IllegalArgumentException(
+            "rename_bookmark: the \"" + VSBookmark.HOME_BOOKMARK + "\" bookmark cannot be renamed.");
+      }
+
+      sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         IdentityID owner = ownerOf(user);
+         IdentityID targetOwner = requireOwnBookmark(rvs, name, user, "rename_bookmark",
+            "no bookmark named '" + name + "'. list_bookmarks reports what exists.");
+
+         if(!targetOwner.equals(owner)) {
+            throw new IllegalArgumentException(
+               "rename_bookmark: bookmark '" + name + "' exists but is owned by someone else -- " +
+               "rename_bookmark only works on bookmarks you own outright (a shared writable " +
+               "bookmark cannot be renamed through this tool).");
+         }
+
+         // 'type'/'readOnly' omitted means "leave the existing visibility alone", same
+         // omit-means-unchanged convention update_bookmark already uses.
+         VSBookmarkInfo existing = rvs.getBookmarkInfo(name, owner);
+         int type = request.type() != null ? toTypeInt(request.type())
+            : existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
+         boolean readOnly = request.readOnly() != null ? request.readOnly()
+            : existing != null ? existing.isReadOnly() : true;
+
+         requireOk(vsBookmarkService.renameBookmarkInViewSheet(
+                      rvs, newName, name, type, readOnly, confirmed, user),
+                   "rename_bookmark");
+      });
+   }
+
    private static String requireBookmarkName(String name, String tool) {
+      return requireBookmarkName(name, tool, "name");
+   }
+
+   private static String requireBookmarkName(String name, String tool, String field) {
       if(name == null || name.isBlank()) {
-         throw new IllegalArgumentException(tool + " requires 'name' -- the bookmark's name.");
+         throw new IllegalArgumentException(tool + " requires '" + field + "' -- the bookmark's " +
+            ("newName".equals(field) ? "new name." : "name."));
       }
 
       return name;
