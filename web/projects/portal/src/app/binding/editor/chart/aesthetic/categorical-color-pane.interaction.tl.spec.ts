@@ -33,6 +33,7 @@
  *   — covered in categorical-color-pane.risk.tl.spec.ts (Pass 2)
  */
 
+import { HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { render, screen, waitFor } from "@testing-library/angular";
 import userEvent from "@testing-library/user-event";
@@ -92,10 +93,17 @@ function swatchColor(container: HTMLElement, index: number): string {
       ?.getAttribute("ng-reflect-color") || "";
 }
 
+const HOST_WITH_CONTEXT = {
+   vsId: "vs1",
+   assemblyName: "Chart1",
+   assetId: "1^128^__NULL__^TEST"
+};
+
 async function renderPane(options: {
    customFrames?: string[];
    mappingModel?: ColorMappingDialogModel;
    isVS?: boolean;
+   host?: { vsId?: string; assemblyName?: string; assetId?: string };
 } = {}) {
    const frameModel = createFrameModel();
    const field = {
@@ -124,9 +132,7 @@ async function renderPane(options: {
       componentProperties: {
          frameModel,
          field,
-         vsId: "vs1",
-         assemblyName: "Chart1",
-         assetId: "1^128^__NULL__^TEST"
+         ...(options.host ?? HOST_WITH_CONTEXT)
       }
    });
 
@@ -301,5 +307,35 @@ describe("CategoricalColorPane — pane helpers [Group 6, Risk 2]", () => {
       await renderPane({ customFrames: ["ColorValueColorFrame"] });
 
       expect(screen.getByLabelText(USE_COLUMN_VALUES)).toBeInTheDocument();
+   });
+});
+
+describe("CategoricalColorPane — palette request context [Group 1, Risk 2]", () => {
+   function paletteParams(modelService: { getModel: any }): HttpParams {
+      return modelService.getModel.mock.calls
+         .find(([uri]: [string]) => uri.includes("colorpalettes"))[1];
+   }
+
+   it("should render and request palettes when its host supplies no context", async () => {
+      const { modelService } = await renderPane({ host: {} });
+
+      await waitFor(() => expect(modelService.getModel).toHaveBeenCalled());
+      expect(paletteParams(modelService).has("orgId")).toBe(false);
+   });
+
+   it("should send the organization when the asset ID carries one", async () => {
+      const { modelService } = await renderPane({
+         host: { ...HOST_WITH_CONTEXT, assetId: "1^128^__NULL__^TEST^my-org" }
+      });
+
+      await waitFor(() => expect(modelService.getModel).toHaveBeenCalled());
+      expect(paletteParams(modelService).get("orgId")).toBe("my-org");
+   });
+
+   it("should omit orgId when the asset ID has no organization segment", async () => {
+      const { modelService } = await renderPane();
+
+      await waitFor(() => expect(modelService.getModel).toHaveBeenCalled());
+      expect(paletteParams(modelService).has("orgId")).toBe(false);
    });
 });

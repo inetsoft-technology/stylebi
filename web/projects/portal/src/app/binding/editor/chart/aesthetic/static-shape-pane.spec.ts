@@ -31,6 +31,7 @@ describe("Static Shape Pane Unit Test", () => {
    let modelService = { getModel: vi.fn() };
 
    beforeEach(waitForAsync(() => {
+      modelService.getModel.mockClear();
       modelService.getModel.mockImplementation((controller, params) => {
          if(controller === "../api/composer/imageShapes") {
             return observableOf([]);
@@ -62,5 +63,26 @@ describe("Static Shape Pane Unit Test", () => {
       shapePane.shapeStr = "113Face.svg";
 
       expect(shapePane.currentPage).toEqual(1);
+   });
+
+   it("should request shapes without an orgId when no asset ID is supplied", () => {
+      fixture = TestBed.createComponent(StaticShapePane);
+      shapePane = <StaticShapePane>fixture.componentInstance;
+      fixture.detectChanges();
+
+      const params = modelService.getModel.mock.calls
+         .find(([controller]) => controller === "../api/composer/imageShapes")[1];
+      expect(params.has("orgId")).toBe(false);
+   });
+
+   it("should request shapes with the organization from the asset ID", () => {
+      fixture = TestBed.createComponent(StaticShapePane);
+      shapePane = <StaticShapePane>fixture.componentInstance;
+      shapePane.assetId = "1^128^__NULL__^TEST^my-org";
+      fixture.detectChanges();
+
+      const params = modelService.getModel.mock.calls
+         .find(([controller]) => controller === "../api/composer/imageShapes")[1];
+      expect(params.get("orgId")).toBe("my-org");
    });
 });

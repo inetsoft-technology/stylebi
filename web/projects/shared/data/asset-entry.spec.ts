@@ -17,7 +17,7 @@
  */
 
 import { AssetType } from "./asset-type";
-import { createAssetEntry } from "./asset-entry";
+import { assetEntryOrgId, createAssetEntry } from "./asset-entry";
 
 describe("createAssetEntry", () => {
    it("parses a global viewsheet asset ID", () => {
@@ -71,5 +71,26 @@ describe("createAssetEntry", () => {
       const id = "1^128^__NULL__^folder/report";
       const entry = createAssetEntry(id);
       expect(entry.identifier).toBe(id);
+   });
+});
+
+describe("assetEntryOrgId", () => {
+   it("returns the organization when the asset ID carries one", () => {
+      expect(assetEntryOrgId("1^128^__NULL__^Reports/MyVS^my-org")).toBe("my-org");
+   });
+
+   it("returns null when the asset ID has no organization segment", () => {
+      expect(assetEntryOrgId("1^128^__NULL__^My Reports/Sales Dashboard")).toBeNull();
+   });
+
+   it("returns null for a malformed asset ID", () => {
+      expect(assetEntryOrgId("1^128")).toBeNull();
+      expect(assetEntryOrgId("notanassetid")).toBeNull();
+      expect(assetEntryOrgId("")).toBeNull();
+   });
+
+   it("returns null for null/undefined input", () => {
+      expect(assetEntryOrgId(null)).toBeNull();
+      expect(assetEntryOrgId(undefined)).toBeNull();
    });
 });

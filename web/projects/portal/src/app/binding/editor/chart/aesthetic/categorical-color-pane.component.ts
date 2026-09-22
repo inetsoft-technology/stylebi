@@ -28,7 +28,7 @@ import {
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { filter, map, tap } from "rxjs/operators";
-import { createAssetEntry } from "../../../../../../../shared/data/asset-entry";
+import { assetEntryOrgId } from "../../../../../../../shared/data/asset-entry";
 import { ColorMap } from "../../../../common/data/color-map";
 import {
    CategoricalColorModel,
@@ -108,8 +108,13 @@ export class CategoricalColorPane extends CategoricalFramePane implements OnInit
     * load color palettes.
     */
    private getColorPalettes(): Observable<any> {
-      let params = new HttpParams()
-         .set("orgId", createAssetEntry(this.assetId).organization);
+      let params = new HttpParams();
+      const orgId = assetEntryOrgId(this.assetId);
+
+      // send the organization only when the asset ID carries one
+      if(orgId) {
+         params = params.set("orgId", orgId);
+      }
 
       if(this.vsId) {
          params = params.set("vsId", this.vsId);
