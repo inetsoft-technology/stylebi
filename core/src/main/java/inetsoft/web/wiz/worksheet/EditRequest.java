@@ -399,6 +399,12 @@ public record EditRequest(
     *
     * <p>Defaults to {@code true} when omitted, preserving that behaviour for callers built
     * against it; pass {@code false} to be told instead of losing the values.
+    *
+    * <p>For set_group_aggregate: whether to proceed anyway when this call would drop or
+    * re-group a column that some OTHER table in the worksheet relies on, transitively, as
+    * its own {@code AggregateInfo} aggregate INPUT (not a join key — that case is always
+    * refused, never overridable). {@code null}/{@code false} refuses the call, naming the
+    * downstream table(s)/column(s) that would lose their aggregate (Bug #76891 / WBS-078).
     */
    Boolean confirmed,
    /**

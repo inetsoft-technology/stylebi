@@ -37,6 +37,11 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public class WorksheetControllerService {
@@ -141,6 +146,135 @@ public class WorksheetControllerService {
       }
 
       return null;
+   }
+
+   /**
+    * One entry per downstream assembly whose OWN {@link AggregateInfo} would lose an
+    * aggregate because its input column is removed/re-grouped away from {@code table}
+    * by the new {@code AggregateInfo}.
+    */
+   public record AggregateInputLossConflict(String dependentAssemblyName, List<String> lostColumns) {}
+
+   /**
+    * Finds every downstream assembly (transitively, not just direct dependents) whose
+    * own {@link AggregateInfo} aggregates a column of {@code table} that {@code newInfo}
+    * would drop from row-level identity. Unlike {@link #findAggregateIdentityLossConflict},
+    * which only detects a downstream JOIN key conflict, this detects a column relied on
+    * purely as another table's own aggregate INPUT (not a join key at all).
+    */
+   public static List<AggregateInputLossConflict> findAggregateInputLossConflicts(
+      Worksheet ws, TableAssembly table, AggregateInfo newInfo)
+   {
+      LinkedHashMap<String, List<String>> lostByDependent = new LinkedHashMap<>();
+
+      if(newInfo == null || newInfo.isEmpty()) {
+         return new ArrayList<>();
+      }
+
+      ColumnSelection cols = table.getColumnSelection();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+         String col = ref.getName();
+
+         if(newInfo.getGroup(col) != null) {
+            continue;
+         }
+
+         if(!(ref instanceof ColumnRef)) {
+            continue;
+         }
+
+         ColumnRef colRef = (ColumnRef) ref;
+
+         if(colRef.getDataRef() instanceof DateRangeRef) {
+            DateRangeRef dateRangeRef = (DateRangeRef) colRef.getDataRef();
+            String innerRef = dateRangeRef.getDataRef().getName();
+
+            if(newInfo.getGroup(innerRef) != null) {
+               continue;
+            }
+         }
+
+         findAggregateInputLossConflicts(ws, table, colRef, new HashSet<>(), lostByDependent);
+      }
+
+      List<AggregateInputLossConflict> conflicts = new ArrayList<>();
+
+      for(Map.Entry<String, List<String>> entry : lostByDependent.entrySet()) {
+         conflicts.add(new AggregateInputLossConflict(entry.getKey(), entry.getValue()));
+      }
+
+      return conflicts;
+   }
+
+   /**
+    * Walks {@code assembly}'s dependents transitively, mapping {@code ref} through each
+    * dependent's rename/mirror outer-attribute chain (same mechanism {@link #allowsDeletion}
+    * uses for a plain {@code TableAssembly} dependent) and recording a conflict whenever
+    * the mapped column is referenced as an aggregate input by that dependent's own
+    * {@link AggregateInfo}.
+    * <p>
+    * {@code visited} tracks only the assemblies on the CURRENT recursion path (its
+    * ancestors), not every assembly ever reached across the whole walk -- an entry is
+    * added before recursing into a dependent and removed again once that dependent's
+    * whole subtree has been processed. This is enough to stop a genuine cycle (a
+    * dependent chain that loops back on one of its own ancestors) without also
+    * blocking a diamond: the same downstream assembly reached via two different,
+    * non-overlapping incoming edges (e.g. two mirrors of one source table that are
+    * both joined back together) must be re-checked on each edge, since each edge maps
+    * the column through a different rename chain and only one of them may actually
+    * match that assembly's own {@link AggregateInfo}.
+    */
+   private static void findAggregateInputLossConflicts(
+      Worksheet ws, TableAssembly assembly, ColumnRef ref, Set<String> visited,
+      LinkedHashMap<String, List<String>> lostByDependent)
+   {
+      AssemblyRef[] arr = ws.getDependings(assembly.getAssemblyEntry());
+
+      for(AssemblyRef assemblyRef : arr) {
+         String assemblyName = assemblyRef.getEntry().getName();
+
+         if(!visited.add(assemblyName)) {
+            continue;
+         }
+
+         try {
+            Assembly tmp = ws.getAssembly(assemblyName);
+
+            if(!(tmp instanceof TableAssembly)) {
+               continue;
+            }
+
+            TableAssembly dependent = (TableAssembly) tmp;
+            DataRef outerRef = AssetUtil.getOuterAttribute(assemblyName, ref);
+            ColumnRef mappedRef =
+               AssetUtil.getColumnRefFromAttribute(dependent.getColumnSelection(), outerRef);
+
+            if(mappedRef == null) {
+               continue;
+            }
+
+            AggregateInfo dependentInfo = dependent.getAggregateInfo();
+
+            if(dependentInfo != null && !dependentInfo.isEmpty() &&
+               dependentInfo.getAggregates(mappedRef).length > 0)
+            {
+               List<String> lostColumns =
+                  lostByDependent.computeIfAbsent(assemblyName, k -> new ArrayList<>());
+               String name = mappedRef.getName();
+
+               if(!lostColumns.contains(name)) {
+                  lostColumns.add(name);
+               }
+            }
+
+            findAggregateInputLossConflicts(ws, dependent, mappedRef, visited, lostByDependent);
+         }
+         finally {
+            visited.remove(assemblyName);
+         }
+      }
    }
 
    protected boolean isBeDepend(ColumnSelection columns, DataRef target) {
