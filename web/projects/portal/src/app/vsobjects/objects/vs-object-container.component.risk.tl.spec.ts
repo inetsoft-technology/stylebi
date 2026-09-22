@@ -129,6 +129,29 @@ describe("Group 2 — isMiniToolbarVisible: objectType and guard conditions", ()
       const obj = makeVSObject({ objectType: "VSRangeSlider" });
       expect(comp.isMiniToolbarVisible(obj)).toBe(true);
    });
+
+   it("should return false when the horizontal plot resizer takes the toolbar's row", () => {
+      const { comp } = makeComponent();
+      const obj = makeVSObject(<any> {
+         objectType: "VSChart",
+         showPlotResizers: true,
+         horizontallyResizable: true,
+         plot: { layoutBounds: { x: 0, y: 0, width: 400, height: 400 } }
+      });
+      expect(comp.isMiniToolbarVisible(obj)).toBe(false);
+   });
+
+   it("should keep the toolbar when the plot is too narrow to draw a horizontal resizer", () => {
+      const { comp } = makeComponent();
+      const obj = makeVSObject(<any> {
+         objectType: "VSChart",
+         showPlotResizers: true,
+         horizontallyResizable: true,
+         verticallyResizable: true,
+         plot: { layoutBounds: { x: 0, y: 0, width: 100, height: 400 } }
+      });
+      expect(comp.isMiniToolbarVisible(obj)).toBe(true);
+   });
 });
 
 // ---------------------------------------------------------------------------

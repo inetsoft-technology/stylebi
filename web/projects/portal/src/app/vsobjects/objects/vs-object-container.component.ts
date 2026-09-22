@@ -85,6 +85,7 @@ import { VSCylinder } from "./cylinder/vs-cylinder.component";
 import { VSCrosstab } from "./table/vs-crosstab.component";
 import { VSComboBox } from "./combo-box/vs-combo-box.component";
 import { VSCheckBox } from "./check-box/vs-check-box.component";
+import { horizontalPlotResizerShown } from "./chart/plot-resizer-length";
 import { VSChart } from "./chart/vs-chart.component";
 import { VSCalendar } from "./calendar/vs-calendar.component";
 import { VSCalcTable } from "./table/vs-calctable.component";
@@ -283,9 +284,9 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          return false;
       }
 
-      if(model.objectType == "VSChart" && (<any> model).showPlotResizers &&
-         (<any> model).horizontallyResizable)
-      {
+      // the horizontal slider takes the toolbar's row, so test that it is drawn rather than
+      // showPlotResizers, which can be set on a plot too small to carry one
+      if(model.objectType == "VSChart" && horizontalPlotResizerShown(<VSChartModel> model)) {
          return false;
       }
 

@@ -85,7 +85,7 @@ export class EmbedChartActions extends ChartActions {
             icon: () => "plus-icon",
             enabled: () => true,
             visible: () => !this.model.showPlotResizers && !this.isPopComponent() &&
-               this.plotResizable && !this.annotationsSelected &&
+               this.plotResizersFit && !this.annotationsSelected &&
                this.isActionVisible("Resize Plot")
          },
          {

@@ -129,7 +129,7 @@
         [container]="container"
         [emptyPlotLinkTooltip]="model.emptyPlotLinkModel?.tooltip">
         <!-- chart data annotations rendered at vs-object-container level to avoid stacking context issues -->
-        @if (model.showPlotResizers && model.horizontallyResizable && horizontalResizerLength) {
+        @if (horizontalResizerShown) {
           <div class="chart-plot-resizer-horizontal">
             <div class="chart-plot-resizer-horizontal-container">
               <input id="horizontal-resize-slider"
@@ -144,7 +144,7 @@
             </div>
           </div>
         }
-        @if (model.showPlotResizers && model.verticallyResizable && verticalResizerLength) {
+        @if (verticalResizerShown) {
           <div class="chart-plot-resizer-vertical">
             <div class="chart-plot-resizer-vertical-container">
               <input id="vertical-resize-slider"

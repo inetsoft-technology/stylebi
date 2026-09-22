@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import type { VSChartModel } from "../../model/vs-chart-model";
 
 /** Longest the slider is ever drawn, in px. */
 const MAX_LENGTH = 150;
@@ -29,11 +30,41 @@ const EDGE_RATIO = 0.6;
  * slider is the horizontal one under rotate(-90deg): its visual length runs along the parent's
  * height while a CSS percentage would resolve against its own width.
  */
-export function plotResizerLength(edge: number): number | null {
+export function plotResizerLength(edge: number | null | undefined): number | null {
    if(!edge || edge <= 0) {
       return null;
    }
 
    const length = Math.min(MAX_LENGTH, edge * EDGE_RATIO);
    return length >= MIN_LENGTH ? length : null;
+}
+
+/**
+ * Whether the plot can carry a horizontal slider at all: the axis is resizable and the edge
+ * clears the floor. Separate from whether one is drawn, because Resize Plot has to ask this
+ * before it turns the sliders on.
+ */
+export function horizontalPlotResizerFits(model: VSChartModel): boolean {
+   return !!model?.horizontallyResizable &&
+      plotResizerLength(model.plot?.layoutBounds?.width) != null;
+}
+
+/** Vertical counterpart of horizontalPlotResizerFits. */
+export function verticalPlotResizerFits(model: VSChartModel): boolean {
+   return !!model?.verticallyResizable &&
+      plotResizerLength(model.plot?.layoutBounds?.height) != null;
+}
+
+/**
+ * Whether the horizontal slider is drawn. It takes the row the mini toolbar sits in, so the
+ * toolbar keys off this rather than off showPlotResizers, which can be set on a plot that draws
+ * no horizontal slider.
+ */
+export function horizontalPlotResizerShown(model: VSChartModel): boolean {
+   return !!model?.showPlotResizers && horizontalPlotResizerFits(model);
+}
+
+/** Vertical counterpart of horizontalPlotResizerShown. */
+export function verticalPlotResizerShown(model: VSChartModel): boolean {
+   return !!model?.showPlotResizers && verticalPlotResizerFits(model);
 }

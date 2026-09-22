@@ -94,7 +94,13 @@ import { DataTipService } from "../data-tip/data-tip.service";
 import { SelectableObject } from "../selectable-object";
 import { DetailDndInfo } from "../table/detail-dnd-info";
 import { SortInfo } from "../table/sort-info";
-import { plotResizerLength } from "./plot-resizer-length";
+import {
+   horizontalPlotResizerFits,
+   horizontalPlotResizerShown,
+   plotResizerLength,
+   verticalPlotResizerFits,
+   verticalPlotResizerShown
+} from "./plot-resizer-length";
 import { VSChartActionHandler } from "./services/vs-chart-action-handler";
 import { VSChartService } from "./services/vs-chart.service";
 import { GraphTypes } from "../../../common/graph-types";
@@ -296,7 +302,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                   CHART_PLOT_RESIZE_URL, new VSChartPlotResizeEvent(this.model, true, 0, false));
                break;
             case "chart resize-plot":
-               if(this.horizontalResizerLength || this.verticalResizerLength) {
+               if(horizontalPlotResizerFits(this.model) || verticalPlotResizerFits(this.model)) {
                   this.model.showPlotResizers = true;
                }
                break;
@@ -1468,12 +1474,20 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          this.model.objectFormat.width, this.model.objectFormat.height);
    }
 
+   get horizontalResizerShown(): boolean {
+      return horizontalPlotResizerShown(this.model);
+   }
+
+   get verticalResizerShown(): boolean {
+      return verticalPlotResizerShown(this.model);
+   }
+
    get horizontalResizerLength(): number | null {
-      return plotResizerLength(this.model.plot?.layoutBounds.width);
+      return plotResizerLength(this.model.plot?.layoutBounds?.width);
    }
 
    get verticalResizerLength(): number | null {
-      return plotResizerLength(this.model.plot?.layoutBounds.height);
+      return plotResizerLength(this.model.plot?.layoutBounds?.height);
    }
 
    get showDCIcon(): boolean {

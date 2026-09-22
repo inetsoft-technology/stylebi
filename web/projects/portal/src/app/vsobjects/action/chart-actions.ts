@@ -29,6 +29,10 @@ import { Legend } from "../../graph/model/legend";
 import { ContextProvider } from "../context-provider.service";
 import { VSChartModel } from "../model/vs-chart-model";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
+import {
+   horizontalPlotResizerFits,
+   verticalPlotResizerFits
+} from "../objects/chart/plot-resizer-length";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
 import { AbstractVSActions } from "./abstract-vs-actions";
 import { ActionStateProvider } from "./action-state-provider";
@@ -139,7 +143,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
             icon: () => "plus-icon",
             enabled: () => true,
             visible: () => !this.model.showPlotResizers && !this.isPopComponent() &&
-               this.plotResizable && !this.annotationsSelected &&
+               this.plotResizersFit && !this.annotationsSelected &&
                this.isActionVisible("Resize Plot")
          },
          {
@@ -1010,6 +1014,13 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
 
    protected get plotResizable(): boolean {
       return this.model.verticallyResizable || this.model.horizontallyResizable;
+   }
+
+   // narrower than plotResizable: a plot can be resizable and still be too small to carry a
+   // slider, in which case Resize Plot would draw nothing. Reset Size deliberately keeps the
+   // wider test, since an already-resized plot must stay resettable at any size.
+   protected get plotResizersFit(): boolean {
+      return horizontalPlotResizerFits(this.model) || verticalPlotResizerFits(this.model);
    }
 
    private isMekkoSupported(): boolean {
