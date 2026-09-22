@@ -112,7 +112,7 @@ class SelectionBindingServiceTest {
       assertTrue(thrown.getMessage().contains("at least one column"));
    }
 
-   // ── ID-hierarchy mode (Bug #76832) ──────────────────────────────────────────
+   // ── ID-hierarchy mode (regression for Bug #76768) ───────────────────────────
 
    @Test
    void bindsASelectionTreeInIdHierarchyMode() throws Exception {
@@ -121,8 +121,8 @@ class SelectionBindingServiceTest {
       when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
          .thenReturn(new SelectionTreePropertyDialogModel());
 
-      harness(assembly, null, treeService, null, null)
-         .setSource("tok", principal(), "Tree1", "ORDERS", List.of(), null, null, "STATE", "CITY",
+      Map<String, Object> result = harness(assembly, null, treeService, null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
                    "ORDER_DATE", false, "");
 
       ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
@@ -131,36 +131,125 @@ class SelectionBindingServiceTest {
          eq("rt1"), eq("Tree1"), captor.capture(), eq(""), any(), any());
       SelectionTreePaneModel pane = captor.getValue().getSelectionTreePaneModel();
       assertEquals(SelectionTreeVSAssemblyInfo.ID, pane.getMode());
-      assertEquals("STATE", pane.getParentId());
-      assertEquals("CITY", pane.getId());
+      assertEquals("CITY", pane.getParentId());
+      assertEquals("STATE", pane.getId());
       assertEquals("ORDER_DATE", pane.getLabel());
-      assertEquals("STATE", pane.getParentIdRef().getAttribute());
-      assertEquals("CITY", pane.getIdRef().getAttribute());
+      assertEquals("CITY", pane.getParentIdRef().getAttribute());
+      assertEquals("STATE", pane.getIdRef().getAttribute());
       assertEquals("ORDER_DATE", pane.getLabelRef().getAttribute());
+      assertEquals("CITY", result.get("parentIdColumn"));
+      assertEquals("STATE", result.get("idColumn"));
+      assertEquals("ORDER_DATE", result.get("labelColumn"));
    }
 
    @Test
-   void refusesPartialIdModeFieldsOnASelectionTree() {
+   void resolvesMixedCaseIdModeColumnsToTheirCanonicalNames() throws Exception {
+      // Bug #76747 fixed this exact class of bug for additionalTables: a case-mismatched literal
+      // (e.g. "city" for a real "CITY" column) must persist the canonical DB casing, not the raw
+      // caller input, in both the DynamicValue-backed parentId/id/label strings and the response
+      // -- SelectionTreeVSAQuery2.refreshSelectionValue0 matches those strings against dataRefs
+      // (always canonical) with a case-sensitive Tool.equals, so a raw, wrong-case value would
+      // silently render an empty or broken tree despite set_selection_source reporting success.
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(new SelectionTreePropertyDialogModel());
+
+      Map<String, Object> result = harness(assembly, null, treeService, null, null)
+         .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "city", "state",
+                   "order_date", false, "");
+
+      ArgumentCaptor<SelectionTreePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionTreePropertyDialogModel.class);
+      verify(treeService).setSelectionTreePropertyModel(
+         eq("rt1"), eq("Tree1"), captor.capture(), eq(""), any(), any());
+      SelectionTreePaneModel pane = captor.getValue().getSelectionTreePaneModel();
+      assertEquals("CITY", pane.getParentId());
+      assertEquals("STATE", pane.getId());
+      assertEquals("ORDER_DATE", pane.getLabel());
+      assertEquals("CITY", pane.getParentIdRef().getAttribute());
+      assertEquals("STATE", pane.getIdRef().getAttribute());
+      assertEquals("ORDER_DATE", pane.getLabelRef().getAttribute());
+      assertEquals("CITY", result.get("parentIdColumn"));
+      assertEquals("STATE", result.get("idColumn"));
+      assertEquals("ORDER_DATE", result.get("labelColumn"));
+   }
+
+   @Test
+   void refusesADynamicReferenceOnAnIdModeColumn() {
+      // #76768: unlike `measure`, an id/parentId/label column cannot support "$(ComponentName)"
+      // -- SelectionTreeVSAQuery2.refreshSelectionValue0 matches these columns by name against
+      // assembly.getDataRefs(), which never contains an entry for a dynamic (non-literal) value,
+      // so the tree would silently render empty/broken rather than actually swap. Refused loudly
+      // instead, naming the field.
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, treeService, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                      "$(RadioButton1)", false, ""));
+
+      assertTrue(thrown.getMessage().contains("labelColumn"));
+      assertTrue(thrown.getMessage().contains("does not accept"));
+      verifyNoInteractions(treeService);
+   }
+
+   @Test
+   void refusesPartialIdModeColumns() {
       SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, null, mock(SelectionTreePropertyDialogService.class), null, null)
-            .setSource("tok", principal(), "Tree1", "ORDERS", List.of(), null, null, "STATE",
-                      "CITY", null, false, ""));
+            .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY", "STATE",
+                      null, false, ""));
 
-      assertTrue(thrown.getMessage().contains("required together"));
+      assertTrue(thrown.getMessage().contains("idColumn"));
+      assertTrue(thrown.getMessage().contains("labelColumn"));
    }
 
    @Test
-   void refusesColumnsCombinedWithIdModeFieldsOnASelectionTree() {
+   void refusesCombiningColumnsWithIdModeColumns() {
       SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
 
       Exception thrown = assertThrows(IllegalArgumentException.class, () ->
          harness(assembly, null, mock(SelectionTreePropertyDialogService.class), null, null)
             .setSource("tok", principal(), "Tree1", "ORDERS", List.of("STATE"), null, null,
-                      "STATE", "CITY", "ORDER_DATE", false, ""));
+                      "CITY", "STATE", "ORDER_DATE", false, ""));
 
-      assertTrue(thrown.getMessage().contains("cannot be combined"));
+      assertTrue(thrown.getMessage().contains("columns"));
+   }
+
+   @Test
+   void refusesAnUnknownIdModeColumnNamingWhatIsAvailable() throws Exception {
+      SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
+      SelectionTreePropertyDialogService treeService = mock(SelectionTreePropertyDialogService.class);
+      when(treeService.getSelectionTreePropertyModel(eq("rt1"), eq("Tree1"), any()))
+         .thenReturn(new SelectionTreePropertyDialogModel());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, null, treeService, null, null)
+            .setSource("tok", principal(), "Tree1", "ORDERS", null, null, null, "CITY",
+                      "NO_SUCH_COLUMN", "ORDER_DATE", false, ""));
+
+      assertTrue(thrown.getMessage().contains("NO_SUCH_COLUMN"));
+      assertTrue(thrown.getMessage().contains("STATE"));
+   }
+
+   @Test
+   void refusesIdModeColumnsOnANonTreeAssembly() {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+
+      // A selection list has no ID-hierarchy mode. parentIdColumn/idColumn/labelColumn take the
+      // place of 'columns' in the request, so a selection list given these instead sees an empty
+      // 'columns' and is refused the same way a selection list given zero columns always was --
+      // the arity check below has no assembly-type awareness of idMode, and does not need one.
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         harness(assembly, mock(SelectionListPropertyDialogService.class), null, null, null)
+            .setSource("tok", principal(), "List1", "ORDERS", null, null, null, "CITY", "STATE",
+                      "ORDER_DATE", false, ""));
+
+      assertTrue(thrown.getMessage().contains("selection list"));
    }
 
    @Test
