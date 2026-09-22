@@ -46,10 +46,14 @@ export class ShareLinkDialog implements OnInit {
 
    ngOnInit(): void {
       if(this.viewsheetId) {
-         this.link = this.shareService.getViewsheetLink(this.viewsheetId);
+         this.shareService.getViewsheetLinkAsync(this.viewsheetId).subscribe((link) => {
+            this.link = link;
+            this.iframe = `<iframe src="${this.link}"></iframe>`;
+         });
       }
-
-      this.iframe = `<iframe src="${this.link}"></iframe>`;
+      else {
+         this.iframe = `<iframe src="${this.link}"></iframe>`;
+      }
    }
 
    enter() {

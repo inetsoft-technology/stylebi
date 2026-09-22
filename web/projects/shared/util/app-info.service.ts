@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { BehaviorSubject, Observable } from "rxjs";
-import { shareReplay } from "rxjs/operators";
+import { filter, shareReplay } from "rxjs/operators";
 import { Injectable, OnDestroy } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { IdentityId } from "../../em/src/app/settings/security/users/identity-id";
@@ -54,8 +54,14 @@ export class AppInfoService implements OnDestroy {
       return this.httpClient.get<CommonKVModel<string, string>>("../api/org/info");
    }
 
+   /**
+    * currentOrgInfo is seeded with null and only updated once the async
+    * "../api/org/info" request resolves. Filter out that seed so a subscriber can't
+    * mistake "not loaded yet" for a real, empty org-info value; a subscriber that needs to
+    * wait for the real value (e.g. via take(1)) gets it, instead of racing ahead on null.
+    */
    getCurrentOrgInfo(): Observable<CommonKVModel<string, string>> {
-      return this.currentOrgInfo;
+      return this.currentOrgInfo.pipe(filter(orgInfo => orgInfo != null));
    }
 
    getAllOrgnanizations(): Observable<string[]> {
