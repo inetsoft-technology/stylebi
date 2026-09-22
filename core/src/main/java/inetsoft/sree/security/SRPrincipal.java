@@ -188,19 +188,14 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
     * Create a principal from with the same name, roles, groups, and properties.
     */
    public SRPrincipal(SRPrincipal principal) {
-      this(principal.getIdentityID(), principal.getRoles(), principal.getGroups(), principal.getOrgId(),
-           principal.getSecureID());
+      super(principal);
 
+      this.client = principal.getUser();
+      this.secureID = principal.getSecureID();
       this.host = principal.getHost();
       this.locale = principal.getLocale();
       this.accessed = principal.getLastAccess();
       this.age = new Date(principal.getAge());
-      this.client = principal.getUser();
-
-      principal.getParameterNames().forEach(
-         item -> this.setParameter(item, principal.getParameter(item)));
-      principal.getPropertyNames().forEach(
-         item -> this.setProperty(item, principal.getProperty(item)));
    }
 
    public SRPrincipal(SRPrincipal principal, ClientInfo client) {
