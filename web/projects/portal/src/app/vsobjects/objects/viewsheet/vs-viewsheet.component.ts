@@ -242,8 +242,21 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
 
    private applyRefreshObject(vsObject: VSObjectModel, name: string): boolean {
       let updated: boolean = false;
-      let offsetLeft = this.model.bounds.x;
-      let offsetTop = this.model.bounds.y;
+
+      // this.model (an OnPush @Input) can still be the pre-refresh object here: this
+      // panel's own RefreshVSObjectCommand is applied by the parent as a plain array
+      // mutation (ViewerAppComponent.processRefreshVSObjectCommand) and only reaches this
+      // component's @Input once Angular re-evaluates the parent's [model] binding, which
+      // may not have happened yet if a descendant's command (the one being processed here)
+      // arrives in the same batch. vsInfo.vsObjects is the same array instance the parent
+      // mutates in place, so read this panel's current bounds from there instead of
+      // trusting the (possibly stale) @Input - this avoids permanently baking a wrong
+      // offset into the descendant's position (bug #76510).
+      let current = this.vsInfo?.vsObjects?.find(
+         obj => obj.absoluteName === this.model.absoluteName) as VSViewsheetModel;
+      let bounds = current?.bounds ?? this.model.bounds;
+      let offsetLeft = bounds.x;
+      let offsetTop = bounds.y;
 
       if((vsObject as any).maxMode === true) {
          // for max mode position, use the object format position
