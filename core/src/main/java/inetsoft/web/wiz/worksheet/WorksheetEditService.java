@@ -657,7 +657,34 @@ public class WorksheetEditService {
                                     boolean crosstab)
          throws PairingException
       {
-         WorksheetMutationSupport.applyAggregateInfo(requireTable(table), groups, aggregates, crosstab);
+         setGroupAggregate(table, groups, aggregates, crosstab, false);
+      }
+
+      /**
+       * Builds and sets a new {@link AggregateInfo} on the named table, with an explicit
+       * {@code confirmed} override for the "downstream table's own aggregate would be
+       * silently emptied" conflict (Bug #76891 / WBS-078).
+       *
+       * @param table      the assembly name
+       * @param groups     group-by column specs (name, plus optional date grouping level)
+       * @param aggregates aggregate measures to apply
+       * @param crosstab   {@code true} to display the result as a crosstab (row/column
+       *                   headers) rather than a flat grouped table — the Composer's own
+       *                   Group and Aggregate dialog "Switch to Crosstab" toggle. Takes visible
+       *                   effect only once {@code groups} has at least 2 entries and
+       *                   {@code aggregates} at least 1 — see {@link AggregateInfo#isCrosstab}
+       * @param confirmed  {@code true} to proceed anyway despite a downstream table losing
+       *                   an aggregate that relies on a column dropped/re-grouped by this
+       *                   call as its input (not a join key -- that case is always refused)
+       * @throws PairingException if no {@link TableAssembly} with {@code table} exists
+       */
+      public void setGroupAggregate(String table, List<WorksheetMutationSupport.GroupSpec> groups,
+                                    List<WorksheetMutationSupport.AggregateSpec> aggregates,
+                                    boolean crosstab, boolean confirmed)
+         throws PairingException
+      {
+         WorksheetMutationSupport.applyAggregateInfo(
+            requireTable(table), groups, aggregates, crosstab, confirmed);
       }
 
       // -----------------------------------------------------------------------

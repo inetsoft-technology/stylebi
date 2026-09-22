@@ -3713,6 +3713,134 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // set_group_aggregate vs. downstream aggregate INPUT (Bug #76891 / WBS-078)
+   //
+   // A column dropped/re-grouped away from row-level identity is not always a JOIN key
+   // (WBS-062, above) -- it may instead be relied on purely as ANOTHER table's own
+   // AggregateInfo aggregate input, possibly several mirror hops downstream. Unlike the
+   // join-key case, this is not the same silent-corruption risk (the downstream
+   // aggregate simply becomes empty/adjusted, a visible effect the caller can review), so
+   // it is a warn-then-confirm gate rather than an unconditional hard block.
+   // =========================================================================
+
+   @Test
+   void setGroupAggregateRefusesDroppingADownstreamAggregateInputWithoutConfirmation()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M", List.of(),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+      assertEquals(1, mirror.getAggregateInfo().getAggregateCount(),
+         "sanity check: M's own aggregate must exist before the L-side edit");
+
+      // "amount" is not a join key anywhere -- WBS-062's own guard stays silent -- but it
+      // is dropped from L's row-level identity entirely (kept neither as a group nor as
+      // an aggregate on L), and M's own AggregateInfo still sums it as its input.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("L", List.of(),
+               List.of(new WorksheetMutationSupport.AggregateSpec("id", "COUNT", null)))));
+
+      assertTrue(ex.getMessage().contains("amount"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("M"), ex.getMessage());
+      assertTrue(ex.getMessage().toLowerCase().contains("confirmed"), ex.getMessage());
+      assertTrue(left.getAggregateInfo().isEmpty(),
+         "the refused edit must not have been applied to L");
+      assertEquals(1, mirror.getAggregateInfo().getAggregateCount(),
+         "M's own aggregate must not have been mutated by the refused L-side edit");
+   }
+
+   @Test
+   void setGroupAggregateAllowsDroppingADownstreamAggregateInputWhenConfirmed() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M", List.of(),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("L", List.of(),
+            List.of(new WorksheetMutationSupport.AggregateSpec("id", "COUNT", null)),
+            false, true));
+
+      assertEquals(1, left.getAggregateInfo().getAggregateCount(),
+         "the confirmed edit must be applied to L");
+   }
+
+   @Test
+   void setGroupAggregateRefusesDroppingAFurtherHopDownstreamAggregateInput() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // L -> M1 -> M2, with M2's OWN AggregateInfo (not M1's) aggregating "amount" -- the
+      // transitive walk must reach M2, two hops downstream of L, not just the direct
+      // dependent M1.
+      svc.apply("TOK", agent, ed -> ed.addMirror("M1", "L"));
+      svc.apply("TOK", agent, ed -> ed.addMirror("M2", "M1"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M2", List.of(),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      MirrorTableAssembly m2 = (MirrorTableAssembly) ws.getAssembly("M2");
+      assertEquals(1, m2.getAggregateInfo().getAggregateCount(),
+         "sanity check: M2's own aggregate must exist before the L-side edit");
+
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("L", List.of(),
+               List.of(new WorksheetMutationSupport.AggregateSpec("id", "COUNT", null)))));
+
+      assertTrue(ex.getMessage().contains("amount"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("M2"), ex.getMessage());
+      assertTrue(left.getAggregateInfo().isEmpty(),
+         "the refused edit must not have been applied to L");
+   }
+
+   @Test
+   void setGroupAggregateConfirmedCannotBypassTheDownstreamJoinKeyHardBlock() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "value");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      // WBS-062's own join-key case must stay an unconditional hard block: a caller
+      // cannot use the new confirmed:true flag (meant only for the aggregate-INPUT
+      // category above) to bypass it.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("L", List.of(),
+               List.of(new WorksheetMutationSupport.AggregateSpec("id", "COUNT", null)),
+               false, true)));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      assertTrue(left.getAggregateInfo().isEmpty(),
+         "the refused aggregate must not have been applied even with confirmed:true");
+   }
+
+   // =========================================================================
    // Edit-in-place tests
    // =========================================================================
 

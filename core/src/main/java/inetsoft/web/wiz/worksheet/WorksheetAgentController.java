@@ -2780,7 +2780,8 @@ public class WorksheetAgentController {
                                                 a.field(), a.formula(), a.alias(), a.n()))
                                             .toList()
                                         : List.of(),
-                                     Boolean.TRUE.equals(req.crosstab()));
+                                     Boolean.TRUE.equals(req.crosstab()),
+                                     Boolean.TRUE.equals(req.confirmed()));
          case "add_expression_column" -> {
             if(req.name() == null || req.name().isBlank()) {
                throw new PairingException("name is required for add_expression_column.");

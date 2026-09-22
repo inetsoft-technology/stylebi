@@ -595,6 +595,26 @@ public final class WorksheetMutationSupport {
                                          List<AggregateSpec> aggregates, boolean crosstab)
       throws inetsoft.web.wiz.pairing.PairingException
    {
+      applyAggregateInfo(t, groups, aggregates, crosstab, false);
+   }
+
+   /**
+    * Builds and sets a new {@link AggregateInfo} on the table from the supplied
+    * group and aggregate specs, optionally in crosstab mode, with an explicit
+    * {@code confirmed} override for the "downstream table's own aggregate would be
+    * silently emptied" conflict (Bug #76891 / WBS-078) -- a column relied on purely as
+    * ANOTHER table's own {@code AggregateInfo} aggregate INPUT (not a join key; that
+    * case is {@link WorksheetControllerService#findAggregateIdentityLossConflict}, still
+    * an unconditional hard block below, unaffected by {@code confirmed}).
+    *
+    * @param confirmed {@code true} to proceed anyway despite such a conflict;
+    *                  {@code false} (the default for every other overload) throws instead
+    */
+   public static void applyAggregateInfo(TableAssembly t, List<GroupSpec> groups,
+                                         List<AggregateSpec> aggregates, boolean crosstab,
+                                         boolean confirmed)
+      throws inetsoft.web.wiz.pairing.PairingException
+   {
       // Callers (e.g. WorksheetAgentController) may pass a null groups or aggregates
       // list when the request omits that key entirely; normalize before either the
       // emptiness check below or the per-spec loops run, so a null groups list paired
@@ -1023,6 +1043,32 @@ public final class WorksheetMutationSupport {
                "output -- it is still used as a join key" +
                (dependentName != null ? " by '" + dependentName + "'" : " by a downstream table") +
                ". Remove it from aggregates, or update the join first.");
+         }
+
+         // Bug #76891 / WBS-078: unlike the join-key case above, a column relied on
+         // purely as ANOTHER table's own aggregate INPUT (e.g. a mirror several hops
+         // downstream that itself sums this column) is not a hard block -- it is a
+         // legitimate, opt-in edit -- so this is refused only when the caller hasn't
+         // already confirmed it.
+         List<WorksheetControllerService.AggregateInputLossConflict> inputConflicts =
+            WorksheetControllerService.findAggregateInputLossConflicts(mutationWs, t, ainfo);
+
+         if(!inputConflicts.isEmpty() && !confirmed) {
+            StringBuilder sb = new StringBuilder();
+
+            for(WorksheetControllerService.AggregateInputLossConflict inputConflict : inputConflicts) {
+               if(sb.length() > 0) {
+                  sb.append("; ");
+               }
+
+               sb.append("'").append(inputConflict.dependentAssemblyName()).append("' (")
+                  .append(String.join(", ", inputConflict.lostColumns())).append(")");
+            }
+
+            throw new inetsoft.web.wiz.pairing.PairingException(
+               "This change would empty the aggregate on the following downstream " +
+               "table(s), which rely on the affected column(s) as an aggregate input: " +
+               sb + ". Retry with confirmed:true to proceed anyway.");
          }
       }
 

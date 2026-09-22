@@ -224,7 +224,7 @@ public class AggregateDialogService extends WorksheetControllerService {
 
          if(Tool.equalsContent(oldAggInfo, ginfo) &&
             Tool.equalsContent(oldAggInfo.getSecondaryAggregates() ,ginfo.getSecondaryAggregates())
-            || !checkDeleteColumns(ws, ginfo, table, commandDispatcher))
+            || !checkDeleteColumns(ws, ginfo, table, model, commandDispatcher))
          {
             return null;
          }
@@ -707,7 +707,7 @@ public class AggregateDialogService extends WorksheetControllerService {
    }
 
    private boolean checkDeleteColumns(Worksheet ws, AggregateInfo ainfo, TableAssembly table,
-                                      CommandDispatcher dispatcher)
+                                      AggregateDialogModel model, CommandDispatcher dispatcher)
    {
       if(ainfo.isEmpty()) {
          return true;
@@ -719,6 +719,34 @@ public class AggregateDialogService extends WorksheetControllerService {
             "common.columnsDependency"));
          command.setType(MessageCommand.Type.WARNING);
          command.setAssemblyName(table.getName());
+         dispatcher.sendCommand(command);
+         return false;
+      }
+
+      List<AggregateInputLossConflict> inputConflicts =
+         findAggregateInputLossConflicts(ws, table, ainfo);
+
+      if(!inputConflicts.isEmpty() && !model.confirmed()) {
+         StringBuilder sb = new StringBuilder();
+
+         for(AggregateInputLossConflict conflict : inputConflicts) {
+            if(sb.length() > 0) {
+               sb.append("; ");
+            }
+
+            sb.append(conflict.dependentAssemblyName())
+               .append(" (")
+               .append(String.join(", ", conflict.lostColumns()))
+               .append(")");
+         }
+
+         MessageCommand command = new MessageCommand();
+         command.setMessage("Removing this column as an aggregate output will empty the " +
+            "aggregate on the following downstream table(s), which rely on it as an " +
+            "aggregate input: " + sb + ". Continue?");
+         command.setType(MessageCommand.Type.CONFIRM);
+         command.setAssemblyName(table.getName());
+         command.addEvent("/events/ws/dialog/aggregate-dialog-model", model);
          dispatcher.sendCommand(command);
          return false;
       }
