@@ -179,8 +179,8 @@ input[type=range]:focus::-moz-range-thumb {
   z-index: 5000;
   opacity: 0.8;
   font-size: 16px;
-  color: black;
-  background: rgba(255, 255, 255, 0.7);
+  color: var(--inet-text-color);
+  background: var(--inet-shell-surface-default);
   padding: 1px;
 }
 
@@ -191,11 +191,23 @@ input[type=range]:focus::-moz-range-thumb {
   opacity: 0.8;
   font-size: 20px;
   cursor: pointer;
-  color: black;
-  background: rgba(255, 255, 255, 0.7);
+  color: var(--inet-text-color);
+  background: var(--inet-shell-surface-default);
 }
 
 .vs-object:hover .move-down {
   top: 32px;
-  background: white;
+  background: var(--inet-shell-surface-default);
+}
+
+:host-context(.viz-dark) {
+  .drill-tip,
+  .date-comparison-tip {
+    color: var(--inet-viz-text-dark);
+    background: var(--inet-viz-surface-dark);
+  }
+
+  .vs-object:hover .move-down {
+    background: var(--inet-viz-surface-dark);
+  }
 }
