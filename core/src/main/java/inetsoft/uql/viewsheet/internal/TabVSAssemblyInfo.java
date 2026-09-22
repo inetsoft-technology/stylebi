@@ -337,6 +337,14 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             roundTopCornersOnly = tinfo.roundTopCornersOnly;
             result = true;
          }
+
+         // Unconditional: transient runtime plumbing, not observable state that should
+         // affect dirty-checking (unlike the fields above, doesn't set result=true).
+         // Without this, setVSAssemblyInfo() -- which merges via copyInfo()/copyViewInfo()
+         // onto the pre-existing live info rather than swapping the reference -- would
+         // silently drop any pending positionNeedsSync flag (or its clearing) carried by
+         // a cloned info passed through it, e.g. from TabPropertyDialogService.
+         positionNeedsSync = tinfo.positionNeedsSync;
       }
 
       return result;
@@ -707,8 +715,45 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       return rval != null ? Boolean.parseBoolean(rval.toString()) : getBottomTabsValue();
    }
 
+   /**
+    * Raw rValue setter. Used by the tab's own script ({@link
+    * inetsoft.report.script.viewsheet.TabVSAScriptable}), which handles its own reposition
+    * side effect based on whether the value actually changed. Bookmark/state restore must use
+    * {@link #restoreBottomTabs} instead -- it doesn't reposition, so it needs to flag that a
+    * reposition is still owed.
+    */
    public void setBottomTabs(boolean bottomTabs) {
       this.bottomTabs.setRValue(bottomTabs);
+   }
+
+   /**
+    * Restore the bottomTabs rValue from bookmark/state content (see
+    * {@link inetsoft.uql.viewsheet.TabVSAssembly#parseStateContent}). Unlike
+    * {@link #setBottomTabs}, this never repositions the tab bar -- pixel positions aren't part
+    * of bookmark state -- so it marks {@link #isPositionNeedsSync()} to tell the next
+    * reposition-capable caller that a reposition is still owed even though, from that caller's
+    * point of view, the value may appear unchanged (e.g. the tab's own script re-running on
+    * every refresh with a value that already matches the just-restored rValue).
+    */
+   public void restoreBottomTabs(boolean bottomTabs) {
+      this.bottomTabs.setRValue(bottomTabs);
+      positionNeedsSync = true;
+   }
+
+   /**
+    * True if bottomTabs' rValue was restored (e.g. from a bookmark) without a matching
+    * reposition of the tab bar and its children's pixel position.
+    */
+   public boolean isPositionNeedsSync() {
+      return positionNeedsSync;
+   }
+
+   /**
+    * Clear the pending-reposition flag once the tab bar and children have been repositioned to
+    * match the current bottomTabs value.
+    */
+   public void clearPositionNeedsSync() {
+      positionNeedsSync = false;
    }
 
    public boolean isRoundBottomCornersOnly() {
@@ -728,6 +773,10 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    private boolean roundTopCornersOnly = true;
    private DynamicValue bottomTabs = new DynamicValue();
    private boolean roundBottomCornersOnly;
+   // runtime-only: not written to asset/bookmark XML (see writeAttributes/parseAttributes),
+   // not touched by resetRuntimeValues() -- must survive across a refresh so the reposition
+   // owed by a bookmark restore isn't lost before the tab's script re-runs.
+   private transient boolean positionNeedsSync;
 
    public static final TableDataPath ACTIVE_TAB_PATH =
       new TableDataPath(-1, TableDataPath.DETAIL);
