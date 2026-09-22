@@ -24,6 +24,7 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.*;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
 import org.junit.jupiter.api.Test;
@@ -605,5 +606,53 @@ public class RunningTotalColumnTest {
 
    private CrossFilter.Tuple createCrosstabFilterTuple(Object value) {
       return new CrossFilter.Tuple(new Object[] { value });
+   }
+
+   /**
+    * Regression test for Bug #76911, covering the no-breakBy accumulation path directly
+    * (ported from the sibling work on #76906). A running total over a part-date-group
+    * dimension under a Top-N/Bottom-N "Sort By Value" ranking must accumulate in the order
+    * the bars are plotted in, not in calendar order: the first bar in display order has
+    * nothing accumulated before it even when a numerically-earlier quarter sits elsewhere
+    * in the data.
+    *
+    * Row order is quarter 1, 3, 2 (ids 21, 18, 31) and the ranking comparator plots them
+    * 3, 1, 2 -- neither row order nor calendar order. Before the fix, DataSetRouter forced
+    * calendar order for any value-sorted part-date dimension, so quarter 3 (plotted first)
+    * came out as 70 rather than 18, and quarter 1 as 21 rather than 39.
+    */
+   @Test
+   void testRunningSumFollowsDisplaySortOnValueSortedPartDateDim() {
+      final String dim = "QuarterOfYear(order_date)";
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { dim, "id" },
+         { 1, 21 },
+         { 3, 18 },
+         { 2, 31 }
+      });
+
+      List<Integer> display = Arrays.asList(3, 1, 2);
+      VSDimensionRef quarterRef = mock(VSDimensionRef.class);
+      when(quarterRef.getFullName()).thenReturn(dim);
+      when(quarterRef.getDateLevel()).thenReturn(XConstants.QUARTER_OF_YEAR_DATE_GROUP);
+      when(quarterRef.getOrder()).thenReturn(XConstants.SORT_VALUE_ASC);
+      when(quarterRef.createComparator(org.mockito.ArgumentMatchers.any()))
+         .thenReturn((a, b) -> Integer.compare(display.indexOf(a), display.indexOf(b)));
+
+      vsDataSet = new VSDataSet(tb, new VSDimensionRef[]{ quarterRef });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim(dim);
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      // row 0 = quarter 1, plotted second -> previous is quarter 3 -> 18 + 21
+      assertEquals(39.0, runningTotalColumn.calculate(vsDataSet, 0, false, false));
+
+      // row 1 = quarter 3, plotted first -> nothing before it -> itself only
+      assertEquals(18.0, runningTotalColumn.calculate(vsDataSet, 1, false, false));
+
+      // row 2 = quarter 2, plotted last -> 18 + 21 + 31
+      assertEquals(70.0, runningTotalColumn.calculate(vsDataSet, 2, false, false));
    }
 }

@@ -434,8 +434,10 @@ public class ValueOfColumnTest {
     * value-based one as set by a Top-N/Bottom-N "Sort By Value" ranking. Navigation has to
     * stay aligned with the order the values are actually plotted in.
     *
-    * This deliberately REVERSES the expectation this test carried for Bug #76514, which had
-    * calendar order override a value-based sort for these dimensions. That exception was
+    * This test started life as Bug #75664-1's ranking follow-up, where the calendar-order
+    * expectation for part-date dimensions was first established, and it deliberately
+    * REVERSES the expectation it then carried for Bug #76514, which had calendar order
+    * override a value-based sort for these dimensions. That exception was
     * removed by an explicit product decision (2026-09-22): any configured display sort wins,
     * and calendar order applies only as the fallback when no sort is configured at all --
     * see {@link #testPreviousOnPartDateGroupWithOthersLabel()}. An explicit label sort is

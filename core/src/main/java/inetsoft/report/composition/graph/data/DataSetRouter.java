@@ -63,7 +63,8 @@ public class DataSetRouter extends AbstractRouter {
       // navigate previous/next in natural calendar order only when the field carries no
       // display sort at all. Any configured sort — including a value-based one, e.g. a Top-N
       // "Sort By Value" ranking — wins, so that calc navigation stays aligned with the order
-      // the values are actually plotted in. (76911, 76059, 75743)
+      // the values are actually plotted in. The calendar-order expectation originally came
+      // from 75664-1; 76911 narrowed it to the no-sort case. (76911, 76059, 75743, 75664-1)
       XDimensionRef partDateDim = getPartDateDimension(data, field);
       comp = data.getComparator(field);
 
