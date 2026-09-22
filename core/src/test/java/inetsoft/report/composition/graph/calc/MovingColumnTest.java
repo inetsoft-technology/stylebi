@@ -453,14 +453,25 @@ public class MovingColumnTest {
    @Test
    void testMovingAverageOnValueSortedWeekOfYearUsesDisplayWindow() {
       final String dim = "WeekOfYear(order_date)";
-      // display order (Sort By Value asc on the measure), not calendar order
+      // all 16 rows as the regression suite emitted them, in display order (Sort By Value asc
+      // on the measure) rather than calendar order
       final Object[][] rows = {
          { 11, 106618933.0 },
          { 10, 110687541.0 },
          { 20, 113322078.0 },
-         { 2, 122874104.0 },
-         { 7, 128325591.0 },
-         { 19, 145703531.0 }
+         { 2,  117120054.0 },
+         { 7,  121348255.0 },
+         { 19, 127165816.0 },
+         { 22, 128852848.0 },
+         { 9,  185853172.0 },
+         { 1,  198642284.0 },
+         { 18, 203874744.0 },
+         { 16, 237091940.0 },
+         { 17, 263345096.0 },
+         { 13, 358749250.0 },
+         { 15, 384815621.0 },
+         { 12, 422237428.0 },
+         { 14, 488240641.0 }
       };
 
       Object[][] cells = new Object[rows.length + 1][];
@@ -492,9 +503,17 @@ public class MovingColumnTest {
       assertEquals(110209517.3333,
                    (Double) movingColumn.calculate(vsDataSet, 0, true, false), 0.0001);
 
-      // row 2 = week 20; full display window [rows 0..4]
-      assertEquals(116365649.4,
-                   (Double) movingColumn.calculate(vsDataSet, 2, false, false), 0.0001);
+      // row 1 = week 10; 4-wide leading edge [rows 0..3]; suite emitted 189349065.8
+      assertEquals(111937151.5,
+                   (Double) movingColumn.calculate(vsDataSet, 1, false, false), 0.0001);
+
+      // row 5 = week 19; full interior window [rows 3..7]; suite emitted 167312116.4
+      assertEquals(136068029.0,
+                   (Double) movingColumn.calculate(vsDataSet, 5, false, false), 0.0001);
+
+      // row 15 = week 14; 3-wide trailing edge [rows 13..15]; suite emitted 378226976
+      assertEquals(431764563.3333,
+                   (Double) movingColumn.calculate(vsDataSet, 15, false, true), 0.0001);
    }
 
 }
