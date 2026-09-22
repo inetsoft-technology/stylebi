@@ -741,6 +741,81 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
       return messageCommand;
    }
 
+   /**
+    * Renames an existing bookmark while PRESERVING its saved state (selections/filters/input
+    * values) -- unlike {@link #addBookmarkToViewSheet}, which always captures a fresh snapshot
+    * of the CURRENT runtime state under the given name. Delegates to
+    * {@link RuntimeViewsheet#editBookmark}, which moves the bookmark's own saved payload rather
+    * than re-capturing it (bug #76827).
+    * <p>
+    * Built on {@link #addBookmarkToViewSheet}'s own convention -- returns a {@link MessageCommand}
+    * directly rather than dispatching through a {@link CommandDispatcher} -- so a headless caller
+    * that only ever inspects the returned command (via {@code requireOk}, which fails on ANY
+    * non-OK type) cannot silently miss a refusal. This is deliberately NOT built on the existing
+    * {@link #editBookmark} event handler above: that method signals its own schedule-task
+    * refusal by dispatching a {@code MessageCommand.Type.CONFIRM} command and returning normally
+    * -- correct for its own interactive-browser caller, but silently inert for a caller (like
+    * this one) that never inspects dispatched commands, only a returned {@link MessageCommand}.
+    *
+    * @param rvs        the target runtime viewsheet
+    * @param newName    the bookmark's new name
+    * @param oldName    the bookmark's current name
+    * @param type       the bookmark's type (private/shared/group) to apply after the rename
+    * @param readOnly   the bookmark's read-only flag to apply after the rename
+    * @param confirmed  {@code true} to proceed despite {@code oldName} being referenced by a
+    *                   schedule task (and to update that reference to {@code newName}); has no
+    *                   effect on the duplicate-name case, which is always refused
+    * @param principal  the bookmark's owner -- also the runtime viewsheet's own owning principal,
+    *                   since {@link RuntimeViewsheet#editBookmark} has no owner parameter of its
+    *                   own and always operates on the runtime viewsheet's own owner's bookmarks
+    *
+    * @return {@code MessageCommand.OK} on success, or a non-OK command naming the problem
+    */
+   public MessageCommand renameBookmarkInViewSheet(RuntimeViewsheet rvs, String newName,
+                                                    String oldName, int type, boolean readOnly,
+                                                    boolean confirmed, Principal principal)
+      throws Exception
+   {
+      MessageCommand messageCommand = new MessageCommand();
+      IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+      boolean nameChanged = !Tool.equals(newName, oldName);
+
+      if(nameChanged && rvs.containsBookmark(newName, user)) {
+         messageCommand.setMessage(catalog.getString("viewer.viewsheet.bookmark.duplicateWarning"));
+         messageCommand.setType(MessageCommand.Type.ERROR);
+         return messageCommand;
+      }
+
+      if(nameChanged) {
+         List<ScheduleTask> tasksUsingBookmark =
+            getScheduledTasksUsingBookmark(oldName, user, rvs.getEntry().toIdentifier());
+
+         if(!tasksUsingBookmark.isEmpty()) {
+            if(!confirmed) {
+               final String tasksStr = tasksUsingBookmark.stream()
+                  .map(scheduleTask -> scheduleTask.toView(true, true))
+                  .collect(Collectors.joining(", "));
+               messageCommand.setMessage(catalog.getString(
+                  "viewer.viewsheet.renameBookmarkInSchedule", oldName, tasksStr));
+               messageCommand.setType(MessageCommand.Type.ERROR);
+               return messageCommand;
+            }
+
+            ScheduleManager manager = scheduleManager;
+            manager.bookmarkRenamed(oldName, newName, rvs.getEntry().toIdentifier(), user);
+         }
+      }
+
+      rvs.editBookmark(newName, oldName, type, readOnly);
+
+      if(nameChanged) {
+         cluster.sendMessage(new ViewsheetBookmarkChangedEvent(rvs.getEntry()));
+      }
+
+      messageCommand.setType(MessageCommand.Type.OK);
+      return messageCommand;
+   }
+
    private void processBookmark(String name, IdentityID owner, RuntimeViewsheet rvs, XPrincipal user,
                                inetsoft.web.viewsheet.event.OpenViewsheetEvent event,
                                String url, String vsId,  CommandDispatcher dispatcher)

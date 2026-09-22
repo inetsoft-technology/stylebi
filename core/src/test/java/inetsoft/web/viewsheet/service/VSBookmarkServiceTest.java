@@ -26,7 +26,9 @@ import inetsoft.sree.schedule.ViewsheetAction;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.sync.ViewsheetBookmarkChangedEvent;
 import inetsoft.uql.util.XSessionService;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
 import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
@@ -41,6 +43,8 @@ import java.util.Vector;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -115,5 +119,149 @@ class VSBookmarkServiceTest {
       verify(dispatcher).sendCommand(captor.capture());
       assertEquals(MessageCommand.Type.ERROR, captor.getValue().getType());
       verify(rvs, never()).removeBookmark(any(), any());
+   }
+
+   /**
+    * Bug #76827 -- {@link VSBookmarkService#renameBookmarkInViewSheet} happy path: the saved
+    * bookmark payload is moved via {@link RuntimeViewsheet#editBookmark} (mocked here, so this
+    * test only confirms the call and its exact arguments -- {@code RuntimeViewsheet.editBookmark}'s
+    * own state-preserving behavior is exercised by the real, unmocked data layer, not by this
+    * service-level test), the change is broadcast, and the returned command is OK.
+    */
+   @Test
+   void renameBookmarkInViewSheet_happyPath_preservesStateAndBroadcasts() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.toIdentifier()).thenReturn("1^1^__NULL__^myVS");
+      when(rvs.getEntry()).thenReturn(entry);
+
+      ScheduleManager scheduleManager = mock(ScheduleManager.class);
+      when(scheduleManager.getScheduleTasks()).thenReturn(new Vector<>());
+
+      Cluster cluster = mock(Cluster.class);
+
+      VSBookmarkService service = new VSBookmarkService(mock(VSObjectService.class),
+         mock(ViewsheetService.class), mock(SecurityEngine.class), scheduleManager,
+         cluster, mock(XSessionService.class));
+
+      Principal caller = () -> "user0";
+      MessageCommand result = service.renameBookmarkInViewSheet(
+         rvs, "user0_g1", "user0_g", VSBookmarkInfo.GROUPSHARE, false, false, caller);
+
+      assertEquals(MessageCommand.Type.OK, result.getType());
+      verify(rvs).editBookmark("user0_g1", "user0_g", VSBookmarkInfo.GROUPSHARE, false);
+      verify(cluster).sendMessage(any(ViewsheetBookmarkChangedEvent.class));
+   }
+
+   /**
+    * Bug #76827 -- a rename onto an already-existing name is always refused, with no
+    * {@code confirmed} bypass, mirroring {@code create_bookmark}'s own hard collision refusal.
+    */
+   @Test
+   void renameBookmarkInViewSheet_duplicateName_refused() throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.toIdentifier()).thenReturn("1^1^__NULL__^myVS");
+      when(rvs.getEntry()).thenReturn(entry);
+      when(rvs.containsBookmark(eq("user0_g1"), any())).thenReturn(true);
+
+      VSBookmarkService service = new VSBookmarkService(mock(VSObjectService.class),
+         mock(ViewsheetService.class), mock(SecurityEngine.class), mock(ScheduleManager.class),
+         mock(Cluster.class), mock(XSessionService.class));
+
+      Principal caller = () -> "user0";
+      MessageCommand result = service.renameBookmarkInViewSheet(
+         rvs, "user0_g1", "user0_g", VSBookmarkInfo.PRIVATE, true, false, caller);
+
+      assertEquals(MessageCommand.Type.ERROR, result.getType());
+      verify(rvs, never()).editBookmark(any(), any(), anyInt(), anyBoolean());
+   }
+
+   /**
+    * Bug #76827 -- renaming a bookmark referenced by a live schedule task is refused, naming the
+    * problem, when {@code confirmed} is false. This is the case the diagnosis/refute identified
+    * as load-bearing: {@link VSBookmarkService#editBookmark} (the existing, interactive-UI-facing
+    * method) signals this same underlying concern via a dispatched {@code Type.CONFIRM} command,
+    * which is inert under this bridge's {@code CapturingCommandDispatcher} -- this new method
+    * instead returns a non-OK {@code MessageCommand} directly, so a caller that only inspects the
+    * return value (like {@code requireOk}) cannot silently miss the refusal.
+    */
+   @Test
+   void renameBookmarkInViewSheet_scheduleReferenced_notConfirmed_refused() throws Exception {
+      IdentityID user0 = IdentityID.getIdentityIDFromKey("user0");
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.toIdentifier()).thenReturn("1^1^__NULL__^myVS");
+      when(rvs.getEntry()).thenReturn(entry);
+
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^1^__NULL__^myVS");
+      action.setBookmarks(new String[] { "user0_g" });
+      action.setBookmarkUsers(new IdentityID[] { user0 });
+      ScheduleTask task = new ScheduleTask("dependent-task");
+      task.addAction(action);
+      Vector<ScheduleTask> tasks = new Vector<>();
+      tasks.add(task);
+
+      ScheduleManager scheduleManager = mock(ScheduleManager.class);
+      when(scheduleManager.getScheduleTasks()).thenReturn(tasks);
+
+      VSBookmarkService service = new VSBookmarkService(mock(VSObjectService.class),
+         mock(ViewsheetService.class), mock(SecurityEngine.class), scheduleManager,
+         mock(Cluster.class), mock(XSessionService.class));
+
+      Principal caller = () -> "user0";
+      MessageCommand result = service.renameBookmarkInViewSheet(
+         rvs, "user0_g1", "user0_g", VSBookmarkInfo.GROUPSHARE, false, false, caller);
+
+      assertEquals(MessageCommand.Type.ERROR, result.getType());
+      verify(rvs, never()).editBookmark(any(), any(), anyInt(), anyBoolean());
+      verify(scheduleManager, never()).bookmarkRenamed(any(), any(), any(), any());
+   }
+
+   /**
+    * Bug #76827 -- renaming a bookmark referenced by a live schedule task succeeds once
+    * {@code confirmed} is true, and the schedule task's own bookmark reference is updated
+    * ({@link ScheduleManager#bookmarkRenamed}) to the new name, the same call the existing
+    * {@link VSBookmarkService#editBookmark} makes for its own confirmed branch.
+    */
+   @Test
+   void renameBookmarkInViewSheet_scheduleReferenced_confirmed_succeedsAndUpdatesSchedule()
+      throws Exception
+   {
+      IdentityID user0 = IdentityID.getIdentityIDFromKey("user0");
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.toIdentifier()).thenReturn("1^1^__NULL__^myVS");
+      when(rvs.getEntry()).thenReturn(entry);
+
+      ViewsheetAction action = new ViewsheetAction();
+      action.setViewsheet("1^1^__NULL__^myVS");
+      action.setBookmarks(new String[] { "user0_g" });
+      action.setBookmarkUsers(new IdentityID[] { user0 });
+      ScheduleTask task = new ScheduleTask("dependent-task");
+      task.addAction(action);
+      Vector<ScheduleTask> tasks = new Vector<>();
+      tasks.add(task);
+
+      ScheduleManager scheduleManager = mock(ScheduleManager.class);
+      when(scheduleManager.getScheduleTasks()).thenReturn(tasks);
+
+      Cluster cluster = mock(Cluster.class);
+
+      VSBookmarkService service = new VSBookmarkService(mock(VSObjectService.class),
+         mock(ViewsheetService.class), mock(SecurityEngine.class), scheduleManager,
+         cluster, mock(XSessionService.class));
+
+      Principal caller = () -> "user0";
+      MessageCommand result = service.renameBookmarkInViewSheet(
+         rvs, "user0_g1", "user0_g", VSBookmarkInfo.GROUPSHARE, false, true, caller);
+
+      assertEquals(MessageCommand.Type.OK, result.getType());
+      verify(rvs).editBookmark("user0_g1", "user0_g", VSBookmarkInfo.GROUPSHARE, false);
+      verify(scheduleManager).bookmarkRenamed("user0_g", "user0_g1", "1^1^__NULL__^myVS", user0);
+      verify(cluster).sendMessage(any(ViewsheetBookmarkChangedEvent.class));
    }
 }

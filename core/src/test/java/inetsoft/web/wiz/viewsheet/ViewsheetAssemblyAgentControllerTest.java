@@ -3979,6 +3979,199 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    // ---------------------------------------------------------------------------
+   // rename_bookmark -- bug #76827. Preserves the bookmark's own saved state (unlike
+   // update_bookmark, which always recaptures the current runtime), via
+   // VSBookmarkService#renameBookmarkInViewSheet -> RuntimeViewsheet#editBookmark. Restricted to
+   // bookmarks the caller owns outright: editBookmark has no owner parameter of its own and
+   // always operates on the runtime viewsheet's own owning principal's bookmarks, so (unlike
+   // update_bookmark/delete_bookmark) a shared writable bookmark owned by someone else is refused
+   // rather than silently mis-targeting the wrong bookmark.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void renameBookmark_refusesWhenTheNameDoesNotExist() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Missing"), any(IdentityID.class))).thenReturn(false);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of());
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Missing", "New Name", null, null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("no bookmark named"));
+      verify(vsBookmarkService, never()).renameBookmarkInViewSheet(
+         any(), any(), any(), anyInt(), anyBoolean(), anyBoolean(), any());
+   }
+
+   @Test
+   void renameBookmark_missingNewNameRefusedWithoutCallingTheService() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Q1 Report", "  ", null, null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("requires 'newName'"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   @Test
+   void renameBookmark_refusesTheHomeBookmarkWithoutCallingTheService() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               VSBookmark.HOME_BOOKMARK, "New Name", null, null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains(VSBookmark.HOME_BOOKMARK));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   @Test
+   void renameBookmark_refusesRenamingToTheHomeBookmarkWithoutCallingTheService() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Some Bookmark", VSBookmark.HOME_BOOKMARK, null, null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains(VSBookmark.HOME_BOOKMARK));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   /**
+    * A shared bookmark owned by someone else (even a writable one, unlike update_bookmark/
+    * delete_bookmark) is refused -- RuntimeViewsheet#editBookmark has no owner parameter and
+    * always operates on the runtime viewsheet's own owning principal's bookmarks, so reusing it
+    * on a bookmark actually owned by someone else would silently target the wrong bookmark.
+    */
+   @Test
+   void renameBookmark_ownedBySomeoneElse_refusedEvenWhenWritable() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.bookmarkWritable(eq("Q1 Report"), eq(admin))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin, false,
+                            System.currentTimeMillis())));
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Q1 Report", "Q1 Report Renamed", null, null, null),
+            () -> "user0"));
+      assertTrue(thrown.getMessage().contains("owned by someone else"));
+      verify(vsBookmarkService, never()).renameBookmarkInViewSheet(
+         any(), any(), any(), anyInt(), anyBoolean(), anyBoolean(), any());
+   }
+
+   @Test
+   void renameBookmark_preservesExistingTypeAndReadOnlyWhenOmitted() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.containsBookmark(eq("Q1 Report"), eq(admin))).thenReturn(true);
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), eq(admin))).thenReturn(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.GROUPSHARE, admin, false,
+                            System.currentTimeMillis()));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.renameBookmarkInViewSheet(eq(rvs), eq("Q1 Report v2"),
+         eq("Q1 Report"), eq(VSBookmarkInfo.GROUPSHARE), eq(false), eq(false), any(Principal.class)))
+         .thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.renameBookmark("tok",
+         new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+            "Q1 Report", "Q1 Report v2", null, null, null),
+         principal());
+
+      verify(vsBookmarkService).renameBookmarkInViewSheet(eq(rvs), eq("Q1 Report v2"),
+         eq("Q1 Report"), eq(VSBookmarkInfo.GROUPSHARE), eq(false), eq(false), any(Principal.class));
+   }
+
+   @Test
+   void renameBookmark_passesConfirmedThroughToTheService() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.containsBookmark(eq("Q1 Report"), eq(admin))).thenReturn(true);
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), eq(admin))).thenReturn(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE, admin, true,
+                            System.currentTimeMillis()));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.renameBookmarkInViewSheet(eq(rvs), eq("Q1 Report v2"),
+         eq("Q1 Report"), anyInt(), anyBoolean(), eq(true), any(Principal.class)))
+         .thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      controller.renameBookmark("tok",
+         new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+            "Q1 Report", "Q1 Report v2", null, null, true),
+         principal());
+
+      verify(vsBookmarkService).renameBookmarkInViewSheet(eq(rvs), eq("Q1 Report v2"),
+         eq("Q1 Report"), anyInt(), anyBoolean(), eq(true), any(Principal.class));
+   }
+
+   /** {@code requireOk} converts a non-OK {@link MessageCommand} into a thrown, tool-named
+    *  error -- confirms rename_bookmark relies on that same shared convention. */
+   @Test
+   void renameBookmark_refusalFromServiceIsSurfacedAsAnError() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.containsBookmark(eq("Q1 Report"), eq(admin))).thenReturn(true);
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), eq(admin))).thenReturn(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.PRIVATE, admin, true,
+                            System.currentTimeMillis()));
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand refused = new MessageCommand();
+      refused.setType(MessageCommand.Type.ERROR);
+      refused.setMessage("used in a schedule task");
+      when(vsBookmarkService.renameBookmarkInViewSheet(eq(rvs), eq("Q1 Report v2"),
+         eq("Q1 Report"), anyInt(), anyBoolean(), eq(false), any(Principal.class)))
+         .thenReturn(refused);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Q1 Report", "Q1 Report v2", null, null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("used in a schedule task"));
+   }
+
+   // ---------------------------------------------------------------------------
    // Bug #76845 -- a readOnly:false shared/group bookmark owned by someone else was rejected
    // identically to a readOnly:true one, because requireOwnBookmark never consulted
    // RuntimeViewsheet#bookmarkWritable at all (a literal owner-equality check only). Fixed by
