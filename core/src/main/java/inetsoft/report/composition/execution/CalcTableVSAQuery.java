@@ -36,6 +36,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +72,26 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       final long startTime = System.nanoTime();
       final ViewsheetSandbox box = this.box;
 
-      box.lockWrite();
+      // If this call is nested inside a running GraalJS script (e.g. a script referencing
+      // this calc table, such as table["TableView1"], reached this query while resolving
+      // that reference), the calling thread already holds the GraalJS engine's per-Context
+      // lock and whatever sandbox lock the script's caller took before starting the script
+      // -- per the same rationale already applied in ViewsheetSandbox.doExecuteData() and
+      // getData() ("if called from script, the locking should already be in place"; 52463).
+      // Taking a *fresh* write lock here is not just redundant in that case, it is actively
+      // dangerous: VSAQuery.getDataWithoutSandboxLock(), called a few frames down, transiently
+      // drops this write lock around the (possibly slow) data fetch and then restores it with
+      // a blocking lockWrite(). That reacquire can race a second, non-script thread that grabs
+      // the freed write lock and then blocks trying to enter the same GraalJS engine lock this
+      // thread already holds (e.g. FormatPainterService.getFormat() -> CalcTableLens.evaluate()
+      // -> GraalJavaScriptEnv.put()) -- an ABBA deadlock between the sandbox write lock and the
+      // GraalJS engine lock. See #76905 (confirmed via live thread dump) and the identical
+      // isScriptThread()-gated pattern in ConcatenatedQuery/JoinQuery for the same engine lock.
+      boolean inExec = JavaScriptEngine.isScriptThread();
+
+      if(!inExec) {
+         box.lockWrite();
+      }
 
       try {
          Viewsheet vs = getViewsheet();
@@ -128,18 +148,28 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             TableAssembly table = getTableAssembly();
 
             if(table == null) {
-               VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
-               CalcTableLens clens = (CalcTableLens) cassembly.getBaseTable();
-               TableLayout layout = cassembly.getTableLayout();
+               CalcTableLens clens;
+               boolean hasFormula;
 
-               if(hasFormulaBinding(layout)) {
-                  cassembly.setScriptTable(null);
-                  cassembly.setScriptEnv(box.getScope().getScriptEnv());
-                  clens.setFillBlankWithZero(info.isFillBlankWithZero());
-                  return clens.process();
+               // Mutates the shared (non-cloned) cassembly/clens state -- must stay free of
+               // any call that can reach the GraalJS engine lock (clens.process() below),
+               // otherwise a second thread blocked entering that lock while holding this
+               // same monitor would recreate the #76905 ABBA shape against this monitor
+               // instead of the sandbox lock.
+               synchronized(cassembly) {
+                  VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
+                  clens = (CalcTableLens) cassembly.getBaseTable();
+                  TableLayout layout = cassembly.getTableLayout();
+                  hasFormula = hasFormulaBinding(layout);
+
+                  if(hasFormula) {
+                     cassembly.setScriptTable(null);
+                     cassembly.setScriptEnv(box.getScope().getScriptEnv());
+                     clens.setFillBlankWithZero(info.isFillBlankWithZero());
+                  }
                }
 
-               return clens;
+               return hasFormula ? clens.process() : clens;
             }
 
             datas.add(getTableLens(table));
@@ -149,7 +179,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             cassemblys.add(cassembly);
          }
          else {
-            cassembly.setTable(null);
+            synchronized(cassembly) {
+               cassembly.setTable(null);
+            }
 
             // @by ChrisSpagnoli feature1414607346853 2014-10-27
             // If there are multiple crosstabs, evaluate each and store the
@@ -169,8 +201,10 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          }
 
          if(datas.size() == 0 || datas.contains(null)) {
-            VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
-            return cassembly.getBaseTable();
+            synchronized(cassembly) {
+               VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
+               return cassembly.getBaseTable();
+            }
          }
 
          if(isDetail()) {
@@ -179,12 +213,18 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
          // really create calc expression
          if(datas.size() > 0) {
-            for(int i = 0; i < datas.size(); i++) {
-               CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-               VSLayoutTool.createCalcLens(cassemblys.get(i), datas.get(i), box.getVariableTable(),
-                                           (crosstabs != null && crosstabs.size() > 0));
-               // copy back
-               cassemblyChild.setTable(cassemblyChild.getBaseTable());
+            // No GraalJS call in this loop, so it is safe to hold cassembly's monitor across
+            // the whole loop (see the note on the main processing loop below for why other
+            // blocks in this method keep the monitor narrower).
+            synchronized(cassembly) {
+               for(int i = 0; i < datas.size(); i++) {
+                  CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
+                  VSLayoutTool.createCalcLens(cassemblys.get(i), datas.get(i),
+                                              box.getVariableTable(),
+                                              (crosstabs != null && crosstabs.size() > 0));
+                  // copy back
+                  cassemblyChild.setTable(cassemblyChild.getBaseTable());
+               }
             }
          }
 
@@ -199,22 +239,33 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             for(int i = 0; i < datas.size(); i++) {
                TableLens dataChild = datas.get(i);
                CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-               cassemblyChild.setScriptTable(dataChild);
-               cassemblyChild.setScriptEnv(box.getScope().getScriptEnv());
-               CalcTableLens clens = (CalcTableLens) cassemblyChild.getBaseTable();
-               clens.setScriptTable(dataChild);
-               clens.setHeaderRowCount(info.getHeaderRowCount());
-               clens.setHeaderColCount(info.getHeaderColCount());
-               clens.setTrailerRowCount(info.getTrailerRowCount());
-               clens.setTrailerColCount(info.getTrailerColCount());
-               clens.setProperty(XTable.REPORT_NAME, box.getID());
-               clens.setProperty(XTable.REPORT_TYPE,
-                                 ExecutionBreakDownRecord.OBJECT_TYPE_VIEWSHEET);
-               clens.setFillBlankWithZero(info.isFillBlankWithZero());
-
                TableLayout layout = cassemblyCopy.getTableLayout();
+               CalcTableLens clens;
 
-               // 2. process CalcTableLens to generate RuntimeCalcTableLens
+               // Mutates the shared (non-cloned) cassembly/clens state when cassemblyChild is
+               // the original assembly (the crosstabs.size()==0 path) -- must stay free of any
+               // call that can reach the GraalJS engine lock (clens.process() below), otherwise
+               // a second thread blocked entering that lock while holding this same monitor
+               // would recreate the #76905 ABBA shape against this monitor instead of the
+               // sandbox lock.
+               synchronized(cassembly) {
+                  cassemblyChild.setScriptTable(dataChild);
+                  cassemblyChild.setScriptEnv(box.getScope().getScriptEnv());
+                  clens = (CalcTableLens) cassemblyChild.getBaseTable();
+                  clens.setScriptTable(dataChild);
+                  clens.setHeaderRowCount(info.getHeaderRowCount());
+                  clens.setHeaderColCount(info.getHeaderColCount());
+                  clens.setTrailerRowCount(info.getTrailerRowCount());
+                  clens.setTrailerColCount(info.getTrailerColCount());
+                  clens.setProperty(XTable.REPORT_NAME, box.getID());
+                  clens.setProperty(XTable.REPORT_TYPE,
+                                    ExecutionBreakDownRecord.OBJECT_TYPE_VIEWSHEET);
+                  clens.setFillBlankWithZero(info.isFillBlankWithZero());
+               }
+
+               // 2. process CalcTableLens to generate RuntimeCalcTableLens -- runs GraalJS
+               // formula evaluation, so it must stay outside the synchronized block above
+               // (see #76905).
                RuntimeCalcTableLens rlens = clens.process();
                ColumnIndexMap columnIndexMap = new ColumnIndexMap(dataChild, true);
 
@@ -260,19 +311,24 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                }
 
                // @by ChrisSpagnoli feature1414607346853 2014-10-27
-               // Combine the fully processed crosstab data back together.
-               if(rlensJoined == null) {
-                  rlensJoined = rlens;
+               // Combine the fully processed crosstab data back together. May mutate the
+               // shared cassembly's table layout (via getElement()) or read its layout
+               // (mergeCrosstabs -> mergeCalcAttrs), so keep this under the same monitor as
+               // the other cassembly touches above. No GraalJS call happens in either branch.
+               synchronized(cassembly) {
+                  if(rlensJoined == null) {
+                     rlensJoined = rlens;
 
-                  // If there will be multiple crosstabs combined, put original
-                  // layout into rlensJoined, replacing the layout fragment.
-                  if(datas.size() > 0) {
-                     rlensJoined.getCalcTableLens().getElement().setTableLayout(layout);
+                     // If there will be multiple crosstabs combined, put original
+                     // layout into rlensJoined, replacing the layout fragment.
+                     if(datas.size() > 0) {
+                        rlensJoined.getCalcTableLens().getElement().setTableLayout(layout);
+                     }
                   }
-               }
-               else {
-                  // Copy over the elements from the second+ child crosstabs
-                  mergeCrosstabs(rlensJoined, rlens, i, headerCols.get());
+                  else {
+                     // Copy over the elements from the second+ child crosstabs
+                     mergeCrosstabs(rlensJoined, rlens, i, headerCols.get());
+                  }
                }
             }
 
@@ -301,7 +357,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          return null;
       }
       finally {
-         box.unlockWrite();
+         if(!inExec) {
+            box.unlockWrite();
+         }
       }
    }
 
