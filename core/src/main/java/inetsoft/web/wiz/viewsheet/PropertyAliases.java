@@ -156,18 +156,6 @@ public final class PropertyAliases {
       Set.of("table", "crosstab", "text", "selectionlist");
 
    /**
-    * {@code locked} is aliased through the shared {@link #sizePosition} helper for every
-    * assembly type, but {@code SizePositionPaneModel.isLocked()} has zero consumers anywhere in
-    * {@code core/src/main/java} outside test/model code -- no {@code *PropertyDialogService}
-    * apply method ever reads it back, for any type. Image and Shape (line/oval/rectangle) are the
-    * sole exceptions: their own dialog services genuinely apply it. Everywhere else, a write
-    * through {@code set_assembly_properties} would report success and silently do nothing; the
-    * real way to lock/unlock any assembly is {@code edit(op:"set_lock")}, which mutates the live
-    * {@code LockableVSAssembly} state directly.
-    */
-   private static final Set<String> LOCKED_LIVE_TYPES = Set.of("image", "line", "oval", "rectangle");
-
-   /**
     * Human-readable captions for the handful of aliases whose own name carries no lexical
     * connection to what the Composer UI actually calls the control it backs (bug #76809, VTB-017:
     * {@code primary} was present, unfiltered, and already settable the whole time -- the defect
@@ -335,9 +323,17 @@ public final class PropertyAliases {
             "nothing.";
       }
 
-      if("locked".equals(leaf) && !SHEET.equals(normalizedType) &&
-         !LOCKED_LIVE_TYPES.contains(normalizedType))
-      {
+      // locked is aliased through the shared sizePosition helper for every assembly type, but
+      // SizePositionPaneModel.isLocked() has zero real consumers anywhere in
+      // core/src/main/java -- no *PropertyDialogService apply method ever reads it back, for
+      // any type, including image/line/oval/rectangle (bug #76894: an earlier version of this
+      // file carved those four out as exceptions, but their apply methods never read
+      // isLocked() either -- confirmed by exhaustive grep). sheet is the only real exception.
+      // Image and Shape (line/oval/rectangle) do have a genuine, separate lock mechanism -- it
+      // just lives entirely on LockableVSAssembly (mutated by
+      // ComposerObjectService.changeLockState), reached through edit(op:"set_lock"), not
+      // through this dialog-model field.
+      if("locked".equals(leaf) && !SHEET.equals(normalizedType)) {
          return "'locked' is read-only on " + normalizedType + " through " +
             "set_assembly_properties. It has a getter/setter pair on the dialog model, " +
             "populated on every read, but this type's apply method never reads it back -- a " +

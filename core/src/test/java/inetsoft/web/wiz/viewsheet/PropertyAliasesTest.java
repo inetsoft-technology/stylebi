@@ -715,9 +715,17 @@ class PropertyAliasesTest {
     * Regression: {@code SizePositionPaneModel.isLocked()} has zero consumers anywhere in
     * {@code core/src/main/java} outside test/model code -- no {@code *PropertyDialogService}
     * apply method ever reads it back on write, for any type. Before this fix,
-    * {@code set_assembly_properties({locked:true})} on a non-Image/Shape type returned
-    * {@code ok:true} and silently changed nothing; it must now be refused like the other dead
-    * fields, pointing the caller at {@code edit(op:"set_lock")} instead.
+    * {@code set_assembly_properties({locked:true})} on a non-sheet type returned {@code ok:true}
+    * and silently changed nothing; it must now be refused like the other dead fields, pointing
+    * the caller at {@code edit(op:"set_lock")} instead.
+    *
+    * <p>Bug #76894: image/line/oval/rectangle used to be carved out here as exceptions, on the
+    * mistaken assumption that their apply methods genuinely read this field back. They do not --
+    * their apply methods only ever call {@code isLocked()}'s sibling accessors
+    * ({@code getWidth()}/{@code getHeight()}/{@code getLeft()}/{@code getTop()}), never
+    * {@code isLocked()} itself. Their real, separate lock mechanism lives on
+    * {@code LockableVSAssembly}, reached through {@code edit(op:"set_lock")}, not through this
+    * dialog-model field -- so they belong in this refusal list along with every other type.
     */
    @Test
    void refusesLockedOnTypesWhereItIsDead() {
@@ -726,27 +734,13 @@ class PropertyAliasesTest {
                                           "combobox", "radiobutton", "slider", "spinner",
                                           "textinput", "timeslider", "calendar", "tab",
                                           "calctable", "groupcontainer", "selectioncontainer",
-                                          "submit"))
+                                          "submit", "image", "line", "oval", "rectangle"))
       {
          assertTrue(PropertyAliases.forType(type).aliases().containsKey("locked"),
                     type + " should still list 'locked' as readable");
          assertThrows(IllegalArgumentException.class,
                       () -> PropertyAliases.resolveForWrite(type, "locked"),
                       "'locked' has no effect on write for " + type);
-      }
-   }
-
-   /**
-    * Image and the three Shape types (line/oval/rectangle) are deliberately excluded from the
-    * {@code locked} dead-field refusal -- they are the types {@code edit(op:"set_lock")} (the
-    * real lock mechanism, gated on {@code LockableVSAssembly}) actually applies to, unlike every
-    * other type covered above.
-    */
-   @Test
-   void doesNotRefuseLockedOnImageOrShapeTypes() {
-      for(String type : java.util.List.of("image", "line", "oval", "rectangle")) {
-         assertDoesNotThrow(() -> PropertyAliases.resolveForWrite(type, "locked"),
-                            "'locked' must stay writable for " + type);
       }
    }
 
