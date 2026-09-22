@@ -267,7 +267,7 @@ class AdminScheduleCycleGatewayTest {
       Permission originalPermission = new Permission();
       originalPermission.setUserGrantsForOrg(ResourceAction.READ, Set.of("secondUser"), "host-org");
 
-      gateway.restoreCycleState("Cycle1", "host-org", originalInfo, originalPermission);
+      gateway.restoreCycleState("Cycle1", "host-org", originalInfo, originalPermission, true);
 
       verify(dataCycleManager).setCycleInfo(eq("Cycle1"), eq("host-org"), same(originalInfo));
       ArgumentCaptor<Permission> finalCaptor = ArgumentCaptor.forClass(Permission.class);
@@ -277,6 +277,27 @@ class AdminScheduleCycleGatewayTest {
       assertSame(originalPermission, lastGrant,
                 "the LAST permission grant must be the captured original, not createCycle's own fresh default");
       assertNotSame(freshDefault, lastGrant);
+   }
+
+   /**
+    * bug #76919: {@code createCycle} (as called by delete-rollback) always leaves a FRESH cycle
+    * {@code enabled=true} ({@code DataCycleManager#setConditions} builds a brand-new asset with
+    * that default whenever the storage entry doesn't already exist -- exactly the state right
+    * after the delete being rolled back). Without restoring the captured pre-delete {@code
+    * enabled} bit, a delete-rollback silently re-enables a cycle an admin had explicitly disabled.
+    */
+   @Test
+   void restoreCycleState_mustAlsoRestoreDisabledState() throws Exception {
+      ScheduleCycleChangeRequest.ScheduleCycleSpec spec =
+         new ScheduleCycleChangeRequest.ScheduleCycleSpec("Cycle1", List.of(everyDayWire()));
+      gateway.createCycle(spec, user);
+
+      DataCycleManager.CycleInfo originalInfo = new DataCycleManager.CycleInfo("Cycle1", "host-org");
+      Permission originalPermission = new Permission();
+
+      gateway.restoreCycleState("Cycle1", "host-org", originalInfo, originalPermission, false);
+
+      verify(dataCycleManager).setEnable(eq("Cycle1"), eq("host-org"), eq(false));
    }
 
    private static inetsoft.web.api.schedule.TimeCondition everyDayWire() {

@@ -272,7 +272,38 @@ class ScheduleCycleChangesetApplyServiceTest {
 
       assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
       verify(cycleGateway).restoreCycleState(eq("Cycle1"), eq("host-org"), same(originalInfo),
-                                             same(originalPermission));
+                                             same(originalPermission), eq(true));
+   }
+
+   /**
+    * bug #76919: a cycle that was DISABLED before the delete must come back disabled after a
+    * delete-rollback, not silently re-enabled by {@code createCycle}'s own fresh-entry default
+    * (mirrors {@code deleteRollbackRestoresTheOriginalPermissionAndCycleInfoNotAFreshDefault}
+    * above, but for {@code enabled} instead of permission/info).
+    */
+   @Test void deleteRollbackRestoresTheOriginalDisabledStateNotAFreshEnabledDefault()
+      throws Exception
+   {
+      when(backupService.backup(anyString())).thenReturn("snap-ref");
+      when(cycleGateway.cycleExists("Cycle1", user)).thenReturn(true);
+      when(cycleGateway.dependentMvNames("Cycle1")).thenReturn(List.of());
+      when(cycleGateway.cycleExists("BadCycle", user)).thenReturn(false);
+
+      DataCycleManager.DataCycleAsset original = asset("Cycle1");
+      original.setEnabled(false);
+
+      DataCycleManager.DataCycleAsset[] cycle1State = { original };
+      when(cycleGateway.currentAsset(eq("Cycle1"), eq("host-org"))).thenAnswer(inv -> cycle1State[0]);
+      doAnswer(inv -> { cycle1State[0] = null; return null; })
+         .when(cycleGateway).deleteCycles(eq(List.of("Cycle1")), eq(user));
+      doAnswer(inv -> { cycle1State[0] = original; return null; })
+         .when(cycleGateway).createCycle(argThat(s -> "Cycle1".equals(s.name())), eq(user));
+      when(cycleGateway.currentAsset(eq("BadCycle"), eq("host-org"))).thenReturn(null);
+
+      ApplyResult result = apply(deleteChange("Cycle1"), createChange("BadCycle"));
+
+      assertEquals(AdminChangesetApplyService.STATUS_ROLLED_BACK, result.status());
+      verify(cycleGateway).restoreCycleState(eq("Cycle1"), eq("host-org"), any(), any(), eq(false));
    }
 
    // -------------------------------------------------------------------------

@@ -240,19 +240,25 @@ public class AdminScheduleCycleGateway {
 
    /**
     * Overwrites the fresh-default state {@link #createCycle} just built (a default permission
-    * grant to whoever is running the rollback, and a {@code CycleInfo} stamped with the rollback
-    * -time principal/timestamp) with the CAPTURED pre-delete {@code info}/{@code permission} --
+    * grant to whoever is running the rollback, a {@code CycleInfo} stamped with the rollback
+    * -time principal/timestamp, and an {@code enabled=true} default -- {@code
+    * DataCycleManager#setConditions} always builds a brand-new asset with that default whenever
+    * the storage entry doesn't already exist, exactly the state right after the delete being
+    * rolled back) with the CAPTURED pre-delete {@code info}/{@code permission}/{@code enabled} --
     * called only by delete-rollback, after {@link #createCycle}, so a rolled-back delete restores
-    * the cycle's original access grants and audit metadata (createdBy/created), not merely its
-    * name+conditions (fix for review round 1's Finding 1). {@code permission} may be {@code
-    * null} (matches {@code ScheduleCycleService#removeCyclePermission}'s own use of a {@code
-    * null} permission to mean "no explicit grant").
+    * the cycle's original access grants, audit metadata (createdBy/created), and enabled state,
+    * not merely its name+conditions (fix for review round 1's Finding 1, and bug #76919 for
+    * {@code enabled}). {@code permission} may be {@code null} (matches {@code
+    * ScheduleCycleService#removeCyclePermission}'s own use of a {@code null} permission to mean
+    * "no explicit grant"). Mirrors {@code ScheduleCycleService#editCycle}'s own existing
+    * capture/restore discipline around an identical remove+recreate.
     */
    void restoreCycleState(String name, String orgId, DataCycleManager.CycleInfo info,
-                          Permission permission)
+                          Permission permission, boolean enabled)
       throws Exception
    {
       dataCycleManager.setCycleInfo(name, orgId, info);
+      dataCycleManager.setEnable(name, orgId, enabled);
       dataCycleManager.save();
       securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE,
                                    ScheduleCycleService.getCyclePermissionID(name, orgId),
