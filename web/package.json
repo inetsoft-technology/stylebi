@@ -2,6 +2,7 @@
   "name": "stylebi-portal",
   "version": "1.0.0",
   "scripts": {
+    "postinstall": "patch-package",
     "ng": "ng",
     "start": "ng serve",
     "build": "gulp && ng build portal --configuration development && ng build elements --configuration development && ng build viewer-element --configuration development && ng build em --configuration development",
@@ -118,6 +119,7 @@
     "md5": "^2.2.1",
     "msw": "^2.12.10",
     "ng-packagr": "^21.2.3",
+    "patch-package": "^8.0.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.63.0",
     "undertaker-forward-reference": "^2.0.0",

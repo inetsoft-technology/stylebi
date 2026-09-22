@@ -1,0 +1,17 @@
+diff --git a/node_modules/zone.js/fesm2015/zone.js b/node_modules/zone.js/fesm2015/zone.js
+index f00bead..5a6e9e5 100644
+--- a/node_modules/zone.js/fesm2015/zone.js
++++ b/node_modules/zone.js/fesm2015/zone.js
+@@ -999,7 +999,11 @@ function patchEventTarget(_global2, api, apis, patchOptions) {
+       return;
+     }
+     const target = context || event.target || _global2;
+-    const tasks = target[zoneSymbolEventNames2[event.type][isCapture ? TRUE_STR : FALSE_STR]];
++    const symbolEventNames = zoneSymbolEventNames2[event.type];
++    if (!symbolEventNames) {
++      return;
++    }
++    const tasks = target[symbolEventNames[isCapture ? TRUE_STR : FALSE_STR]];
+     if (tasks) {
+       const errors = [];
+       if (tasks.length === 1) {
