@@ -29,6 +29,7 @@ import inetsoft.util.Tool;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -47,6 +48,11 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Bug #76909 (follow-up to #76852): {@code setRanges}/{@code setRangeColors} grew their backing
@@ -101,6 +107,47 @@ class RangeOutputVSAssemblyInfoTest {
          info.getRangeColors());
    }
 
+   /**
+    * Regression test for review round 1 (Important finding): the backing array must be
+    * grow-only. A naive "rebuild to exact length on every call" implementation discards the
+    * DynamicValue objects -- and their design-time DValue -- for any index beyond a shrink,
+    * so a later regrow within the same session creates brand-new objects with no design
+    * default instead of reusing the originals. That would silently corrupt the composer
+    * property dialog and, on save, the persisted asset's design-time ranges.
+    */
+   @Test
+   void setRangesPreservesDesignTimeDefaultAcrossShrinkThenRegrow() {
+      GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
+      // configure design-time defaults for 4 ranges, as the composer property dialog would
+      info.setRangeValues(new Object[] { "25", "50", "75", "100" });
+
+      // a bound script shrinks to 2 ranges, then regrows back to 4 within the same session
+      info.setRanges(new Object[] { "10", "20" });
+      info.setRanges(new Object[] { "10", "20", "999", "999" });
+
+      // design-time defaults for the regrown slots (2, 3) must be untouched
+      assertArrayEquals(new String[] { "25", "50", "75", "100" }, info.getRangeValues());
+      // the runtime/render path must still reflect the script's most recent write
+      assertArrayEquals(new double[] { 10.0, 20.0, 999.0, 999.0 }, info.getRanges(), 1e-6);
+   }
+
+   @Test
+   void setRangeColorsPreservesDesignTimeDefaultAcrossShrinkThenRegrow() {
+      GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
+      info.setRangeColorsValue(
+         new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.MAGENTA });
+
+      info.setRangeColors(new Color[] { Color.CYAN, Color.PINK });
+      info.setRangeColors(new Color[] { Color.CYAN, Color.PINK, Color.ORANGE, Color.YELLOW });
+
+      assertArrayEquals(
+         new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.MAGENTA },
+         info.getRangeColorsValue());
+      assertArrayEquals(
+         new Color[] { Color.CYAN, Color.PINK, Color.ORANGE, Color.YELLOW },
+         info.getRangeColors());
+   }
+
    @Test
    void saveReloadRoundTripProducesCorrectlySizedArrays() throws Exception {
       GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
@@ -142,7 +189,10 @@ class RangeOutputVSAssemblyInfoTest {
       VSCylinder cylinder = new VSCylinder();
       cylinder.setAssemblyInfo(info);
 
-      invokePrivateFillRanges(cylinder, "fillRanges");
+      // 3 ranges, 2 colors -> only the n=2 shared-prefix segments should be painted, not 0
+      // (silently refusing to render) and not 3 (indexing past colors.length).
+      Graphics2D g = invokePrivateFillRanges(cylinder, "fillRanges");
+      verify(g, times(2)).fill(any(Shape.class));
    }
 
    @Test
@@ -156,7 +206,8 @@ class RangeOutputVSAssemblyInfoTest {
       VSHorizontalThermometer thermometer = new VSHorizontalThermometer();
       thermometer.setAssemblyInfo(info);
 
-      invokePrivateFillRanges(thermometer, "fillRanges");
+      Graphics2D g = invokePrivateFillRanges(thermometer, "fillRanges");
+      verify(g, times(2)).fill(any(Shape.class));
    }
 
    @Test
@@ -170,7 +221,8 @@ class RangeOutputVSAssemblyInfoTest {
       VSVerticalThermometer thermometer = new VSVerticalThermometer();
       thermometer.setAssemblyInfo(info);
 
-      invokePrivateFillRanges(thermometer, "fillRanges");
+      Graphics2D g = invokePrivateFillRanges(thermometer, "fillRanges");
+      verify(g, times(2)).fill(any(Shape.class));
    }
 
    /**
@@ -192,7 +244,10 @@ class RangeOutputVSAssemblyInfoTest {
       VSHorizontalThermometer thermometer = new VSHorizontalThermometer();
       thermometer.setAssemblyInfo(info);
 
-      invokePrivateFillRanges(thermometer, "fillRanges");
+      // n=2 (min(3,2)); index 1's color is null with no next color to fall back to, so
+      // only index 0 (Color.RED) is actually painted -- exactly 1 fill call, not 0 or 2.
+      Graphics2D g = invokePrivateFillRanges(thermometer, "fillRanges");
+      verify(g, times(1)).fill(any(Shape.class));
    }
 
    @Test
@@ -206,7 +261,8 @@ class RangeOutputVSAssemblyInfoTest {
       VSVerticalThermometer thermometer = new VSVerticalThermometer();
       thermometer.setAssemblyInfo(info);
 
-      invokePrivateFillRanges(thermometer, "fillRanges");
+      Graphics2D g = invokePrivateFillRanges(thermometer, "fillRanges");
+      verify(g, times(1)).fill(any(Shape.class));
    }
 
    @Test
@@ -230,7 +286,9 @@ class RangeOutputVSAssemblyInfoTest {
       linePosition.setAccessible(true);
       linePosition.set(slidingScale, new Point2D.Double(0, 0));
 
-      invokePrivateFillRanges(slidingScale, "fillRanges");
+      // 3 ranges, 2 colors -> only the n=2 shared-prefix segments should be painted.
+      Graphics2D g = invokePrivateFillRanges(slidingScale, "fillRanges");
+      verify(g, times(2)).fillRect(anyInt(), anyInt(), anyInt(), anyInt());
    }
 
    @Test
@@ -247,7 +305,8 @@ class RangeOutputVSAssemblyInfoTest {
       gauge.setAssemblyInfo(info);
 
       BufferedImage img = new BufferedImage(200, 100, BufferedImage.TYPE_4BYTE_ABGR);
-      Graphics2D g = img.createGraphics();
+      Graphics2D real = img.createGraphics();
+      Graphics2D g = mock(Graphics2D.class, AdditionalAnswers.delegatesTo(real));
 
       try {
          Method paint0 = BulletGraphGauge.class.getDeclaredMethod(
@@ -262,15 +321,27 @@ class RangeOutputVSAssemblyInfoTest {
                throw new RuntimeException(e);
             }
          });
+
+         // the short colors array must not make the presenter bail out early: it always
+         // paints 4 range segments plus 1 value bar, regardless of how many colors were
+         // actually supplied (missing ones are defaulted, not skipped).
+         verify(g, times(5)).fillRect(anyInt(), anyInt(), anyInt(), anyInt());
       }
       finally {
-         g.dispose();
+         real.dispose();
       }
    }
 
-   private void invokePrivateFillRanges(Object renderer, String methodName) throws Exception {
+   /**
+    * Invokes a renderer's private {@code fillRanges(Graphics2D)} method against a
+    * {@link Graphics2D} that delegates to a real, off-screen image so the render logic runs
+    * unmodified, while still recording invocations so callers can assert what was actually
+    * painted rather than only that nothing threw.
+    */
+   private Graphics2D invokePrivateFillRanges(Object renderer, String methodName) throws Exception {
       BufferedImage img = new BufferedImage(200, 100, BufferedImage.TYPE_4BYTE_ABGR);
-      Graphics2D g = img.createGraphics();
+      Graphics2D real = img.createGraphics();
+      Graphics2D g = mock(Graphics2D.class, AdditionalAnswers.delegatesTo(real));
 
       try {
          Method fillRanges = renderer.getClass().getDeclaredMethod(methodName, Graphics2D.class);
@@ -286,7 +357,9 @@ class RangeOutputVSAssemblyInfoTest {
          });
       }
       finally {
-         g.dispose();
+         real.dispose();
       }
+
+      return g;
    }
 }

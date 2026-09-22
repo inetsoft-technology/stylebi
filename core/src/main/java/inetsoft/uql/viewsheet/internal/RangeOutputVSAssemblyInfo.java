@@ -307,6 +307,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
     */
    public void setRangeValues(Object[] val) {
       this.rangeValues = val == null ? null : new DynamicValue[val.length];
+      this.rangeCount = rangeValues == null ? 0 : rangeValues.length;
 
       for(int i = 0; rangeValues != null && i < rangeValues.length; i++) {
          rangeValues[i] = new DynamicValue((String) val[i], XSchema.DOUBLE);
@@ -322,22 +323,25 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return;
       }
 
-      // rebuild the backing array to the exact incoming length on every call so
-      // that a shorter array doesn't leave stale trailing values behind (#76909)
-      DynamicValue[] arr = new DynamicValue[val.length];
+      // grow the backing array as needed but never shrink/discard it, so a DynamicValue's
+      // design-time DValue is never lost just because a script later writes a shorter array;
+      // rangeCount (not the array length) tracks the logical, currently-active length (#76909)
+      if(rangeValues == null || val.length > rangeValues.length) {
+         DynamicValue[] arr = new DynamicValue[val.length];
 
-      for(int i = 0; i < val.length; i++) {
-         if(rangeValues != null && i < rangeValues.length && rangeValues[i] != null) {
-            arr[i] = rangeValues[i];
-         }
-         else {
-            arr[i] = new DynamicValue("0", XSchema.DOUBLE);
+         for(int i = 0; i < arr.length; i++) {
+            arr[i] = rangeValues != null && i < rangeValues.length ?
+               rangeValues[i] : new DynamicValue("0", XSchema.DOUBLE);
          }
 
-         arr[i].setRValue(val[i]);
+         rangeValues = arr;
       }
 
-      rangeValues = arr;
+      for(int i = 0; i < val.length; i++) {
+         rangeValues[i].setRValue(val[i]);
+      }
+
+      rangeCount = val.length;
    }
 
    /**
@@ -349,7 +353,10 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return null;
       }
 
-      double[] vals = new double[rangeValues.length];
+      // truncate to the logical (last-set) length -- rangeValues may be physically longer
+      // if a prior script write grew it and a later write shrank the logical length (#76909)
+      int n = Math.min(rangeCount, rangeValues.length);
+      double[] vals = new double[n];
       boolean auto = vals.length > 0 && Double.isNaN(vals[0]);
 
       for(int i = 0; i < vals.length; i++) {
@@ -378,9 +385,13 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return null;
       }
 
-      Color[] colors = new Color[rangeColorsValue.length];
+      // truncate to the logical (last-set) length -- rangeColorsValue may be physically
+      // longer if a prior script write grew it and a later write shrank the logical
+      // length (#76909)
+      int n = Math.min(rangeColorCount, rangeColorsValue.length);
+      Color[] colors = new Color[n];
 
-      for(int i = 0; i < rangeColorsValue.length; i++) {
+      for(int i = 0; i < n; i++) {
          colors[i] = rangeColorsValue[i].getColorValue(false, null);
       }
 
@@ -414,23 +425,26 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return;
       }
 
-      // rebuild the backing array to the exact incoming length on every call so
-      // that a shorter array doesn't leave stale trailing colors behind, and a
-      // longer one isn't silently truncated (#76909)
-      DynamicValue2[] arr = new DynamicValue2[colors.length];
+      // grow the backing array as needed but never shrink/discard it, so a DynamicValue2's
+      // design-time DValue is never lost just because a script later writes a shorter array;
+      // rangeColorCount (not the array length) tracks the logical, currently-active
+      // length (#76909)
+      if(rangeColorsValue == null || colors.length > rangeColorsValue.length) {
+         DynamicValue2[] arr = new DynamicValue2[colors.length];
 
-      for(int i = 0; i < colors.length; i++) {
-         if(rangeColorsValue != null && i < rangeColorsValue.length && rangeColorsValue[i] != null) {
-            arr[i] = rangeColorsValue[i];
-         }
-         else {
-            arr[i] = new DynamicValue2(null, XSchema.COLOR);
+         for(int i = 0; i < arr.length; i++) {
+            arr[i] = rangeColorsValue != null && i < rangeColorsValue.length ?
+               rangeColorsValue[i] : new DynamicValue2(null, XSchema.COLOR);
          }
 
-         arr[i].setRValue(colors[i]);
+         rangeColorsValue = arr;
       }
 
-      rangeColorsValue = arr;
+      for(int i = 0; i < colors.length; i++) {
+         rangeColorsValue[i].setRValue(colors[i]);
+      }
+
+      rangeColorCount = colors.length;
    }
 
    /**
@@ -443,6 +457,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       }
 
       rangeColorsValue = new DynamicValue2[Math.max(colors.length, 4)];
+      rangeColorCount = rangeColorsValue.length;
 
       for(int i = 0; i < colors.length; i++) {
          rangeColorsValue[i] = new DynamicValue2();
@@ -695,10 +710,16 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          writer.println("</targetValue>");
       }
 
-      if(rangeValues != null && rangeValues.length > 0) {
+      // only persist the logical (last-set) length -- rangeValues/rangeColorsValue may be
+      // physically longer than the currently-active count if a script grew them and then
+      // shrank the logical length again; persisting the extra "zombie" slots would write
+      // stale/placeholder values into the asset (#76909)
+      int rn = rangeValues == null ? 0 : Math.min(rangeCount, rangeValues.length);
+
+      if(rangeValues != null && rn > 0) {
          writer.print("<rangeValues>");
 
-         for(int i = 0; i < rangeValues.length; i++) {
+         for(int i = 0; i < rn; i++) {
             writer.print("<rangeValue>");
             String dvalue = rangeValues[i].getDValue();
             dvalue = dvalue == null ? "" : dvalue;
@@ -710,7 +731,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
 
          writer.print("<ranges>");
 
-         for(int i = 0; i < rangeValues.length; i++) {
+         for(int i = 0; i < rn; i++) {
             writer.print("<rangeValue>");
             String rvalue = rangeValues[i].getRValue() + "";
             rvalue = rvalue == null ? "" : rvalue;
@@ -724,9 +745,10 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       Color[] color;
 
       if(rangeColorsValue != null) {
-         color = new Color[rangeColorsValue.length];
+         int cn = Math.min(rangeColorCount, rangeColorsValue.length);
+         color = new Color[cn];
 
-         for(int i = 0; i< rangeColorsValue.length; i++) {
+         for(int i = 0; i < cn; i++) {
             if(rangeColorsValue[i].getDValue() != null &&
                !"".equals(rangeColorsValue[i].getDValue()))
             {
@@ -809,6 +831,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
 
          if(rangeValuesList != null && rangeValuesList.getLength() > 0) {
             rangeValues = new DynamicValue[rangeValuesList.getLength()];
+            rangeCount = rangeValues.length;
 
             for(int i = 0; i < rangeValuesList.getLength(); i++) {
                rangeValues[i] = new DynamicValue(
@@ -828,6 +851,7 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
 
          if(rangeColorsList != null && rangeColorsList.getLength() > 0) {
             rangeColorsValue = new DynamicValue2[rangeColorsList.getLength()];
+            rangeColorCount = rangeColorsValue.length;
 
             for(int i = 0; i < rangeColorsList.getLength(); i++) {
                String val = Tool.getValue(rangeColorsList.item(i));
@@ -903,6 +927,8 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
 
       if(!Tool.equals(rangeValues, cinfo.rangeValues)) {
          rangeValues = cinfo.rangeValues;
+         // keep the logical length in sync with the array reference it now describes (#76909)
+         rangeCount = cinfo.rangeCount;
          result = true;
       }
 
@@ -910,6 +936,8 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          !Tool.equals(getRangeColors(), cinfo.getRangeColors()))
       {
          rangeColorsValue = cinfo.rangeColorsValue;
+         // keep the logical length in sync with the array reference it now describes (#76909)
+         rangeColorCount = cinfo.rangeColorCount;
          result = true;
       }
 
@@ -1122,6 +1150,12 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       new DynamicValue("70", XSchema.DOUBLE),
       new DynamicValue("100", XSchema.DOUBLE),
    };
+   // logical (last-set) lengths of rangeValues/rangeColorsValue -- the backing arrays only
+   // ever grow (never shrink) so that DynamicValue/DynamicValue2 design-time defaults set via
+   // setRangeValues()/setRangeColorsValue() survive a script shrinking then regrowing the
+   // range/color count within the same session (#76909)
+   private int rangeCount = rangeValues.length;
+   private int rangeColorCount = rangeColorsValue.length;
    private DynamicValue gradientValue =
       new DynamicValue("true", XSchema.BOOLEAN);
    private double defMax = 100;
