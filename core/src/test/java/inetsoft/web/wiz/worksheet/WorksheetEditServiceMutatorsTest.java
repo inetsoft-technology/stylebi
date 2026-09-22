@@ -2811,6 +2811,51 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void addExpressionColumnInfersNumericTypeForTernaryExpression() throws Exception {
+      // Bug 76901: a numeric ternary/conditional expression -- every branch a plain
+      // numeric literal, condition built from a numeric field comparison -- must infer
+      // numeric instead of falling through to the untyped "string" default, the same
+      // as the pure-arithmetic shape above.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER",
+         "field['QUANTITY'] >= 5 ? 3 : (field['QUANTITY'] >= 2 ? 2 : 1)", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForTernaryWithNonNumericBranch() throws Exception {
+      // Guard against the unsafe fix: widening the arithmetic character class to allow
+      // "?:<>=!" would also let a ternary with a non-numeric (string-literal) branch
+      // through as numeric. The condition may reference a numeric field, but a branch
+      // built from string literals must keep the existing "string" default.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_LABEL", "field['QUANTITY'] >= 5 ? \"big\" : \"small\"", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_LABEL");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
    void addExpressionColumnHonorsExplicitTypeOverInference() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
