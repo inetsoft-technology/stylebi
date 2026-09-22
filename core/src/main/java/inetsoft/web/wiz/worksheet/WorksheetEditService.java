@@ -3473,14 +3473,28 @@ public class WorksheetEditService {
       // -----------------------------------------------------------------------
 
       /**
-       * Replaces the group mappings on an existing named group assembly.
+       * Replaces the group mappings on an existing named group assembly, and, optionally,
+       * retargets it to a standalone data type in place (see {@code type}'s doc below). The
+       * datasource-scoped retarget form (a caller-supplied {@code datasource}/{@code sourceTable}/
+       * {@code attribute}) needs permission checks and JDBC/logical-model metadata lookups this
+       * plain {@code Editor} has no access to, so it is dispatched separately, by
+       * {@code WorksheetAgentController#editDatasourceScopedNamedGroup}, before it ever reaches
+       * this method.
        *
        * @param name        the named group assembly name
+       * @param type        when non-null, retargets the assembly to a standalone
+       *                    {@code DATA_TYPE_ATTACHED} grouping of this data type (mirroring
+       *                    {@code addNamedGroup}'s standalone mode) instead of leaving its current
+       *                    attachment unchanged; refused if a worksheet aggregate's existing
+       *                    {@code namedGroup} reference would silently stop resolving against the
+       *                    new type
        * @param mappings    new group name → value list mappings
        * @param groupOthers whether to group unmapped values as "Others"
-       * @throws PairingException if the assembly is not found
+       * @throws PairingException if the assembly is not found, {@code type} is not a recognized
+       *                          primitive type, or the retarget would silently break an existing
+       *                          worksheet-side reference
        */
-      public void editNamedGroup(String name,
+      public void editNamedGroup(String name, String type,
                                  List<WorksheetMutationSupport.GroupMapping> mappings,
                                  boolean groupOthers) throws PairingException
       {
@@ -3490,16 +3504,40 @@ public class WorksheetEditService {
             throw new PairingException("Named group assembly not found: " + name);
          }
 
+         boolean retargeting = type != null;
+
+         if(retargeting) {
+            if(!XSchema.isPrimitiveType(type)) {
+               throw new PairingException(
+                  "Invalid type: \"" + type + "\". Valid types: " +
+                  "string, boolean, float, double, integer, long, short, byte, " +
+                  "char, date, time, timeInstant.");
+            }
+
+            String conflictTable = WorksheetMutationSupport.findNamedGroupRetargetConflict(
+               ws, name, AttachedAssembly.DATA_TYPE_ATTACHED, null, type);
+
+            if(conflictTable != null) {
+               throw new PairingException(
+                  "Cannot retarget \"" + name + "\" to type \"" + type + "\": table \"" +
+                  conflictTable + "\" still groups by it via set_group_aggregate's namedGroup. " +
+                  "Retargeting would silently drop that grouping with no error. Remove or update " +
+                  "that group-by first, or use delete_named_group if nothing should reference it " +
+                  "after this change.");
+            }
+         }
+
+         DataRef ref = retargeting ? null : nga.getAttachedAttribute();
+         String conditionType = retargeting ? type
+            : (ref != null ? ref.getDataType() : XSchema.STRING);
+         DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
+
          NamedGroupInfo ngi = new NamedGroupInfo();
          ngi.setOthers(groupOthers
             ? XConstants.GROUP_OTHERS
             : XConstants.LEAVE_OTHERS);
 
          if(mappings != null) {
-            DataRef ref = nga.getAttachedAttribute();
-            String conditionType = ref != null ? ref.getDataType() : XSchema.STRING;
-            DataRef conditionRef = namedGroupConditionRef(ref, conditionType);
-
             for(WorksheetMutationSupport.GroupMapping m : mappings) {
                ngi.setGroupCondition(m.name(),
                   WorksheetMutationSupport.buildGroupConditionList(conditionType, conditionRef, m, ws));
@@ -3508,12 +3546,20 @@ public class WorksheetEditService {
 
          nga.setNamedGroupInfo(ngi);
 
+         if(retargeting) {
+            nga.setAttachedType(AttachedAssembly.DATA_TYPE_ATTACHED);
+            nga.setAttachedDataType(type);
+         }
+
          // A GroupRef bound to this named group holds a one-time clone of its mapping
          // (GroupRef.update(Worksheet)), taken at set_group_aggregate time and never
          // invalidated here otherwise -- leaving dependent tables silently stale until
          // something else (e.g. a composite table's own sub-table resolution) happens to
          // re-run update() on them. Sweep every referencing GroupRef so all dependents
-         // pick up the new mapping immediately, regardless of worksheet graph shape.
+         // pick up the new mapping immediately, regardless of worksheet graph shape. Safe to run
+         // unconditionally even when retargeting: any GroupRef that would mismatch the new
+         // attachment was already caught and thrown above, so nothing here can silently null out
+         // groupInfo.
          for(Assembly assembly : ws.getAssemblies()) {
             if(!(assembly instanceof TableAssembly table)) {
                continue;
@@ -3531,6 +3577,37 @@ public class WorksheetEditService {
                }
             }
          }
+      }
+
+      /**
+       * Removes a named group assembly from the worksheet.
+       *
+       * <p>Refuses if a worksheet-side aggregate (set_group_aggregate's {@code
+       * groups[].namedGroup}) still references it. Does NOT check viewsheet-side chart/crosstab/
+       * table/calc-table dimension bindings that reference this group by name -- those live on a
+       * separate Viewsheet asset that {@link AssetEventUtil#hasDependent}'s single-Worksheet scope
+       * cannot see, the same blind spot the native Composer UI's own generic delete path
+       * ({@code WSRemoveAssembliesService#removeAssemblies}) has.</p>
+       *
+       * @param name the named group assembly name to delete
+       * @throws PairingException if the assembly is not found, or a worksheet aggregate still
+       *                          references it
+       */
+      public void deleteNamedGroup(String name) throws PairingException {
+         Assembly a = ws.getAssembly(name);
+
+         if(!(a instanceof DefaultNamedGroupAssembly)) {
+            throw new PairingException("Named group assembly not found: " + name);
+         }
+
+         if(AssetEventUtil.hasDependent(a, ws, Set.of(name))) {
+            throw new PairingException(
+               "\"" + name + "\" cannot be deleted because a worksheet aggregate still groups " +
+               "by it (set_group_aggregate's namedGroup). Remove that reference first -- " +
+               "read_worksheet_model reports each table's group-by fields.");
+         }
+
+         ws.removeAssembly(name);
       }
 
       // -----------------------------------------------------------------------

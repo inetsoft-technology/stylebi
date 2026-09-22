@@ -352,6 +352,73 @@ public final class WorksheetMutationSupport {
       return conds;
    }
 
+   /**
+    * Finds a worksheet-side {@link GroupRef} that would silently lose its named-group mapping
+    * if {@code groupName}'s attachment were changed to the given NOT-YET-APPLIED attachment.
+    *
+    * <p>Duplicates the exact two comparisons {@link GroupRef#update} itself makes once it
+    * resolves the named group assembly ({@code Tool.equals} on attribute name for
+    * {@code COLUMN_ATTACHED}, {@link AssetUtil#isCompatible} on data type for
+    * {@code DATA_TYPE_ATTACHED}) -- but against a proposed attachment that has not been written
+    * to the assembly yet, so a caller (e.g. {@code editNamedGroup}'s retarget) can refuse loud
+    * BEFORE mutating anything, instead of writing the new attachment and letting {@code update}'s
+    * own sweep silently null out {@code groupInfo} afterward with no error. See
+    * {@code WorksheetMutationSupport}'s {@code set_group_aggregate} handling above for the same
+    * idiom applied to a single new {@link GroupRef} instead of an existing assembly's many
+    * referencing ones.</p>
+    *
+    * @param ws                 the worksheet to search
+    * @param groupName          the named group assembly whose attachment is about to change
+    * @param newAttachedType    the proposed {@link AttachedAssembly#COLUMN_ATTACHED} or
+    *                           {@link AttachedAssembly#DATA_TYPE_ATTACHED}
+    * @param newAttachedAttribute the proposed attached column, for {@code COLUMN_ATTACHED}
+    *                             (ignored otherwise)
+    * @param newAttachedDataType  the proposed attached data type, for {@code DATA_TYPE_ATTACHED}
+    *                             (ignored otherwise)
+    * @return the name of the first referencing table assembly whose {@link GroupRef} would
+    *         mismatch the proposed attachment, or {@code null} if every existing reference (if
+    *         any) would still resolve
+    */
+   static String findNamedGroupRetargetConflict(
+      Worksheet ws, String groupName, int newAttachedType, DataRef newAttachedAttribute,
+      String newAttachedDataType)
+   {
+      for(Assembly a : ws.getAssemblies()) {
+         if(!(a instanceof TableAssembly table)) {
+            continue;
+         }
+
+         AggregateInfo ainfo = table.getAggregateInfo();
+
+         if(ainfo == null) {
+            continue;
+         }
+
+         for(GroupRef group : ainfo.getGroups()) {
+            if(!groupName.equals(group.getNamedGroupAssembly())) {
+               continue;
+            }
+
+            DataRef ref = group.getDataRef();
+
+            if(newAttachedType == AttachedAssembly.DATA_TYPE_ATTACHED) {
+               if(!AssetUtil.isCompatible(newAttachedDataType, ref.getDataType())) {
+                  return table.getName();
+               }
+            }
+            else if(newAttachedType == AttachedAssembly.COLUMN_ATTACHED) {
+               String attr = newAttachedAttribute == null ? null : newAttachedAttribute.getAttribute();
+
+               if(!Tool.equals(ref.getAttribute(), attr)) {
+                  return table.getName();
+               }
+            }
+         }
+      }
+
+      return null;
+   }
+
    // =========================================================================
    // Filter helpers
    // =========================================================================
