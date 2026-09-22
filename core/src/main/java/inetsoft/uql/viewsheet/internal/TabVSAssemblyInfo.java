@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.graph.GraphConstants;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
@@ -643,6 +644,45 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       }
 
       return height;
+   }
+
+   /**
+    * Apply any tab-bar reposition still owed by a bookmark/state restore
+    * ({@link #restoreBottomTabs}) that no reposition-capable caller consumed this refresh
+    * cycle.
+    *
+    * <p>A Tab whose {@code bottomTabs} is driven only by the viewsheet-level {@code onInit}
+    * script has no per-object script to re-assert the value, and {@code onInit}'s run-once
+    * guard isn't reset when switching to a named/shared bookmark (only the HOME bookmark calls
+    * {@code ViewsheetSandbox.clearInit()}). Nothing would then call {@link
+    * inetsoft.report.script.viewsheet.TabVSAScriptable#setBottomTabs}, the sole other consumer
+    * of the pending-reposition flag, leaving the tab bar at its stale pre-restore pixel
+    * position even though the restored flag itself is correct (Bug #76927).</p>
+    *
+    * <p>Gated strictly on {@link #isPositionNeedsSync()}, which only {@link #restoreBottomTabs}
+    * ever sets -- never on a value comparison -- so an ordinary refresh can't fight a tab
+    * position the user or a script established.</p>
+    */
+   public static void syncPendingBottomTabsPositions(Viewsheet vs) {
+      if(vs == null) {
+         return;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof TabVSAssembly tab) ||
+            !(tab.getVSAssemblyInfo() instanceof TabVSAssemblyInfo tabInfo) ||
+            !tabInfo.isPositionNeedsSync())
+         {
+            continue;
+         }
+
+         boolean bottomTabs = tabInfo.isBottomTabs();
+         repositionForBottomTabs(tabInfo, vs, bottomTabs);
+         // scaled space: the scale pass already ran this cycle, so fix the layout
+         // positions the object model actually serializes
+         repositionForBottomTabsInScaledSpace(tabInfo, vs, bottomTabs);
+         tabInfo.clearPositionNeedsSync();
+      }
    }
 
    /**

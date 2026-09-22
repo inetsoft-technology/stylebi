@@ -1624,6 +1624,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      // a bookmark/state restore may have left a tab-bar reposition owed (Bug #76927).
+      // Apply it now that onInit/onLoad have had their chance to consume the flag through
+      // TabVSAScriptable, and before processSelections() starts dispatching assemblies to the
+      // client (its ReadyListener marks them processed, so the refresh's final pass skips them).
+      // A per-object tab script running later in executeView() sees the flag cleared and the
+      // value already matching, so it won't reposition a second time.
+      if(isRuntime()) {
+         TabVSAssemblyInfo.syncPendingBottomTabsPositions(vs);
+      }
+
       boolean processSelectionsFailed = false;
 
       // process selection and associations
