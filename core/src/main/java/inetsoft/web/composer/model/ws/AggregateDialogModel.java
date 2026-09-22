@@ -19,12 +19,12 @@ package inetsoft.web.composer.model.ws;
 
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.model.AggregateInfoModel;
-import inetsoft.web.composer.ws.event.AssetEvent;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AggregateDialogModel implements AssetEvent {
+public class AggregateDialogModel implements Serializable {
    public int getMaxCol() {
       return maxCol;
    }
@@ -89,20 +89,6 @@ public class AggregateDialogModel implements AssetEvent {
       this.aliasMap = aliasMap;
    }
 
-   @Override
-   public String name() {
-      return name;
-   }
-
-   @Override
-   public boolean confirmed() {
-      return confirmed;
-   }
-
-   public void setConfirmed(boolean confirmed) {
-      this.confirmed = confirmed;
-   }
-
    private String name;
    private ColumnRefModel[] columns;
    private AggregateInfoModel info;
@@ -110,5 +96,4 @@ public class AggregateDialogModel implements AssetEvent {
    private Map<String, String> aliasMap;
 
    private int maxCol = 0;
-   private boolean confirmed;
 }
