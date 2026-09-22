@@ -18,8 +18,11 @@
 package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
+import inetsoft.web.viewsheet.event.OpenPreviewViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,7 +34,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +63,51 @@ class ComposerViewsheetControllerTest {
 
       assertFalse(result);
       verifyNoInteractions(composerViewsheetService, securityEngine);
+   }
+
+   // Bug #76835, a preview-refresh request against an already-closed runtime must not NPE
+   // on the proxy's null return.
+   @Test
+   void refreshPreviewViewsheetSkipsLastModifiedWhenProxyReturnsNull() throws Exception {
+      when(securityEngine.checkPermission(eq(principal), eq(ResourceType.VIEWSHEET),
+         anyString(), eq(ResourceAction.ACCESS))).thenReturn(true);
+      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("closed-runtime-id");
+      when(composerViewsheetService.refreshPreviewViewsheet(
+         eq("closed-runtime-id"), any(), eq(principal), eq(dispatcher), any(), eq(false)))
+         .thenReturn(null);
+
+      assertDoesNotThrow(() -> controller.refreshPreviewViewsheet(
+         new OpenPreviewViewsheetEvent(), principal, dispatcher, "/"));
+
+      verify(runtimeViewsheetRef, never()).setLastModified(anyLong());
+   }
+
+   @Test
+   void refreshPreviewViewsheetSkipsLastModifiedWhenProxyReturnsFalse() throws Exception {
+      when(securityEngine.checkPermission(eq(principal), eq(ResourceType.VIEWSHEET),
+         anyString(), eq(ResourceAction.ACCESS))).thenReturn(true);
+      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("runtime-id");
+      when(composerViewsheetService.refreshPreviewViewsheet(
+         eq("runtime-id"), any(), eq(principal), eq(dispatcher), any(), eq(false)))
+         .thenReturn(false);
+
+      controller.refreshPreviewViewsheet(new OpenPreviewViewsheetEvent(), principal, dispatcher, "/");
+
+      verify(runtimeViewsheetRef, never()).setLastModified(anyLong());
+   }
+
+   @Test
+   void refreshPreviewViewsheetSetsLastModifiedWhenProxyReturnsTrue() throws Exception {
+      when(securityEngine.checkPermission(eq(principal), eq(ResourceType.VIEWSHEET),
+         anyString(), eq(ResourceAction.ACCESS))).thenReturn(true);
+      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("runtime-id");
+      when(composerViewsheetService.refreshPreviewViewsheet(
+         eq("runtime-id"), any(), eq(principal), eq(dispatcher), any(), eq(false)))
+         .thenReturn(true);
+
+      controller.refreshPreviewViewsheet(new OpenPreviewViewsheetEvent(), principal, dispatcher, "/");
+
+      verify(runtimeViewsheetRef).setLastModified(anyLong());
    }
 
    @Mock private RuntimeViewsheetRef runtimeViewsheetRef;
