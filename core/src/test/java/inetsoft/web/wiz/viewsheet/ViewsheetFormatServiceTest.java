@@ -877,6 +877,158 @@ class ViewsheetFormatServiceTest {
                         "by string-comparing path.getPath()[0] to the caller's typed value");
    }
 
+   // ── target: "header" (bug 76917) ────────────────────────────────────────────────────────
+
+   /**
+    * The inverse of {@code target: "data"}: a Crosstab's per-cell rendering discards an
+    * OBJECT-level `color` write once a table style colors a HEADER cell explicitly too, and
+    * {@code target: "data"} deliberately excludes header-typed paths (they're the body
+    * region's own target) -- so {@code target: "header"} writes directly to each
+    * HEADER/GROUP_HEADER/SUMMARY_HEADER cell's own {@code TableDataPath} instead. A non-header
+    * (SUMMARY, i.e. body) cell must be excluded the same way HEADER is excluded from "data".
+    */
+   @Test
+   void targetHeaderRoutesThroughTheAssemblysComputedHeaderCellPaths() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#D32F2F");
+
+      TableDataPath headerPath = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+         new String[]{ "state" });
+      TableDataPath groupHeaderPath = new TableDataPath(-1, TableDataPath.GROUP_HEADER,
+         XSchema.STRING, new String[]{ "state" });
+      TableDataPath summaryHeaderPath = new TableDataPath(-1, TableDataPath.SUMMARY_HEADER,
+         XSchema.STRING, new String[]{ "Count(customer_id)" });
+      TableDataPath summaryPath = new TableDataPath(-1, TableDataPath.SUMMARY, XSchema.INTEGER,
+         new String[]{ "Count(customer_id)" });
+
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> {
+         when(lens.getColCount()).thenReturn(3);
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(false);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         when(desc.getCellDataPath(0, 0)).thenReturn(headerPath);
+         when(desc.getCellDataPath(0, 1)).thenReturn(groupHeaderPath);
+         when(desc.getCellDataPath(0, 2)).thenReturn(summaryHeaderPath);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Crosstab1"), format, false, "header"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      ArrayList<TableDataPath[]> data = captor.getValue().getData();
+      assertNotNull(data, "target:header must populate event.getData()");
+      assertEquals(1, data.size());
+      List<TableDataPath> paths = Arrays.asList(data.get(0));
+      assertEquals(3, paths.size(), paths.toString());
+      assertTrue(paths.contains(headerPath), paths.toString());
+      assertTrue(paths.contains(groupHeaderPath), paths.toString());
+      assertTrue(paths.contains(summaryHeaderPath), paths.toString());
+      assertFalse(paths.contains(summaryPath), "the non-header body cell must be excluded: " +
+                 paths);
+   }
+
+   @Test
+   void targetHeaderRefusesAnAssemblyThatIsNeitherCrosstabNorTable() {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Text1")).thenReturn(mock(TextVSAssembly.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Text1"), new VSObjectFormatInfoModel(), false, "header"), ""));
+      assertTrue(thrown.getMessage().contains("header"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Text1"), thrown.getMessage());
+   }
+
+   /** No sandbox (e.g. an unloaded/disposed viewsheet) degrades to an empty path list. */
+   @Test
+   void targetHeaderIsEmptyWhenNoSandboxIsAvailable() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.empty());
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "header"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      assertArrayEquals(new TableDataPath[0], captor.getValue().getData().get(0));
+   }
+
+   /** Mirrors "data"'s own field-scoping (bug 76868): narrows to just the resolved column. */
+   @Test
+   void targetHeaderWithFieldFiltersToJustTheNamedColumn() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#D32F2F");
+
+      TableDataPath headerPathA = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+         new String[]{ "NAME" });
+      TableDataPath headerPathB = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+         new String[]{ "TOTAL" });
+
+      RuntimeViewsheet rvs = tableRvs("Table1", lens -> {
+         when(lens.getColCount()).thenReturn(2);
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getObject(0, 0)).thenReturn("NAME");
+         when(lens.getObject(0, 1)).thenReturn("TOTAL");
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(false);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         when(desc.getCellDataPath(0, 0)).thenReturn(headerPathA);
+         when(desc.getCellDataPath(0, 1)).thenReturn(headerPathB);
+         when(desc.isColDataPath(1, headerPathB)).thenReturn(true);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Table1"), format, false, "header", "TOTAL"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      assertArrayEquals(new TableDataPath[]{ headerPathB }, captor.getValue().getData().get(0));
+   }
+
+   @Test
+   void targetHeaderRefusesFieldAgainstACrosstab() {
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("Crosstab1")).thenReturn(mock(CrosstabVSAssembly.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> serviceWith(mock(FormatPainterService.class), rvs).setFormat(
+            "tok", principal(),
+            new ViewsheetFormatService.FormatRequest(
+               List.of("Crosstab1"), new VSObjectFormatInfoModel(), false, "header", "state"),
+            ""));
+      assertTrue(thrown.getMessage().contains("field"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Crosstab1"), thrown.getMessage());
+   }
+
    // ── set_calc_cell_format / get_calc_cell_format (bug 76679) ────────────────────────────
 
    /**
