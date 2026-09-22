@@ -33,12 +33,18 @@ import inetsoft.web.composer.model.vs.ChartPropertyDialogModel;
 import inetsoft.web.composer.model.vs.ComboboxPropertyDialogModel;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.composer.model.vs.GaugePropertyDialogModel;
+import inetsoft.web.composer.model.vs.ImageGeneralPaneModel;
+import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
+import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
+import inetsoft.web.composer.model.vs.StaticImagePaneModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
+import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1597,6 +1603,198 @@ class AssemblyPropertyServiceTest {
          Map.of(TABLE_STYLE_PATH, ""), ""));
    }
 
+
+   // ── selectedImage write-time validation (VOF-011) ─────────────────────────
+   //
+   // ImagePropertyDialogService stores whatever string it is handed, and nothing downstream
+   // complains: VSUtil.getVSImage returns null without logging for an unprefixed path, and
+   // VSImageModel's noImageFlag stays false because the value is non-blank, so the client asks
+   // for an image and gets none -- an empty box with ok:true and no signal. The encoding is not
+   // guessable from the tree either: a leaf's value is its type marker joined directly to its
+   // data ("^UPLOADED^2.png"), while the "Skin"/"Uploaded" nodes above it are untyped display
+   // folders that never appear in the value at all. The slash-joined spelling those folders
+   // suggest is accepted as an alias rather than merely refused.
+
+   private static final String SELECTED_IMAGE_PATH =
+      "imageGeneralPaneModel.staticImagePaneModel.imagePreviewPaneModel.selectedImage";
+
+   private static TreeNodeModel sampleImageTree() {
+      TreeNodeModel current = TreeNodeModel.builder()
+         .label("Current Image")
+         .data("_CURRENT_IMAGE_")
+         .type("current")
+         .leaf(true)
+         .build();
+      TreeNodeModel skin = TreeNodeModel.builder()
+         .label("Background1")
+         .data("background1.png")
+         .type(ImageVSAssemblyInfo.SKIN_IMAGE)
+         .leaf(true)
+         .build();
+      TreeNodeModel skinFolder = TreeNodeModel.builder()
+         .label("Skin")
+         .data("Skin")
+         .leaf(false)
+         .children(java.util.List.of(skin))
+         .build();
+      TreeNodeModel upload = TreeNodeModel.builder()
+         .label("2.png")
+         .data("2.png")
+         .type(ImageVSAssemblyInfo.UPLOADED_IMAGE)
+         .leaf(true)
+         .build();
+      TreeNodeModel uploadFolder = TreeNodeModel.builder()
+         .label("Uploaded")
+         .data("Uploaded")
+         .leaf(false)
+         .children(java.util.List.of(upload))
+         .build();
+
+      return TreeNodeModel.builder()
+         .children(java.util.List.of(current, skinFolder, uploadFolder))
+         .build();
+   }
+
+   private static ImagePropertyDialogModel imageModelWithTree() {
+      return ImagePropertyDialogModel.builder()
+         .imageGeneralPaneModel(
+            ImageGeneralPaneModel.builder()
+               .staticImagePaneModel(
+                  StaticImagePaneModel.builder()
+                     .imagePreviewPaneModel(
+                        ImagePreviewPaneModel.builder()
+                           .imageTree(sampleImageTree())
+                           .build())
+                     .build())
+               .build())
+         .build();
+   }
+
+   private static String writtenSelectedImage(ImagePropertyDialogService service)
+      throws Exception
+   {
+      ArgumentCaptor<ImagePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ImagePropertyDialogModel.class);
+      verify(service).setImagePropertyDialogModel(anyString(), anyString(), captor.capture(),
+                                                  any(), any(), any());
+
+      return captor.getValue().imageGeneralPaneModel().staticImagePaneModel()
+         .imagePreviewPaneModel().selectedImage();
+   }
+
+   @Test
+   void allowsAnUploadedImageWrittenInItsCanonicalForm() throws Exception {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      service.set("tok", principal(), "Image1", Map.of(SELECTED_IMAGE_PATH, "^UPLOADED^2.png"), "");
+
+      assertEquals("^UPLOADED^2.png", writtenSelectedImage(imageService));
+   }
+
+   @Test
+   void allowsASkinImageWrittenInItsCanonicalForm() throws Exception {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      service.set("tok", principal(), "Image1",
+                  Map.of(SELECTED_IMAGE_PATH, "^SKIN^background1.png"), "");
+
+      assertEquals("^SKIN^background1.png", writtenSelectedImage(imageService));
+   }
+
+   /**
+    * The spelling the tree's own shape suggests -- folder label, slash, leaf name. It is not a
+    * real value, and writing it verbatim is what produced the blank box; normalizing it costs
+    * less than expecting every caller to learn the prefix convention.
+    */
+   @Test
+   void normalizesTheFolderSlashNameSpellingOntoTheCanonicalValue() throws Exception {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      service.set("tok", principal(), "Image1", Map.of(SELECTED_IMAGE_PATH, "Uploaded/2.png"), "");
+
+      assertEquals("^UPLOADED^2.png", writtenSelectedImage(imageService));
+   }
+
+   @Test
+   void refusesASelectedImageThatNamesNothingInTheTree() throws Exception {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Image1",
+                           Map.of(SELECTED_IMAGE_PATH, "^UPLOADED^nope.png"), ""));
+
+      assertTrue(thrown.getMessage().contains("nope.png"),
+                 "must name the bad value: " + thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("^UPLOADED^2.png"),
+                 "must list what does work: " + thrown.getMessage());
+      // The model is still READ before the patch loop; what must not happen is the write.
+      verify(imageService, never()).setImagePropertyDialogModel(
+         anyString(), anyString(), any(), any(), any(), any());
+   }
+
+   /**
+    * The alias only ever renames a real image. "Uploaded/nope.png" is as dead as any other
+    * unknown name and must not be waved through on the strength of its shape alone.
+    */
+   @Test
+   void refusesTheFolderSlashNameSpellingForAnImageThatDoesNotExist() {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Image1",
+                           Map.of(SELECTED_IMAGE_PATH, "Uploaded/nope.png"), ""));
+   }
+
+   /**
+    * "Current Image" is the preview pane's placeholder for the image the assembly already has,
+    * not an image anything can be set to.
+    */
+   @Test
+   void refusesTheCurrentImagePlaceholderNode() {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Image1",
+                           Map.of(SELECTED_IMAGE_PATH, "_CURRENT_IMAGE_"), ""));
+   }
+
+   /** Clearing the image is a legitimate request, not a dangling name. */
+   @Test
+   void allowsClearingSelectedImageToEmpty() {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Image1",
+                                           Map.of(SELECTED_IMAGE_PATH, ""), ""));
+   }
+
+   /**
+    * A dynamic reference names a variable or expression resolved at render time, so there is no
+    * tree node for it to match and the gate must let it through unresolved.
+    */
+   @Test
+   void allowsADynamicSelectedImageReference() {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Image1",
+                                           Map.of(SELECTED_IMAGE_PATH, "$(ImageName)"), ""));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private static AssemblyPropertyService serviceWith(VSAssembly assembly, Object model) {
@@ -1645,6 +1843,21 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, null, null);
    }
 
+   private static AssemblyPropertyService serviceWithImage(
+      VSAssembly assembly, ImagePropertyDialogModel model, ImagePropertyDialogService imageService)
+   {
+      try {
+         when(imageService.getImagePropertyDialogModel(anyString(), anyString(),
+                                                       any(Principal.class)))
+            .thenReturn(model);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return serviceWith(assembly, model, null, null, imageService);
+   }
+
    private static AssemblyPropertyService serviceWithCalcTable(
       VSAssembly assembly, CalcTablePropertyDialogModel model)
    {
@@ -1654,6 +1867,14 @@ class AssemblyPropertyServiceTest {
    private static AssemblyPropertyService serviceWith(
       VSAssembly assembly, Object model, Object inputModel,
       Worksheet baseWorksheet)
+   {
+      return serviceWith(assembly, model, inputModel, baseWorksheet,
+                         mock(ImagePropertyDialogService.class));
+   }
+
+   private static AssemblyPropertyService serviceWith(
+      VSAssembly assembly, Object model, Object inputModel,
+      Worksheet baseWorksheet, ImagePropertyDialogService imageService)
    {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
@@ -1785,7 +2006,7 @@ class AssemblyPropertyServiceTest {
       }
 
       return new AssemblyPropertyService(
-         sessions, gauge, mock(ImagePropertyDialogService.class),
+         sessions, gauge, imageService,
          mock(TextPropertyDialogService.class),
          chart, table,
          mock(CrosstabPropertyDialogService.class),

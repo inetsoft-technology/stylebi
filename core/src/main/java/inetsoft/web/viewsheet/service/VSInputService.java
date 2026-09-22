@@ -59,6 +59,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.awt.*;
+import java.math.BigDecimal;
 import java.security.Principal;
 import java.text.Format;
 import java.time.LocalDate;
@@ -229,6 +230,69 @@ public class VSInputService {
          LOG.debug("Not a valid date: {}", value, ex);
          return value;
       }
+   }
+
+   /**
+    * Rounds a slider's incoming value onto its increment grid when "Snap to Increment" is on.
+    *
+    * <p>Snapping used to live only in the browser — {@code vs-slider.component.ts}'s own
+    * {@code snap()} rounds the drag handle's position before {@code applySelection()} ever sends
+    * a value, and nothing on this side looked at {@code isSnap()} or {@code getIncrement()}
+    * again. {@code NumericRangeVSAssemblyInfo.setSelectedObject} clamps to min/max and stores
+    * whatever else it is given, so every non-browser caller — this service's own agent endpoint,
+    * a script, any future API client — stored an off-grid value that the handle could never have
+    * produced. Doing it here rather than in {@code setSelectedObject} keeps range slider and time
+    * slider, which share that setter and have no snap concept, untouched.
+    *
+    * <p>The formula is deliberately the same one the component uses, measured from {@code min}
+    * rather than from zero, so both callers land on the same grid. The min/max clamp still runs
+    * afterwards in {@code setSelectedObject}.
+    *
+    * @return the snapped value, or the value unchanged when snap is off, the increment is
+    *         unusable, or the value is not a number.
+    */
+   private static Object snapToIncrement(SliderVSAssemblyInfo info, Object obj) {
+      if(!(obj instanceof Number num) || !info.isSnap()) {
+         return obj;
+      }
+
+      double increment = info.getIncrement();
+
+      if(!(increment > 0) || Double.isInfinite(increment)) {
+         return obj;
+      }
+
+      double value = num.doubleValue();
+      double min = info.getMin();
+      double snapped = Math.round((value - min) / increment) * increment + min;
+
+      if(snapped == value) {
+         return obj;
+      }
+
+      // Keep the caller's own numeric class: the value was produced by Tool.getData() for the
+      // assembly's data type, and handing back a Double for an integer slider would change the
+      // type that gets stored and written back.
+      if(obj instanceof Integer) {
+         return (int) Math.round(snapped);
+      }
+      else if(obj instanceof Long) {
+         return Math.round(snapped);
+      }
+      else if(obj instanceof Short) {
+         return (short) Math.round(snapped);
+      }
+      else if(obj instanceof Byte) {
+         return (byte) Math.round(snapped);
+      }
+      else if(obj instanceof Float) {
+         return (float) snapped;
+      }
+      else if(obj instanceof BigDecimal) {
+         return BigDecimal.valueOf(snapped);
+      }
+
+      return snapped;
    }
 
    @ClusterWriteMethod
@@ -2881,8 +2945,8 @@ public class VSInputService {
 
       int hint0;
 
-      if(info instanceof SliderVSAssemblyInfo) {
-         hint0 = info.setSelectedObject(obj);
+      if(info instanceof SliderVSAssemblyInfo sinfo) {
+         hint0 = info.setSelectedObject(snapToIncrement(sinfo, obj));
          coreLifecycleService.refreshVSAssembly(rvs, info.getAbsoluteName(), dispatcher);
       }
       else if(info instanceof SpinnerVSAssemblyInfo) {
