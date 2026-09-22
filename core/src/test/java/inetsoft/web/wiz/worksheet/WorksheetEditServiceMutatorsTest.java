@@ -3840,6 +3840,76 @@ class WorksheetEditServiceMutatorsTest {
          "the refused aggregate must not have been applied even with confirmed:true");
    }
 
+   @Test
+   void setGroupAggregateRefusesDroppingADownstreamAggregateInputInADiamondFoundOnlyViaTheSecondBranch()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "id", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Diamond: T -> A, T -> B (each renaming "amount" differently), both -> C via a
+      // join on "id". T's dependents are walked as [B, A] (confirmed by tracing the
+      // walk directly) -- C is first reached via B (mapped to "amt_b", no match on C's
+      // own AggregateInfo below) and marked visited there, then reached again via A
+      // (mapped to "amt_a"). A walk whose cycle-guard marks a dependent visited by name
+      // alone, forever, would skip re-deriving the mapped column when C is reached the
+      // second time via A -- silently missing a real conflict there. C's OWN
+      // AggregateInfo aggregates the column only as it arrives via A's mapping
+      // ("amt_a"), which is exactly that second, would-be-skipped path. This is an
+      // ordinary worksheet shape (two branches off one source table rejoined
+      // downstream), not a contrived topology.
+      svc.apply("TOK", agent, ed -> {
+         ed.addMirror("A", "T");
+         ed.addMirror("B", "T");
+         ed.renameColumn("A", "amount", "amt_a");
+         ed.renameColumn("B", "amount", "amt_b");
+         ed.addJoin("C", "A", "id", "B", "id", "INNER", null, null);
+      });
+
+      // A join's own column selection is normally populated by a live query-sandbox
+      // refresh, which this in-process test harness has none of -- build it directly,
+      // the same way TestWorksheets.tableWithColumns builds a plain embedded table's.
+      TableAssembly c = (TableAssembly) ws.getAssembly("C");
+      ColumnSelection cCols = new ColumnSelection();
+      cCols.addAttribute(new ColumnRef(new AttributeRef(null, "id")));
+      cCols.addAttribute(new ColumnRef(new AttributeRef(null, "amt_a")));
+      cCols.addAttribute(new ColumnRef(new AttributeRef(null, "amt_b")));
+      c.setColumnSelection(cCols, false);
+
+      // C's own AggregateInfo aggregates "amt_a" only -- reachable via A's rename, not
+      // B's. Set directly (like TestWorksheets.withGroupSumAndSort), since routing this
+      // through setGroupAggregate would itself require C's column selection to already
+      // be populated by a live query -- an unrelated harness limitation, not part of
+      // the bug under test.
+      AggregateInfo cAggInfo = new AggregateInfo();
+      cAggInfo.addAggregate(
+         new AggregateRef(new ColumnRef(new AttributeRef(null, "amt_a")), AggregateFormula.SUM));
+      c.setAggregateInfo(cAggInfo);
+
+      assertEquals(1, c.getAggregateInfo().getAggregateCount(),
+         "sanity check: C's own aggregate must exist before the T-side edit");
+
+      // "id" stays a plain GROUP (row-level, and still C's own join key -- WBS-062's
+      // hard block must stay silent), while "amount" is dropped from T entirely (kept
+      // neither as a group nor an aggregate, and not a join key anywhere). The diamond's
+      // A-branch conflict at C must still be caught even though the B-branch reaches C
+      // first and finds nothing.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("T", groups("id"), List.of())));
+
+      assertTrue(ex.getMessage().contains("amt_a"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("C"), ex.getMessage());
+      assertTrue(ex.getMessage().toLowerCase().contains("confirmed"), ex.getMessage());
+      assertTrue(t.getAggregateInfo().isEmpty(),
+         "the refused edit must not have been applied to T");
+      assertEquals(1, c.getAggregateInfo().getAggregateCount(),
+         "C's own aggregate must not have been mutated by the refused T-side edit");
+   }
+
    // =========================================================================
    // Edit-in-place tests
    // =========================================================================

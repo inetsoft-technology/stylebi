@@ -214,6 +214,17 @@ public class WorksheetControllerService {
     * uses for a plain {@code TableAssembly} dependent) and recording a conflict whenever
     * the mapped column is referenced as an aggregate input by that dependent's own
     * {@link AggregateInfo}.
+    * <p>
+    * {@code visited} tracks only the assemblies on the CURRENT recursion path (its
+    * ancestors), not every assembly ever reached across the whole walk -- an entry is
+    * added before recursing into a dependent and removed again once that dependent's
+    * whole subtree has been processed. This is enough to stop a genuine cycle (a
+    * dependent chain that loops back on one of its own ancestors) without also
+    * blocking a diamond: the same downstream assembly reached via two different,
+    * non-overlapping incoming edges (e.g. two mirrors of one source table that are
+    * both joined back together) must be re-checked on each edge, since each edge maps
+    * the column through a different rename chain and only one of them may actually
+    * match that assembly's own {@link AggregateInfo}.
     */
    private static void findAggregateInputLossConflicts(
       Worksheet ws, TableAssembly assembly, ColumnRef ref, Set<String> visited,
@@ -228,36 +239,41 @@ public class WorksheetControllerService {
             continue;
          }
 
-         Assembly tmp = ws.getAssembly(assemblyName);
+         try {
+            Assembly tmp = ws.getAssembly(assemblyName);
 
-         if(!(tmp instanceof TableAssembly)) {
-            continue;
-         }
-
-         TableAssembly dependent = (TableAssembly) tmp;
-         DataRef outerRef = AssetUtil.getOuterAttribute(assemblyName, ref);
-         ColumnRef mappedRef =
-            AssetUtil.getColumnRefFromAttribute(dependent.getColumnSelection(), outerRef);
-
-         if(mappedRef == null) {
-            continue;
-         }
-
-         AggregateInfo dependentInfo = dependent.getAggregateInfo();
-
-         if(dependentInfo != null && !dependentInfo.isEmpty() &&
-            dependentInfo.getAggregates(mappedRef).length > 0)
-         {
-            List<String> lostColumns =
-               lostByDependent.computeIfAbsent(assemblyName, k -> new ArrayList<>());
-            String name = mappedRef.getName();
-
-            if(!lostColumns.contains(name)) {
-               lostColumns.add(name);
+            if(!(tmp instanceof TableAssembly)) {
+               continue;
             }
-         }
 
-         findAggregateInputLossConflicts(ws, dependent, mappedRef, visited, lostByDependent);
+            TableAssembly dependent = (TableAssembly) tmp;
+            DataRef outerRef = AssetUtil.getOuterAttribute(assemblyName, ref);
+            ColumnRef mappedRef =
+               AssetUtil.getColumnRefFromAttribute(dependent.getColumnSelection(), outerRef);
+
+            if(mappedRef == null) {
+               continue;
+            }
+
+            AggregateInfo dependentInfo = dependent.getAggregateInfo();
+
+            if(dependentInfo != null && !dependentInfo.isEmpty() &&
+               dependentInfo.getAggregates(mappedRef).length > 0)
+            {
+               List<String> lostColumns =
+                  lostByDependent.computeIfAbsent(assemblyName, k -> new ArrayList<>());
+               String name = mappedRef.getName();
+
+               if(!lostColumns.contains(name)) {
+                  lostColumns.add(name);
+               }
+            }
+
+            findAggregateInputLossConflicts(ws, dependent, mappedRef, visited, lostByDependent);
+         }
+         finally {
+            visited.remove(assemblyName);
+         }
       }
    }
 
