@@ -29,6 +29,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.util.Catalog;
 import inetsoft.web.portal.model.CSVConfigModel;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -87,7 +88,7 @@ public class ExportDialogService {
       List<String> tableDataAssemblies = new ArrayList<>();
 
       if(vs != null) {
-         hasPrintLayout = vs.getLayoutInfo().getPrintLayout() != null;
+         hasPrintLayout = PrintLayoutResolver.hasPrintLayout(vs);
 
          VSUtil.getTableDataAssemblies(vs, true)
             .stream().forEach(assembly -> {

@@ -30,6 +30,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.util.IdentityNode;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.admin.general.model.model.SMTPAuthType;
@@ -89,7 +90,7 @@ public class EmailDialogService {
       }
 
       Viewsheet vs = rvs.getViewsheet();
-      boolean hasPrintLayout = vs.getLayoutInfo().getPrintLayout() != null;
+      boolean hasPrintLayout = PrintLayoutResolver.hasPrintLayout(vs);
       List<String> tableDataAssemblies = new ArrayList<>();
 
       if(vs != null) {

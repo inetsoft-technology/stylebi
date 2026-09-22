@@ -43,6 +43,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.HighlightRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.schedule.model.*;
@@ -92,8 +93,8 @@ public class ScheduleTaskActionService {
 
       RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
 
-      if(rvs != null && rvs.getViewsheet() != null && rvs.getViewsheet().getLayoutInfo() != null) {
-         result = rvs.getViewsheet().getLayoutInfo().getPrintLayout() != null;
+      if(rvs != null) {
+         result = PrintLayoutResolver.hasPrintLayout(rvs.getViewsheet());
       }
 
       return result;
