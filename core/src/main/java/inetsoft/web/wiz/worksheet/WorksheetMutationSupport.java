@@ -1148,6 +1148,27 @@ public final class WorksheetMutationSupport {
       ainfo.setCrosstab(crosstab);
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
+
+      // Push the (possibly just-set) aggregate alias from the private column selection into
+      // the public one now. Redmine #76902 (WBS-076): for a plain single-aggregate call (no
+      // secondary aggregates), nothing above re-derives the public selection from the mutated
+      // private one -- that was previously left to WorksheetEditService's post-mutation
+      // refreshAssemblies sweep, which is best-effort and budget-limited, so whether a reader
+      // (most consequentially add_mirror, which bakes the public selection's column name into
+      // the mirror permanently with no way to recover the other name) saw the alias or the
+      // stale pre-aggregate name depended on unrelated worksheet-wide timing.
+      //
+      // Gated on `!aggregates.isEmpty()`: a bare group-by/named-group call has no aggregate
+      // alias to propagate, and AbstractTableAssembly#setColumnSelection's regeneration drops
+      // any column that is neither a group key, an aggregate, nor already referenced elsewhere
+      // (isColumnUsed) -- including a join key a later add_join hasn't attached to this table
+      // yet. Running this resync unconditionally for that shape silently deleted such a column
+      // from the public selection before the join that needed it existed, surfacing as a
+      // ClassCastException in TableAssemblyOperator$Operator.renameDepended once a subsequent
+      // add_join's placeholder AttributeRef could no longer be resolved against it.
+      if(!aggregates.isEmpty()) {
+         t.setColumnSelection(t.getColumnSelection(false), false);
+      }
    }
 
    /**
