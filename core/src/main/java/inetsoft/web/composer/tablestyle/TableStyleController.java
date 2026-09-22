@@ -129,6 +129,7 @@ public class TableStyleController {
          objectName, ActionRecord.OBJECT_TYPE_TABLE_STYLE);
 
       try {
+         tableStyleService.checkTableStyleWritePermission(style.getName(), principal);
          styleFormat.updateTableStyle(style);
          IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
          style.setLastModified(System.currentTimeMillis());
@@ -207,6 +208,7 @@ public class TableStyleController {
       XTableStyle style = null;
 
       try {
+         tableStyleService.checkTableStyleWritePermission(styleName, principal);
          LibManager manager = libManagerProvider.getManager(principal);
          style = manager.getTableStyle(styleName);
          String styleId = style == null ? manager.getNextStyleID(name) : style.getID();
