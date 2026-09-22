@@ -544,6 +544,9 @@ $sqrt2: 1.41421356;
   // A hit-target floor, not a visual size — named rather than reusing -lg (36px) so it is never
   // quietly reduced to fit a layout.
   --inet-control-height-touch: 44px;
+  // Icon and handle sizes. The first of the chart card spec's planned size tokens to be needed:
+  // the plot resizer's thumb, which is a handle rather than an icon, but the same 12px step.
+  --inet-icon-size-sm: 12px;
   --inet-row-height-md: 34px;
   --inet-tab-height: 32px;
   --inet-pill-height: 26px;
