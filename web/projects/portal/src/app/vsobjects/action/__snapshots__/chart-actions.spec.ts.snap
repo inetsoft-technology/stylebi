@@ -441,6 +441,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in bind
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -1041,6 +1049,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in bind
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -1689,6 +1705,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in comp
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -2289,6 +2313,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in comp
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -2937,6 +2969,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in comp
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -3537,6 +3577,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in comp
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -4185,6 +4233,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in comp
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -4785,6 +4841,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in prev
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -5433,6 +5497,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in view
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -6033,6 +6105,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in view
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -6681,6 +6761,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in view
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -7281,6 +7369,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in view
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -7929,6 +8025,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in view
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -8529,6 +8633,14 @@ exports[`ChartActions > check status of menu actions and toolbar actions in view
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],

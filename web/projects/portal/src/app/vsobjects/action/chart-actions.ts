@@ -337,10 +337,13 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          }
       ]));
 
-      // show-data and the max-mode pair were toolbar-only, so right-click could not reach them —
-      // max-mode in particular, whose whole purpose is rescuing a chart too small to read. Predicates
-      // are copied verbatim from createToolbarActions; the menu renders labels only, so no icon.
-      // Appended as the last group so the positional assertions in chart-actions.spec.ts do not shift.
+      // show-data, the max-mode pair and Edit were toolbar-only, so right-click could not reach
+      // them — max-mode in particular, whose whole purpose is rescuing a chart too small to read,
+      // and Edit, which is the viewer's only route into the binding editor and so has to survive a
+      // title lane too short to draw a strip. Predicates are copied verbatim from
+      // createToolbarActions, or shared with it where one already exists; the menu renders labels
+      // only, so no icon. Appended as the last group so the positional assertions in
+      // chart-actions.spec.ts do not shift.
       groups.push(new AssemblyActionGroup([
          {
             id: () => "chart show-data",
@@ -369,10 +372,28 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
                (this.binding || this.model.maxMode &&
                 this.isActionVisibleInViewer("Close Max Mode") && !this.isDataTip() &&
                 !this.isPopComponent()) && this.isActionVisibleInViewer("Show Actual Size")
+         },
+         {
+            id: () => "chart edit",
+            label: () => "_#(js:Edit)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.editVisible
          }
       ]));
 
       return super.createMenuActions(groups);
+   }
+
+   /**
+    * Edit opens the binding editor and is the viewer's only route into it, so the toolbar and the
+    * right-click menu both carry it and must agree on when.
+    */
+   private get editVisible(): boolean {
+      return !this.vsWizardPreview && !this.binding && !this.embed &&
+         (this.viewer && this.model.enableAdhoc && !this.mobileDevice &&
+          this.isActionVisibleInViewer("Edit") && !this.isDataTip() && !this.isPopComponent()
+          || this.composer && !this.annotationsSelected && !this.isPopComponent());
    }
 
    private chartHyperlinkVisible(): boolean {
@@ -556,10 +577,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          label: () => "_#(js:Edit)",
          icon: () => "edit-icon",
          enabled: () => true,
-         visible: () => !this.vsWizardPreview && !this.binding && !this.embed &&
-            (this.viewer && this.model.enableAdhoc && !this.mobileDevice &&
-            this.isActionVisibleInViewer("Edit") && !this.isDataTip() && !this.isPopComponent()
-            || this.composer && !this.annotationsSelected && !this.isPopComponent())
+         visible: () => this.editVisible
       };
 
       // Source order is arbitrary today: it is emission order in one array literal and nothing reads

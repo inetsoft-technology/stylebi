@@ -333,6 +333,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of comm
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -765,6 +773,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of comm
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -1261,6 +1277,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of comm
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -1693,6 +1717,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of comm
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -2189,6 +2221,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of comm
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -2621,6 +2661,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of comm
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -3117,6 +3165,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of embe
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -3581,6 +3637,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of form
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -4013,6 +4077,14 @@ exports[`TableActions > check status of menu actions and toolbar actions of form
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],

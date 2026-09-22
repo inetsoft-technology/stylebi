@@ -205,6 +205,18 @@ one does: no affordance on touch. This is the same open question
 [open-item-decisions](./chart-card-open-item-decisions.md) §4 records for dense plus touch, now reaching
 a larger population. One predicate changes it if that is not intended.
 
+**Corrected 2026-09-22: "right-click only" was not true, and this decision rests on it.** Edit — the
+viewer's only route into the binding editor — was declared in `createToolbarActions` alone for the
+chart and the table family, so it was never in the right-click menu. Suppressing the strip therefore
+did not degrade to right-click; it removed the binding editor from the viewer outright for any
+assembly whose lane fell below the threshold. Fixed by back-filling Edit into `createMenuActions`
+for chart, table and crosstab, which is the same treatment `show-data` and the max-mode pair had
+already been given for the same reason, and which `AbstractVSActions.flattenedMoreActions` already
+assumed was in place — its comment says the menu carries copies of the toolbar actions *"to keep
+them reachable once a lane too short for the strip suppresses it."* The calc table's Edit is
+composer-only, so it is unaffected. **Before removing a control on a fit rule, check that the route
+it is said to degrade to actually carries the control.**
+
 ---
 
 ## Decision 5 — the lane row ships with a use-the-default affordance on the title height

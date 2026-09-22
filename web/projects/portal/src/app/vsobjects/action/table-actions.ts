@@ -224,11 +224,12 @@ export class TableActions extends BaseTableActions<VSTableModel> {
          }
       ]));
 
-      // open-max-mode, close-max-mode, show-details and export were toolbar-only, so right-click
-      // could not reach any of them — max mode in particular, whose whole purpose is rescuing an
-      // assembly too small to read. Predicates are copied verbatim from createToolbarActions; the
-      // menu renders labels only, so no icon. Appended last so the positional assertions in
-      // table-actions.spec.ts do not shift.
+      // open-max-mode, close-max-mode, show-details, export and Edit were toolbar-only, so
+      // right-click could not reach any of them — max mode in particular, whose whole purpose is
+      // rescuing an assembly too small to read, and Edit, which is the viewer's only route into
+      // the binding editor and so has to survive a title lane too short to draw a strip. Predicates
+      // are shared with createToolbarActions; the menu renders labels only, so no icon. Appended
+      // last so the positional assertions in table-actions.spec.ts do not shift.
       groups.push(new AssemblyActionGroup([
          {
             id: () => "table open-max-mode",
@@ -257,6 +258,13 @@ export class TableActions extends BaseTableActions<VSTableModel> {
             icon: () => null,
             enabled: () => true,
             visible: () => !this.vsWizardPreview && this.isActionVisibleInViewer("Export")
+         },
+         {
+            id: () => "table edit",
+            label: () => "_#(js:Edit)",
+            icon: () => null,
+            enabled: () => true,
+            visible: () => this.editVisible
          }
       ]));
 
@@ -306,10 +314,7 @@ export class TableActions extends BaseTableActions<VSTableModel> {
          id: () => "table edit",
          label: () => "_#(js:Edit)",
          icon: () => "edit-icon",
-         visible: () => !this.vsWizardPreview && !this.isPopComponent() && !this.embed &&
-            (!this.preview && !this.composer && !this.mobileDevice &&
-             !this.binding && this.model.enableAdhoc && this.isActionVisibleInViewer("Edit")
-             || this.composer && !this.annotationsSelected),
+         visible: () => this.editVisible,
          enabled: () => true
       };
 
@@ -373,6 +378,17 @@ export class TableActions extends BaseTableActions<VSTableModel> {
    private get showDetailsVisible(): boolean {
       return this.model.summary && this.model.selectedData && !this.model.form
          && this.model.selectedData.size > 0 && this.isActionVisibleInViewer("Show Details");
+   }
+
+   /**
+    * Edit opens the binding editor and is the viewer's only route into it, so the toolbar and the
+    * right-click menu both carry it and must agree on when.
+    */
+   private get editVisible(): boolean {
+      return !this.vsWizardPreview && !this.isPopComponent() && !this.embed &&
+         (!this.preview && !this.composer && !this.mobileDevice &&
+          !this.binding && this.model.enableAdhoc && this.isActionVisibleInViewer("Edit")
+          || this.composer && !this.annotationsSelected);
    }
 
    private get selectionApplyVisible(): boolean {

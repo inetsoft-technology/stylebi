@@ -1154,7 +1154,7 @@ describe("CrosstabActions", () => {
          actions.menuActions.reduce(
             (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
-      it("exposes max mode, show details and export in the menu", () => {
+      it("exposes max mode, show details, export and Edit in the menu", () => {
          const actions = new CrosstabActions(TestUtils.createMockVSCrosstabModel("Crosstab1"),
             ViewerContextProviderFactory(false));
          const ids = menuIds(actions);
@@ -1163,6 +1163,22 @@ describe("CrosstabActions", () => {
          expect(ids).toContain("crosstab close-max-mode");
          expect(ids).toContain("crosstab show-details");
          expect(ids).toContain("crosstab export");
+         expect(ids).toContain("crosstab edit");
+      });
+
+      // Edit is the viewer's only route into the binding editor, and the strip that used to carry
+      // it is not drawn when the title lane is too short to hold it. Right-click has to work.
+      it("makes Edit visible in the viewer's menu, not merely present", () => {
+         const model = TestUtils.createMockVSCrosstabModel("Crosstab1");
+         model.enableAdhoc = true;
+         model.visible = true;
+         const actions = new CrosstabActions(model, ViewerContextProviderFactory(false));
+         const edit = actions.menuActions
+            .reduce((all, g) => all.concat(g.actions), [])
+            .find(a => a.id() === "crosstab edit");
+
+         expect(edit).toBeDefined();
+         expect(edit.visible()).toBe(true);
       });
 
       it("appends them as the last group, so existing positional assertions do not shift", () => {
@@ -1174,7 +1190,8 @@ describe("CrosstabActions", () => {
             "crosstab open-max-mode",
             "crosstab close-max-mode",
             "crosstab show-details",
-            "crosstab export"
+            "crosstab export",
+            "crosstab edit"
          ]);
       });
 
