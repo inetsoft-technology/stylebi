@@ -207,7 +207,7 @@ public class MVAssetQuery extends AssetQuery {
 
    private static TableAssembly[] transform(TableAssembly table, boolean sub,
                                             List<CalculateRef> aggcalcs,
-                                            List<ExpressionRef> exps)
+                                            List<ColumnRef> exps)
    {
       TableAssembly[] tables = new TableAssembly[2];
       tables[1] = table;
@@ -266,13 +266,17 @@ public class MVAssetQuery extends AssetQuery {
             // fix bug1325047841359
             if(calc) {
                for(int i = cols.getAttributeCount() - 1; i >= 0; i--) {
-                  DataRef sref = ((ColumnRef) cols.getAttribute(i)).getDataRef();
+                  ColumnRef col = (ColumnRef) cols.getAttribute(i);
+                  DataRef sref = col.getDataRef();
 
                   if(sref instanceof ExpressionRef &&
                      !(sref instanceof AliasDataRef) &&
                      !(sref instanceof DateRangeRef))
                   {
-                     exps.add((ExpressionRef) sref);
+                     // keep the wrapping ColumnRef (not just the bare ExpressionRef) so its
+                     // declared type is available when the FormulaTableLens materializing
+                     // this column is built in getPostBaseTableLens()
+                     exps.add(col);
                      cols.removeAttribute(i);
                   }
                }
@@ -734,28 +738,34 @@ public class MVAssetQuery extends AssetQuery {
 
       String[] harr = null;
       String[] sarr = null;
+      Class<?>[] tarr = null;
 
       if(aggcalcs != null && !aggcalcs.isEmpty()) {
          harr = new String[aggcalcs.size()];
          sarr = new String[aggcalcs.size()];
+         tarr = new Class<?>[aggcalcs.size()];
 
          for(int i = 0; i < aggcalcs.size(); i++) {
             CalculateRef cref = aggcalcs.get(i);
             harr[i] = cref.getName();
             sarr[i] = ((ExpressionRef) cref.getDataRef()).getExpression();
+            tarr[i] = Tool.getDataClass(cref.getDataType());
          }
       }
       else if(!exps.isEmpty()) {
          List<String> hlist = new ArrayList<>();
          List<String> slist = new ArrayList<>();
+         List<Class<?>> tlist = new ArrayList<>();
 
-         for(ExpressionRef eref : exps) {
+         for(ColumnRef col : exps) {
+            ExpressionRef eref = (ExpressionRef) col.getDataRef();
             String name = eref.getName();
             String exp = eref.getExpression();
 
             if(AssetUtil.findColumn(data, eref) < 0) {
                hlist.add(name);
                slist.add(exp);
+               tlist.add(Tool.getDataClass(col.getDataType()));
             }
          }
 
@@ -763,13 +773,26 @@ public class MVAssetQuery extends AssetQuery {
          hlist.toArray(harr);
          sarr = new String[slist.size()];
          slist.toArray(sarr);
+         tarr = tlist.toArray(new Class<?>[0]);
       }
 
       if(harr != null && harr.length > 0) {
          AssetQueryScope scope = box.getScope();
          scope.setMode(mode);
          ScriptEnv env = box.getScriptEnv();
-         data = new FormulaTableLens(data, harr, sarr, env, box.getScope());
+         int baseColCount = data.getColCount();
+         FormulaTableLens ftbl = new FormulaTableLens(data, harr, sarr, env, box.getScope());
+
+         // register the declared column type for each materialized calc-field column,
+         // mirroring PostProcessor.formula(), so PostProcessor.formula()'s later
+         // field['<name>'] alias-optimization check doesn't dereference a null type (bug #76912)
+         for(int i = 0; tarr != null && i < tarr.length; i++) {
+            if(tarr[i] != null) {
+               ftbl.setColType(baseColCount + i, tarr[i]);
+            }
+         }
+
+         data = ftbl;
       }
 
       return new AssetTableLens(data);
@@ -1205,7 +1228,7 @@ public class MVAssetQuery extends AssetQuery {
    private TableAssembly table;
    private TableAssembly mirror;
    private List<CalculateRef> aggcalcs = new ArrayList<>();
-   private List<ExpressionRef> exps = new ArrayList<>();
+   private List<ColumnRef> exps = new ArrayList<>();
    private boolean prepared = false;
    private MVExecutor executor;
    private transient AssetQuery baseQuery;
