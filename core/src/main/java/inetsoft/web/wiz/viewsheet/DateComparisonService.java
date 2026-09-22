@@ -162,11 +162,26 @@ public class DateComparisonService {
       Map<String, Object> out = new LinkedHashMap<>();
       out.put("assembly", assemblyName);
 
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
+
       // getDateComparison() always returns a default-populated model for a DateCompareAble
       // assembly, even when no comparison is actually set (e.g. after clear()), so "enabled"
       // cannot be read from model == null.
       boolean enabled = model != null &&
          comparisonService.isDateComparisonEnabled(runtimeId, assemblyName, user);
+
+      // A config being *defined* (own or shared) is necessary but not sufficient — it must
+      // also have actually applied. A date-typed field bound to the wrong shelf (e.g. group
+      // instead of x/y) defines a comparison that set() itself reports as inactive
+      // (dateComparisonInactive, see describeDateComparisonInactive()) but that the presence
+      // check above can't see. DateComparisonUtil.appliedDateComparison() is the codebase's
+      // existing render-effect signal for this, already used at ~15 other call sites, and
+      // covers both ChartVSAssembly and CrosstabVSAssembly via the same underlying runtime refs.
+      if(enabled && info != null) {
+         enabled = DateComparisonUtil.appliedDateComparison(info);
+      }
 
       // The share-from assembly is worth reporting even when this assembly's own comparison
       // reads as disabled — sharing is exactly the case where this assembly has no comparison
@@ -194,10 +209,6 @@ public class DateComparisonService {
       // performs this resolution (including one level of nested sharing) for every
       // rendering-facing caller.
       if(hasShareFrom) {
-         Viewsheet vs = rvs.getViewsheet();
-         VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
-         VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
-
          if(info instanceof DateCompareAbleAssemblyInfo) {
             DateComparisonInfo resolved =
                DateComparisonUtil.getDateComparison((DateCompareAbleAssemblyInfo) info, vs);

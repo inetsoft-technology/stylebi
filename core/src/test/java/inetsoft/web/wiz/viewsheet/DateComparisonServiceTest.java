@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateCompareAbleAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonInterval;
@@ -343,6 +344,53 @@ class DateComparisonServiceTest {
    }
 
    /**
+    * A {@code ChartVSAssemblyInfo} wired so {@code DateComparisonUtil.appliedDateComparison()}
+    * reports {@code applied} — {@code read()}'s {@code enabled} gate now requires this (bug
+    * #76849, DCG-016) in addition to a {@code comparisonShareFrom}/own config merely being
+    * present. {@code applied = false} models a date field bound to the wrong shelf (e.g. group
+    * instead of x/y): {@code ChartDcProcessor.process()} never populates the comparison refs,
+    * the same signal {@code set()}'s own {@code describeDateComparisonInactive} already reports.
+    */
+   private static ChartVSAssemblyInfo chartInfoAppliedDateComparison(String shareFrom,
+                                                                     boolean applied)
+   {
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      when(info.getComparisonShareFrom()).thenReturn(shareFrom);
+      // Not for the appliedDateComparison() gate above (that call never reaches this method) --
+      // needed for the hasShareFrom branch's DateComparisonUtil.getDateComparison(info, vs),
+      // which gates on DataVSAssemblyInfo.isDateComparisonEnabled() (ChartVSAssemblyInfo is one)
+      // before it ever resolves the share source; a Mockito boolean defaults false, which would
+      // make that call return null and mask the share-source resolution this stub's callers test.
+      when(info.isDateComparisonEnabled()).thenReturn(true);
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.isAppliedDateComparison()).thenReturn(applied);
+      when(info.getVSChartInfo()).thenReturn(chartInfo);
+      return info;
+   }
+
+   /** Same as {@link #chartInfoAppliedDateComparison(String, boolean)}, own (non-shared) config. */
+   private static ChartVSAssemblyInfo chartInfoOwnConfig(DateComparisonInfo dcInfo,
+                                                          boolean applied)
+   {
+      ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
+      when(info.getComparisonShareFrom()).thenReturn(null);
+      when(info.getDateComparisonInfo()).thenReturn(dcInfo);
+      VSChartInfo chartInfo = mock(VSChartInfo.class);
+      when(chartInfo.isAppliedDateComparison()).thenReturn(applied);
+      when(info.getVSChartInfo()).thenReturn(chartInfo);
+      return info;
+   }
+
+   /** A defined (periods/interval/comparisonOption all set) own {@code DateComparisonInfo}. */
+   private static DateComparisonInfo definedOwnDcInfo() {
+      DateComparisonInfo dcInfo = new DateComparisonInfo();
+      dcInfo.setDateComparisonPeriods(mock(StandardPeriods.class));
+      dcInfo.setDateComparisonInterval(mock(DateComparisonInterval.class));
+      dcInfo.setComparisonOption(Calculator.CHANGE);
+      return dcInfo;
+   }
+
+   /**
     * Bug #76522 (DCG-003), second half. {@code model} fetched at the top of {@code read()} is
     * always the TARGET assembly's own {@code DateComparisonPaneModel} -- a default-constructed,
     * unset one whenever {@code comparisonShareFrom} is set, since a sharing assembly never
@@ -354,10 +402,7 @@ class DateComparisonServiceTest {
     */
    @Test
    void resolvesSharedFieldsThroughToTheShareSourcesRealConfigOnRead() throws Exception {
-      VSAssemblyInfo targetInfo = mock(VSAssemblyInfo.class,
-         withSettings().extraInterfaces(DateCompareAbleAssemblyInfo.class));
-      when(((DateCompareAbleAssemblyInfo) targetInfo).getComparisonShareFrom())
-         .thenReturn("Chart1");
+      ChartVSAssemblyInfo targetInfo = chartInfoAppliedDateComparison("Chart1", true);
       VSAssembly targetAssembly = mock(VSAssembly.class);
       when(targetAssembly.getVSAssemblyInfo()).thenReturn(targetInfo);
 
@@ -397,10 +442,7 @@ class DateComparisonServiceTest {
     */
    @Test
    void fallsBackToTheOwnModelWhenTheShareSourceDoesNotResolve() throws Exception {
-      VSAssemblyInfo targetInfo = mock(VSAssemblyInfo.class,
-         withSettings().extraInterfaces(DateCompareAbleAssemblyInfo.class));
-      when(((DateCompareAbleAssemblyInfo) targetInfo).getComparisonShareFrom())
-         .thenReturn("Chart1");
+      ChartVSAssemblyInfo targetInfo = chartInfoAppliedDateComparison("Chart1", true);
       VSAssembly targetAssembly = mock(VSAssembly.class);
       when(targetAssembly.getVSAssemblyInfo()).thenReturn(targetInfo);
 
@@ -419,6 +461,100 @@ class DateComparisonServiceTest {
 
       assertEquals(true, read.get("enabled"));
       assertEquals("Chart1", read.get("shareFrom"));
+   }
+
+   // ── DCG-016: enabled must reflect render-effect, not just config presence ──────────────
+
+   /**
+    * Bug #76849, DCG-016. Chart2's date dimension is bound on {@code group}, not x/y; sharing
+    * Chart1's config is defined ({@code comparisonShareFrom} set) but {@code set()} itself
+    * already reports this as {@code dateComparisonInactive} (DCG-004/DCG-012) because
+    * {@code ChartDcProcessor.process()} never finds a date-typed field on x/y and so never
+    * populates the comparison refs. Before this fix, {@code read()} only checked for the
+    * presence of {@code comparisonShareFrom} and reported {@code enabled:true} regardless.
+    */
+   @Test
+   void reportsDisabledWhenTheSharedComparisonNeverApplied() throws Exception {
+      ChartVSAssemblyInfo targetInfo = chartInfoAppliedDateComparison("Chart1", false);
+      VSAssembly targetAssembly = mock(VSAssembly.class);
+      when(targetAssembly.getVSAssemblyInfo()).thenReturn(targetInfo);
+
+      Harness h = harness(model(), targetAssembly);
+      DateComparisonDialogModel shareModel = new DateComparisonDialogModel();
+      shareModel.setShareFromAssembly("Chart1");
+      when(h.comparisons().getShare(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(shareModel);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart2");
+
+      assertEquals(false, read.get("enabled"));
+      assertEquals("Chart1", read.get("shareFrom"),
+                  "shareFrom is still worth reporting alongside enabled:false");
+   }
+
+   /**
+    * The scope-note gap from the diagnosis: the identical shelf-placement gap, but with the
+    * chart's own (non-shared) periods/level/comparisonOption instead of a {@code shareAssembly}.
+    * A fix scoped only to the {@code hasShareFrom} branch would leave this case unfixed.
+    */
+   @Test
+   void reportsDisabledWhenTheOwnComparisonNeverApplied() throws Exception {
+      ChartVSAssemblyInfo targetInfo = chartInfoOwnConfig(definedOwnDcInfo(), false);
+      VSAssembly targetAssembly = mock(VSAssembly.class);
+      when(targetAssembly.getVSAssemblyInfo()).thenReturn(targetInfo);
+
+      Harness h = harness(model(), targetAssembly);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart1");
+
+      assertEquals(false, read.get("enabled"));
+   }
+
+   /**
+    * Control: an own (non-shared), correctly-applied comparison must still read back
+    * {@code enabled:true} -- the fix must not overreach and disable genuinely-working configs.
+    */
+   @Test
+   void reportsEnabledWhenTheOwnComparisonActuallyApplies() throws Exception {
+      ChartVSAssemblyInfo targetInfo = chartInfoOwnConfig(definedOwnDcInfo(), true);
+      VSAssembly targetAssembly = mock(VSAssembly.class);
+      when(targetAssembly.getVSAssemblyInfo()).thenReturn(targetInfo);
+
+      Harness h = harness(model(), targetAssembly);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Chart1");
+
+      assertEquals(true, read.get("enabled"));
+   }
+
+   /**
+    * The read-side gap is not chart-specific: {@code CrosstabDcProcessor} has the identical
+    * early-return shape as {@code ChartDcProcessor}, and {@code DateComparisonUtil
+    * .appliedDateComparison()} branches on {@code CrosstabVSAssemblyInfo} the same way it
+    * branches on {@code ChartVSAssemblyInfo} -- covered by the same one-line fix with no extra
+    * scoping work.
+    */
+   @Test
+   void reportsDisabledWhenTheCrosstabsSharedComparisonNeverApplied() throws Exception {
+      CrosstabVSAssemblyInfo targetInfo = mock(CrosstabVSAssemblyInfo.class);
+      when(targetInfo.getComparisonShareFrom()).thenReturn("Crosstab1");
+      when(targetInfo.isDateComparisonEnabled()).thenReturn(true);
+      VSCrosstabInfo crosstabInfo = mock(VSCrosstabInfo.class);
+      when(crosstabInfo.isAppliedDateComparison()).thenReturn(false);
+      when(targetInfo.getVSCrosstabInfo()).thenReturn(crosstabInfo);
+
+      VSAssembly targetAssembly = mock(VSAssembly.class);
+      when(targetAssembly.getVSAssemblyInfo()).thenReturn(targetInfo);
+
+      Harness h = harness(model(), targetAssembly);
+      DateComparisonDialogModel shareModel = new DateComparisonDialogModel();
+      shareModel.setShareFromAssembly("Crosstab1");
+      when(h.comparisons().getShare(anyString(), anyString(), any(Principal.class)))
+         .thenReturn(shareModel);
+
+      Map<String, Object> read = h.service.read("tok", principal(), "Crosstab2");
+
+      assertEquals(false, read.get("enabled"));
    }
 
    // ── toDate / inclusive (period level) ────────────────────────────────────
