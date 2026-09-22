@@ -273,9 +273,10 @@ public class MVAssetQuery extends AssetQuery {
                      !(sref instanceof AliasDataRef) &&
                      !(sref instanceof DateRangeRef))
                   {
-                     // keep the wrapping ColumnRef (not just the bare ExpressionRef) so its
-                     // declared type is available when the FormulaTableLens materializing
-                     // this column is built in getPostBaseTableLens()
+                     // Keep the outer ColumnRef, not just its ExpressionRef: its getDataType()
+                     // checks its own dtype before the wrapped ref's, so dropping it here would
+                     // defeat PostProcessor.formula()'s alias-type match (see AssetQuery
+                     // .addExpression()'s "50644" comment for the same outer-vs-inner ambiguity)
                      exps.add(col);
                      cols.removeAttribute(i);
                   }
