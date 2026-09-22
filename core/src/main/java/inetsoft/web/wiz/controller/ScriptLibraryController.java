@@ -119,9 +119,11 @@ public class ScriptLibraryController {
 
    @GetMapping("/{name}")
    public ScriptLibraryFunctionDetail read(@PathVariable String name, Principal principal) {
+      // Permission before existence throughout this controller: checking existence first lets a
+      // caller with no permission on a name learn whether it exists from the error text.
+      requirePermission(principal, name, ResourceAction.READ);
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
-      requirePermission(principal, name, ResourceAction.READ);
       return new ScriptLibraryFunctionDetail(name, lib.getScript(name), lib.getScriptComment(name), null);
    }
 
@@ -139,6 +141,7 @@ public class ScriptLibraryController {
          throw new IllegalArgumentException("create_script_library_function requires 'text'.");
       }
 
+      requirePermission(principal, name, ResourceAction.WRITE);
       LibManager lib = libManagerProvider.getManager(principal);
 
       if(lib.getScript(name) != null) {
@@ -147,7 +150,6 @@ public class ScriptLibraryController {
             "update_script_library_function to change it, or pick a different name.");
       }
 
-      requirePermission(principal, name, ResourceAction.WRITE);
       lib.setScript(name, request.text() == null ? "" : request.text());
 
       if(request.comment() != null && !request.comment().isBlank()) {
@@ -164,9 +166,9 @@ public class ScriptLibraryController {
                                              @RequestBody UpdateScriptLibraryFunctionRequest request,
                                              Principal principal) throws Exception
    {
+      requirePermission(principal, name, ResourceAction.WRITE);
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
-      requirePermission(principal, name, ResourceAction.WRITE);
       if(request.text() == null || request.text().isBlank()) {
          throw new IllegalArgumentException("update_script_library_function requires 'text'.");
       }
@@ -218,17 +220,16 @@ public class ScriptLibraryController {
          throw new IllegalArgumentException("rename_script_library_function requires 'newName'.");
       }
 
+      requirePermission(principal, name, ResourceAction.WRITE);
+      requirePermission(principal, newName, ResourceAction.WRITE);
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
-      requirePermission(principal, name, ResourceAction.WRITE);
 
       if(lib.getScript(newName) != null) {
          throw new IllegalArgumentException(
             "A script library function named '" + newName + "' already exists. Choose a " +
             "different name, or delete_script_library_function('" + newName + "') first.");
       }
-
-      requirePermission(principal, newName, ResourceAction.WRITE);
 
       String oldText = lib.getScript(name);
       lib.renameScript(name, newName);
@@ -257,9 +258,9 @@ public class ScriptLibraryController {
       @RequestParam(required = false, defaultValue = "false") boolean force,
       Principal principal) throws Exception
    {
+      requirePermission(principal, name, ResourceAction.DELETE);
       LibManager lib = libManagerProvider.getManager(principal);
       requireExists(lib, name);
-      requirePermission(principal, name, ResourceAction.DELETE);
 
       if(!force) {
          List<AssetObject> deps = DependencyTransformer.getDependencies(scriptEntry(name).toIdentifier());
