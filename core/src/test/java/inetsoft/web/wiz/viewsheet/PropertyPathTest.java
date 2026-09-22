@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.viewsheet.GradientColor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -796,6 +797,82 @@ class PropertyPathTest {
 
       assertTrue(thrown.getMessage().contains("dimensions[0]"), "name the offending index");
       assertTrue(thrown.getMessage().contains("VSDimensionModel"), "name the bean type");
+   }
+
+   // ── bug #76929: GradientColor is a named exception to the String-ctor gate ──
+   //
+   // GradientColor (Oval/Rectangle's Fill tab gradient) has no public String constructor, so it
+   // used to fall all the way through to the generic "expects GradientColor, which '...' is not"
+   // throw -- the same shape as VSDimensionModel above, but here the target is a plain,
+   // non-relational value object with nothing to resolve against a pane's own catalog, so it is
+   // now built directly by class identity rather than refused. This must not reopen
+   // aBeanArrayElementFromAJsonObjectIsRefusedNamingTheBeanTypeAndIndex above or
+   // aJsonObjectForABeanWithNoStringConstructorIsStillRefused below -- neither VSDimensionModel
+   // nor NoStringConstructor is GradientColor or GradientColor.ColorStop, so both stay refused.
+
+   public static class GradientColorHolder {
+      public GradientColor getGradientColor() { return gradientColor; }
+      public void setGradientColor(GradientColor gradientColor) {
+         this.gradientColor = gradientColor;
+      }
+
+      private GradientColor gradientColor;
+   }
+
+   @Test
+   void buildsAGradientColorFromAJsonObjectIncludingItsColorStopArray() {
+      GradientColorHolder target = new GradientColorHolder();
+
+      PropertyPath.set(target, "gradientColor", Map.of(
+         "apply", true,
+         "direction", "linear",
+         "angle", "90",
+         "colors", List.of(
+            Map.of("color", "#FF0000", "offset", "0"),
+            Map.of("color", "#FFFF00", "offset", "100"))));
+
+      GradientColor result = target.getGradientColor();
+      assertTrue(result.isApply());
+      assertEquals("linear", result.getDirection());
+      assertEquals(90, result.getAngle());
+      assertEquals(2, result.getColors().length);
+      assertEquals("#FF0000", result.getColors()[0].getColor());
+      assertEquals(0, result.getColors()[0].getOffset());
+      assertEquals("#FFFF00", result.getColors()[1].getColor());
+      assertEquals(100, result.getColors()[1].getOffset());
+   }
+
+   @Test
+   void aGradientColorRoundTripsThroughGetAndSet() {
+      GradientColorHolder target = new GradientColorHolder();
+
+      PropertyPath.set(target, "gradientColor",
+                       Map.of("apply", true, "colors", List.of(Map.of("color", "#000000",
+                                                                      "offset", "0"))));
+
+      Object readBack = PropertyPath.get(target, "gradientColor");
+      assertInstanceOf(GradientColor.class, readBack);
+      assertTrue(((GradientColor) readBack).isApply());
+   }
+
+   @Test
+   void anUnrecognizedKeyOnAGradientColorJsonObjectIsRefusedRatherThanSilentlyIgnored() {
+      GradientColorHolder target = new GradientColorHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "gradientColor", Map.of("bogus", "x")));
+
+      assertTrue(thrown.getMessage().contains("bogus"), "name the offending key");
+      assertTrue(thrown.getMessage().contains("GradientColor"), "name the bean type");
+   }
+
+   @Test
+   void aNonObjectValueForAGradientColorIsRefused() {
+      GradientColorHolder target = new GradientColorHolder();
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyPath.set(target, "gradientColor", "not-an-object"));
    }
 
    // ── bug #76888: DynamicValueModel-shaped bean targets ─────────────────────

@@ -1003,4 +1003,193 @@ class PropertyAliasesTest {
       assertEquals("chartLinePaneModel.trendLineType",
                    PropertyAliases.resolveForWrite("chart", "trendLineType"));
    }
+
+   // ── bug #76929: Text's under-aliased fields ────────────────────────────────
+
+   /**
+    * autoSize/embedUrl/scaleVertical/popLocation/padding were only reachable through
+    * {@code get_assembly_properties(raw:true)} despite being genuinely applied by
+    * {@code TextPropertyDialogService}.
+    */
+   @Test
+   void exposesThePreviouslyMissingTextAliases() {
+      assertEquals("textGeneralPaneModel.textPaneModel.autoSize",
+                   PropertyAliases.resolveForWrite("text", "autoSize"));
+      assertEquals("textGeneralPaneModel.textPaneModel.url",
+                   PropertyAliases.resolveForWrite("text", "embedUrl"));
+      assertEquals("textGeneralPaneModel.sizePositionPaneModel.scaleVertical",
+                   PropertyAliases.resolveForWrite("text", "scaleVertical"));
+      assertEquals("textGeneralPaneModel.popLocation",
+                   PropertyAliases.resolveForWrite("text", "popLocation"));
+      assertEquals("textGeneralPaneModel.paddingPaneModel.top",
+                   PropertyAliases.resolveForWrite("text", "paddingTop"));
+      assertEquals("textGeneralPaneModel.paddingPaneModel.left",
+                   PropertyAliases.resolveForWrite("text", "paddingLeft"));
+      assertEquals("textGeneralPaneModel.paddingPaneModel.bottom",
+                   PropertyAliases.resolveForWrite("text", "paddingBottom"));
+      assertEquals("textGeneralPaneModel.paddingPaneModel.right",
+                   PropertyAliases.resolveForWrite("text", "paddingRight"));
+   }
+
+   /**
+    * {@code embedUrl}'s own name ("url") has no lexical connection to the Composer's caption for
+    * it -- the same category of gap {@code primary} had (bug #76809/VTB-017).
+    */
+   @Test
+   void embedUrlHasTheComposerUiLabel() {
+      assertEquals("Embed content from URL", PropertyAliases.labelFor("embedUrl"));
+   }
+
+   @Test
+   void textAliasesRoundTrip() {
+      TextPropertyDialogModel model = new TextPropertyDialogModel();
+      String path = PropertyAliases.resolve("text", "autoSize");
+      Object result = PropertyPath.set(model, path, true);
+
+      assertEquals(true, PropertyPath.get(result, path));
+   }
+
+   // ── bug #76929: Line/Oval/Rectangle's under-aliased fields ─────────────────
+
+   /**
+    * The old {@code shape()} shared a single minimal alias set (name/visible/primary/
+    * size/position only) across all three types. Confirmed against each type's own
+    * {@code *PropertyDialogService} that every field below is genuinely read and written back.
+    */
+   @Test
+   void exposesThePreviouslyMissingLineAliases() {
+      assertEquals("shapeGeneralPaneModel.basicGeneralPaneModel.shadow",
+                   PropertyAliases.resolveForWrite("line", "shadow"));
+      assertEquals("linePropertyPaneModel.linePropPaneModel.color",
+                   PropertyAliases.resolveForWrite("line", "lineColor"));
+      assertEquals("linePropertyPaneModel.linePropPaneModel.colorValue",
+                   PropertyAliases.resolveForWrite("line", "lineColorValue"));
+      assertEquals("linePropertyPaneModel.linePropPaneModel.style",
+                   PropertyAliases.resolveForWrite("line", "lineStyle"));
+      assertEquals("linePropertyPaneModel.begin",
+                   PropertyAliases.resolveForWrite("line", "beginArrow"));
+      assertEquals("linePropertyPaneModel.end",
+                   PropertyAliases.resolveForWrite("line", "endArrow"));
+   }
+
+   @Test
+   void exposesThePreviouslyMissingOvalAndRectangleAliases() {
+      for(String type : java.util.List.of("oval", "rectangle")) {
+         String prefix = type + "PropertyPaneModel";
+         assertEquals(prefix + ".linePropPaneModel.color",
+                      PropertyAliases.resolveForWrite(type, "lineColor"));
+         assertEquals(prefix + ".linePropPaneModel.style",
+                      PropertyAliases.resolveForWrite(type, "lineStyle"));
+         assertEquals(prefix + ".fillPropPaneModel.color",
+                      PropertyAliases.resolveForWrite(type, "fillColor"));
+         assertEquals(prefix + ".fillPropPaneModel.alpha",
+                      PropertyAliases.resolveForWrite(type, "fillAlpha"));
+         assertEquals(prefix + ".shadowPropPaneModel.apply",
+                      PropertyAliases.resolveForWrite(type, "shadowApply"));
+         assertEquals(prefix + ".shadowPropPaneModel.color",
+                      PropertyAliases.resolveForWrite(type, "shadowColor"));
+         assertEquals(prefix + ".shadowPropPaneModel.alpha",
+                      PropertyAliases.resolveForWrite(type, "shadowAlpha"));
+         assertEquals(prefix + ".shadowPropPaneModel.direction",
+                      PropertyAliases.resolveForWrite(type, "shadowDirection"));
+         assertEquals(prefix + ".shadowPropPaneModel.distance",
+                      PropertyAliases.resolveForWrite(type, "shadowDistance"));
+         assertEquals(prefix + ".shadowPropPaneModel.blur",
+                      PropertyAliases.resolveForWrite(type, "shadowBlur"));
+      }
+
+      assertEquals("rectanglePropertyPaneModel.radius",
+                   PropertyAliases.resolveForWrite("rectangle", "radius"));
+   }
+
+   /**
+    * {@code shadow} is a plain boolean toggle genuinely applied only by
+    * {@code LinePropertyDialogService} -- Oval's and Rectangle's own dialog services never read
+    * {@code basicGeneralPaneModel.isShadow()} back at all (they use their own, richer
+    * {@code shadowPropPaneModel} instead, exposed above as {@code shadowApply} etc.). Sharing one
+    * "shadow" alias across all three types the way the old {@code shape()} would have to would
+    * have made it a dead field on two of them.
+    */
+   @Test
+   void shadowIsOnlyAliasedForLineNotOvalOrRectangle() {
+      assertTrue(PropertyAliases.forType("line").aliases().containsKey("shadow"),
+                 "line should expose 'shadow'");
+
+      for(String type : java.util.List.of("oval", "rectangle")) {
+         assertFalse(PropertyAliases.forType(type).aliases().containsKey("shadow"),
+                     type + " should not expose 'shadow' -- it uses shadowApply/shadowColor/... " +
+                     "instead");
+      }
+   }
+
+   @Test
+   void radiusIsOnlyAliasedForRectangle() {
+      assertTrue(PropertyAliases.forType("rectangle").aliases().containsKey("radius"));
+      assertFalse(PropertyAliases.forType("line").aliases().containsKey("radius"));
+      assertFalse(PropertyAliases.forType("oval").aliases().containsKey("radius"));
+   }
+
+   @Test
+   void lineOvalRectangleAliasesRoundTrip() {
+      inetsoft.web.composer.model.vs.LinePropertyDialogModel lineModel =
+         new inetsoft.web.composer.model.vs.LinePropertyDialogModel();
+      String linePath = PropertyAliases.resolve("line", "beginArrow");
+      Object lineResult = PropertyPath.set(lineModel, linePath, 2);
+      assertEquals(2, PropertyPath.get(lineResult, linePath));
+
+      inetsoft.web.composer.model.vs.OvalPropertyDialogModel ovalModel =
+         new inetsoft.web.composer.model.vs.OvalPropertyDialogModel();
+      String ovalPath = PropertyAliases.resolve("oval", "fillAlpha");
+      Object ovalResult = PropertyPath.set(ovalModel, ovalPath, 50);
+      assertEquals(50, PropertyPath.get(ovalResult, ovalPath));
+
+      inetsoft.web.composer.model.vs.RectanglePropertyDialogModel rectModel =
+         new inetsoft.web.composer.model.vs.RectanglePropertyDialogModel();
+      String radiusPath = PropertyAliases.resolve("rectangle", "radius");
+      Object rectResult = PropertyPath.set(rectModel, radiusPath, 20);
+      assertEquals(20, PropertyPath.get(rectResult, radiusPath));
+   }
+
+   // ── bug #76929: gradientColor is now settable, not just refused ────────────
+
+   /**
+    * {@code fillPropPaneModel.gradientColor} (Oval/Rectangle's Fill tab gradient) used to fail
+    * with a generic "expects GradientColor, which '...' is not" error -- {@link PropertyPath}
+    * now builds the bean directly, so the raw dotted path round-trips a full gradient, colors
+    * included.
+    */
+   @Test
+   void gradientColorIsSettableOnOvalAndRectangleViaTheRawPath() {
+      Map<String, Object> gradient = Map.of(
+         "apply", true,
+         "direction", "linear",
+         "angle", 90,
+         "colors", java.util.List.of(
+            Map.of("color", "#FF0000", "offset", 0),
+            Map.of("color", "#FFFF00", "offset", 100)));
+
+      assertGradientColorRoundTrips(new inetsoft.web.composer.model.vs.OvalPropertyDialogModel(),
+                                     "ovalPropertyPaneModel.fillPropPaneModel.gradientColor",
+                                     gradient);
+      assertGradientColorRoundTrips(
+         new inetsoft.web.composer.model.vs.RectanglePropertyDialogModel(),
+         "rectanglePropertyPaneModel.fillPropPaneModel.gradientColor", gradient);
+   }
+
+   private static void assertGradientColorRoundTrips(Object model, String path,
+                                                      Map<String, Object> gradient)
+   {
+      Object result = PropertyPath.set(model, path, gradient);
+      Object readBack = PropertyPath.get(result, path);
+
+      assertInstanceOf(inetsoft.uql.viewsheet.GradientColor.class, readBack);
+      inetsoft.uql.viewsheet.GradientColor gradientColor =
+         (inetsoft.uql.viewsheet.GradientColor) readBack;
+      assertTrue(gradientColor.isApply());
+      assertEquals("linear", gradientColor.getDirection());
+      assertEquals(90, gradientColor.getAngle());
+      assertEquals(2, gradientColor.getColors().length);
+      assertEquals("#FF0000", gradientColor.getColors()[0].getColor());
+      assertEquals(100, gradientColor.getColors()[1].getOffset());
+   }
 }
