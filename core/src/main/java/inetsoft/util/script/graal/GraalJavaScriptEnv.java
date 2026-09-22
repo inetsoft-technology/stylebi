@@ -337,6 +337,16 @@ public class GraalJavaScriptEnv implements ScriptEnv {
    }
 
    /**
+    * @return the underlying engine's execution lock, or {@code null} if the
+    * engine has not been created yet (see {@link ScriptEnv#getExecutionLock()}).
+    */
+   @Override
+   public java.util.concurrent.locks.Lock getExecutionLock() {
+      GraalJavaScriptEngine e = engine;
+      return e == null ? null : e.getExecutionLock();
+   }
+
+   /**
     * Set whether is for sql only.
     */
    @Override

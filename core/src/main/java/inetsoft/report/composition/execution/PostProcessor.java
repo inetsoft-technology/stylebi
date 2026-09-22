@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -73,6 +74,16 @@ public class PostProcessor {
    }
 
    public static TableLens filter(TableLens base, ConditionGroup cgroup) {
+      return filter(base, cgroup, null);
+   }
+
+   /**
+    * @param box the sandbox this filter is being created for, or {@code null} if
+    *            not running in a query-execution sandbox. Used to keep condition
+    *            row-filtering and script execution locks in a consistent
+    *            acquisition order (bug #76918); see {@link ConditionFilter2}.
+    */
+   public static TableLens filter(TableLens base, ConditionGroup cgroup, AssetQuerySandbox box) {
       if(cgroup.size() == 0) {
          return base;
       }
@@ -80,7 +91,7 @@ public class PostProcessor {
       // performance optimization, the base table is always
       // a formula table or xnode table, so it's meaningless but overhead
       // to delegate to base table when querying border or span info
-      return new ConditionFilter2(base, cgroup);
+      return new ConditionFilter2(base, cgroup, box);
    }
 
    public static TableLens sort(TableLens base, int[] carr, boolean[] sarr,
@@ -237,9 +248,51 @@ public class PostProcessor {
    }
 
    private static final class ConditionFilter2 extends ConditionFilter {
-      ConditionFilter2(TableLens table, ConditionGroup conditions) {
+      ConditionFilter2(TableLens table, ConditionGroup conditions, AssetQuerySandbox box) {
          super(table, conditions);
+         this.box = box;
       }
+
+      /**
+       * Populating this filter's row map (via the inherited synchronized
+       * {@code moreRows()}) can cascade into evaluating a calculated field, which
+       * blocks on the query sandbox's GraalJS engine lock -- and a guest script
+       * running concurrently on a *different* thread, already holding that same
+       * engine lock, can re-enter this exact method (a table-row column read
+       * routes back through {@code getObject()}/{@code getBaseRowIndex()}) and
+       * block on this filter's own monitor. Two different threads then each hold
+       * one of these locks while waiting on the other: an AB-BA deadlock
+       * (bug #76918).
+       *
+       * <p>Acquiring the engine lock here, before the inherited monitor, keeps
+       * both locks in the same order for every path into this filter, so the
+       * cycle cannot form: a thread already inside script execution just
+       * re-acquires its own (reentrant) engine lock and proceeds straight to the
+       * monitor, while a thread about to trigger script execution must first wait
+       * for the engine lock -- without yet holding this filter's monitor for
+       * anyone else to wait on. Only locks when a script engine already exists
+       * for this sandbox, so filters that never end up evaluating a script are
+       * not forced to create one just to establish the ordering.
+       */
+      @Override
+      public boolean moreRows(int row) {
+         Lock execLock = box == null ? null : box.peekScriptExecutionLock();
+
+         if(execLock == null) {
+            return super.moreRows(row);
+         }
+
+         execLock.lock();
+
+         try {
+            return super.moreRows(row);
+         }
+         finally {
+            execLock.unlock();
+         }
+      }
+
+      private final AssetQuerySandbox box;
 
       @Override
       public final int getColBorder(int r, int c) {
