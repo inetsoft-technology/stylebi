@@ -250,10 +250,14 @@ public class ScheduleCycleChangesetApplyService {
                 user, ActionRecord.OBJECT_TYPE_CYCLE);
 
       if(verified) {
-         // The pre-delete conditions/permission/info were captured above -- rollback can fully
-         // recreate the cycle (decision D7's own load-bearing "delete is fully compensable"
-         // claim), now including its original access grants and audit metadata.
-         undoable.add(Undo.delete(name, before.getConditions(), before.getInfo(), beforePermission));
+         // The pre-delete conditions/permission/info/enabled were captured above -- rollback can
+         // fully recreate the cycle (decision D7's own load-bearing "delete is fully compensable"
+         // claim), now including its original access grants, audit metadata, and enabled state
+         // (bug #76919 -- createCycle's own setConditions call always defaults a fresh entry to
+         // enabled=true, which would otherwise silently re-enable a cycle that was disabled
+         // before the delete).
+         undoable.add(Undo.delete(name, before.getConditions(), before.getInfo(), beforePermission,
+                                  before.isEnabled()));
       }
    }
 
@@ -340,10 +344,11 @@ public class ScheduleCycleChangesetApplyService {
 
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(user);
       // createCycle just granted a FRESH default permission (to whoever is running this
-      // rollback) and stamped a fresh CycleInfo -- overwrite both with the captured pre-delete
-      // originals (fix for review round 1's Finding 1) so the restored cycle's access grants
-      // and audit metadata match what existed before the delete, not a fresh default.
-      cycleGateway.restoreCycleState(undo.name, orgId, undo.info, undo.permission);
+      // rollback), stamped a fresh CycleInfo, and defaulted enabled=true -- overwrite all three
+      // with the captured pre-delete originals (fix for review round 1's Finding 1, and bug
+      // #76919 for enabled) so the restored cycle's access grants, audit metadata, and enabled
+      // state match what existed before the delete, not a fresh default.
+      cycleGateway.restoreCycleState(undo.name, orgId, undo.info, undo.permission, undo.enabled);
       boolean verified = cycleGateway.currentAsset(undo.name, orgId) != null;
       writeAudit(txId, task, undo.key, ActionRecord.ACTION_NAME_CREATE,
                 AdminChangeRecord.ACTION_ROLLBACK, AdminChangeRecord.RISK_HIGH, null, null,
@@ -413,24 +418,25 @@ public class ScheduleCycleChangesetApplyService {
       private enum Kind { CREATE, UPDATE, DELETE }
 
       static Undo create(String name) {
-         return new Undo(Kind.CREATE, name, name, null, null, null, null);
+         return new Undo(Kind.CREATE, name, name, null, null, null, null, false);
       }
 
       static Undo update(String currentName, String beforeName,
                          List<inetsoft.sree.schedule.ScheduleCondition> conditions)
       {
-         return new Undo(Kind.UPDATE, currentName, currentName, beforeName, conditions, null, null);
+         return new Undo(Kind.UPDATE, currentName, currentName, beforeName, conditions, null, null,
+                         false);
       }
 
       static Undo delete(String name, List<inetsoft.sree.schedule.ScheduleCondition> conditions,
-                         DataCycleManager.CycleInfo info, Permission permission)
+                         DataCycleManager.CycleInfo info, Permission permission, boolean enabled)
       {
-         return new Undo(Kind.DELETE, name, name, null, conditions, info, permission);
+         return new Undo(Kind.DELETE, name, name, null, conditions, info, permission, enabled);
       }
 
       private Undo(Kind kind, String key, String name, String beforeName,
                    List<inetsoft.sree.schedule.ScheduleCondition> conditions,
-                   DataCycleManager.CycleInfo info, Permission permission)
+                   DataCycleManager.CycleInfo info, Permission permission, boolean enabled)
       {
          this.kind = kind;
          this.key = key;
@@ -439,6 +445,7 @@ public class ScheduleCycleChangesetApplyService {
          this.conditions = conditions;
          this.info = info;
          this.permission = permission;
+         this.enabled = enabled;
       }
 
       final Kind kind;
@@ -458,6 +465,10 @@ public class ScheduleCycleChangesetApplyService {
        * default grant {@code createCycle} makes (fix for review round 1's Finding 1). May be
        * {@code null} (no explicit grant existed). Unused for CREATE/UPDATE. */
       final Permission permission;
+      /** DELETE only: the pre-delete enabled state, restored on rollback instead of the
+       * {@code enabled=true} default {@code createCycle}'s own {@code setConditions} call makes
+       * on a fresh entry (bug #76919). Unused for CREATE/UPDATE. */
+      final boolean enabled;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleCycleChangesetApplyService.class);
