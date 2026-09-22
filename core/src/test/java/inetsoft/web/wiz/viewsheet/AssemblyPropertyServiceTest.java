@@ -548,6 +548,130 @@ class AssemblyPropertyServiceTest {
          Map.of("max", "999"), ""));
    }
 
+   // ── dynamic ("$(...)") rangeValues entries (Redmine #76886) ───────────────
+   //
+   // requireNoInteriorGapInGaugeRangeValues's numeric/monotonic/min checks unconditionally
+   // called Double.parseDouble on every populated rangeValues[i], with no exemption for an
+   // unresolved dynamic reference -- unlike columnValue/rowValue's own VSUtil.isDynamicValue
+   // guards in the same file, and unlike the sibling targetValue property in the same
+   // rangePaneModel, which has no such validator at all. The interior-gap and color-count
+   // checks must keep firing regardless.
+
+   /**
+    * The exact reported repro: a dynamic reference at index 0 must be accepted, and must read
+    * back unchanged rather than being resolved/mangled.
+    */
+   @Test
+   void allowsADynamicValueGaugeRangeValue() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("$(Spinner1)", "20000000", "30000000", "", "")),
+         ""));
+
+      assertEquals("$(Spinner1)",
+                   model.getGaugeAdvancedPaneModel().getRangePaneModel().getRangeValues()[0],
+                   "the dynamic reference must read back unchanged");
+   }
+
+   /**
+    * The monotonicity check must not attempt to compare a dynamic slot against its numeric
+    * neighbors in either direction.
+    */
+   @Test
+   void allowsADynamicValueInTheMiddleOfGaugeRangeValues() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("20", "$(Spinner1)", "60")),
+         ""));
+   }
+
+   /**
+    * The min-bound check must also skip a dynamic slot. With no {@code min} set (default 0,
+    * same as {@code refusesAGaugeRangeValueAtOrBelowTheGaugesMin}), a naive fix that left the
+    * dynamic slot's "parsed" value at Java's default {@code 0.0} would wrongly trip
+    * {@code 0.0 <= 0} and throw; the exemption must skip the comparison for that slot entirely.
+    */
+   @Test
+   void allowsADynamicValueGaugeRangeValueToSkipTheMinCheck() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Gauge1",
+         Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("$(Spinner1)", "60", "90")),
+         ""));
+   }
+
+   /**
+    * The dynamic-value exemption must not weaken the structural interior-gap check, which it
+    * does not own: a dynamic populated entry followed by a blank, followed by a populated one,
+    * must still be refused exactly as {@code refusesAnInteriorGapInGaugeRangeValues}'s all-
+    * literal case is.
+    */
+   @Test
+   void refusesAnInteriorGapEvenWithADynamicGaugeRangeValue() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1",
+            Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                   java.util.List.of("$(Spinner1)", "", "90")),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("rangeValues[1]"),
+                 "must name the blank index: " + thrown.getMessage());
+   }
+
+   /**
+    * The dynamic-value exemption must not weaken the color-count check either: a dynamic
+    * {@code rangeValues[0]} still needs a matching {@code rangeColorValues[0]} once any color is
+    * populated.
+    */
+   @Test
+   void refusesAGaugeRangeColorCountMismatchEvenWithADynamicRangeValue() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                java.util.List.of("$(Spinner1)", "40", "60"));
+      patch.put("gaugeAdvancedPaneModel.rangePaneModel.rangeColorValues",
+                java.util.List.of("", "yellow", "green"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1", patch, ""));
+
+      assertTrue(thrown.getMessage().contains("rangeColorValues[0]"),
+                 "must name the missing color index: " + thrown.getMessage());
+   }
+
+   /**
+    * A genuinely invalid, non-numeric, non-dynamic-value string must still be rejected -- the
+    * fix must not widen the check to accept arbitrary garbage, only real "$(...)"/"=..."
+    * references.
+    */
+   @Test
+   void refusesAGenuinelyInvalidNonNumericGaugeRangeValue() {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      AssemblyPropertyService service = serviceWith(mock(GaugeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Gauge1",
+            Map.of("gaugeAdvancedPaneModel.rangePaneModel.rangeValues",
+                   java.util.List.of("abc", "60", "90")),
+            ""));
+
+      assertTrue(thrown.getMessage().contains("rangeValues[0]") &&
+                 thrown.getMessage().contains("is not a number"),
+                 "must still reject genuine garbage: " + thrown.getMessage());
+   }
+
    /**
     * The exact reported repro (bug #76530): {@code columnValue} carries the reference,
     * {@code table} never set. Must resolve and go through, not be refused.
