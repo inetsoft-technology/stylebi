@@ -459,10 +459,13 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
       rangeColorsValue = new DynamicValue2[Math.max(colors.length, 4)];
       rangeColorCount = rangeColorsValue.length;
 
-      for(int i = 0; i < colors.length; i++) {
+      // populate every padded slot (not just colors.length) with a real DynamicValue2 --
+      // leaving a raw null gap at the padded indices caused an NPE in setRangeColors() when a
+      // later script write's length landed on one of those slots (#76909 review round 2)
+      for(int i = 0; i < rangeColorsValue.length; i++) {
          rangeColorsValue[i] = new DynamicValue2();
 
-         if(colors[i] != null) {
+         if(i < colors.length && colors[i] != null) {
             rangeColorsValue[i].setDValue(colors[i].getRGB() + "");
          }
       }

@@ -148,6 +148,38 @@ class RangeOutputVSAssemblyInfoTest {
          info.getRangeColors());
    }
 
+   /**
+    * Regression test for review round 2 (Blocker): {@code setRangeColorsValue()} (the
+    * design-time setter used by the composer property dialog) pads its backing array to a
+    * minimum of 4 slots but only populates the first {@code colors.length} of them --
+    * configuring fewer than 4 design colors (ordinary usage) used to leave raw {@code null}
+    * array elements at the padded indices. The round-2 grow-only rewrite of
+    * {@code setRangeColors()} indexed those slots with no null check, so a subsequent script
+    * write landing on a padded-but-unpopulated index threw a {@code NullPointerException} --
+    * both when the growth branch was skipped ({@code colors.length <= 4}) and when it ran
+    * ({@code colors.length > 4}, copying the null slot forward).
+    */
+   @Test
+   void setRangeColorsDoesNotThrowWhenDesignColorArrayWasPaddedWithFewerThanFourColors() {
+      GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
+      // 2 design colors -> backing array padded to 4 physical slots
+      info.setRangeColorsValue(new Color[] { Color.RED, Color.GREEN });
+
+      // colors.length (3) <= padded length (4): growth branch skipped, must not NPE on slot 2
+      assertDoesNotThrow(() ->
+         info.setRangeColors(new Color[] { Color.BLUE, Color.YELLOW, Color.CYAN }));
+      assertArrayEquals(
+         new Color[] { Color.BLUE, Color.YELLOW, Color.CYAN }, info.getRangeColors());
+
+      // colors.length (5) > padded length (4): growth branch itself must not copy a null
+      // slot forward when reusing indices 0-3
+      assertDoesNotThrow(() -> info.setRangeColors(
+         new Color[] { Color.BLUE, Color.YELLOW, Color.CYAN, Color.PINK, Color.ORANGE }));
+      assertArrayEquals(
+         new Color[] { Color.BLUE, Color.YELLOW, Color.CYAN, Color.PINK, Color.ORANGE },
+         info.getRangeColors());
+   }
+
    @Test
    void saveReloadRoundTripProducesCorrectlySizedArrays() throws Exception {
       GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
