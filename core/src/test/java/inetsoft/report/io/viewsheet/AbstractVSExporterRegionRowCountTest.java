@@ -75,6 +75,28 @@ import static org.mockito.Mockito.when;
  * row; a genuinely blank/hidden row (bug #53192's original case &mdash; no
  * span covers it) is still exempted exactly as before.</p>
  *
+ * <p><b>Round 2</b>: P5 verification found that the round-1 fix above, while
+ * correct as far as it went, did not close the reported bug. The real asset's
+ * actual {@code tableLayout} is 5 columns wide, not 2 &mdash; and design
+ * column index 3 has <em>no {@code cellBinding} defined at all</em>, in
+ * either the header or detail regions. That column is blank on <em>every</em>
+ * row, header rows included, and is therefore never a merge continuation of
+ * anything (there's nothing non-blank above it to anchor a span). The round-1
+ * fix's {@code isMergedContinuationCell()} correctly returns {@code false}
+ * for it (there genuinely is no anchor), so {@code checkDisplayRow()} still
+ * returned {@code false} for every row on account of column 3 alone &mdash;
+ * completely independent of whether column 0's merge fix was correct. Live
+ * re-export against the real asset still threw the identical
+ * {@code IllegalStateException} after round 1.
+ *
+ * <p>Round 2's fix: {@code getRegionRowCount()} now precomputes, once per
+ * call, which columns ever hold a non-blank value anywhere across the row
+ * range {@code checkDisplayRow()} is evaluated over ({@link #findSignificantColumns}).
+ * A column that is blank in <em>every</em> one of those rows carries no
+ * per-row signal at all &mdash; it can never distinguish a genuinely hidden/
+ * filtered row from a normal one &mdash; so {@code checkDisplayRow()} now
+ * skips such columns entirely instead of letting them exempt every row.</p>
+ *
  * <p>The tests below use the same 14-row shape and the same design
  * {@code pixelHeight=248}/{@code headerRowHeights="20,20"}: one with the real
  * asset's blank-on-continuation merge column ({@link #tableWithGroupLabelColumn}
@@ -83,7 +105,9 @@ import static org.mockito.Mockito.when;
  * &mdash; after the fix, both now correctly clamp to 12, isolating that the
  * merge column's blank continuation cells no longer defeat the clamp. A third
  * test confirms bug #53192's original genuinely-blank-row exemption still
- * works.</p>
+ * works. A fourth, {@link #alwaysBlankGapColumnDoesNotDefeatTheHeightClamp},
+ * reproduces the real asset's full 5-column shape (including the undefined
+ * gap column at index 3) and is the test that caught round 1's gap.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -207,6 +231,61 @@ class AbstractVSExporterRegionRowCountTest {
          + "budget (bug #53192's original behavior), so all 5 real data rows "
          + "still fit and are counted -- not 6, which is what would happen if "
          + "the blank row wrongly consumed height budget");
+   }
+
+   /**
+    * Reproduces FreehandTable2's real, full 5-column {@code tableLayout} shape
+    * (extracted from {@code community-examples/examples.zip}'s viewsheet XML):
+    * col 0 = {@code Worker_Type} (merged group label, blank on continuation
+    * rows), col 1 = status label (never blank), col 2 = a Lost Days count
+    * (never blank), col 3 = a design column with <em>no cellBinding defined
+    * anywhere</em> (blank on every single row, header rows included, never
+    * covered by any span), col 4 = a second Lost Days count (never blank).
+    *
+    * <p>This is the P5-found gap round 1 missed: the committed round-1 test
+    * used a simplified 2-column fixture that never included a structurally
+    * always-blank column, so it could not catch that {@code checkDisplayRow()}
+    * still returned {@code false} for every row on account of column 3 alone,
+    * regardless of whether column 0's merge-continuation logic was fixed.</p>
+    */
+   @Test
+   void alwaysBlankGapColumnDoesNotDefeatTheHeightClamp() {
+      Object[][] rows = new Object[TOTAL_ROWS][5];
+      rows[0] = new Object[]{ "", "", "Location", "", "Year" };
+      rows[1] = new Object[]{ "", "Status", "", "", "" };
+
+      String[] groupNames = { "Drywall Installers", "Foreman", "General Workers", "Lawyers" };
+      String[] statusNames = { "Correctly Done", "Incorrectly Done", "Requires Replacement" };
+
+      for(int g = 0; g < GROUPS; g++) {
+         for(int r = 0; r < ROWS_PER_GROUP; r++) {
+            int row = HEADER_ROWS + g * ROWS_PER_GROUP + r;
+            String workerType = r == 0 ? groupNames[g] : "";
+            // col 3 ("") has no cellBinding in the real asset -- always blank,
+            // never covered by any span, exactly like the header rows above.
+            rows[row] = new Object[]{ workerType, statusNames[r], "2", "", "1" };
+         }
+      }
+
+      DefaultTableLens raw = new DefaultTableLens(rows);
+      raw.setHeaderRowCount(HEADER_ROWS);
+
+      for(int g = 0; g < GROUPS; g++) {
+         int origin = HEADER_ROWS + g * ROWS_PER_GROUP;
+         raw.setSpan(origin, 0, new Dimension(1, ROWS_PER_GROUP));
+      }
+
+      TableLens data = new VSTableLens(raw);
+      TestExporter exporter = exporter();
+
+      int regionRowCount = exporter.regionRowCount(data);
+
+      assertEquals(12, regionRowCount,
+         "the always-undefined 'gap' column (index 3, no cellBinding anywhere in "
+         + "the real asset) must not, on its own, keep defeating checkDisplayRow()'s "
+         + "clamp via the any-blank-column-exempts-the-row rule -- with it correctly "
+         + "excluded (it carries no per-row signal, blank in every row) the clamp "
+         + "trips normally at 2 header + 10 data rows, same as the 2-column fixture");
    }
 
    /**
