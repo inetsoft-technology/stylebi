@@ -95,15 +95,20 @@ class SRPrincipalTest {
       }
    }
 
-   // [Copy: constructor] copy constructor reproduces all fields from the source principal
+   // [Copy: constructor] copy constructor reproduces all fields from the source principal,
+   // including ignoreLogin, sessionID, and parameter timestamps (bug #76908: these three were
+   // silently lost because the copy constructor didn't delegate to XPrincipal's copy constructor)
    @Test
-   void copyConstructor_copiesAllFields() {
+   void copyConstructor_copiesAllFields() throws Exception {
       try(MockedStatic<XSessionService> sessionService = mockSessionService()) {
          SRPrincipal original = newPrincipal();
          original.setProperty("badge", "gold");
          original.setParameter("pageSize", 50);
          original.setLastAccess(777000L);
          original.setLocale(Locale.JAPAN);
+         original.setIgnoreLogin(true);
+         long originalParameterTs = original.getParameterTS("pageSize");
+         Thread.sleep(5);
 
          SRPrincipal copy = new SRPrincipal(original);
 
@@ -119,6 +124,10 @@ class SRPrincipalTest {
          assertEquals(original.getUser(), copy.getUser());
          assertEquals(50, copy.getParameter("pageSize"));
          assertEquals("gold", copy.getProperty("badge"));
+         assertTrue(copy.isIgnoreLogin(), "ignoreLogin must survive the copy");
+         assertEquals(original.getSessionID(), copy.getSessionID(), "sessionID must survive the copy");
+         assertEquals(originalParameterTs, copy.getParameterTS("pageSize"),
+            "parameter timestamp must be preserved, not re-stamped on copy");
       }
    }
 
