@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
+import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
 import org.junit.jupiter.api.Test;
@@ -570,6 +571,198 @@ class ChartBindingMutatorTest {
          "order must not be left with the SORT_SPECIFIC bit set once the named group backing " +
          "it is dropped");
       assertNull(dimension.getNamedGroupInfo());
+   }
+
+   // ── measure calculateInfo/secondaryY survive a shelf rewrite (bug #76896) ────────────────
+   //
+   // toChartRef's MEASURE branch builds a fresh ChartAggregateRefModel on every setShelf call:
+   // calculateInfo is copied only when the incoming field itself supplies one, and secondaryY is
+   // forced unconditionally to false whenever the incoming field omits it -- neither ever had a
+   // previous-state fallback. The crosstab side of this exact shape was fixed for bug #76881;
+   // this ports the same idea to the chart aggregate-ref path (preserveAggregateState, matched
+   // via sameMeasure -- the same column+formula identity preserveChartTypes already uses for
+   // chartType, minus its secondaryY tiebreak, which would be circular here).
+
+   private static RunningTotalCalcInfo runningTotal(String aggregate) {
+      RunningTotalCalcInfo calc = new RunningTotalCalcInfo();
+      calc.setAggregate(aggregate);
+      return calc;
+   }
+
+   private static FieldRef measureWithCalc(String column, String aggregate,
+                                           RunningTotalCalcInfo calc)
+   {
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null, calc);
+   }
+
+   private static FieldRef measureWithSecondaryY(String column, String aggregate,
+                                                 Boolean secondaryY)
+   {
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null, null, null,
+                          secondaryY);
+   }
+
+   @Test
+   void resubmittingTheIdenticalYShelfPreservesAMeasuresCalculateInfo() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum"))));
+
+      // The incoming field omits calculateInfo entirely on the resubmit.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      RunningTotalCalcInfo calc = (RunningTotalCalcInfo)
+         ((ChartAggregateRefModel) model.getYFields().get(0)).getCalculateInfo();
+      assertNotNull(calc, "a measure's calculateInfo must survive a shelf resubmission");
+      assertEquals("Sum", calc.getAggregate());
+   }
+
+   @Test
+   void resubmittingTheIdenticalXShelfPreservesAMeasuresCalculateInfo() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum"))));
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      assertNotNull(((ChartAggregateRefModel) model.getXFields().get(0)).getCalculateInfo(),
+         "calculateInfo has no shelf restriction -- must survive on x too");
+   }
+
+   @Test
+   void resubmittingTheIdenticalGroupShelfPreservesAMeasuresCalculateInfo() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "group",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum"))));
+
+      ChartBindingMutator.setShelf(model, "group",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      assertNotNull(((ChartAggregateRefModel) model.getGroupFields().get(0)).getCalculateInfo(),
+         "calculateInfo has no shelf restriction -- must survive on group too");
+   }
+
+   /**
+    * {@code secondaryY} is only ever {@code true} on {@code y} -- the plugin layer refuses it
+    * outright on {@code x}/{@code group} (bug #76608), so there is no x/group analogue to write
+    * here: nothing there can ever have a previous {@code true} value to lose.
+    */
+   @Test
+   void resubmittingTheIdenticalYShelfPreservesAMeasuresSecondaryY() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithSecondaryY("Sales", "Sum", true)));
+
+      // The incoming field omits secondaryY entirely (null, not an explicit false).
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      assertTrue(((ChartAggregateRefModel) model.getYFields().get(0)).isSecondaryY(),
+         "an omitted secondaryY must preserve the measure's previous value, not reset to false");
+   }
+
+   @Test
+   void explicitlyClearingSecondaryYActuallyClearsItRatherThanBeingTreatedAsOmitted() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithSecondaryY("Sales", "Sum", true)));
+
+      // The caller explicitly sends secondaryY: false this time -- must actually clear it.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithSecondaryY("Sales", "Sum", false)));
+
+      assertFalse(((ChartAggregateRefModel) model.getYFields().get(0)).isSecondaryY(),
+         "an explicit false must clear a previously-true secondaryY, not be treated as omitted");
+   }
+
+   @Test
+   void newCalculateInfoOnResubmitOverridesThePreservedOne() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Sum"))));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithCalc("Sales", "Sum", runningTotal("Average"))));
+
+      RunningTotalCalcInfo calc = (RunningTotalCalcInfo)
+         ((ChartAggregateRefModel) model.getYFields().get(0)).getCalculateInfo();
+      assertEquals("Average", calc.getAggregate(),
+         "an explicitly-supplied calculateInfo must override the preserved one, not be ignored");
+   }
+
+   @Test
+   void resubmittingADuplicateBoundMeasureKeepsEachFormulasCalculateInfoSeparate() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(measureWithCalc("Total", "Sum", runningTotal("Sum")),
+                 measureWithCalc("Total", "Average", runningTotal("Average"))));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null),
+                 new FieldRef("Total", "measure", "Average", null, null)));
+
+      RunningTotalCalcInfo sum = (RunningTotalCalcInfo)
+         ((ChartAggregateRefModel) model.getYFields().get(0)).getCalculateInfo();
+      RunningTotalCalcInfo average = (RunningTotalCalcInfo)
+         ((ChartAggregateRefModel) model.getYFields().get(1)).getCalculateInfo();
+      assertEquals("Sum", sum.getAggregate());
+      assertEquals("Average", average.getAggregate());
+   }
+
+   /**
+    * The VCS-014 collision shape ({@code preserveChartTypes}'s own tiebreaker case) -- same
+    * column+formula, differing only by {@code secondaryY}. Each occurrence must preserve its own
+    * state without swapping onto the other.
+    */
+   @Test
+   void resubmittingTwoCollidingMeasuresPreservesEachOwnCalculateInfoAndSecondaryYSeparately() {
+      ChartBindingModel model = new ChartBindingModel();
+      FieldRef primary = new FieldRef("Total", "measure", "Sum", null, null, null, null, null,
+                                      runningTotal("Sum"), null, false);
+      FieldRef secondary = new FieldRef("Total", "measure", "Sum", null, null, null, null, null,
+                                        runningTotal("Average"), null, true);
+      ChartBindingMutator.setShelf(model, "y", List.of(primary, secondary));
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Total", "measure", "Sum", null, null),
+                 new FieldRef("Total", "measure", "Sum", null, null)));
+
+      ChartAggregateRefModel first = (ChartAggregateRefModel) model.getYFields().get(0);
+      ChartAggregateRefModel second = (ChartAggregateRefModel) model.getYFields().get(1);
+      assertEquals("Sum", ((RunningTotalCalcInfo) first.getCalculateInfo()).getAggregate());
+      assertFalse(first.isSecondaryY());
+      assertEquals("Average", ((RunningTotalCalcInfo) second.getCalculateInfo()).getAggregate());
+      assertTrue(second.isSecondaryY());
+   }
+
+   /**
+    * The case that distinguishes a consume-based match from an index-based one: inserting a new
+    * measure AHEAD of an existing one shifts the existing one's index, so a plain
+    * {@code oldRefs.get(i)} lookup would miss it entirely -- the same weakness
+    * {@code preserveChartTypes} itself was written to avoid for {@code chartType}.
+    */
+   @Test
+   void insertingAMeasureAheadOfAnExistingOnePreservesItsCalculateInfoAndSecondaryY() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ChartAggregateRefModel sales = (ChartAggregateRefModel) model.getYFields().get(0);
+      sales.setCalculateInfo(runningTotal("Sum"));
+      sales.setSecondaryY(true);
+
+      // An ordinary incremental edit -- insert Profit ahead of Sales -- Sales shifts from
+      // index 0 to index 1.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Profit", "measure", "Sum", null, null),
+                 new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      ChartAggregateRefModel resubmittedSales = (ChartAggregateRefModel) model.getYFields().get(1);
+      assertNotNull(resubmittedSales.getCalculateInfo(),
+         "Sales's calculateInfo must survive despite shifting to a new index");
+      assertTrue(resubmittedSales.isSecondaryY(),
+         "Sales's secondaryY must survive despite shifting to a new index");
    }
 
    // ── org column-count limit (L3-Group1 finding G1-1) ───────────────────────
