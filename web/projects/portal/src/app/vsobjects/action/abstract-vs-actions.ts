@@ -24,7 +24,7 @@ import { AssemblyActions } from "./assembly-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { GuiTool } from "../../common/util/gui-tool";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { anchoredLaneHeight, isAnchoredChromeSuppressed, isAnchoredResident, MiniToolbarService }
+import { isAnchoredDesign, MiniToolbarService }
    from "../objects/mini-toolbar/mini-toolbar.service";
 import { ToolbarActionsHandler } from "../toolbar-actions-handler";
 
@@ -136,11 +136,12 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return this.assemblyMenuActions;
    }
 
-   // Delegates to isAnchoredResident, the one anchored-set definition in mini-toolbar.service.ts, so
-   // this and the container's isKebabResident cannot drift apart.
+   // The gate-and-type half of the anchored design, without the lane term the container's
+   // isKebabResident adds. This list is rendered by six mount sites and only one of them anchors;
+   // keying the strip's shape on a lane the other five never use made a short lane change how many
+   // buttons a floating strip carried, and made the suppression below empty it outright.
    private get resident(): boolean {
-      return isAnchoredResident(this.model.objectType, this.model.vizModern,
-                                anchoredLaneHeight(this.model));
+      return isAnchoredDesign(this.model.objectType, this.model.vizModern);
    }
 
    /**
@@ -216,13 +217,9 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // No chrome at all below the control floor — a 24px control with 4px clearance does not fit,
       // and right-click becomes the only route. This is the one rung that removes the kebab.
       //
-      // An anchored type reaches the same rung by the lane rather than the card: a lane too short
-      // to host a control draws none. Checked separately because resident is already false in that
-      // case, which skips the height test below.
-      if(isAnchoredChromeSuppressed(this.model.objectType, this.model.vizModern,
-                                    anchoredLaneHeight(this.model)) ||
-         (modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR))
-      {
+      // The lane's own version of this rung — a lane too short to host the strip draws nothing —
+      // is the anchoring mount site's, not this list's: see isAnchoredChromeSuppressed.
+      if(modern && this.model.objectFormat.height < AbstractVSActions.ACTION_FLOOR) {
          ToolbarActionsHandler.copyActions([], this.showing);
          return this.showing;
       }
@@ -246,8 +243,8 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       // the full menu is always one click away: either the wrapper is still on the strip, or it has
       // overflowed into the kebab. It is not a guarantee that the kebab is non-empty — when nothing
       // overflows, getMoreActions() is empty and the wrapper on the strip carries the menu instead.
-      // ...and only where it opens onto something. resident reads the mark and the body density
-      // class, never the host, so this branch fired for every marked assembly at compact-or-above
+      // ...and only where it opens onto something. resident reads the mark and the assembly type,
+      // never the host, so this branch fired for every marked assembly of an anchored type
       // whether anything had overflowed or not. That was survivable while the trailing "menu
       // actions" wrapper stayed on the strip to carry the menu, and it is not survivable in hosts
       // that hide the wrapper: there the kebab opened an empty dropdown.

@@ -1745,6 +1745,55 @@ describe("ChartActions", () => {
       expect(close.visible()).toBe(true);
    });
 
+   describe("menu reachability for the toolbar-only actions", () => {
+      const menuIds = (actions: ChartActions): string[] =>
+         actions.menuActions.reduce(
+            (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
+
+      it("exposes show data, max mode and Edit in the menu", () => {
+         const actions = new ChartActions(createModel(), popService, viewerContext);
+         const ids = menuIds(actions);
+
+         expect(ids).toContain("chart show-data");
+         expect(ids).toContain("chart open-max-mode");
+         expect(ids).toContain("chart close-max-mode");
+         expect(ids).toContain("chart edit");
+      });
+
+      // Edit is the viewer's only route into the binding editor, and the strip that used to carry
+      // it is not drawn when the title lane is too short to hold it. Right-click has to work.
+      it("makes Edit visible in the viewer's menu, not merely present", () => {
+         const model = createModel();
+         model.enableAdhoc = true;
+         const actions = new ChartActions(model, popService, viewerContext);
+         const edit = actions.menuActions
+            .reduce((all, g) => all.concat(g.actions), [])
+            .find(a => a.id() === "chart edit");
+
+         expect(edit).toBeDefined();
+         expect(edit.visible()).toBe(true);
+      });
+
+      it("appends them as the last group, so existing positional assertions do not shift", () => {
+         const actions = new ChartActions(createModel(), popService, viewerContext);
+         const groups = actions.menuActions;
+
+         expect(groups[groups.length - 1].actions.map(a => a.id())).toEqual([
+            "chart show-data",
+            "chart open-max-mode",
+            "chart close-max-mode",
+            "chart edit"
+         ]);
+      });
+
+      it("carries no glyph across, because menu rows render labels only", () => {
+         const actions = new ChartActions(createModel(), popService, viewerContext);
+         const group = actions.menuActions[actions.menuActions.length - 1];
+
+         group.actions.forEach(a => expect(a.icon()).toBeNull());
+      });
+   });
+
    describe("toolbar order under the modern gate", () => {
       // The base class always prepends a "vs-assembly hide-mini-toolbar" wrapper action and
       // appends a "menu actions"/"more actions" wrapper — neither is part of what this task

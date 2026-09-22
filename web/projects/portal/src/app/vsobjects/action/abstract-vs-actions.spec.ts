@@ -823,41 +823,50 @@ describe("AbstractVSActions", () => {
       });
    });
 
-   // resident (isAnchoredResident) gates the same way as the container's isKebabResident: dense
-   // opts out entirely, so a 24px strip never gets forced onto dense's 20px title lane. Dense must
-   // therefore skip the resident-only cap/kebab-forcing behaviour, the same as the gate being off —
-   // this is the regression that motivated sharing one helper between the two call sites instead of
-   // two independently-named copies of the same condition. Unrelated model.vizModern-only
-   // visibility (chart properties-toolbar; the hide-mini-toolbar dismissal moving into the menu) is
-   // not part of this and stays in effect at every density, dense included — only resident's own
-   // callers change.
-   describe("lane gate: a lane too short for the strip draws no chrome", () => {
+   // The lane is the anchoring mount site's business, not this list's. Six templates render
+   // <mini-toolbar> and only vs-object-container binds anchorInTitleLane; the other five overlay the
+   // strip on the assembly, so a lane that cannot hold a strip nobody is putting there must not
+   // change what they render. Suppressing here instead emptied the composer's floating toolbar
+   // whenever the title lane fell below ANCHORED_LANE_MIN — at dense, or at any author-set title
+   // height under 24px — and took the composer's mobile toolbar with it. The lane rule now lives in
+   // VSObjectContainer.isChromeSuppressed; these assert it is gone from here.
+   describe("the lane does not reach this list", () => {
       const ids = (groups: any[]) =>
          groups.reduce((acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
-      it("draws nothing at all at the dense lane, at a card height that is otherwise ample", () => {
-         expect(ids(actionsFor(2000, 400, true, 20).showingActions)).toEqual([]);
+      it("keeps the strip at the dense lane, at a card height that is otherwise ample", () => {
+         expect(ids(actionsFor(2000, 400, true, 20).showingActions).length).toBeGreaterThan(0);
       });
 
-      it("draws nothing for the selection family either, kebab included", () => {
-         expect(ids(selectionListActionsFor(800, 200, true, 20).showingActions)).toEqual([]);
+      it("keeps the selection family's kebab at the dense lane", () => {
+         expect(ids(selectionListActionsFor(800, 200, true, 20).showingActions))
+            .toContain("more actions");
       });
 
-      it("leaves a type outside the anchored set alone at the dense lane", () => {
-         // The range slider is outside ANCHORED_ASSEMBLY_TYPES, so the lane rule does not reach it.
-         // Guards against the suppression being written as !isAnchoredResident, which would catch
-         // every non-anchored type and strip toolbars that ship today.
-         expect(ids(rangeSliderActionsFor(2000, 400, true, 20).showingActions).length)
-            .toBeGreaterThan(0);
+      it("renders the same capped strip whatever the lane height", () => {
+         // The shape of the strip is a property of the assembly, not of a lane the floating mount
+         // sites never use, so a short lane must not silently restore the uncapped toolbar.
+         expect(ids(actionsFor(2000, 400, true, 20).showingActions))
+            .toEqual(ids(actionsFor(2000, 400, true, 30).showingActions));
+         expect(actionsFor(2000, 400, true, 20).allowedActionsNum()).toBe(4);
       });
 
-      it("leaves an anchored type alone when the gate is off", () => {
-         expect(ids(actionsFor(2000, 400, false, 20).showingActions).length).toBeGreaterThan(0);
+      it("keeps the strip with the title hidden, which resolves to a zero lane", () => {
+         expect(ids(actionsFor(2000, 400, true, 0).showingActions).length).toBeGreaterThan(0);
       });
 
-      it("returns to the capped resident strip once the lane widens to compact", () => {
-         expect(actionsFor(2000, 400, true, 26).allowedActionsNum()).toBe(4);
-         expect(ids(actionsFor(2000, 400, true, 26).showingActions).length).toBeGreaterThan(0);
+      it("leaves a type outside the anchored set uncapped at the dense lane", () => {
+         // The range slider is outside ANCHORED_ASSEMBLY_TYPES, so neither the cap nor the lane
+         // ever reached it.
+         expect(rangeSliderActionsFor(2000, 400, true, 20).allowedActionsNum()).toBeGreaterThan(4);
+      });
+
+      it("leaves an anchored type uncapped when the gate is off", () => {
+         expect(actionsFor(2000, 400, false, 20).allowedActionsNum()).toBeGreaterThan(4);
+      });
+
+      it("still draws nothing below the 32px control floor, which is the card's rung", () => {
+         expect(ids(actionsFor(2000, 24, true, 30).showingActions)).toEqual([]);
       });
    });
 
@@ -1026,9 +1035,10 @@ describe("AbstractVSActions", () => {
             .toContain("more actions");
       });
 
-      it("draws no chrome at all in a zero-height lane", () => {
+      it("still draws the kebab in a zero-height lane, which only the container suppresses", () => {
          document.body.classList.add("viz-density-compact");
-         expect(ids(selectionContainerActionsFor(2000, 400, true, 0).showingActions)).toEqual([]);
+         expect(ids(selectionContainerActionsFor(2000, 400, true, 0).showingActions))
+            .toContain("more actions");
       });
 
       it("keeps its uncapped floating toolbar when the gate is off", () => {
@@ -1061,9 +1071,10 @@ describe("AbstractVSActions", () => {
             .toBeGreaterThan(0);
       });
 
-      it("draws no chrome at all in a zero-height lane", () => {
+      it("still draws chrome in a zero-height lane, which only the container suppresses", () => {
          document.body.classList.add("viz-density-compact");
-         expect(ids(calendarActionsFor(2000, 400, true, 0).showingActions)).toEqual([]);
+         expect(ids(calendarActionsFor(2000, 400, true, 0).showingActions).length)
+            .toBeGreaterThan(0);
       });
 
       it("keeps its uncapped floating toolbar when the gate is off", () => {

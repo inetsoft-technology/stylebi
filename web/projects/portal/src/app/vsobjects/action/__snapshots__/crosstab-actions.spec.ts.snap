@@ -377,6 +377,14 @@ exports[`CrosstabActions > check status of menu actions and toolbar actions in b
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -833,6 +841,14 @@ exports[`CrosstabActions > check status of menu actions and toolbar actions in b
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -1353,6 +1369,14 @@ exports[`CrosstabActions > check status of menu actions and toolbar actions in c
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -1809,6 +1833,14 @@ exports[`CrosstabActions > check status of menu actions and toolbar actions in c
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],
@@ -2329,6 +2361,14 @@ exports[`CrosstabActions > check status of menu actions and toolbar actions in v
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -2817,6 +2857,14 @@ exports[`CrosstabActions > check status of menu actions and toolbar actions in v
         "label": [Function],
         "visible": [Function],
       },
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
     ],
     "icon": [Function],
     "label": [Function],
@@ -3273,6 +3321,14 @@ exports[`CrosstabActions > check status of menu actions and toolbar actions in v
   },
   AssemblyActionGroup {
     "actions": [
+      {
+        "action": [Function],
+        "enabled": [Function],
+        "icon": [Function],
+        "id": [Function],
+        "label": [Function],
+        "visible": [Function],
+      },
       {
         "action": [Function],
         "enabled": [Function],

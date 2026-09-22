@@ -1014,7 +1014,7 @@ describe("TableActions", () => {
          actions.menuActions.reduce(
             (acc, g) => acc.concat(g.actions.map(a => a.id())), [] as string[]);
 
-      it("exposes max mode, show details and export in the menu", () => {
+      it("exposes max mode, show details, export and Edit in the menu", () => {
          const actions = new TableActions(createModel(), ViewerContextProviderFactory(false));
          const ids = menuIds(actions);
 
@@ -1022,6 +1022,21 @@ describe("TableActions", () => {
          expect(ids).toContain("table close-max-mode");
          expect(ids).toContain("table show-details");
          expect(ids).toContain("table export");
+         expect(ids).toContain("table edit");
+      });
+
+      // Edit is the viewer's only route into the binding editor, and the strip that used to carry
+      // it is not drawn when the title lane is too short to hold it. Right-click has to work.
+      it("makes Edit visible in the viewer's menu, not merely present", () => {
+         const model = createModel();
+         model.enableAdhoc = true;
+         const actions = new TableActions(model, ViewerContextProviderFactory(false));
+         const edit = actions.menuActions
+            .reduce((all, g) => all.concat(g.actions), [])
+            .find(a => a.id() === "table edit");
+
+         expect(edit).toBeDefined();
+         expect(edit.visible()).toBe(true);
       });
 
       it("appends them as the last group, so existing positional assertions do not shift", () => {
@@ -1032,7 +1047,8 @@ describe("TableActions", () => {
             "table open-max-mode",
             "table close-max-mode",
             "table show-details",
-            "table export"
+            "table export",
+            "table edit"
          ]);
       });
 
