@@ -234,10 +234,10 @@ public class ComposerViewsheetController {
       }
 
       String id = runtimeViewsheetRef.getRuntimeId();
+      Boolean refreshed = composerViewsheetService.refreshPreviewViewsheet(id, event,
+                                                          principal, commandDispatcher, linkUri, false);
 
-      if(composerViewsheetService.refreshPreviewViewsheet(id, event,
-                                                          principal, commandDispatcher, linkUri, false))
-      {
+      if(Boolean.TRUE.equals(refreshed)) {
          runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
       }
    }
