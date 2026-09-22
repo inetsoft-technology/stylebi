@@ -19,6 +19,7 @@ import { HttpClient } from "@angular/common/http";
 import { HttpParams } from "@angular/common/http";
 import { Injectable } from "@angular/core";
 import { Observable } from "rxjs";
+import { map, switchMap, take } from "rxjs/operators";
 import { convertKeyToID } from "../../../../../em/src/app/settings/security/users/identity-id";
 import { createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { AppInfoService } from "../../../../../shared/util/app-info.service";
@@ -58,12 +59,16 @@ export class ShareService {
    shareViewsheetInEmail(viewsheetId: string, recipients: string[], subject: string,
                          message: string, ccs?: string[], bccs?: string[]): Observable<void>
    {
-      const link = this.getViewsheetLink(viewsheetId);
-      const body = { viewsheetId, link, recipients, subject, message, ccs, bccs };
-      return this.http.post<void>("../api/share/email", body);
+      return this.getViewsheetLinkAsync(viewsheetId).pipe(switchMap((link) => {
+         const body = { viewsheetId, link, recipients, subject, message, ccs, bccs };
+         return this.http.post<void>("../api/share/email", body);
+      }));
    }
 
    shareViewsheetOnFacebook(viewsheetId: string): void {
+      // Kept synchronous (reads the last-known org info rather than awaiting it) so the
+      // window.open() below stays in the same call stack as the user click; browsers treat an
+      // async-triggered window.open() as a popup and block it.
       const link = this.getViewsheetLink(viewsheetId);
       this.shareOnFacebook(link);
    }
@@ -75,12 +80,14 @@ export class ShareService {
    }
 
    shareViewsheetInGoogleChat(viewsheetId: string, message: string): Observable<void> {
-      const link = this.getViewsheetLink(viewsheetId);
-      const body = { viewsheetId, link, message };
-      return this.http.post<void>("../api/share/google-chat", body);
+      return this.getViewsheetLinkAsync(viewsheetId).pipe(switchMap((link) => {
+         const body = { viewsheetId, link, message };
+         return this.http.post<void>("../api/share/google-chat", body);
+      }));
    }
 
    shareViewsheetOnLinkedIn(viewsheetId: string): void {
+      // See comment in shareViewsheetOnFacebook() re: keeping window.open() synchronous.
       const link = this.getViewsheetLink(viewsheetId);
       this.shareOnLinkedIn(link);
    }
@@ -92,12 +99,14 @@ export class ShareService {
    }
 
    shareViewsheetInSlack(viewsheetId: string, message: string): Observable<void> {
-      const link = this.getViewsheetLink(viewsheetId);
-      const body = { viewsheetId, link, message };
-      return this.http.post<void>("../api/share/slack", body);
+      return this.getViewsheetLinkAsync(viewsheetId).pipe(switchMap((link) => {
+         const body = { viewsheetId, link, message };
+         return this.http.post<void>("../api/share/slack", body);
+      }));
    }
 
    shareViewsheetOnTwitter(viewsheetId: string, title: string): void {
+      // See comment in shareViewsheetOnFacebook() re: keeping window.open() synchronous.
       const link = encodeURIComponent(this.getViewsheetLink(viewsheetId));
       this.shareOnTwitter(link, title);
    }
@@ -108,10 +117,34 @@ export class ShareService {
       window.open(url, "share_twitter", options);
    }
 
+   /**
+    * Builds the link from whatever org info is cached so far. Only safe to call once org info
+    * has actually resolved (see getViewsheetLinkAsync()) or from a context that must stay
+    * synchronous (e.g. immediately before window.open(), to avoid popup blockers) and can
+    * tolerate the rare case where org info hasn't loaded yet.
+    */
    getViewsheetLink(viewsheetId: string): string {
+      return this.buildViewsheetLink(viewsheetId, this.orgInfo);
+   }
+
+   /**
+    * Same as getViewsheetLink(), but waits for AppInfoService's org info to resolve to a real
+    * value before building the link, instead of racing ahead on a possibly-still-null value.
+    * Use this whenever the caller doesn't need to stay synchronous.
+    */
+   getViewsheetLinkAsync(viewsheetId: string): Observable<string> {
+      return this.appInfoService.getCurrentOrgInfo().pipe(
+         take(1),
+         map((orgInfo) => this.buildViewsheetLink(viewsheetId, orgInfo))
+      );
+   }
+
+   private buildViewsheetLink(viewsheetId: string,
+                              orgInfo: CommonKVModel<string, string>): string
+   {
       const entry = createAssetEntry(viewsheetId);
       let path = "";
-      let currentOrgId = this.orgInfo?.key;
+      let currentOrgId = orgInfo?.key;
       let sharedGlobal = !!currentOrgId && currentOrgId !== "host-org" && viewsheetId.endsWith("host-org");
 
       if(entry.scope === 1) {
