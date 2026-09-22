@@ -767,9 +767,10 @@ public class WorksheetReadService {
             String operation = xc != null ? operationName(xc) : null;
             List<String> values = extractValues(xc);
             String choiceQuery = extractChoiceQuery(xc);
+            Boolean groupOthers = xc instanceof RankingCondition rc ? rc.isGroupOthers() : null;
 
             result.add(new WorksheetModel.FilterModel(
-               field, operation, values, pendingJunction, choiceQuery));
+               field, operation, values, pendingJunction, choiceQuery, groupOthers));
             pendingJunction = null;
          }
       }

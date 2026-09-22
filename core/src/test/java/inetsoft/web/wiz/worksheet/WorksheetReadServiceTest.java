@@ -374,6 +374,31 @@ class WorksheetReadServiceTest {
       assertEquals(List.of("10"), ranking.values());
    }
 
+   // Bug #76902 PC-011: FilterModel had no groupOthers slot, so a ranking condition with
+   // "group remaining rows into Others" enabled read back indistinguishably from one without it.
+   @Test
+   void rankingConditionWithGroupOthersSurfacesGroupOthersTrue() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.setRanking(t,
+         new WorksheetMutationSupport.RankingSpec("total", 5, "TOP_N", true));
+
+      WorksheetModel.FilterModel ranking = tableNamed(read(ws), "T").rankingConditions().get(0);
+      assertEquals(Boolean.TRUE, ranking.groupOthers());
+   }
+
+   @Test
+   void plainPreConditionLeavesGroupOthersNull() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "total");
+      ws.addAssembly(t);
+      WorksheetMutationSupport.addFilter(t, "total", "EQUAL_TO", "5");
+
+      WorksheetModel.FilterModel condition = tableNamed(read(ws), "T").preConditions().get(0);
+      assertNull(condition.groupOthers());
+   }
+
    // ---------------------------------------------------------------------------
    // MV incremental-refresh conditions (Bug #76626 WBS-044)
    // ---------------------------------------------------------------------------
