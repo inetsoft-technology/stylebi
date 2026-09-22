@@ -68,6 +68,35 @@ class HostBeanProxyTest {
    }
 
    @Test
+   void beanWriteReachesSetterOnScriptConstructedGraph() {
+      // (#76915) `graph`/`elem` here are never handed to script by Java code --
+      // the script builds them itself via `new EGraph()`/`new LineElement(...)`,
+      // the exact idiom from the reported chart binding script and from
+      // datatest/vsscript's Egraph_Spec.groovy examples and the built-in
+      // createBulletGraph Script Library sample. This exercises the real
+      // dispatch path a chart script actually takes (LegacyJavaShim's package-root
+      // navigation -> JavaClassProxy -> GraalVM's native `new`), not a
+      // hand-wrapped object, so it fails if wrapping happens only on
+      // handoff (ScriptValueConverter.toGuest) and not on construction.
+      LegacyJavaShim.install(ctx, ctx.getBindings("js"), ScriptHostAccess.classFilter());
+
+      ctx.eval("js",
+               "var graph = new inetsoft.graph.EGraph();" +
+               "var elem = new inetsoft.graph.element.LineElement('State', 'Quantity');" +
+               "elem.endArrow = true;" +
+               "graph.addElement(elem);" +
+               "globalThis.__graph = graph;");
+
+      Object hostGraph = ScriptValueConverter.toHost(ctx.getBindings("js").getMember("__graph"));
+      assertTrue(hostGraph instanceof EGraph, "expected the unwrapped host EGraph, got " + hostGraph);
+      EGraph graph = (EGraph) hostGraph;
+      assertEquals(1, graph.getElementCount());
+      assertTrue(((LineElement) graph.getElement(0)).isEndArrow(),
+                 "bean-style `elem.endArrow = true` on a script-constructed LineElement " +
+                 "must reach setEndArrow(true), same as one handed to script by the platform");
+   }
+
+   @Test
    void shouldWrapOnlyGraphObjects() {
       assertTrue(HostBeanProxy.shouldWrap(new EGraph()));
       assertTrue(HostBeanProxy.shouldWrap(new LineElement("d", "m")));

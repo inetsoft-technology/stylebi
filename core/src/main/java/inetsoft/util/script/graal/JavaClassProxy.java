@@ -103,7 +103,7 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
     */
    private Object construct(Value... arguments) {
       try {
-         return hostType.newInstance((Object[]) arguments);
+         return wrapConstructed(hostType.newInstance((Object[]) arguments));
       }
       catch(IllegalArgumentException ex) {
          Object[] coerced = coerceNumericStrings(arguments);
@@ -113,12 +113,30 @@ public final class JavaClassProxy implements ProxyObject, ProxyExecutable, Proxy
          }
 
          try {
-            return hostType.newInstance(coerced);
+            return wrapConstructed(hostType.newInstance(coerced));
          }
          catch(IllegalArgumentException ignore) {
             throw ex;
          }
       }
+   }
+
+   /**
+    * Route a freshly constructed host object through the same guest-value
+    * conversion a value reaching script via a scope/binding/method-return
+    * already gets ({@link ScriptValueConverter#toGuest}), so a script's own
+    * {@code new EGraph()}/{@code new LineElement(...)} is bean-property-wrapped
+    * exactly like one handed to the script by the platform. GraalVM's native
+    * constructor interop ({@link Value#newInstance}, above) never passes
+    * through {@code toGuest} on its own -- this was the one construction path
+    * in the {@code graal} package that didn't. (#76915)
+    */
+   private static Object wrapConstructed(Value result) {
+      if(result != null && result.isHostObject()) {
+         return ScriptValueConverter.toGuest(result.asHostObject());
+      }
+
+      return result;
    }
 
    /**
