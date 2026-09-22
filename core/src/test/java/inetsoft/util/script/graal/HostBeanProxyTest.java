@@ -121,6 +121,27 @@ class HostBeanProxyTest {
       assertTrue(((LineElement) graph.getElement(1)).isEndArrow());
    }
 
+   /**
+    * A bean write goes through {@code Value.invokeMember}, i.e. GraalJS's own
+    * interop rather than {@link ScriptFunction}, so it depends on the
+    * Rhino-parity numeric target-type mappings in {@link ScriptHostAccess} to
+    * narrow a computed non-integral number to the setter's declared primitive.
+    * See ScriptHostAccessNumberCoercionTest for the mappings themselves; this
+    * pins that the bean path actually reaches them.
+    */
+   @Test
+   void beanWriteNarrowsAFractionalNumberToAnIntSetter() {
+      EGraph graph = new EGraph();
+      graph.addElement(new LineElement("State", "Total 1"));
+      ctx.getBindings("js").putMember("graph", HostBeanProxy.wrap(graph));
+
+      // setStartRow(int) is the only signature, so 5.7 must truncate to 5 as it
+      // did under Rhino rather than fail as a lossy primitive coercion
+      ctx.eval("js", "graph.getElement(0).startRow = 5.7;");
+
+      assertEquals(5, graph.getElement(0).getStartRow());
+   }
+
    @Test
    void beanWriteSilentlyNoOpsWithoutProxy() {
       // documents the underlying GraalJS behavior the proxy compensates for:
