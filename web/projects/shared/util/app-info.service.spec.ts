@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Subject } from "rxjs";
+import { Subject, throwError } from "rxjs";
 import { AppInfoService } from "./app-info.service";
 
 /**
@@ -24,6 +24,12 @@ import { AppInfoService } from "./app-info.service";
  * only updated once the async "../api/org/info" request resolves. getCurrentOrgInfo() must not
  * hand that seed null to subscribers, since a consumer reading it synchronously (e.g. a field set
  * from a subscribe() callback) can't tell "not loaded yet" apart from a real, empty value.
+ *
+ * Round-1 review regression coverage: the null-seed filter above means a subscriber that never
+ * receives anything (e.g. because the "../api/org/info" request failed and nothing ever called
+ * next()) would wait forever instead of just seeing the seed. AppInfoService must guarantee the
+ * stream eventually emits something even when that request errors (see UNKNOWN_ORG_INFO), or any
+ * take(1)-based consumer (e.g. ShareService.getViewsheetLinkAsync()) hangs indefinitely.
  */
 describe("AppInfoService", () => {
    function setup() {
@@ -59,5 +65,25 @@ describe("AppInfoService", () => {
       service.getCurrentOrgInfo().subscribe(v => received.push(v));
 
       expect(received).toEqual([{ key: "tenant-A", value: "Tenant A" }]);
+   });
+
+   it("should fall back to UNKNOWN_ORG_INFO instead of hanging forever when the org info request errors", () => {
+      const { service, orgInfoResponse } = setup();
+      const received: any[] = [];
+      service.getCurrentOrgInfo().subscribe(v => received.push(v));
+
+      orgInfoResponse.error(new Error("network error"));
+
+      expect(received).toEqual([AppInfoService.UNKNOWN_ORG_INFO]);
+   });
+
+   it("should still guarantee an eventual emission when the HTTP call itself errors synchronously", () => {
+      const httpClient = { get: vi.fn().mockReturnValue(throwError(() => new Error("500"))) } as any;
+      const service = new AppInfoService(httpClient);
+
+      const received: any[] = [];
+      service.getCurrentOrgInfo().subscribe(v => received.push(v));
+
+      expect(received).toEqual([AppInfoService.UNKNOWN_ORG_INFO]);
    });
 });

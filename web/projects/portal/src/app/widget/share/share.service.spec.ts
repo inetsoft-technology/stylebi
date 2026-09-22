@@ -18,6 +18,7 @@
 
 import { BehaviorSubject } from "rxjs";
 import { filter } from "rxjs/operators";
+import { AppInfoService } from "../../../../../shared/util/app-info.service";
 import { ShareService } from "./share.service";
 
 /**
@@ -92,6 +93,26 @@ describe("ShareService", () => {
       let resolvedLink: string;
       service.getViewsheetLinkAsync("1^1^__NULL__^Folder/VS").subscribe(link => resolvedLink = link);
 
+      expect(resolvedLink).toContain("global/");
+      expect(resolvedLink).not.toContain("shared_global/");
+   });
+
+   // Round-1 review regression: if "../api/org/info" fails, AppInfoService.getCurrentOrgInfo()
+   // must still eventually emit (its UNKNOWN_ORG_INFO fallback) rather than never emitting at
+   // all - otherwise take(1) in getViewsheetLinkAsync() never fires and the share action hangs
+   // forever with nothing surfaced to the user. Simulates that fallback directly, since it's
+   // AppInfoService's contract (covered by its own spec) that guarantees it actually occurs.
+   it("getViewsheetLinkAsync() still resolves (doesn't hang) when org info failed to load", () => {
+      const { service, orgInfo } = setup();
+      let resolvedLink: string;
+      service.getViewsheetLinkAsync(HOST_ORG_VS).subscribe(link => resolvedLink = link);
+
+      expect(resolvedLink).toBeUndefined();
+
+      orgInfo.next(AppInfoService.UNKNOWN_ORG_INFO);
+
+      // Falls back to the same-org global/ link - the pre-fix, non-hanging behavior for the
+      // narrow race case - rather than hanging indefinitely.
       expect(resolvedLink).toContain("global/");
       expect(resolvedLink).not.toContain("shared_global/");
    });
