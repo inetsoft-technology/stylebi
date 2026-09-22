@@ -337,6 +337,14 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             roundTopCornersOnly = tinfo.roundTopCornersOnly;
             result = true;
          }
+
+         // Unconditional: transient runtime plumbing, not observable state that should
+         // affect dirty-checking (unlike the fields above, doesn't set result=true).
+         // Without this, setVSAssemblyInfo() -- which merges via copyInfo()/copyViewInfo()
+         // onto the pre-existing live info rather than swapping the reference -- would
+         // silently drop any pending positionNeedsSync flag (or its clearing) carried by
+         // a cloned info passed through it, e.g. from TabPropertyDialogService.
+         positionNeedsSync = tinfo.positionNeedsSync;
       }
 
       return result;
