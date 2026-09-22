@@ -356,7 +356,6 @@ class DateComparisonServiceTest {
    {
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
       when(info.getComparisonShareFrom()).thenReturn(shareFrom);
-      when(info.isDateComparisonEnabled()).thenReturn(true);
       VSChartInfo chartInfo = mock(VSChartInfo.class);
       when(chartInfo.isAppliedDateComparison()).thenReturn(applied);
       when(info.getVSChartInfo()).thenReturn(chartInfo);
@@ -370,7 +369,6 @@ class DateComparisonServiceTest {
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
       when(info.getComparisonShareFrom()).thenReturn(null);
       when(info.getDateComparisonInfo()).thenReturn(dcInfo);
-      when(info.isDateComparisonEnabled()).thenReturn(true);
       VSChartInfo chartInfo = mock(VSChartInfo.class);
       when(chartInfo.isAppliedDateComparison()).thenReturn(applied);
       when(info.getVSChartInfo()).thenReturn(chartInfo);
