@@ -374,27 +374,27 @@ public class MovingColumnTest {
 
 
    /**
-    * Regression test for the "Moving Average of N misaligned when the dimension's display
-    * sort is not its calendar order" bug, reproduced by the datatest chart suite
-    * (Binding_Spec / binding7).
+    * Regression test for Bug #76911: a moving window over a part-date-group dimension that
+    * carries a value-based display sort (a Top-N "Sort By Value" ranking) must slide in that
+    * configured display order, not in natural calendar order.
     *
-    * A part-date-group dimension (HourOfDay) under a Top-N "Sort By Value" ranking is
-    * plotted in ranking order (5, 11, 1, 2) while a moving window over hours only has
-    * meaning in calendar order (1, 2, 5, 11). Two things have to hold together for the
-    * window to land on the right rows:
+    * This deliberately REVERSES the expectation this test carried for Bug #76514, which had
+    * calendar order override a value-based sort for part-date-group dimensions. That
+    * exception was removed by an explicit product decision (2026-09-22): the rule is now that
+    * any configured display sort wins, and calendar order is used only as the fallback when
+    * no sort is configured at all. The decision was taken on the evidence that #76514's
+    * exception never protected a working real case -- its own regression fixture (binding7)
+    * was independently confirmed to still produce its pre-fix output with that fix in the
+    * build, because it takes MovingColumn's innerDim == null physical-order branch and never
+    * reaches the router at all. The no-sort calendar fallback is unchanged -- see
+    * {@link ValueOfColumnTest#testPreviousOnPartDateGroupWithOthersLabel()}.
     *
-    * 1. DataSetRouter must navigate in calendar order for such a dimension, so getCondData
-    *    selects the calendar neighbors as the window's members.
-    * 2. MovingColumn must then walk that window in the same order. The sub data set keeps
-    *    the physical (ranking) row order, so walking it by row index averaged the wrong
-    *    neighbors and shifted which rows came out null.
-    *
-    * Centered 3-point average, null at the truncated ends. Calendar order is
-    * 1(173), 2(166), 5(275), 11(320), so hour 2 = avg(173,166,275) and
-    * hour 5 = avg(166,275,320), while the calendar-first and calendar-last hours are null.
+    * HourOfDay is plotted in ranking order (5, 11, 1, 2). Centered 3-point average with null
+    * at the truncated ends, so hour 11 = avg(275,320,173) and hour 1 = avg(320,173,166),
+    * while the display-first (5) and display-last (2) hours are null.
     */
    @Test
-   void testMovingAverageFollowsCalendarOrderOnValueSortedPartDateDim() {
+   void testMovingAverageFollowsDisplaySortOnValueSortedPartDateDim() {
       final String dim = "HourOfDay(order_time)";
       // physical/display order is the Top-N ranking order, not calendar order
       DefaultTableLens tb = new DefaultTableLens(new Object[][]{
@@ -423,19 +423,78 @@ public class MovingColumnTest {
       movingColumn.setShowNull(true);
       movingColumn.setInnerDim(dim);
 
-      // row 0 = hour 5; calendar window [2, 5, 11] -> (166 + 275 + 320) / 3
-      assertEquals(253.6667,
+      // row 0 = hour 5, first in display order -> truncated window -> null
+      assertNull(movingColumn.calculate(vsDataSet, 0, true, false));
+
+      // row 1 = hour 11; display window [5, 11, 1] -> (275 + 320 + 173) / 3
+      assertEquals(256.0,
+                   (Double) movingColumn.calculate(vsDataSet, 1, false, false), 0.0001);
+
+      // row 2 = hour 1; display window [11, 1, 2] -> (320 + 173 + 166) / 3
+      assertEquals(219.6667,
+                   (Double) movingColumn.calculate(vsDataSet, 2, false, false), 0.0001);
+
+      // row 3 = hour 2, last in display order -> truncated window -> null
+      assertNull(movingColumn.calculate(vsDataSet, 3, false, true));
+   }
+
+   /**
+    * Regression test for Bug #76911 against the reported asset (Binding_Spec / binding11):
+    * WeekOfYear under a Top-N "Sort By Value" ASC ranking, "As time series" off (so the
+    * router is a DataSetRouter, not a ScaleRouter), and a Moving Average of 5 centered on the
+    * current row.
+    *
+    * The reported failure was that the window slid over calendar neighbors: display row 0
+    * (week 11) averaged weeks 9-13 and returned 236829264.8 instead of the expected
+    * 110209517.3333 over display rows 0-2. With preCnt/nextCnt = 2 and showNull false, row 0
+    * keeps a truncated window, so the expected value is the average of the first three
+    * display rows.
+    */
+   @Test
+   void testMovingAverageOnValueSortedWeekOfYearUsesDisplayWindow() {
+      final String dim = "WeekOfYear(order_date)";
+      // display order (Sort By Value asc on the measure), not calendar order
+      final Object[][] rows = {
+         { 11, 106618933.0 },
+         { 10, 110687541.0 },
+         { 20, 113322078.0 },
+         { 2, 122874104.0 },
+         { 7, 128325591.0 },
+         { 19, 145703531.0 }
+      };
+
+      Object[][] cells = new Object[rows.length + 1][];
+      cells[0] = new Object[]{ dim, "Mode(amount)" };
+      System.arraycopy(rows, 0, cells, 1, rows.length);
+      DefaultTableLens tb = new DefaultTableLens(cells);
+
+      List<Object> display = Arrays.stream(rows).map(r -> r[0]).toList();
+      VSDimensionRef weekRef = mock(VSDimensionRef.class);
+      when(weekRef.getFullName()).thenReturn(dim);
+      when(weekRef.getDateLevel()).thenReturn(XConstants.WEEK_OF_YEAR_DATE_GROUP);
+      when(weekRef.getOrder()).thenReturn(XConstants.SORT_VALUE_ASC);
+      when(weekRef.createComparator(org.mockito.ArgumentMatchers.any()))
+         .thenReturn((Comparator) (a, b) ->
+            Integer.compare(display.indexOf(a), display.indexOf(b)));
+
+      vsDataSet = new VSDataSet(tb, new VSDataRef[]{ weekRef });
+
+      movingColumn = new MovingColumn("Mode(amount)", "Moving Average of 5: Mode(amount)");
+      movingColumn.setFormula(new AverageFormula());
+      movingColumn.setPreCnt(2);
+      movingColumn.setNextCnt(2);
+      movingColumn.setIncludeCurrent(true);
+      movingColumn.setShowNull(false);
+      movingColumn.setInnerDim(dim);
+
+      // row 0 = week 11; truncated display window [rows 0,1,2] -> not the calendar window
+      // over weeks 9-13 that produced the reported 236829264.8
+      assertEquals(110209517.3333,
                    (Double) movingColumn.calculate(vsDataSet, 0, true, false), 0.0001);
 
-      // row 1 = hour 11, last in calendar order -> truncated window -> null
-      assertNull(movingColumn.calculate(vsDataSet, 1, false, false));
-
-      // row 2 = hour 1, first in calendar order -> truncated window -> null
-      assertNull(movingColumn.calculate(vsDataSet, 2, false, false));
-
-      // row 3 = hour 2; calendar window [1, 2, 5] -> (173 + 166 + 275) / 3
-      assertEquals(204.6667,
-                   (Double) movingColumn.calculate(vsDataSet, 3, false, true), 0.0001);
+      // row 2 = week 20; full display window [rows 0..4]
+      assertEquals(116365649.4,
+                   (Double) movingColumn.calculate(vsDataSet, 2, false, false), 0.0001);
    }
 
 }
