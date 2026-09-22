@@ -60,15 +60,17 @@ public class DataSetRouter extends AbstractRouter {
       }
 
       // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) navigate
-      // previous/next in natural calendar order when the field has no display sort, or when
-      // its display sort is value-based (e.g. a Top-N "Sort By Value" ranking) — "previous
-      // hour" has no meaning in rank-value order. An explicit label sort (ascending,
-      // descending, or specific order) is honored instead, so that calc navigation stays
-      // aligned with the order the values are actually plotted in. (76059, 75664-1)
+      // previous/next in natural calendar order only when the field has no display sort
+      // configured at all. Sort is applied first, then the calculation runs over the
+      // resulting (already-sorted, value-sort ranking included) row sequence — this applies
+      // uniformly to every consumer (Value of previous, Running Total, Moving Average alike):
+      // a moving average's "neighbor" is the adjacent bar in whatever order the chart actually
+      // displays it in, not a calendar-adjacency concept layered on top of that order. (76039,
+      // 76059, 75664-1, 76906)
       XDimensionRef partDateDim = getPartDateDimension(data, field);
       comp = data.getComparator(field);
 
-      if(partDateDim != null && (comp == null || isSortByValue(partDateDim))) {
+      if(partDateDim != null && comp == null) {
          comp = PART_DATE_ORDER;
       }
 
@@ -100,15 +102,6 @@ public class DataSetRouter extends AbstractRouter {
 
       XDimensionRef dim = (XDimensionRef) ref;
       return (dim.getDateLevel() & XConstants.PART_DATE_GROUP) != 0 ? dim : null;
-   }
-
-   /**
-    * Check if the dimension is sorted by an aggregate value (as set by a Top-N/Bottom-N
-    * "Sort By Value" ranking) rather than by its own labels.
-    */
-   private static boolean isSortByValue(XDimensionRef dim) {
-      int order = dim.getOrder();
-      return order == XConstants.SORT_VALUE_ASC || order == XConstants.SORT_VALUE_DESC;
    }
 
    /**

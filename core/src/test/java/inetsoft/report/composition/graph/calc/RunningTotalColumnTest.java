@@ -606,4 +606,54 @@ public class RunningTotalColumnTest {
    private CrossFilter.Tuple createCrosstabFilterTuple(Object value) {
       return new CrossFilter.Tuple(new Object[] { value });
    }
+
+   /**
+    * Regression test for Bug #76906: with no breakBy configured, RunningTotalColumn's
+    * accumulation over a part-date-group dimension (e.g. QuarterOfYear) under a value-based
+    * "Sort By Value" ranking must accumulate in the dimension's actual display order, not
+    * calendar order. The first-displayed bar must see no accumulation before it, even though
+    * a numerically-earlier quarter exists elsewhere in the data.
+    *
+    * Row order is quarter 1, 3, 2 (id 21, 18, 31); the ranking comparator puts the quarters
+    * in display order 3, 1, 2 -- neither row order nor calendar order (1, 2, 3). Before the
+    * fix, DataSetRouter forced calendar order for any value-sorted part-date dimension, which
+    * inflated the running sum on quarter 3 (the first-displayed bar) to 70 (21+18+31, picking
+    * up quarters 1 and 2 as "previous" in calendar order) instead of 18 (itself only).
+    */
+   @Test
+   void testRunningSumFollowsRankingSortOrderOnPartDateDim() {
+      final String dim = "QuarterOfYear(Date)";
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { dim, "id" },
+         { 1, 21 },
+         { 3, 18 },
+         { 2, 31 }
+      });
+
+      List<Integer> rank = Arrays.asList(3, 1, 2);
+      VSDimensionRef quarterRef = mock(VSDimensionRef.class);
+      when(quarterRef.getFullName()).thenReturn(dim);
+      when(quarterRef.getDateLevel()).thenReturn(inetsoft.uql.XConstants.QUARTER_OF_YEAR_DATE_GROUP);
+      when(quarterRef.getOrder()).thenReturn(inetsoft.uql.XConstants.SORT_VALUE_ASC);
+      when(quarterRef.createComparator(org.mockito.ArgumentMatchers.any()))
+         .thenReturn((a, b) -> Integer.compare(rank.indexOf(a), rank.indexOf(b)));
+
+      vsDataSet = new VSDataSet(tb, new VSDimensionRef[]{ quarterRef });
+
+      runningTotalColumn = new RunningTotalColumn("id", "sum(id)");
+      runningTotalColumn.setInnerDim(dim);
+      runningTotalColumn.setResetLevel(RunningTotalColumn.NONE);
+      runningTotalColumn.setFormula(new SumFormula());
+
+      // row 0 = quarter 1, second in display order (3, 1, 2) -> previous = quarter 3 (18)
+      // -> running sum = 18 + 21 = 39
+      assertEquals(39.0, runningTotalColumn.calculate(vsDataSet, 0, false, false));
+
+      // row 1 = quarter 3, first in display order -> no previous -> running sum = itself = 18
+      assertEquals(18.0, runningTotalColumn.calculate(vsDataSet, 1, false, false));
+
+      // row 2 = quarter 2, last in display order -> previous = quarters 3, 1
+      // -> running sum = 18 + 21 + 31 = 70
+      assertEquals(70.0, runningTotalColumn.calculate(vsDataSet, 2, false, false));
+   }
 }
