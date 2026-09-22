@@ -27,6 +27,11 @@ import inetsoft.uql.viewsheet.graph.VSMapInfo;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
+import inetsoft.web.binding.model.graph.aesthetic.StaticColorModel;
+import inetsoft.web.binding.model.graph.aesthetic.StaticLineModel;
+import inetsoft.web.binding.model.graph.aesthetic.StaticShapeModel;
+import inetsoft.web.binding.model.graph.aesthetic.StaticSizeModel;
+import inetsoft.web.binding.model.graph.aesthetic.StaticTextureModel;
 import inetsoft.web.binding.model.graph.calc.RunningTotalCalcInfo;
 import inetsoft.web.wiz.binding.model.FieldRef;
 import inetsoft.web.wiz.pairing.WizAgentTestSupport;
@@ -763,6 +768,80 @@ class ChartBindingMutatorTest {
          "Sales's calculateInfo must survive despite shifting to a new index");
       assertTrue(resubmittedSales.isSecondaryY(),
          "Sales's secondaryY must survive despite shifting to a new index");
+   }
+
+   // ── measure per-measure visual frames survive a shelf rewrite (bug #76904) ───────────────
+   //
+   // set_visual_frame/reset_visual_frame (ChartAestheticMutator.assignAggregateFrame) write
+   // colorFrame/shapeFrame/sizeFrame/lineFrame/textureFrame directly onto the live ref instances
+   // currently on the shelf, but toChartRef builds a brand-new ChartAggregateRefModel on every
+   // setShelf call and never sets any of the five -- so they were silently lost on the very next
+   // resubmit. Unlike calculateInfo/secondaryY above, FieldRef has no frame fields at all, so the
+   // copy is unconditional -- there is no "caller supplied a new one" case to guard against.
+
+   @Test
+   void resubmittingTheIdenticalYShelfPreservesAMeasuresColorFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      StaticColorModel color = new StaticColorModel();
+      color.setColor("#FF0000");
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setColorFrame(color);
+
+      // The exact same, unchanged field -- no visual-frame arguments involved at all.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      assertSame(color, ((ChartAggregateRefModel) model.getYFields().get(0)).getColorFrame(),
+         "a measure's colorFrame must survive a shelf resubmission");
+   }
+
+   @Test
+   void resubmittingTheIdenticalYShelfPreservesAMeasuresShapeSizeLineAndTextureFrames() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      ChartAggregateRefModel sales = (ChartAggregateRefModel) model.getYFields().get(0);
+      StaticShapeModel shape = new StaticShapeModel();
+      StaticSizeModel size = new StaticSizeModel();
+      StaticLineModel line = new StaticLineModel();
+      StaticTextureModel texture = new StaticTextureModel();
+      sales.setShapeFrame(shape);
+      sales.setSizeFrame(size);
+      sales.setLineFrame(line);
+      sales.setTextureFrame(texture);
+
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+
+      ChartAggregateRefModel resubmitted = (ChartAggregateRefModel) model.getYFields().get(0);
+      assertSame(shape, resubmitted.getShapeFrame(), "shapeFrame must survive a resubmission");
+      assertSame(size, resubmitted.getSizeFrame(), "sizeFrame must survive a resubmission");
+      assertSame(line, resubmitted.getLineFrame(), "lineFrame must survive a resubmission");
+      assertSame(texture, resubmitted.getTextureFrame(),
+         "textureFrame must survive a resubmission");
+   }
+
+   /**
+    * Guards against over-broad matching in {@code preserveAggregateFrames}: resubmitting a
+    * different, unrelated measure on the same shelf must not inherit the previous measure's
+    * frame.
+    */
+   @Test
+   void resubmittingADifferentMeasureDoesNotInheritThePreviousMeasuresColorFrame() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Sales", "measure", "Sum", null, null)));
+      StaticColorModel color = new StaticColorModel();
+      color.setColor("#FF0000");
+      ((ChartAggregateRefModel) model.getYFields().get(0)).setColorFrame(color);
+
+      // Sales is replaced outright by an unrelated measure -- no match in unconsumedAggregates.
+      ChartBindingMutator.setShelf(model, "y",
+         List.of(new FieldRef("Orders", "measure", "Count", null, null)));
+
+      assertNull(((ChartAggregateRefModel) model.getYFields().get(0)).getColorFrame(),
+         "an unrelated measure must not inherit a previous, unrelated measure's colorFrame");
    }
 
    // ── org column-count limit (L3-Group1 finding G1-1) ───────────────────────

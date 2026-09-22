@@ -158,6 +158,7 @@ public final class ChartBindingMutator {
             if(previousAgg != null) {
                unconsumedAggregates.remove(previousAgg);
                preserveAggregateState(previousAgg, aggregate, field);
+               preserveAggregateFrames(previousAgg, aggregate);
             }
          }
 
@@ -273,6 +274,28 @@ public final class ChartBindingMutator {
       if(field.secondaryY() == null) {
          aggregate.setSecondaryY(previous.isSecondaryY());
       }
+   }
+
+   /**
+    * Carries a matched measure's per-measure visual frames ({@code colorFrame}/{@code
+    * shapeFrame}/{@code sizeFrame}/{@code lineFrame}/{@code textureFrame}) across a shelf
+    * rewrite -- {@code set_visual_frame}/{@code reset_visual_frame} ({@code
+    * ChartAestheticMutator.assignAggregateFrame}) write these directly onto the live ref
+    * instances currently on the shelf, but {@code toChartRef} builds a brand-new ref on every
+    * {@code setShelf} call and never sets any of the five, so they were silently lost on the
+    * very next resubmit (bug #76904). Unlike {@link #preserveAggregateState}, this copies
+    * unconditionally: {@code FieldRef} has no frame fields at all, so there is no "caller
+    * explicitly supplied a new one on this call" case to guard against -- the same reasoning as
+    * {@link #preserveDimensionState}'s unconditional copy of sort/ranking state.
+    */
+   private static void preserveAggregateFrames(ChartAggregateRefModel previous,
+                                                ChartAggregateRefModel aggregate)
+   {
+      aggregate.setColorFrame(previous.getColorFrame());
+      aggregate.setShapeFrame(previous.getShapeFrame());
+      aggregate.setSizeFrame(previous.getSizeFrame());
+      aggregate.setLineFrame(previous.getLineFrame());
+      aggregate.setTextureFrame(previous.getTextureFrame());
    }
 
    /**
