@@ -42,12 +42,6 @@ input[type=range] {
   /*required for proper sizing in FF and Edge*/
   width: 150px;
 
-  /*required for IE 11 */
-  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-    height: auto !important;
-    border: 0;
-    background: rgba(255, 255, 255, 0);
-  }
 }
 
 input[type=range]:focus {
@@ -148,80 +142,6 @@ input[type=range]:-moz-focusring{
   outline-offset: -1px;
 }
 
-/* Edge and IE */
-input[type=range]::-ms-track {
-  height: 2px;
-  border: 0 !important;
-  background: transparent;
-  /*required for IE 11 */
-  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-    height: 22px !important;
-    padding: 20 0 20 0;
-    border: 1px solid #ddd !important;
-    color: transparent; /* remove ticks */
-    background: rgba(255, 255, 255, 0.2);
-  }
-}
-
-input[type=range]::-ms-thumb {
-  border: none;
-  height: 11px;
-  width: 11px;
-  border-radius: 50%;
-  background: #ff8d41;
-  margin-top: -1px;
-  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-    margin-top: 0px;
-  }
-}
-
-input[type=range]:hover::-ms-thumb {
-  height: 16px;
-  width: 16px;
-  margin-top: -2px;
-  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-    margin-top: 0px;
-  }
-}
-
-input[type=range]:focus::-ms-thumb {
-  height: 16px;
-  width: 16px;
-  margin-top: -2px;
-  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-    margin-top: 0px;
-  }
-}
-
-input[type=range]::-ms-fill-lower {
-  background: #d3d3d3;
-  height: 2px;
-}
-
-input[type=range]::-ms-fill-upper {
-  background: #d3d3d3;
-  height: 2px;
-}
-
-input[type=range]:focus::-ms-fill-lower {
-  background: #ff8d41;
-  height: 2px;
-}
-
-input[type=range]:focus::-ms-fill-upper {
-  background: #ff8d41;
-  height: 2px;
-}
-
-input[type=range]:hover::-ms-fill-lower {
-  background: #ff8d41;
-  height: 2px;
-}
-
-input[type=range]:hover::-ms-fill-upper {
-  background: #ff8d41;
-  height: 2px;
-}
 
 .chart-plot-resizer-horizontal {
   display: flex;
