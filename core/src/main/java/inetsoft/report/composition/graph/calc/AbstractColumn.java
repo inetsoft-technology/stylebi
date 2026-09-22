@@ -210,16 +210,8 @@ public abstract class AbstractColumn implements CalcColumn {
 
    /**
     * Get router for this specified field.
-    *
-    * @param calendarOrderOnValueSort whether a part-date-group field under a value-based
-    *                                 "Sort By Value" ranking should still navigate in natural
-    *                                 calendar order (needed by a window/neighbor walk like a
-    *                                 moving average) rather than the configured display order
-    *                                 (needed by a point lookup/accumulation like Value of
-    *                                 previous or Running Total). See
-    *                                 {@link DataSetRouter#DataSetRouter(DataSet, String, boolean)}.
     */
-   public Router getRouter(DataSet data, String field, boolean calendarOrderOnValueSort) {
+   public Router getRouter(DataSet data, String field) {
       VSDataSet vsdata = (VSDataSet) (data instanceof DataSetFilter ?
          ((DataSetFilter) data).getRootDataSet() : data);
       Router router = vsdata.getRouter(field);
@@ -227,7 +219,7 @@ public abstract class AbstractColumn implements CalcColumn {
 
       if(router == null || !router.isValidFor(data)) {
          if(cachrouter == null || !cachrouter.isValidFor(routerData)) {
-            cachrouter = new DataSetRouter(routerData, field, calendarOrderOnValueSort);
+            cachrouter = new DataSetRouter(routerData, field);
          }
 
          router = cachrouter;

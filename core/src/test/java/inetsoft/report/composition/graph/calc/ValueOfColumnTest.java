@@ -438,12 +438,20 @@ public class ValueOfColumnTest {
     *
     * This expectation was briefly inverted (as testPreviousOnPartDateGroupIgnoresRankingSortComparator)
     * by Bug #76514's fix, which needed calendar order for MovingColumn's window/neighbor
-    * selection on a value-sorted part-date dimension. That need turned out to be specific to
-    * MovingColumn, not to DataSetRouter as a whole: Bug #76906 gave the calendar-order
-    * fallback its own opt-in flag per caller (see
-    * AbstractColumn.getRouter(DataSet, String, boolean)), so this expectation and #76514's
-    * MovingColumnTest.testMovingAverageFollowsCalendarOrderOnValueSortedPartDateDim both hold
-    * at once now. Do not flip this back a third time without re-reading that history.
+    * selection on a value-sorted part-date dimension. Bug #76906's first round tried to
+    * reconcile the two by giving the calendar-order fallback a per-caller opt-in flag on
+    * DataSetRouter/AbstractColumn.getRouter() (MovingColumn true, ValueOfColumn/RunningTotalColumn
+    * false) — but investigating a related bug (#76911) showed #76514's own premise was wrong
+    * for MovingColumn too: sort is applied first, then the calculation runs over the resulting
+    * (already-sorted, value-sort ranking included) row sequence, uniformly for every consumer.
+    * A moving average's "neighbor" is the adjacent bar in display order, not a calendar-adjacency
+    * concept layered on top of it. So #76906's second round reverted the per-caller flag
+    * entirely — DataSetRouter/getRouter() are back to their pre-#76514 (DataSet, String)
+    * signature, and the fallback to calendar order applies only when there is no display sort
+    * configured at all (comp == null), for every caller. See
+    * MovingColumnTest.testMovingAverageFollowsDisplayOrderOnValueSortedPartDateDim for the
+    * corresponding (now corrected) MovingColumn expectation. Do not flip this back a third time
+    * without re-reading that history.
     *
     * The natural-order fallback still applies when no sort is configured at all — see
     * {@link #testPreviousOnPartDateGroupWithOthersLabel()} — and an explicit label sort is

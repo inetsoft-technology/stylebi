@@ -44,20 +44,8 @@ public class DataSetRouter extends AbstractRouter {
 
    /**
     * Constructor.
-    *
-    * @param calendarOrderOnValueSort whether a part-date-group field whose display sort is
-    *                                 value-based (e.g. a Top-N "Sort By Value" ranking) should
-    *                                 still navigate in natural calendar order. A window/neighbor
-    *                                 walk (e.g. a moving average) needs this, since "previous
-    *                                 hour" only has meaning in calendar order; a point lookup
-    *                                 or accumulation that means "the previous/prior bars as
-    *                                 displayed" (e.g. Value of previous, Running Total) instead
-    *                                 needs to follow the dimension's actual configured order,
-    *                                 value-sort included (76039). Either way, a field with no
-    *                                 display sort at all always falls back to calendar order
-    *                                 (75664).
     */
-   public DataSetRouter(DataSet data, String field, boolean calendarOrderOnValueSort) {
+   public DataSetRouter(DataSet data, String field) {
       super();
       keyhash = data.hashCode();
       List v = new ArrayList<>();
@@ -72,15 +60,17 @@ public class DataSetRouter extends AbstractRouter {
       }
 
       // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) navigate
-      // previous/next in natural calendar order when the field has no display sort. Whether
-      // that also applies when the display sort is value-based depends on the caller — see
-      // calendarOrderOnValueSort above. (76059, 75664-1, 76039, 76514)
+      // previous/next in natural calendar order only when the field has no display sort
+      // configured at all. Sort is applied first, then the calculation runs over the
+      // resulting (already-sorted, value-sort ranking included) row sequence — this applies
+      // uniformly to every consumer (Value of previous, Running Total, Moving Average alike):
+      // a moving average's "neighbor" is the adjacent bar in whatever order the chart actually
+      // displays it in, not a calendar-adjacency concept layered on top of that order. (76039,
+      // 76059, 75664-1, 76906)
       XDimensionRef partDateDim = getPartDateDimension(data, field);
       comp = data.getComparator(field);
 
-      if(partDateDim != null &&
-         (comp == null || (calendarOrderOnValueSort && isSortByValue(partDateDim))))
-      {
+      if(partDateDim != null && comp == null) {
          comp = PART_DATE_ORDER;
       }
 
@@ -112,15 +102,6 @@ public class DataSetRouter extends AbstractRouter {
 
       XDimensionRef dim = (XDimensionRef) ref;
       return (dim.getDateLevel() & XConstants.PART_DATE_GROUP) != 0 ? dim : null;
-   }
-
-   /**
-    * Check if the dimension is sorted by an aggregate value (as set by a Top-N/Bottom-N
-    * "Sort By Value" ranking) rather than by its own labels.
-    */
-   private static boolean isSortByValue(XDimensionRef dim) {
-      int order = dim.getOrder();
-      return order == XConstants.SORT_VALUE_ASC || order == XConstants.SORT_VALUE_DESC;
    }
 
    /**

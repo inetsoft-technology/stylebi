@@ -151,10 +151,12 @@ public class MovingColumn extends AbstractColumn {
 
       // dimension?
       if(innerDim != null) {
-         // A moving window only means something over calendar-adjacent neighbors, so a
-         // part-date-group dimension under a value-based ranking must still navigate in
-         // calendar order here, even though the values are plotted in ranking order. (76514)
-         Router router = getRouter(data, innerDim, true);
+         // A moving window's "neighbor" is the adjacent bar in whatever order the chart
+         // actually displays it in (value-sort ranking included), not a calendar-adjacency
+         // concept layered on top of that order — sort is applied first, then the window
+         // walks the resulting row sequence, same as Value of previous/Running Total. (76906,
+         // superseding 76514's calendar-order premise)
+         Router router = getRouter(data, innerDim);
          Object dimval = data.getData(innerDim, row);
          int vindex = router.getIndex(dimval);
          int cnt = router.getValues().length;
@@ -383,8 +385,8 @@ public class MovingColumn extends AbstractColumn {
    private DataSet getCondData(DataSet data, int row) {
       Object val = data.getData(innerDim, row);
       Map cond = createCond(data, innerDim, row, val);
-      // Same calendar-order requirement as the window/neighbor selection above. (76514)
-      Router router = getRouter(data, innerDim, true);
+      // Same display-order requirement as the window/neighbor selection above. (76906)
+      Router router = getRouter(data, innerDim);
       int vindex = router.getIndex(val);
       Object[] values = router.getValues();
       int cnt = values.length;
