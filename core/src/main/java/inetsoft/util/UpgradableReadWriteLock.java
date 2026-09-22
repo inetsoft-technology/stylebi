@@ -18,10 +18,25 @@
 package inetsoft.util;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class UpgradableReadWriteLock {
+   public UpgradableReadWriteLock() {
+      this(RESTORE_WRITE_LOCK_TIMEOUT_MS_DEFAULT);
+   }
+
+   /**
+    * @param restoreWriteLockTimeoutMs bound for {@link #lockWriteBounded()}, used only by
+    *                                   {@link #restoreLocks()}. Package-private so tests can
+    *                                   exercise the timeout path without a real 20s wait; all
+    *                                   production callers use the public no-arg constructor.
+    */
+   UpgradableReadWriteLock(long restoreWriteLockTimeoutMs) {
+      this.restoreWriteLockTimeoutMs = restoreWriteLockTimeoutMs;
+   }
+
    /**
     * Acquire a write (exclusive) lock.
     */
@@ -106,6 +121,24 @@ public class UpgradableReadWriteLock {
 
    /**
     * Restore the locks unlocked in the matching unlockAll.
+    *
+    * <p>Write-lock restoration below is bounded, not the unconditional {@link #lockWrite()}.
+    * This method is the re-entry point after a caller deliberately dropped the sandbox lock
+    * mid-operation (unlockAll()) to run something slow or re-entrant outside it -- e.g. a
+    * script callback that ends up back in the GraalVM engine's own per-viewsheet execution
+    * lock. If that "something" itself needs the write lock back (directly, or via another
+    * thread's restoreLocks()) before it can finish and release what this thread is waiting
+    * on, an unconditional wait here forms an unbreakable cycle: this thread never returns to
+    * release whatever unrelated lock it grabbed before calling unlockAll(), so the other side
+    * can never make progress either. See bug #76907 (grouping crosstab columns wedges the
+    * whole viewsheet, and every other viewsheet sharing this JVM's GraalVM script engine
+    * lock, when a crosstab's highlight script and a Calc Table's cell formula each hold one
+    * of these two locks and block on the other) and the class of hazard this class's callers
+    * already document (bug #76549, bug #74001). A bounded wait turns that unbreakable cycle
+    * into a failed operation instead: the caller's existing exception handling (e.g.
+    * TableDataVSAScriptable.initTableArray()'s catch, which already logs and treats the
+    * table as unavailable) absorbs it, and the lock/resource this thread holds gets released
+    * as the exception unwinds, letting the other side proceed.</p>
     */
    public void restoreLocks() {
       Deque<List<Integer>> saved = thisOldLocks.get();
@@ -124,7 +157,7 @@ public class UpgradableReadWriteLock {
                lockRead();
                break;
             case 1:
-               lockWrite();
+               lockWriteBounded();
                break;
             }
          }
@@ -134,6 +167,79 @@ public class UpgradableReadWriteLock {
             thisOldLocks.remove();
          }
       }
+   }
+
+   /**
+    * Acquire a write (exclusive) lock, bounded by {@code restoreWriteLockTimeoutMs}.
+    *
+    * <p>Only used by {@link #restoreLocks()} -- see its doc comment for why. Every other
+    * write-lock acquisition in this class keeps the original unconditional
+    * {@link #lockWrite()} behavior; ordinary contention there is expected to clear on its
+    * own and is not a sign of a lock-order inversion.</p>
+    *
+    * <p>On failure (timeout or interrupt), any read locks rewound below are re-locked
+    * before the exception is thrown, so this thread's lock-state stack ({@link #getStack()})
+    * and the real {@code ReentrantReadWriteLock} state never diverge -- see review round 1 on
+    * bug #76907: without this, a nested read-then-write restore (stack {@code [0, 1]}, e.g.
+    * from a reentrant {@link #lockWrite()} called while a read lock from an enclosing
+    * {@link #lockRead()} was already held) left {@code getStack()} still claiming a read lock
+    * this thread no longer physically held after a timeout here, so a later, unrelated
+    * {@link #unlockRead()} or {@link #lockWrite()} call on the same pooled thread threw
+    * {@code IllegalMonitorStateException} against the real lock.</p>
+    *
+    * @throws IllegalStateException if the write lock could not be acquired within the bound,
+    *                                or if the wait was interrupted.
+    */
+   private void lockWriteBounded() {
+      OptionalInt maxLevel = getStack().stream().mapToInt(Integer::intValue).max();
+      boolean rewoundReads = maxLevel.isPresent() && maxLevel.getAsInt() < 1;
+      int rewoundCount = rewoundReads ? getStack().size() : 0;
+
+      // rewind all read lock and try to lock write lock
+      if(rewoundReads) {
+         for(int i = 0; i < rewoundCount; i++) {
+            thisLock.readLock().unlock();
+         }
+      }
+
+      boolean acquired;
+      InterruptedException interrupted = null;
+
+      try {
+         acquired = thisLock.writeLock()
+            .tryLock(restoreWriteLockTimeoutMs, TimeUnit.MILLISECONDS);
+      }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+         acquired = false;
+         interrupted = e;
+      }
+
+      if(!acquired) {
+         // getStack() still reports the reads rewound above (they were never popped, only
+         // physically unlocked), so restore the physical state to match before throwing --
+         // mirrors unlockWrite()'s own re-lock-on-downgrade logic.
+         if(rewoundReads) {
+            for(int i = 0; i < rewoundCount; i++) {
+               thisLock.readLock().lock();
+            }
+         }
+
+         if(interrupted != null) {
+            throw new IllegalStateException(
+               "Interrupted while restoring the viewsheet sandbox write lock", interrupted);
+         }
+
+         throw new IllegalStateException(
+            "Timed out restoring the viewsheet sandbox write lock after " +
+            restoreWriteLockTimeoutMs + "ms; another thread is likely holding it while " +
+            "waiting on a lock this thread holds (see bug #76907)");
+      }
+
+      // only recorded once the underlying lock is actually held, so a failed/timed-out
+      // attempt above does not leave this thread's lock-state stack out of sync with the
+      // real ReentrantReadWriteLock state
+      getStack().push(1);
    }
 
    private int pop() {
@@ -162,4 +268,6 @@ public class UpgradableReadWriteLock {
       ThreadLocal.withInitial(ArrayDeque::new);
    private static final ThreadLocal<Map<Object,Stack<Integer>>> thisLockState =
       ThreadLocal.withInitial(HashMap::new);
+   private static final long RESTORE_WRITE_LOCK_TIMEOUT_MS_DEFAULT = 20000;
+   private final long restoreWriteLockTimeoutMs;
 }
