@@ -682,6 +682,44 @@ class WorksheetEditServiceMutatorsTest {
       assertEquals(1, ai.getAggregateCount());
    }
 
+   /**
+    * Redmine #76902 (WBS-076): a plain single-aggregate {@code set_group_aggregate} call
+    * mutates the aliased {@link ColumnRef} only inside the table's PRIVATE column selection;
+    * nothing re-derived the PUBLIC selection from it unless there was also a secondary
+    * aggregate. Whether the alias then showed up on the public selection used to depend on
+    * whether {@code WorksheetEditService}'s post-mutation {@code refreshAssemblies} sweep
+    * happened to resync this table before something else read its public selection --
+    * best-effort and budget-limited, so nondeterministic in practice. {@code add_mirror} is
+    * the sharpest-edged reader of that public selection: it bakes whichever single name it
+    * sees into the mirror's own new {@link ColumnRef} permanently, with no way to recover the
+    * other name afterward. This test uses the default mocked {@link RuntimeWorksheet} (no real
+    * {@link AssetQuerySandbox}, so {@code refreshAssemblies} always no-ops) to pin down the
+    * previously-nondeterministic "race lost" case deterministically: the mirror's column must
+    * carry the alias regardless.
+    */
+   @Test
+   void addMirrorAfterAggregateAliasUsesTheAliasDeterministically() throws Exception {
+      Worksheet ws = new Worksheet();
+      BoundTableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "category", "quantity");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("category"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("quantity", "SUM", "TOTAL_QTY"))));
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+      ColumnSelection cs = mirror.getColumnSelection(false);
+
+      assertNotNull(cs.getAttribute("TOTAL_QTY"),
+         "the mirror's aggregate column must be named after the alias, not left depending on " +
+         "whether a background refresh happened to reach the source table first");
+      assertNull(cs.getAttribute("quantity"),
+         "the pre-aggregate physical name must not survive onto the mirror once the alias is set");
+   }
+
    // Bug #75954: NthLargest/NthSmallest/etc. silently dropped their N operand and the
    // aggregate quietly computed as N=1 (Max/Min) instead — no error anywhere.
    @Test

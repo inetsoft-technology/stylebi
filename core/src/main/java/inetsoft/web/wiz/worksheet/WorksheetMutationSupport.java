@@ -1035,6 +1035,16 @@ public final class WorksheetMutationSupport {
       ainfo.setCrosstab(crosstab);
       t.setAggregateInfo(ainfo);
       t.setAggregate(!ainfo.isEmpty());
+
+      // Push the (possibly just-set) aggregate alias from the private column selection into
+      // the public one now. Redmine #76902 (WBS-076): for a plain single-aggregate call (no
+      // secondary aggregates), nothing above re-derives the public selection from the mutated
+      // private one -- that was previously left to WorksheetEditService's post-mutation
+      // refreshAssemblies sweep, which is best-effort and budget-limited, so whether a reader
+      // (most consequentially add_mirror, which bakes the public selection's column name into
+      // the mirror permanently with no way to recover the other name) saw the alias or the
+      // stale pre-aggregate name depended on unrelated worksheet-wide timing.
+      t.setColumnSelection(t.getColumnSelection(false), false);
    }
 
    /**
