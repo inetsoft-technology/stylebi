@@ -356,6 +356,12 @@ class DateComparisonServiceTest {
    {
       ChartVSAssemblyInfo info = mock(ChartVSAssemblyInfo.class);
       when(info.getComparisonShareFrom()).thenReturn(shareFrom);
+      // Not for the appliedDateComparison() gate above (that call never reaches this method) --
+      // needed for the hasShareFrom branch's DateComparisonUtil.getDateComparison(info, vs),
+      // which gates on DataVSAssemblyInfo.isDateComparisonEnabled() (ChartVSAssemblyInfo is one)
+      // before it ever resolves the share source; a Mockito boolean defaults false, which would
+      // make that call return null and mask the share-source resolution this stub's callers test.
+      when(info.isDateComparisonEnabled()).thenReturn(true);
       VSChartInfo chartInfo = mock(VSChartInfo.class);
       when(chartInfo.isAppliedDateComparison()).thenReturn(applied);
       when(info.getVSChartInfo()).thenReturn(chartInfo);
