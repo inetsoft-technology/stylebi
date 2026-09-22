@@ -111,14 +111,29 @@ public final class ChartBindingMutator {
       requireColumnLimit(chartInfo, readShelf(model, name).size(), fields == null ? 0 : fields.size());
       requireNoMapDimensionOnXY(chartInfo, name, fields);
 
-      // Captured before the overwrite below, for two independent, unrelated "restore state
-      // across a shelf rewrite" mechanisms below: preserveChartTypes (aggregate refs on x/y
-      // only) and the dimension sort/ranking preservation loop (all three shelves -- bug
-      // #76881, porting VTB-004/TableBindingMutator.dimensions()'s own previous-state matching).
+      // Captured before the overwrite below, for three independent, unrelated "restore state
+      // across a shelf rewrite" mechanisms below: preserveChartTypes (aggregate chartType on x/y
+      // only), the dimension sort/ranking preservation loop (all three shelves -- bug #76881,
+      // porting VTB-004/TableBindingMutator.dimensions()'s own previous-state matching), and
+      // preserveAggregateState (aggregate calculateInfo/secondaryY, all three shelves -- bug
+      // #76896).
       List<ChartRefModel> oldRefs = new ArrayList<>(readShelf(model, name));
 
       List<ChartRefModel> refs = new ArrayList<>();
       List<FieldRef> fieldList = fields == null ? List.<FieldRef>of() : fields;
+
+      // Unconsumed-search pool for preserveAggregateState -- unlike the dimension branch below
+      // (which still matches by position, a pre-existing #76881 weakness left as-is here), this
+      // must survive an ordinary field *insertion* ahead of an existing measure. Mirrors
+      // preserveChartTypes's own consume-based search (minus its secondaryY tiebreak, which would
+      // be circular here -- secondaryY is one of the fields this fix itself restores).
+      List<ChartAggregateRefModel> unconsumedAggregates = new ArrayList<>();
+
+      for(ChartRefModel old : oldRefs) {
+         if(old instanceof ChartAggregateRefModel aggregate) {
+            unconsumedAggregates.add(aggregate);
+         }
+      }
 
       for(int i = 0; i < fieldList.size(); i++) {
          FieldRef field = fieldList.get(i);
@@ -128,6 +143,22 @@ public final class ChartBindingMutator {
             oldRefs.get(i) instanceof ChartDimensionRefModel previous && matches(previous, field))
          {
             preserveDimensionState(previous, dimension, field);
+         }
+
+         if(ref instanceof ChartAggregateRefModel aggregate) {
+            ChartAggregateRefModel previousAgg = null;
+
+            for(ChartAggregateRefModel candidate : unconsumedAggregates) {
+               if(sameMeasure(candidate, aggregate)) {
+                  previousAgg = candidate;
+                  break;
+               }
+            }
+
+            if(previousAgg != null) {
+               unconsumedAggregates.remove(previousAgg);
+               preserveAggregateState(previousAgg, aggregate, field);
+            }
          }
 
          refs.add(ref);
@@ -215,6 +246,33 @@ public final class ChartBindingMutator {
    private static boolean sameMeasure(ChartAggregateRefModel a, ChartAggregateRefModel b) {
       return equalsIgnoreCaseOrBothNull(a.getColumnValue(), b.getColumnValue()) &&
              equalsIgnoreCaseOrBothNull(a.getFormula(), b.getFormula());
+   }
+
+   /**
+    * Carries a matched measure's {@code calculateInfo} (Trend/Calculator) and {@code secondaryY}
+    * across a shelf rewrite -- the aggregate-ref sibling of {@link #preserveDimensionState},
+    * closing the gap left after bug #76881 fixed only the dimension case in this file (bug
+    * #76896). {@code toChartRef} already coerces an incoming {@code null} {@code secondaryY} to
+    * {@code false} before this runs, so this reads {@code field.secondaryY()} directly (the raw
+    * incoming value), not {@code aggregate.isSecondaryY()} -- the only way to tell "the caller
+    * said nothing" apart from "the caller explicitly said false".
+    *
+    * <p>{@code secondaryY} preservation runs unconditionally on every shelf, with no {@code x}/
+    * {@code group} gate: the plugin layer already refuses {@code secondaryY} outright on any
+    * shelf but {@code y} (bug #76608), so {@code previous.isSecondaryY()} can never be
+    * {@code true} on {@code x}/{@code group} -- this branch is a permanent no-op there, not a
+    * case needing its own shelf guard.
+    */
+   private static void preserveAggregateState(ChartAggregateRefModel previous,
+                                               ChartAggregateRefModel aggregate, FieldRef field)
+   {
+      if(field.calculateInfo() == null) {
+         aggregate.setCalculateInfo(previous.getCalculateInfo());
+      }
+
+      if(field.secondaryY() == null) {
+         aggregate.setSecondaryY(previous.isSecondaryY());
+      }
    }
 
    /**
