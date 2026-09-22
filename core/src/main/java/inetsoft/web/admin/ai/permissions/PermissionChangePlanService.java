@@ -24,6 +24,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.SecurityProviderGuard;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -33,6 +34,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Resolves a requested list of permission-grant changes into a {@link ResolvedPlan} and hashes it
@@ -78,6 +80,11 @@ public class PermissionChangePlanService {
       if(req.getChanges() == null || req.getChanges().isEmpty()) {
          throw new IllegalArgumentException("changes: at least one change is required");
       }
+
+      // A virtual-backed provider reads back a canned Permission, so every before-state below
+      // would be fabricated and the apply this previews could only fail. Refuse here rather than
+      // hand back a plan that cannot be applied.
+      SecurityProviderGuard.requireWritableAuthorization(securityEngine);
 
       List<PlanChange> changes = new ArrayList<>();
       Set<String> seenKeys = new HashSet<>();
@@ -129,6 +136,8 @@ public class PermissionChangePlanService {
             throw new IllegalArgumentException(label + ".actions: required for verb=create");
          }
 
+         requireActions(label, change.getActions());
+
          if(existing != null) {
             throw new IllegalArgumentException(
                label + ": a grant already exists for " + seenKey + "; use verb=update instead");
@@ -145,6 +154,8 @@ public class PermissionChangePlanService {
          if(change.getActions() == null || change.getActions().isEmpty()) {
             throw new IllegalArgumentException(label + ".actions: required for verb=update");
          }
+
+         requireActions(label, change.getActions());
 
          if(existing == null) {
             throw new IllegalArgumentException(
@@ -301,6 +312,32 @@ public class PermissionChangePlanService {
       return new IdentityID(name, currentOrgId);
    }
 
+   /**
+    * Validates every action name against {@link ResourceAction}.
+    *
+    * <p>Nothing downstream does: {@code SecurityService.setPermission} selects grants with an
+    * exact-case {@code grant.getActions().contains(action.name())}, so an unrecognized or
+    * lowercase name matches no action, is silently dropped, and persists nothing without throwing.
+    * The apply service's own post-write verification then compares the empty result against the
+    * requested list and reports a mismatch -- blaming the write for what is really a bad argument.
+    * Rejecting it at plan time keeps that failure a 400 naming the offending action.
+    */
+   static List<String> requireActions(String label, List<String> actions) {
+      if(actions == null || actions.isEmpty()) {
+         throw new IllegalArgumentException(label + ".actions: required");
+      }
+
+      for(String action : actions) {
+         if(action == null || !ALLOWED_ACTIONS.contains(action)) {
+            throw new IllegalArgumentException(
+               label + ".actions: must each be one of " + ALLOWED_ACTIONS + ", got " +
+               String.valueOf(action) + " (names are case-sensitive)");
+         }
+      }
+
+      return actions;
+   }
+
    static String requireNonBlank(String field, String value) {
       if(value == null || value.trim().isEmpty()) {
          throw new IllegalArgumentException(field + ": required");
@@ -374,6 +411,13 @@ public class PermissionChangePlanService {
       "MATERIALIZATION", "MY_DASHBOARDS", "PHYSICAL_TABLE",
       "PORTAL_REPOSITORY_TREE_DRAG_AND_DROP", "PROFILE", "UPLOAD_DRIVERS", "DEVICE", "VIEWSHEET",
       "WORKSHEET", "VIEWSHEET_TOOLBAR_ACTION", "SHARE", "SCHEDULER", "PORTAL_TAB");
+
+   /** Every {@link ResourceAction} constant, by exact name -- what {@link #requireActions} checks
+    * against and what the rejection message lists. */
+   static final Set<String> ALLOWED_ACTIONS =
+      Collections.unmodifiableSortedSet(Arrays.stream(ResourceAction.values())
+         .map(ResourceAction::name)
+         .collect(Collectors.toCollection(TreeSet::new)));
 
    private static final char SEP = (char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);

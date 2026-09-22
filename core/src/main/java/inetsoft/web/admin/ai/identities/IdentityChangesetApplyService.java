@@ -83,6 +83,12 @@ public class IdentityChangesetApplyService {
       APPLY_LOCK.lock();
 
       try {
+         // Before anything else: when security falls back to the virtual provider there is no
+         // editable authentication provider to write through, so every change below would fail
+         // its own post-write verification and report a spurious rolled-back blaming the
+         // changeset. Fail here instead, naming the real condition.
+         SecurityProviderGuard.requireEditableAuthentication(securityEngine);
+
          ResolvedPlan plan = planService.resolve(req, user);
 
          if(req.getPlanHash() == null || !plan.planHash().equals(req.getPlanHash())) {

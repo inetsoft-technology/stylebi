@@ -25,6 +25,7 @@ import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
 import inetsoft.web.admin.ai.ApplyResult;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.SecurityProviderGuard;
 import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.admin.security.action.ActionTreeNode;
 import inetsoft.web.security.RequiredPermission;
@@ -200,6 +201,15 @@ public class AdminPermissionController {
       if(!OrganizationManager.getInstance().isSiteAdmin(user)) {
          throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Site Administrator role required");
       }
+   }
+
+   @ExceptionHandler(SecurityProviderGuard.SecurityNotInitializedException.class)
+   @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+   @ResponseBody
+   public Map<String, String> handleSecurityNotInitialized(
+      SecurityProviderGuard.SecurityNotInitializedException ex)
+   {
+      return Map.of("status", "failed", "error", String.valueOf(ex.getMessage()));
    }
 
    @ExceptionHandler(IllegalArgumentException.class)

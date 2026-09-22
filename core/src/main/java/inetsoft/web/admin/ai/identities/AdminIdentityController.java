@@ -21,6 +21,7 @@ import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.ai.AdminAiCallerGuard;
 import inetsoft.web.admin.ai.AdminChangesetApplyService;
+import inetsoft.web.admin.ai.SecurityProviderGuard;
 import inetsoft.web.security.RequiredPermission;
 import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -178,6 +179,26 @@ public class AdminIdentityController {
 
    private static String currentOrgId() {
       return OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
+   @ExceptionHandler(SecurityProviderGuard.SecurityNotInitializedException.class)
+   @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+   @ResponseBody
+   public Map<String, String> handleSecurityNotInitialized(
+      SecurityProviderGuard.SecurityNotInitializedException ex)
+   {
+      return Map.of("status", "failed", "error", String.valueOf(ex.getMessage()));
+   }
+
+   /** 409, not 503: the deployment is healthy, the request just cannot be satisfied by a
+    * read-only chain, so retrying is pointless. */
+   @ExceptionHandler(SecurityProviderGuard.ReadOnlyAuthenticationException.class)
+   @ResponseStatus(HttpStatus.CONFLICT)
+   @ResponseBody
+   public Map<String, String> handleReadOnlyAuthentication(
+      SecurityProviderGuard.ReadOnlyAuthenticationException ex)
+   {
+      return Map.of("status", "failed", "error", String.valueOf(ex.getMessage()));
    }
 
    @ExceptionHandler(IllegalArgumentException.class)

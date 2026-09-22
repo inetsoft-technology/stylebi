@@ -211,6 +211,44 @@ class PermissionChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("actions"));
    }
 
+   /**
+    * {@code SecurityService.setPermission} selects grants with an exact-case
+    * {@code contains(action.name())}, so a lowercase action silently persists nothing without
+    * throwing and the apply service's post-write verification then blames the write. This must
+    * fail at plan time instead, naming the offending action.
+    */
+   @Test void resolveCreateThrowsOnLowercaseAction() {
+      PermissionChangeRequest change = grantChange("ASSET", "Examples/Census", "USER", "bob",
+         List.of("read"));
+      PermissionChangePlanRequest req = request("task", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("actions"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("read"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("case-sensitive"), ex.getMessage());
+   }
+
+   @Test void resolveCreateThrowsOnUnrecognizedAction() {
+      PermissionChangeRequest change = grantChange("ASSET", "Examples/Census", "USER", "bob",
+         List.of("READ", "SUPERUSER"));
+      PermissionChangePlanRequest req = request("task", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("SUPERUSER"), ex.getMessage());
+   }
+
+   @Test void resolveUpdateThrowsOnLowercaseAction() {
+      PermissionChangeRequest change = updateChange("ASSET", "Examples/Census", "USER", "bob",
+         List.of("write"));
+      PermissionChangePlanRequest req = request("task", List.of(change));
+
+      IllegalArgumentException ex =
+         assertThrows(IllegalArgumentException.class, () -> service.resolve(req, user));
+      assertTrue(ex.getMessage().contains("write"), ex.getMessage());
+   }
+
    @Test void resolveCreateThrowsWhenGrantAlreadyExists() throws Exception {
       stubRawPermission("ASSET", "Examples/Census", null);
       PermissionGrant existing = new PermissionGrant();

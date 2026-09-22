@@ -18,9 +18,7 @@
 package inetsoft.web.admin.ai.identities;
 
 import inetsoft.web.admin.security.*;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
@@ -51,14 +49,23 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class IdentityChangePlanServiceTest {
    @Mock private SecurityService securityService;
+   @Mock private SecurityEngine securityEngine;
    @Mock private Principal user;
    @Mock private OrganizationManager orgManager;
+   @Mock private EditableAuthenticationProvider editableAuthentication;
+   @Mock private AuthorizationProvider authorizationProvider;
    private IdentityChangePlanService service;
    private MockedStatic<OrganizationManager> orgManagerStatic;
    private MockedStatic<Tool> tool;
 
    @BeforeEach void setUp() {
-      service = new IdentityChangePlanService(securityService);
+      service = new IdentityChangePlanService(securityService, securityEngine);
+
+      // resolve() refuses outright without a writable provider. Built before the stub because the
+      // constructor registers a listener on the mock, which Mockito rejects mid-stubbing.
+      SecurityProvider writable =
+         new TestSecurityProvider(editableAuthentication, authorizationProvider);
+      lenient().when(securityEngine.getSecurityProvider()).thenReturn(writable);
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       lenient().when(orgManager.getCurrentOrgID()).thenReturn("host-org");
@@ -933,5 +940,15 @@ class IdentityChangePlanServiceTest {
       list.setOrganizations(Arrays.stream(ids).map(IdentityChangePlanServiceTest::existingOrganization)
                                 .collect(Collectors.toList()));
       return list;
+   }
+
+   /** See {@code SecurityProviderGuardTest}: stands in for {@code CompositeSecurityProvider},
+    * whose factory needs the Spring context. */
+   private static final class TestSecurityProvider extends AbstractSecurityProvider {
+      TestSecurityProvider(AuthenticationProvider authentication,
+                           AuthorizationProvider authorization)
+      {
+         super(authentication, authorization);
+      }
    }
 }
