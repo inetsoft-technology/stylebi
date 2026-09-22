@@ -429,28 +429,31 @@ public class ValueOfColumnTest {
    }
 
    /**
-    * Regression test for Bug #75664 (ranking follow-up): PREVIOUS navigation on a
-    * part-date-group dimension (e.g. HourOfDay) must use natural calendar order even when
-    * the dimension has an explicit value-based sort comparator — as set by a Top-N/Bottom-N
-    * "Sort By Value" ranking. Without this, DataSetRouter sorts by the ranking's value order
-    * (e.g. by Sum(contact_id) desc) instead of numeric hour order, so "previous hour"
-    * resolves to the wrong row or incorrectly returns INVALID, and every moving-average
-    * window over the dimension slides with it.
+    * Regression test for Bug #76039/#76906: PREVIOUS navigation on a part-date-group
+    * dimension (e.g. HourOfDay) must follow the dimension's display sort even when that sort
+    * is value-based, as set by a Top-N/Bottom-N "Sort By Value" ranking. The calc has to
+    * agree with the order the values are plotted in and with the order scripts see them in
+    * via getData(), so the value that is first in display order has no previous value, even
+    * though a numerically-earlier one exists elsewhere in the data.
     *
-    * This supersedes the inverted expectation briefly introduced for Bug #76039, which had
-    * value-based ranking order win over calendar order for these dimensions. The two cannot
-    * both hold, and "previous hour" only has meaning in calendar order. An explicit label
-    * sort (ascending, descending, specific order) is still honored — see
-    * {@link #testPreviousOnPartDateGroupFollowsLabelSortWithNullGroup()} — and so is the
-    * no-sort calendar fallback — see {@link #testPreviousOnPartDateGroupWithOthersLabel()}.
+    * This expectation was briefly inverted (as testPreviousOnPartDateGroupIgnoresRankingSortComparator)
+    * by Bug #76514's fix, which needed calendar order for MovingColumn's window/neighbor
+    * selection on a value-sorted part-date dimension. That need turned out to be specific to
+    * MovingColumn, not to DataSetRouter as a whole: Bug #76906 gave the calendar-order
+    * fallback its own opt-in flag per caller (see
+    * AbstractColumn.getRouter(DataSet, String, boolean)), so this expectation and #76514's
+    * MovingColumnTest.testMovingAverageFollowsCalendarOrderOnValueSortedPartDateDim both hold
+    * at once now. Do not flip this back a third time without re-reading that history.
     *
-    * Data is intentionally NOT in either row order or hour order (row order: 5, 2, 11), and
-    * the mock comparator sorts by an unrelated ranking value (id desc: 11, 5, 2) rather than
-    * by hour. Natural hour order is 2, 5, 11 — so "previous" of hour 5 must resolve to hour 2
-    * (id=20), not to whatever the ranking comparator would place before it.
+    * The natural-order fallback still applies when no sort is configured at all — see
+    * {@link #testPreviousOnPartDateGroupWithOthersLabel()} — and an explicit label sort is
+    * still honored — see {@link #testPreviousOnPartDateGroupFollowsLabelSortWithNullGroup()}.
+    *
+    * Row order is 5, 2, 11; the ranking comparator puts the hours in descending order
+    * (11, 5, 2), which is neither row order nor calendar order.
     */
    @Test
-   void testPreviousOnPartDateGroupIgnoresRankingSortComparator() {
+   void testPreviousOnPartDateGroupFollowsRankingSortOrder() {
       valueOfColumn = new ValueOfColumn("id", "sum(id)");
       valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
       valueOfColumn.setDim("HourOfDay(order_time)");
@@ -473,12 +476,16 @@ public class ValueOfColumnTest {
 
       vsDataSet = new VSDataSet(tb, new VSDataRef[] { hourRef });
 
-      // Row 0 = hour 5. Natural-order previous is hour 2 (id=20).
+      // Row 0 = hour 5; previous in display order (11, 5, 2) is hour 11 (id=30).
       Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
-      assertEquals(20, result);
+      assertEquals(30, result);
 
-      // Row 1 = hour 2, the earliest hour → no previous → INVALID.
+      // Row 1 = hour 2; previous in display order is hour 5 (id=10).
       result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(10, result);
+
+      // Row 2 = hour 11, first in display order -> no previous -> INVALID.
+      result = valueOfColumn.calculate(vsDataSet, 2, false, false);
       assertEquals(CalcColumn.INVALID, result);
    }
 

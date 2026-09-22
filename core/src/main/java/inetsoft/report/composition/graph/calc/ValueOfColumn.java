@@ -326,7 +326,9 @@ public class ValueOfColumn extends AbstractColumn {
          }
       }
       else {
-         Router router = getRouter(data, ndim);
+         // FIRST/LAST means the first/last displayed bar, so this must follow the dimension's
+         // actual configured display order (value-sort ranking included), not calendar order.
+         Router router = getRouter(data, ndim, false);
          Object val = ctype == ValueOfCalc.FIRST ? router.getFirst() : router.getLast();
 
          Map<String, Object> cond = createCond(data, ndim, row, val);
@@ -444,7 +446,10 @@ public class ValueOfColumn extends AbstractColumn {
             // data (the sorted dataset) so that previous/next navigation follows chart sort order.
             DataSet routerData = (ndimIsPartDate && data instanceof DataSetFilter)
                ? ((DataSetFilter) data).getRootDataSet() : data;
-            Router router = getRouter(routerData, ndim);
+            // PREVIOUS/NEXT means "the previous/next displayed bar", so this must follow the
+            // dimension's actual configured display order (value-sort ranking included), not
+            // calendar order — even for a part-date-group dimension. (76906)
+            Router router = getRouter(routerData, ndim, false);
             tval = router.getValue(val, ctype == ValueOfCalc.PREVIOUS ? -1 : 1);
          }
 

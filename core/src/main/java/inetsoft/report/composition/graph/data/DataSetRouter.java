@@ -44,8 +44,20 @@ public class DataSetRouter extends AbstractRouter {
 
    /**
     * Constructor.
+    *
+    * @param calendarOrderOnValueSort whether a part-date-group field whose display sort is
+    *                                 value-based (e.g. a Top-N "Sort By Value" ranking) should
+    *                                 still navigate in natural calendar order. A window/neighbor
+    *                                 walk (e.g. a moving average) needs this, since "previous
+    *                                 hour" only has meaning in calendar order; a point lookup
+    *                                 or accumulation that means "the previous/prior bars as
+    *                                 displayed" (e.g. Value of previous, Running Total) instead
+    *                                 needs to follow the dimension's actual configured order,
+    *                                 value-sort included (76039). Either way, a field with no
+    *                                 display sort at all always falls back to calendar order
+    *                                 (75664).
     */
-   public DataSetRouter(DataSet data, String field) {
+   public DataSetRouter(DataSet data, String field, boolean calendarOrderOnValueSort) {
       super();
       keyhash = data.hashCode();
       List v = new ArrayList<>();
@@ -60,15 +72,15 @@ public class DataSetRouter extends AbstractRouter {
       }
 
       // Part-date-group fields (HourOfDay, DayOfWeek, MonthOfYear, Quarter) navigate
-      // previous/next in natural calendar order when the field has no display sort, or when
-      // its display sort is value-based (e.g. a Top-N "Sort By Value" ranking) — "previous
-      // hour" has no meaning in rank-value order. An explicit label sort (ascending,
-      // descending, or specific order) is honored instead, so that calc navigation stays
-      // aligned with the order the values are actually plotted in. (76059, 75664-1)
+      // previous/next in natural calendar order when the field has no display sort. Whether
+      // that also applies when the display sort is value-based depends on the caller — see
+      // calendarOrderOnValueSort above. (76059, 75664-1, 76039, 76514)
       XDimensionRef partDateDim = getPartDateDimension(data, field);
       comp = data.getComparator(field);
 
-      if(partDateDim != null && (comp == null || isSortByValue(partDateDim))) {
+      if(partDateDim != null &&
+         (comp == null || (calendarOrderOnValueSort && isSortByValue(partDateDim))))
+      {
          comp = PART_DATE_ORDER;
       }
 
