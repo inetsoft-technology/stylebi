@@ -595,6 +595,18 @@ public class TableBindingService {
                      "validated.");
                }
 
+               // Bug #76882: same collision as applyCrosstabLabels/enrichCrosstabLabelsAndVisibility
+               // -- a crosstab column dimension has no corner header cell of its own, so
+               // findHeaderCell's "Cell [row,col]" positional match can only find nothing or
+               // wrongly collide with an unrelated row dimension's own corner cell, hiding the
+               // wrong column.
+               if("cols".equals(target.shelf())) {
+                  throw new IllegalArgumentException(
+                     "'" + target.shelf() + "[" + target.index() + "]' has no header cell of " +
+                     "its own to resolve -- a crosstab's column dimension renders its bound " +
+                     "values as the header, not a single column to hide by dimension position.");
+               }
+
                SetTableHeaderAliasHandler.HeaderCell cell =
                   SetTableHeaderAliasHandler.findHeaderCell(lens, ref, target.index());
 
@@ -974,6 +986,19 @@ public class TableBindingService {
                "live assembly -- the binding may have changed since this call was validated.");
          }
 
+         // Bug #76882: a crosstab column dimension has no header cell of its own to alias -- its
+         // rendered header shows the dimension's bound values, not a title, so findHeaderPath's
+         // "Cell [row,col]" positional match can only ever find (or, worse, wrongly collide with)
+         // a row dimension's own corner title cell. See enrichCrosstabLabelsAndVisibility's
+         // javadoc for the read-side half of this same defect.
+         if("cols".equals(target.shelf())) {
+            throw new IllegalArgumentException(
+               "'" + target.shelf() + "[" + target.index() + "]' has no header cell of its own " +
+               "to relabel -- a crosstab's column dimension renders its bound values as the " +
+               "header, not a dimension title, so there is nothing here for set_column_labels " +
+               "to target.");
+         }
+
          if(target.label().isEmpty()) {
             ClearTableHeaderAliasHandler.clearAlias(ref, formatInfo, target.index());
             continue;
@@ -1350,6 +1375,17 @@ public class TableBindingService {
     * CrossFilterDataDescriptor} computation as any other bound column's (see {@code
     * SetTableHeaderAliasHandler.findHeaderCell}'s own javadoc), so there is no proxy/guesswork
     * needed here the way an unresolved {@code findHeaderPath() == null} would have been.
+    *
+    * <p>The {@code cols} shelf is skipped entirely (bug #76882) -- {@code findHeaderCell}'s
+    * {@code "Cell [row,col]"} positional match only ever identifies a <em>row</em> dimension's own
+    * corner title cell (row dimensions stack horizontally across the header row, one grid column
+    * per row-dimension index, which is what that path's numeric position encodes). A column
+    * dimension has no analogous title cell of its own -- its header renders the dimension's bound
+    * *values*, each with a real tuple-derived path {@code findHeaderCell} never matches this way --
+    * so resolving a {@code cols} entry through this mechanism either finds nothing or, whenever the
+    * corner box happens to be small (e.g. one row dimension and one column dimension collapse the
+    * corner to a single cell), spuriously collides with an unrelated row dimension's own corner
+    * cell and leaks its label/visibility onto the wrong shelf entry.
     */
    private static void enrichCrosstabLabelsAndVisibility(RuntimeViewsheet rvs,
                                                          CrosstabVSAssembly crosstab,
@@ -1374,7 +1410,7 @@ public class TableBindingService {
          FormatInfo formatInfo = crosstab.getFormatInfo();
          CrosstabVSAssemblyInfo tableInfo = crosstab.getCrosstabInfo();
 
-         for(String shelf : List.of("rows", "cols", "aggregates")) {
+         for(String shelf : List.of("rows", "aggregates")) {
             List<FieldRef> fields = shelfFields.get(shelf);
 
             if(fields == null) {
