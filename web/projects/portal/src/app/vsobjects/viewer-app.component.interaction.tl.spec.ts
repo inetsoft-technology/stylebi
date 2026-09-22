@@ -169,6 +169,26 @@ describe("ViewerAppComponent — processSetPermissionsCommand()", () => {
 
       expect(HYPERLINK_SERVICE_MOCK.portalRepositoryPermission).toBe(false);
    });
+
+   // 🔁 Regression test for Bug #76914: permissions arrives as an unordered
+   // Set from the server, so "Profiling" can land at array index 0 (e.g. the
+   // only granted permission for a near-full-access admin). indexOf(...) > 0
+   // wrongly evaluated to false in that case; must be a presence check.
+   it("should set profilingVisible=true when 'Profiling' is the only/first permission", async () => {
+      const { comp } = await renderComponent();
+
+      comp.processSetPermissionsCommand({ permissions: ["Profiling"] });
+
+      expect(comp.profilingVisible).toBe(true);
+   });
+
+   it("should set profilingVisible=false when 'Profiling' is NOT in the permissions list", async () => {
+      const { comp } = await renderComponent();
+
+      comp.processSetPermissionsCommand({ permissions: ["Email"] });
+
+      expect(comp.profilingVisible).toBe(false);
+   });
 });
 
 // ---------------------------------------------------------------------------
