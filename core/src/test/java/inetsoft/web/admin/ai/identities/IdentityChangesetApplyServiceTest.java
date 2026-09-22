@@ -66,6 +66,8 @@ class IdentityChangesetApplyServiceTest {
    @Mock private AdminBackupService backupService;
    @Mock private Principal user;
    @Mock private OrganizationManager orgManager;
+   @Mock private EditableAuthenticationProvider editableAuthentication;
+   @Mock private AuthorizationProvider authorizationProvider;
    private IdentityChangePlanService planService;
    private IdentityChangesetApplyService service;
    private MockedStatic<OrganizationManager> orgManagerStatic;
@@ -74,9 +76,17 @@ class IdentityChangesetApplyServiceTest {
    private Audit auditMock;
 
    @BeforeEach void setUp() throws Exception {
-      planService = new IdentityChangePlanService(securityService);
+      planService = new IdentityChangePlanService(securityService, securityEngine);
       service = new IdentityChangesetApplyService(planService, securityService, identityService,
                                                   securityEngine, backupService);
+
+      // Identity mutations write through the editable authentication provider; without a
+      // writable one resolved here the service refuses to apply at all. Built before the stub
+      // because the constructor registers a listener on the mock, which Mockito rejects
+      // mid-stubbing.
+      SecurityProvider writable =
+         new TestSecurityProvider(editableAuthentication, authorizationProvider);
+      lenient().when(securityEngine.getSecurityProvider()).thenReturn(writable);
 
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
@@ -135,6 +145,35 @@ class IdentityChangesetApplyServiceTest {
       assertNull(result.rollbackFailures());
       verify(securityService).createUser(any(SecurityUser.class), eq("host-org"), eq(user));
       verify(backupService).backup(anyString());
+   }
+
+   /**
+    * The identity half of the same regression the permissions area has: when security falls back
+    * to the virtual provider there is no editable authentication provider to write through, so
+    * every change would fail its own verification and report a rolled-back blaming the changeset.
+    * It must fail fast naming the provider, and must not attempt the write or take a backup.
+    */
+   @Test void refusesToApplyWhenNoEditableAuthenticationProviderIsResolved() throws Exception {
+      IdentityID id = new IdentityID("bob", "host-org");
+      when(securityService.getUser(eq(id), eq(user)))
+         .thenThrow(new MissingResourceException("no such user"));
+      var req = applyRequest("create bob", createUser("bob"));
+      // Only now drop to the virtual provider, so the plan above still resolves normally.
+      // Deliberately a VirtualAuthenticationProvider, which is the shape SecurityEngine's
+      // fallback actually produces -- and, unlike its authorization counterpart, IS an
+      // EditableAuthenticationProvider, so an editability-only guard would wave it through.
+      // Mocked rather than constructed: the real constructor loads from the data space.
+      SecurityProvider virtual = new TestSecurityProvider(
+         mock(VirtualAuthenticationProvider.class), authorizationProvider);
+      when(securityEngine.getSecurityProvider()).thenReturn(virtual);
+
+      var ex = assertThrows(
+         inetsoft.web.admin.ai.SecurityProviderGuard.SecurityNotInitializedException.class,
+         () -> service.apply(req, user));
+
+      assertTrue(ex.getMessage().contains("identity changes cannot be applied"), ex.getMessage());
+      verify(securityService, never()).createUser(any(SecurityUser.class), anyString(), any());
+      verify(backupService, never()).backup(anyString());
    }
 
    @Test void appliesADeleteUserAndReportsAppliedWithNoAdvisoryWhenNoTaskImpact() throws Exception {
@@ -1356,5 +1395,18 @@ class IdentityChangesetApplyServiceTest {
 
    private static AdminChangeRecordStatus statusOf(String raw) {
       return "verified".equals(raw) ? AdminChangeRecordStatus.VERIFIED : AdminChangeRecordStatus.FAILED;
+   }
+
+   /**
+    * Stands in for {@code CompositeSecurityProvider}, whose factory needs the Spring context.
+    * {@code SUtil.getEditableAuthenticationProvider} keys off {@code AbstractSecurityProvider},
+    * so this resolves the same writer the service does.
+    */
+   private static final class TestSecurityProvider extends AbstractSecurityProvider {
+      TestSecurityProvider(AuthenticationProvider authentication,
+                           AuthorizationProvider authorization)
+      {
+         super(authentication, authorization);
+      }
    }
 }

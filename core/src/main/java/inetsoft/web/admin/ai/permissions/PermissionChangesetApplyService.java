@@ -73,6 +73,12 @@ public class PermissionChangesetApplyService {
       APPLY_LOCK.lock();
 
       try {
+         // Before anything else: a virtual-backed provider discards every setPermission silently
+         // and reads back a canned Permission, so each change below would "succeed", fail its own
+         // verification, and report a spurious rolled-back blaming the changeset. Fail here
+         // instead, naming the real condition.
+         SecurityProviderGuard.requireWritableAuthorization(securityEngine);
+
          ResolvedPlan plan = planService.resolve(req, user);
 
          if(req.getPlanHash() == null || !plan.planHash().equals(req.getPlanHash())) {

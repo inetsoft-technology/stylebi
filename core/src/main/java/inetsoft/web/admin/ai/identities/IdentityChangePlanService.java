@@ -21,9 +21,11 @@ import inetsoft.web.admin.security.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.util.audit.AdminChangeRecord;
 import inetsoft.web.admin.ai.PlanChange;
 import inetsoft.web.admin.ai.ResolvedPlan;
+import inetsoft.web.admin.ai.SecurityProviderGuard;
 import inetsoft.web.admin.ai.TaskAuditToken;
 import inetsoft.web.security.auth.MissingResourceException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,8 +51,11 @@ import java.util.*;
 @Component
 public class IdentityChangePlanService {
    @Autowired
-   public IdentityChangePlanService(SecurityService securityService) {
+   public IdentityChangePlanService(SecurityService securityService,
+                                    SecurityEngine securityEngine)
+   {
       this.securityService = securityService;
+      this.securityEngine = securityEngine;
    }
 
    /**
@@ -72,6 +77,11 @@ public class IdentityChangePlanService {
       if(req.getChanges() == null || req.getChanges().isEmpty()) {
          throw new IllegalArgumentException("changes: at least one change is required");
       }
+
+      // Matches PermissionChangePlanService: a plan resolved against a provider that cannot be
+      // written to is a plan (and a signed task token) the apply guard is bound to reject, so
+      // refuse here rather than hand back a green preview followed by a failing apply.
+      SecurityProviderGuard.requireEditableAuthentication(securityEngine);
 
       String currentOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       List<PlanChange> changes = new ArrayList<>();
@@ -765,4 +775,5 @@ public class IdentityChangePlanService {
    private static final char SEP = (char) 0x1f;
    private static final String NULL_MARKER = String.valueOf((char) 0x01);
    private final SecurityService securityService;
+   private final SecurityEngine securityEngine;
 }

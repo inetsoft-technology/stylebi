@@ -125,6 +125,31 @@ class PermissionChangesetApplyServiceTest {
          any(PermissionGrant.class), eq(user));
    }
 
+   /**
+    * The regression this area's original field report misread as a storage failure: a virtual-backed
+    * provider discards every {@code setPermission} silently and reads back a canned {@code
+    * Permission}, so the create below would "succeed", fail its own verification, and report a
+    * rolled-back blaming the changeset. It must fail fast naming the provider instead -- and must
+    * not attempt the write at all.
+    */
+   @Test void refusesToApplyAgainstAVirtualBackedProvider() throws Exception {
+      PermissionApplyRequest req = applyRequest("create a grant",
+         grantChange("bob", List.of("READ")));
+      // Only now swap in the uninitialized provider, so the plan above still resolves normally.
+      // Built before the stub: its constructor reads the mocked OrganizationManager, which
+      // Mockito rejects mid-stubbing.
+      VirtualAuthorizationProvider virtual = new VirtualAuthorizationProvider();
+      when(securityProvider.getAuthorizationProvider()).thenReturn(virtual);
+
+      var ex = assertThrows(
+         inetsoft.web.admin.ai.SecurityProviderGuard.SecurityNotInitializedException.class,
+         () -> service.apply(req, user));
+
+      assertTrue(ex.getMessage().contains("security is not initialized"), ex.getMessage());
+      verify(securityService, never()).createPermissionGrant(anyString(), anyString(),
+         any(PermissionGrant.class), any());
+   }
+
    @Test void appliesAnUpdateAndReportsApplied() throws Exception {
       PermissionGrant existing = new PermissionGrant();
       existing.setActions(List.of("READ"));
