@@ -147,13 +147,19 @@ public class TabVSAScriptable extends VSAScriptable {
    public void setBottomTabs(boolean bottomTabs) {
       TabVSAssemblyInfo info = getInfo();
       boolean isCurrentlyAtBottom = info.isBottomTabs();
+      // a bookmark/state restore (TabVSAssemblyInfo.restoreBottomTabs) may have set the
+      // rValue this script is about to re-assert, without repositioning -- catch that case
+      // even though isCurrentlyAtBottom already matches, so the tab bar doesn't stay stuck
+      // at its stale (pre-restore) pixel position (Bug #76923).
+      boolean positionNeedsSync = info.isPositionNeedsSync();
       info.setBottomTabs(bottomTabs);
 
-      if(box.isRuntime() && bottomTabs != isCurrentlyAtBottom) {
+      if(box.isRuntime() && (bottomTabs != isCurrentlyAtBottom || positionNeedsSync)) {
          Viewsheet vs = box.getViewsheet();
          TabVSAssemblyInfo.repositionForBottomTabs(info, vs, bottomTabs);
          // scaled space: makes the toggle visible immediately in layout previews
          TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(info, vs, bottomTabs);
+         info.clearPositionNeedsSync();
       }
    }
 

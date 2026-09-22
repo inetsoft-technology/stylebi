@@ -31,8 +31,12 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.*;
+import java.io.ByteArrayInputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -229,6 +233,48 @@ public class TabVSAScriptableTest {
       assertEquals(110, shortChild.getVSAssemblyInfo().getPixelOffset().y);
    }
 
+   @Test
+   void testSetBottomTabsAfterBookmarkRestoreRepositionsStalePosition() throws Exception {
+      // Bug #76923: a Tab whose own per-object Script re-asserts bottomTabs (e.g.
+      // Tab1.bottomTabs = RadioButton1.selectedObject) was saved to a named/shared bookmark
+      // with bottomTabs=true, then reopened. The boolean restored correctly but the tab bar's
+      // pixel position stayed stuck at the pre-restore (top) layout, because the script's
+      // setBottomTabs() guard treated the bookmark-restored value as "unchanged" and silently
+      // skipped repositioning.
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+
+      TextVSAssembly child = new TextVSAssembly();
+      child.getVSAssemblyInfo().setName("Text1");
+      child.getVSAssemblyInfo().setPixelOffset(new Point(0, 60));
+      child.getVSAssemblyInfo().setPixelSize(new Dimension(180, 100));
+      viewsheet.addAssembly(child);
+
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      // stale top-tabs position, as if freshly loaded before the bookmark is applied
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+
+      // Simulate the bookmark restore path: TabVSAssembly.parseStateContent() restores
+      // state_bottomTabs=true. This never repositions -- pixel positions aren't bookmark state.
+      String bookmarkStateXml = "<assembly class=\"inetsoft.uql.viewsheet.TabVSAssembly\">" +
+         "<name><![CDATA[Tab1]]></name>" +
+         "<state_bottomTabs>true</state_bottomTabs></assembly>";
+      tabVSAssembly.parseState(parseXml(bookmarkStateXml));
+
+      assertTrue(tabVSAssemblyInfo.isBottomTabs());
+      // position untouched by the bookmark restore -- still at the stale top-tabs y
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
+
+      // Tab1's own per-object Script re-runs later in the same refresh cycle and re-asserts
+      // the same value the bookmark just restored.
+      tabVSAScriptable.setBottomTabs(true);
+
+      // The tab bar must actually move below the child's bottom edge (60 + 100 = 160), not
+      // stay stuck at the stale y=30 from before the bookmark switch.
+      assertEquals(160, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+   }
+
    @ParameterizedTest
    @CsvSource({
       "labels, []",
@@ -236,5 +282,15 @@ public class TabVSAScriptableTest {
    })
    void testGetSuffix(String propertyName, String expectedValue) {
       assertEquals(expectedValue, tabVSAScriptable.getSuffix(propertyName));
+   }
+
+   private static Element parseXml(String xml) throws Exception {
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+      factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+      factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+      Document doc = factory.newDocumentBuilder()
+         .parse(new ByteArrayInputStream(xml.getBytes()));
+      return doc.getDocumentElement();
    }
 }

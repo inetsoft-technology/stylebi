@@ -193,6 +193,9 @@ public class TabPropertyDialogService {
          // scaled space: keep mobile/responsive layout preview flush too (Bug #76407)
          TabVSAssemblyInfo.repositionForBottomTabsInScaledSpace(tabAssemblyInfo, vs,
                                                    tabGeneralPaneModel.getBottomTabs());
+         // this clone becomes the live info below (setVSAssemblyInfo) -- clear any
+         // reposition still owed from an earlier bookmark restore, since it's now satisfied
+         tabAssemblyInfo.clearPositionNeedsSync();
 
          // sync position model only when the user didn't explicitly change the position;
          // if they did, let setContainerPosition translate the whole group to the new Y

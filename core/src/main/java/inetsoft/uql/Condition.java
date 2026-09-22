@@ -1400,14 +1400,21 @@ public class Condition extends AbstractCondition {
    }
 
    /**
-    * Get the weeks of a date from 1970-01-01 on.
+    * Get the weeks of a date from 1970-01-01 on, bucketed by the configured week start
+    * ({@link Tool#getFirstDayOfWeek()}).
     * @param date the specified date.
     * @return the week of the date.
     */
    private int getWeeks(Date date) {
-      int days = getDays(date);
+      Calendar cal = new GregorianCalendar();
+      cal.setTime(date);
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+      int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
+      // rewind to first day of week, honoring the configured week start rather than assuming
+      // Sunday, since Calendar.DAY_OF_WEEK is always Sunday-anchored
+      cal.add(Calendar.DATE, -((dayOfWeek - cal.getFirstDayOfWeek() + 7) % 7));
 
-      return (days + 4) / 7;
+      return getDays(cal.getTime()) / 7;
    }
 
    /**

@@ -137,6 +137,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.Principal;
+import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -369,6 +370,71 @@ class PermissionMatrixSpecialTest {
       });
    }
 
+   // ── Round-1 review follow-up for Bug #76920 PR #5508: checkAssetPermission0()'s bypass ──
+   // ── condition must treat BOTH org-ID-vs-default-org comparisons case-insensitively ──────
+
+   @Test
+   void hostOrgEntry_caseVariantEntryOrgId_stillTriggersBypassForNonHostOrgUser() throws Exception {
+      // 3rd conjunct: entry.getOrgID() vs default org. A host-org viewsheet whose orgID field
+      // carries non-canonical casing must still be recognized as the host org and shared
+      // read-only to a genuinely non-host-org user under exposeDefaultOrgToAll.
+      ThreadContext.setContextPrincipal(null);
+
+      AbstractAssetEngine engine = new StubAssetEngine();
+      AssetEntry caseVariantHostOrgViewsheet = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "bug76920EntryCaseVs", null,
+         HOST_ORG_ID.toUpperCase());
+
+      withMultiTenant(true, () -> {
+         SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+
+         try {
+            assertDoesNotThrow(
+               () -> engine.checkAssetPermission(
+                  createdOrgPlainUser, caseVariantHostOrgViewsheet, ResourceAction.READ, false),
+               "a host-org viewsheet whose entry.getOrgID() carries non-canonical casing must " +
+               "still be READ-able by a non-host-org user under exposeDefaultOrgToAll");
+         }
+         finally {
+            SreeEnv.remove("security.exposeDefaultOrgToAll");
+         }
+      });
+   }
+
+   @Test
+   void hostOrgUser_caseVariantUserOrgId_notTreatedAsNonHostOrg_bypassDoesNotOverrideDenial()
+      throws Exception
+   {
+      // 4th conjunct: user.getOrgId() vs default org. A host-org user whose own
+      // XPrincipal.getOrgId() carries non-canonical casing (e.g. from an SSO/LDAP claim) must NOT
+      // be misread as "non-host-org" -- if it were, the bypass would fire unconditionally and
+      // skip whatever the normal per-resource permission check would otherwise deny.
+      ThreadContext.setContextPrincipal(null);
+
+      AbstractAssetEngine engine = new DenyingStubAssetEngine();
+      AssetEntry hostOrgViewsheet = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "bug76920UserCaseVs", null,
+         HOST_ORG_ID);
+      SRPrincipal hostOrgUserCaseVariant =
+         builder.principalOf("hostOrgUserCaseVariant", HOST_ORG_ID.toUpperCase());
+
+      withMultiTenant(true, () -> {
+         SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+
+         try {
+            assertThrows(MessageException.class,
+               () -> engine.checkAssetPermission(
+                  hostOrgUserCaseVariant, hostOrgViewsheet, ResourceAction.READ, false),
+               "a host-org user whose own orgId carries non-canonical casing must be recognized " +
+               "as host-org (so the bypass does not fire) and fall through to the normal " +
+               "permission check, which denies here");
+         }
+         finally {
+            SreeEnv.remove("security.exposeDefaultOrgToAll");
+         }
+      });
+   }
+
    // ── Login As: checkLoginAs() permission gate ────────────────────────────────
 
    @Test
@@ -436,7 +502,7 @@ class PermissionMatrixSpecialTest {
     * paths (viewsheet -> allow, worksheet -> cross-org deny) return before touching any storage
     * or asset-model dependency, so no real engine initialization is required.
     */
-   private static final class StubAssetEngine extends AbstractAssetEngine {
+   private static class StubAssetEngine extends AbstractAssetEngine {
       StubAssetEngine() {
          super((LibManagerProvider) null, (Cluster) null);
       }
@@ -463,6 +529,24 @@ class PermissionMatrixSpecialTest {
 
       @Override
       protected boolean checkDataSourceFolderPermission(String folder, Principal user) {
+         return false;
+      }
+   }
+
+   /**
+    * Same as {@link StubAssetEngine}, but denies the general per-resource
+    * checkPermission(Principal, ResourceType, String, EnumSet) fallback that
+    * checkAssetPermission0() reaches once the host-org global-visibility bypass and the
+    * cross-org reject check both decline to short-circuit. AbstractAssetEngine's own
+    * implementation of that overload unconditionally returns true, which would mask a bypass
+    * that incorrectly fails to fire (see hostOrgUser_caseVariantUserOrgId_... above) --
+    * overriding it here makes that failure mode observable.
+    */
+   private static final class DenyingStubAssetEngine extends StubAssetEngine {
+      @Override
+      public boolean checkPermission(Principal principal, ResourceType type, String resource,
+                                      EnumSet<ResourceAction> action)
+      {
          return false;
       }
    }

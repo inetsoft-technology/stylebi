@@ -982,7 +982,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       private static String doOpenViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user, String id) throws Exception {
-         Principal oldPrincipal = ThreadContext.getPrincipal();
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
          ThreadContext.setContextPrincipal(user);
 
          try {

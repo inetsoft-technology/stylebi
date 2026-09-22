@@ -1146,6 +1146,13 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          data = query.getTableLens(vtable == null ? new VariableTable() : vtable);
 
          if(data == null) {
+            // the query may have been cancelled by query manager while getTableLens() was
+            // running, in which case it returns null instead of throwing. treat that the
+            // same as the early-cancellation check above instead of reporting a hard error.
+            if(qmgr != null && qmgr.lastCancelled() > created) {
+               return;
+            }
+
             if((box != null && box.getViewsheetSandbox() != null &&
                box.getViewsheetSandbox().isScheduleAction()) || (vtable != null &&
                Boolean.TRUE.equals(vtable.get("__is_scheduler__"))))

@@ -83,10 +83,9 @@ public class VSHorizontalThermometer extends VSThermometer {
          return;
       }
 
-      // ranges/colors may legitimately have different lengths (e.g. a script that
-      // updates one property without the other); render whatever prefix both agree on
-      // instead of refusing to render anything.
-      int rangeCount = Math.min(ranges.length, colors.length);
+      // ranges and rangeColors may legitimately differ in length (#76909); only
+      // render the segments that have both a boundary and a color.
+      int n = Math.min(ranges.length, colors.length);
 
       double min = info.getMin();
       double max = info.getMax();
@@ -94,14 +93,14 @@ public class VSHorizontalThermometer extends VSThermometer {
       int startx = (int) majorTickStartX;
       int starty = (int) rangeStartY;
 
-      for(int i = rangeCount - 1; i >= 0; i--) {
+      for(int i = n - 1; i >= 0; i--) {
          double range = ranges[i];
          range = range < min ? min : range;
          range = range > max ? max : range;
 
          // set the range color same with previous one when the color is null
          if(colors[i] == null) {
-            if(i < colors.length - 1 && colors[i + 1] != null) {
+            if(i < n - 1 && colors[i + 1] != null) {
                colors[i] = colors[i + 1];
             }
             else {
@@ -110,7 +109,7 @@ public class VSHorizontalThermometer extends VSThermometer {
          }
 
          Color c1 = colors[i];
-         Color c2 = (i < colors.length - 1) ? colors[i + 1] : c1.darker();
+         Color c2 = (i < n - 1) ? colors[i + 1] : c1.darker();
          double wrate = (range - (i > 0 ? ranges[i - 1] : min)) / (max - min);
          double xrate = (range - min) / (max - min);
          int width = (int) (wrate * rangeHeight);

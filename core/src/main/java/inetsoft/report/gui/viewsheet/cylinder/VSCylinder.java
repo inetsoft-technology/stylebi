@@ -721,10 +721,9 @@ public class VSCylinder extends VSImageable implements Cloneable {
          return;
       }
 
-      // ranges/colors may legitimately have different lengths (e.g. a script that
-      // updates one property without the other); render whatever prefix both agree on
-      // instead of refusing to render anything.
-      int rangeCount = Math.min(ranges.length, colors.length);
+      // ranges and rangeColors may legitimately differ in length (#76909); only
+      // render the segments that have both a boundary and a color.
+      int n = Math.min(ranges.length, colors.length);
 
       double min = info.getMin();
       double max = info.getMax();
@@ -732,12 +731,12 @@ public class VSCylinder extends VSImageable implements Cloneable {
       int startx = (int) rangeStartX;
       int starty = (int) majorTickEndY;
 
-      for(int i = rangeCount - 1; i >= 0; i--) {
+      for(int i = n - 1; i >= 0; i--) {
          double range = ranges[i];
          range = range < min ? min : range;
          range = range > max ? max : range;
          Color c1 = colors[i];
-         Color c2 = (i < colors.length - 1) ? colors[i + 1] : null;
+         Color c2 = (i < n - 1) ? colors[i + 1] : null;
 
          if(c2 == null && c1 != null) {
             c2 = c1.darker();
@@ -745,7 +744,7 @@ public class VSCylinder extends VSImageable implements Cloneable {
 
          // set the range color same with previous one when the color is null,
          if(c1 == null) {
-            if(i < ranges.length - 1 && c2 != null) {
+            if(i < n - 1 && c2 != null) {
                c1 = c2;
                colors[i] = c2;
             }

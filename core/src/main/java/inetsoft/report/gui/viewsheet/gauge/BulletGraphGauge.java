@@ -113,6 +113,7 @@ public class BulletGraphGauge extends VSGauge {
 
       if(ranges != null) {
          Color[] colors = info.getRangeColors();
+         // ranges and rangeColors may legitimately differ in length (#76909)
          int colorCount = colors == null ? 0 : colors.length;
 
          if(ranges.length > 0) {

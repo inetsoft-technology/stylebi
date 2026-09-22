@@ -2381,33 +2381,36 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             ThreadContext.setContextPrincipal(tmpPrincipal);
          }
 
-         executeVSScript(lastOnInit = onInit, null);
+         try {
+            executeVSScript(lastOnInit = onInit, null);
 
-         boolean scriptSelected = Arrays.stream(vs.getAssemblies())
-            .filter(a -> a instanceof AbstractSelectionVSAssembly)
-            .anyMatch(a -> ((AbstractSelectionVSAssembly) a).getScriptSelectedValues() != null);
+            boolean scriptSelected = Arrays.stream(vs.getAssemblies())
+               .filter(a -> a instanceof AbstractSelectionVSAssembly)
+               .anyMatch(a -> ((AbstractSelectionVSAssembly) a).getScriptSelectedValues() != null);
 
-         // if script set selection list states, we should run the associations so it behaves
-         // like as if a user has clicked on it. (45130)
-         if(scriptSelected) {
-            reset(new ChangedAssemblyList());
+            // if script set selection list states, we should run the associations so it behaves
+            // like as if a user has clicked on it. (45130)
+            if(scriptSelected) {
+               reset(new ChangedAssemblyList());
+            }
+
+            final ViewsheetScope scope = this.scope;
+
+            // save the initScope and use it on reset to avoid variables
+            // set in init scope being lost on reset
+            if(scope != null) {
+               ViewsheetScope initScope = (ViewsheetScope) scope.clone();
+               this.initScope = initScope;
+               // add the initScope to the env, so if the env has not be init'ed,
+               // it would be init'ed property with the parent scope set to
+               // the script engine
+               scope.getScriptEnv().put("__initViewsheetScope", initScope);
+            }
          }
-
-         final ViewsheetScope scope = this.scope;
-
-         // save the initScope and use it on reset to avoid variables
-         // set in init scope being lost on reset
-         if(scope != null) {
-            ViewsheetScope initScope = (ViewsheetScope) scope.clone();
-            this.initScope = initScope;
-            // add the initScope to the env, so if the env has not be init'ed,
-            // it would be init'ed property with the parent scope set to
-            // the script engine
-            scope.getScriptEnv().put("__initViewsheetScope", initScope);
-         }
-
-         if(!Tool.equals(ThreadContext.getContextPrincipal(),oPrincipal)) {
-            ThreadContext.setContextPrincipal(oPrincipal);
+         finally {
+            if(!Tool.equals(ThreadContext.getContextPrincipal(), oPrincipal)) {
+               ThreadContext.setContextPrincipal(oPrincipal);
+            }
          }
       }
    }

@@ -54,6 +54,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * (most-significant) characters, while its trailing (least-significant/decimal) characters
  * stayed inside the clip and were shown -- turning a truncated string into a shorter, still
  * plausible-looking, but numerically wrong value.
+ *
+ * This fix was originally landed via PR #5180 (a3deb1255) but merged into the
+ * "stylebi-wiz-main-rebase" integration branch instead of "main", so it never actually reached
+ * "main". It is reintroduced here alongside the sibling bug #76880 (H_CENTER) fix.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)

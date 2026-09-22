@@ -450,16 +450,15 @@ public class VSSlidingScale extends VSImageable implements Cloneable {
          return;
       }
 
-      // ranges/colors may legitimately have different lengths (e.g. a script that
-      // updates one property without the other); render whatever prefix both agree on
-      // instead of refusing to render anything.
-      int rangeCount = Math.min(ranges.length, colors.length);
+      // ranges and rangeColors may legitimately differ in length (#76909); only
+      // render the segments that have both a boundary and a color.
+      int n = Math.min(ranges.length, colors.length);
 
       double min = info.getMin();
       double max = info.getMax();
       double last = min;
 
-      for(int i = 0; i < rangeCount; i++) {
+      for(int i = 0; i < n; i++) {
          double range = ranges[i];
          range = range < min ? min : range;
          range = range > max ? max : range;
@@ -470,7 +469,7 @@ public class VSSlidingScale extends VSImageable implements Cloneable {
 
          if(colors[i] != null) {
             Color c1 = colors[i];
-            Color c2 = (i < colors.length - 1) ? colors[i + 1] : c1.darker();
+            Color c2 = (i < n - 1) ? colors[i + 1] : c1.darker();
             double wrate = (range - last) / (max - min);
             double xrate = (last - min) / (max - min);
             int width = (int) (wrate * lineWidth) + 2;

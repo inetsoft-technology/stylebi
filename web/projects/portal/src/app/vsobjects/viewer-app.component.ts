@@ -2491,7 +2491,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.updateTabPositions();
       this.hyperlinkService.portalRepositoryPermission =
          this.toolbarPermissions.indexOf("PortalRepository") < 0;
-      this.profilingVisible = !!command.permissions && command.permissions.indexOf("Profiling") > 0;
+      this.profilingVisible = !!command.permissions && command.permissions.indexOf("Profiling") > -1;
    }
 
    processSetExportTypesCommand(command: SetExportTypesCommand): void {

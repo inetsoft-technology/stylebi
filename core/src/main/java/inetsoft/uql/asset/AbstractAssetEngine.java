@@ -3600,8 +3600,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       //not become independently readable across orgs through this grant.
       if(Tool.equals(permission, ResourceAction.READ) && entry.isViewsheet() &&
                            SUtil.isDefaultVSGloballyVisible(user) &&
-                           Organization.getDefaultOrganizationID().equals(entry.getOrgID()) &&
-                           user != null && !((XPrincipal)user).getOrgId().equals(Organization.getDefaultOrganizationID())) {
+                           Organization.getDefaultOrganizationID().equalsIgnoreCase(entry.getOrgID()) &&
+                           user != null && !((XPrincipal)user).getOrgId().equalsIgnoreCase(Organization.getDefaultOrganizationID())) {
          return true;
       }
 

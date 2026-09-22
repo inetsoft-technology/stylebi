@@ -52,7 +52,8 @@ public class OrderModel implements Serializable {
       XNamedGroupInfo ong = info.getNamedGroupInfo();
       NamedGroupInfoModel ng = new NamedGroupInfoModel(ong);
       setInfo(ng);
-      manualOrder = new ArrayList<>();
+      manualOrder = info.getManualOrder() != null
+         ? new ArrayList<>(info.getManualOrder()) : new ArrayList<>();
    }
 
    /**
