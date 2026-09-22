@@ -26,12 +26,16 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Modernize and Revert: move a dashboard's own content between the classic and modern chrome a
- * freshly created dashboard would have. Both run through seedChromeDefaults, which is why they
- * cannot drift apart, and both live in this package because that method is protected.
+ * Four public entry points onto a dashboard's chrome: modernize, revert, applyMark and reseed.
+ * All four funnel into seedAll, which is what keeps them from drifting apart - each just picks
+ * the targets and the mark, and seedAll does the stamping, seeding and shared-frame invalidation.
+ * They live in this package because seedChromeDefaults is protected.
  *
- * Nothing here is automatic - unmarked content is never modernized and marked content is never
- * reverted unless somebody asks. A mixed dashboard stays mixed either way.
+ * Nothing here is automatic - none of it runs unless somebody asks. modernize and revert are the
+ * one-way pair and leave a mixed dashboard mixed: modernize touches only unmarked content, revert
+ * only marked. applyMark is the per-dashboard switch and deliberately does not - it moves every
+ * target that differs, so setting a mode or dark on a mixed dashboard stamps the deliberately
+ * legacy assemblies too, which is what a per-dashboard control means.
  */
 public final class VizModernizeUtil {
    private VizModernizeUtil() {
@@ -54,27 +58,9 @@ public final class VizModernizeUtil {
     */
    public static int modernize(Viewsheet vs) {
       VizMark mark = VizMark.fromGate();
-
-      if(mark == null) {
-         return 0;
-      }
-
-      VizContext ctx = VizContext.ofTransition(mark);
-      List<VSAssemblyInfo> targets = unmarked(vs);
-
-      for(VSAssemblyInfo info : targets) {
-         info.setVizMark(mark);
-         info.seedChromeDefaults(ctx);
-      }
-
-      if(!targets.isEmpty()) {
-         // seeding rewrote chart colour frames, and a render clones the sheet's shared frame in
-         // preference to an assembly's own, so the stale one has to go or the old palette survives
-         vs.clearSharedFrames();
-         vs.clearDimensionColors();
-      }
-
-      return targets.size();
+      // unmarked(), not applyMark()'s differing predicate: an already-marked sibling (e.g. dark)
+      // must survive a light-gated modernize untouched, which "differs from target mark" would not
+      return mark == null ? 0 : seedAll(vs, mark, unmarked(vs), true, true);
    }
 
    /**
@@ -100,20 +86,48 @@ public final class VizModernizeUtil {
     * changes appearance the moment the gate opens, and clearing a mark has no such hazard.
     */
    public static int revert(Viewsheet vs) {
-      List<VSAssemblyInfo> targets = marked(vs);
-      // every target is unmarked by the time it is seeded, so one context serves them all. A
-      // transition context, like modernize's: the seeds that may run only when the mark actually
-      // changes read that flag, and nothing else builds one
-      VizContext ctx = VizContext.ofTransition(null);
+      return applyMark(vs, null);
+   }
 
+   /**
+    * Move every target to one mark: stamp each info whose mark differs, then re-seed it through
+    * the hook creation uses. Returns how many were touched. The only route that can express a
+    * MODERN_LIGHT to MODERN_DARK flip, which neither of the one-way operations above can reach.
+    */
+   public static int applyMark(Viewsheet vs, VizMark mark) {
+      return seedAll(vs, mark, collect(vs, info -> info.getVizMark() != mark), true, true);
+   }
+
+   /**
+    * Re-seed every target under the mark it already holds, stamping nothing. For a density change,
+    * which moves no mark and so collects nothing through applyMark, but still has to re-fire the
+    * density-derived control-height substitution.
+    */
+   public static int reseed(Viewsheet vs) {
+      // mark is inert here: nothing is stamped, so every target keeps the one it has
+      return seedAll(vs, null, collect(vs, info -> true), false, false);
+   }
+
+   /**
+    * Seeds every target, optionally stamping it first. A transition context may be built only when
+    * a mark actually moves: it is what lets a seed replace the measure-to-colour ramp, a value an
+    * author can reach, so a density change must not claim it.
+    */
+   private static int seedAll(Viewsheet vs, VizMark mark, List<VSAssemblyInfo> targets,
+                              boolean stamp, boolean transition)
+   {
       for(VSAssemblyInfo info : targets) {
-         info.setVizMark(null);
-         info.seedChromeDefaults(ctx);
+         if(stamp) {
+            info.setVizMark(mark);
+         }
+
+         info.seedChromeDefaults(transition ?
+            VizContext.ofTransition(vs, info.getVizMark()) : VizContext.of(info));
       }
 
       if(!targets.isEmpty()) {
          // seeding rewrote chart colour frames, and a render clones the sheet's shared frame in
-         // preference to an assembly's own, so the stale one has to go or the modern palette survives
+         // preference to an assembly's own, so the stale one has to go
          vs.clearSharedFrames();
          vs.clearDimensionColors();
       }

@@ -125,15 +125,15 @@
 }
 
 // Modern density matrices (DOM surfaces only). Legacy :root defaults above stay unchanged, so
-// gate-off is byte-identical. The density class (viz-density-<mode>) is carried on body from the
-// server, while .viz-modern is carried per-assembly on the object wrapper below it in the DOM;
-// the ancestor-descendant selectors below match that split. Bare .viz-modern falls back to the
-// default mode (dense) when no density ancestor class is present. Enabling modern applies these
-// values, so DOM surfaces adopt the selected density — dense tightens padding/controls vs legacy
-// (the "dense == today" parity is a server-assembly property, not a DOM one).
+// gate-off is byte-identical. The density class (viz-density-<mode>) is carried per assembly on
+// the object wrapper next to .viz-modern, resolved server-side from that assembly's dashboard;
+// the compound selectors below match that pairing. The body class now reaches only .viz-shell
+// chrome, which sits outside any assembly wrapper. Bare .viz-modern falls back to the default
+// mode (dense) when no density class is present. Enabling modern applies these values, so DOM
+// surfaces adopt the selected density — dense tightens padding/controls vs legacy.
 .viz-modern,
 .viz-shell,
-.viz-density-dense .viz-modern {
+.viz-modern.viz-density-dense {
   --inet-viz-row-height: 20px;
   --inet-viz-chrome-row-height: 22px;
   --inet-viz-cell-padding-x: var(--inet-space-2); // 4px
@@ -143,10 +143,10 @@
   --inet-viz-font-size: 12px; // only tier that reduces type
 }
 
-// the body carries viz-shell and viz-density-<mode> on ONE element, so org-level surfaces need the
-// compound form; the descendant form below it is for the per-assembly wrapper
+// the body carries viz-shell and viz-density-<mode> on ONE element, for org chrome outside any
+// assembly wrapper; the compound form below it is for the per-assembly wrapper
 .viz-density-compact.viz-shell,
-.viz-density-compact .viz-modern {
+.viz-modern.viz-density-compact {
   --inet-viz-row-height: 24px;
   --inet-viz-chrome-row-height: 26px;
   --inet-viz-cell-padding-x: var(--inet-space-3); // 6px
@@ -157,7 +157,7 @@
 }
 
 .viz-density-comfortable.viz-shell,
-.viz-density-comfortable .viz-modern {
+.viz-modern.viz-density-comfortable {
   --inet-viz-row-height: 28px;
   --inet-viz-chrome-row-height: 30px;
   --inet-viz-cell-padding-x: var(--inet-space-4); // 8px
@@ -170,7 +170,7 @@
 // Dark scope (DOM surfaces only). Assembly wrappers carry viz-modern + viz-dark together; the
 // body carries viz-shell + viz-density-<mode> + viz-shell-dark instead. This block follows the
 // .viz-modern blocks so its selector wins on source order. Density stays driven by the
-// ancestor-descendant .viz-density-* matrices above; only color changes here.
+// .viz-density-* matrices above; only color changes here.
 .viz-dark,
 .viz-shell-dark {
   --inet-viz-hover-bg: var(--inet-viz-hover-bg-dark);

@@ -66,4 +66,5 @@ export interface VSObjectModel {
    drillTip?: string;
    vizModern: boolean;   // resolved server-side from the assembly's mark; not the org gate
    vizDark: boolean;     // never true unless vizModern is true
+   vizDensity: string;   // resolved server-side from the assembly's dashboard; dense/compact/comfortable
 }

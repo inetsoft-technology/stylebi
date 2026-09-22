@@ -56,6 +56,7 @@ export class ViewsheetOptionsPane implements OnInit, OnDestroy {
    @Input() form: UntypedFormGroup;
    @Input() defaultOrgAsset: boolean = false;
    @Input() runtimeId: string;
+   @Input() showVizControls: boolean = true;
    @ViewChild("viewsheetParametersDialog") viewsheetParametersDialog: TemplateRef<any>;
    @ViewChild("selectDataSourceDialog") selectDataSourceDialog: TemplateRef<any>;
    viewsheetParametersModel: ViewsheetParametersDialogModel;
@@ -114,6 +115,12 @@ export class ViewsheetOptionsPane implements OnInit, OnDestroy {
 
    clear() {
       this.model.selectDataSourceDialogModel.dataSource = null;
+   }
+
+   vizModernChanged(): void {
+      if(!this.model.vizModern) {
+         this.model.vizDark = false;
+      }
    }
 
    changeServerSideUpdate() {

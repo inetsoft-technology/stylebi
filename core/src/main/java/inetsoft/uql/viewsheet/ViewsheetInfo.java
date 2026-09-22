@@ -22,6 +22,7 @@ import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.internal.VSCustomizedAction;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
 import inetsoft.util.OrderedMap;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSConstants;
@@ -559,6 +560,18 @@ public class ViewsheetInfo implements AssetObject {
    }
 
    /**
+    * The dashboard's own density mode, or null to follow the org.
+    */
+   public String getVizDensity() {
+      return vizDensity;
+   }
+
+   public void setVizDensity(String vizDensity) {
+      // unrecognized rejects to null rather than clamping, so the dashboard keeps inheriting
+      this.vizDensity = VSDensityDefaults.isValidMode(vizDensity) ? vizDensity : null;
+   }
+
+   /**
     * Check whether to use template.
     */
    public boolean isTemplateEnabled() {
@@ -760,6 +773,13 @@ public class ViewsheetInfo implements AssetObject {
       writer.print(" scaleToScreen=\"" + scaleToScreen + "\"");
       writer.print(" fitToWidth=\"" + fitToWidth + "\"");
       writer.print(" snapGrid=\"" + snapGrid + "\"");
+
+      if(vizDensity != null) {
+         // omitted when unset, so an untouched sheet's file does not change; escaped as well as
+         // whitelisted, so a value that ever reaches here unvalidated cannot break the start tag
+         writer.print(" vizDensity=\"" + Tool.escape(vizDensity) + "\"");
+      }
+
       writer.print(" balancePadding=\"" + balancePadding + "\"");
 
       if(desc != null) {
@@ -829,6 +849,8 @@ public class ViewsheetInfo implements AssetObject {
       if((prop = Tool.getAttribute(elem, "snapGrid")) != null) {
          this.snapGrid = Integer.parseInt(prop);
       }
+
+      setVizDensity(Tool.getAttribute(elem, "vizDensity"));
 
       this.desc = Tool.decodeNL(Tool.getAttribute(elem, "description"));
 
@@ -1181,6 +1203,7 @@ public class ViewsheetInfo implements AssetObject {
    private String loadScript;
    private int maxrows = 0;
    private int snapGrid = 20;
+   private String vizDensity; // null = inherit the org
    private boolean template = false;
    private boolean scaleToScreen = false;
    private boolean fitToWidth = false;

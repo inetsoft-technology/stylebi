@@ -23,6 +23,9 @@
     [actions]="actions?.menuActions"
     [class.viz-modern]="model.vizModern"
     [class.viz-dark]="model.vizDark"
+    [class.viz-density-dense]="model.vizDensity === 'dense'"
+    [class.viz-density-compact]="model.vizDensity === 'compact'"
+    [class.viz-density-comfortable]="model.vizDensity === 'comfortable'"
     [class.object-margin]="!chartMaxMode"
     [style.min-width.px]="model.objectFormat.width"
     [style.min-height.px]="model.objectFormat.height" (mouseenter)="onMouseEnter($event)">

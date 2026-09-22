@@ -22,6 +22,9 @@
   [attr.runtime-id]="runtimeId"
   [class.viz-modern]="vsObject?.vizModern"
   [class.viz-dark]="vsObject?.vizDark"
+  [class.viz-density-dense]="vsObject?.vizDensity === 'dense'"
+  [class.viz-density-compact]="vsObject?.vizDensity === 'compact'"
+  [class.viz-density-comfortable]="vsObject?.vizDensity === 'comfortable'"
   (mouseenter)="onMouseEnter($event)"
   (resized)="onResize()">
   @if (vsObject && runtimeId && !timeoutError) {
@@ -53,6 +56,9 @@
       [actions]="vsObjectActions"
       [class.viz-modern]="vsObject.vizModern"
       [class.viz-dark]="vsObject.vizDark"
+      [class.viz-density-dense]="vsObject.vizDensity === 'dense'"
+      [class.viz-density-compact]="vsObject.vizDensity === 'compact'"
+      [class.viz-density-comfortable]="vsObject.vizDensity === 'comfortable'"
       [top]="getToolbarTop(vsObject)"
       [left]="getToolbarLeft(vsObject)"
       [width]="getToolbarWidth(vsObject)"

@@ -85,17 +85,6 @@ export class GuiTool {
       return element != null && element.closest(".viz-modern") != null;
    }
 
-   // Density reaches the browser as a viz-density-<mode> body class, set by the portal, composer
-   // and viewer shells. Bare .viz-modern (the per-assembly wrapper class, never this body class)
-   // falls back to dense, matching the _viz-tokens.scss fallback.
-   static vizDensityMode(): "dense" | "compact" | "comfortable" {
-      if(document.body.classList.contains("viz-density-comfortable")) {
-         return "comfortable";
-      }
-
-      return document.body.classList.contains("viz-density-compact") ? "compact" : "dense";
-   }
-
    // Must stay in sync with the base .mini-toolbar z-index in mini-toolbar.component.scss.
    // Used as a floor so the toolbar always outranks ordinary sibling assemblies, even when
    // its own assembly's server-assigned z-index is low.

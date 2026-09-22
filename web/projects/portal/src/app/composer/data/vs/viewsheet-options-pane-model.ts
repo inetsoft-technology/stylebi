@@ -37,4 +37,7 @@ export interface ViewsheetOptionsPaneModel {
    autoRefreshEnabled?: boolean;
    maxRowsWarning?: boolean;
    hideNotifications?: boolean;
+   vizModern: boolean;
+   vizDark: boolean;
+   vizDensity: string;
 }

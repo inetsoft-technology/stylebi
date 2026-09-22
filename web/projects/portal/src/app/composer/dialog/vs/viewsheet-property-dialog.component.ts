@@ -77,6 +77,7 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
    private orgInfo: CommonKVModel<string, string> = null;
    private orgInfoSubscription: Subscription;
    private testScriptSubscription: Subscription;
+   private loadedVizModern: boolean;
 
    constructor(private httpClient: HttpClient, private modalService: NgbModal,
                protected renderer: Renderer2, protected element: ElementRef,
@@ -98,6 +99,7 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
          viewsheetOptionsPaneForm: new UntypedFormGroup({}),
          screensPaneForm: new UntypedFormGroup({}),
       });
+      this.loadedVizModern = this.model.vsOptionsPane.vizModern;
    }
 
    cancelChanges(): void {
@@ -105,6 +107,18 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
    }
 
    saveChanges(): void {
+      if(this.loadedVizModern && !this.model.vsOptionsPane.vizModern) {
+         ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
+            "_#(js:composer.vs.revert.confirm)", {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
+            .then(option => {
+               if(option == "yes") {
+                  this.testScript(true);
+               }
+            });
+
+         return;
+      }
+
       this.testScript(true);
    }
 

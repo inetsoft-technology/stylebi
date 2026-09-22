@@ -270,8 +270,8 @@ export class PortalAppComponent implements OnInit, OnDestroy {
       body.classList.remove(...this.VIZ_DENSITY_CLASSES);
       const densityClass = `viz-density-${this.model.vizDensity}`;
 
-      // unconditional: a marked assembly renders modern in a gate-off org too, and without a
-      // density ancestor it would take the bare .viz-modern dense tier whatever the org chose
+      // unconditional, and it no longer reaches any assembly wrapper: assemblies carry their own
+      // density per sheet, and this class only feeds the .viz-density-*.viz-shell org chrome rules
       if(this.VIZ_DENSITY_CLASSES.includes(densityClass)) {
          body.classList.add(densityClass);
       }

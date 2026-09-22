@@ -69,6 +69,7 @@ class VSObjectModelVizContextTest {
    void reset() {
       SreeEnv.setProperty("viewsheet.modernVisualization", null);
       SreeEnv.setProperty("viewsheet.darkMode", null);
+      SreeEnv.setProperty("viewsheet.density", null);
    }
 
    @Test
@@ -149,6 +150,40 @@ class VSObjectModelVizContextTest {
       VSTableModel model = buildModel(null);
       assertFalse(model.isVizModern());
       assertFalse(model.isVizDark());
+   }
+
+   @Test
+   void theModelCarriesTheSheetsResolvedDensity() {
+      SreeEnv.setProperty("viewsheet.density", "dense");
+      Viewsheet vs = new Viewsheet();
+      vs.getViewsheetInfo().setVizDensity("comfortable");
+      TextVSAssembly text = new TextVSAssembly(vs, "Text1");
+      text.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      vs.addAssembly(text);
+
+      assertEquals("comfortable", VizContext.of(text.getVSAssemblyInfo()).density,
+                   "the model copies this straight onto vizDensity");
+   }
+
+   @Test
+   void twoSheetsResolveToDifferentDensitiesAtOnce() {
+      SreeEnv.setProperty("viewsheet.density", "dense");
+
+      Viewsheet tight = new Viewsheet();
+      tight.getViewsheetInfo().setVizDensity("dense");
+      TextVSAssembly a = new TextVSAssembly(tight, "Text1");
+      a.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      tight.addAssembly(a);
+
+      Viewsheet roomy = new Viewsheet();
+      roomy.getViewsheetInfo().setVizDensity("comfortable");
+      TextVSAssembly b = new TextVSAssembly(roomy, "Text1");
+      b.getVSAssemblyInfo().setVizMark(VizMark.MODERN_LIGHT);
+      roomy.addAssembly(b);
+
+      assertEquals("dense", VizContext.of(a.getVSAssemblyInfo()).density);
+      assertEquals("comfortable", VizContext.of(b.getVSAssemblyInfo()).density,
+                   "two composer tabs must not share one density");
    }
 
    /** Builds a real {@link VSTableModel} through its factory, following {@link VSTableModelTest}'s harness. */

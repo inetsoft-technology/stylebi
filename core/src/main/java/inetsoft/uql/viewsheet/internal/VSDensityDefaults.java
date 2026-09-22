@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.viewsheet.ViewsheetInfo;
 
 /**
  * Resolves the default row/header/control height for viewsheet assemblies from the org-scoped
@@ -71,11 +72,29 @@ public final class VSDensityDefaults {
    }
 
    /**
+    * The density mode for one dashboard: its own value when set, else the org's. Never null, and
+    * always one of the three valid modes.
+    */
+   public static String mode(ViewsheetInfo info) {
+      String density = info == null ? null : info.getVizDensity();
+      return normalizeMode(density == null || density.isEmpty() ? mode() : density);
+   }
+
+   /**
     * Clamp a density mode to a recognized value, falling back to dense. Single source of truth for
     * the valid modes, shared by the EM density control and the browser body-class whitelist.
     */
    public static String normalizeMode(String mode) {
-      return COMFORTABLE.equals(mode) || COMPACT.equals(mode) || DENSE.equals(mode) ? mode : DENSE;
+      return isValidMode(mode) ? mode : DENSE;
+   }
+
+   /**
+    * Whether this is one of the three recognized modes. For a writer that must reject an unknown
+    * value rather than clamp it - normalizeMode's fallback to dense would pin a dashboard to a
+    * tier nobody chose, where rejecting leaves it inheriting the org.
+    */
+   public static boolean isValidMode(String mode) {
+      return COMFORTABLE.equals(mode) || COMPACT.equals(mode) || DENSE.equals(mode);
    }
 
    /**
@@ -113,8 +132,9 @@ public final class VSDensityDefaults {
     * Default height for a modern form-input control (checkbox, combo box, spinner, text input),
     * or the legacy default when not modern. Unlike row/header height, dense does not equal
     * AssetUtil.defh here: a standalone control needs a bit more room than a data row even at the
-    * tightest density, matching the browser's --inet-viz-control-height token. Applied only at
-    * creation, to the type's own legacy default dimension - never to an author-resized control.
+    * tightest density, matching the browser's --inet-viz-control-height token. Applied at
+    * creation and re-applied on a density change, as long as the stored height is still the
+    * type's legacy default or a prior density tier - never to a control resized off those values.
     */
    public static int controlHeight(VizContext ctx) {
       return ctx.modern ? controlHeightForMode(ctx.density) : AssetUtil.defh;

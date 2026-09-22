@@ -102,6 +102,7 @@ public abstract class VSObjectModel<T extends VSAssembly> {
       VizContext vizContext = VizContext.of(assemblyInfo);
       vizModern = vizContext.modern;
       vizDark = vizContext.dark;
+      vizDensity = vizContext.density;
 
       boolean binding = rvs != null && rvs.isBinding();
       boolean wizard = rvs != null && rvs.getVSTemporaryInfo() != null;
@@ -569,6 +570,10 @@ public abstract class VSObjectModel<T extends VSAssembly> {
       return vizDark;
    }
 
+   public String getVizDensity() {
+      return vizDensity;
+   }
+
    private VSFormatModel objectFormat;
    private boolean enabled;
    private boolean visible;
@@ -606,4 +611,5 @@ public abstract class VSObjectModel<T extends VSAssembly> {
    // the raw mark would need the client to re-evaluate it and drift the moment that term goes.
    private boolean vizModern;
    private boolean vizDark;
+   private String vizDensity;
 }

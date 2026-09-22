@@ -64,6 +64,40 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class ViewsheetPropertyDialogService {
 
+   /**
+    * The sheet's own mark is the dashboard's mode: stamped from the org gate at creation and
+    * inherited by every assembly created since.
+    */
+   static boolean isVizModern(Viewsheet vs) {
+      return vs.getVSAssemblyInfo().getVizMark() != null;
+   }
+
+   static boolean isVizDark(Viewsheet vs) {
+      return vs.getVSAssemblyInfo().getVizMark() == VizMark.MODERN_DARK;
+   }
+
+   /** Dark is a modifier of modern, so it cannot be set on its own. */
+   static VizMark targetMark(boolean modern, boolean dark) {
+      if(!modern) {
+         return null;
+      }
+
+      return dark ? VizMark.MODERN_DARK : VizMark.MODERN_LIGHT;
+   }
+
+   /**
+    * Normalizes the model's empty-string "inherit" sentinel to null before comparing, so an
+    * inherited density round-tripping through the dialog is never mistaken for a change.
+    */
+   static String normalizeVizDensity(String density) {
+      // whitelisted, not just emptied: the value is deserialized straight from the client payload
+      return VSDensityDefaults.isValidMode(density) ? density : null;
+   }
+
+   static boolean vizDensityChanged(String oldDensity, String newDensity) {
+      return !Tool.equals(oldDensity, normalizeVizDensity(newDensity));
+   }
+
    public ViewsheetPropertyDialogService(CoreLifecycleService coreLifecycleService,
                                          ViewsheetService viewsheetService,
                                          VSLayoutService layoutService,
@@ -108,6 +142,10 @@ public class ViewsheetPropertyDialogService {
       vsOptionsPaneModel.setTouchInterval(info.getTouchInterval());
       vsOptionsPaneModel.setMaxRows(info.getDesignMaxRows());
       vsOptionsPaneModel.setSnapGrid(info.getSnapGrid());
+      vsOptionsPaneModel.setVizModern(isVizModern(viewsheet));
+      vsOptionsPaneModel.setVizDark(isVizDark(viewsheet));
+      vsOptionsPaneModel.setVizDensity(
+         info.getVizDensity() == null ? "" : info.getVizDensity());
       vsOptionsPaneModel.setListOnPortalTree(info.isOnReport());
       vsOptionsPaneModel.setAlias(viewsheet.getRuntimeEntry() == null ? null:
                                      viewsheet.getRuntimeEntry().getAlias());
@@ -289,6 +327,23 @@ public class ViewsheetPropertyDialogService {
       info.setDesignMaxRows(vsOptionsPaneModel.getMaxRows());
       info.setSnapGrid(vsOptionsPaneModel.getSnapGrid());
       info.setOnReport(vsOptionsPaneModel.isListOnPortalTree());
+
+      VizMark targetMark =
+         targetMark(vsOptionsPaneModel.isVizModern(), vsOptionsPaneModel.isVizDark());
+      boolean densityChanged =
+         vizDensityChanged(info.getVizDensity(), vsOptionsPaneModel.getVizDensity());
+
+      info.setVizDensity(normalizeVizDensity(vsOptionsPaneModel.getVizDensity()));
+
+      if(targetMark != viewsheet.getVSAssemblyInfo().getVizMark()) {
+         VizModernizeUtil.applyMark(viewsheet, targetMark);
+      }
+
+      // not an else: applyMark skips a target already carrying the target mark, so when both move
+      // at once that target would keep the old density tier
+      if(densityChanged) {
+         VizModernizeUtil.reseed(viewsheet);
+      }
 
       if(viewsheet.getRuntimeEntry() != null) {
          AssetEntry runtimeEntry = viewsheet.getRuntimeEntry();

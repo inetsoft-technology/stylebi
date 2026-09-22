@@ -243,7 +243,8 @@ export namespace TestUtils {
          hasDynamic: false,
          popLocation: null,
          vizModern: false,
-         vizDark: false
+         vizDark: false,
+         vizDensity: "dense"
       };
    }
 

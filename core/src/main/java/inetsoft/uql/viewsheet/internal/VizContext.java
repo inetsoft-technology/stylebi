@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.uql.viewsheet.Viewsheet;
+
 /**
  * The resolved modern-visualization state a value resolver should answer against. Immutable, and
  * built in one of four ways so that the SreeEnv reads live here rather than in every resolver.
@@ -59,7 +61,9 @@ public final class VizContext {
     * The context an assembly's own provenance implies. Null, or an unmarked assembly, reads legacy.
     */
    public static VizContext of(VSAssemblyInfo info) {
-      return of(info == null ? null : info.getVizMark());
+      VizMark mark = info == null ? null : info.getVizMark();
+      boolean modern = mark != null;
+      return new VizContext(modern, modern && mark == VizMark.MODERN_DARK, densityOf(info));
    }
 
    /**
@@ -81,14 +85,35 @@ public final class VizContext {
    }
 
    /**
+    * The density in force for an assembly: its dashboard's own value, or the org's. Walks to the
+    * outermost sheet, so an embedded asset's content takes the page's density rather than its own -
+    * deliberately unlike the mark, which VizModernizeUtil.collect() leaves to the embedded asset.
+    */
+   private static String densityOf(VSAssemblyInfo info) {
+      // getViewsheet() is the PARENT, so a sheet's own info resolves the org's density rather than
+      // that sheet's. Harmless while ViewsheetVSAssemblyInfo.seedChromeDefaults reads only
+      // ctx.modern, and every real density reader is on an assembly info that has its sheet set -
+      // but anything density-derived seeded onto the sheet's own info needs ofTransition instead.
+      Viewsheet vs = info == null ? null : info.getViewsheet();
+
+      for(Viewsheet parent; vs != null && (parent = vs.getViewsheet()) != null; vs = parent) {
+      }
+
+      return vs == null ? VSDensityDefaults.mode() : VSDensityDefaults.mode(vs.getViewsheetInfo());
+   }
+
+   /**
     * The context a Modernize or Revert runs under: what of(mark) gives, additionally flagged as a
     * mark transition. A seed that replaces a value an author can reach - the measure-to-colour
     * ramp - may run only here, because every other route into seedChromeDefaults (creation, and
     * reseedAfterRestore on every state and bookmark restore) would replace a deliberate choice.
+    * The sheet is a parameter because seeding writes control heights, which are density-derived.
     */
-   public static VizContext ofTransition(VizMark mark) {
-      VizContext ctx = of(mark);
-      return new VizContext(ctx.modern, ctx.dark, ctx.density, true);
+   public static VizContext ofTransition(Viewsheet vs, VizMark mark) {
+      boolean modern = mark != null;
+      String density = vs == null ?
+         VSDensityDefaults.mode() : VSDensityDefaults.mode(vs.getViewsheetInfo());
+      return new VizContext(modern, modern && mark == VizMark.MODERN_DARK, density, true);
    }
 
    /** Whether modern chrome applies. */

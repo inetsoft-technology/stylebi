@@ -197,8 +197,8 @@ describe("TooltipDirective dark resolution", () => {
 
    // Deliberately NOT a shell fallback. viz-shell-dark redefines only the --inet-viz-* state tokens
    // and paints no surface, so the shell's own surfaces -- repository and asset trees, query panes,
-   // the worksheet detail pane, combo-box lists -- stay light in a dark org. A tooltip over one of
-   // them must stay light too, or the mismatch just moves somewhere else.
+   // the worksheet detail pane -- stay light in a dark org. A tooltip over one of them must stay
+   // light too, or the mismatch just moves somewhere else.
    it("stays light outside any assembly, even when the shell is dark", () => {
       document.body.classList.add("viz-shell-dark");
       fixture.componentInstance.modern = false;

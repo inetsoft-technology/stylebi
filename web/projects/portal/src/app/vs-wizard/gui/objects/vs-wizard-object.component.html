@@ -30,6 +30,9 @@ has z-index 1000 and up. -->
   [id]="vsObject.absoluteName"
   [class.viz-modern]="vsObject.vizModern"
   [class.viz-dark]="vsObject.vizDark"
+  [class.viz-density-dense]="vsObject.vizDensity === 'dense'"
+  [class.viz-density-compact]="vsObject.vizDensity === 'compact'"
+  [class.viz-density-comfortable]="vsObject.vizDensity === 'comfortable'"
   [class.follow-object]="willFollow"
   [style.left.px]="vsObject.objectFormat.left"
   [style.top.px]="vsObject.objectFormat.top"
@@ -133,6 +136,9 @@ has z-index 1000 and up. -->
     [vizModern]="vsObject.vizModern"
     [class.viz-modern]="vsObject.vizModern"
     [class.viz-dark]="vsObject.vizDark"
+    [class.viz-density-dense]="vsObject.vizDensity === 'dense'"
+    [class.viz-density-compact]="vsObject.vizDensity === 'compact'"
+    [class.viz-density-comfortable]="vsObject.vizDensity === 'comfortable'"
     [top]="vsObject.objectFormat.top" [left]="vsObject.objectFormat.left"
     [width]="vsObject.objectFormat.width">
   </mini-toolbar>

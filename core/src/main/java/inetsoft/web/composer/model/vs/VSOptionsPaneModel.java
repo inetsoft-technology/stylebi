@@ -61,6 +61,33 @@ public class VSOptionsPaneModel implements Serializable {
       this.snapGrid = snapGrid;
    }
 
+   public boolean isVizModern() {
+      return vizModern;
+   }
+
+   public void setVizModern(boolean vizModern) {
+      this.vizModern = vizModern;
+   }
+
+   public boolean isVizDark() {
+      return vizDark;
+   }
+
+   public void setVizDark(boolean vizDark) {
+      this.vizDark = vizDark;
+   }
+
+   /**
+    * The dashboard's own density, or empty to follow the org.
+    */
+   public String getVizDensity() {
+      return vizDensity;
+   }
+
+   public void setVizDensity(String vizDensity) {
+      this.vizDensity = vizDensity;
+   }
+
    public String getAlias() {
       return alias;
    }
@@ -188,6 +215,9 @@ public class VSOptionsPaneModel implements Serializable {
    private int touchInterval;
    private int maxRows;
    private int snapGrid = 20;
+   private boolean vizModern;
+   private boolean vizDark;
+   private String vizDensity = "";
    private boolean autoRefreshEnabled;
    private boolean maxRowsWarning;
    private boolean hideNotifications;
