@@ -36,6 +36,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +72,26 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       final long startTime = System.nanoTime();
       final ViewsheetSandbox box = this.box;
 
-      box.lockWrite();
+      // If this call is nested inside a running GraalJS script (e.g. a script referencing
+      // this calc table, such as table["TableView1"], reached this query while resolving
+      // that reference), the calling thread already holds the GraalJS engine's per-Context
+      // lock and whatever sandbox lock the script's caller took before starting the script
+      // -- per the same rationale already applied in ViewsheetSandbox.doExecuteData() and
+      // getData() ("if called from script, the locking should already be in place"; 52463).
+      // Taking a *fresh* write lock here is not just redundant in that case, it is actively
+      // dangerous: VSAQuery.getDataWithoutSandboxLock(), called a few frames down, transiently
+      // drops this write lock around the (possibly slow) data fetch and then restores it with
+      // a blocking lockWrite(). That reacquire can race a second, non-script thread that grabs
+      // the freed write lock and then blocks trying to enter the same GraalJS engine lock this
+      // thread already holds (e.g. FormatPainterService.getFormat() -> CalcTableLens.evaluate()
+      // -> GraalJavaScriptEnv.put()) -- an ABBA deadlock between the sandbox write lock and the
+      // GraalJS engine lock. See #76905 (confirmed via live thread dump) and the identical
+      // isScriptThread()-gated pattern in ConcatenatedQuery/JoinQuery for the same engine lock.
+      boolean inExec = JavaScriptEngine.isScriptThread();
+
+      if(!inExec) {
+         box.lockWrite();
+      }
 
       try {
          Viewsheet vs = getViewsheet();
@@ -301,7 +321,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          return null;
       }
       finally {
-         box.unlockWrite();
+         if(!inExec) {
+            box.unlockWrite();
+         }
       }
    }
 
