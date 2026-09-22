@@ -222,8 +222,6 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                    this condition in the list (may be {@code null} for the first item)
     * @param choiceQuery browse-query marker ({@code "table]:[column"}) for a {@code $(name)}
     *                    variable value's picker, if set; {@code null}/omitted otherwise
-    * @param groupOthers whether rows beyond the cutoff are grouped into a synthetic "Others"
-    *                    row rather than dropped; ranking-only, {@code null}/omitted elsewhere
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record FilterModel(
@@ -231,8 +229,7 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       String operation,
       List<String> values,
       String junction,
-      String choiceQuery,
-      Boolean groupOthers
+      String choiceQuery
    ) {}
 
    /**
