@@ -461,7 +461,19 @@ public class AssemblyPropertyService {
 
       double[] parsed = new double[lastPopulated + 1];
 
+      // A populated element that is itself an unresolved "$(...)"/"=..." dynamic reference
+      // (bug #76886) is exempted from the numeric/monotonic/min checks below, same as
+      // columnValue/rowValue's own VSUtil.isDynamicValue guards above -- it resolves at render
+      // time, never here. It still counts as "populated" for the gap check above and still
+      // needs a matching rangeColorValues entry below; only the numeric comparisons skip it.
+      boolean[] dynamic = new boolean[lastPopulated + 1];
+
       for(int i = 0; i <= lastPopulated; i++) {
+         if(VSUtil.isDynamicValue(rangeValues[i])) {
+            dynamic[i] = true;
+            continue;
+         }
+
          try {
             parsed[i] = Double.parseDouble(rangeValues[i]);
          }
@@ -470,7 +482,7 @@ public class AssemblyPropertyService {
                "rangeValues[" + i + "] ('" + rangeValues[i] + "') is not a number.");
          }
 
-         if(i > 0 && parsed[i] < parsed[i - 1]) {
+         if(i > 0 && !dynamic[i - 1] && parsed[i] < parsed[i - 1]) {
             throw new IllegalArgumentException(
                "rangeValues[" + i + "] (" + rangeValues[i] + ") must be >= rangeValues[" +
                (i - 1) + "] (" + rangeValues[i - 1] + ") -- boundaries must be non-decreasing.");
@@ -481,7 +493,7 @@ public class AssemblyPropertyService {
 
       if(min != null) {
          for(int i = 0; i <= lastPopulated; i++) {
-            if(parsed[i] <= min) {
+            if(!dynamic[i] && parsed[i] <= min) {
                throw new IllegalArgumentException(
                   "rangeValues[" + i + "] (" + rangeValues[i] + ") must be greater than the " +
                   "gauge's min (" + min + ").");
