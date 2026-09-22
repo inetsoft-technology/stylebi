@@ -568,7 +568,7 @@ class WorksheetEditServiceTest {
       svc.apply("TOK", agent,
                 ed -> ed.addNamedGroup("StateRegion", null, null, "string", List.of(), false));
       svc.apply("TOK", agent,
-                ed -> ed.editNamedGroup("StateRegion",
+                ed -> ed.editNamedGroup("StateRegion", null,
                                         List.of(new WorksheetMutationSupport.GroupMapping(
                                            "West", List.of("CA"))),
                                         false));
@@ -627,7 +627,7 @@ class WorksheetEditServiceTest {
                    List.of(new WorksheetMutationSupport.GroupSpec("state", null, "G")),
                    List.of()));
       svc.apply("TOK", agent,
-                ed -> ed.editNamedGroup("G",
+                ed -> ed.editNamedGroup("G", null,
                                         List.of(new WorksheetMutationSupport.GroupMapping(
                                            "East", List.of("NY"))),
                                         false));
@@ -683,7 +683,7 @@ class WorksheetEditServiceTest {
       svc.apply("TOK", agent,
                 ed -> ed.addJoin("JOINED", "T2", "state", "T3", "state", "INNER", null, null));
       svc.apply("TOK", agent,
-                ed -> ed.editNamedGroup("G",
+                ed -> ed.editNamedGroup("G", null,
                                         List.of(new WorksheetMutationSupport.GroupMapping(
                                            "East", List.of("NY"))),
                                         false));
@@ -740,7 +740,7 @@ class WorksheetEditServiceTest {
       svc.apply("TOK", agent,
                 ed -> ed.addJoin("J2", "J1", "k2", "T7", "k2", "INNER", null, null));
       svc.apply("TOK", agent,
-                ed -> ed.editNamedGroup("G",
+                ed -> ed.editNamedGroup("G", null,
                                         List.of(new WorksheetMutationSupport.GroupMapping(
                                            "East", List.of("NY"))),
                                         false));

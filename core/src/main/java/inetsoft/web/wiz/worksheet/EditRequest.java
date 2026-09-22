@@ -130,7 +130,18 @@ import java.util.Map;
  *   <li>{@code rename_variable} — {@code name}, {@code newName}</li>
  *   <li>{@code delete_variable} — {@code name}</li>
  *   <li>{@code edit_named_group} — {@code name}, {@code groupMappings} (see {@code add_named_group}
- *       for the {@code operation} field), {@code groupOthers}</li>
+ *       for the {@code operation} field), {@code groupOthers}; optionally retargets the group's
+ *       attachment in place (no delete/recreate) via {@code type} (standalone, mirroring
+ *       {@code add_named_group}'s standalone mode) or {@code datasource} + {@code sourceTable} +
+ *       {@code attribute} (+ optional {@code logicalModel}, or {@code schema}/{@code catalog} for
+ *       a physical table), mutually exclusive with each other and with {@code table}/
+ *       {@code column} (not supported here, same as {@code add_named_group}); refused if a
+ *       worksheet aggregate's existing {@code namedGroup} reference would silently stop
+ *       resolving against the new attachment</li>
+ *   <li>{@code delete_named_group} — {@code name}; refused if a worksheet aggregate
+ *       (set_group_aggregate's {@code groups[].namedGroup}) still references it — does NOT check
+ *       viewsheet-side chart/crosstab/table/calc-table bindings, same blind spot the native
+ *       Composer UI's own generic delete has</li>
  *   <li>{@code edit_sql_query} — {@code table}, {@code expression} (new SQL string)</li>
  *   <li>{@code update_mirror} — {@code table}</li>
  *   <li>{@code set_table_mode} — {@code table}, {@code mode} ({@code "live"}, {@code "default"}, {@code "full"}, {@code "detail"}, {@code "edit"})</li>

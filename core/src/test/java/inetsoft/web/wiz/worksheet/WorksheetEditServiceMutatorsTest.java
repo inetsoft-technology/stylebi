@@ -5141,6 +5141,139 @@ class WorksheetEditServiceMutatorsTest {
       assertNull(ws.getAssembly("A"));
    }
 
+   // ---------------------------------------------------------------------------
+   // deleteNamedGroup / editNamedGroup retarget (Redmine #76902 WBS-074)
+   // ---------------------------------------------------------------------------
+
+   /**
+    * Mirrors {@code deleteTableRefusesWhenSomethingIsBuiltOnIt}: a named group still referenced
+    * by a worksheet aggregate (set_group_aggregate's {@code namedGroup}) must be refused, not
+    * silently deleted out from under that aggregate.
+    */
+   @Test
+   void deleteNamedGroupRefusesWhenAggregateStillGroupsByIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Northeast", List.of("NY", "NJ")));
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("NortheastGroup", "T", "state", null, mappings, true));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("state", null, "NortheastGroup")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteNamedGroup("NortheastGroup")));
+
+      assertTrue(ex.getMessage().contains("NortheastGroup"), ex.getMessage());
+      assertNotNull(ws.getAssembly("NortheastGroup"), "the named group must still be there");
+      GroupRef gr = t.getAggregateInfo().getGroups()[0];
+      assertNotNull(gr.getNamedGroupInfo(), "the reference must still resolve -- nothing mutated");
+   }
+
+   /** A named group nothing depends on still deletes — the guard must not block ordinary deletion. */
+   @Test
+   void deleteNamedGroupDeletesWhenNothingReferencesIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("StandaloneGroup", null, null, "string", List.of(), false));
+      svc.apply("TOK", agent, ed -> ed.deleteNamedGroup("StandaloneGroup"));
+
+      assertNull(ws.getAssembly("StandaloneGroup"));
+   }
+
+   @Test
+   void deleteNamedGroupRejectsUnknownName() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.deleteNamedGroup("NoSuchGroup")));
+      assertTrue(ex.getMessage().contains("NoSuchGroup"), ex.getMessage());
+   }
+
+   /**
+    * {@code editNamedGroup}'s standalone/{@code DATA_TYPE_ATTACHED} retarget path (the {@code type}
+    * argument): refuses loud, before mutating anything, when an existing worksheet-side reference
+    * would silently stop resolving against the new type -- the same guard
+    * {@code editNamedGroupDatasourceRetargetRefusesWhenExistingReferenceWouldMismatch}
+    * (WorksheetAgentControllerTest) exercises for the datasource-scoped/{@code COLUMN_ATTACHED}
+    * form.
+    */
+   @Test
+   void editNamedGroupTypeRetargetRefusesWhenExistingReferenceWouldMismatch() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Standalone, STRING-typed group (table/column both null -- see addNamedGroup's own
+      // standalone mode), matched against "state" (also STRING) via set_group_aggregate.
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Big", List.of("NY")));
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("BigNames", null, null, XSchema.STRING, mappings, true));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T",
+            List.of(new WorksheetMutationSupport.GroupSpec("state", null, "BigNames")),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      NamedGroupAssembly ngaBefore = (NamedGroupAssembly) ws.getAssembly("BigNames");
+      assertEquals(AttachedAssembly.DATA_TYPE_ATTACHED, ngaBefore.getAttachedType());
+
+      // Retargeting to INTEGER is incompatible with "state"'s STRING type -- would silently
+      // null out the existing GroupRef's groupInfo without the pre-check.
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed ->
+            ed.editNamedGroup("BigNames", XSchema.INTEGER,
+               List.of(new WorksheetMutationSupport.GroupMapping("Big2", List.of("100"))),
+               true)));
+
+      assertTrue(ex.getMessage().contains("BigNames"), ex.getMessage());
+      assertEquals(XSchema.STRING, ngaBefore.getAttachedDataType(),
+         "the type must be untouched when the retarget is refused");
+      GroupRef gr = t.getAggregateInfo().getGroups()[0];
+      assertNotNull(gr.getNamedGroupInfo(), "the reference must still resolve -- nothing mutated");
+      assertNotNull(ngaBefore.getNamedGroupInfo().getGroupCondition("Big"),
+         "the original mapping must be untouched, not replaced by the rejected call's mappings");
+   }
+
+   /**
+    * Companion to the mismatch-refusal test above: when nothing references the group yet, a type
+    * retarget goes through normally.
+    */
+   @Test
+   void editNamedGroupTypeRetargetSucceedsWhenNoConflictingReference() throws Exception {
+      Worksheet ws = new Worksheet();
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      List<WorksheetMutationSupport.GroupMapping> mappings = List.of(
+         new WorksheetMutationSupport.GroupMapping("Big", List.of("NY")));
+      svc.apply("TOK", agent, ed ->
+         ed.addNamedGroup("BigNames", null, null, XSchema.STRING, mappings, true));
+
+      svc.apply("TOK", agent, ed ->
+         ed.editNamedGroup("BigNames", XSchema.INTEGER,
+            List.of(new WorksheetMutationSupport.GroupMapping("Big2", List.of("100"))), true));
+
+      NamedGroupAssembly nga = (NamedGroupAssembly) ws.getAssembly("BigNames");
+      assertEquals(XSchema.INTEGER, nga.getAttachedDataType());
+      assertNotNull(nga.getNamedGroupInfo().getGroupCondition("Big2"));
+      assertNull(nga.getNamedGroupInfo().getGroupCondition("Big"),
+         "the retarget call's mappings fully replace the old ones");
+   }
+
    /**
     * AssemblyInfo:254 writes the name into a CDATA section verbatim, so a name containing the
     * terminator closes it early and leaves malformed XML in storage. The Composer's Angular

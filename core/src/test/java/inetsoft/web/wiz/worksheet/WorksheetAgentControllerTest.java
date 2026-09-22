@@ -39,6 +39,7 @@ import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.XNode;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
@@ -7194,6 +7195,244 @@ class WorksheetAgentControllerTest {
       assertTrue(ex.getMessage().contains("]]>"), ex.getMessage());
       verifyNoInteractions(dataSourceService);
       verifyNoInteractions(editSvc);
+   }
+
+   // ---------------------------------------------------------------------------
+   // edit_named_group — datasource-scoped retarget (Redmine #76902 WBS-074)
+   // ---------------------------------------------------------------------------
+
+   /** Same shape as {@link #namedGroupDatasourceRequest}, but for {@code edit_named_group}. */
+   private static EditRequest editNamedGroupDatasourceRequest(
+      String name, String datasource, String logicalModel, String schema, String catalog,
+      String sourceTable, String attribute,
+      List<WorksheetMutationSupport.GroupMapping> groupMappings, Boolean groupOthers)
+   {
+      return new EditRequest(
+         "edit_named_group",  // op
+         null,                 // table
+         null,                 // column
+         name,                 // name
+         null,                 // type
+         null,                 // newName
+         null,                 // field
+         null,                 // operation
+         null,                 // values
+         null,                 // direction
+         null,                 // groups
+         null,                 // aggregates
+         null,                 // expression
+         false,                // sql
+         null,                 // leftTable
+         null,                 // leftKey
+         null,                 // rightTable
+         null,                 // rightKey
+         null,                 // joinType
+         null,                 // visible
+         null,                 // tables
+         null,                 // source
+         null,                 // concatType
+         null,                 // conditions
+         null,                 // ranking
+         null,                 // headerColumns
+         null,                 // dateOption
+         null,                 // boundaries
+         datasource,           // datasource
+         schema,               // schema
+         catalog,              // catalog
+         logicalModel,         // logicalModel
+         null,                 // leftKeys
+         null,                 // rightKeys
+         null,                 // row
+         null,                 // col
+         null,                 // value
+         null,                 // index
+         null,                 // alias
+         null,                 // description
+         null,                 // maxRows
+         null,                 // distinct
+         null,                 // columnOrder
+         groupMappings,        // groupMappings
+         groupOthers,          // groupOthers
+         null,                 // variableValues
+         null,                 // x
+         null,                 // y
+         null,                 // label
+         null,                 // defaultValue
+         null,                 // mode
+         null,                 // insert
+         null,                 // subtables
+         sourceTable,          // sourceTable
+         attribute,            // attribute
+         null,                 // endpoint
+         null,                 // parameters
+         null,                 // lookup
+         null,                 // lookupExpandArrays
+         null,                 // lookupTopLevelOnly
+         null,                 // suffix
+         null                  // customLookups
+      );
+   }
+
+   /**
+    * Builds a worksheet with a table T (columns state/amount), a {@code DefaultNamedGroupAssembly}
+    * "NortheastGroup" COLUMN_ATTACHED to T's "state" column, and a {@link GroupRef} on T that
+    * already references it and resolves cleanly -- the pre-retarget state both new tests below
+    * start from.
+    */
+   private static EmbeddedTableAssembly buildTableWithResolvedNamedGroupReference(Worksheet ws)
+      throws Exception
+   {
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "state", "amount");
+      ws.addAssembly(t);
+
+      DataRef stateRef = t.getColumnSelection(false).getAttribute("state");
+
+      NamedGroupInfo ngi = new NamedGroupInfo();
+      ngi.setOthers(XConstants.LEAVE_OTHERS);
+      DefaultNamedGroupAssembly nga = new DefaultNamedGroupAssembly(ws, "NortheastGroup");
+      nga.setNamedGroupInfo(ngi);
+      nga.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+      nga.setAttachedSource(new SourceInfo(SourceInfo.ASSET, null, "T"));
+      nga.setAttachedAttribute(stateRef);
+      ws.addAssembly(nga);
+
+      GroupRef gr = new GroupRef(stateRef);
+      gr.setNamedGroupAssembly("NortheastGroup");
+      gr.update(ws);
+      AggregateInfo ainfo = new AggregateInfo();
+      ainfo.addGroup(gr);
+      t.setAggregateInfo(ainfo);
+
+      assertNotNull(gr.getNamedGroupInfo(),
+         "sanity: the pre-existing reference must resolve before the retarget under test");
+      return t;
+   }
+
+   /**
+    * WBS-074's canonical scenario: redrawing "NortheastGroup" onto a different source column
+    * ("Region" instead of its current "state" attachment) while a worksheet aggregate still
+    * groups by "state" via it. Without the pre-check, {@code GroupRef.update()}'s own
+    * {@code COLUMN_ATTACHED} mismatch branch would silently null out {@code getNamedGroupInfo()}
+    * for that reference and report the call a success. Must instead refuse loud and leave both
+    * the attachment and the reference untouched.
+    */
+   @Test
+   void editNamedGroupDatasourceRetargetRefusesWhenExistingReferenceWouldMismatch() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      XAttribute regionAttr = new XAttribute("Region", "SA.CUSTOMERS", "REGION", XSchema.STRING);
+      XEntity customerEntity = new XEntity("Customer");
+      customerEntity.addAttribute(regionAttr);
+      XLogicalModel orderModel = new XLogicalModel("Order Model");
+      orderModel.addEntity(customerEntity);
+
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModel("Order Model")).thenReturn(orderModel);
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("Examples/Orders"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(dataSourceService.getDataModel("Examples/Orders")).thenReturn(dataModel);
+      when(dataSourceService.getModelAssetEntry(any())).thenAnswer(inv -> inv.getArgument(0));
+      when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      Worksheet ws = new Worksheet();
+      buildTableWithResolvedNamedGroupReference(ws);
+      NamedGroupAssembly ngaBefore = (NamedGroupAssembly) ws.getAssembly("NortheastGroup");
+      DataRef attachedBefore = ngaBefore.getAttachedAttribute();
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ENG-MISMATCH"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      EditRequest req = editNamedGroupDatasourceRequest(
+         "NortheastGroup", "Examples/Orders", "Order Model", null, null,
+         "Customer", "Region", List.of(), false);
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> ctrl.edit("TOK-ENG-MISMATCH", req, agent));
+      assertTrue(ex.getMessage().contains("NortheastGroup"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("T"), ex.getMessage());
+
+      TableAssembly t = (TableAssembly) ws.getAssembly("T");
+      GroupRef gr = t.getAggregateInfo().getGroups()[0];
+      assertSame(attachedBefore, ngaBefore.getAttachedAttribute(),
+         "the attachment must be untouched when the retarget is refused");
+      assertNotNull(gr.getNamedGroupInfo(),
+         "the pre-existing reference must still resolve -- nothing may be mutated on refusal");
+   }
+
+   /**
+    * Companion to the mismatch-refusal test above: when no worksheet-side reference would be
+    * broken (here, nothing groups by "NortheastGroup" at all), the same retarget must go through
+    * and actually move the attachment.
+    */
+   @Test
+   void editNamedGroupDatasourceRetargetSucceedsWhenNoConflictingReference() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      XAttribute regionAttr = new XAttribute("Region", "SA.CUSTOMERS", "REGION", XSchema.STRING);
+      XEntity customerEntity = new XEntity("Customer");
+      customerEntity.addAttribute(regionAttr);
+      XLogicalModel orderModel = new XLogicalModel("Order Model");
+      orderModel.addEntity(customerEntity);
+
+      XDataModel dataModel = mock(XDataModel.class);
+      when(dataModel.getLogicalModel("Order Model")).thenReturn(orderModel);
+
+      DataSourceService dataSourceService = mock(DataSourceService.class);
+      when(dataSourceService.checkPermission(eq("Examples/Orders"), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+      when(dataSourceService.getDataModel("Examples/Orders")).thenReturn(dataModel);
+      when(dataSourceService.getModelAssetEntry(any())).thenAnswer(inv -> inv.getArgument(0));
+      when(dataSourceService.checkPermission(any(AssetEntry.class), eq(ResourceAction.READ), eq(agent)))
+         .thenReturn(true);
+
+      Worksheet ws = new Worksheet();
+      NamedGroupInfo ngi = new NamedGroupInfo();
+      ngi.setOthers(XConstants.LEAVE_OTHERS);
+      DefaultNamedGroupAssembly nga = new DefaultNamedGroupAssembly(ws, "NortheastGroup");
+      nga.setNamedGroupInfo(ngi);
+      nga.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+      nga.setAttachedSource(new SourceInfo(SourceInfo.ASSET, null, "T"));
+      nga.setAttachedAttribute(new AttributeRef(null, "state"));
+      ws.addAssembly(nga);
+
+      RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      when(rws.getWorksheet()).thenReturn(ws);
+
+      WorksheetEditService editSvc = mock(WorksheetEditService.class);
+      when(editSvc.applyOnRuntime(eq("TOK-ENG-OK"), eq(agent), any())).thenAnswer(inv -> {
+         WorksheetEditService.ThrowingFunction<RuntimeWorksheet, ?> fn = inv.getArgument(2);
+         return fn.apply(rws);
+      });
+
+      WorksheetAgentController ctrl = securityController(editSvc,
+         dataSourceService, mock(SecurityEngine.class), mock(MetadataApiService.class),
+         mock(XRepository.class), mock(QueryManagerService.class));
+
+      List<WorksheetMutationSupport.GroupMapping> mappings =
+         List.of(new WorksheetMutationSupport.GroupMapping("East", List.of("NY", "NJ")));
+      EditRequest req = editNamedGroupDatasourceRequest(
+         "NortheastGroup", "Examples/Orders", "Order Model", null, null,
+         "Customer", "Region", mappings, true);
+
+      ctrl.edit("TOK-ENG-OK", req, agent);
+
+      NamedGroupAssembly ngaAfter = (NamedGroupAssembly) ws.getAssembly("NortheastGroup");
+      assertEquals("Region", ngaAfter.getAttachedAttribute().getAttribute());
+      assertNotNull(ngaAfter.getNamedGroupInfo().getGroupCondition("East"),
+         "the new mapping must actually be applied");
    }
 
    // ---------------------------------------------------------------------------

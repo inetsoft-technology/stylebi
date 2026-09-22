@@ -162,7 +162,7 @@ class NamedGroupEditRefreshesQueryOutputTest {
       // Same rename this bug's other tests exercise at the GroupRef object-graph level --
       // here, run the real query engine against the result instead.
       svc.apply("TOK", agent,
-                ed -> ed.editNamedGroup("G",
+                ed -> ed.editNamedGroup("G", null,
                                         List.of(new WorksheetMutationSupport.GroupMapping(
                                            "East", List.of("CA"))),
                                         false));

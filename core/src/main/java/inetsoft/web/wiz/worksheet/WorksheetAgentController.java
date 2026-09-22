@@ -551,6 +551,33 @@ public class WorksheetAgentController {
          return;
       }
 
+      // edit_named_group with a datasource retargets the grouping's "Only For" scope directly to
+      // a datasource/logical-model or physical-table path in place -- mirroring add_named_group's
+      // own datasource mode above, and needing the same permission checks + XLogicalModel/JDBC
+      // metadata lookups, so it is dispatched here too, not through the plain Editor.
+      if("edit_named_group".equals(req.op()) && req.datasource() != null
+         && !req.datasource().isBlank())
+      {
+         if(req.type() != null) {
+            throw new PairingException(
+               "edit_named_group: 'datasource' and 'type' are mutually exclusive retarget " +
+                  "modes -- provide at most one.");
+         }
+
+         if(req.sourceTable() == null || req.sourceTable().isBlank()) {
+            throw new PairingException(
+               "sourceTable is required when datasource is specified for edit_named_group.");
+         }
+
+         if(req.attribute() == null || req.attribute().isBlank()) {
+            throw new PairingException(
+               "attribute is required when datasource is specified for edit_named_group.");
+         }
+
+         editDatasourceScopedNamedGroup(sessionToken, req, user);
+         return;
+      }
+
       // add_named_group's datasource-scoped fields require 'datasource' -- without this guard,
       // a caller that supplies sourceTable/attribute/logicalModel/schema/catalog but omits (or
       // blanks) datasource would silently fall through to the plain Editor.addNamedGroup(table,
@@ -562,6 +589,16 @@ public class WorksheetAgentController {
       {
          throw new PairingException(
             "add_named_group: sourceTable/attribute/logicalModel/schema/catalog require " +
+               "'datasource' to be set.");
+      }
+
+      // Same guard as add_named_group's, for edit_named_group's retarget fields.
+      if("edit_named_group".equals(req.op()) &&
+         (req.sourceTable() != null || req.attribute() != null || req.logicalModel() != null ||
+            req.schema() != null || req.catalog() != null))
+      {
+         throw new PairingException(
+            "edit_named_group: sourceTable/attribute/logicalModel/schema/catalog require " +
                "'datasource' to be set.");
       }
 
@@ -1143,10 +1180,6 @@ public class WorksheetAgentController {
    private void addDatasourceScopedNamedGroup(String sessionToken, EditRequest req, Principal user)
       throws Exception
    {
-      String datasourceName = req.datasource();
-      String logicalModelName = req.logicalModel();
-      String sourceTableName = req.sourceTable();
-      String attributeName = req.attribute();
       String name = req.name();
 
       // Same unescaped-CDATA write path as WorksheetEditService.Editor.placeAssembly/
@@ -1154,6 +1187,140 @@ public class WorksheetAgentController {
       // requireStorableName's javadoc. Checked up front, before the permission checks and
       // datasource/logical-model metadata lookups below, so a doomed name fails fast.
       WorksheetEditService.Editor.requireStorableName(name, "A named group name");
+
+      NamedGroupAttachment attachment = resolveNamedGroupAttachment(req, user);
+      SourceInfo sinfo = attachment.source();
+      DataRef ref = attachment.ref();
+
+      String conditionType = ref.getDataType() != null ? ref.getDataType() : XSchema.STRING;
+      List<WorksheetMutationSupport.GroupMapping> mappings = req.groupMappings();
+      boolean groupOthers = req.groupOthers() != null && req.groupOthers();
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+
+         NamedGroupInfo ngi = new NamedGroupInfo();
+         ngi.setOthers(groupOthers ? XConstants.GROUP_OTHERS : XConstants.LEAVE_OTHERS);
+
+         if(mappings != null) {
+            for(WorksheetMutationSupport.GroupMapping m : mappings) {
+               ngi.setGroupCondition(m.name(),
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m, ws));
+            }
+         }
+
+         DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
+         assembly.setNamedGroupInfo(ngi);
+         assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         assembly.setAttachedSource(sinfo);
+         assembly.setAttachedAttribute(ref);
+
+         WorksheetEditService.Editor.requireNoNameCollision(assembly, ws);
+         positionBelowExisting(ws, assembly);
+         ws.addAssembly(assembly);
+         return null;
+      });
+   }
+
+   /**
+    * Retargets an EXISTING named group assembly's attachment in place to a datasource/
+    * logical-model or physical-table path, mirroring {@link #addDatasourceScopedNamedGroup} but
+    * for {@code edit_named_group} instead of {@code add_named_group} -- reuses the same
+    * permission-check/metadata-lookup resolution via {@link #resolveNamedGroupAttachment}.
+    *
+    * <p>Before writing the new attachment, refuses loud
+    * ({@link WorksheetMutationSupport#findNamedGroupRetargetConflict}) if any worksheet-side
+    * {@link GroupRef} already referencing this group would silently stop resolving against it --
+    * see {@code WorksheetEditService.Editor#editNamedGroup}'s own type-retarget path for the same
+    * guard applied to the standalone/{@code DATA_TYPE_ATTACHED} mode.</p>
+    */
+   private void editDatasourceScopedNamedGroup(String sessionToken, EditRequest req, Principal user)
+      throws Exception
+   {
+      String name = req.name();
+      NamedGroupAttachment attachment = resolveNamedGroupAttachment(req, user);
+      SourceInfo sinfo = attachment.source();
+      DataRef ref = attachment.ref();
+      String conditionType = ref.getDataType() != null ? ref.getDataType() : XSchema.STRING;
+      List<WorksheetMutationSupport.GroupMapping> mappings = req.groupMappings();
+      boolean groupOthers = req.groupOthers() != null && req.groupOthers();
+
+      editService.applyOnRuntime(sessionToken, user, rws -> {
+         Worksheet ws = rws.getWorksheet();
+         Assembly a = ws.getAssembly(name);
+
+         if(!(a instanceof DefaultNamedGroupAssembly nga)) {
+            throw new PairingException("Named group assembly not found: " + name);
+         }
+
+         String conflictTable = WorksheetMutationSupport.findNamedGroupRetargetConflict(
+            ws, name, AttachedAssembly.COLUMN_ATTACHED, ref, null);
+
+         if(conflictTable != null) {
+            throw new PairingException(
+               "Cannot retarget \"" + name + "\" to \"" + ref.getAttribute() + "\": table \"" +
+               conflictTable + "\" still groups by its current attachment via \"" + name +
+               "\" (set_group_aggregate's namedGroup). Retargeting would silently drop that " +
+               "grouping with no error. Remove or update that group-by first, or use " +
+               "delete_named_group if nothing should reference it after this change.");
+         }
+
+         NamedGroupInfo ngi = new NamedGroupInfo();
+         ngi.setOthers(groupOthers ? XConstants.GROUP_OTHERS : XConstants.LEAVE_OTHERS);
+
+         if(mappings != null) {
+            for(WorksheetMutationSupport.GroupMapping m : mappings) {
+               ngi.setGroupCondition(m.name(),
+                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m, ws));
+            }
+         }
+
+         nga.setNamedGroupInfo(ngi);
+         nga.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
+         nga.setAttachedSource(sinfo);
+         nga.setAttachedAttribute(ref);
+
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(!(assembly instanceof TableAssembly table)) {
+               continue;
+            }
+
+            AggregateInfo ainfo = table.getAggregateInfo();
+
+            if(ainfo == null) {
+               continue;
+            }
+
+            for(GroupRef group : ainfo.getGroups()) {
+               if(name.equals(group.getNamedGroupAssembly())) {
+                  group.update(ws);
+               }
+            }
+         }
+
+         return null;
+      });
+   }
+
+   /** Resolved attachment (source + column) for a datasource-scoped named group. */
+   private record NamedGroupAttachment(SourceInfo source, DataRef ref) {}
+
+   /**
+    * Resolves {@code req}'s {@code datasource}/{@code logicalModel}/{@code sourceTable}/
+    * {@code attribute} (+ optional {@code schema}/{@code catalog}) fields into a
+    * {@link SourceInfo} + {@link DataRef} attachment, exactly like a human's "Add Grouping"
+    * dialog pick -- shared by {@link #addDatasourceScopedNamedGroup} (new assembly) and
+    * {@link #editDatasourceScopedNamedGroup} (retarget an existing one). See
+    * {@link #addLogicalModelTable}/{@link #addBoundTable} for the permission-check and
+    * metadata-lookup patterns reused here.
+    */
+   private NamedGroupAttachment resolveNamedGroupAttachment(EditRequest req, Principal user)
+      throws Exception
+   {
+      String datasourceName = req.datasource();
+      String logicalModelName = req.logicalModel();
+      String sourceTableName = req.sourceTable();
+      String attributeName = req.attribute();
 
       SourceInfo sinfo;
       DataRef ref;
@@ -1274,34 +1441,7 @@ public class WorksheetAgentController {
          ref = cref;
       }
 
-      String conditionType = ref.getDataType() != null ? ref.getDataType() : XSchema.STRING;
-      List<WorksheetMutationSupport.GroupMapping> mappings = req.groupMappings();
-      boolean groupOthers = req.groupOthers() != null && req.groupOthers();
-
-      editService.applyOnRuntime(sessionToken, user, rws -> {
-         Worksheet ws = rws.getWorksheet();
-
-         NamedGroupInfo ngi = new NamedGroupInfo();
-         ngi.setOthers(groupOthers ? XConstants.GROUP_OTHERS : XConstants.LEAVE_OTHERS);
-
-         if(mappings != null) {
-            for(WorksheetMutationSupport.GroupMapping m : mappings) {
-               ngi.setGroupCondition(m.name(),
-                  WorksheetMutationSupport.buildGroupConditionList(conditionType, ref, m, ws));
-            }
-         }
-
-         DefaultNamedGroupAssembly assembly = new DefaultNamedGroupAssembly(ws, name);
-         assembly.setNamedGroupInfo(ngi);
-         assembly.setAttachedType(AttachedAssembly.COLUMN_ATTACHED);
-         assembly.setAttachedSource(sinfo);
-         assembly.setAttachedAttribute(ref);
-
-         WorksheetEditService.Editor.requireNoNameCollision(assembly, ws);
-         positionBelowExisting(ws, assembly);
-         ws.addAssembly(assembly);
-         return null;
-      });
+      return new NamedGroupAttachment(sinfo, ref);
    }
 
    /**
@@ -2940,8 +3080,10 @@ public class WorksheetAgentController {
          case "delete_variable" ->
             editor.deleteVariable(req.name());
          case "edit_named_group" ->
-            editor.editNamedGroup(req.name(), req.groupMappings(),
+            editor.editNamedGroup(req.name(), req.type(), req.groupMappings(),
                                   req.groupOthers() != null && req.groupOthers());
+         case "delete_named_group" ->
+            editor.deleteNamedGroup(req.name());
          case "set_table_mode" ->
             editor.setTableMode(req.table(), req.mode() != null ? req.mode() : "default");
          case "edit_unpivot" ->
