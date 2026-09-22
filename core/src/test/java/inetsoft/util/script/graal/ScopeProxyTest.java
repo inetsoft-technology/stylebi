@@ -68,4 +68,47 @@ class ScopeProxyTest {
       Object keys = new ScopeProxy(s).getMemberKeys();
       assertArrayEquals(new Object[]{"a", "b"}, (Object[]) keys);
    }
+
+   /** A scope that says something meaningful about itself. */
+   static class DescribedScope extends MapScope {
+      @Override public String toString() { return "described"; }
+   }
+
+   /**
+    * A scope with a real toString() keeps delegating to it -- this is what
+    * Bug #75745 added the string-coercion member for.
+    */
+   @Test void scopeWithItsOwnToStringIsUsed() {
+      ctx.getBindings("js").putMember("obj", new ScopeProxy(new DescribedScope()));
+      assertEquals("described", ctx.eval("js", "'' + obj").asString());
+   }
+
+   /**
+    * A scope that does NOT override toString() must not fall through to
+    * Object.toString(): that leaks a Java class name and an identity hash that
+    * changes on every JVM run (the "...InputScriptEvent@5f270f30" tooltip).
+    */
+   @Test void scopeWithoutItsOwnToStringDoesNotLeakIdentityHash() {
+      ctx.getBindings("js").putMember("obj", new ScopeProxy(new MapScope()));
+      String s = ctx.eval("js", "'' + obj").asString();
+
+      assertEquals("[object MapScope]", s);
+      assertFalse(s.contains("@"), "must not expose an identity hash: " + s);
+   }
+
+   /** The same scope must stringify identically across instances. */
+   @Test void stringificationIsStableAcrossInstances() {
+      ctx.getBindings("js").putMember("a", new ScopeProxy(new MapScope()));
+      ctx.getBindings("js").putMember("b", new ScopeProxy(new MapScope()));
+      assertEquals(ctx.eval("js", "'' + a").asString(),
+                   ctx.eval("js", "'' + b").asString());
+   }
+
+   /** A scope defining its own "toString" member still wins over both. */
+   @Test void scopeMemberToStringTakesPrecedence() {
+      MapScope s = new MapScope();
+      s.putMember("toString", (org.graalvm.polyglot.proxy.ProxyExecutable) args -> "fromMember");
+      ctx.getBindings("js").putMember("obj", new ScopeProxy(s));
+      assertEquals("fromMember", ctx.eval("js", "'' + obj").asString());
+   }
 }

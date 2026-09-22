@@ -409,6 +409,17 @@ public class VSFormTableService {
          return new String[]{ "name", "type", "source", "row", "column" };
       }
 
+      /**
+       * Describe the event for a script that concatenates it into a string.
+       * See InputScriptEvent.toString(); "source" is omitted for the same
+       * reason -- a VSAScriptable stringifies with an identity hash.
+       */
+      @Override
+      public String toString() {
+         return "Event[name=" + name + ", type=" + type + ", row=" + row +
+            ", column=" + column + "]";
+      }
+
       public VSAScriptable source;     // source scriptable object
       public String name;              // assembly name
       public String type = "table";    // assembly type
