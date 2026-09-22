@@ -904,6 +904,8 @@ public class WorksheetEditService {
             top.addOperator(op);
          }
 
+         requireCompatibleJoinKeyTypes(top, left, right);
+
          RelationalJoinTableAssembly join =
             new RelationalJoinTableAssembly(ws, name,
                                             new TableAssembly[]{ left, right },
@@ -2258,6 +2260,8 @@ public class WorksheetEditService {
                "Join assembly \"" + name + "\" has an operator with no left/right table name " +
                "recorded -- refusing to edit rather than silently discarding the change.");
          }
+
+         requireCompatibleJoinKeyTypes(newTop, requireTable(leftTable), requireTable(rightTable));
 
          join.setOperator(leftTable, rightTable, newTop);
       }
@@ -3811,6 +3815,64 @@ public class WorksheetEditService {
          }
 
          return match;
+      }
+
+      /**
+       * Validates that every key pair already wired into {@code top}'s operators has
+       * type-compatible left/right columns, per {@link AssetUtil#isMergeable} -- the same
+       * check {@link InnerJoinService#isValidOperator}/{@link
+       * InnerJoinService#editExistingJoinTable} apply for the native Composer UI's own join
+       * dialogs and the N-ary {@code joinPaths} form of {@link #addJoin(String, List)}.
+       *
+       * <p>The low-level {@link TableAssemblyOperator} construction the two-table {@code
+       * addJoin}/{@code editJoin} overloads use builds each operator's {@link AttributeRef}s
+       * bare (no {@code setDataType} call), so {@code operator.getLeftAttribute()
+       * .getDataType()} would only ever report the {@link AttributeRef} default of {@code
+       * XSchema.STRING} -- never the real column type -- which is why this resolves each key
+       * name against {@code left}/{@code right}'s own column selection instead of reading the
+       * operator's attribute type directly.</p>
+       *
+       * <p>A key name that does not resolve to a real column on its table is not this
+       * method's concern (a different, pre-existing gap -- see the TS plugin's own
+       * {@code assertJoinKeyResolvesOnTable} precheck) and is silently skipped here rather
+       * than newly rejected.</p>
+       *
+       * @throws PairingException naming both columns and their actual data types if any key
+       *                          pair is type-incompatible
+       */
+      private void requireCompatibleJoinKeyTypes(
+         TableAssemblyOperator top, TableAssembly left, TableAssembly right)
+         throws PairingException
+      {
+         for(int i = 0; i < top.getOperatorCount(); i++) {
+            TableAssemblyOperator.Operator op = top.getOperator(i);
+            DataRef leftAttr = op.getLeftAttribute();
+            DataRef rightAttr = op.getRightAttribute();
+
+            if(leftAttr == null || rightAttr == null) {
+               continue;
+            }
+
+            DataRef leftRef =
+               WorksheetMutationSupport.resolveFieldOrNull(left, leftAttr.getName(), false);
+            DataRef rightRef =
+               WorksheetMutationSupport.resolveFieldOrNull(right, rightAttr.getName(), false);
+
+            if(leftRef == null || rightRef == null) {
+               continue;
+            }
+
+            String leftType = leftRef.getDataType();
+            String rightType = rightRef.getDataType();
+
+            if(!AssetUtil.isMergeable(leftType, rightType)) {
+               throw new PairingException(
+                  Catalog.getCatalog().getString(
+                     "common.invalidJoinType1", leftAttr.getName(), rightAttr.getName()) +
+                  " (\"" + leftAttr.getName() + "\" is " + leftType + ", \"" +
+                  rightAttr.getName() + "\" is " + rightType + ")");
+            }
+         }
       }
 
       /**

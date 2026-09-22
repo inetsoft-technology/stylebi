@@ -1589,9 +1589,14 @@ public final class WorksheetMutationSupport {
     * <p>Only infers when the intent is unambiguous: every {@code field['x']} reference
     * in the expression must resolve to an existing numeric column, and everything
     * outside those references must be pure arithmetic (digits, {@code + - * /},
-    * parentheses, whitespace). Any other shape (string concatenation, comparisons,
-    * unresolvable fields, non-numeric fields) is left alone -- returning {@code null}
-    * preserves the existing string default rather than guessing.</p>
+    * parentheses, whitespace) -- or a conditional/ternary expression ({@code cond ? a
+    * : b}, possibly nested) whose every branch independently satisfies that same
+    * pure-arithmetic requirement. The condition portion of a ternary is not itself
+    * required to be pure arithmetic -- it legitimately contains comparison operators
+    * (e.g. {@code >=}) that are not part of the arithmetic character class. Any other
+    * shape (string concatenation, a non-numeric branch, unresolvable fields,
+    * non-numeric fields) is left alone -- returning {@code null} preserves the existing
+    * string default rather than guessing.</p>
     *
     * @return {@link XSchema#DOUBLE}, or {@code null} if the expression's type cannot be
     *         unambiguously inferred as numeric
@@ -1626,11 +1631,123 @@ public final class WorksheetMutationSupport {
 
       remainder.append(expression.substring(last));
 
-      if(fieldCount == 0 || !remainder.toString().matches("[\\s+\\-*/().0-9eE]*")) {
+      if(fieldCount == 0 || !isNumericFragment(remainder.toString())) {
          return null;
       }
 
       return XSchema.DOUBLE;
+   }
+
+   /**
+    * Checks whether {@code text} -- a fragment of an expression with every
+    * {@code field['x']} reference already stripped out by the caller -- is "pure
+    * numeric": either plain arithmetic (see {@link #inferNumericExpressionType}), or a
+    * top-level ternary whose every branch independently satisfies this same check. The
+    * condition part of a ternary is intentionally not checked against the arithmetic
+    * character class here -- see {@link #inferNumericExpressionType}'s doc comment.
+    *
+    * <p>This is a lightweight, paren-aware splitter, not a full expression parser: it
+    * does not track quoted string literals, so a {@code ?}/{@code :} character inside a
+    * quoted string could in principle be mis-split. That cannot misclassify a
+    * non-numeric expression as numeric in practice, because whatever ends up on the
+    * "branch" side of a mis-split still has to pass the plain arithmetic character-class
+    * check to be accepted.</p>
+    */
+   private static boolean isNumericFragment(String text) {
+      text = unwrapOuterParens(text);
+      int[] split = findTopLevelTernary(text);
+
+      if(split != null) {
+         String branchA = text.substring(split[0] + 1, split[1]);
+         String branchB = text.substring(split[1] + 1);
+         return isNumericFragment(branchA) && isNumericFragment(branchB);
+      }
+
+      return text.matches("[\\s+\\-*/().0-9eE]*");
+   }
+
+   /**
+    * Strips a redundant, fully-enclosing pair of parentheses from {@code text}
+    * (repeatedly), e.g. {@code "(a ? b : c)"} -> {@code "a ? b : c"}. Parentheses that
+    * merely start and end the string without actually enclosing the whole of it (e.g.
+    * {@code "(a) + (b)"}) are left alone.
+    */
+   private static String unwrapOuterParens(String text) {
+      text = text.trim();
+
+      while(text.length() >= 2 && text.charAt(0) == '(' &&
+         text.charAt(text.length() - 1) == ')' && isMatchingOuterParenPair(text))
+      {
+         text = text.substring(1, text.length() - 1).trim();
+      }
+
+      return text;
+   }
+
+   private static boolean isMatchingOuterParenPair(String text) {
+      int depth = 0;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(c == '(') {
+            depth++;
+         }
+         else if(c == ')') {
+            depth--;
+
+            if(depth == 0) {
+               return i == text.length() - 1;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Finds the {@code ?} and matching {@code :} of the first top-level (i.e. not nested
+    * inside parentheses) ternary in {@code text}, respecting right-associative nesting
+    * (a {@code ?}/{@code :} pair belonging to a nested, unparenthesized ternary --
+    * either in the "then" or the "else" branch -- is skipped over rather than mistaken
+    * for the outer ternary's own {@code :}).
+    *
+    * @return a two-element array {@code {questionMarkIndex, colonIndex}}, or
+    *         {@code null} if {@code text} has no top-level ternary
+    */
+   private static int[] findTopLevelTernary(String text) {
+      int depth = 0;
+      int questionIdx = -1;
+      int pendingNested = 0;
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(c == '(') {
+            depth++;
+         }
+         else if(c == ')') {
+            depth--;
+         }
+         else if(depth == 0 && c == '?') {
+            if(questionIdx < 0) {
+               questionIdx = i;
+            }
+            else {
+               pendingNested++;
+            }
+         }
+         else if(depth == 0 && c == ':' && questionIdx >= 0) {
+            if(pendingNested > 0) {
+               pendingNested--;
+            }
+            else {
+               return new int[] { questionIdx, i };
+            }
+         }
+      }
+
+      return null;
    }
 
    // =========================================================================

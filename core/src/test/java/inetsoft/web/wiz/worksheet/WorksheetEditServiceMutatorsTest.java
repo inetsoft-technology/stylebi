@@ -2811,6 +2811,51 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void addExpressionColumnInfersNumericTypeForTernaryExpression() throws Exception {
+      // Bug 76901: a numeric ternary/conditional expression -- every branch a plain
+      // numeric literal, condition built from a numeric field comparison -- must infer
+      // numeric instead of falling through to the untyped "string" default, the same
+      // as the pure-arithmetic shape above.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER",
+         "field['QUANTITY'] >= 5 ? 3 : (field['QUANTITY'] >= 2 ? 2 : 1)", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForTernaryWithNonNumericBranch() throws Exception {
+      // Guard against the unsafe fix: widening the arithmetic character class to allow
+      // "?:<>=!" would also let a ternary with a non-numeric (string-literal) branch
+      // through as numeric. The condition may reference a numeric field, but a branch
+      // built from string literals must keep the existing "string" default.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_LABEL", "field['QUANTITY'] >= 5 ? \"big\" : \"small\"", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_LABEL");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
    void addExpressionColumnHonorsExplicitTypeOverInference() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
@@ -3413,6 +3458,83 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // Bug 76901 (layer 2): addJoin (brand-new-join sub-case) must validate join-key type
+   // compatibility, the same as the N-ary joinPaths form and the native Composer UI's own
+   // join dialogs already do via InnerJoinService.isValidOperator/AssetUtil.isMergeable.
+   // =========================================================================
+
+   @Test
+   void addJoinRefusesTypeIncompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly orderDetails =
+         TestWorksheets.tableWithColumns(ws, "ORDER_DETAILS", "QTY_TIER");
+      EmbeddedTableAssembly tierLookup =
+         TestWorksheets.tableWithColumns(ws, "TierLookup2", "QTY_TIER_INT");
+      // QTY_TIER left untyped -> default "string"; QTY_TIER_INT explicitly "integer".
+      ((ColumnRef) tierLookup.getColumnSelection(false).getAttribute("QTY_TIER_INT"))
+         .setDataType(XSchema.INTEGER);
+      ws.addAssembly(orderDetails);
+      ws.addAssembly(tierLookup);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "ORDER_DETAILS", "QTY_TIER", "TierLookup2", "QTY_TIER_INT",
+                          "INNER", null, null)));
+
+      assertTrue(ex.getMessage().contains("QTY_TIER"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("QTY_TIER_INT"), ex.getMessage());
+      assertNull(ws.getAssembly("J"), "the type-incompatible join must not have been created");
+   }
+
+   @Test
+   void addJoinRefusesTypeIncompatibleKeysAmongMultipleKeyPairs() throws Exception {
+      // Bug 76901: every key pair in a multi-key join must be checked, not just the first.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "code", "qty");
+      EmbeddedTableAssembly r = TestWorksheets.tableWithColumns(ws, "R", "code", "qty");
+      ColumnSelection lcs = l.getColumnSelection(false);
+      ColumnSelection rcs = r.getColumnSelection(false);
+      ((ColumnRef) lcs.getAttribute("code")).setDataType(XSchema.STRING);
+      ((ColumnRef) rcs.getAttribute("code")).setDataType(XSchema.STRING);
+      ((ColumnRef) lcs.getAttribute("qty")).setDataType(XSchema.STRING);
+      ((ColumnRef) rcs.getAttribute("qty")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(l);
+      ws.addAssembly(r);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // First key pair (code/code, both string) is compatible; second (qty/qty, string vs
+      // integer) is not -- must still be refused.
+      assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", null, "R", null, "INNER",
+                          List.of("code", "qty"), List.of("code", "qty"))));
+
+      assertNull(ws.getAssembly("J"), "the type-incompatible join must not have been created");
+   }
+
+   /** Positive control: type-compatible keys must still join normally. */
+   @Test
+   void addJoinAllowsTypeCompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "id");
+      EmbeddedTableAssembly r = TestWorksheets.tableWithColumns(ws, "R", "id");
+      ((ColumnRef) l.getColumnSelection(false).getAttribute("id")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) r.getColumnSelection(false).getAttribute("id")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(l);
+      ws.addAssembly(r);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "a type-compatible join must still succeed");
+      assertNotNull(joined.getOperator("L", "R"));
+   }
+
+   // =========================================================================
    // Column-dependency guard tests (Redmine #75968)
    //
    // The Composer UI has always refused to hide/remove/rename a column a dependent
@@ -4011,6 +4133,38 @@ class WorksheetEditServiceMutatorsTest {
 
       assertThrows(PairingException.class,
          () -> svc.apply("TOK", agent, ed -> ed.editJoin("NOPE", "a", "b", "INNER", null, null)));
+   }
+
+   /** Bug 76901 (layer 2): editJoin must also validate join-key type compatibility. */
+   @Test
+   void editJoinRefusesTypeIncompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "code");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "code_int");
+      ((ColumnRef) right.getColumnSelection(false).getAttribute("code_int"))
+         .setDataType(XSchema.INTEGER);
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // "id"/"id" (both untyped -> string) is a valid starting join.
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+
+      // Re-keying to "code" (string) / "code_int" (integer) must be refused.
+      PairingException ex = assertThrows(PairingException.class, () -> svc.apply("TOK", agent,
+         ed -> ed.editJoin("J", "code", "code_int", "INNER", null, null)));
+
+      assertTrue(ex.getMessage().contains("code"), ex.getMessage());
+
+      // The join must still have its ORIGINAL "id"/"id" key pair, unchanged.
+      RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      @SuppressWarnings("unchecked")
+      java.util.Enumeration<TableAssemblyOperator> iter =
+         (java.util.Enumeration<TableAssemblyOperator>) join.getOperators();
+      TableAssemblyOperator top = iter.nextElement();
+      assertEquals("id", top.getOperator(0).getLeftAttribute().getAttribute());
+      assertEquals("id", top.getOperator(0).getRightAttribute().getAttribute());
    }
 
    // =========================================================================
