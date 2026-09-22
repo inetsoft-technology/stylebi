@@ -158,4 +158,19 @@ public interface ScriptEnv {
     * Initialize the script engine.
     */
    public void init();
+
+   /**
+    * Get the lock that guards execution against this script engine, if one has
+    * already been created. Lets a caller that may be re-entered from a script it
+    * did not itself invoke (e.g. row-filter data access that a guest script's own
+    * column reads can call back into) acquire this lock before its own locks, so
+    * the acquisition order stays consistent with {@link #exec} and an AB-BA
+    * lock-order-inversion deadlock cannot form (bug #76918).
+    *
+    * @return the execution lock, or {@code null} if no engine has been created yet
+    *         (there is then nothing to order against).
+    */
+   default java.util.concurrent.locks.Lock getExecutionLock() {
+      return null;
+   }
 }

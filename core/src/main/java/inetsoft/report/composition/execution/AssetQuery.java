@@ -1781,7 +1781,7 @@ public abstract class AssetQuery extends PreAssetQuery {
       conds.replaceVariables(vars);
       AssetConditionGroup cgroup = new AssetConditionGroup(base, conds, mode, box, touchtime);
 
-      return PostProcessor.filter(base, cgroup);
+      return PostProcessor.filter(base, cgroup, box);
    }
 
    /**

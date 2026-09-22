@@ -56,6 +56,7 @@ import java.security.Principal;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BiFunction;
 
 /**
@@ -1177,6 +1178,22 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       }
 
       return senv;
+   }
+
+   /**
+    * Peek at this sandbox's script execution lock without creating a script
+    * environment/engine if one does not already exist. Used by condition
+    * filtering (bug #76918) to acquire the same lock {@link ScriptEnv#exec} uses
+    * *before* taking any of its own locks, so the two never get acquired in
+    * opposite orders on different threads -- without forcing an unused engine
+    * (and its GraalJS Context) to be created for queries that never touch scripts.
+    *
+    * @return the execution lock, or {@code null} if no script engine exists yet
+    *         for this sandbox.
+    */
+   public Lock peekScriptExecutionLock() {
+      ScriptEnv senv = this.senv;
+      return senv == null ? null : senv.getExecutionLock();
    }
 
    /**

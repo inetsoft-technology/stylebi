@@ -1192,6 +1192,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
    }
 
+   /**
+    * @return this engine's execution lock (see
+    * {@link inetsoft.util.script.ScriptEnv#getExecutionLock()}). The lock is a
+    * {@link ReentrantLock}, so a caller pre-acquiring it before calling back into
+    * {@link #exec} on the same thread will not self-deadlock.
+    */
+   public ReentrantLock getExecutionLock() {
+      return lock;
+   }
+
    public Object exec(Object script, Object scope, Object rscope) throws Exception {
       lock.lock();
 
