@@ -4039,6 +4039,21 @@ class ViewsheetAssemblyAgentControllerTest {
       verifyNoInteractions(vsBookmarkService);
    }
 
+   @Test
+   void renameBookmark_refusesRenamingToTheHomeBookmarkWithoutCallingTheService() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Some Bookmark", VSBookmark.HOME_BOOKMARK, null, null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains(VSBookmark.HOME_BOOKMARK));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
    /**
     * A shared bookmark owned by someone else (even a writable one, unlike update_bookmark/
     * delete_bookmark) is refused -- RuntimeViewsheet#editBookmark has no owner parameter and
