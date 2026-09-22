@@ -322,22 +322,22 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return;
       }
 
-      if(rangeValues == null) {
-         rangeValues = new DynamicValue[val.length];
-      }
-      else if(rangeValues.length < val.length) {
-         DynamicValue[] arr = new DynamicValue[val.length];
-         System.arraycopy(rangeValues, 0, arr, 0, rangeValues.length);
-         rangeValues = arr;
-      }
+      // rebuild the backing array to the exact incoming length on every call so
+      // that a shorter array doesn't leave stale trailing values behind (#76909)
+      DynamicValue[] arr = new DynamicValue[val.length];
 
       for(int i = 0; i < val.length; i++) {
-         if(rangeValues[i] == null) {
-            rangeValues[i] = new DynamicValue("0", XSchema.DOUBLE);
+         if(rangeValues != null && i < rangeValues.length && rangeValues[i] != null) {
+            arr[i] = rangeValues[i];
+         }
+         else {
+            arr[i] = new DynamicValue("0", XSchema.DOUBLE);
          }
 
-         rangeValues[i].setRValue(val[i]);
+         arr[i].setRValue(val[i]);
       }
+
+      rangeValues = arr;
    }
 
    /**
@@ -414,13 +414,23 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          return;
       }
 
-      rangeColorsValue = rangeColorsValue != null ?
-         rangeColorsValue : new DynamicValue2[colors.length];
-      int length = Math.min(rangeColorsValue.length, colors.length);
+      // rebuild the backing array to the exact incoming length on every call so
+      // that a shorter array doesn't leave stale trailing colors behind, and a
+      // longer one isn't silently truncated (#76909)
+      DynamicValue2[] arr = new DynamicValue2[colors.length];
 
-      for(int i = 0; i< length; i++) {
-         rangeColorsValue[i].setRValue(colors[i]);
+      for(int i = 0; i < colors.length; i++) {
+         if(rangeColorsValue != null && i < rangeColorsValue.length && rangeColorsValue[i] != null) {
+            arr[i] = rangeColorsValue[i];
+         }
+         else {
+            arr[i] = new DynamicValue2(null, XSchema.COLOR);
+         }
+
+         arr[i].setRValue(colors[i]);
       }
+
+      rangeColorsValue = arr;
    }
 
    /**

@@ -78,11 +78,13 @@ public class VSVerticalThermometer extends VSThermometer {
       double[] ranges = info.getRanges();
       Color[] colors = info.getRangeColors();
 
-      if(ranges == null || colors == null || ranges.length == 0 ||
-         ranges.length > colors.length)
-      {
+      if(ranges == null || colors == null || ranges.length == 0 || colors.length == 0) {
          return;
       }
+
+      // ranges and rangeColors may legitimately differ in length (#76909); only
+      // render the segments that have both a boundary and a color.
+      int n = Math.min(ranges.length, colors.length);
 
       double min = info.getMin();
       double max = info.getMax();
@@ -90,14 +92,14 @@ public class VSVerticalThermometer extends VSThermometer {
       int startx = (int) rangeStartX;
       int starty = (int) majorTickStartY;
 
-      for(int i = ranges.length - 1; i >= 0; i--) {
+      for(int i = n - 1; i >= 0; i--) {
          double range = ranges[i];
          range = range < min ? min : range;
          range = range > max ? max : range;
 
          // set the range color same with previous one when the color is null
          if(colors[i] == null) {
-            if(i < ranges.length - 1 && colors[i + 1] != null) {
+            if(i < n - 1 && colors[i + 1] != null) {
                colors[i] = colors[i + 1];
             }
             else {
@@ -106,7 +108,7 @@ public class VSVerticalThermometer extends VSThermometer {
          }
 
          Color c1 = colors[i];
-         Color c2 = (i < colors.length - 1) ? colors[i + 1] : c1.darker();
+         Color c2 = (i < n - 1) ? colors[i + 1] : c1.darker();
          double hrate = (range - (i > 0 ? ranges[i - 1] : min)) / (max - min);
          double yrate = (range - min) / (max - min);
          int height = (int) (hrate * rangeHeight);
