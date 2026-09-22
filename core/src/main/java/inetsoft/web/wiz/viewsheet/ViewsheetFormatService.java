@@ -82,15 +82,17 @@ public class ViewsheetFormatService {
     *                   a single chart's {@code text}-aesthetic-bound field (its data labels);
     *                   {@code "data"} formats a Crosstab/Table's body cells directly, the only
     *                   target that reaches rendered body text (e.g. {@code color}/font color) once
-    *                   a table style applies -- see {@link #requireTarget}
+    *                   a table style applies; {@code "header"} formats a Crosstab/Table's HEADER
+    *                   (row/column dimension label) cells directly, for the same reason -- see
+    *                   {@link #requireTarget}
     * @param field      required when {@code target} is {@code "text"} — the column currently
     *                   bound to the chart's text aesthetic channel. Optional when {@code target}
-    *                   is {@code "data"}: scopes the write to one named column of a plain
-    *                   Table's body cells (matched against that column's currently rendered
-    *                   header text) instead of the whole body; null/blank keeps today's
-    *                   whole-table behavior. Not supported against a Crosstab under
-    *                   {@code "data"} -- refused rather than silently ignored. Unused for any
-    *                   other target.
+    *                   is {@code "data"} or {@code "header"}: scopes the write to one named
+    *                   column of a plain Table's body/header cells (matched against that
+    *                   column's currently rendered header text) instead of the whole
+    *                   body/header; null/blank keeps today's whole-table behavior. Not
+    *                   supported against a Crosstab under {@code "data"} or {@code "header"} --
+    *                   refused rather than silently ignored. Unused for any other target.
     */
    public record FormatRequest(List<String> assemblies,
                                VSObjectFormatInfoModel format,
@@ -457,6 +459,20 @@ public class ViewsheetFormatService {
 
                event.setData(data);
             }
+            else if("header".equals(target)) {
+               // Same event.getData() per-path mechanism as "data" above, but computed over the
+               // header-family paths that method deliberately excludes -- bug 76917: a Crosstab/
+               // Table's HEADER/GROUP_HEADER/SUMMARY_HEADER cells had no route to a format write
+               // that beats an active table style (VSFormatTableLens's per-cell styleForeground
+               // gate strips "object"; computeDataRegionPaths excludes header paths by design).
+               ArrayList<TableDataPath[]> data = new ArrayList<>();
+
+               for(String name : request.assemblies()) {
+                  data.add(computeHeaderRegionPaths(rvs, name, request.field()));
+               }
+
+               event.setData(data);
+            }
          }
 
          painter.setFormat(runtimeId, event, user, dispatcher, linkUri);
@@ -554,6 +570,96 @@ public class ViewsheetFormatService {
       }
 
       return paths.toArray(new TableDataPath[0]);
+   }
+
+   /**
+    * Computes the {@code TableDataPath[]} for a Crosstab/Table's HEADER region -- the row/
+    * column dimension label cells (and, on a Crosstab, the aggregate/measure header and any
+    * subtotal-header cells) -- as opposed to {@link #computeDataRegionPaths}'s body region.
+    * Mirrors that method's own live-lens walk, just inverting the type filter: collects every
+    * path whose type is {@link TableDataPath#HEADER}, {@link TableDataPath#GROUP_HEADER}, or
+    * {@link TableDataPath#SUMMARY_HEADER} instead of excluding {@code HEADER}. Bug 76917: the
+    * render engine ({@code VSFormatTableLens}) and the shared format-write engine
+    * ({@code FormatPainterService}) already support a header-cell-scoped format override that
+    * beats an active table style (the same mechanism the native Composer UI's own per-cell
+    * Format action uses) -- this method is what finally gives {@code target: "header"} a path
+    * to hand it.
+    *
+    * <p>A {@code TableDataPath.HEADER}-typed path is also how
+    * {@link inetsoft.report.filter.CrossFilterDataDescriptor} marks a Crosstab's synthetic
+    * blank/invalid corner cells (see its own {@code getCellDataPath}) -- those get swept into
+    * this result too under a plain type match. That's harmless (the cells are blank, so
+    * formatting them has no visible rendering effect) and deliberately not filtered out
+    * separately, since doing so would need distinguishing them from a genuine header cell by
+    * more than type alone.
+    *
+    * <p>Same {@code field} column-scoping support and restriction as
+    * {@link #computeDataRegionPaths}: only for a plain Table, refused loud against a Crosstab.
+    *
+    * @throws IllegalArgumentException if {@code name} does not resolve to a Crosstab or Table,
+    *                                  if {@code field} is given against a Crosstab, or if
+    *                                  {@code field} matches zero or more than one rendered
+    *                                  column
+    */
+   private static TableDataPath[] computeHeaderRegionPaths(RuntimeViewsheet rvs, String name,
+                                                            String field)
+      throws Exception
+   {
+      Viewsheet viewsheet = rvs.getViewsheet();
+      VSAssembly assembly = viewsheet == null ? null : viewsheet.getAssembly(name);
+
+      if(!(assembly instanceof CrosstabVSAssembly) && !(assembly instanceof TableVSAssembly)) {
+         throw new IllegalArgumentException(
+            "set_format: target 'header' only applies to a Crosstab or Table assembly; '" +
+            name + "' is " + (assembly == null ? "not found" :
+                       assembly.getClass().getSimpleName()) + ".");
+      }
+
+      boolean hasField = field != null && !field.isBlank();
+
+      if(hasField && assembly instanceof CrosstabVSAssembly) {
+         throw new IllegalArgumentException(
+            "set_format: 'field' is only supported for a plain Table header under target " +
+            "'header', not a Crosstab ('" + name + "'); omit 'field' to format the whole " +
+            "header.");
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return new TableDataPath[0];
+      }
+
+      VSTableLens lens = box.get().getVSTableLens(name, false);
+
+      if(lens == null) {
+         return new TableDataPath[0];
+      }
+
+      TableDataDescriptor desc = lens.getDescriptor();
+      LinkedHashSet<TableDataPath> paths = new LinkedHashSet<>();
+      int colCount = lens.getColCount();
+      Integer resolvedCol = hasField ? resolveColumnIndex(lens, field, name) : null;
+
+      // Same defensive row cap as computeDataRegionPaths -- see its own comment.
+      for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
+         for(int col = 0; col < colCount; col++) {
+            TableDataPath path = desc.getCellDataPath(row, col);
+
+            if(path != null && isHeaderFamilyType(path.getType()) &&
+               (resolvedCol == null || desc.isColDataPath(resolvedCol, path)))
+            {
+               paths.add(path);
+            }
+         }
+      }
+
+      return paths.toArray(new TableDataPath[0]);
+   }
+
+   private static boolean isHeaderFamilyType(int type) {
+      return type == TableDataPath.HEADER || type == TableDataPath.GROUP_HEADER ||
+         type == TableDataPath.SUMMARY_HEADER;
    }
 
    /**
@@ -717,18 +823,21 @@ public class ViewsheetFormatService {
       String name = target == null || target.isBlank() ? "object" : target.trim().toLowerCase();
 
       if(!"object".equals(name) && !"title".equals(name) && !"text".equals(name) &&
-         !"data".equals(name))
+         !"data".equals(name) && !"header".equals(name))
       {
          throw new IllegalArgumentException(
-            "set_format 'target' must be 'object', 'title', 'text' or 'data', got '" + target +
-            "'. 'object' (the default) formats the whole assembly, including — for a chart — " +
-            "the default text style that unstyled axis titles and tick labels fall back to. " +
-            "'title' formats only that assembly's own title-bar text; for a chart's x/y axis " +
-            "titles, use set_chart_region_properties with region 'title' instead. 'text' " +
-            "formats a single chart's text-aesthetic-bound field (its data labels) — requires " +
-            "'field'. 'data' formats a Crosstab or Table's body cells directly — use this for " +
-            "'color' on a Crosstab/Table: 'object' can never reach rendered body text once a " +
-            "table style applies, which is true for essentially every realistic Crosstab/Table.");
+            "set_format 'target' must be 'object', 'title', 'text', 'data' or 'header', got '" +
+            target + "'. 'object' (the default) formats the whole assembly, including — for a " +
+            "chart — the default text style that unstyled axis titles and tick labels fall " +
+            "back to. 'title' formats only that assembly's own title-bar text; for a chart's " +
+            "x/y axis titles, use set_chart_region_properties with region 'title' instead. " +
+            "'text' formats a single chart's text-aesthetic-bound field (its data labels) — " +
+            "requires 'field'. 'data' formats a Crosstab or Table's body cells directly — use " +
+            "this for 'color' on a Crosstab/Table: 'object' can never reach rendered body text " +
+            "once a table style applies, which is true for essentially every realistic " +
+            "Crosstab/Table. 'header' formats a Crosstab or Table's header (row/column " +
+            "dimension label) cells directly, for the same reason — 'object' can never reach " +
+            "them once a table style colors them explicitly either.");
       }
 
       return name;
