@@ -82,7 +82,9 @@ final class SlotPool {
       }
       finally {
          if(keep) {
+            runBeforeIdleHook();
             slot.release();
+            closeIfRetired(slot);
          }
          else {
             if(slot.isDoomed()) {
@@ -128,7 +130,9 @@ final class SlotPool {
          pooled.add(created);
       }
 
+      runBeforeIdleHook();
       created.release();
+      closeIfRetired(created);
    }
 
    Slot primary() {
@@ -229,6 +233,11 @@ final class SlotPool {
          return false;
       }
 
+      // Linearization: a checkout takes effect here, before any retire() that dooms the slot
+      // after this check. Such a slot is still handed out on purpose (retire never waits for
+      // or revokes a holder), and it is closed at its claim's 1 to 0 release, whose doomed or
+      // stale check (or closeIfRetired) sees the doom or the newer epoch.
+
       try {
          EnvState.Snapshot state = source.state().snapshot();
 
@@ -295,6 +304,37 @@ final class SlotPool {
          }
       }, period, period, TimeUnit.MILLISECONDS);
    }
+
+   /**
+    * Close a slot that was doomed or went stale after its keeper's last check but before it
+    * went idle. A retire() in that window could only doom it, since the keeper still held the
+    * lock, and no owner is left to close it at a later release: a primary is never evicted and
+    * would stay open, counted in the node's slots. Never waits: if the tryLock fails, the new
+    * holder closes it at its own release or its checkout's prepare.
+    */
+   private void closeIfRetired(Slot slot) {
+      if((slot.isDoomed() || slot.epoch() < epoch.get()) && slot.tryAcquire()) {
+         if(slot.isDoomed()) {
+            metrics.doomedClosed();
+         }
+
+         discard(slot);
+      }
+   }
+
+   private void runBeforeIdleHook() {
+      Runnable hook = beforeIdleHook;
+
+      if(hook != null) {
+         hook.run();
+      }
+   }
+
+   /**
+    * Test hook run right before a slot this pool keeps goes idle (release's keep path and
+    * ensurePrimary), while the caller still holds its lock; null in production.
+    */
+   volatile Runnable beforeIdleHook;
 
    private static final ScheduledExecutorService EVICTOR =
       Executors.newSingleThreadScheduledExecutor(r -> {

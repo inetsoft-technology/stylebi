@@ -45,6 +45,10 @@ public final class SlotClaim implements ScriptSpan {
       Map<SlotPool, SlotClaim> claims = CLAIMS.get();
 
       if(claims == null) {
+         if(!everClaimed) {
+            everClaimed = true;
+         }
+
          claims = new IdentityHashMap<>();
          CLAIMS.set(claims);
       }
@@ -150,10 +154,17 @@ public final class SlotClaim implements ScriptSpan {
 
    /**
     * Release every claim left open on the calling thread (N5). A claim is balanced by
-    * construction; one left open by a bug would keep its context locked forever. Called when
-    * a thread ends.
+    * construction; one left open by a bug would keep its context locked forever, and a later
+    * task on a reused worker thread would re-enter it and never clean it. Called when a
+    * GroupedThread ends and after every ThreadPool task. Never throws.
     */
    public static void releaseLeaked(String where) {
+      // pool off: no claim was ever opened in this JVM, so skip even the ThreadLocal.get(),
+      // which would create an entry on this thread
+      if(!everClaimed) {
+         return;
+      }
+
       Map<SlotPool, SlotClaim> claims = CLAIMS.get();
 
       if(claims == null) {
@@ -182,6 +193,8 @@ public final class SlotClaim implements ScriptSpan {
    }
 
    private static final ThreadLocal<Map<SlotPool, SlotClaim>> CLAIMS = new ThreadLocal<>();
+   // set on the first claim in this JVM, by the claiming thread before its CLAIMS entry
+   private static volatile boolean everClaimed;
 
    private final SlotPool pool;
    private final Thread owner;

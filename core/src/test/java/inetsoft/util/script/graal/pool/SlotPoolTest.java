@@ -17,6 +17,8 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import inetsoft.util.GroupedThread;
+import inetsoft.util.ThreadPool;
 import org.junit.jupiter.api.*;
 
 import java.util.*;
@@ -292,17 +294,124 @@ class SlotPoolTest {
 
    @Test
    void leakedClaimIsReleasedAtThreadEnd() throws Exception {
-      Future<Slot> leaker = executor.submit(() -> {
-         Slot slot = SlotClaim.acquire(pool, false).slot();
-         SlotClaim.releaseLeaked("test task");
-         assertEquals(0, SlotClaim.openClaims());
-         return slot;
-      });
-      Slot slot = leaker.get(10, TimeUnit.SECONDS);
+      AtomicReference<Slot> leaked = new AtomicReference<>();
+      // a real GroupedThread, so the leak goes through its run() finally hook
+      GroupedThread thread = new GroupedThread(
+         () -> leaked.set(SlotClaim.acquire(pool, false).slot()), "slot-leak-thread-end");
+      thread.start();
+      thread.join(10000);
+      assertFalse(thread.isAlive());
+      Slot slot = leaked.get();
+      assertNotNull(slot);
 
       try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
          assertSame(slot, claim.slot(), "the leaked slot was returned to the pool");
       }
+   }
+
+   @Test
+   void leakedClaimIsReleasedAfterEachThreadPoolTask() throws Exception {
+      // one worker, so both tasks run on the same long-lived thread
+      ThreadPool workers = new ThreadPool(1, 1, "slot-leak-pool");
+
+      try {
+         CompletableFuture<Slot> leaked = new CompletableFuture<>();
+         CompletableFuture<Thread> leakThread = new CompletableFuture<>();
+         workers.add(() -> {
+            leakThread.complete(Thread.currentThread());
+            leaked.complete(SlotClaim.acquire(pool, false).slot());
+         });
+         Slot slot = leaked.get(10, TimeUnit.SECONDS);
+
+         CompletableFuture<Integer> nextClaims = new CompletableFuture<>();
+         CompletableFuture<Thread> nextThread = new CompletableFuture<>();
+         workers.add(() -> {
+            nextThread.complete(Thread.currentThread());
+            nextClaims.complete(SlotClaim.openClaims());
+         });
+
+         assertEquals(0, nextClaims.get(10, TimeUnit.SECONDS),
+                      "the next task on the worker starts with no claim");
+         assertSame(leakThread.get(), nextThread.get(), "both tasks ran on one worker");
+
+         try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
+            assertSame(slot, claim.slot(), "the leaked slot was returned to the pool");
+         }
+      }
+      finally {
+         workers.dispose();
+      }
+   }
+
+   @Test
+   void retireBetweenTheKeepCheckAndTheReleaseStillClosesTheSlot() throws Exception {
+      CountDownLatch atKeep = new CountDownLatch(1);
+      CountDownLatch retired = new CountDownLatch(1);
+      AtomicReference<Slot> slot = new AtomicReference<>();
+      pool.beforeIdleHook = () -> {
+         atKeep.countDown();
+
+         try {
+            assertTrue(retired.await(10, TimeUnit.SECONDS));
+         }
+         catch(InterruptedException ex) {
+            throw new IllegalStateException(ex);
+         }
+      };
+      Future<?> holder = executor.submit(() -> {
+         try(SlotClaim claim = SlotClaim.acquire(pool, false)) {
+            slot.set(claim.slot());
+         }
+
+         return null;
+      });
+
+      assertTrue(atKeep.await(10, TimeUnit.SECONDS));
+      pool.beforeIdleHook = null;
+      assertSame(slot.get(), pool.primary());
+      // the holder passed the keep check and still holds the lock: retire can only doom it
+      pool.retire();
+      assertTrue(slot.get().isDoomed());
+      retired.countDown();
+      holder.get(10, TimeUnit.SECONDS);
+
+      assertTrue(slot.get().isClosed(), "a slot doomed during its release is closed");
+      assertNull(pool.primary());
+      assertEquals(0, metrics.getSize());
+      assertEquals(1, metrics.getDoomedCloses());
+   }
+
+   @Test
+   void retireDuringEnsurePrimaryStillClosesTheCreatedSlot() throws Exception {
+      CountDownLatch created = new CountDownLatch(1);
+      CountDownLatch retired = new CountDownLatch(1);
+      pool.beforeIdleHook = () -> {
+         created.countDown();
+
+         try {
+            assertTrue(retired.await(10, TimeUnit.SECONDS));
+         }
+         catch(InterruptedException ex) {
+            throw new IllegalStateException(ex);
+         }
+      };
+      Future<?> creator = executor.submit(() -> {
+         pool.ensurePrimary();
+         return null;
+      });
+
+      assertTrue(created.await(10, TimeUnit.SECONDS));
+      pool.beforeIdleHook = null;
+      Slot slot = pool.primary();
+      assertNotNull(slot);
+      pool.retire();
+      assertTrue(slot.isDoomed());
+      retired.countDown();
+      creator.get(10, TimeUnit.SECONDS);
+
+      assertTrue(slot.isClosed(), "a primary doomed before it went idle is closed");
+      assertNull(pool.primary());
+      assertEquals(0, metrics.getSize());
    }
 
    @Test
