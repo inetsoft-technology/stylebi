@@ -78,6 +78,13 @@ class TableBindingMutatorTest {
       return new FieldRef(column, "measure", aggregate, null, null, null, null, null, calc);
    }
 
+   private static FieldRef measureWithSecondaryColumn(String column, String aggregate,
+                                                      String secondaryColumn)
+   {
+      return new FieldRef(column, "measure", aggregate, null, null, null, null, null, null,
+                          null, null, null, null, secondaryColumn);
+   }
+
    // ── crosstab shelves ──────────────────────────────────────────────────────
 
    @Test
@@ -100,6 +107,21 @@ class TableBindingMutatorTest {
       assertEquals(1, model.getCols().size());
       assertEquals(1, model.getAggregates().size());
       assertEquals("Sum", model.getAggregates().get(0).getFormula());
+   }
+
+   /**
+    * Bug #76931 (VTB-034): {@code FieldRef.secondaryColumn} -- the second column a
+    * Covariance/Correlation/WeightedAverage aggregate compares its own {@code column} against --
+    * must reach {@code BAggregateRefModel.getSecondaryColumnValue()} on write.
+    */
+   @Test
+   void setsAggregatesSecondaryColumn() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setShelf(model, "aggregates",
+         List.of(measureWithSecondaryColumn("DISCOUNT", "Correlation", "PAID")));
+
+      assertEquals("PAID", model.getAggregates().get(0).getSecondaryColumnValue());
    }
 
    @Test

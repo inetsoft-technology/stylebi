@@ -597,6 +597,10 @@ public final class TableBindingMutator {
             ref.setFormula(field.aggregate());
          }
 
+         if(field.secondaryColumn() != null) {
+            ref.setSecondaryColumnValue(field.secondaryColumn());
+         }
+
          if(field.calculateInfo() != null) {
             ref.setCalculateInfo(field.calculateInfo());
          }
