@@ -108,6 +108,97 @@ class WorksheetTest {
    }
 
    /**
+    * Regression for bug 76900: {@code ComposedTableAssembly#renameAggregateInfo} (covering
+    * {@code MirrorTableAssembly}, join-derived tables, and {@code ConcatenatedTableAssembly})
+    * overrides the base method fixed by bug 76796 and correctly calls {@code super()}, but then
+    * re-walks its own {@code ginfo} groups/aggregates via {@code ColumnRef.renameColumn} with no
+    * self-rename guard of its own -- reopening the same corruption the 76796 guard closed for
+    * non-composed tables, just for a mirror/join/concatenated table whose own aggregate column
+    * entity happens to equal its own current name.
+    */
+   @Test
+   void renameAssemblyDoesNotRequalifyComposedTablesOwnAggregateRefOnSelfRename() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly source = TestWorksheets.tableWithColumns(ws, "SO", "amount");
+      ws.addAssembly(source);
+
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", source);
+      inetsoft.uql.ColumnSelection cs = new inetsoft.uql.ColumnSelection();
+      ColumnRef amountColumn = new ColumnRef(new AttributeRef("M", "amount"));
+      cs.addAttribute(amountColumn);
+      mirror.setColumnSelection(cs, false);
+
+      AggregateInfo ginfo = new AggregateInfo();
+      ginfo.addAggregate(new AggregateRef(amountColumn, AggregateFormula.SUM));
+      mirror.setAggregateInfo(ginfo);
+      ws.addAssembly(mirror);
+
+      assertTrue(ws.renameAssembly("M", "M2", true));
+
+      AggregateInfo renamed = mirror.getAggregateInfo();
+      assertEquals(1, renamed.getAggregateCount(),
+         "rename_table must not silently drop the composed table's own aggregate");
+      DataRef aggregateRef = renamed.getAggregate(0).getDataRef();
+      assertEquals("M", aggregateRef.getEntity(),
+         "the composed table's own aggregate column entity must not be requalified to the " +
+         "table's own new name on self-rename");
+      assertEquals("amount", aggregateRef.getAttribute());
+   }
+
+   /**
+    * Regression for bug 76900: {@code ComposedTableAssembly#renameConditionListWrapper} is
+    * overridden to requalify entity-qualified refs inside conditions (including a
+    * {@code RankingCondition}'s data ref, e.g. a "Top N by Sum(x)" ranking on {@code topns}),
+    * and that override is invoked unconditionally from {@code super.renameDepended()} before
+    * this table's own self-rename guards run. A ranking condition's data ref commonly shares
+    * the exact same {@code AggregateRef} instance as the table's own {@code AggregateInfo}
+    * aggregate (mirroring {@code WorksheetMutationSupport#applyAggregateInfo}'s no-clone ref
+    * sharing), so without its own guard this path re-corrupts that shared ref on self-rename
+    * even though the {@code renameAggregateInfo} and {@code renameDepended} guards above already
+    * protect the AggregateInfo/column-selection paths.
+    */
+   @Test
+   void renameAssemblyDoesNotRequalifySharedRankingConditionRefOnSelfRename() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly source = TestWorksheets.tableWithColumns(ws, "SO", "amount");
+      ws.addAssembly(source);
+
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", source);
+      inetsoft.uql.ColumnSelection cs = new inetsoft.uql.ColumnSelection();
+      ColumnRef amountColumn = new ColumnRef(new AttributeRef("M", "amount"));
+      cs.addAttribute(amountColumn);
+      mirror.setColumnSelection(cs, false);
+
+      AggregateRef aggregateRef = new AggregateRef(amountColumn, AggregateFormula.SUM);
+      AggregateInfo ginfo = new AggregateInfo();
+      ginfo.addAggregate(aggregateRef);
+      mirror.setAggregateInfo(ginfo);
+
+      RankingCondition ranking = new RankingCondition();
+      ranking.setN(5);
+      ranking.setOperation(RankingCondition.TOP_N);
+      // Shares the same AggregateRef instance as the AggregateInfo above, matching how
+      // WorksheetMutationSupport wires a "Top N" ranking to the table's own aggregate.
+      ranking.setDataRef(aggregateRef);
+      inetsoft.uql.ConditionList topns = new inetsoft.uql.ConditionList();
+      topns.append(new inetsoft.uql.ConditionItem(amountColumn, ranking, 0));
+      mirror.setRankingConditionList(topns);
+
+      ws.addAssembly(mirror);
+
+      assertTrue(ws.renameAssembly("M", "M2", true));
+
+      DataRef rankingRef = ranking.getDataRef();
+      assertTrue(rankingRef instanceof AggregateRef, "ranking condition's data ref type must " +
+         "be preserved");
+      DataRef rankedColumn = ((AggregateRef) rankingRef).getDataRef();
+      assertEquals("M", rankedColumn.getEntity(),
+         "the ranking condition's shared aggregate column entity must not be requalified to " +
+         "the table's own new name on self-rename");
+      assertEquals("amount", rankedColumn.getAttribute());
+   }
+
+   /**
     * Companion to the self-rename case above: a *different* table's group/aggregate that
     * legitimately depends on the renamed table (the join/mirror scenario the rename-cascade
     * mechanism exists for, added in commit 28a5ede3b) must still be requalified correctly --
@@ -135,5 +226,63 @@ class WorksheetTest {
       assertEquals("SalesOrder", aggregateRef.getEntity(),
          "the dependent aggregate must be requalified to the source table's NEW name");
       assertEquals("amount", aggregateRef.getAttribute());
+   }
+
+   /**
+    * Cross-table companion for the {@code renameColumnSelection}/{@code renameSortInfo} guard
+    * added to {@code ComposedTableAssembly#renameDepended} for bug 76900: a different table's
+    * sort ref that legitimately depends on the renamed table must still be requalified.
+    */
+   @Test
+   void renameAssemblyStillRequalifiesAnotherTablesSortRefThatDependsOnTheRenamedTable() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly source = TestWorksheets.tableWithColumns(ws, "SO", "amount");
+      ws.addAssembly(source);
+
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", source);
+      ColumnRef amountColumn = new ColumnRef(new AttributeRef("SO", "amount"));
+      SortInfo sortInfo = new SortInfo();
+      sortInfo.addSort(new SortRef(amountColumn));
+      mirror.setSortInfo(sortInfo);
+      ws.addAssembly(mirror);
+
+      assertTrue(ws.renameAssembly("SO", "SalesOrder", true));
+
+      SortRef[] sorts = mirror.getSortInfo().getSorts();
+      assertEquals(1, sorts.length,
+         "a dependent table's sort ref on a genuinely renamed source table must survive");
+      assertEquals("SalesOrder", sorts[0].getDataRef().getEntity(),
+         "the dependent sort ref must be requalified to the source table's NEW name");
+      assertEquals("amount", sorts[0].getDataRef().getAttribute());
+   }
+
+   /**
+    * Cross-table companion for the {@code renameConditionListWrapper} guard added to
+    * {@code ComposedTableAssembly} for bug 76900: a different table's ranking condition that
+    * legitimately depends on the renamed table must still be requalified.
+    */
+   @Test
+   void renameAssemblyStillRequalifiesAnotherTablesRankingConditionThatDependsOnTheRenamedTable() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly source = TestWorksheets.tableWithColumns(ws, "SO", "amount");
+      ws.addAssembly(source);
+
+      MirrorTableAssembly mirror = new MirrorTableAssembly(ws, "M", source);
+      ColumnRef amountColumn = new ColumnRef(new AttributeRef("SO", "amount"));
+      AggregateRef aggregateRef = new AggregateRef(amountColumn, AggregateFormula.SUM);
+      RankingCondition ranking = new RankingCondition();
+      ranking.setN(5);
+      ranking.setDataRef(aggregateRef);
+      inetsoft.uql.ConditionList topns = new inetsoft.uql.ConditionList();
+      topns.append(new inetsoft.uql.ConditionItem(amountColumn, ranking, 0));
+      mirror.setRankingConditionList(topns);
+      ws.addAssembly(mirror);
+
+      assertTrue(ws.renameAssembly("SO", "SalesOrder", true));
+
+      DataRef rankedColumn = ((AggregateRef) ranking.getDataRef()).getDataRef();
+      assertEquals("SalesOrder", rankedColumn.getEntity(),
+         "the dependent ranking condition's ref must be requalified to the source table's NEW name");
+      assertEquals("amount", rankedColumn.getAttribute());
    }
 }
