@@ -439,8 +439,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             try {
                // Strip "use strict" directives — strict mode forbids with statements,
                // so the wrapper would cause a SyntaxError and the function would be
-               // silently dropped.
-               String wrapped = stripStrictDirectives(rewriteJavaLengthCalls(source));
+               // silently dropped. Bug #76980: rewrite top-level const/let to var
+               // as compile() does, so a library constant is visible to other
+               // scripts (Rhino put it on the scope) instead of being confined to
+               // the with-block.
+               String wrapped = rewriteTopLevelLexicalDeclarations(
+                  stripStrictDirectives(rewriteJavaLengthCalls(source)));
                context.eval(Source.newBuilder(
                   "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
                               .buildLiteral());
@@ -855,10 +859,28 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * <p>Uses the same lexer as {@link #splitTopLevelStatements}, so strings,
     * template literals, regex literals and comments are never touched, and
     * anything nested in parens/brackets/braces (a {@code for(let ...)} head, a
-    * block, a function body) keeps its block scoping. {@code class} is left
-    * unchanged (it was a SyntaxError in Rhino, and no keyword rewrite of it is
-    * parse-safe). The replacement keeps character offsets so error positions do
-    * not move. Known difference: a rewritten {@code const} can be reassigned.
+    * block, a function body) keeps its block scoping. The replacement keeps
+    * character offsets so error positions do not move. Applied to every
+    * {@link #compile} body and to library sources in
+    * {@link #installLibraryFunctions}.
+    *
+    * <p>Deliberate side effects — the rewritten declaration is a plain
+    * {@code var}, and Rhino's own const quirks are not emulated:
+    * <ul>
+    *   <li>reassigning a rewritten {@code const} takes the new value (Rhino
+    *       silently ignored the assignment, unrewritten GraalJS throws
+    *       {@code TypeError}); a redeclaration is accepted (Rhino threw
+    *       {@code TypeError: redeclaration of const});</li>
+    *   <li>under {@code with(__scope__)}, when the scope already has a member of
+    *       the same name, the initializer writes to that scope member, as a
+    *       {@code var} always has;</li>
+    *   <li>top-level {@code let}/{@code const} names become globals that persist
+    *       across scripts on the engine (like the #75596 {@code var} hoist), and
+    *       lose TDZ and immutability;</li>
+    *   <li>{@code class} is left unchanged: it was a SyntaxError in Rhino, and
+    *       {@code var K = class K {}} would change how a following line that
+    *       begins with {@code (} or {@code [} parses.</li>
+    * </ul>
     */
    private static String rewriteTopLevelLexicalDeclarations(String body) {
       List<Integer> decls = new ArrayList<>();
