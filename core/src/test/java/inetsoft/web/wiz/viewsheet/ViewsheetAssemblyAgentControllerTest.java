@@ -170,6 +170,43 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    /**
+    * bug-76936 (VFL-010): the read-only selection-state endpoint delegates straight to
+    * {@code SelectionRuntimeService.selectionState(...)}, the same GET-no-mutate shape as
+    * {@code browseConditionValues}.
+    */
+   @Test
+   void selectionStateReturnsTheServiceResult() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      SelectionRuntimeService selectionService = mock(SelectionRuntimeService.class);
+      Map<String, Object> expected = Map.of("assembly", "Region", "computed", true);
+      when(selectionService.selectionState(eq("tok"), any(Principal.class), eq("Region")))
+         .thenReturn(expected);
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWithSelectionService(sessions, selectionService);
+
+      assertSame(expected, controller.selectionState("tok", "Region", principal()));
+   }
+
+   /** Mirrors {@code browseConditionValuesPropagatesTheNamedFieldErrorForAnUnknownAssembly}'s own
+    *  assertion style: a named-field error from the service must reach the caller unwrapped. */
+   @Test
+   void selectionStatePropagatesTheNamedFieldErrorForAnUnknownAssembly() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      SelectionRuntimeService selectionService = mock(SelectionRuntimeService.class);
+      doThrow(new IllegalArgumentException("Unknown assembly 'NoSuchAssembly'."))
+         .when(selectionService).selectionState(anyString(), any(Principal.class), anyString());
+
+      ViewsheetAssemblyAgentController controller =
+         controllerWithSelectionService(sessions, selectionService);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class, () ->
+         controller.selectionState("tok", "NoSuchAssembly", principal()));
+
+      assertTrue(thrown.getMessage().contains("NoSuchAssembly"));
+   }
+
+   /**
     * detach took the session token and nothing else, so any authenticated caller holding or
     * guessing another user's token could terminate their pairing session. Every other endpoint
     * binds the token to the caller through {@code sessions.resolve(token, user)}; this one
@@ -675,6 +712,48 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(DateComparisonService.class),
                                           mock(AssemblyConvertService.class),
                                           mock(SelectionRuntimeService.class),
+                                          mock(CalendarDisplayService.class),
+                                          mock(InputValueService.class),
+                                          mock(AssemblyMaxModeService.class),
+                                          mock(FormTableRowService.class),
+                                          mock(ColumnOptionService.class),
+                                          mock(ParameterCollectionService.class),
+                                          mock(ParameterValueService.class),
+                                          mock(inetsoft.analytic.composition.ViewsheetService.class),
+                                          mock(SheetAgentBroadcastService.class),
+                                          mock(SheetOpenService.class),
+                                          mock(LayoutSessionService.class),
+                                          mock(LayoutReadService.class),
+                                          mock(PrintDeviceLayoutPropertyService.class),
+                                          mock(LayoutMutationService.class),
+                                          mock(LayoutUndoService.class), mock(VSBookmarkService.class), mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
+   }
+
+   private static ViewsheetAssemblyAgentController controllerWithSelectionService(
+      ViewsheetSessionService sessions, SelectionRuntimeService selectionService)
+   {
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+
+      return new ViewsheetAssemblyAgentController(feature, mock(SheetJoinService.class),
+                                          mock(SheetSessionService.class),
+                                          sessions,
+                                          mock(ViewsheetReadService.class),
+                                          mock(ViewsheetEditService.class),
+                                          mock(ViewsheetFormatService.class),
+                                          mock(inetsoft.web.wiz.script.ScriptImageService.class),
+                                          mock(AssemblyPropertyService.class),
+                                          mock(SheetPropertyService.class),
+                                          mock(AssemblyHyperlinkService.class),
+                                          mock(ChartElementService.class),
+                                          mock(ChartRegionPropertyService.class),
+                                          mock(HierarchyDimensionService.class),
+                                          mock(AssemblyConditionService.class),
+                                          mock(AssemblyHighlightService.class),
+                                          mock(DateComparisonService.class),
+                                          mock(AssemblyConvertService.class),
+                                          selectionService,
                                           mock(CalendarDisplayService.class),
                                           mock(InputValueService.class),
                                           mock(AssemblyMaxModeService.class),
