@@ -1569,6 +1569,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    }
 
    /**
+    * Forget cached answers about which names are globals, after globals were deleted from
+    * this engine's Context (bug #76960). Caller holds {@code lock}.
+    */
+   protected void invalidateGlobalBindings() {
+      if(scopeProxy != null) {
+         scopeProxy.invalidateGlobalBindingCache();
+      }
+   }
+
+   /**
     * Read the script.max.errors limit from SreeEnv. Returns 0 to mean "no limit".
     * Must be called while holding {@code lock} (result used inline in exec).
     */

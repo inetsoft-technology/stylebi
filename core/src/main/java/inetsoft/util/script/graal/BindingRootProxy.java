@@ -242,6 +242,14 @@ public class BindingRootProxy implements ProxyObject {
       globalBindingCache.remove(name);
    }
 
+   /**
+    * Drop the cached "is a global" answers. A pooled worksheet context deletes foreign
+    * globals when it is cleaned (bug #76960), which the cache otherwise assumes never happens.
+    */
+   public void invalidateGlobalBindingCache() {
+      globalBindingCache.clear();
+   }
+
    // Per-chain-root cache of "is name provided by the scope chain?" The calc table
    // swaps in a fresh root scope per evaluation, so the cache is keyed on the root
    // identity and dropped when the root changes; within one root the same names
