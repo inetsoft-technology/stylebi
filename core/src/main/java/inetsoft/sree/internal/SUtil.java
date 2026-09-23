@@ -3052,8 +3052,8 @@ public class SUtil {
       String orgScopedProperty = "security." + OrganizationManager.getInstance().getCurrentOrgID() + ".exposeDefaultOrgToAll";
 
       return SUtil.isMultiTenant() &&
-         (Boolean.parseBoolean(SreeEnv.getProperty("security.exposeDefaultOrgToAll", "false")) ||
-          Boolean.parseBoolean(SreeEnv.getProperty(orgScopedProperty, "false")));
+         (Boolean.parseBoolean(getExposeDefaultOrgToAllProperty("security.exposeDefaultOrgToAll")) ||
+          Boolean.parseBoolean(getExposeDefaultOrgToAllProperty(orgScopedProperty)));
    }
 
    public static boolean isDefaultVSGloballyVisible(Principal principal) {
@@ -3069,8 +3069,28 @@ public class SUtil {
 
       String orgScopedProperty = "security." + orgId + ".exposeDefaultOrgToAll";
       return SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal) &&
-         (Boolean.parseBoolean(SreeEnv.getProperty("security.exposeDefaultOrgToAll", "false")) ||
-          Boolean.parseBoolean(SreeEnv.getProperty(orgScopedProperty, "false")));
+         (Boolean.parseBoolean(getExposeDefaultOrgToAllProperty("security.exposeDefaultOrgToAll")) ||
+          Boolean.parseBoolean(getExposeDefaultOrgToAllProperty(orgScopedProperty)));
+   }
+
+   /**
+    * Reads an exposeDefaultOrgToAll-family property straight from the backing store, bypassing
+    * PropertiesEngine's in-memory cache -- that cache lags a write by at least its 500ms debounce
+    * (plus reload time) on every node that didn't originate the write, which is long enough to
+    * flip this bypass check for a request landing on a node still serving the pre-change value.
+    * Falls back to the cached SreeEnv read if the direct store read itself fails (storage not yet
+    * initialized, transient backend hiccup), so a storage blip degrades to the old staleness
+    * window instead of throwing out of a permission check exercised on every folder listing and
+    * viewsheet open.
+    */
+   private static String getExposeDefaultOrgToAllProperty(String name) {
+      try {
+         return SreeEnv.getPropertyFromStorage(name);
+      }
+      catch(Exception ex) {
+         LOG.debug("Falling back to cached property value for {}", name, ex);
+         return SreeEnv.getProperty(name, "false");
+      }
    }
 
    public static boolean isSharedDefaultOrgDashboard(AssetEntry entry) {
