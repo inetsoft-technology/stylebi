@@ -137,7 +137,7 @@ public final class ChartBindingMutator {
 
       for(int i = 0; i < fieldList.size(); i++) {
          FieldRef field = fieldList.get(i);
-         ChartRefModel ref = FieldRefFactory.toChartRef(field, rvs, source, refModelService);
+         ChartRefModel ref = FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
 
          if(ref instanceof ChartDimensionRefModel dimension && i < oldRefs.size() &&
             oldRefs.get(i) instanceof ChartDimensionRefModel previous && matches(previous, field))
@@ -432,7 +432,7 @@ public final class ChartBindingMutator {
       requireColumnLimit(chartInfo, oldCount, newCount);
 
       ChartRefModel ref = field == null
-         ? null : FieldRefFactory.toChartRef(field, rvs, source, refModelService);
+         ? null : FieldRefFactory.toChartRef(field, model, rvs, source, refModelService);
 
       switch(name) {
       case "open" -> model.setOpenField(ref);

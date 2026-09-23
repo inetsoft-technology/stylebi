@@ -24,7 +24,6 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
-import inetsoft.web.binding.model.BindingModel;
 import inetsoft.uql.XConstants;
 import inetsoft.web.binding.model.table.BaseTableBindingModel;
 import inetsoft.web.binding.model.table.CrosstabOptionInfo;
@@ -157,7 +156,8 @@ public final class TableBindingMutator {
             // must not reset to none on every write. Bug #76881, porting VTB-004's own pattern to
             // this shelf (left unfixed by that fix -- see aggregates()'s own note).
             List<BAggregateRefModel> previous = model.getAggregates();
-            model.setAggregates(aggregates(refs, previous == null ? List.of() : previous));
+            model.setAggregates(
+               aggregates(refs, previous == null ? List.of() : previous, model, rvs, source));
          }
       }
 
@@ -353,15 +353,6 @@ public final class TableBindingMutator {
    }
 
    /**
-    * The numeric {@code SourceTableColumn.getDataType()} values {@code AssetUtil.isNumberType()}
-    * recognizes, kept as a literal set for the same reason {@link #MULTI_ARG_FORMULA_NAMES}
-    * is one: touching {@code AssetUtil}/{@code AggregateFormula} at all from wiz code is unsafe
-    * under plain JUnit (see that field's own javadoc).
-    */
-   private static final Set<String> NUMERIC_TYPES =
-      Set.of("float", "double", "byte", "short", "integer", "long");
-
-   /**
     * Converts {@code field} to match {@code shelf}'s kind (dimension vs. measure) when they
     * disagree, rather than leaving {@link #requireCompatible} to refuse the move outright --
     * mirrors the UI's own drag-and-drop pivot ({@code VSCrosstabDndService.dnd()} -> {@code
@@ -380,53 +371,16 @@ public final class TableBindingMutator {
       }
 
       if(wantsMeasure) {
-         String dataType = dataTypeOf(model, field.column());
-         String formula = dataType != null && NUMERIC_TYPES.contains(dataType) ? "Sum" : "Count";
-         return new FieldRef(field.column(), FieldRefFactory.MEASURE, formula, null, null,
+         // The formula is deliberately left null: every path out of here reaches the aggregates
+         // shelf through setShelf -> aggregates(), which applies exactly this default (bug
+         // #76949 moved it there so set_table_fields gets it too, not just move_table_field) and
+         // additionally recognizes an aggregate calc field, which this one defaulted to Count.
+         return new FieldRef(field.column(), FieldRefFactory.MEASURE, null, null, null,
                              field.chartType(), field.runtimeChartType());
       }
 
       return new FieldRef(field.column(), FieldRefFactory.DIMENSION, null, null, null,
                           field.chartType(), field.runtimeChartType());
-   }
-
-   /**
-    * The bound source's own reported data type for {@code column}, or {@code null} if unknown.
-    *
-    * <p>Matches {@code column} against a reported column name either exactly or with either
-    * side's {@code "table.attribute"} qualifier stripped -- the same symmetric matching {@link
-    * TableBindingService#unqualified} exists for, since a column from a joined/merged worksheet
-    * table can be qualified while the field being moved onto {@code aggregates} names it bare
-    * (or vice versa). Without this, a qualified numeric column silently defaulted to {@code
-    * Count} instead of {@code Sum} here, since the exact-match-only lookup never found its data
-    * type.
-    */
-   private static String dataTypeOf(BaseTableBindingModel model, String column) {
-      List<BindingModel.SourceTable> tables = model.getTables();
-
-      if(tables == null || column == null) {
-         return null;
-      }
-
-      String bareColumn = TableBindingService.unqualified(column);
-
-      for(BindingModel.SourceTable table : tables) {
-         if(table.getColumns() == null) {
-            continue;
-         }
-
-         for(BindingModel.SourceTableColumn col : table.getColumns()) {
-            String name = col.getName();
-
-            if(column.equalsIgnoreCase(name) || bareColumn.equalsIgnoreCase(name) ||
-               column.equalsIgnoreCase(TableBindingService.unqualified(name)))
-            {
-               return col.getDataType();
-            }
-         }
-      }
-
-      return null;
    }
 
    // ── conversions ───────────────────────────────────────────────────────────
@@ -583,7 +537,9 @@ public final class TableBindingMutator {
     *                 .calculateInfo() != null)} branch already did before this fix.
     */
    private static List<BAggregateRefModel> aggregates(List<FieldRef> fields,
-                                                       List<BAggregateRefModel> previous)
+                                                       List<BAggregateRefModel> previous,
+                                                       BaseTableBindingModel model,
+                                                       RuntimeViewsheet rvs, SourceInfo source)
    {
       List<BAggregateRefModel> out = new ArrayList<>();
 
@@ -596,6 +552,11 @@ public final class TableBindingMutator {
          if(field.aggregate() != null) {
             ref.setFormula(field.aggregate());
          }
+
+         // Bug #76949 -- an omitted 'aggregate' must not reach VSCrosstabBindingFactory with a
+         // null formula, and no aggregate may reach it with an unstamped refType. Unconditional:
+         // it also supplies the ref type for an aggregate that did carry a formula.
+         FieldRefFactory.applyAggregateDefaults(ref, model, rvs, source, field.column());
 
          if(field.secondaryColumn() != null) {
             ref.setSecondaryColumnValue(field.secondaryColumn());

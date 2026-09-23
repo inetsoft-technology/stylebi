@@ -155,6 +155,45 @@ class VSCrosstabBindingFactoryTest {
    }
 
    /**
+    * Bug #76949 (VCF-001): bug #76650's fix above only fires for a caller that stamped {@code
+    * refType}. The wiz binding agent built every aggregate from scratch and stamped none, so an
+    * aggregate with no formula arrived here with refType 0 AND a null wrapped ref, fell past
+    * that AGG_CALC/AGG_EXPR branch, and hit {@code getDefaultFormula}'s {@code
+    * Objects.requireNonNull} -- an unchecked throw out of a binding write, which surfaced to the
+    * caller as an opaque 500 with the shelf left unchanged. That is why #76650 was reported as
+    * "not effective live" despite being present in the build.
+    *
+    * <p>{@code FieldRefFactory#applyAggregateDefaults} now stamps the ref type on that path, so
+    * this shape should no longer arrive here in practice. This pins the backstop: with no
+    * wrapped ref there is no column metadata to base a formula on, so it falls back to None --
+    * a valid, renderable formula on this shelf -- rather than throwing.
+    */
+   @Test
+   void updateAssemblyDefaultsAnUnstampedAggregateWithNoFormulaToNoneRatherThanThrowing() {
+      VSCrosstabBindingFactory factory =
+         new VSCrosstabBindingFactory(mock(DataRefModelFactoryService.class));
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setOption(new CrosstabOptionInfo());
+
+      BAggregateRefModel unstamped = new BAggregateRefModel();
+      unstamped.setColumnValue("Product:Total");
+      // No formula, no dataRefModel and -- unlike the case above -- no refType either: the
+      // exact shape the agent path used to send for ANY measure with no explicit aggregate,
+      // a plain one as much as a calc field.
+      model.addAggregate(unstamped);
+
+      assertDoesNotThrow(() -> factory.updateAssembly(model, assembly));
+
+      VSCrosstabInfo crossInfo = assembly.getVSCrosstabInfo();
+      DataRef[] aggregates = crossInfo.getDesignAggregates();
+      assertEquals(1, aggregates.length);
+      assertEquals(AggregateFormula.NONE, ((VSAggregateRef) aggregates[0]).getFormula(),
+                   "with no wrapped ref there is no data type to default from, so None -- " +
+                   "never an unchecked throw, which the caller only ever sees as a 500");
+   }
+
+   /**
     * Bug #76809, VTB-019: {@code set_table_fields}'s inline {@code namedGroupValues}, attached to
     * a row dimension that is already bound on the shelf, was silently dropped -- the rendered
     * crosstab kept rendering as if no grouping had ever been applied.

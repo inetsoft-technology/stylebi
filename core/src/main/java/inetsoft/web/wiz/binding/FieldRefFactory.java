@@ -29,10 +29,13 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.GroupCondition;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
@@ -44,6 +47,7 @@ import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -67,7 +71,7 @@ public final class FieldRefFactory {
     */
    public static ChartRefModel toChartRef(FieldRef field) {
       try {
-         return toChartRef(field, null, null, null);
+         return toChartRef(field, null, null, null, null);
       }
       catch(RuntimeException e) {
          throw e; // preserve e.g. requireType's IllegalArgumentException as-is
@@ -81,13 +85,17 @@ public final class FieldRefFactory {
     * Builds the chart-side ref model a {@link FieldRef} describes, resolving {@code namedGroup}
     * into a live {@link NamedGroupInfoModel} when the field carries one.
     *
-    * @param rvs            the runtime viewsheet, for a worksheet-local named group lookup.
+    * @param model          the chart's binding model, for the bound source's reported column
+    *                       data types when a measure arrives with no {@code aggregate}.
+    * @param rvs            the runtime viewsheet, for a worksheet-local named group lookup
+    *                       and the aggregate calc-field lookup.
     * @param source         the chart's own {@code SourceInfo}, so a worksheet-local name is
     *                       matched against groups attached to the same source.
     * @param refModelService needed to convert a worksheet-local group's conditions into the
     *                        model shape {@link NamedGroupInfoModel#createNamedGroupInfo} expects.
     */
-   public static ChartRefModel toChartRef(FieldRef field, RuntimeViewsheet rvs, SourceInfo source,
+   public static ChartRefModel toChartRef(FieldRef field, BindingModel model,
+                                          RuntimeViewsheet rvs, SourceInfo source,
                                           DataRefModelFactoryService refModelService)
       throws Exception
    {
@@ -101,6 +109,12 @@ public final class FieldRefFactory {
          if(field.aggregate() != null) {
             ref.setFormula(field.aggregate());
          }
+
+         // Bug #76949 -- an omitted 'aggregate' must not reach the binding factory with a null
+         // formula, and no aggregate may reach it with an unstamped refType. Unconditional: it
+         // also supplies the ref type for an aggregate that did carry a formula. See
+         // applyAggregateDefaults().
+         applyAggregateDefaults(ref, model, rvs, source, field.column());
 
          if(field.calculateInfo() != null) {
             ref.setCalculateInfo(field.calculateInfo());
@@ -372,5 +386,163 @@ public final class FieldRefFactory {
          "that is set_chart_type's 'field' argument, on a multi-style chart. The chart read " +
          "reports it, so a ref read from there has to have it removed before it is written back; " +
          "accepting it here would drop it silently and report success.");
+   }
+
+   // ── default aggregate for a measure the caller gave no 'aggregate' for ────────
+
+   /**
+    * The {@code SourceTableColumn.getDataType()} values {@code AssetUtil.isNumberType()}
+    * recognizes, kept as a literal set rather than delegating to {@code AssetUtil} for the same
+    * reason the rest of this package does: touching {@code AssetUtil}/{@code AggregateFormula}
+    * from wiz code is unsafe under plain JUnit.
+    */
+   private static final Set<String> NUMERIC_TYPES =
+      Set.of("float", "double", "byte", "short", "integer", "long");
+
+   /**
+    * Formula <i>values</i>, not formula identifiers -- {@code BAggregateRefModel.formula} is
+    * written straight through to {@code VSAggregateRef#setFormulaValue}, so these are the
+    * display-cased spellings {@code VSCrosstabBindingHandler#createAgg()} writes and the agent
+    * vocabulary accepts, not {@code SummaryAttr.NONE_FORMULA} ("none", the identifier).
+    */
+   private static final String NONE = "None";
+   private static final String SUM = "Sum";
+   private static final String COUNT = "Count";
+
+   /**
+    * Stamps the ref type every aggregate needs, and the formula a measure needs when the caller
+    * supplied no explicit {@code aggregate}, mirroring the composer's own drag-and-drop default
+    * in {@code VSCrosstabBindingHandler#createAgg()}.
+    *
+    * <p>Bug #76949. Every aggregate this package builds is constructed from scratch, so unlike
+    * the composer's drop handler -- which reads {@code refType} off the dragged tree {@code
+    * AssetEntry} and stamps it before binding -- nothing here ever set it. The resulting model
+    * reached {@code BAggregateRefModel#createDataRef()} with {@code refType} 0 and a null
+    * wrapped ref, which made {@code VSCrosstabBindingFactory#getDefaultFormula()} miss its
+    * {@code AGG_CALC}/{@code AGG_EXPR} branch and throw -- surfacing as an opaque 500. That is
+    * also why bug #76650's fix, which added exactly that branch, had no effect on this path:
+    * the branch was correct, but the bit it tests was never set here.
+    *
+    * <p>An aggregate-mode calc field is already an aggregated value, so it takes {@code None}
+    * rather than being wrapped in a second formula (which would aggregate it twice). Anything
+    * else takes the data type's default, {@code Sum} for a number and {@code Count} otherwise
+    * -- the same choice {@code TableBindingMutator#convertForShelf()} already made on the
+    * {@code move_table_field} path, which is why moving a field onto the aggregates shelf
+    * worked while writing the identical field with {@code set_table_fields} did not.
+    *
+    * @param ref    the aggregate being built; its formula is left alone when it already has one.
+    * @param model  the binding model, for the bound source's reported column data types.
+    * @param rvs    the runtime viewsheet, for the calc-field lookup.
+    * @param source the assembly's own {@code SourceInfo}, naming the table the calc field
+    *               would be attached to.
+    */
+   public static void applyAggregateDefaults(BAggregateRefModel ref, BindingModel model,
+                                             RuntimeViewsheet rvs, SourceInfo source,
+                                             String column)
+   {
+      CalculateRef calc = aggregateCalcField(rvs, source, column);
+
+      if(calc != null) {
+         // Stamped whether or not a formula was supplied. A FieldRef carries no ref type, so a
+         // shelf that is merely read and written back -- which every add/remove/move does, via
+         // setShelf -- would otherwise drop the bit on the aggregates that were already there
+         // and were not the one being changed.
+         //
+         // getRefType() already ORs in AGG_CALC for a non-detail calc field, and preserves a
+         // composite such as CUBE_MEASURE | AGG_CALC -- so read it rather than hardcoding the
+         // bit, which would drop the cube half.
+         ref.setRefType(calc.getRefType());
+
+         if(ref.getFormula() == null) {
+            ref.setFormula(NONE);
+         }
+
+         return;
+      }
+
+      if(ref.getFormula() == null) {
+         String dataType = dataTypeOf(model, column);
+         ref.setFormula(dataType != null && NUMERIC_TYPES.contains(dataType) ? SUM : COUNT);
+      }
+   }
+
+   /**
+    * The aggregate-mode calc field {@code column} names on the bound source, or {@code null}
+    * if it is not one.
+    *
+    * <p>Looked up on the viewsheet rather than read off {@code model.getTables()}: a calc field
+    * lives in {@code Viewsheet.calcmap}, not in the worksheet table's {@code ColumnSelection}
+    * the source tables are built from, so it does not appear there at all -- and {@code
+    * SourceTableColumn} carries only a name, data type and description, with nowhere to record
+    * that it is one. Same lookup {@code CalcFieldAgentService} already does.
+    *
+    * <p>Falls back to a scan of every source that has calc fields when the assembly's own
+    * source name does not match a {@code calcmap} key. A miss here is not harmless -- it would
+    * default an aggregate calc field to {@code Sum} and aggregate an already-aggregated value
+    * twice, which renders plausibly wrong rather than failing.
+    */
+   public static CalculateRef aggregateCalcField(RuntimeViewsheet rvs, SourceInfo source,
+                                                 String column)
+   {
+      Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
+
+      if(vs == null || column == null) {
+         return null;
+      }
+
+      CalculateRef calc = source == null
+         ? null : vs.getCalcField(source.getSource(), column);
+
+      if(calc == null) {
+         Collection<String> sources = vs.getCalcFieldSources();
+
+         for(String table : sources == null ? List.<String>of() : sources) {
+            calc = vs.getCalcField(table, column);
+
+            if(calc != null) {
+               break;
+            }
+         }
+      }
+
+      return calc != null && !calc.isBaseOnDetail() ? calc : null;
+   }
+
+   /**
+    * The bound source's own reported data type for {@code column}, or {@code null} if unknown.
+    *
+    * <p>Matches {@code column} against a reported column name either exactly or with either
+    * side's {@code "table.attribute"} qualifier stripped -- the same symmetric matching {@link
+    * TableBindingService#unqualified} exists for, since a column from a joined/merged worksheet
+    * table can be qualified while the field being bound names it bare (or vice versa). Without
+    * this, a qualified numeric column silently defaulted to {@code Count} instead of {@code
+    * Sum}, since the exact-match-only lookup never found its data type.
+    */
+   public static String dataTypeOf(BindingModel model, String column) {
+      List<BindingModel.SourceTable> tables = model == null ? null : model.getTables();
+
+      if(tables == null || column == null) {
+         return null;
+      }
+
+      String bareColumn = TableBindingService.unqualified(column);
+
+      for(BindingModel.SourceTable table : tables) {
+         if(table.getColumns() == null) {
+            continue;
+         }
+
+         for(BindingModel.SourceTableColumn col : table.getColumns()) {
+            String name = col.getName();
+
+            if(column.equalsIgnoreCase(name) || bareColumn.equalsIgnoreCase(name) ||
+               column.equalsIgnoreCase(TableBindingService.unqualified(name)))
+            {
+               return col.getDataType();
+            }
+         }
+      }
+
+      return null;
    }
 }

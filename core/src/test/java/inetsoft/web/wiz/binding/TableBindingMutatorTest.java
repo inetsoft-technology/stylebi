@@ -32,7 +32,9 @@ import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -1791,5 +1793,147 @@ class TableBindingMutatorTest {
 
       assertFalse(model.getRows().get(0).isTimeSeries(),
          "an explicit 'timeSeries: false' must still win over the prior state");
+   }
+
+   // ── default aggregate when 'aggregate' is omitted (bug #76949, VCF-001) ────
+
+   /**
+    * Bug #76949 (VCF-001): {@code aggregate} is optional on the agent's {@code aggregates}
+    * shelf, and omitting it used to reach {@code VSCrosstabBindingFactory#getDefaultFormula()}
+    * with a null formula, refType 0 and a null wrapped ref -- which threw, surfacing as an
+    * opaque 500 with the shelf left unchanged.
+    *
+    * <p>This is the plain-measure half, which bug #76650's fix never covered: its
+    * AGG_CALC/AGG_EXPR branch only fires for a stamped refType, and nothing in this package
+    * stamped one.
+    */
+   @Test
+   void settingANumericMeasureWithNoAggregateDefaultsToSum() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Total", "double")));
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Total", null)));
+
+      assertEquals(1, model.getAggregates().size());
+      assertEquals("Sum", model.getAggregates().get(0).getFormula(),
+                   "a numeric measure with no explicit aggregate defaults to Sum, the same " +
+                   "default move_table_field already applied");
+   }
+
+   @Test
+   void settingANonNumericMeasureWithNoAggregateDefaultsToCount() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Region", "string")));
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Region", null)));
+
+      assertEquals("Count", model.getAggregates().get(0).getFormula());
+   }
+
+   /**
+    * An unknown column has no reported data type, so it falls back to Count rather than
+    * throwing -- the point of the fix is that no shape of this call produces a 500.
+    */
+   @Test
+   void settingAnUnknownMeasureWithNoAggregateDefaultsToCount() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Mystery", null)));
+
+      assertEquals("Count", model.getAggregates().get(0).getFormula());
+   }
+
+   /**
+    * The calc-field half of #76949, and the one #76650 aimed at: an aggregate-mode calc field
+    * (baseOnDetail false) is already an aggregated value, so it takes None rather than being
+    * wrapped in a second formula that would aggregate it twice. The refType must be stamped
+    * too -- that is the bit #76650's branch tests and this package never set.
+    */
+   @Test
+   void settingAnAggregateCalcFieldWithNoAggregateDefaultsToNoneAndStampsAggCalc()
+      throws Exception
+   {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Discount Share", false);
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Discount Share", null)),
+                                   rvs, ORDERS_SOURCE, refModelService());
+
+      BAggregateRefModel ref = model.getAggregates().get(0);
+      assertEquals("None", ref.getFormula(),
+                   "an already-aggregated calc field must not be wrapped in a second formula");
+      assertEquals(DataRef.AGG_CALC, ref.getRefType() & DataRef.AGG_CALC,
+                   "the AGG_CALC bit is what VSCrosstabBindingFactory#getDefaultFormula tests");
+   }
+
+   /**
+    * The ref type is stamped whether or not a formula came in. A {@code FieldRef} carries no
+    * ref type, so every read-modify-write of the shelf -- which is what each add/remove/move
+    * does -- would otherwise drop the bit from the aggregates that were already there.
+    */
+   @Test
+   void settingAnAggregateCalcFieldWithAnExplicitAggregateStillStampsAggCalc() throws Exception {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Discount Share", false);
+
+      TableBindingMutator.setShelf(model, "aggregates",
+                                   List.of(measure("Discount Share", "None")),
+                                   rvs, ORDERS_SOURCE, refModelService());
+
+      BAggregateRefModel ref = model.getAggregates().get(0);
+      assertEquals("None", ref.getFormula(), "an explicit aggregate is never overwritten");
+      assertEquals(DataRef.AGG_CALC, ref.getRefType() & DataRef.AGG_CALC);
+   }
+
+   /**
+    * A detail-mode calc field is an ordinary column, not an already-aggregated value, so it
+    * takes the data type's default and no AGG_CALC bit.
+    */
+   @Test
+   void settingADetailCalcFieldWithNoAggregateDefaultsToTheDataTypeFormula() throws Exception {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Net Sales", "double")));
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Net Sales", true);
+
+      TableBindingMutator.setShelf(model, "aggregates", List.of(measure("Net Sales", null)),
+                                   rvs, ORDERS_SOURCE, refModelService());
+
+      BAggregateRefModel ref = model.getAggregates().get(0);
+      assertEquals("Sum", ref.getFormula());
+      assertEquals(0, ref.getRefType() & DataRef.AGG_CALC,
+                   "a detail calc field is an ordinary column, not an aggregate");
+   }
+
+   /**
+    * Moving an aggregate calc field onto the shelf used to default it to Count -- {@code
+    * convertForShelf} only knew about data types, and a calc field has no reported one. It now
+    * shares the same resolver the set path uses.
+    */
+   @Test
+   void movingAnAggregateCalcFieldOntoAggregatesDefaultsToNone() throws Exception {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      RuntimeViewsheet rvs = rvsWithCalcField("Orders", "Discount Share", false);
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Discount Share")), rvs,
+                                   ORDERS_SOURCE, refModelService());
+
+      TableBindingMutator.moveField(model, "rows", "aggregates", "Discount Share", null, rvs,
+                                    ORDERS_SOURCE, refModelService());
+
+      assertEquals("None", model.getAggregates().get(0).getFormula());
+   }
+
+   private static final SourceInfo ORDERS_SOURCE =
+      new SourceInfo(SourceInfo.ASSET, null, "Orders");
+
+   private static RuntimeViewsheet rvsWithCalcField(String table, String column,
+                                                    boolean baseOnDetail)
+   {
+      CalculateRef calc = new CalculateRef(baseOnDetail);
+      calc.setDataRef(new AttributeRef(column));
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getCalcField(table, column)).thenReturn(calc);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      return rvs;
    }
 }
