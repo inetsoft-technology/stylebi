@@ -29,6 +29,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.sync.ViewsheetBookmarkChangedEvent;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
+import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.ImmutableVSEditBookmarkEvent;
 import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
@@ -37,16 +38,19 @@ import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 
 import java.security.Principal;
 import java.util.Vector;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -263,5 +267,47 @@ class VSBookmarkServiceTest {
       verify(rvs).editBookmark("user0_g1", "user0_g", VSBookmarkInfo.GROUPSHARE, false);
       verify(scheduleManager).bookmarkRenamed("user0_g", "user0_g1", "1^1^__NULL__^myVS", user0);
       verify(cluster).sendMessage(any(ViewsheetBookmarkChangedEvent.class));
+   }
+
+   /**
+    * Bug #76950 -- a rename through {@link VSBookmarkService#renameBookmarkInViewSheet} writes
+    * the same audit record as the native {@link VSBookmarkService#editBookmark}, from a snapshot
+    * of the bookmark taken before the rename.
+    */
+   @Test
+   void renameBookmarkInViewSheet_writesEditAuditRecordFromPreRenameSnapshot() throws Exception {
+      IdentityID user0 = IdentityID.getIdentityIDFromKey("user0");
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.toIdentifier()).thenReturn("1^1^__NULL__^myVS");
+      when(rvs.getEntry()).thenReturn(entry);
+
+      VSBookmarkInfo current = new VSBookmarkInfo();
+      current.setName("user0_g");
+      current.setType(VSBookmarkInfo.PRIVATE);
+      when(rvs.getBookmarkInfo("user0_g", user0)).thenReturn(current);
+
+      ScheduleManager scheduleManager = mock(ScheduleManager.class);
+      when(scheduleManager.getScheduleTasks()).thenReturn(new Vector<>());
+
+      VSBookmarkService service = new VSBookmarkService(mock(VSObjectService.class),
+         mock(ViewsheetService.class), mock(SecurityEngine.class), scheduleManager,
+         mock(Cluster.class), mock(XSessionService.class));
+
+      Principal caller = () -> "user0";
+
+      try(MockedStatic<AuditRecordUtils> audit = mockStatic(AuditRecordUtils.class)) {
+         MessageCommand result = service.renameBookmarkInViewSheet(
+            rvs, "user0_g1", "user0_g", VSBookmarkInfo.GROUPSHARE, false, false, caller);
+
+         assertEquals(MessageCommand.Type.OK, result.getType());
+         ArgumentCaptor<VSBookmarkInfo> orig = ArgumentCaptor.forClass(VSBookmarkInfo.class);
+         audit.verify(() -> AuditRecordUtils.executeEditBookmarkRecord(
+            eq(rvs), orig.capture(), eq("user0_g1"), eq(user0)));
+         assertEquals("user0_g", orig.getValue().getName());
+         assertEquals(VSBookmarkInfo.PRIVATE, orig.getValue().getType());
+         assertNotSame(current, orig.getValue());
+      }
    }
 }

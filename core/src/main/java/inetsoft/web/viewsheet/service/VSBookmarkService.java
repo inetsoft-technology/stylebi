@@ -806,7 +806,17 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
          }
       }
 
+      VSBookmarkInfo origBookmarkInfo = null;
+      VSBookmarkInfo currBookmarkInfo = rvs.getBookmarkInfo(oldName, user);
+
+      if(currBookmarkInfo != null) {
+         origBookmarkInfo = new VSBookmarkInfo();
+         BeanUtils.copyProperties(currBookmarkInfo, origBookmarkInfo);
+      }
+
       rvs.editBookmark(newName, oldName, type, readOnly);
+      // same audit trail as the native editBookmark handler (bug #76950)
+      AuditRecordUtils.executeEditBookmarkRecord(rvs, origBookmarkInfo, newName, user);
 
       if(nameChanged) {
          cluster.sendMessage(new ViewsheetBookmarkChangedEvent(rvs.getEntry()));
