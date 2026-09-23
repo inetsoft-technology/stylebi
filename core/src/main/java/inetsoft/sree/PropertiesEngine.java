@@ -200,13 +200,10 @@ public class PropertiesEngine {
     */
    public void remove(String name) {
       init();
-      name = fixPropertyNameCase(name);
-      StorageValue baseline = readStorageBaseline(name);
-
-      synchronized(changedProps) {
-         getInternalProperties().remove(name);
-         addChangedProperty(name, baseline);
-      }
+      Properties prop = getInternalProperties();
+      String key = fixPropertyNameCase(name);
+      name = key;
+      changeProperty(key, () -> prop.remove(key));
 
       // the log and SQL helper properties are deliberately not applied here, to keep the
       // existing removal behavior
@@ -273,13 +270,9 @@ public class PropertiesEngine {
             return;
          }
 
-         StorageValue baseline = readStorageBaseline(name);
-
-         synchronized(changedProps) {
-            prop.put(name, val);
-            addChangedProperty(name, baseline);
-         }
-
+         String key = name;
+         String value = val;
+         changeProperty(key, () -> prop.put(key, value));
          applyProperty(name);
       }
    }
@@ -467,13 +460,16 @@ public class PropertiesEngine {
 
       propertiesLock.lock();
 
+      String oldHome = null;
+      Properties oldProperties = null;
+
       try {
          if(fromChange) {
-            String home = getProperty("sree.home");
-            Map<String, String> pending = getPendingChanges();
-            clear();
-            setProperty("sree.home", home);
-            restorePendingChanges(pending);
+            oldHome = getProperty("sree.home");
+            oldProperties = getInternalProperties();
+            // keep the change listener attached, so that no change stored during the reload is
+            // missed (Bug #76954)
+            clear(false);
          }
 
          // @by davidd, Recheck once lock acquired to prevent reinitialization.
@@ -504,7 +500,17 @@ public class PropertiesEngine {
 
          prop.setProperty("sree.home", home);
 
+         if(fromChange) {
+            // re-apply the pending properties before the reloaded properties are published, so
+            // no other thread can see or save the reloaded properties without them (Bug #76954)
+            restorePendingChanges(oldProperties, prop);
+         }
+
          internalProperties = new DefaultProperties(prop, getDefaultProperties());
+
+         if(fromChange) {
+            setProperty("sree.home", oldHome);
+         }
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize SreeEnv: {}", ex, ex);
@@ -582,6 +588,10 @@ public class PropertiesEngine {
     * Clear and reload the properties.
     */
    public void clear() {
+      clear(true);
+   }
+
+   private void clear(boolean removeListener) {
       propertiesLock.lock();
 
       try {
@@ -595,7 +605,7 @@ public class PropertiesEngine {
          // rebuilt for a reload to drop keys that were removed from the storage (Bug #76954)
          EarlyLoadedProperties.reset();
 
-         if(kvStorage != null) {
+         if(removeListener && kvStorage != null) {
             try {
                kvStorage.removeListener(changeListener);
             }
@@ -610,23 +620,51 @@ public class PropertiesEngine {
    }
 
    /**
-    * Reads the stored value of a property that is about to become a pending (changed but not
-    * saved) property. It is recorded so that a reload can tell whether another node changed the
-    * property after it was edited locally.
+    * Applies a change to a property and marks it as pending (changed but not saved). The first
+    * time a property becomes pending, its stored value is recorded, so that a reload can tell
+    * whether another node changed the property after it was edited locally. The storage is never
+    * read while holding the {@code changedProps} monitor.
     *
-    * @param name the property name.
-    *
-    * @return the stored value, or {@code null} if the property is already pending or the storage
-    *         could not be read.
+    * @param name   the property name.
+    * @param change the change to the in-memory properties.
     */
-   private StorageValue readStorageBaseline(String name) {
+   private void changeProperty(String name, Runnable change) {
+      boolean pending;
+
       synchronized(changedProps) {
-         if(changedProps.contains(name)) {
-            return null;
+         pending = changedProps.contains(name);
+      }
+
+      StorageValue baseline = pending ? null : readStorageValue(name);
+      boolean baselineMissing;
+
+      synchronized(changedProps) {
+         change.run();
+         baselineMissing = false;
+
+         if(changedProps.add(name)) {
+            if(baseline == null) {
+               // it was pending when checked, but a save() cleared it in the meantime
+               changedPropsBaseline.remove(name);
+               baselineMissing = true;
+            }
+            else {
+               changedPropsBaseline.put(name, baseline);
+            }
          }
       }
 
-      return readStorageValue(name);
+      if(baselineMissing) {
+         StorageValue value = readStorageValue(name);
+
+         if(value != null) {
+            synchronized(changedProps) {
+               if(changedProps.contains(name)) {
+                  changedPropsBaseline.putIfAbsent(name, value);
+               }
+            }
+         }
+      }
    }
 
    private StorageValue readStorageValue(String name) {
@@ -646,60 +684,47 @@ public class PropertiesEngine {
    }
 
    /**
-    * Marks a property as pending. Must be called while holding the {@code changedProps} monitor.
+    * Re-applies the pending properties to the reloaded properties, before they are published. A
+    * pending property is only re-applied if its stored value is still the one it had when the
+    * property was edited locally. If another node changed it in the meantime, the stored value
+    * wins and the property is no longer pending, so that a later save on this node does not
+    * overwrite the other node's change. If the stored value was not known, the reloaded value
+    * wins as well.
+    *
+    * @param oldProperties the in-memory properties before the reload, holding the local values.
+    * @param properties    the reloaded properties the local values are applied to.
     */
-   private void addChangedProperty(String name, StorageValue baseline) {
-      if(changedProps.add(name)) {
-         if(baseline == null) {
-            changedPropsBaseline.remove(name);
-         }
-         else {
-            changedPropsBaseline.put(name, baseline);
-         }
-      }
-   }
-
-   /**
-    * Gets the local values of the pending properties, a {@code null} value meaning the property
-    * was removed.
-    */
-   private Map<String, String> getPendingChanges() {
-      Map<String, String> pending = new HashMap<>();
-
-      synchronized(changedProps) {
-         Properties props = getInternalProperties();
-
-         if(props instanceof DefaultProperties) {
-            props = ((DefaultProperties) props).getMainProperties();
-         }
-
-         if(props != null) {
-            for(String name : changedProps) {
-               pending.put(name, props.containsKey(name) ? props.getProperty(name) : null);
-            }
-         }
-      }
-
-      return pending;
-   }
-
-   /**
-    * Re-applies the pending properties after a reload replaced the in-memory properties with the
-    * storage contents. A pending property is only re-applied if its stored value is still the one
-    * it had when the property was edited locally. If another node changed it in the meantime, the
-    * stored value wins and the property is no longer pending, so that a later save on this node
-    * does not overwrite the other node's change. If the stored value was not known, the reloaded
-    * value wins as well.
-    */
-   private void restorePendingChanges(Map<String, String> pending) {
-      Properties props = getInternalProperties();
-
-      if(pending.isEmpty() || props == null) {
+   private void restorePendingChanges(Properties oldProperties, Properties properties) {
+      if(oldProperties == null) {
          return;
       }
 
+      Map<String, StorageValue> baselines = new HashMap<>();
+
       synchronized(changedProps) {
-         for(Map.Entry<String, String> e : pending.entrySet()) {
+         for(String name : changedProps) {
+            baselines.put(name, changedPropsBaseline.get(name));
+         }
+      }
+
+      if(baselines.isEmpty()) {
+         return;
+      }
+
+      // read the storage outside of the monitor
+      Map<String, StorageValue> current = new HashMap<>();
+
+      for(Map.Entry<String, StorageValue> e : baselines.entrySet()) {
+         if(e.getValue() != null) {
+            current.put(e.getKey(), readStorageValue(e.getKey()));
+         }
+      }
+
+      // the layer that saveToStorage() writes, i.e. without the JVM system properties
+      Properties oldValues = getInnermostProperties(oldProperties);
+
+      synchronized(changedProps) {
+         for(Map.Entry<String, StorageValue> e : baselines.entrySet()) {
             String name = e.getKey();
 
             // saved while reloading
@@ -707,17 +732,17 @@ public class PropertiesEngine {
                continue;
             }
 
-            StorageValue baseline = changedPropsBaseline.get(name);
-            StorageValue current = baseline == null ? null : readStorageValue(name);
+            StorageValue baseline = e.getValue();
+            StorageValue stored = current.get(name);
 
-            if(baseline != null && current != null &&
-               Tool.equals(baseline.value(), current.value()))
+            if(baseline != null && stored != null &&
+               Tool.equals(baseline.value(), stored.value()))
             {
-               if(e.getValue() == null) {
-                  props.remove(name);
+               if(oldValues.containsKey(name)) {
+                  properties.put(name, oldValues.getProperty(name));
                }
                else {
-                  props.put(name, e.getValue());
+                  properties.remove(name);
                }
             }
             else {
@@ -726,6 +751,14 @@ public class PropertiesEngine {
             }
          }
       }
+   }
+
+   private static Properties getInnermostProperties(Properties properties) {
+      while(properties instanceof DefaultProperties) {
+         properties = ((DefaultProperties) properties).getMainProperties();
+      }
+
+      return properties;
    }
 
    private void loadFromStorage(Properties properties, KeyValueStorage<String> storage) {
@@ -1205,7 +1238,8 @@ public class PropertiesEngine {
          String security = instance.getProperty("security.provider");
          String license = instance.getProperty("license.key");
 
-         kvStorage.removeListener(changeListener);
+         // the change listener stays attached during the reload, so that no change stored in
+         // the meantime is missed (Bug #76954)
          instance.init(true);
 
          if(instance.getProperty("license.key") == null ||

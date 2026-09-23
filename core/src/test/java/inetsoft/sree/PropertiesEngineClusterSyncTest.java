@@ -22,6 +22,10 @@ import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEvent;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -30,7 +34,8 @@ import java.beans.PropertyChangeListener;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.Lock;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -58,10 +63,13 @@ class PropertiesEngineClusterSyncTest {
       originalStorage = getStorage();
       storage = new InMemoryKeyValueStorage<>();
       setStorage(storage);
+      // the change task publishes this event as its last step, after the reload
+      context.addApplicationListener(reloadListener);
    }
 
    @AfterEach
    void restoreStorage() throws Exception {
+      context.removeApplicationListener(reloadListener);
       engine.clear();
       setStorage(originalStorage);
       engine.init();
@@ -87,9 +95,8 @@ class PropertiesEngineClusterSyncTest {
          assertEquals(List.of("remote"), received,
                       "the change event of the other node was dropped during save()");
          // and the reload scheduled by that event applies it to the in-memory properties
-         waitFor(() -> "remote".equals(engine.getProperty(theirs)));
-         // let the change task finish before the storage is restored
-         Thread.sleep(1000L);
+         waitForReloads(1);
+         assertEquals("remote", engine.getProperty(theirs));
       }
       finally {
          engine.removePropertyChangeListener(theirs, listener);
@@ -122,12 +129,14 @@ class PropertiesEngineClusterSyncTest {
          // stored without an event, so it only shows up in memory once the reload ran
          storage.remotePut(marker, "reloaded", false);
 
-         waitForReload(marker, "reloaded");
-
+         // the pending properties are re-applied before the reloaded properties are published,
+         // so as soon as the reload is visible the edits must be there as well
+         waitFor(() -> "reloaded".equals(engine.getProperty(marker)));
          assertEquals("one", engine.getProperty(saved));
          assertEquals("edit", engine.getProperty(updated));
          assertNull(engine.getProperty(removed));
          assertEquals("new", engine.getProperty(added));
+         waitForReloads(1);
 
          engine.save();
          assertEquals("one", storage.get(saved));
@@ -136,11 +145,75 @@ class PropertiesEngineClusterSyncTest {
          assertEquals("new", storage.get(added));
 
          // let the reload triggered by the second save finish before the storage is restored
-         storage.remotePut(marker, "reloaded again", false);
-         waitForReload(marker, "reloaded again");
+         waitForReloads(2);
       }
       finally {
          storage.setAsyncLocalEvents(false);
+      }
+   }
+
+   @Test
+   void pendingEditIsNotVisibleWithoutItDuringReload() throws Exception {
+      String name = prefix + "key";
+      storage.remotePut(name, "stored", false);
+      initEngine();
+      engine.setProperty(name, "edit");
+
+      AtomicReference<String> read = new AtomicReference<>();
+      AtomicReference<Throwable> failure = new AtomicReference<>();
+      Thread reader = new Thread(() -> read.set(engine.getProperty(name)));
+      Thread saver = new Thread(() -> {
+         try {
+            engine.save();
+         }
+         catch(Throwable e) {
+            failure.set(e);
+         }
+      });
+
+      // the reload reads the stored value of the pending property; another request reads and
+      // saves the properties at that moment
+      storage.runDuringNextGet(name, () -> {
+         reader.start();
+         saver.start();
+
+         try {
+            reader.join(1000L);
+            saver.join(1000L);
+         }
+         catch(InterruptedException e) {
+            throw new RuntimeException(e);
+         }
+      });
+      engine.init(true);
+      reader.join(10000L);
+      saver.join(10000L);
+
+      assertNull(failure.get());
+      assertEquals("edit", read.get(), "a reader saw the reloaded properties without the edit");
+      assertEquals("edit", engine.getProperty(name));
+      assertEquals("edit", storage.get(name), "a save during the reload lost the edit");
+   }
+
+   @Test
+   void pendingRemoveOfSystemPropertyKeyIsDeletedOnSave() throws Exception {
+      String name = prefix + "key";
+      System.setProperty(name, "jvm");
+
+      try {
+         storage.remotePut(name, "stored", false);
+         initEngine();
+
+         engine.remove(name);
+         storage.remotePut(prefix + "other", "remote", false);
+         engine.init(true);
+         engine.save();
+
+         assertFalse(storage.contains(name),
+                     "the JVM system property value was saved instead of the removal");
+      }
+      finally {
+         System.clearProperty(name);
       }
    }
 
@@ -293,17 +366,11 @@ class PropertiesEngineClusterSyncTest {
    }
 
    /**
-    * Waits until a reload made a property that was stored without an event visible, and then
-    * until the reload finished re-applying the pending properties, which it does while holding
-    * the engine's properties lock.
+    * Waits until the change task, which reloads the properties, completed the given number of
+    * times since the test started.
     */
-   private void waitForReload(String marker, String value) throws Exception {
-      waitFor(() -> value.equals(engine.getProperty(marker)));
-      Field field = PropertiesEngine.class.getDeclaredField("propertiesLock");
-      field.setAccessible(true);
-      Lock lock = (Lock) field.get(engine);
-      lock.lock();
-      lock.unlock();
+   private void waitForReloads(int count) throws InterruptedException {
+      waitFor(() -> reloads.get() >= count);
    }
 
    private static void waitFor(BooleanSupplier condition) throws InterruptedException {
@@ -333,6 +400,15 @@ class PropertiesEngineClusterSyncTest {
       return field;
    }
 
+   @Autowired
+   private ConfigurableApplicationContext context;
+   private final AtomicInteger reloads = new AtomicInteger();
+   // a lambda loses the event type, so filter explicitly
+   private final ApplicationListener<ApplicationEvent> reloadListener = event -> {
+      if(event instanceof ApplicationPropertiesChangedEvent) {
+         reloads.incrementAndGet();
+      }
+   };
    private PropertiesEngine engine;
    private KeyValueStorage<String> originalStorage;
    private InMemoryKeyValueStorage<String> storage;

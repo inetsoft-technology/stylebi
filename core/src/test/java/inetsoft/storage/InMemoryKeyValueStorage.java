@@ -42,6 +42,15 @@ public class InMemoryKeyValueStorage<T extends Serializable> implements KeyValue
    }
 
    /**
+    * Sets an action that runs once, the next time {@link #get} is called for the key, before the
+    * value is returned.
+    */
+   public void runDuringNextGet(String key, Runnable action) {
+      getHookKey = key;
+      getHook = action;
+   }
+
+   /**
     * When enabled, writes made through the {@code KeyValueStorage} API also fire events, like the
     * real storage does for a node's own writes. The events are delivered asynchronously, on
     * another thread and after a short delay, to the listeners registered when they are
@@ -91,6 +100,13 @@ public class InMemoryKeyValueStorage<T extends Serializable> implements KeyValue
 
    @Override
    public T get(String key) {
+      Runnable action = getHook;
+
+      if(action != null && key.equals(getHookKey)) {
+         getHook = null;
+         action.run();
+      }
+
       return map.get(key);
    }
 
@@ -218,6 +234,8 @@ public class InMemoryKeyValueStorage<T extends Serializable> implements KeyValue
    private final Map<String, T> map = new ConcurrentSkipListMap<>();
    private final Set<Listener<T>> listeners = new CopyOnWriteArraySet<>();
    private volatile Runnable duringNextWrite;
+   private volatile String getHookKey;
+   private volatile Runnable getHook;
    private volatile boolean asyncLocalEvents;
    private final ScheduledExecutorService eventExecutor =
       Executors.newSingleThreadScheduledExecutor(r -> {
