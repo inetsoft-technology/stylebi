@@ -54,8 +54,9 @@ public class ChartAestheticService {
       }
 
       OriginalDescriptor aggregateDesc = model.getAggregateDesc();
-      AestheticRef colorField = bindable.getColorField() != null &&
-         !bindable.getColorField().isRuntime() ? bindable.getColorField() : null;
+      AestheticRef colorRef = bindable.getColorField();
+      AestheticRef colorField = colorRef != null && isVisibleAestheticRef(colorRef) ?
+         colorRef : null;
       model.setColorField(afactoryService.createAestheticInfo(colorField , cinfo,
          new OriginalDescriptor(OriginalDescriptor.COLOR, aggregateDesc)));
 
@@ -63,8 +64,9 @@ public class ChartAestheticService {
          bindable.getSizeField(), cinfo,
          new OriginalDescriptor(OriginalDescriptor.SIZE, aggregateDesc)));
 
-      AestheticRef shapeField = bindable.getShapeField() != null &&
-         !bindable.getShapeField().isRuntime() ? bindable.getShapeField() : null;
+      AestheticRef shapeRef = bindable.getShapeField();
+      AestheticRef shapeField = shapeRef != null && isVisibleAestheticRef(shapeRef) ?
+         shapeRef : null;
       model.setShapeField(afactoryService.createAestheticInfo(shapeField, cinfo,
          new OriginalDescriptor(OriginalDescriptor.SHAPE, aggregateDesc)));
 
@@ -197,6 +199,21 @@ public class ChartAestheticService {
             ((RelationChartInfo) bindable).setNodeSizeFrameWrapper(size);
          }
       }
+   }
+
+   /**
+    * A runtime-flagged aesthetic ref is normally excluded from the design-time binding model
+    * (e.g. an in-place RTDataRef swap on an existing design ref, or the raw XML persistence
+    * filters elsewhere that must never save one of these). But date comparison
+    * (ChartDcProcessor#createAestheticRef) installs a *new* color/shape ref this same way,
+    * always with getDataRef() == getRTDataRef() since both are set from the identical object --
+    * that one is the chart's real, currently-rendered binding, not stale runtime cruft, and
+    * should still be visible here even though VSChartInfo#clearDateComparisonRuntimeRef() (and
+    * the XML writers) still key off the same isRuntime() flag to discard it on the next
+    * refresh/at persist time.
+    */
+   private boolean isVisibleAestheticRef(AestheticRef ref) {
+      return !ref.isRuntime() || ref.getDataRef() == ref.getRTDataRef();
    }
 
    private AestheticRef getAestheticRef(AestheticInfo info, AestheticRef ref, ChartInfo cinfo) {
