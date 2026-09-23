@@ -362,6 +362,256 @@ public class LendableReentrantLockTest {
       assertFalse(JavaScriptEngine.holdsScriptLock());
    }
 
+   /**
+    * A lens worker that was lent the lock lends it on to the worker it waits for itself
+    * (stacked async lenses), without having recorded the lock as held.
+    */
+   @Test
+   public void borrowerLendsOnToItsOwnWorker() throws Exception {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      LendableReentrantLock.Borrower first = new LendableReentrantLock.Borrower();
+      LendableReentrantLock.Borrower second = new LendableReentrantLock.Borrower();
+      lock.lock();
+      JavaScriptEngine.pushHeldScriptLock(lock);
+
+      try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(first)) {
+         assertTrue(lock.isLent());
+
+         Future<Boolean> firstWorker = runOnThread(() -> {
+            first.begin();
+
+            try {
+               assertTrue(first.getLentLocks().contains(lock));
+               assertFalse(JavaScriptEngine.holdsScriptLock());
+               assertTrue(JavaScriptEngine.canLendScriptLocks(second));
+
+               try(LendableReentrantLock.Loan nested = JavaScriptEngine.lendScriptLocks(second)) {
+                  assertNotSame(LendableReentrantLock.NO_LOAN, nested);
+
+                  return runOnThread(() -> {
+                     second.begin();
+
+                     try {
+                        boolean locked = lock.tryLock(5, TimeUnit.SECONDS);
+                        lock.unlock();
+                        return locked;
+                     }
+                     finally {
+                        second.end();
+                     }
+                  }).get(5, TimeUnit.SECONDS);
+               }
+               finally {
+                  assertFalse(lock.isHeldByCurrentThread(), "nested lend left the lock held");
+               }
+            }
+            finally {
+               first.end();
+            }
+         });
+
+         assertTrue(firstWorker.get(5, TimeUnit.SECONDS), "nested worker never got the lock");
+      }
+      finally {
+         JavaScriptEngine.popHeldScriptLock();
+      }
+
+      assertEquals(1, lock.getHoldCount());
+      assertTrue(first.getLentLocks().isEmpty());
+      assertNull(LendableReentrantLock.Borrower.current());
+      lock.unlock();
+   }
+
+   /**
+    * A lender that takes the lock again before closing its loan fails instead of
+    * waiting for itself forever.
+    */
+   @Test
+   public void lenderRelockingFailsFast() {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      lock.lock();
+
+      try(LendableReentrantLock.Loan ignored = lock.lend(new LendableReentrantLock.Borrower())) {
+         assertThrows(IllegalMonitorStateException.class, lock::lock);
+         assertThrows(IllegalMonitorStateException.class, lock::lockInterruptibly);
+         assertThrows(IllegalMonitorStateException.class, () -> lock.tryLock(1, TimeUnit.SECONDS));
+         assertFalse(lock.tryLock());
+      }
+
+      assertEquals(1, lock.getHoldCount());
+      lock.unlock();
+   }
+
+   /**
+    * Closing a loan waits for a re-entrant borrower to release all its holds.
+    */
+   @Test
+   public void reclaimWaitsForAllBorrowerHolds() throws Exception {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+      CountDownLatch lent = new CountDownLatch(1);
+      CountDownLatch locked = new CountDownLatch(1);
+      CountDownLatch releaseOne = new CountDownLatch(1);
+      CountDownLatch releaseTwo = new CountDownLatch(1);
+      AtomicBoolean reclaimed = new AtomicBoolean();
+
+      Future<Integer> lender = runOnThread(() -> {
+         lock.lock();
+         lock.lock();
+
+         try {
+            try(LendableReentrantLock.Loan ignored = lock.lend(borrower)) {
+               lent.countDown();
+               assertTrue(locked.await(5, TimeUnit.SECONDS));
+            }
+
+            reclaimed.set(true);
+            return lock.getHoldCount();
+         }
+         finally {
+            lock.unlock();
+            lock.unlock();
+         }
+      });
+      assertTrue(lent.await(5, TimeUnit.SECONDS));
+
+      Future<?> worker = runOnThread(() -> {
+         borrower.begin();
+
+         try {
+            lock.lock();
+            lock.lock();
+            locked.countDown();
+            assertTrue(releaseOne.await(5, TimeUnit.SECONDS));
+            lock.unlock();
+            assertTrue(releaseTwo.await(5, TimeUnit.SECONDS));
+            lock.unlock();
+            return null;
+         }
+         finally {
+            borrower.end();
+         }
+      });
+
+      assertTrue(locked.await(5, TimeUnit.SECONDS));
+      releaseOne.countDown();
+      Thread.sleep(200);
+      assertFalse(reclaimed.get(), "reclaimed while the borrower still held the lock");
+      releaseTwo.countDown();
+      worker.get(5, TimeUnit.SECONDS);
+      assertEquals(2, lender.get(5, TimeUnit.SECONDS));
+   }
+
+   @Test
+   public void lockInterruptiblyThrowsAndLeavesNoState() throws Exception {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      lock.lock();
+      AtomicReference<Thread> waiter = new AtomicReference<>();
+
+      Future<Boolean> result = runOnThread(() -> {
+         waiter.set(Thread.currentThread());
+
+         try {
+            lock.lockInterruptibly();
+            return false;
+         }
+         catch(InterruptedException ex) {
+            return !lock.isHeldByCurrentThread();
+         }
+      });
+
+      awaitBlocked(waitFor(waiter));
+      waiter.get().interrupt();
+      assertTrue(result.get(5, TimeUnit.SECONDS));
+      lock.unlock();
+      assertFalse(lock.isLocked());
+
+      Thread.currentThread().interrupt();
+      assertThrows(InterruptedException.class, lock::lockInterruptibly);
+      assertFalse(lock.isLocked());
+   }
+
+   @Test
+   public void timedTryLockExpiresOrIsInterrupted() throws Exception {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      lock.lock();
+
+      try {
+         assertFalse(runOnThread(() -> lock.tryLock(100, TimeUnit.MILLISECONDS))
+                        .get(5, TimeUnit.SECONDS));
+         assertTrue(runOnThread(() -> {
+            Thread.currentThread().interrupt();
+
+            try {
+               lock.tryLock(5, TimeUnit.SECONDS);
+               return false;
+            }
+            catch(InterruptedException ex) {
+               return true;
+            }
+         }).get(5, TimeUnit.SECONDS));
+      }
+      finally {
+         lock.unlock();
+      }
+
+      assertFalse(lock.isLocked());
+   }
+
+   @Test
+   public void lockKeepsInterruptFlag() throws Exception {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      lock.lock();
+      AtomicReference<Thread> waiter = new AtomicReference<>();
+
+      Future<Boolean> result = runOnThread(() -> {
+         waiter.set(Thread.currentThread());
+         lock.lock();
+         boolean interrupted = Thread.interrupted();
+         lock.unlock();
+         return interrupted;
+      });
+
+      awaitBlocked(waitFor(waiter));
+      waiter.get().interrupt();
+      Thread.sleep(50);
+      lock.unlock();
+      assertTrue(result.get(5, TimeUnit.SECONDS), "interrupt flag was lost");
+   }
+
+   @Test
+   public void unlockByNonOwnerThrows() throws Exception {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      lock.lock();
+
+      try {
+         assertTrue(runOnThread(() -> {
+            try {
+               lock.unlock();
+               return false;
+            }
+            catch(IllegalMonitorStateException ex) {
+               return true;
+            }
+         }).get(5, TimeUnit.SECONDS));
+         assertEquals(1, lock.getHoldCount());
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   private static Thread waitFor(AtomicReference<Thread> ref) throws InterruptedException {
+      long deadline = System.currentTimeMillis() + 5000;
+
+      while(ref.get() == null) {
+         assertTrue(System.currentTimeMillis() < deadline, "thread never started");
+         Thread.sleep(5);
+      }
+
+      return ref.get();
+   }
+
    private static <T> Future<T> runOnThread(Callable<T> callable) {
       FutureTask<T> task = new FutureTask<>(callable);
       startDaemon(task);

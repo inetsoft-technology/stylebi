@@ -117,14 +117,11 @@ public class JavaScriptEngine {
     * Remove the most recent lock recorded by {@link #pushHeldScriptLock(Lock)}.
     */
    public static void popHeldScriptLock() {
+      // the empty deque is kept, this runs for every condition filter moreRows()
       Deque<Lock> locks = getThreadLocals().heldScriptLocks.get();
 
       if(!locks.isEmpty()) {
          locks.pop();
-      }
-
-      if(locks.isEmpty()) {
-         getThreadLocals().heldScriptLocks.remove();
       }
    }
 
@@ -145,7 +142,27 @@ public class JavaScriptEngine {
       // never lend from inside script evaluation, the GraalJS context is in use on
       // this thread and must not be entered by another thread
       return worker != null && worker.isActive() && !isScriptThread() &&
-         !getThreadLocals().heldScriptLocks.get().isEmpty();
+         (!getThreadLocals().heldScriptLocks.get().isEmpty() || hasBorrowedScriptLocks());
+   }
+
+   /**
+    * Check if the current thread runs a lens worker task that has been lent a script
+    * engine lock. Such a worker lends the lock on to a worker it waits for itself, e.g.
+    * with stacked async lenses.
+    */
+   private static boolean hasBorrowedScriptLocks() {
+      LendableReentrantLock.Borrower task = LendableReentrantLock.Borrower.current();
+      return task != null && !task.getLentLocks().isEmpty();
+   }
+
+   /**
+    * Get how long a lens wait site should wait before checking again. A lens worker
+    * task may be lent a script engine lock at any time while it waits for a nested
+    * worker, so it checks often, to lend the lock on promptly and to give it back soon
+    * after the lender reclaims it.
+    */
+   public static long getScriptLockWaitMillis(long millis) {
+      return LendableReentrantLock.Borrower.current() != null ? Math.min(millis, 50) : millis;
    }
 
    /**
@@ -181,10 +198,30 @@ public class JavaScriptEngine {
          }
       }
 
+      // locks lent to the worker task running on this thread (stacked async lenses):
+      // take the lock as the borrower and lend it on as a nested loan. if the loan to
+      // this task was revoked the lock can't be taken, and there is nothing to lend
+      LendableReentrantLock.Borrower task = LendableReentrantLock.Borrower.current();
+
+      if(task != null) {
+         for(LendableReentrantLock lock : task.getLentLocks()) {
+            if(lent.add(lock) && lock.tryLock()) {
+               LendableReentrantLock.Loan loan = lock.lend(worker);
+               loans.add(() -> {
+                  loan.close();
+                  lock.unlock();
+               });
+            }
+         }
+      }
+
       if(loans.isEmpty()) {
          return LendableReentrantLock.NO_LOAN;
       }
 
+      // with several locks (nested sandboxes) the loans are closed in the order above. a
+      // worker taking two of them in the opposite nesting order could deadlock with the
+      // reclaim; that is theoretical, sandboxes are not known to nest that way
       return loans.size() == 1 ? loans.get(0) : () -> loans.forEach(LendableReentrantLock.Loan::close);
    }
 

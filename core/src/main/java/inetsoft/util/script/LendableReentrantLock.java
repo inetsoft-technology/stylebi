@@ -19,6 +19,8 @@ package inetsoft.util.script;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -50,6 +52,7 @@ public final class LendableReentrantLock implements Lock {
 
       synchronized(monitor) {
          Thread thread = Thread.currentThread();
+         checkNotLending(thread);
 
          while(!canAcquire(thread)) {
             try {
@@ -76,6 +79,7 @@ public final class LendableReentrantLock implements Lock {
 
       synchronized(monitor) {
          Thread thread = Thread.currentThread();
+         checkNotLending(thread);
 
          while(!canAcquire(thread)) {
             monitor.wait();
@@ -109,6 +113,7 @@ public final class LendableReentrantLock implements Lock {
 
       synchronized(monitor) {
          Thread thread = Thread.currentThread();
+         checkNotLending(thread);
 
          while(!canAcquire(thread)) {
             long remaining = deadline - System.nanoTime();
@@ -205,6 +210,7 @@ public final class LendableReentrantLock implements Lock {
 
          LoanImpl loan = new LoanImpl(thread, holds, borrower);
          loans.push(loan);
+         borrower.lentLocks.add(this);
          owner = null;
          holds = 0;
          monitor.notifyAll();
@@ -223,6 +229,22 @@ public final class LendableReentrantLock implements Lock {
 
       LoanImpl loan = loans.peek();
       return loan == null || !loan.revoked && loan.borrower.isRunningOn(thread);
+   }
+
+   /**
+    * A thread that lent this lock must not acquire it before closing the loan, it
+    * would wait for itself forever.
+    */
+   private void checkNotLending(Thread thread) {
+      if(owner == thread) {
+         return;
+      }
+
+      for(LoanImpl loan : loans) {
+         if(loan.lender == thread) {
+            throw new IllegalMonitorStateException("Lock is lent by the current thread");
+         }
+      }
    }
 
    private void acquire(Thread thread) {
@@ -256,6 +278,7 @@ public final class LendableReentrantLock implements Lock {
          }
 
          loans.pop();
+         loan.borrower.lentLocks.remove(this);
          owner = loan.lender;
          holds = loan.holds;
          loan.closed = true;
@@ -290,6 +313,7 @@ public final class LendableReentrantLock implements Lock {
        */
       public void begin() {
          thread = Thread.currentThread();
+         CURRENT.set(this);
       }
 
       /**
@@ -299,6 +323,25 @@ public final class LendableReentrantLock implements Lock {
       public void end() {
          ended = true;
          thread = null;
+
+         if(CURRENT.get() == this) {
+            CURRENT.remove();
+         }
+      }
+
+      /**
+       * Get the borrower task running on the current thread, if any.
+       */
+      public static Borrower current() {
+         return CURRENT.get();
+      }
+
+      /**
+       * Get the locks currently lent to this task. The task may acquire them and lend
+       * them on to its own worker (nested loans).
+       */
+      public List<LendableReentrantLock> getLentLocks() {
+         return lentLocks;
       }
 
       /**
@@ -314,6 +357,8 @@ public final class LendableReentrantLock implements Lock {
 
       private volatile Thread thread;
       private volatile boolean ended;
+      private final List<LendableReentrantLock> lentLocks = new CopyOnWriteArrayList<>();
+      private static final ThreadLocal<Borrower> CURRENT = new ThreadLocal<>();
    }
 
    private final class LoanImpl implements Loan {

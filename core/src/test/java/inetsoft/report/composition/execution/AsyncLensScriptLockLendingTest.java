@@ -283,6 +283,59 @@ public class AsyncLensScriptLockLendingTest {
    }
 
    /**
+    * Stacked async lenses with no condition filter between them, in the MV (build-time)
+    * ordering: an unlocked getRowCount() starts the upper lens's worker W1, which touches
+    * the lower lens and starts its worker W2 while holding nothing. The lock holder then
+    * lends the lock to W1, and W1 must lend it on to W2, which needs it for the inner
+    * condition filter.
+    */
+   @ParameterizedTest
+   @EnumSource(StackedKind.class)
+   public void stackedWorkersStartedAtBuildTime(StackedKind kind) throws Exception {
+      Pipeline pipeline = buildStacked(kind, box);
+      pool.submit(() -> pipeline.lens.getRowCount()).get(TIMEOUT, TimeUnit.SECONDS);
+
+      Future<List<List<Object>>> holder = pool.submit(() -> drain(pipeline.outer));
+
+      assertEquals(stackedControl(kind), holder.get(TIMEOUT, TimeUnit.SECONDS));
+      assertTrue(lentSeen.get(), "the lock holder never lent the lock to the worker");
+      assertFalse(lock.isLocked());
+   }
+
+   private List<List<Object>> stackedControl(StackedKind kind) {
+      return STACKED_CONTROLS.computeIfAbsent(kind, k -> {
+         List<List<Object>> rows = drain(buildStacked(k, null).outer);
+         assertTrue(rows.size() > 2, "control pipeline is empty");
+         return rows;
+      });
+   }
+
+   private Pipeline buildStacked(StackedKind kind, AssetQuerySandbox box) {
+      TableLens inner = PostProcessor.filter(new SlowTable(), allRows(), box);
+      TableLens lower = new SummaryFilter(inner, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      TableLens upper;
+
+      switch(kind) {
+      case SUMMARY_OVER_SUMMARY:
+         upper = new SummaryFilter(lower, new int[] {0}, new int[] {1}, new SumFormula(), null);
+         break;
+      case DISTINCT_OVER_SUMMARY:
+         upper = new DistinctTableLens(lower);
+         break;
+      default:
+         throw new IllegalArgumentException(kind.name());
+      }
+
+      Pipeline pipeline = new Pipeline();
+      pipeline.lens = upper;
+      pipeline.outer = PostProcessor.filter(upper, allRows(), box);
+      created.add(lower);
+      created.add(upper);
+      created.add(pipeline.outer);
+      return pipeline;
+   }
+
+   /**
     * Check that the lock holder lent the lock, i.e. that the worker was still running
     * when the holder waited for it. SetTableLens builds its merge tree on the calling
     * thread and its worker only walks that tree, so its worker is done too quickly and
@@ -380,6 +433,10 @@ public class AsyncLensScriptLockLendingTest {
       SUMMARY, DISTINCT, SELF_JOIN, UNION
    }
 
+   public enum StackedKind {
+      SUMMARY_OVER_SUMMARY, DISTINCT_OVER_SUMMARY
+   }
+
    private static final class Pipeline {
       TableLens lens;
       TableLens outer;
@@ -426,6 +483,7 @@ public class AsyncLensScriptLockLendingTest {
    private static final long TIMEOUT = 30;
    private static final ThreadLocal<Boolean> FAST = ThreadLocal.withInitial(() -> false);
    private static final Map<Kind, Pipeline> CONTROLS = new ConcurrentHashMap<>();
+   private static final Map<StackedKind, List<List<Object>>> STACKED_CONTROLS = new ConcurrentHashMap<>();
 
    private final List<TableLens> created = new ArrayList<>();
    private GraalJavaScriptEngine engine;

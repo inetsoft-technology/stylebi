@@ -341,7 +341,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
             }
          }
 
-         // this thread holds a script engine lock (e.g. from a condition filter above)
+         // this thread holds or was lent a script engine lock (e.g. by a condition filter)
          // that the worker may need to read the base table, lend it to the worker while
          // waiting (bug #76938). the loan is closed outside of this lens's monitor,
          // which the worker needs in order to publish rows
