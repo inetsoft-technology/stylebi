@@ -27,10 +27,12 @@ import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.Condition;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -350,7 +352,33 @@ public final class LockCycleHarness implements AutoCloseable {
        * shape of a worksheet table with an expression column.
        */
       public FormulaTableLens formula(TableLens base) {
-         return new FormulaTableLens(base, new String[] {"f1"}, new String[] {"1"}, env, null);
+         return formula(base, "f1", "1");
+      }
+
+      /**
+       * A real formula lens adding a column {@code header = expr}, run on this sandbox's env.
+       * An expression like {@code field['value'] + 1} reads the base while it computes, like a
+       * calc field.
+       */
+      public FormulaTableLens formula(TableLens base, String header, String expr) {
+         return new FormulaTableLens(base, new String[] {header}, new String[] {expr}, env, null);
+      }
+
+      /**
+       * Run {@code task} as a guest script thread of this sandbox: holding its engine lock
+       * inside {@code exec}, as a worksheet or viewsheet script reading a table does.
+       */
+      public <T> T asGuest(Callable<T> task) throws Exception {
+         lock.lock();
+         JavaScriptEngine.pushExecScriptable(mock(ScriptScope.class));
+
+         try {
+            return task.call();
+         }
+         finally {
+            JavaScriptEngine.popExecScriptable();
+            lock.unlock();
+         }
       }
 
       /**
