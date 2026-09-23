@@ -212,21 +212,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          }
 
          // really create calc expression
-         if(datas.size() > 0) {
-            // No GraalJS call in this loop, so it is safe to hold cassembly's monitor across
-            // the whole loop (see the note on the main processing loop below for why other
-            // blocks in this method keep the monitor narrower).
-            synchronized(cassembly) {
-               for(int i = 0; i < datas.size(); i++) {
-                  CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-                  VSLayoutTool.createCalcLens(cassemblys.get(i), datas.get(i),
-                                              box.getVariableTable(),
-                                              (crosstabs != null && crosstabs.size() > 0));
-                  // copy back
-                  cassemblyChild.setTable(cassemblyChild.getBaseTable());
-               }
-            }
-         }
+         List<TableLens> clenses = createCalcLenses(
+            cassembly, cassemblys, datas, box.getVariableTable(),
+            crosstabs != null && crosstabs.size() > 0);
 
          try {
             // @by ChrisSpagnoli feature1414607346853 2014-10-27
@@ -251,7 +239,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                synchronized(cassembly) {
                   cassemblyChild.setScriptTable(dataChild);
                   cassemblyChild.setScriptEnv(box.getScope().getScriptEnv());
-                  clens = (CalcTableLens) cassemblyChild.getBaseTable();
+                  // the lens this invocation created, not cassemblyChild.getBaseTable(): see
+                  // createCalcLenses()
+                  clens = (CalcTableLens) clenses.get(i);
                   clens.setScriptTable(dataChild);
                   clens.setHeaderRowCount(info.getHeaderRowCount());
                   clens.setHeaderColCount(info.getHeaderColCount());
@@ -507,6 +497,41 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             vs.removeAssembly(name, false);
          }
       }
+   }
+
+   /**
+    * Create the calc table lens of each calc assembly for its data and return the lenses, in
+    * the same order. The caller must process the lenses returned here instead of reading
+    * {@code getBaseTable()} again later: on the no-crosstab path the assembly is the shared
+    * original, so a concurrent invocation can replace its base table in between. Two
+    * invocations would then process the same {@link CalcTableLens}, whose synchronized
+    * {@code process0()} runs GraalJS: a thread holding that monitor while it waits for the
+    * script engine lock and a script thread holding the engine lock while it waits for the
+    * monitor deadlock (#76905).
+    *
+    * <p>No GraalJS call happens here, so it is safe to hold the monitor across the whole loop
+    * (see the note on the main processing loop in {@link #getTableLens()} for why other blocks
+    * keep the monitor narrower).
+    *
+    * @param monitor the monitor guarding the shared calc assembly.
+    */
+   static List<TableLens> createCalcLenses(Object monitor, List<CalcTableVSAssembly> cassemblys,
+                                           List<TableLens> datas, VariableTable vars,
+                                           boolean crossTabSupported)
+   {
+      List<TableLens> clenses = new ArrayList<>();
+
+      synchronized(monitor) {
+         for(int i = 0; i < datas.size(); i++) {
+            CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
+            VSLayoutTool.createCalcLens(cassemblyChild, datas.get(i), vars, crossTabSupported);
+            // copy back
+            cassemblyChild.setTable(cassemblyChild.getBaseTable());
+            clenses.add(cassemblyChild.getBaseTable());
+         }
+      }
+
+      return clenses;
    }
 
    /**
