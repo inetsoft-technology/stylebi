@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.Comparer;
+import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
@@ -252,6 +253,10 @@ public class PostProcessor {
       ConditionFilter2(TableLens table, ConditionGroup conditions, AssetQuerySandbox box) {
          super(table, conditions);
          this.box = box;
+         // only a FormulaTableLens column read can cascade into script
+         // execution from inside checkCondition()/moreRows() -- see
+         // containsFormulaTableLens() below.
+         this.needsScriptLock = box != null && containsFormulaTableLens(table);
       }
 
       /**
@@ -275,6 +280,21 @@ public class PostProcessor {
        * for this sandbox, so filters that never end up evaluating a script are
        * not forced to create one just to establish the ordering.
        *
+       * <p>Narrower still (bug #76935): the engine lock is only requested at all
+       * when {@link #needsScriptLock} says this filter's own base table can reach
+       * a {@code FormulaTableLens} formula column -- the only place a
+       * {@code checkCondition()}/{@code ConditionGroup.evaluate()} column read can
+       * cascade into GraalJS script execution (confirmed by
+       * {@code ConditionFilterGraalLockOrderingTest}'s own account of the original
+       * jstack trace: {@code table.moreRows() -> FormulaTableLens.exec() ->
+       * GraalJavaScriptEngine.exec()}'s {@code lock.lock()}). A filter that can
+       * never reach a formula column can never itself block waiting on the engine
+       * lock while holding this monitor, so it can never be the "A" side of the
+       * AB-BA cycle above regardless of what unrelated scripts elsewhere in the
+       * same sandbox are doing -- skipping the lock for it does not reopen
+       * #76918, it only stops it from queuing behind scripts it was never at risk
+       * of deadlocking against in the first place.
+       *
        * <p>The held lock is recorded on this thread, so a lens below this filter
        * that would otherwise hand its processing to a background worker and wait
        * for it runs it on this thread instead, or lends the lock to that worker
@@ -282,7 +302,7 @@ public class PostProcessor {
        */
       @Override
       public boolean moreRows(int row) {
-         Lock execLock = box == null ? null : box.peekScriptExecutionLock();
+         Lock execLock = needsScriptLock ? box.peekScriptExecutionLock() : null;
 
          if(execLock == null) {
             return super.moreRows(row);
@@ -300,7 +320,34 @@ public class PostProcessor {
          }
       }
 
+      /**
+       * @return {@code true} if {@code table} (or a table it wraps, following the
+       * {@link TableFilter} chain) is a {@link FormulaTableLens} -- i.e. reading
+       * one of its columns can compile/execute a JavaScript formula (see
+       * {@code FormulaTableLens.getObject()}/{@code moreRows()}). Per
+       * {@link #filter(TableLens, ConditionGroup, AssetQuerySandbox)}'s own
+       * comment, the table handed to a condition filter "is always a formula
+       * table or xnode table" -- i.e. exactly the two cases this walk
+       * distinguishes.
+       */
+      private static boolean containsFormulaTableLens(TableLens table) {
+         while(table != null) {
+            if(table instanceof FormulaTableLens) {
+               return true;
+            }
+
+            if(!(table instanceof TableFilter)) {
+               return false;
+            }
+
+            table = ((TableFilter) table).getTable();
+         }
+
+         return false;
+      }
+
       private final AssetQuerySandbox box;
+      private final boolean needsScriptLock;
 
       @Override
       public final int getColBorder(int r, int c) {
