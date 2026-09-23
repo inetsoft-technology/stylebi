@@ -20,6 +20,7 @@ package inetsoft.report.composition.execution.lockcycle;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Sandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
+import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Gate;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Started;
 import inetsoft.report.filter.SumFormula;
@@ -90,12 +91,13 @@ public class CrossSandboxCycleTest {
       Sandbox s2 = harness.sandbox();
       Summary summary = summary(s1);
 
-      Started<List<List<Object>>> h = harness.start(() -> s2.asGuest(() -> drain(summary.summary)));
-      assertTrue(awaitInFrame(h, SUMMARY, PROCESS, KNOWN_CAP),
-                 "H never processed the summary inline first");
-      Future<List<List<Object>>> b = harness.submit(() -> drain(cf2(summary.summary, s1.box)));
+      Started<List<List<Object>>> h =
+         harness.startGated(summary.gate, () -> s2.asGuest(() -> drain(summary.summary)));
+      assertTrue(summary.gate.awaitEntered(KNOWN_CAP), "H never processed the summary inline first");
+      Started<List<List<Object>>> b = harness.start(() -> drain(cf2(summary.summary, s1.box)));
+      releaseAfter(summary.gate, b, KNOWN_CAP);
 
-      assertEquals(summary.expectedOuter, harness.await(b, KNOWN_CAP, "B, sandbox 1's filter holder"));
+      assertEquals(summary.expectedOuter, harness.await(b.future, KNOWN_CAP, "B, sandbox 1's filter holder"));
       assertEquals(summary.expectedLens, harness.await(h.future, KNOWN_CAP, "H, the other engine's script thread"));
    }
 
@@ -164,14 +166,16 @@ public class CrossSandboxCycleTest {
       TableLens first = ownFirst ? own : other;
       TableLens second = ownFirst ? other : own;
 
-      Started<List<List<Object>>> h = harness.start(() -> drain(first));
-      // the first holder holds a lock, so it processes the summary inline: wait until it
-      // does before the second holder arrives
-      assertTrue(awaitInFrame(h, SUMMARY, PROCESS, cap),
+      // the first holder holds a lock, so it processes the summary inline on its own thread,
+      // where it parks at the gate inside the summary's monitor until the second holder has
+      // arrived
+      Started<List<List<Object>>> h = harness.startGated(summary.gate, () -> drain(first));
+      assertTrue(summary.gate.awaitEntered(cap),
                  "the first filter holder never processed the summary inline first");
-      Future<List<List<Object>>> t3 = harness.submit(() -> drain(second));
+      Started<List<List<Object>>> t3 = harness.start(() -> drain(second));
+      releaseAfter(summary.gate, t3, cap);
 
-      assertEquals(summary.expectedOuter, harness.await(t3, cap, "the second filter holder"));
+      assertEquals(summary.expectedOuter, harness.await(t3.future, cap, "the second filter holder"));
       assertEquals(summary.expectedOuter, harness.await(h.future, cap, "the first filter holder"));
       assertFalse(s1.lock.isLocked());
       assertFalse(s2.lock.isLocked());
@@ -189,7 +193,9 @@ public class CrossSandboxCycleTest {
       summary.expectedOuter = harness.await(harness.submit(() -> drain(cf2(controlLens, null))),
                                             ACTIVE_CAP, "control filter");
       assertTrue(summary.expectedLens.size() > 2, "control pipeline is empty");
-      summary.summary = harness.track(summaryOver(s1.filteredFormula(new SlowTable(ROWS, Slow.EVERYWHERE))));
+      summary.gate = harness.gate();
+      summary.summary = harness.track(summaryOver(s1.filteredFormula(
+         new SlowTable(ROWS, Slow.EVERYWHERE, summary.gate))));
       return summary;
    }
 
@@ -199,12 +205,11 @@ public class CrossSandboxCycleTest {
 
    private static final class Summary {
       TableLens summary;
+      Gate gate;
       List<List<Object>> expectedLens;
       List<List<Object>> expectedOuter;
    }
 
-   private static final String SUMMARY = SummaryFilter.class.getName();
-   private static final String PROCESS = "process0";
    private static final int ROWS = 300;
    private LockCycleHarness harness;
 }

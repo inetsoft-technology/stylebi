@@ -20,6 +20,7 @@ package inetsoft.report.composition.execution.lockcycle;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Sandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
+import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Gate;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Started;
 import inetsoft.report.filter.SortFilter;
@@ -82,8 +83,8 @@ public class MonitorFirstLensCycleTest {
    @Tag("known-deadlock")
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void lensOverFilteredFormula(Kind kind) throws Exception {
-      runShared(s -> build(kind, () -> s.filteredFormula(new SlowTable(ROWS, Slow.EVERYWHERE))),
-                kind.monitorClass.getName(), kind.monitorMethod, true, KNOWN_CAP);
+      runShared(g -> s -> build(kind, () -> s.filteredFormula(new SlowTable(ROWS, Slow.EVERYWHERE, g))),
+                KNOWN_CAP);
    }
 
    /**
@@ -96,8 +97,8 @@ public class MonitorFirstLensCycleTest {
    @Tag("known-deadlock")
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void sharedFormulaLens() throws Exception {
-      runShared(s -> s.formula(new SlowTable(ROWS, Slow.EVERYWHERE), "f", "field['value'] + 1"),
-                FormulaTableLens.class.getName(), "moreRows", true, KNOWN_CAP);
+      runShared(g -> s -> s.formula(new SlowTable(ROWS, Slow.EVERYWHERE, g), "f", "field['value'] + 1"),
+                KNOWN_CAP);
    }
 
    /**
@@ -108,24 +109,24 @@ public class MonitorFirstLensCycleTest {
    @ParameterizedTest
    @EnumSource(Kind.class)
    public void lensOverFormulaFreeFilter(Kind kind) throws Exception {
-      // no cycle either way, so T1 may finish before it is seen in the monitor
-      runShared(s -> build(kind, () -> cf2(new SlowTable(FREE_ROWS, Slow.EVERYWHERE), s.box)),
-                kind.monitorClass.getName(), kind.monitorMethod, false, ACTIVE_CAP);
+      runShared(g -> s -> build(kind, () -> cf2(new SlowTable(FREE_ROWS, Slow.EVERYWHERE, g), s.box)),
+                ACTIVE_CAP);
    }
 
    /**
-    * T1 drains the lens, holding no lock; once T1 is inside {@code frameClass.frameMethod}
-    * (the lens holding its monitor while it reads its base), T2 drains a condition filter over
-    * the same lens instance. Both must see the rows of the same pipeline built without a lock.
+    * T1 drains the lens, holding no lock, and parks at the gate at its first base read, which
+    * is inside the lens's monitor. T2 then drains a condition filter over the same lens
+    * instance, and T1 goes on once T2 has parked. Both must see the rows of the same pipeline
+    * built without a lock.
     *
-    * @param requireFrame fail unless T1 was seen in the frame before T2 started.
+    * @param build given the gate (for the base tables), builds the lens of a sandbox.
     */
-   private void runShared(Function<Sandbox, TableLens> build, String frameClass,
-                          String frameMethod, boolean requireFrame, long cap)
+   private void runShared(Function<Gate, Function<Sandbox, TableLens>> build, long cap)
       throws Exception
    {
+      Gate gate = harness.gate();
       Sandbox control = harness.control();
-      TableLens controlLens = harness.track(build.apply(control));
+      TableLens controlLens = harness.track(build.apply(gate).apply(control));
       List<List<Object>> expectedLens = harness.await(
          harness.submit(() -> drain(controlLens)), ACTIVE_CAP, "control lens");
       List<List<Object>> expectedOuter = harness.await(
@@ -133,15 +134,15 @@ public class MonitorFirstLensCycleTest {
       assertTrue(expectedLens.size() > 2, "control pipeline is empty");
 
       Sandbox sandbox = harness.sandbox();
-      TableLens lens = harness.track(build.apply(sandbox));
+      TableLens lens = harness.track(build.apply(gate).apply(sandbox));
       TableLens outer = harness.track(cf2(lens, sandbox.box));
 
-      Started<List<List<Object>>> t1 = harness.start(() -> drain(lens));
-      boolean inFrame = awaitInFrame(t1, frameClass, frameMethod, cap);
-      assertTrue(inFrame || !requireFrame, "T1 was never seen in " + frameClass + "." + frameMethod);
-      Future<List<List<Object>>> t2 = harness.submit(() -> drain(outer));
+      Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(lens));
+      assertTrue(gate.awaitEntered(cap), "T1 never read the lens's base");
+      Started<List<List<Object>>> t2 = harness.start(() -> drain(outer));
+      releaseAfter(gate, t2, cap);
 
-      assertEquals(expectedOuter, harness.await(t2, cap, "T2, the filter lock holder"));
+      assertEquals(expectedOuter, harness.await(t2.future, cap, "T2, the filter lock holder"));
       assertEquals(expectedLens, harness.await(t1.future, cap, "T1, the unlocked lens reader"));
       assertFalse(sandbox.lock.isLocked());
    }
@@ -166,22 +167,8 @@ public class MonitorFirstLensCycleTest {
       }
    }
 
-   /**
-    * The lenses, each with the frame in which it holds its monitor while reading its base.
-    */
    public enum Kind {
-      SORT(SortFilter.class, "sort"),
-      MAX_ROWS(MaxRowsTableLens.class, "moreRows"),
-      UNION_ALL(UnionTableLens.class, "moreRows0"),
-      RANKING(RankingTableLens.class, "validate");
-
-      Kind(Class<?> monitorClass, String monitorMethod) {
-         this.monitorClass = monitorClass;
-         this.monitorMethod = monitorMethod;
-      }
-
-      final Class<?> monitorClass;
-      final String monitorMethod;
+      SORT, MAX_ROWS, UNION_ALL, RANKING
    }
 
    private static final int ROWS = 300;

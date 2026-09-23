@@ -191,36 +191,105 @@ public final class LockCycleHarness implements AutoCloseable {
    }
 
    /**
-    * Wait until {@code started}'s thread has {@code className.method} on its stack. Orders
-    * threads by observed state rather than by sleeping, so a loaded machine cannot flip the
-    * order.
-    *
-    * @return {@code true} if the frame was seen, {@code false} if the task finished first or
-    *         {@code capSeconds} passed.
+    * {@link #start} a task whose thread owns {@code gate}.
     */
-   public static boolean awaitInFrame(Started<?> started, String className, String method,
-                                      long capSeconds)
+   public <T> Started<T> startGated(Gate gate, Callable<T> task) {
+      return start(() -> {
+         gate.own();
+         return task.call();
+      });
+   }
+
+   /**
+    * Let {@code gate}'s owner, parked at the gate, go on once {@code next} has started and
+    * parked (or finished): the owner was provably first, and {@code next} provably arrived
+    * while the owner was still inside its frame.
+    */
+   public static void releaseAfter(Gate gate, Started<?> next, long capSeconds)
+      throws InterruptedException
+   {
+      awaitParked(next, capSeconds);
+      gate.release();
+   }
+
+   /**
+    * Create a gate: a {@link SlowTable} built with it parks the gate's owner thread at its
+    * first data read, inside whatever monitor that thread holds at that point, until
+    * {@link Gate#release()}. The owner publishes that it is parked, so a case knows the
+    * owner is inside the frame without polling its stack, and a starved test thread cannot
+    * miss it or flip the order.
+    */
+   public Gate gate() {
+      Gate gate = new Gate();
+      gates.add(gate);
+      return gate;
+   }
+
+   /**
+    * Wait until {@code started}'s thread is parked (blocked or waiting), or has finished, or
+    * {@code capSeconds} passed. Used after a gated owner is parked, to let the next thread
+    * reach the point where it has to wait for the owner before the owner is released.
+    */
+   public static void awaitParked(Started<?> started, long capSeconds)
       throws InterruptedException
    {
       long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(capSeconds);
 
       while(System.currentTimeMillis() < deadline && !started.future.isDone()) {
          Thread thread = started.thread;
+         Thread.State state = thread == null ? null : thread.getState();
 
-         if(thread != null) {
-            for(StackTraceElement element : thread.getStackTrace()) {
-               if(element.getClassName().equals(className) &&
-                  element.getMethodName().equals(method))
-               {
-                  return true;
-               }
-            }
+         if(state == Thread.State.BLOCKED || state == Thread.State.WAITING ||
+            state == Thread.State.TIMED_WAITING)
+         {
+            return;
          }
 
          Thread.sleep(2);
       }
+   }
 
-      return false;
+   /**
+    * Parks its owner at the first data read of a gated {@link SlowTable}. See {@link #gate()}.
+    */
+   public static final class Gate {
+      /**
+       * Make the calling thread the owner. Call it first in the owner's task.
+       */
+      public void own() {
+         owner = Thread.currentThread();
+      }
+
+      /**
+       * Wait until the owner is parked at the gate.
+       *
+       * @return {@code false} if it did not get there within {@code capSeconds}.
+       */
+      public boolean awaitEntered(long capSeconds) throws InterruptedException {
+         return entered.await(capSeconds, TimeUnit.SECONDS);
+      }
+
+      public void release() {
+         released.countDown();
+      }
+
+      void onRead() {
+         if(Thread.currentThread() == owner && entered.getCount() > 0) {
+            entered.countDown();
+
+            try {
+               // bounded, so a case that never releases cannot park the owner forever
+               released.await(3 * KNOWN_CAP, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+            }
+         }
+      }
+
+      private volatile Thread owner;
+      private final CountDownLatch entered = new CountDownLatch(1);
+      private final CountDownLatch released = new CountDownLatch(1);
    }
 
    /**
@@ -254,6 +323,7 @@ public final class LockCycleHarness implements AutoCloseable {
 
    @Override
    public void close() throws Exception {
+      gates.forEach(Gate::release);
       Thread canceller = new Thread(() -> {
          for(TableLens lens : tracked) {
             if(lens instanceof CancellableTableLens) {
@@ -429,7 +499,7 @@ public final class LockCycleHarness implements AutoCloseable {
        */
       public <T> T asGuest(Callable<T> task) throws Exception {
          lock.lock();
-         JavaScriptEngine.pushExecScriptable(mock(ScriptScope.class));
+         JavaScriptEngine.pushExecScriptable(guestScope);
 
          try {
             return task.call();
@@ -462,6 +532,7 @@ public final class LockCycleHarness implements AutoCloseable {
       /** {@code null} for a control sandbox. */
       public final AssetQuerySandbox box;
       private final Object script;
+      private final ScriptScope guestScope = mock(ScriptScope.class);
    }
 
    /**
@@ -484,12 +555,24 @@ public final class LockCycleHarness implements AutoCloseable {
     */
    public static class SlowTable extends DefaultTableLens {
       public SlowTable(int rows, Slow slow) {
+         this(rows, slow, null);
+      }
+
+      /**
+       * @param gate parks its owner at the owner's first data read of this table.
+       */
+      public SlowTable(int rows, Slow slow, Gate gate) {
          super(data(rows));
          this.slow = slow;
+         this.gate = gate;
       }
 
       @Override
       public Object getObject(int r, int c) {
+         if(r > 0 && gate != null) {
+            gate.onRead();
+         }
+
          if(r > 0 && c == 1 && isSlow(r)) {
             try {
                Thread.sleep(1);
@@ -527,6 +610,7 @@ public final class LockCycleHarness implements AutoCloseable {
       }
 
       private final Slow slow;
+      private final Gate gate;
    }
 
    /**
@@ -583,6 +667,7 @@ public final class LockCycleHarness implements AutoCloseable {
    private final Set<Long> preexisting = new HashSet<>();
    private final List<Sandbox> sandboxes = new CopyOnWriteArrayList<>();
    private final List<TableLens> tracked = new CopyOnWriteArrayList<>();
+   private final List<Gate> gates = new CopyOnWriteArrayList<>();
    private boolean forcedHash;
    private String oldForceHash;
 }

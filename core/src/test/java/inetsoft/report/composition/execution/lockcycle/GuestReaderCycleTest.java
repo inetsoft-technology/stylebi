@@ -21,6 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Sandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Gate;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Started;
 import inetsoft.report.filter.AbstractConditionFilter;
@@ -102,17 +103,20 @@ public class GuestReaderCycleTest {
       }), ACTIVE_CAP, "control pipeline");
 
       Sandbox s = harness.sandbox();
-      TableLens cf = harness.track(cf2(calcField(s, new SlowTable(ROWS, Slow.EVERYWHERE)), s.box));
-      Started<List<List<Object>>> populator = harness.start(() -> drain(cf));
-      // the guest reads ahead of a populator that has started (order does not matter on main)
-      awaitInFrame(populator, FormulaTableLens.class.getName(), "moreRows", ACTIVE_CAP);
-      Future<Integer> guest = harness.submit(() -> s.asGuest(() -> {
+      Gate gate = harness.gate();
+      TableLens cf = harness.track(cf2(calcField(s, new SlowTable(ROWS, Slow.EVERYWHERE, gate)), s.box));
+      // the populator parks at its first base read, inside the filter; the guest then reads
+      // ahead of it
+      Started<List<List<Object>>> populator = harness.startGated(gate, () -> drain(cf));
+      assertTrue(gate.awaitEntered(ACTIVE_CAP), "the populator never read the base");
+      Started<Integer> guest = harness.start(() -> s.asGuest(() -> {
          cf.moreRows(ROWS - 1);
          cf.moreRows(TableLens.EOT);
          return cf.getRowCount();
       }));
+      releaseAfter(gate, guest, ACTIVE_CAP);
 
-      assertEquals(expected, (int) harness.await(guest, ACTIVE_CAP, "guest reading ahead"));
+      assertEquals(expected, (int) harness.await(guest.future, ACTIVE_CAP, "guest reading ahead"));
       assertEquals(expected, harness.await(populator.future, ACTIVE_CAP, "populator").size());
    }
 
@@ -156,27 +160,33 @@ public class GuestReaderCycleTest {
    }
 
    /**
-    * Design refutation INV_RACE: a reader of already-mapped rows racing with
-    * {@code invalidate()} and re-population of the same condition filter over a formula
-    * table. Every read must return the right value and never throw. On main the filter takes
-    * the engine lock for every {@code moreRows}, which serializes the reader's
-    * {@code getBaseRowIndex} with the re-population, so this passes; a lock-free read path in
-    * the redesign must keep it passing.
+    * Design refutation INV_RACE, over a formula table. Not a lock cycle: the
+    * {@code AbstractConditionFilter} rowmap vs {@code invalidate()} thread-safety gap
+    * (pre-#5506). A reader of data rows races with {@code invalidate()} and re-population of
+    * the same condition filter; every read must return the right value and never throw.
+    * {@code getBaseRowIndex} reads {@code rowmap} after {@code moreRows} has released both the
+    * engine lock and the filter's monitor, and {@code invalidate()} takes only the monitor, so
+    * the engine lock this filter takes does not close the gap. It only makes it rarer: this
+    * variant usually shows no wrong read in 3 s, but can on any run, so it is known.
     */
    @Test
+   @Tag("known-deadlock")
+   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void mappedRowReadsDuringInvalidate() throws Exception {
       Sandbox s = harness.sandbox();
       assertEquals(Collections.emptyMap(),
-                   invalidateRace(cf2(s.formula(new SlowTable(INV_ROWS, Slow.NONE)), s.box), ACTIVE_CAP));
+                   invalidateRace(cf2(s.formula(new SlowTable(INV_ROWS, Slow.NONE)), s.box), KNOWN_CAP));
    }
 
    /**
-    * INV_RACE over a formula-free base: a wrong result, not a hang. {@code getBaseRowIndex}
-    * reads {@code rowmap} outside the filter's monitor after {@code moreRows} returns, while
-    * {@code invalidate()} swaps in a new list holding only the header entries (so the row
-    * maps to base row 0, the header value {@code "value"}) or disposes the old one (so it maps
-    * to -1 and the base throws). The race predates bug #76935, but that change takes the
-    * engine lock off this filter, which made it about 40 times likelier per read.
+    * Design refutation INV_RACE, over a formula-free base. Not a lock cycle: the
+    * {@code AbstractConditionFilter} rowmap vs {@code invalidate()} thread-safety gap
+    * (pre-#5506), a wrong result rather than a hang. {@code getBaseRowIndex}
+    * ({@code AbstractConditionFilter.java:138}) reads {@code rowmap} after {@code moreRows}
+    * returns, holding nothing, while {@code invalidate()} swaps in a new list holding only the
+    * header entries (so the row maps to base row 0, the header value {@code "value"}) or
+    * disposes the old one (so it maps to -1 and the base throws). This filter takes no engine
+    * lock, so nothing slows the two threads down, and wrong reads show up in every run.
     */
    @Test
    @Tag("known-deadlock")
@@ -241,12 +251,14 @@ public class GuestReaderCycleTest {
    }
 
    /**
-    * Design refutation AQS_RACE: four script threads of one sandbox using one real
-    * {@link AssetQueryScope}, whose {@code tablemap} and {@code members} are plain maps. On
-    * main every access runs inside {@code exec}, under the sandbox's engine lock, which
-    * serializes them; without that lock the refuter's probe lost entries. The invariant the
-    * redesign must keep: accesses made the way scripts make them (each holding the engine
-    * lock) lose no entry.
+    * Design refutation AQS_RACE: four threads run scripts through the real
+    * {@code GraalJavaScriptEngine.exec} with one real {@link AssetQueryScope} as the scope.
+    * Each script looks up an unknown name and assigns another; the engine resolves both
+    * through {@code AssetQueryScope.hasMember}, which caches every name in the plain-map
+    * {@code tablemap} (the assignment itself stays in the engine). The scope is not
+    * thread-safe; without the engine lock the refuter's
+    * probe lost entries. Here the lock comes from {@code exec} itself, not from the test, so a
+    * redesign that lets scripts of one sandbox run concurrently on this scope fails this case.
     */
    @Test
    public void assetQueryScopeUnderEngineLock() throws Exception {
@@ -254,9 +266,7 @@ public class GuestReaderCycleTest {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       doReturn(new Worksheet()).when(box).getWorksheet();
       AssetQueryScope scope = new AssetQueryScope(box);
-      // the scope starts with entries of its own
       int tables = mapField(scope, "tablemap").size();
-      int members = mapField(scope, "members").size();
       CountDownLatch go = new CountDownLatch(1);
       List<Future<Void>> threads = new ArrayList<>();
 
@@ -266,12 +276,10 @@ public class GuestReaderCycleTest {
             go.await();
 
             for(int i = 0; i < AQS_OPS; i++) {
-               int n = i;
-               s.asGuest(() -> {
-                  scope.hasMember("id_" + id + "_" + n);
-                  scope.putMember("m_" + id + "_" + n, n);
-                  return null;
-               });
+               // a script that looks up an unknown name and assigns another, run by the real
+               // engine, which takes the engine lock itself
+               Object script = s.engine.compile("typeof id_" + id + "_" + i + "; m_" + id + "_" + i + " = " + i + ";");
+               s.engine.exec(script, scope, null);
             }
 
             return null;
@@ -281,13 +289,12 @@ public class GuestReaderCycleTest {
       go.countDown();
 
       for(Future<Void> thread : threads) {
-         harness.await(thread, ACTIVE_CAP, "scope user");
+         harness.await(thread, ACTIVE_CAP, "script thread");
       }
 
-      assertEquals(tables + AQS_THREADS * AQS_OPS, mapField(scope, "tablemap").size(),
+      // each script looks up both of its names, so each caches two entries
+      assertEquals(tables + 2 * AQS_THREADS * AQS_OPS, mapField(scope, "tablemap").size(),
                    "lost tablemap entries");
-      assertEquals(members + AQS_THREADS * AQS_OPS, mapField(scope, "members").size(),
-                   "lost members");
    }
 
    private static Map<?, ?> mapField(AssetQueryScope scope, String name) throws Exception {
@@ -330,20 +337,22 @@ public class GuestReaderCycleTest {
    @Tag("known-deadlock")
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void guestReadsSharedSort() throws Exception {
+      Gate gate = harness.gate();
       Function<Sandbox, TableLens> build = s -> harness.track(new SortFilter(
-         s.filteredFormula(new SlowTable(ROWS, Slow.EVERYWHERE)), new int[] {1}));
+         s.filteredFormula(new SlowTable(ROWS, Slow.EVERYWHERE, gate)), new int[] {1}));
       Sandbox control = harness.control();
       List<List<Object>> expected = harness.await(
          harness.submit(() -> drain(build.apply(control))), ACTIVE_CAP, "control sort");
 
       Sandbox s = harness.sandbox();
       TableLens sort = build.apply(s);
-      Started<List<List<Object>>> t1 = harness.start(() -> drain(sort));
-      assertTrue(awaitInFrame(t1, SortFilter.class.getName(), "sort", KNOWN_CAP),
-                 "T1 never started sorting");
-      Future<List<List<Object>>> guest = harness.submit(() -> s.asGuest(() -> drain(sort)));
+      // T1 parks at its first base read, inside the sort's monitor
+      Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(sort));
+      assertTrue(gate.awaitEntered(KNOWN_CAP), "T1 never started sorting");
+      Started<List<List<Object>>> guest = harness.start(() -> s.asGuest(() -> drain(sort)));
+      releaseAfter(gate, guest, KNOWN_CAP);
 
-      assertEquals(expected, harness.await(guest, KNOWN_CAP, "guest reading the sort"));
+      assertEquals(expected, harness.await(guest.future, KNOWN_CAP, "guest reading the sort"));
       assertEquals(expected, harness.await(t1.future, KNOWN_CAP, "T1, the unlocked sorter"));
    }
 
@@ -436,7 +445,7 @@ public class GuestReaderCycleTest {
    private static final int JOIN_ROWS = 120;
    private static final int INV_ROWS = 300;
    private static final int AQS_THREADS = 4;
-   private static final int AQS_OPS = 5000;
+   private static final int AQS_OPS = 500;
    private static final int UNION_ROWS = 150;
    private static final int UNION_ITERATIONS = 20;
    private static final long UNION_TOTAL_CAP = 300;

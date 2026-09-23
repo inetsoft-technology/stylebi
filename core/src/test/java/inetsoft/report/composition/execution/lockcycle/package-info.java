@@ -29,7 +29,7 @@
  * ./mvnw -o -pl core test -Dtest='inetsoft.report.composition.execution.lockcycle.*Test' -Dlockcycle.known=true
  * </pre>
  *
- * <p>Threads are ordered by observed state ({@code awaitInFrame}, {@code awaitWaitingOnLock},
+ * <p>Threads are ordered by observed state (gates in the base tables, {@code awaitParked}, {@code awaitWaitingOnLock},
  * latches), not by sleeping, so a slow machine cannot flip a case into, or out of, its cycle.
  * Known cases wait at most {@code KNOWN_CAP} (10 s) per step; on a very slow machine a fixed
  * pipeline could exceed that, so read a known case's failure dump before concluding a cycle is
