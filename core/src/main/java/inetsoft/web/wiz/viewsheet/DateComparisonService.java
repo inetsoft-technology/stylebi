@@ -282,6 +282,7 @@ public class DateComparisonService {
          result.putAll(describeDateComparisonInactive(rvs, assemblyName));
          result.putAll(describeUseFacetInapplicable(rvs, assemblyName, comparison));
          result.putAll(describeToDateDefaulted(model, comparison));
+         result.putAll(describeInclusiveDefaulted(model, comparison));
       });
 
       return result;
@@ -621,6 +622,37 @@ public class DateComparisonService {
 
       out.put("toDate", standard.isToDate());
       out.put("toDateDefaulted", true);
+      return out;
+   }
+
+   /**
+    * Mirrors {@link #describeToDateDefaulted(DateComparisonPaneModel, Comparison)} for the
+    * {@code inclusive} field — same identically-shaped {@code boolean = true} field on
+    * {@link StandardPeriodPaneModel}, same silent-default gap when the caller omits it.
+    */
+   private static Map<String, Object> describeInclusiveDefaulted(DateComparisonPaneModel model,
+                                                                   Comparison comparison)
+   {
+      Map<String, Object> out = new LinkedHashMap<>();
+
+      if(comparison.inclusive() != null || !setsPeriod(comparison)) {
+         return out;
+      }
+
+      PeriodPaneModel periods = model.getPeriodPaneModel();
+
+      if(periods == null || periods.isCustom()) {
+         return out;
+      }
+
+      StandardPeriodPaneModel standard = periods.getStandardPeriodPaneModel();
+
+      if(standard == null) {
+         return out;
+      }
+
+      out.put("inclusive", standard.isInclusive());
+      out.put("inclusiveDefaulted", true);
       return out;
    }
 

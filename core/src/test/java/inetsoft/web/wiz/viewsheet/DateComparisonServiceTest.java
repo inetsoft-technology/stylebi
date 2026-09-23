@@ -663,6 +663,72 @@ class DateComparisonServiceTest {
       assertFalse(result.containsKey("toDateDefaulted"));
    }
 
+   // ── inclusive default disclosure (DCG-025) ────────────────────────────────
+
+   /**
+    * DCG-025: {@code inclusive} is the exact same {@code boolean = true} field shape as
+    * {@code toDate}, with the identical silent-default gap. {@code toDate} is passed explicitly
+    * here so its own disclosure cannot fire, isolating the claim to {@code inclusive} alone.
+    */
+   @Test
+   void discloseInclusiveDefaultedWhenOmittedOnAStandardPeriodCall() throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", "2026-03-31", false, null, null, null, null, null, true, null);
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertEquals(true, result.get("inclusiveDefaulted"));
+      assertEquals(true, result.get("inclusive"));
+   }
+
+   @Test
+   void doesNotDiscloseInclusiveDefaultedWhenPassedExplicitlyTrue() throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", "2026-03-31", false, null, null, null, null, null, true, true);
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertFalse(result.containsKey("inclusiveDefaulted"));
+   }
+
+   @Test
+   void doesNotDiscloseInclusiveDefaultedWhenPassedExplicitlyFalse() throws Exception {
+      DateComparisonPaneModel model = model();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", "2026-03-31", false, null, null, null, null, null, true, false);
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertFalse(result.containsKey("inclusiveDefaulted"));
+   }
+
+   /** A call that touches no period field at all has nothing to disclose. */
+   @Test
+   void doesNotDiscloseInclusiveDefaultedWhenNoPeriodFieldWasTouched() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertFalse(result.containsKey("inclusiveDefaulted"));
+   }
+
+   /** A custom period has no {@code inclusive} concept at all; nothing to disclose. */
+   @Test
+   void doesNotDiscloseInclusiveDefaultedForACustomPeriod() throws Exception {
+      DateComparisonPaneModel model = model();
+
+      Map<String, Object> result = harness(model).service.set("tok", principal(), "Chart1",
+         customPeriods(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")), "");
+
+      assertFalse(result.containsKey("inclusiveDefaulted"));
+   }
+
    // ── interval-level normalization ─────────────────────────────────────────
 
    /**
