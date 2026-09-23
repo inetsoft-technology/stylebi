@@ -104,6 +104,10 @@ public class ChangeChartTypeService {
          return null;
       }
 
+      // let a not-logged-in principal surface as a distinct session-invalid message rather
+      // than a misleading "no permission" result, caught explicitly below (76953).
+      GraphTypeUtil.setStrictLoginCheck(true);
+
       try {
          if(!GraphTypeUtil.checkChartStylePermission(event.getType())) {
             MessageCommand command = new MessageCommand();
@@ -123,6 +127,9 @@ public class ChangeChartTypeService {
          command.setType(MessageCommand.Type.fromCode(ex.getWarningLevel()));
          dispatcher.sendCommand(command);
          return null;
+      }
+      finally {
+         GraphTypeUtil.setStrictLoginCheck(false);
       }
 
       BindingModel obinding = bindingFactory.createModel(chart);
