@@ -49,7 +49,6 @@ public final class WsValueCopier {
     */
    public static Object detach(Value v) {
       if(!isOwnGuest(v)) {
-         countIfForeign(v);
          return v;
       }
 
@@ -158,12 +157,14 @@ public final class WsValueCopier {
    }
 
    /**
-    * ScriptValueConverter.toHost of a foreign reference: its owner's live value, never walked
-    * or copied, and counted (spec §14.11).
+    * ScriptValueConverter.toHost of a foreign reference, with main's shapes (spec §14.12 A1):
+    * a foreign array becomes main's {@code Object[]}, walked at main's moment (toHost time), with
+    * main's risk; a foreign object or function is its owner's live value, as main's raw Value.
+    * Nothing is copied at the entry point (spec §14.11).
     */
-   public static Value foreign(ForeignRef ref) {
-      FOREIGN.incrementAndGet();
-      return ref.value();
+   public static Object foreign(ForeignRef ref) {
+      Value owner = ref.value();
+      return owner.hasArrayElements() ? ScriptValueConverter.toHost(owner) : owner;
    }
 
    /**
@@ -183,15 +184,15 @@ public final class WsValueCopier {
 
    /**
     * A foreign reference passed to a Java method: its owner's live value in the target form,
-    * as main's re-viewed value gave (a live Map/List/function view), and counted.
+    * as main's re-viewed value gave (a live Map/List/function view).
     */
    static <T> T foreignAs(Value v, Class<T> type) {
-      FOREIGN.incrementAndGet();
       return ((ForeignRef) v.asProxyObject()).value().as(type);
    }
 
    /**
-    * @return the number of foreign values met at the boundary (spec §14.11 metric).
+    * @return the number of values marked foreign on entry to a pooled context (spec §14.11
+    *         metric); a value is counted once, where it is marked, not at each later crossing.
     */
    public static long foreignValueCount() {
       return FOREIGN.get();
@@ -255,6 +256,12 @@ public final class WsValueCopier {
          return null;
       }
 
+      // a foreign reference nested in an own object or array: the owner's live view, as main
+      // gave for the element, never the ForeignRef proxy itself
+      if(isForeignRef(v)) {
+         return foreignAs(v, Object.class);
+      }
+
       if(isFunction(v) || isNonPlainObject(v)) {
          throw reject(v);
       }
@@ -279,7 +286,6 @@ public final class WsValueCopier {
          }
       }
 
-      countIfForeign(v);
       return v.as(Object.class);
    }
 
@@ -333,20 +339,6 @@ public final class WsValueCopier {
       }
       catch(RuntimeException ex) {
          return false;
-      }
-   }
-
-   private static void countIfForeign(Value v) {
-      if(v == null || v.isNull() || v.isHostObject() || v.isProxyObject() || v.isString() ||
-         v.isNumber() || v.isBoolean())
-      {
-         return;
-      }
-
-      Context context = WsExecContext.currentContext();
-
-      if(context != null && !isOwn(v, context)) {
-         FOREIGN.incrementAndGet();
       }
    }
 

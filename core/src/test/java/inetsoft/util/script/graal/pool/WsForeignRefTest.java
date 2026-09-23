@@ -41,7 +41,8 @@ class WsForeignRefTest {
       "o.f(21)", "o.m()", "o.arr.length", "o.arr[1]",
       "(function(){var s=0; for(var x of o.arr) s+=x; return s})()",
       "(function(){var s=0; for(var i=0;i<o.arr.length;i++) s+=o.arr[i]; return s})()",
-      "o === o", "o.b === o.b", "String(o.b)", "o.missing === undefined"
+      "o === o", "o.b === o.b", "String(o.b)", "o.missing === undefined", "new o.K(3).v",
+      "typeof o.K"
    };
 
    @Test
@@ -63,9 +64,8 @@ class WsForeignRefTest {
    }
 
    /**
-    * Writes go live to the owner. (On main a script write to another context's object dies
-    * inside Graal, "unexpected interop primitive" from OtherContextGuestObject.migrateReturn,
-    * at least with assertions enabled; see {@link #mainWriteToAForeignObjectFails}.)
+    * Writes go live to the owner, as on main in production (see
+    * {@link #mainWriteToAForeignObjectReachesItsOwnerWithAssertionsOff}).
     */
    @Test
    void writesGoLiveToTheOwner() throws Exception {
@@ -82,19 +82,32 @@ class WsForeignRefTest {
    }
 
    /**
-    * Records main's behaviour for the write comparison above.
+    * Records main's behaviour for the write comparison above. Without -ea (production) the
+    * write reaches the owner; with -ea (the surefire default) Graal's own interop assertion
+    * "unexpected interop primitive" (OtherContextGuestObject.migrateReturn) fails it.
     */
    @Test
-   void mainWriteToAForeignObjectFails() throws Exception {
+   void mainWriteToAForeignObjectReachesItsOwnerWithAssertionsOff() throws Exception {
       ScriptEnv plain = plain();
-      plain.put("o", owner());
-      assertThrows(Throwable.class, () -> run(plain, "o.a = 5; 1"));
+      Value o = (Value) owner();
+      plain.put("o", o);
+      boolean assertions = false;
+      assert assertions = true;
+
+      try {
+         run(plain, "o.a = 5; 1");
+         assertEquals(5, o.getMember("a").asInt());
+      }
+      catch(Throwable ex) {
+         assertTrue(assertions, "main's write failed with assertions off: " + ex);
+      }
    }
 
    /**
-    * The one deliberate difference (spec §14.12 A2): a worksheet function stored into a
-    * foreign object would stay bound to a pooled context, so it is rejected; passing one as a
-    * transient call argument still works.
+    * The one deliberate difference (spec §14.12 A2, lead ruling (i)): on main a worksheet
+    * function stored into a viewsheet object is kept live; pooled, the worksheet context is
+    * cleaned and reused, so the function would dangle and the store is rejected (release note).
+    * Passing one as a transient call argument still works.
     */
    @Test
    void storingAFunctionIntoAForeignObjectIsRejected() throws Exception {
@@ -113,12 +126,57 @@ class WsForeignRefTest {
       ws.put("taker", taker);
       long before = WsValueCopier.foreignValueCount();
       run(ws, "taker.take(o.b); taker.takeMap(o); 1");
-      assertTrue(WsValueCopier.foreignValueCount() >= before + 2);
+      // counted once, where o was marked on entry (replayed into the claimed context)
+      assertTrue(WsValueCopier.foreignValueCount() >= before + 1);
       assertEquals(1, ((Map<?, ?>) taker.last).get("a"), "a live map view, as on main");
       assertFalse(taker.last instanceof CopyMap);
       Object result = run(ws, "o.b");
       assertTrue(result instanceof Value value && value.getContext().equals(o.getContext()),
                  "an exec result of a foreign value is the owner's live value: " + result);
+   }
+
+   /**
+    * Spec §14.12 A1 (lead ruling (ii)): toHost of a foreign array keeps main's Object[] shape,
+    * walked at main's moment, so e.g. a ONE_OF condition value built from it is element-wise
+    * (ConditionGroup / PreAssetQuery.getScriptValue expect Object[]); objects stay live.
+    */
+   @Test
+   void toHostOfAForeignArrayIsMainsObjectArray() throws Exception {
+      for(ScriptEnv env : new ScriptEnv[] { plain(), env() }) {
+         env.put("o", owner());
+         Object arr = run(env, "o.arr");
+         assertTrue(arr instanceof Object[], env + ": " + arr);
+         assertEquals(List.of(1.0, 2.0, 3.0), Arrays.asList((Object[]) arr));
+         Object nested = run(env, "[o.arr, 4]");
+         assertTrue(((Object[]) nested)[0] instanceof Object[], String.valueOf(env));
+         Object obj = run(env, "o.b");
+         assertTrue(obj instanceof Value, env + ": " + obj);
+      }
+   }
+
+   /**
+    * A foreign value nested in an own object or array passed to a Java method arrives as the
+    * same Java type as on main (a live polyglot view), never as the ForeignRef proxy.
+    */
+   @Test
+   void nestedForeignValueInAJavaArgumentIsMainsType() throws Exception {
+      List<String> types = new ArrayList<>();
+
+      for(ScriptEnv env : new ScriptEnv[] { plain(), env() }) {
+         Taker taker = new Taker();
+         env.put("o", owner());
+         env.put("taker", taker);
+         run(env, "taker.take({x: o.b}); 1");
+         Object x = ((Map<?, ?>) taker.last).get("x");
+         run(env, "taker.take([o.arr]); 1");
+         Object element = ((List<?>) taker.last).get(0);
+         assertFalse(x instanceof ForeignRef || element instanceof ForeignRef);
+         assertTrue(x instanceof Map, String.valueOf(x));
+         assertEquals(2, ((Map<?, ?>) x).get("c"));
+         types.add(x.getClass().getName() + "|" + element.getClass().getName());
+      }
+
+      assertEquals(types.get(0), types.get(1), "pooled element types differ from main");
    }
 
    /**
@@ -177,6 +235,6 @@ class WsForeignRefTest {
       GraalJavaScriptEnv vs = new GraalJavaScriptEnv();
       vs.init();
       return run(vs, "({a: 1, b: {c: 2}, arr: [1, 2, 3], f: function(x) { return x * 2; }, " +
-                     "m: function() { return this.a; }})");
+                     "m: function() { return this.a; }, K: function(v) { this.v = v; }})");
    }
 }

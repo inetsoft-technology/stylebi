@@ -214,11 +214,12 @@ class WsHostBoundaryTest {
       Callback vsCb = new Callback(vs);
       vs.put("cb", vsCb);
 
+      // counted once, where the value is marked foreign on entry to the pooled context
+      long foreign = WsValueCopier.foreignValueCount();
       WorksheetScriptEnv ws = withTaker();
       ws.put("vsval", vsValue);
       assertEquals(1.0, run(ws, "vsval.a"), "owner free: the live reference reads");
 
-      long foreign = WsValueCopier.foreignValueCount();
       run(ws, "taker.take(vsval); 1");
       assertFalse(taker.last instanceof CopyMap, "a foreign value is never copied through its owner");
       assertTrue(WsValueCopier.foreignValueCount() > foreign, "foreign value not counted");

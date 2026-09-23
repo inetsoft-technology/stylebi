@@ -21,6 +21,7 @@ import inetsoft.util.script.graal.ScriptValueConverter;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 import org.graalvm.polyglot.proxy.ProxyExecutable;
+import org.graalvm.polyglot.proxy.ProxyInstantiable;
 import org.graalvm.polyglot.proxy.ProxyObject;
 
 import java.util.Set;
@@ -226,7 +227,7 @@ public class ForeignRef implements ProxyObject {
    /**
     * A foreign function.
     */
-   static class Function extends ForeignRef implements ProxyExecutable {
+   static class Function extends ForeignRef implements ProxyExecutable, ProxyInstantiable {
       Function(Value value) {
          super(value);
       }
@@ -234,6 +235,14 @@ public class ForeignRef implements ProxyObject {
       @Override
       public Object execute(Value... arguments) {
          return out(value().execute(args(arguments)));
+      }
+
+      /**
+       * {@code new f()} runs live in the owner, as on main.
+       */
+      @Override
+      public Object newInstance(Value... arguments) {
+         return out(value().newInstance(args(arguments)));
       }
    }
 

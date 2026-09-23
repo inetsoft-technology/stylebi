@@ -78,6 +78,11 @@ final class WsBoundaryPolicy {
          "the worksheet script run that created it; chart and viewsheet callbacks are not " +
          "affected.",
       "javaDate.equals(jsDate) can now be true, because a JS Date passed to a Java method " +
-         "arrives as java.util.Date."
+         "arrives as java.util.Date.",
+      "A worksheet script function cannot be stored into a viewsheet object (for example " +
+         "vsObj.f = function(){}); the worksheet context is cleaned and reused, so the " +
+         "function would dangle, and the store raises a clear script error.",
+      "A worksheet array written into a viewsheet object (for example vsObj.list = [1, 2]) " +
+         "arrives there as a Java Object[], not a JS array."
    );
 }
