@@ -149,6 +149,15 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       super(viewsheetClient, zone, true);
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
       showHyperlinkService.inEmbed = true;
+
+      // When bootstrapped as a <inetsoft-chart> custom element (@angular/elements), this
+      // component's view is attached directly to the page-wide ApplicationRef and is only
+      // auto-refreshed when the shared NgZone reports itself stable. That signal can be missed
+      // when this element's STOMP command stream races another <inetsoft-chart> instance's own
+      // async round-trips on the same page (bug #76903) -- the command handlers below correctly
+      // update this component's fields, but the view is never re-checked. Force a check after
+      // every command instead of relying on the implicit app-wide tick.
+      this.subscriptions.add(this.viewsheetClient.commands.subscribe(() => this.cdRef.detectChanges()));
    }
 
    get runtimeId(): string {
