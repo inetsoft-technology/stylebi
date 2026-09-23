@@ -34,6 +34,8 @@ import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.ViewsheetRouteDataModel;
 import inetsoft.web.viewsheet.service.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -41,6 +43,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.time.Instant;
 
 /**
  * Controller that processes requests to open a viewsheet instance.
@@ -134,6 +137,10 @@ public class OpenViewsheetController {
                              @LinkUri String linkUri)
       throws Exception
    {
+      LOG.debug("[76903-debug] openViewsheet ENTER thread={} entryId={} runtimeViewsheetId={} ts={}",
+                Thread.currentThread().getName(), event.getEntryId(),
+                event.getRuntimeViewsheetId(), Instant.now());
+
       if(!event.isViewer() &&
          !securityEngine.checkPermission(principal,
                                           ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
@@ -167,6 +174,10 @@ public class OpenViewsheetController {
          else if(event.isEmbed()) {
             commandDispatcher.sendCommand(
                EmbedErrorCommand.builder().message(e.getMessage()).build());
+            LOG.debug("[76903-debug] openViewsheet RETURN(embed-error) thread={} entryId={} " +
+                      "runtimeViewsheetId={} ts={}",
+                      Thread.currentThread().getName(), event.getEntryId(),
+                      event.getRuntimeViewsheetId(), Instant.now());
             return;
          }
 
@@ -182,6 +193,11 @@ public class OpenViewsheetController {
       if(event.isNewSheet()) {
          commandDispatcher.sendCommand(new VSDependencyChangedCommand(true));
       }
+
+      LOG.debug("[76903-debug] openViewsheet RETURN thread={} entryId={} runtimeViewsheetId={} " +
+                "openedId={} ts={}",
+                Thread.currentThread().getName(), event.getEntryId(),
+                event.getRuntimeViewsheetId(), id, Instant.now());
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
@@ -191,4 +207,6 @@ public class OpenViewsheetController {
    private final OpenViewsheetServiceProxy serviceProxy;
    private final ViewsheetService viewsheetService;
    private final SecurityEngine securityEngine;
+
+   private static final Logger LOG = LoggerFactory.getLogger(OpenViewsheetController.class);
 }

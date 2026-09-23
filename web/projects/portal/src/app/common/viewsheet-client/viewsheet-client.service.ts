@@ -122,11 +122,19 @@ export class ViewsheetClientService implements OnDestroy {
    private subscribe(): void {
       this.connection.subscribe("/user/commands", (message) => {
          const headers = message.frame.headers;
+         const matched = !!headers &&
+            (!headers["inetsoftClientId"] && headers["sheetRuntimeId"] === this._runtimeId ||
+            headers["inetsoftClientId"] === this._clientId);
+         // tslint:disable-next-line:no-console
+         console.log("[76903-debug] frame received on /user/commands",
+            "commandType=", headers && headers["commandType"],
+            "sheetRuntimeId=", headers && headers["sheetRuntimeId"],
+            "inetsoftClientId=", headers && headers["inetsoftClientId"],
+            "this._runtimeId=", this._runtimeId, "this._clientId=", this._clientId,
+            "matched=", matched);
          // broadcast messages won't have the client ID, so accept those without a client ID, but a
          // matching runtime ID
-         if(headers &&
-            (!headers["inetsoftClientId"] && headers["sheetRuntimeId"] === this._runtimeId ||
-            headers["inetsoftClientId"] === this._clientId))
+         if(matched)
          {
             this.processCommand(headers, message);
          }

@@ -493,12 +493,18 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       // caller receives the sheet ID, so the correct partition-owning node can always
       // find the sheet via the cache on subsequent affinity-routed requests instead of
       // throwing ExpiredSheetException.
+      LOG.debug("[76903-debug] openSheet BEFORE putSheet.get() thread={} sheetId={}",
+                Thread.currentThread().getName(), sheetId);
+
       try {
          amap.putSheet(sheetId, rs).get(10, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.warn("Failed to persist sheet {} to distributed cache", sheetId, e);
       }
+
+      LOG.debug("[76903-debug] openSheet AFTER putSheet.get() thread={} sheetId={}",
+                Thread.currentThread().getName(), sheetId);
 
       if(LOG.isDebugEnabled()) {
          LOG.debug("Opened runtime sheet {} on {}", sheetId, cluster.getLocalMember());

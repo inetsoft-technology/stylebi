@@ -139,6 +139,10 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
          return;
       }
 
+      LOG.debug("[76903-debug] sendCommand thread={} sessionStateId={} commandType={}",
+                Thread.currentThread().getName(), System.identityHashCode(sessionState),
+                commandType);
+
       synchronized(sessionState.pending) {
          if(sessionState.timerTask != null) {
             sessionState.timerTask.cancel();
@@ -393,12 +397,26 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
          // destination user name
          final String userName = getUserName();
 
+         LOG.debug("[76903-debug] dispatchPending thread={} sessionStateId={} userName={} " +
+                   "pendingCount={}", Thread.currentThread().getName(),
+                   System.identityHashCode(sessionState), userName, sessionState.pending.size());
+
          sessionState.pending.forEach(c -> {
             final ViewsheetCommand command = c.getCommand();
             final MessageHeaders headers = c.getHeaderAccessor().getMessageHeaders();
+            final String commandType = c.getHeaderAccessor()
+               .getFirstNativeHeader(COMMAND_TYPE_HEADER);
 
             if(userName != null) {
+               LOG.debug("[76903-debug] dispatchPending SEND thread={} sessionStateId={} " +
+                         "commandType={} userName={}", Thread.currentThread().getName(),
+                         System.identityHashCode(sessionState), commandType, userName);
                dispatcherService.convertAndSendToUser(userName, COMMANDS_TOPIC, command, headers);
+            }
+            else {
+               LOG.debug("[76903-debug] dispatchPending SKIPPED(userName==null) thread={} " +
+                         "sessionStateId={} commandType={}", Thread.currentThread().getName(),
+                         System.identityHashCode(sessionState), commandType);
             }
          });
       }

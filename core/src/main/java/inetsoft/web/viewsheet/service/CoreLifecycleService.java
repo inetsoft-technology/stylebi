@@ -2778,6 +2778,9 @@ public class CoreLifecycleService {
       RuntimeViewsheet rvs2 = null;
       RuntimeViewsheet rvs;
 
+      LOG.debug("[76903-debug] doHandleOpenedSheet ENTER thread={} id={}",
+                Thread.currentThread().getName(), id);
+
       try {
          rvs = viewsheetService.getViewsheet(id, user); //race condition? hits as expires
       }
@@ -2851,6 +2854,10 @@ public class CoreLifecycleService {
       ChangedAssemblyList.ReadyListener rlistener = clist.getReadyListener();
       rvs.setSocketSessionId(dispatcher.getSessionId());
       rvs.setSocketUserName(dispatcher.getUserName());
+
+      LOG.debug("[76903-debug] doHandleOpenedSheet BEFORE sendCommand(SetRuntimeIdCommand) " +
+                "thread={} id={}", Thread.currentThread().getName(), id);
+
       dispatcher.sendCommand(null, new SetRuntimeIdCommand(id, getPermissions(rvs, user)));
       setExportType(rvs, dispatcher);
       setComposedDashboard(rvs, dispatcher);
