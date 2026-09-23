@@ -446,8 +446,13 @@ public class FormulaTableLens extends AbstractTableLens
          }
       }
       finally {
-         span.close();
-         lock.unlock();
+         // the lock is released even if closing the span throws
+         try {
+            span.close();
+         }
+         finally {
+            lock.unlock();
+         }
 
          if(!more) {
             if(rows != null) {

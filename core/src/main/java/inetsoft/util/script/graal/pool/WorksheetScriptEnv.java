@@ -224,8 +224,9 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
    }
 
    /**
-    * Claim a context now, for a caller that must hold one across calls (the R connector, the
-    * lock-cycle suite). Close it in a try-with-resources.
+    * Claim a context now, eagerly, for a caller that must hold one across calls; only the
+    * pool tests do. Production callers, the R connector among them, use the lazy
+    * {@link #openSpan()} instead. Close it in a try-with-resources.
     */
    public SlotClaim claimSlot() {
       return SlotClaim.acquire(pool, false);

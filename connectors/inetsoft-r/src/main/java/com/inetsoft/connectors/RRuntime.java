@@ -111,10 +111,14 @@ public class RRuntime extends TabularRuntime {
          handleError(params, e, () -> null);
       }
       finally {
-         span.close();
-
-         if(connection != null) {
-            connection.close();
+         // the connection is closed even if closing the span throws
+         try {
+            span.close();
+         }
+         finally {
+            if(connection != null) {
+               connection.close();
+            }
          }
       }
 

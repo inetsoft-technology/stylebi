@@ -74,6 +74,9 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
 
       hcount = headers;
       baseRow = headers;
+      // before the new map is published: a fast-path reader that sees the new map sees no
+      // mapped rows until a population publishes its count (bug #76960)
+      mappedCount = 0;
       rowmap = map;
 
       if(fire) {
@@ -233,8 +236,10 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
             }
 
             // a pooled worksheet filter reads ahead, so one claimed span covers a batch of
-            // rows (bug #76960, spec §14.8); 0 everywhere else, which is the loop as before
-            int floor = baseRow + getMinPopulationRows();
+            // rows (bug #76960, spec §14.8); without a minimum the floor never holds, which
+            // is the loop as before even if a reentrant invalidate() resets baseRow
+            int min = getMinPopulationRows();
+            int floor = min > 0 ? baseRow + min : Integer.MIN_VALUE;
 
             while((row >= rowmap.size() || baseRow < floor) &&
                   (more = table.moreRows(baseRow)) && !cancelled)
@@ -251,6 +256,10 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
                rowmap.complete();
             }
          }
+
+         // publish the mapped rows for isRowMapped(): this volatile write orders every row
+         // map write before it, for a reader that takes no monitor (bug #76960)
+         mappedCount = rowmap.size();
       }
 
       return row < rowmap.size();
@@ -267,10 +276,16 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    /**
     * @return whether {@code row} is already mapped, read without the monitor (bug #76960,
     * spec §6.7). A {@code false} answer only means the caller takes the normal path.
+    *
+    * <p>The answer comes from the volatile {@link #mappedCount}, never from the row map's own
+    * (non-volatile) size: a {@code true} answer happens-after the population that mapped the
+    * row, so the caller's later reads of the row map see it. The map is read first; since
+    * {@code invalidate} zeroes the count before it publishes a new map, a reader that sees
+    * the new map never sees the old map's count.
     */
    protected final boolean isRowMapped(int row) {
       XSwappableIntList map = rowmap;
-      return map != null && row < map.size();
+      return map != null && row < mappedCount;
    }
 
    /**
@@ -630,6 +645,7 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
       table.dispose();
 
       if(rowmap != null) {
+         mappedCount = 0;
          rowmap.dispose();
          rowmap = null;
 
@@ -722,6 +738,9 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    private transient TableDataDescriptor hdescriptor;
    // volatile: getBaseRowIndex reads it outside the monitor (bug #76972)
    private volatile XSwappableIntList rowmap;
+   // the rows of rowmap the last population published, written under the monitor and read
+   // without it by isRowMapped (bug #76960)
+   private volatile int mappedCount;
    private boolean completed = false;
    private transient boolean debug = "true".equals(SreeEnv.getProperty("filter.debug", "false"));
    private int baseRow = 0;
