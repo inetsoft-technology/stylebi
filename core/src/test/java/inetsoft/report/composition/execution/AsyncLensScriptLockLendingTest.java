@@ -27,6 +27,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,8 +74,12 @@ public class AsyncLensScriptLockLendingTest {
       FAST.set(true);
       engine = new GraalJavaScriptEngine();
       lock = engine.getExecutionLock();
+      // stubbed before any condition filter is built: the filter captures the env then
+      ScriptEnv senv = mock(ScriptEnv.class);
+      when(senv.getExecutionLock()).thenReturn(lock);
       box = mock(AssetQuerySandbox.class);
-      when(box.peekScriptExecutionLock()).thenReturn(lock);
+      when(box.peekScriptEnv()).thenReturn(senv);
+      this.senv = senv;
       pool = Executors.newCachedThreadPool(r -> {
          Thread thread = new Thread(() -> {
             FAST.set(true);
@@ -122,6 +127,30 @@ public class AsyncLensScriptLockLendingTest {
          lock.unlock();
          engine.close();
       }
+   }
+
+   /**
+    * The condition filter must take the sandbox env's lock, or the tests below would
+    * pass without exercising the lock at all.
+    */
+   @Test
+   public void conditionFilterTakesSandboxLock() throws Exception {
+      AtomicBoolean held = new AtomicBoolean();
+      TableLens base = new SlowTable() {
+         @Override
+         public boolean moreRows(int row) {
+            if(row > 0 && lock.isHeldByCurrentThread()) {
+               held.set(true);
+            }
+
+            return super.moreRows(row);
+         }
+      };
+      TableLens filter = PostProcessor.filter(base, allRows(), box);
+
+      assertTrue(pool.submit(() -> filter.moreRows(1)).get(TIMEOUT, TimeUnit.SECONDS));
+      assertTrue(held.get(), "the condition filter did not take the sandbox lock");
+      assertFalse(lock.isLocked());
    }
 
    /**
@@ -599,6 +628,8 @@ public class AsyncLensScriptLockLendingTest {
    private GraalJavaScriptEngine engine;
    private LendableReentrantLock lock;
    private AssetQuerySandbox box;
+   // strongly held so the filters' weak reference to it stays valid
+   private ScriptEnv senv;
    private ExecutorService pool;
    private AtomicBoolean lentSeen;
    private volatile boolean watching;
