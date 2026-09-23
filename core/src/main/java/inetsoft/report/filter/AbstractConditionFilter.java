@@ -232,7 +232,13 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
                   rowmap + " in " + this, new Exception("Stack trace"));
             }
 
-            while(row >= rowmap.size() && (more = table.moreRows(baseRow)) && !cancelled) {
+            // a pooled worksheet filter reads ahead, so one claimed span covers a batch of
+            // rows (bug #76960, spec §14.8); 0 everywhere else, which is the loop as before
+            int floor = baseRow + getMinPopulationRows();
+
+            while((row >= rowmap.size() || baseRow < floor) &&
+                  (more = table.moreRows(baseRow)) && !cancelled)
+            {
                if(checkCondition(baseRow)) {
                   rowmap.add(baseRow);
                }
@@ -248,6 +254,23 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
       }
 
       return row < rowmap.size();
+   }
+
+   /**
+    * @return the minimum number of base rows one population in {@link #moreRows} maps, 0 for
+    * no minimum.
+    */
+   protected int getMinPopulationRows() {
+      return 0;
+   }
+
+   /**
+    * @return whether {@code row} is already mapped, read without the monitor (bug #76960,
+    * spec §6.7). A {@code false} answer only means the caller takes the normal path.
+    */
+   protected final boolean isRowMapped(int row) {
+      XSwappableIntList map = rowmap;
+      return map != null && row < map.size();
    }
 
    /**

@@ -28,6 +28,7 @@ import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptSpan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -258,6 +259,9 @@ public class PostProcessor {
          // see needsScriptExecutionLock() below for what actually requires the
          // lock -- not just a FormulaTableLens column read.
          this.needsScriptLock = box != null && needsScriptExecutionLock(table);
+         // fixed per sandbox (bug #76960): a pool-mode sandbox's envs have no execution lock,
+         // and a script population batch runs under one claimed span instead
+         this.poolMode = box != null && box.isScriptPoolMode();
       }
 
       /**
@@ -303,6 +307,11 @@ public class PostProcessor {
       @Override
       public boolean moreRows(int row) {
          ScriptEnv senv = needsScriptLock && this.senv != null ? this.senv.get() : null;
+
+         if(poolMode) {
+            return moreRowsPooled(row, senv);
+         }
+
          Lock execLock = senv == null ? null : senv.getExecutionLock();
 
          if(execLock == null) {
@@ -319,6 +328,33 @@ public class PostProcessor {
             JavaScriptEngine.popHeldScriptLock();
             execLock.unlock();
          }
+      }
+
+      /**
+       * Pool mode (bug #76960, spec §5.3, §6.7, §14.8): rows already mapped are answered
+       * without any claim; otherwise one lazy claimed span covers the population batch, which
+       * reads ahead at least batchRows base rows, so the formula lenses below share one
+       * context and one clean. No lock is taken.
+       */
+      private boolean moreRowsPooled(int row, ScriptEnv senv) {
+         if(isRowMapped(row)) {
+            return true;
+         }
+
+         if(senv == null) {
+            return super.moreRows(row);
+         }
+
+         try(ScriptSpan span = senv.openSpan()) {
+            // the same value for every thread: the captured env's configuration
+            readAhead = span.batchRows();
+            return super.moreRows(row);
+         }
+      }
+
+      @Override
+      protected int getMinPopulationRows() {
+         return readAhead;
       }
 
       /**
@@ -418,6 +454,10 @@ public class PostProcessor {
        */
       private final transient WeakReference<ScriptEnv> senv;
       private final boolean needsScriptLock;
+      private final boolean poolMode;
+      // read-ahead of a pooled population batch; 0 until the first pooled batch, and always
+      // 0 off the pool
+      private volatile int readAhead;
 
       @Override
       public final int getColBorder(int r, int c) {

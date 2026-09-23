@@ -32,6 +32,7 @@ import inetsoft.uql.util.filereader.CSVLoader;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.apache.commons.io.IOUtils;
 import org.rosuda.REngine.REXP;
@@ -53,6 +54,7 @@ public class RRuntime extends TabularRuntime {
       RConnection connection = null;
       ScriptEnv scriptEnv = null;
       RScope scope = null;
+      ScriptSpan span = ScriptSpan.NONE;
 
       try {
          connection = createConnection((RDataSource) dataSource);
@@ -79,6 +81,10 @@ public class RRuntime extends TabularRuntime {
                scriptEnv = new GraalJavaScriptEnv();
                scriptEnv.init();
             }
+
+            // one claimed span from the pre-script compile through the post-script exec, so
+            // the post-script sees the pre-script's state on a pooled context (bug #76960)
+            span = scriptEnv == null ? ScriptSpan.NONE : scriptEnv.openSpan();
          }
 
          if(hasPreScript) {
@@ -105,6 +111,8 @@ public class RRuntime extends TabularRuntime {
          handleError(params, e, () -> null);
       }
       finally {
+         span.close();
+
          if(connection != null) {
             connection.close();
          }

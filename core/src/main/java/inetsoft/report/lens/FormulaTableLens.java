@@ -327,6 +327,7 @@ public class FormulaTableLens extends AbstractTableLens
 
       long start = System.currentTimeMillis();
       lock.lock();
+      ScriptSpan span = ScriptSpan.NONE;
 
       try {
          int nrows = getProcessedRowCount();
@@ -339,6 +340,11 @@ public class FormulaTableLens extends AbstractTableLens
          if(senv == null) {
             senv = report.getScriptEnv();
          }
+
+         // pool mode: one claimed span for this whole batch, including the base population
+         // below, so a script global lives for the batch and the context is cleaned once at
+         // its end (bug #76960, spec §5.3); nested batches share the claim
+         span = senv == null ? ScriptSpan.NONE : senv.openSpan();
 
          if(tableRow == null) {
             scripts = new Object[formulas.length];
@@ -370,8 +376,9 @@ public class FormulaTableLens extends AbstractTableLens
          }
 
          boolean first = true;
-         // advance at least 10 to avoid going through this once per row
-         final int advance = Math.min(Math.max(r / 100, 10), 100);
+         // advance at least 10 to avoid going through this once per row; in pool mode at
+         // least batchRows, so one context clean serves a batch (spec §14.8)
+         final int advance = Math.max(Math.min(Math.max(r / 100, 10), 100), span.batchRows());
          final int maxr = Math.max(r, nrows + hrows + advance);
 
          for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null; i++) {
@@ -439,6 +446,7 @@ public class FormulaTableLens extends AbstractTableLens
          }
       }
       finally {
+         span.close();
          lock.unlock();
 
          if(!more) {
