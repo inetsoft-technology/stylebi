@@ -52,7 +52,8 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
     * A per-query view of this scope, for a sandbox in pool mode (bug #76960, spec §6.5): it
     * has its own parameters, mode and table scriptables, so queries of one sandbox that run
     * scripts at the same time do not overwrite each other's; every other member is this
-    * shared scope's.
+    * shared scope's. A view's parent chain is the shared scope's: {@link #setParentScope}
+    * on a view has no effect.
     */
    public AssetQueryScope queryView(VariableTable vars, int mode) {
       return new AssetQueryScope(this, vars, mode);

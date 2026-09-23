@@ -416,7 +416,11 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
          Arrays.fill(window.rows, null);
          window.rowsStartIdx = 0;
          window.cached = ntable;
-         table = ntable;
+
+         // a per-context window leaves the shared field alone (bug #76960)
+         if(window == sharedWindow) {
+            table = ntable;
+         }
       }
 
       return window == sharedWindow ? table : ntable;

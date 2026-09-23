@@ -3977,6 +3977,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          this.glist = glist;
          this.slist = slist;
          this.mode = fixSubQueryMode(mode);
+         this.queryMode = mode;
          List<AssetCondition> sconds = new ArrayList<>();
          this.table = table;
          this.mtable = new XArrayTable();
@@ -4073,7 +4074,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                            ViewsheetSandbox vbox = box.getViewsheetSandbox();
                            Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
                            val = varName != null && vval == null ? attr :
-                              senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
+                              senv.exec(senv.compile(exp), scope = postConditionScope(box), null, vs);
                         }
                         catch(Exception ex) {
                            String suggestion = senv.getSuggestion(ex, null, scope);
@@ -4190,7 +4191,21 @@ public abstract class AssetQuery extends PreAssetQuery {
          return glist.size() + index;
       }
 
+      /**
+       * The scope a post-condition script runs in. On main it is the shared scope, whose mode
+       * the formula step of this query had just set; in pool mode (bug #76960, spec §6.5)
+       * that scope is never written, so the script gets a view with this query's own mode.
+       */
+      private AssetQueryScope postConditionScope(AssetQuerySandbox box) {
+         if(box.isScriptPoolMode()) {
+            return box.getScope().queryView(box.getVariableTable(), queryMode);
+         }
+
+         return box.getScope();
+      }
+
       private int mode;
+      private final int queryMode; // the query's mode, as the formula step set it on main
       private List glist;
       private List slist;
       private XTable table;
