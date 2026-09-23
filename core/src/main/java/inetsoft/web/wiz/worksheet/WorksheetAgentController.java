@@ -256,6 +256,15 @@ public class WorksheetAgentController {
     * than {@link #addWorksheetMirror}'s full {@code assetRepository.getSheet(...)} (which
     * loads the whole sheet just to answer a yes/no).</p>
     *
+    * <p>The response also reports {@code worksheet}/{@code folder} separately (bug #76956):
+    * {@link inetsoft.uql.asset.internal.AssetUtil#isDuplicatedEntry} collapses a WORKSHEET and a
+    * FOLDER match into the same {@code exists} boolean, which left {@code add_table} unable to
+    * tell "a saved worksheet already has this name" (where {@code add_mirror} is the right
+    * remedy) apart from "only a worksheet-tree FOLDER has this name" (which cannot collide with
+    * a brand-new embedded table at all). The two new fields are computed with the same per-type
+    * {@code containsEntry} checks {@code isDuplicatedEntry} already runs internally, so they cost
+    * nothing {@code isDuplicatedEntry} wasn't already paying.</p>
+    *
     * @param path  the candidate name/path to check, e.g. {@code "agent_ws_1"} or
     *              {@code "My Folder/agent_ws_1"}.
     * @param type  the asset type to check against, e.g. {@code "WORKSHEET"} (default) or
@@ -300,9 +309,27 @@ public class WorksheetAgentController {
       AssetEntry entry = new AssetEntry(assetScope, assetType, trimmedPath, owner, uname.orgID);
 
       try {
-         boolean exists =
-            worksheetService.isDuplicatedEntry(worksheetService.getAssetRepository(), entry);
-         return new AssetExistsResponse(exists);
+         AssetRepository repository = worksheetService.getAssetRepository();
+         boolean exists = worksheetService.isDuplicatedEntry(repository, entry);
+         boolean worksheetMatch = false;
+         boolean folderMatch = false;
+
+         // Only WORKSHEET/FOLDER collide with each other in isDuplicatedEntry's own switch --
+         // any other requested type (e.g. VIEWSHEET) never has a worksheet/folder counterpart,
+         // so leave both false rather than running a containsEntry check that can't apply.
+         if(assetType == AssetEntry.Type.WORKSHEET || assetType == AssetEntry.Type.FOLDER) {
+            AssetEntry worksheetEntry = new AssetEntry(
+               entry.getScope(), AssetEntry.Type.WORKSHEET, entry.getPath(), entry.getUser());
+            worksheetEntry.copyProperties(entry);
+            worksheetMatch = repository.containsEntry(worksheetEntry);
+
+            AssetEntry folderEntry = new AssetEntry(
+               entry.getScope(), AssetEntry.Type.FOLDER, entry.getPath(), entry.getUser());
+            folderEntry.copyProperties(entry);
+            folderMatch = repository.containsEntry(folderEntry);
+         }
+
+         return new AssetExistsResponse(exists, worksheetMatch, folderMatch);
       }
       catch(Exception e) {
          throw new PairingException("Failed to check for an existing asset: " + e.getMessage(), e);

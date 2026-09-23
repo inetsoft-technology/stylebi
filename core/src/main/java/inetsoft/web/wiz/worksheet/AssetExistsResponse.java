@@ -19,6 +19,19 @@ package inetsoft.web.wiz.worksheet;
 
 /**
  * Response body for {@link WorksheetAgentController#assetExists}.
+ *
+ * @param exists    whether ANY asset of a type {@link inetsoft.uql.asset.internal.AssetUtil
+ *                  #isDuplicatedEntry} treats as colliding with the requested type exists at
+ *                  the given path/scope -- unchanged from before {@code worksheet}/{@code folder}
+ *                  were added, so an older caller reading only this field keeps seeing the same
+ *                  answer it always did.
+ * @param worksheet whether a WORKSHEET entry specifically exists at the given path/scope. Only
+ *                  meaningful when the request's {@code type} was {@code WORKSHEET} or
+ *                  {@code FOLDER} (the default, and what {@code add_table}'s no-source form
+ *                  checks) -- {@code false} for any other requested type, since those types
+ *                  never collide with a worksheet/folder pair in the first place.
+ * @param folder    whether a worksheet-tree FOLDER entry specifically exists at the given
+ *                  path/scope. Same type restriction as {@code worksheet} above.
  */
-public record AssetExistsResponse(boolean exists) {
+public record AssetExistsResponse(boolean exists, boolean worksheet, boolean folder) {
 }

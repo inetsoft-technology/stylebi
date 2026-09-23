@@ -1685,6 +1685,11 @@ class WorksheetAgentControllerTest {
       WorksheetService worksheetService = mock(WorksheetService.class);
       when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(true);
 
+      AssetRepository repository = mock(AssetRepository.class);
+      when(worksheetService.getAssetRepository()).thenReturn(repository);
+      when(repository.containsEntry(argThat(e -> e.getType() == AssetEntry.Type.WORKSHEET)))
+         .thenReturn(true);
+
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
@@ -1701,6 +1706,9 @@ class WorksheetAgentControllerTest {
       WorksheetService worksheetService = mock(WorksheetService.class);
       when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
 
+      AssetRepository repository = mock(AssetRepository.class);
+      when(worksheetService.getAssetRepository()).thenReturn(repository);
+
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
@@ -1710,6 +1718,80 @@ class WorksheetAgentControllerTest {
       assertFalse(resp.exists());
    }
 
+   /**
+    * Bug #76956 (p1): a FOLDER-only match (no worksheet by that name) must be reported as
+    * {@code folder:true, worksheet:false} instead of collapsing into the same {@code exists}
+    * boolean a real worksheet collision would set.
+    */
+   @Test
+   void assetExistsReportsFolderOnlyMatchSeparately() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetService worksheetService = mock(WorksheetService.class);
+      when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      AssetRepository repository = mock(AssetRepository.class);
+      when(worksheetService.getAssetRepository()).thenReturn(repository);
+      when(repository.containsEntry(argThat(e -> e.getType() == AssetEntry.Type.FOLDER)))
+         .thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
+
+      AssetExistsResponse resp = ctrl.assetExists("FolderOnly76956", null, null, agent);
+
+      assertTrue(resp.exists());
+      assertTrue(resp.folder());
+      assertFalse(resp.worksheet());
+   }
+
+   /** Bug #76956 (p1): a real WORKSHEET match is reported as {@code worksheet:true, folder:false}. */
+   @Test
+   void assetExistsReportsWorksheetMatchSeparately() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetService worksheetService = mock(WorksheetService.class);
+      when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(true);
+
+      AssetRepository repository = mock(AssetRepository.class);
+      when(worksheetService.getAssetRepository()).thenReturn(repository);
+      when(repository.containsEntry(argThat(e -> e.getType() == AssetEntry.Type.WORKSHEET)))
+         .thenReturn(true);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
+
+      AssetExistsResponse resp = ctrl.assetExists("WorksheetOnly76956", null, null, agent);
+
+      assertTrue(resp.exists());
+      assertTrue(resp.worksheet());
+      assertFalse(resp.folder());
+   }
+
+   /** Bug #76956 (p1): no match at all reports all three fields false. */
+   @Test
+   void assetExistsReportsNeitherWhenNothingMatches() throws Exception {
+      Principal agent = TestPrincipals.user("alice", "host-org");
+
+      WorksheetService worksheetService = mock(WorksheetService.class);
+      when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
+
+      AssetRepository repository = mock(AssetRepository.class);
+      when(worksheetService.getAssetRepository()).thenReturn(repository);
+
+      WorksheetAgentController ctrl = controller(featureOn(),
+         mock(SheetJoinService.class), mock(SheetSessionService.class),
+         mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
+
+      AssetExistsResponse resp = ctrl.assetExists("NovelName76956", null, null, agent);
+
+      assertFalse(resp.exists());
+      assertFalse(resp.worksheet());
+      assertFalse(resp.folder());
+   }
+
    /** Defaults: {@code type} -> WORKSHEET, {@code scope} -> GLOBAL_SCOPE (no owner). */
    @Test
    void assetExistsChecksWorksheetTypeAndGlobalScopeByDefault() throws Exception {
@@ -1717,6 +1799,9 @@ class WorksheetAgentControllerTest {
 
       WorksheetService worksheetService = mock(WorksheetService.class);
       when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
+
+      AssetRepository repository = mock(AssetRepository.class);
+      when(worksheetService.getAssetRepository()).thenReturn(repository);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -1739,6 +1824,9 @@ class WorksheetAgentControllerTest {
 
       WorksheetService worksheetService = mock(WorksheetService.class);
       when(worksheetService.isDuplicatedEntry(any(), any())).thenReturn(false);
+
+      AssetRepository repository = mock(AssetRepository.class);
+      when(worksheetService.getAssetRepository()).thenReturn(repository);
 
       WorksheetAgentController ctrl = controller(featureOn(),
          mock(SheetJoinService.class), mock(SheetSessionService.class),
@@ -1764,11 +1852,14 @@ class WorksheetAgentControllerTest {
          mock(SheetJoinService.class), mock(SheetSessionService.class),
          mock(WorksheetReadService.class), mock(WorksheetEditService.class), worksheetService);
 
-      ctrl.assetExists("Some Viewsheet", "viewsheet", null, agent);
+      AssetExistsResponse resp = ctrl.assetExists("Some Viewsheet", "viewsheet", null, agent);
 
       ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
       verify(worksheetService).isDuplicatedEntry(any(), captor.capture());
       assertEquals(AssetEntry.Type.VIEWSHEET, captor.getValue().getType());
+      // A non-WORKSHEET/FOLDER type never has a worksheet/folder counterpart to check.
+      assertFalse(resp.worksheet());
+      assertFalse(resp.folder());
    }
 
    @Test
