@@ -62,18 +62,38 @@ import java.util.concurrent.ConcurrentHashMap;
  * no hook to answer host {@code instanceof}. Scripts should branch on behavior
  * (method/property presence) rather than Java type.
  *
- * <p><b>Known limitation:</b> argument unwrapping only inspects the top-level
- * argument {@code Value}. A wrapper nested inside an array/{@code List}/varargs
- * argument would reach the host call still wrapped. This is not exercised by the
- * current API surface (no {@code EGraph}/{@code GraphElement} method takes a
- * collection of graph elements), but a future method that does would need to
- * unwrap collection elements as well.
+ * <p>Because a wrapper is a {@code ProxyObject}, GraalJS cannot by itself convert
+ * it to its target's Java type, so a wrapped object passed to a Java entry point
+ * whose receiver is <em>not</em> a {@code HostBeanProxy} (a constructor such as
+ * {@code new StackTextFrame(elem, "Quantity")}, a static method, an instance
+ * method of a plain host object, a varargs or array parameter) would fail
+ * overload resolution. {@link ScriptHostAccess#hostAccess()} therefore declares a
+ * target type mapping for each of {@link #WRAPPED_TYPES} that converts a wrapper
+ * back to its target ({@link #unwrap(Value)}) wherever a parameter is declared as
+ * exactly that type, including inside arrays and varargs. (#76969)
+ *
+ * <p><b>Known limitation:</b> GraalJS target type mappings match the
+ * <em>exact</em> declared parameter type, so a parameter declared as a subclass
+ * (e.g. {@code LineElement}) is not unwrapped. No script-facing API declares one
+ * today; a future one must be handled explicitly. A parameter declared as
+ * {@code Object} (or {@code List}, {@code Map}, ...) is intentionally <em>not</em>
+ * unwrapped either: it receives GraalJS's polyglot view of the wrapper, which is
+ * what lets an element stored in a Java collection come back to the script as the
+ * same wrapper ({@code ===} identity and bean access preserved). Unwrapping there
+ * would hand the raw target back through a plain host return that never re-wraps.
  */
 public final class HostBeanProxy implements ProxyObject {
    // Intern wrappers per underlying object so that repeated access to the same
    // graph object returns the same proxy (JS === / identity). Weak keys (identity
    // comparison) and weak values let transient per-render graph objects and their
    // wrappers be collected once no script/host reference remains.
+   /**
+    * The host types whose instances are wrapped ({@link #shouldWrap(Object)}) and
+    * unwrapped again when passed to a parameter declared as exactly one of these
+    * types ({@link ScriptHostAccess#hostAccess()}). One list, so the two cannot drift.
+    */
+   static final List<Class<?>> WRAPPED_TYPES = List.of(EGraph.class, GraphElement.class);
+
    private static final Cache<Object, HostBeanProxy> WRAPPERS =
       Caffeine.newBuilder().weakKeys().weakValues().build();
 
@@ -102,7 +122,29 @@ public final class HostBeanProxy implements ProxyObject {
     * scripts build and mutate ({@link EGraph}, {@link GraphElement}).
     */
    public static boolean shouldWrap(Object value) {
-      return value instanceof EGraph || value instanceof GraphElement;
+      for(Class<?> type : WRAPPED_TYPES) {
+         if(type.isInstance(value)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * The target of a guest value that is a {@code HostBeanProxy}, or {@code null}
+    * if the value is not a wrapper.
+    */
+   static Object unwrap(Value value) {
+      if(value != null && value.isProxyObject()) {
+         Object proxy = value.asProxyObject();
+
+         if(proxy instanceof HostBeanProxy) {
+            return ((HostBeanProxy) proxy).getTarget();
+         }
+      }
+
+      return null;
    }
 
    /** Wrap a host value if it is a graph object; otherwise return it unchanged. */
@@ -120,15 +162,8 @@ public final class HostBeanProxy implements ProxyObject {
 
    /** Unwrap a HostBeanProxy argument back to its target before a host call. */
    private static Object unwrapArg(Value arg) {
-      if(arg != null && arg.isProxyObject()) {
-         Object proxy = arg.asProxyObject();
-
-         if(proxy instanceof HostBeanProxy) {
-            return ((HostBeanProxy) proxy).getTarget();
-         }
-      }
-
-      return arg;
+      Object target = unwrap(arg);
+      return target != null ? target : arg;
    }
 
    /** GraalJS-native view of the target, for delegating methods/fields. */
