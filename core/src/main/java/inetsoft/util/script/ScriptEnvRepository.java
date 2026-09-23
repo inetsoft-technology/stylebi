@@ -17,6 +17,9 @@
  */
 package inetsoft.util.script;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * ScriptEnvRepository creates script environment.
  *
@@ -24,6 +27,8 @@ package inetsoft.util.script;
  * @author InetSoft Technology Corp
  */
 public class ScriptEnvRepository {
+   private static final Logger LOG = LoggerFactory.getLogger(ScriptEnvRepository.class);
+
    static boolean found = false;
    static {
       try {
@@ -31,6 +36,8 @@ public class ScriptEnvRepository {
          found = true;
       }
       catch(Throwable e) {
+         LOG.warn("Failed to load GraalJavaScriptEngine on thread {}, found={}",
+                  Thread.currentThread().getName(), found, e);
       }
    }
 
@@ -45,6 +52,8 @@ public class ScriptEnvRepository {
             return (ScriptEnv) Class.forName(cls).newInstance();
          }
          catch(Throwable e) {
+            LOG.warn("Failed to create GraalJavaScriptEnv on thread {}, found={}",
+                     Thread.currentThread().getName(), found, e);
          }
       }
 

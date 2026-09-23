@@ -27,6 +27,8 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.handler.VSTreeHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -34,6 +36,8 @@ import java.util.Optional;
 
 @Service
 public class VSBindingTreeService {
+   private static final Logger LOG = LoggerFactory.getLogger(VSBindingTreeService.class);
+
    public VSBindingTreeService(VSTreeHandler treeHandler, ViewsheetService viewsheetService) {
       this.treeHandler = treeHandler;
       this.viewsheetService = viewsheetService;
@@ -64,8 +68,14 @@ public class VSBindingTreeService {
       VSAssembly assembly = viewsheet.getAssembly(name);
       VSAssemblyInfo info = assembly != null ? assembly.getVSAssemblyInfo() : null;
       AssetTreeModel assetTreeModel = null;
+      LOG.debug("BUG76488-76485-TRACE VSBindingTreeService.getBinding ENTER name={} " +
+         "assemblyFound={} infoClass={} thread={} runtimeId={}",
+         name, assembly != null, info == null ? "null" : info.getClass().getSimpleName(),
+         Thread.currentThread().getName(), runtimeId);
 
       box.get().lockRead();
+      LOG.debug("BUG76488-76485-TRACE VSBindingTreeService.getBinding read-lock ACQUIRED " +
+         "name={} thread={} runtimeId={}", name, Thread.currentThread().getName(), runtimeId);
 
       try {
          if(info == null) {
@@ -98,6 +108,9 @@ public class VSBindingTreeService {
       }
       finally {
          box.get().unlockRead();
+         LOG.debug("BUG76488-76485-TRACE VSBindingTreeService.getBinding read-lock RELEASED " +
+            "name={} treeIsNull={} thread={} runtimeId={}",
+            name, assetTreeModel == null, Thread.currentThread().getName(), runtimeId);
       }
 
       if(assetTreeModel != null) {

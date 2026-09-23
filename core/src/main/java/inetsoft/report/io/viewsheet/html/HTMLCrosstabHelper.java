@@ -71,13 +71,11 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
    public void write(PrintWriter writer, TableDataVSAssembly assembly, VSTableLens lens) {
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
 
-      if(info == null) {
+      if(info == null || lens == null) {
          return;
       }
 
-      if(lens != null) {
-         lens.initTableGrid(info);
-      }
+      lens.initTableGrid(info);
 
       isWritten = new SparseMatrix();
       Rectangle2D bounds = vHelper.getBounds(info);

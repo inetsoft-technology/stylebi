@@ -26,6 +26,7 @@ import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { AssemblyAction } from "../../../common/action/assembly-action";
+import { Point } from "../../../common/data/point";
 import { Rectangle } from "../../../common/data/rectangle";
 import { DndService } from "../../../common/dnd/dnd.service";
 import { FullScreenService } from "../../../common/services/full-screen.service";
@@ -66,8 +67,6 @@ class TestApp {
    mockObject: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
 }
 
-// All tests in this suite are currently .skip; mark the describe .skip so
-// Vitest 4 doesn't fail with "No test found in suite".
 describe("VSChart Tests", () => {
    let chartService: any;
    let dialogService: any;
@@ -88,7 +87,8 @@ describe("VSChart Tests", () => {
          isDataTipVisible: vi.fn(),
          isDataTipSource: vi.fn(),
          isFrozen: vi.fn(),
-         hideDataTip: vi.fn()
+         hideDataTip: vi.fn(),
+         scrolled: observableOf(null)
       };
       let dropdownService = {};
       let downloadService = { download: vi.fn() };
@@ -155,6 +155,68 @@ describe("VSChart Tests", () => {
 
       TestBed.compileComponents();
    }));
+
+   // Bug #76703: cloneNode() (used to snapshot the chart so it stays visible while tiles
+   // reload) does not preserve live scroll state, so every scrollable descendant in the
+   // clone used to render at scrollLeft/Top 0 even when the real chart was scrolled --
+   // making the whole plot visibly jump to the unscrolled position while the snapshot was
+   // shown, then jump back once it cleared.
+   it("should preserve scroll position of scrollable containers in the loading snapshot", () => {
+      let fixture = TestBed.createComponent(VSChart);
+      let chartComponent: any = fixture.componentInstance;
+
+      const container = document.createElement("div");
+      container.innerHTML = `<chart-area><div class="chart-plot-area-scroll-container"></div></chart-area>`;
+      document.body.appendChild(container);
+
+      try {
+         const originalScrollEl =
+            container.querySelector(".chart-plot-area-scroll-container") as HTMLElement;
+         originalScrollEl.scrollLeft = 42;
+         originalScrollEl.scrollTop = 17;
+
+         chartComponent.chartContainer = { nativeElement: container };
+         chartComponent.captureChartSnapshot();
+
+         const clone = chartComponent.chartSnapshot as HTMLElement;
+         const cloneScrollEl = clone.querySelector(".chart-plot-area-scroll-container") as HTMLElement;
+
+         expect(cloneScrollEl.scrollLeft).toBe(42);
+         expect(cloneScrollEl.scrollTop).toBe(17);
+
+         chartComponent.clearChartSnapshot();
+      }
+      finally {
+         document.body.removeChild(container);
+      }
+   });
+
+   // Bug #76631: the annotation overlay positions/hides chart data annotations using
+   // model.annotationScrollLeft/Top, which are only ever written by onScroll() and must
+   // survive the model setter replacing the whole model object on every server refresh.
+   it("should restore the scroll offset onto a newly assigned model", () => {
+      let fixture = TestBed.createComponent(VSChart);
+      let chartComponent = fixture.componentInstance;
+
+      // sheetMaxMode (with maxMode/dataTip both falsy) skips the CHART_AREAS_URI
+      // round-trip in the model setter, keeping this test focused on the scroll
+      // restoration logic instead of the full chart rendering pipeline.
+      let firstModel: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+      firstModel.sheetMaxMode = true;
+      chartComponent.model = firstModel;
+
+      chartComponent.onScroll(new Point(37, 52));
+
+      let newModel: VSChartModel = TestUtils.createMockVSChartModel("Chart1");
+      newModel.sheetMaxMode = true;
+      expect(newModel.annotationScrollLeft).toBeUndefined();
+      expect(newModel.annotationScrollTop).toBeUndefined();
+
+      chartComponent.model = newModel;
+
+      expect(newModel.annotationScrollLeft).toBe(37);
+      expect(newModel.annotationScrollTop).toBe(52);
+   });
 
    it.skip("should run callbacks for visible icons", () => {
       let fixture = TestBed.createComponent(TestApp);

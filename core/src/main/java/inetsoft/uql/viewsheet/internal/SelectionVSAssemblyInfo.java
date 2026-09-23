@@ -155,6 +155,22 @@ public abstract class SelectionVSAssemblyInfo extends VSAssemblyInfo {
    }
 
    /**
+    * Rename the depended. When this selection is bound to another viewsheet assembly (e.g. an
+    * ad hoc filter created from a chart bar, {@link XSourceInfo#VS_ASSEMBLY}), keep the
+    * binding's table name pointed at the renamed assembly so the filter isn't silently orphaned.
+    * @param oname the specified old name.
+    * @param nname the specified new name.
+    */
+   @Override
+   public void renameDepended(String oname, String nname, Viewsheet vs) {
+      super.renameDepended(oname, nname, vs);
+
+      if(sourceType == XSourceInfo.VS_ASSEMBLY && Tool.equals(oname, getTableName())) {
+         setTableName(nname);
+      }
+   }
+
+   /**
     * Write attributes.
     * @param writer the specified writer.
     */

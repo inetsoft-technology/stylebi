@@ -119,13 +119,31 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
    }
 
    /**
-    * Get the weeks of a date from 1970-01-01 on.
+    * Get the weeks of a date from 1970-01-01 on, bucketed by the configured week start
+    * ({@link Tool#getFirstDayOfWeek()}).
     * @param date the specified date.
     * @return the week of the date.
     */
    public int getWeeks(Date date) {
-      int days = getDays(date);
-      return (days + 4) / 7;
+      Calendar cal = new GregorianCalendar();
+      cal.setTime(date);
+      moveToWeekStart(cal);
+      return getDays(cal.getTime()) / 7;
+   }
+
+   /**
+    * Move the calendar back to the first day of its own week, honoring the configured week
+    * start ({@link Tool#getFirstDayOfWeek()}) rather than assuming Sunday.
+    *
+    * <p>The obvious <code>-(DAY_OF_WEEK - 1)</code> rewind is only correct when the week starts
+    * on Sunday: <code>DAY_OF_WEEK</code> is always Sunday-anchored and is unaffected by
+    * {@link Calendar#setFirstDayOfWeek(int)}. With any other week start it lands on a day in
+    * the wrong week.
+    */
+   private static void moveToWeekStart(Calendar cal) {
+      cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
+      int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
+      cal.add(Calendar.DATE, -((dayOfWeek - cal.getFirstDayOfWeek() + 7) % 7));
    }
 
    /**
@@ -1744,8 +1762,7 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
          Calendar cal = new GregorianCalendar();
          cal.setTimeInMillis(System.currentTimeMillis());
          cal.add(Calendar.WEEK_OF_YEAR, -wn);
-         int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-         cal.add(Calendar.DATE, -dayOfWeek + 1); // first day of week
+         moveToWeekStart(cal);
          Date date1 = DateCondition.getStart(cal, isTimestamp);
          cal.add(Calendar.DATE, 6);
          Date date2 = DateCondition.getEnd(cal, isTimestamp);
@@ -1908,12 +1925,11 @@ public abstract class DateCondition extends AbstractCondition implements AssetOb
          long current = System.currentTimeMillis();
          cal.setTimeInMillis(current);
          cal.add(Calendar.WEEK_OF_YEAR, -(to - 1));
-         int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-         cal.add(Calendar.DATE, -dayOfWeek + 1);
+         moveToWeekStart(cal);
          Date date1 = DateCondition.getStart(cal, isTimestamp);
          cal.setTimeInMillis(current);
          cal.add(Calendar.WEEK_OF_YEAR, -from);
-         cal.add(Calendar.DATE, -dayOfWeek + 1);
+         moveToWeekStart(cal);
          cal.add(Calendar.DATE, 6);
          Date date2 = DateCondition.getEnd(cal, isTimestamp);
 

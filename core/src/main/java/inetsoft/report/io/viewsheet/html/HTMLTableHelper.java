@@ -70,7 +70,7 @@ public class HTMLTableHelper extends HTMLTableDataHelper {
    public void write(PrintWriter writer, TableDataVSAssembly assembly, VSTableLens lens) {
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
 
-      if(info == null) {
+      if(info == null || lens == null) {
          return;
       }
 

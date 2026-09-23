@@ -205,7 +205,7 @@ public class TabVSAssembly extends AbstractContainerVSAssembly {
       String bottomTabsVal = Tool.getChildValueByTagName(elem, "state_bottomTabs");
 
       if(bottomTabsVal != null) {
-         getTabInfo().setBottomTabs("true".equals(bottomTabsVal));
+         getTabInfo().restoreBottomTabs("true".equals(bottomTabsVal));
       }
    }
 

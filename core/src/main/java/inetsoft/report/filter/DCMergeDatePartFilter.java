@@ -23,6 +23,7 @@ import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -302,7 +303,8 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
                // to a different actual week in another period's year (e.g. the previous year's
                // bar shares the current year's bucket). Recompute the part value from this
                // cell's own date using the same logic as JavaScriptEngine.datePart("wy") for the
-               // non-to-date case -- move to the first day of the week, then month*10 +
+               // non-to-date case -- move to the first day of the week (honoring the
+               // configured week start, in lockstep with that method), then month*10 +
                // weekOfMonth -- so the equivalence cell matches the data/label for the cell's
                // actual week regardless of the configured first day of week. Deriving from the
                // stored part value instead (the previous approach) failed when the first day of
@@ -311,7 +313,7 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
                cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
                cal.setMinimalDaysInFirstWeek(7);
                cal.setTime((Date) getDateGroupValue());
-               cal.add(Calendar.DATE, -(cal.get(Calendar.DAY_OF_WEEK) - 1));
+               DateComparisonUtil.moveToWeekStart(cal);
                int equivalenceValue =
                   (cal.get(Calendar.MONTH) + 1) * 10 + cal.get(Calendar.WEEK_OF_MONTH);
 

@@ -1138,8 +1138,9 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
                if( index > 0) {
                   String field = fragment.substring(0, index);
 
-                  fragment = getColumnValue(table, row, col, field,
-                          colmap) + fragment.substring(index + 2);
+                  fragment = encodeLinkFieldValue(
+                          getColumnValue(table, row, col, field, colmap)) +
+                          fragment.substring(index + 2);
                }
 
                res += fragment;
@@ -1570,7 +1571,7 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
                      fieldValue = ((DCMergeCell) fieldValue).getOriginalData();
                   }
 
-                  fragment = fieldValue + fragment.substring(index + 2);
+                  fragment = encodeLinkFieldValue(fieldValue) + fragment.substring(index + 2);
                }
 
                res += fragment;
@@ -1578,6 +1579,17 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
 
             setLink(res);
          }
+      }
+
+      /**
+       * Encode a column value that is substituted into a link so that characters that
+       * are not valid in a URL query (e.g. '>' or a space) are percent-encoded. Only
+       * web links are encoded, other link types (e.g. viewsheet links) use the value as
+       * part of an asset identifier instead of a URL.
+       */
+      private String encodeLinkFieldValue(Object value) {
+         String str = value + "";
+         return getLinkType() == WEB_LINK ? Tool.encodeURL(str) : str;
       }
 
       /**

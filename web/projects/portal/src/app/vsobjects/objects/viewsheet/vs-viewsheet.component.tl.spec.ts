@@ -551,6 +551,38 @@ describe("VSViewsheet — processRefreshVSObjectCommand", () => {
       expect(detectChangesSpy).toHaveBeenCalled();
    });
 
+   // Bug #76510: on fullscreen-exit (or any resize-triggered refresh that touches both a
+   // nested VSViewsheet panel's own bounds and its children in the same batch), the panel's
+   // own RefreshVSObjectCommand is applied by the PARENT as a plain vsObjects[] array
+   // mutation and only reaches this OnPush component's `model` @Input once Angular
+   // re-evaluates the parent's [model] binding on a later CD tick. If a child's own
+   // RefreshVSObjectCommand is processed before that tick runs, `this.model.bounds` is
+   // still the stale (e.g. fullscreen-era) value. vsInfo.vsObjects is the same array
+   // instance the parent mutates in place, so it already reflects the fresh bounds even
+   // though `this.model` itself has not been swapped in yet - applyRefreshObject must read
+   // the offset from there, not from the stale `this.model.bounds`.
+   it("should rebase against the live bounds in vsInfo.vsObjects, not a stale model.bounds @Input, when they disagree", async () => {
+      const staleModel = makeModel({ absoluteName: "Panel2", bounds: { x: 461, y: 0, width: 0, height: 0 } as any });
+      const { comp } = await renderComponent({ model: staleModel });
+      seedChild(comp, "Group1");
+      // Simulate the parent having already replaced its vsObjects[] entry for this panel
+      // with the fresh, post-refresh model (fresh bounds.x = 0) - before Angular's CD has
+      // flushed that new reference into this component's `model` @Input.
+      const freshModel = makeModel({ absoluteName: "Panel2", bounds: { x: 0, y: 0, width: 0, height: 0 } as any });
+      comp.vsInfo = { vsObjects: [freshModel], linkUri: "/uri/" } as any;
+
+      const refreshed = makeChildObject("VSGroupContainer", "Group1");
+      refreshed.objectFormat.left = 150;
+      refreshed.objectFormat.top = 80;
+      comp.processRefreshVSObjectCommand({ info: refreshed, force: false });
+
+      const updated = comp.vsObjects.find(o => o.absoluteName === "Group1");
+      // Correct (fresh offsetLeft=0): 150. The pre-fix code would have used the stale
+      // model.bounds.x=461 and produced 150 - 461 = -311.
+      expect(updated.objectFormat.left).toBe(150);
+      expect(updated.objectFormat.top).toBe(80);
+   });
+
    it("should zero the position offset when the refreshed object is in max mode", async () => {
       const model = makeModel({ bounds: { x: 100, y: 50, width: 0, height: 0 } as any });
       const { comp } = await renderComponent({ model });

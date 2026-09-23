@@ -287,6 +287,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       applyShrunkBottomTabsShift(assemblies, box);
       addTableMaxRowMessage(assemblies, box);
+      addScriptErrorMessage(box);
       TextVSAssembly warningText = viewsheet.getWarningTextAssembly(false);
 
       if(warningText != null) {
@@ -336,6 +337,39 @@ public abstract class AbstractVSExporter implements VSExporter {
             LOG.debug("Failed to apply bottom-tabs shrink shift for {}",
                tableAssembly.getAbsoluteName(), ex);
          }
+      }
+   }
+
+   /**
+    * Put a failed sheet onLoad script on the exported document itself.
+    *
+    * <p>{@link ViewsheetSandbox#prepareForExport()} catches that failure so the
+    * export still produces a file, but an onLoad script commonly computes the
+    * query parameters the sheet is filtered by. Without this the result is a
+    * well-formed export of unfiltered data that looks entirely normal -- the case
+    * that produced a 200 inch PDF page with no error anywhere. Reuse the warning
+    * text assembly the table row-limit messages already use so the message travels
+    * with the document, including to the recipient of a scheduled export. (#76780)
+    */
+   private void addScriptErrorMessage(ViewsheetSandbox box) {
+      if(box == null || box.getExportScriptError() == null) {
+         return;
+      }
+
+      TextVSAssembly warningText = viewsheet.getWarningTextAssembly();
+
+      if(warningText == null) {
+         return;
+      }
+
+      String message = Catalog.getCatalog().getString("vs.export.onLoadScriptFailed");
+      String text = warningText.getTextValue();
+
+      if(text == null || text.isEmpty()) {
+         warningText.setTextValue(message);
+      }
+      else if(!text.contains(message)) {
+         warningText.setTextValue(text + "\n" + message);
       }
    }
 
@@ -1020,12 +1054,13 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
 
          int displayRowCount = 0;
+         boolean[] significantColumns = findSignificantColumns(data, hLineCount);
 
          for(int i = hLineCount; i < data.getRowCount(); i++) {
             // fix bug#53192 If the current line contains a null value, the line should not be displayed when export,
             // so the total line height should not accumulate the current line height.
             // When calculating the number of display rows, should add the current row.
-            if(!checkDisplayRow(data, i)) {
+            if(!checkDisplayRow(data, i, significantColumns)) {
                displayRowCount++;
 
                continue;
@@ -1072,16 +1107,69 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
    }
 
-   private boolean checkDisplayRow(TableLens tableLens, int row) {
+   private boolean checkDisplayRow(TableLens tableLens, int row, boolean[] significantColumns) {
       for(int i = 0; i < tableLens.getColCount(); i++) {
+         // A column that is blank in every row over the range checkDisplayRow() is
+         // ever called for (no cellBinding ever populates it, e.g. a structural gap
+         // column) carries no per-row signal at all -- it can never distinguish a
+         // genuinely hidden/filtered row (bug#53192) from a normal one, so it must
+         // not be allowed to exempt a row on its own.
+         if(!significantColumns[i]) {
+            continue;
+         }
+
          Object object = tableLens.getObject(row, i);
 
-         if(Tool.equals(Tool.toString(object), "")) {
+         if(Tool.equals(Tool.toString(object), "") && !isMergedContinuationCell(tableLens, row, i)) {
             return false;
          }
       }
 
       return true;
+   }
+
+   /**
+    * Determine which columns ever hold a non-blank value across the row range
+    * checkDisplayRow() is evaluated over (data rows only; header rows are handled
+    * separately and never passed to checkDisplayRow()). A column that is blank in
+    * every one of those rows (e.g. a design column with no cellBinding defined at
+    * all) is excluded from checkDisplayRow()'s blank-column exemption check, since
+    * it can never carry a genuine hidden/filtered-row signal.
+    */
+   private boolean[] findSignificantColumns(TableLens tableLens, int startRow) {
+      int colCount = tableLens.getColCount();
+      boolean[] significant = new boolean[colCount];
+      int remaining = colCount;
+
+      for(int r = startRow; r < tableLens.getRowCount() && remaining > 0; r++) {
+         for(int c = 0; c < colCount; c++) {
+            if(!significant[c] && !Tool.equals(Tool.toString(tableLens.getObject(r, c)), "")) {
+               significant[c] = true;
+               remaining--;
+            }
+         }
+      }
+
+      return significant;
+   }
+
+   /**
+    * Check if the cell at (row, col) is blank because it's a continuation row of a
+    * vertically spanning (merged) cell anchored at an earlier row, as opposed to being
+    * genuinely empty/hidden. Such rows should not be exempted from the height budget in
+    * getRegionRowCount(), since a merged-cell group still occupies real vertical space.
+    */
+   private boolean isMergedContinuationCell(TableLens tableLens, int row, int col) {
+      for(int r = row - 1; r >= 0; r--) {
+         Object object = tableLens.getObject(r, col);
+
+         if(!Tool.equals(Tool.toString(object), "")) {
+            Dimension span = tableLens.getSpan(r, col);
+            return span != null && r + span.height > row;
+         }
+      }
+
+      return false;
    }
 
    /**

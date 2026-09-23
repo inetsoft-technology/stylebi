@@ -77,9 +77,17 @@ public class ChartCombinationUtil {
 
       List<List<ChartRef>> hgroup = getHierarchy(entries, temp);
       List<ChartTypeFilter> filters = createFilters(entries, temp, hgroup, geoCols, autoOrder, ctx);
-      List<ChartInfo> infos = getChartInfos(n, filters);
+      // let a not-logged-in principal surface as a distinct session-invalid message rather
+      // than a misleading "no permission" result -- WizardEventAspect translates the resulting
+      // MessageException into a client-visible command (76953).
+      GraphTypeUtil.setStrictLoginCheck(true);
 
-      return infos;
+      try {
+         return getChartInfos(n, filters);
+      }
+      finally {
+         GraphTypeUtil.setStrictLoginCheck(false);
+      }
    }
 
    public static List<List<ChartRef>> getHierarchy(AssetEntry[] entries, VSChartInfo temp) {

@@ -182,4 +182,83 @@ class DateComparisonUtilValidPartsTest {
          "12-2 shares the most recent period's own reached month (12) and must not be " +
          "orphaned merely because 2020's calendar never produces a 12-2 split week");
    }
+
+   /**
+    * Bug #76945 review round 1, Finding 1: a byte-for-byte structural mirror of
+    * {@link #futureBucketsBeyondRecentPeriodsReachStayOrphaned} above, except the parts are
+    * real {@code MergePartCell} tuples (family = month, trailing = week) instead of plain
+    * Integers. Bug #76945's original fix added a {@code differentLeadingFamily} branch to
+    * {@code computeValidParts()} that rescued *any* MergePartCell part whose leading family
+    * differed from {@code maxPart}'s, with no further proof that the differing family
+    * belonged to a legitimately older, already-elapsed period rather than to a genuinely
+    * not-yet-reached "future bucket" that merely happens to sit in a different family -- i.e.
+    * exactly the failure mode this test's plain-Integer sibling above exists to catch. That
+    * version of the fix would have rescued family 8 ("8-1") here too, purely because its
+    * leading family (8) differs from the most recent period's own maxPart family (5) -- this
+    * is the concrete scenario the round-1 review built to prove the original condition was too
+    * strong.
+    *
+    * <p>The revised fix requires the caller to prove -- via the {@code
+    * olderPeriodsIndependentlyComplete} parameter on the 5-argument {@code
+    * computeValidParts()} overload -- that every period other than the most recent one is
+    * guaranteed to carry its own real, unclipped data (i.e. {@code
+    * StandardPeriods.isToDate()==false}) before a differing leading family is ever trusted.
+    * This test calls the plain 4-argument overload (equivalent to passing {@code false}), the
+    * same one {@link #futureBucketsBeyondRecentPeriodsReachStayOrphaned} and the rest of this
+    * suite use, so family 8 must stay excluded exactly as it would for a plain-Integer part --
+    * "the leading family differs" is not, by itself, proof of anything.</p>
+    */
+   @Test
+   void differentFamilyWithoutProvenPeriodCompletenessStaysOrphaned() {
+      VSDimensionRef monthRef = new VSDimensionRef();
+      monthRef.setDataRef(new AttributeRef("MonthOfWeekN(date)"));
+      VSDimensionRef weekOfMonthRef = new VSDimensionRef();
+      weekOfMonthRef.setDataRef(new AttributeRef("WeekOfMonth(date)"));
+      VSDimensionRef dateGroupRef = new VSDimensionRef();
+      dateGroupRef.setDataRef(new AttributeRef("date"));
+
+      DataSet rawDataSet = new DefaultDataSet(new Object[][] {
+         { "MonthOfWeekN(date)", "WeekOfMonth(date)", "date" },
+         { 5, 1, date("2018-05-07") },   // 2018: 5-1
+         { 8, 1, date("2018-08-06") },   // 2018: 8-1 -- real data, but must stay orphaned
+         { 5, 1, date("2019-05-06") },   // 2019: 5-1
+         { 8, 1, date("2019-08-05") },   // 2019: 8-1 -- real data, but must stay orphaned
+         { 5, 1, date("2020-05-04") },   // 2020 (most recent): reaches month 5 only
+         });
+      DataSetTable base = new DataSetTable(rawDataSet);
+      List<XDimensionRef> extraRefs = Collections.singletonList(monthRef);
+      DCMergeDatePartFilter filter =
+         new DCMergeDatePartFilter(base, extraRefs, weekOfMonthRef, dateGroupRef, null);
+
+      // Column order matches the rawDataSet header above: MonthOfWeekN=0, WeekOfMonth=1, date=2.
+      int weekColIndex = 1;
+      int firstDataRow = base.getHeaderRowCount();
+
+      Object part2018_5_1 = filter.getObject(firstDataRow, weekColIndex);
+      Object part2018_8_1 = filter.getObject(firstDataRow + 1, weekColIndex);
+      Object part2019_5_1 = filter.getObject(firstDataRow + 2, weekColIndex);
+      Object part2019_8_1 = filter.getObject(firstDataRow + 3, weekColIndex);
+      Object part2020_5_1 = filter.getObject(firstDataRow + 4, weekColIndex);
+
+      Assertions.assertInstanceOf(DCMergeDatePartFilter.MergePartCell.class, part2018_8_1,
+                                  "test must exercise the real MergePartCell type, not a plain Integer");
+      Assertions.assertEquals("8-1", part2018_8_1.toString());
+      Assertions.assertEquals("5-1", part2020_5_1.toString());
+
+      DataSet data = new DefaultDataSet(new Object[][] {
+         { "period", "part" },
+         { date("2018-01-01"), part2018_5_1 },
+         { date("2018-01-01"), part2018_8_1 },
+         { date("2019-01-01"), part2019_5_1 },
+         { date("2019-01-01"), part2019_8_1 },
+         { date("2020-01-01"), part2020_5_1 },
+         });
+
+      Set<Object> validParts = DateComparisonUtil.computeValidParts(data, "period", "part", null);
+
+      Assertions.assertEquals(Set.of(part2020_5_1), validParts,
+         "without proof that older periods are independently complete, a MergePartCell part " +
+         "whose leading family merely differs from maxPart's must stay orphaned, exactly like " +
+         "the plain-Integer futureBucketsBeyondRecentPeriodsReachStayOrphaned case above");
+   }
 }

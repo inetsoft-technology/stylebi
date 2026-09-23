@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Hashtable;
+import java.util.concurrent.locks.Lock;
 
 /**
  * GraalJS-based ScriptEnv implementation. Replaces JavaScriptEnv (Rhino).
@@ -35,6 +36,13 @@ import java.util.Hashtable;
  * <p>Note: getSuggestion(Exception, String, Scriptable) accepts the Rhino type
  * for now because the ScriptEnv interface still declares it (Task 5.2 flips
  * both the interface and this method together).
+ *
+ * <p>Lock order: the engine's execution lock is always taken <em>before</em> this env's
+ * monitor, never while holding it, so the monitor is a leaf. Code running inside a script
+ * already holds the execution lock and calls back into this env (e.g. {@code put()} or
+ * {@code compile()} from {@code CalcTableLens.evaluate()}); if an env method waited for the
+ * execution lock while holding the monitor, a script thread calling back in and a non-script
+ * thread calling the same method would deadlock (bug #76905). See {@link #withEngine}.
  */
 public class GraalJavaScriptEnv implements ScriptEnv {
    /**
@@ -47,21 +55,25 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     * Reset the scripting environment.
     */
    @Override
-   public synchronized void reset() {
-      if(engine != null) {
-         try {
-            engine.init(vars);
+   public void reset() {
+      withEngine(false, e -> {
+         if(e != null) {
+            try {
+               e.init(vars);
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to reset GraalJavaScriptEngine", ex);
+               // init(vars) closes the old Context before building the replacement,
+               // so a failure here leaves engine referencing a closed Context that
+               // init() (a no-op while engine != null) would never rebuild. Drop
+               // the engine so the next compile()/exec() rebuilds it from scratch
+               // rather than poisoning this (now long-lived, per-thread) env.
+               engine = null;
+            }
          }
-         catch(Exception ex) {
-            LOG.error("Failed to reset GraalJavaScriptEngine", ex);
-            // init(vars) closes the old Context before building the replacement,
-            // so a failure here leaves engine referencing a closed Context that
-            // init() (a no-op while engine != null) would never rebuild. Drop
-            // the engine so the next compile()/exec() rebuilds it from scratch
-            // rather than poisoning this (now long-lived, per-thread) env.
-            engine = null;
-         }
-      }
+
+         return null;
+      });
    }
 
    /**
@@ -89,7 +101,7 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     * Compile a script into a script object.
     */
    @Override
-   public synchronized Object compile(String cmd) throws Exception {
+   public Object compile(String cmd) throws Exception {
       return compile(cmd, false);
    }
 
@@ -97,9 +109,10 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     * Compile a script into a script object.
     */
    @Override
-   public synchronized Object compile(String cmd, boolean fieldOnly) throws Exception {
-      init();
-      return engine.compile(cmd, fieldOnly);
+   public Object compile(String cmd, boolean fieldOnly) throws Exception {
+      // not under this env's monitor: engine.compile() takes the execution lock itself when it
+      // needs the context, and must not wait for it while the monitor is held (#76905)
+      return getEngine().compile(cmd, fieldOnly);
    }
 
    /**
@@ -148,9 +161,9 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     * script syntax.
     */
    @Override
-   public synchronized void checkFunction(String name, String cmd) throws Exception {
-      init();
-      engine.checkFunction(name, cmd);
+   public void checkFunction(String name, String cmd) throws Exception {
+      // not under this env's monitor, see compile()
+      getEngine().checkFunction(name, cmd);
    }
 
    /**
@@ -199,12 +212,19 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     * @param name variable name.
     * @param obj  variable value.
     */
-   // FIX C: synchronized to close the reset()/put() race on the engine reference
+   // FIX C: serialized with reset() (execution lock + monitor, see withEngine) to close the
+   // reset()/put() race on the engine reference
    @Override
-   public synchronized void put(String name, Object obj) {
-      init();
-      vars.put(name, obj);
-      engine.put(name, obj);
+   public void put(String name, Object obj) {
+      withEngine(true, e -> {
+         vars.put(name, obj);
+
+         if(e != null) {
+            e.put(name, obj);
+         }
+
+         return null;
+      });
    }
 
    /**
@@ -230,13 +250,15 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     */
    @Override
    public void remove(String name) {
-      vars.remove(name);
+      withEngine(false, e -> {
+         vars.remove(name);
 
-      synchronized(this) {
-         if(engine != null) {
-            engine.remove(name);
+         if(e != null) {
+            e.remove(name);
          }
-      }
+
+         return null;
+      });
    }
 
    @Override
@@ -311,22 +333,110 @@ public class GraalJavaScriptEnv implements ScriptEnv {
    @Override
    public synchronized void init() {
       if(engine == null) {
-         engine = createScriptEngine();
+         GraalJavaScriptEngine e = createScriptEngine();
 
          try {
-            engine.setSQL(sql);
-            engine.init(vars);
+            e.setSQL(sql);
+            e.init(vars);
+            // publish only once initialized. e.init() takes the new engine's execution lock
+            // while this monitor is held, which is safe only while no other thread can see the
+            // engine. Published earlier, another thread could take that lock and then wait for
+            // this monitor while this thread waited for the lock (#76905).
+            engine = e;
          }
-         catch(Exception e) {
-            LOG.error("Failed to init GraalJavaScriptEngine", e);
-            // init(vars) may close/replace the Context; a failure here leaves
-            // engine referencing a broken/closed Context that this method (a
-            // no-op while engine != null) would never rebuild. Drop it so the
-            // next compile()/exec() rebuilds from scratch rather than poisoning
-            // this (now long-lived, per-thread) env. Mirrors the reset() fix.
-            engine = null;
+         catch(Exception ex) {
+            LOG.error("Failed to init GraalJavaScriptEngine", ex);
+            // init(vars) may close/replace the Context; a failure here leaves the
+            // engine referencing a broken/closed Context. It is not published, so the
+            // next compile()/exec() rebuilds from scratch rather than poisoning this
+            // (now long-lived, per-thread) env. Mirrors the reset() fix.
+            closeQuietly(e);
          }
       }
+   }
+
+   /**
+    * Close an engine that failed to initialize, so its Context is not leaked.
+    */
+   protected static void closeQuietly(GraalJavaScriptEngine e) {
+      try {
+         e.close();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to close GraalJavaScriptEngine", ex);
+      }
+   }
+
+   /**
+    * Get the engine, creating it if necessary.
+    */
+   private GraalJavaScriptEngine getEngine() {
+      GraalJavaScriptEngine e = engine;
+
+      if(e == null) {
+         init();
+         e = engine;
+      }
+
+      return e;
+   }
+
+   /**
+    * Run {@code action} holding the engine's execution lock and then this env's monitor, in
+    * that order. A thread inside a script already holds the execution lock, so for it this is
+    * reentrant; any other thread waits for the execution lock <em>before</em> it owns the
+    * monitor. So the monitor is never held by a thread waiting for the execution lock, and a
+    * script thread calling back into this env can always get it (bug #76905). Holding both
+    * also serializes the action with {@link #reset()}, which may drop the engine; if the
+    * engine changed while this thread waited, the call is retried against the new one.
+    *
+    * @param create create the engine first if there is none.
+    * @param action receives the current engine, or {@code null} if there is none (not
+    *               created, or creation failed). Must not wait for any other lock.
+    */
+   protected <T, X extends Exception> T withEngine(boolean create, EngineAction<T, X> action)
+      throws X
+   {
+      while(true) {
+         GraalJavaScriptEngine e = engine;
+
+         if(e == null && create) {
+            init();
+            e = engine;
+         }
+
+         if(e == null) {
+            synchronized(this) {
+               if(engine == null) {
+                  return action.apply(null);
+               }
+            }
+
+            continue;
+         }
+
+         Lock lock = e.getExecutionLock();
+         lock.lock();
+
+         try {
+            synchronized(this) {
+               if(engine == e) {
+                  return action.apply(e);
+               }
+            }
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+   }
+
+   /**
+    * An action run by {@link #withEngine}.
+    */
+   @FunctionalInterface
+   protected interface EngineAction<T, X extends Exception> {
+      T apply(GraalJavaScriptEngine engine) throws X;
    }
 
    /**
@@ -334,6 +444,16 @@ public class GraalJavaScriptEnv implements ScriptEnv {
     */
    protected GraalJavaScriptEngine createScriptEngine() {
       return new GraalJavaScriptEngine();
+   }
+
+   /**
+    * @return the underlying engine's execution lock, or {@code null} if the
+    * engine has not been created yet (see {@link ScriptEnv#getExecutionLock()}).
+    */
+   @Override
+   public java.util.concurrent.locks.Lock getExecutionLock() {
+      GraalJavaScriptEngine e = engine;
+      return e == null ? null : e.getExecutionLock();
    }
 
    /**

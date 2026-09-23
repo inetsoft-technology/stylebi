@@ -75,6 +75,10 @@ public class ChartStylesController {
          String resource = GraphTypeUtil.getChartStylePath(ntypeNum, ntypeStr);
          ResourceType type = resource != null && resource.contains("/") ?
             ResourceType.CHART_TYPE : ResourceType.CHART_TYPE_FOLDER;
+         // this plain data endpoint has no user-facing message channel to surface a distinct
+         // session-invalid condition through, so it never opts into
+         // GraphTypeUtil.setStrictLoginCheck() -- a not-logged-in principal falls back to the
+         // default silent "no permission" result here, same as before 76953's fix.
          boolean allowed = GraphTypeUtil.checkChartStylePermission(
             resource, type, ResourceAction.READ, principal);
 

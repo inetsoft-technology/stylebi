@@ -20,6 +20,7 @@ package inetsoft.util.script.graal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.internal.FormUtil;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Predicate;
@@ -160,7 +161,7 @@ public final class ScriptHostAccess {
       if(hostAccess == null) {
          synchronized(ScriptHostAccess.class) {
             if(hostAccess == null) {
-               hostAccess = HostAccess.newBuilder()
+               HostAccess.Builder builder = HostAccess.newBuilder()
                   // allow @Export-annotated instance members and all public access
                   // on class-filter-allowed types (e.g. Java.type('java.lang.Math').max)
                   .allowAccessAnnotatedBy(HostAccess.Export.class)
@@ -197,9 +198,14 @@ public final class ScriptHostAccess {
                   .denyAccess(Process.class)
                   .denyAccess(ProcessBuilder.class)
                   .denyAccess(Thread.class)
-                  // legacy convenience: scripts pass JS numbers to Java APIs
+                  // legacy convenience: scripts pass JS numbers to Java APIs.
+                  // The range check matters: Double::intValue narrows by Java
+                  // cast, which CLAMPS anything past the int range to
+                  // Integer.MAX_VALUE/MIN_VALUE rather than failing, so without
+                  // it a whole 1e30 would silently arrive as 2147483647.
                   .targetTypeMapping(Double.class, Integer.class,
-                                     d -> d != null && d == Math.floor(d) && !d.isInfinite(),
+                                     d -> d != null && d == Math.floor(d) && !d.isInfinite()
+                                        && fitsInInt(d),
                                      Double::intValue)
                   // Rhino parity: ToNumber(jsDate) yielded epoch millis, so scripts
                   // pass a JS Date where a numeric coordinate is expected (e.g.
@@ -209,7 +215,135 @@ public final class ScriptHostAccess {
                   .targetTypeMapping(Instant.class, Double.class,
                                      inst -> inst != null,
                                      inst -> (double) inst.toEpochMilli())
-                  .build();
+                  // Rhino parity: a script value bound to a String parameter was
+                  // coerced via ScriptRuntime.toString, so scripts pass a number or
+                  // boolean where a String is declared -- e.g.
+                  // XFormatInfo.setFormat(StyleConstant.NUMBER). GraalJS refuses it
+                  // ("Cannot convert '3'(java.lang.Integer) to Java type
+                  // 'java.lang.String': Invalid or lossy primitive coercion"), which
+                  // broke a chart script on export. ScriptFunction already restores
+                  // this for our own scriptable dispatch (#75693), but a call on a
+                  // *raw host object* (`new inetsoft.uql.XFormatInfo` then
+                  // `setFormat(...)`) goes through GraalJS invokeMember and never
+                  // reaches ScriptFunction, so the same coercion is declared here and
+                  // shares ScriptFunction.toStringValue so both paths agree -- notably
+                  // on "3" rather than "3.0", and on not clamping a whole double
+                  // outside the long range.
+                  //
+                  // LOWEST precedence is deliberate: it is the final pass of
+                  // GraalJS overload selection, reached only once every other
+                  // conversion tier has left every candidate inapplicable. So a
+                  // type with both setX(int) and setX(String) still binds a whole
+                  // number to the int overload several tiers earlier, and only a
+                  // method whose sole candidate takes a String gets the
+                  // conversion. (#76778)
+                  .targetTypeMapping(Number.class, String.class,
+                                     n -> n != null,
+                                     ScriptFunction::toStringValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(Boolean.class, String.class,
+                                     b -> b != null,
+                                     ScriptFunction::toStringValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  // Rhino parity: Rhino narrowed a JS number to whatever primitive
+                  // the selected overload declared, so a script could build a Java
+                  // object from a computed, non-integral value. GraalJS refuses
+                  // double->float and double->int as a lossy primitive coercion,
+                  // which broke unchanged viewsheet scripts:
+                  // `new java.awt.Color(0.5686, 0.7961, 0.2431)` -- the 0..1
+                  // components Color(float,float,float) is for -- and
+                  // `new java.awt.Dimension(60.96, 60.96)`, which has no
+                  // non-integral overload at all. Both failed with "Invalid
+                  // argument when instantiating 'java.awt.Color'/'java.awt.Dimension'".
+                  // ScriptFunction.coerce already restores this for our own
+                  // scriptable dispatch, but a host constructor, a call on a raw
+                  // host object and a HostBeanProxy setter all go through GraalJS
+                  // interop and never reach it, so the coercion is declared here.
+                  //
+                  // Both tiers are restricted to a finite value WITH a fractional
+                  // part, so they are disjoint from the whole-number
+                  // Double -> Integer mapping above and cannot change how a whole
+                  // number binds.
+                  //
+                  // LOW for float, so it does take part in overload selection --
+                  // java.awt.Color offers only (int,int,int) and
+                  // (float,float,float), and without a mapping neither is
+                  // applicable. LOW sits below the lossless tier, so a
+                  // foo(double) overload is still chosen there and keeps full
+                  // precision.
+                  //
+                  // Caveat worth knowing before extending this: LOW is the LOOSE
+                  // tier, which is also where the default conversion to Object
+                  // lives -- it is level with this mapping, not above it. So a
+                  // type declaring foo(float) and foo(Object) but NO foo(double)
+                  // resolves both at that tier, and float wins on specificity:
+                  // a fractional argument that used to arrive at foo(Object) as
+                  // a Double now arrives at foo(float). No such overload pair
+                  // exists in the script-facing API today (inetsoft.graph is
+                  // double-valued throughout), which is why LOW is safe here,
+                  // but adding one would silently re-target it.
+                  .targetTypeMapping(Double.class, Float.class,
+                                     ScriptHostAccess::isFractional,
+                                     Double::floatValue,
+                                     HostAccess.TargetMappingPrecedence.LOW)
+                  // LOWEST for the integral types -- the last pass of overload
+                  // selection, so it applies only where every other conversion
+                  // tier left every candidate inapplicable. It therefore cannot
+                  // pull java.awt.Color onto its (int,int,int) constructor ahead
+                  // of the float one, which the LOW mapping above already
+                  // resolves a tier earlier; it reaches only the case where the
+                  // declared parameter is the sole option, which is exactly
+                  // java.awt.Dimension(int,int) (60.96 -> 60).
+                  //
+                  // Truncation is toward zero, matching Rhino (60.96 -> 60, not
+                  // 61). Integer carries an explicit range guard so a value too
+                  // large for an int fails loudly rather than silently clamping
+                  // to Integer.MAX_VALUE; Long needs none, because a value with
+                  // a fractional part is always below 2^52.
+                  //
+                  // Accepted consequence: a fractional number passed to a type
+                  // declaring both an integral overload -- foo(int) or foo(long)
+                  // -- and foo(String) now reports "Multiple applicable
+                  // overloads" instead of quietly binding to foo(String) through
+                  // the Number -> String mapping above, because both mappings
+                  // land on this same final tier and neither is more specific.
+                  // (A foo(float)/foo(String) pair is unaffected: float resolves
+                  // a tier earlier.) Only index-or-name accessors have that
+                  // shape (XNode.getChild, XSelection.getType, ...), where a
+                  // fractional argument is meaningless either way.
+                  //
+                  // Short and Byte are deliberately omitted: every short/byte
+                  // parameter in our API sits beside a double one and so is
+                  // already resolved several tiers earlier, and each extra target
+                  // type only widens the collision above.
+                  .targetTypeMapping(Double.class, Integer.class,
+                                     d -> isFractional(d) && fitsInInt(d),
+                                     Double::intValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST)
+                  .targetTypeMapping(Double.class, Long.class,
+                                     ScriptHostAccess::isFractional,
+                                     Double::longValue,
+                                     HostAccess.TargetMappingPrecedence.LOWEST);
+
+               // A graph object a script holds is a HostBeanProxy (a ProxyObject),
+               // which GraalJS cannot convert to its Java type on its own, so it
+               // failed every hand-off whose receiver is not itself a
+               // HostBeanProxy: `new StackTextFrame(elem, "Quantity")` reported
+               // "Invalid argument when instantiating ... [HostBeanProxy,
+               // TruffleString]", and likewise for Java.type construction, static
+               // methods, instance methods of plain host objects, varargs and
+               // arrays. Map a wrapper back to its target wherever a parameter is
+               // declared as exactly one of the wrapped types. (#76969)
+               //
+               // Deliberately no mapping to Object or any other supertype: an
+               // Object parameter must keep receiving GraalJS's polyglot view of
+               // the wrapper, so an element stored in a Java collection comes back
+               // to the script as the same wrapper (=== and bean access intact).
+               for(Class<?> type : HostBeanProxy.WRAPPED_TYPES) {
+                  addUnwrapMapping(builder, type);
+               }
+
+               hostAccess = builder.build();
             }
          }
       }
@@ -460,6 +594,46 @@ public final class ScriptHostAccess {
 
    private static boolean isBasicTextClass(String className) {
       return className.matches("java\\.text\\.(DateFormat|SimpleDateFormat|NumberFormat|DecimalFormat|MessageFormat|FieldPosition|ParsePosition|Format|Collator|BreakIterator|Normalizer|AttributedString|AttributedCharacterIterator)");
+   }
+
+   /**
+    * Whether a script number needs the Rhino-parity narrowing declared in
+    * {@link #hostAccess()}: a finite value that has a fractional part. A whole
+    * number is excluded because the existing {@code Double -> Integer} mapping
+    * already handles it, and NaN/infinity are excluded deliberately -- narrowing
+    * either to {@code 0} would silently hide a broken formula, so they keep
+    * failing the call as they do now.
+    */
+   private static boolean isFractional(Double d) {
+      return d != null && !d.isNaN() && !d.isInfinite() && d != Math.floor(d);
+   }
+
+   /**
+    * Whether a double is inside the {@code int} range, so {@link Double#intValue}
+    * narrows it rather than clamping it. A Java cast from a double past the int
+    * range yields {@code Integer.MAX_VALUE}/{@code MIN_VALUE} silently, which is
+    * exactly the kind of quiet corruption these mappings exist to avoid -- an
+    * out-of-range value must fail the call instead.
+    *
+    * <p>At the positive edge this rejects a hair more than it strictly must: a
+    * fractional {@code 2147483647.5} would truncate to a valid
+    * {@code 2147483647}. The error is in the safe direction (a loud failure, not
+    * a wrong number), so the bound is left simple.
+    */
+   private static boolean fitsInInt(double d) {
+      return d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE;
+   }
+
+   /**
+    * Declares the conversion of a {@link HostBeanProxy} wrapper back to its target
+    * for a parameter declared as exactly {@code type}. The predicate also checks
+    * the target's type, so e.g. a wrapped {@code EGraph} is never offered to a
+    * {@code GraphElement} parameter. (#76969)
+    */
+   private static <T> void addUnwrapMapping(HostAccess.Builder builder, Class<T> type) {
+      builder.targetTypeMapping(Value.class, type,
+                                v -> type.isInstance(HostBeanProxy.unwrap(v)),
+                                v -> type.cast(HostBeanProxy.unwrap(v)));
    }
 
    private static Set<String> parseExtra(String prop) {

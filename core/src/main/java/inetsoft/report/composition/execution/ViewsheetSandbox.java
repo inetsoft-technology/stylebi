@@ -137,6 +137,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.entry = entry;
       this.nolimit = new HashSet<>();
       this.qmgrs = new ConcurrentHashMap<>();
+      this.flyoverLocks = new ConcurrentHashMap<>();
       this.dmap = new DataMap();
       this.dKeyMap = new DataMap();
       this.fmap = new HashMap<>();
@@ -436,6 +437,87 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Create a lightweight sandbox that reports {@code temp} as its viewsheet, for running one
+    * query against a throwaway clone of the sheet.
+    *
+    * <p>The alternative -- {@link #setViewsheet(Viewsheet, boolean)} -- publishes the clone into
+    * this sandbox's single shared {@code vs} field, where every other thread sees it. Two
+    * overlapping requests then swap each other's clone, and because each captures the other's
+    * clone as the "original" to restore, the sandbox can be left pointing at a throwaway clone for
+    * the rest of the session with the real viewsheet stripped of its action listeners. Nothing
+    * serializes those requests: the selection path holds only a shared read lock, and the nested
+    * query drops the sandbox lock outright in {@code VSAQuery#getDataWithoutSandboxLock}. The same
+    * idiom in the export paths produced null table lenses and apparent hangs (bug #76576).
+    *
+    * <p>A lock cannot fix it: a thread parked in {@code restoreLocks()} while holding a swap lock
+    * would deadlock against a thread holding the sandbox write lock and waiting for that lock.
+    *
+    * <p>This is a shallow copy, the same idiom as {@link #getMVDisabledBox(VSAssembly)}: the
+    * returned sandbox points at the same id, mode, user, asset entry, variable table, MV state,
+    * lock, metadata repository, {@code wbox} and caches, and differs only in which viewsheet it
+    * reports. Sharing the lock matters -- the nested query still locks and unlocks the real
+    * sandbox. Sharing {@code wbox} matters too: the query still executes through the original
+    * {@code AssetQuerySandbox} over the original worksheet, exactly as it did under the swap,
+    * which never rebuilt {@code wbox} either ({@code setViewsheet(vs, false)} does not reach
+    * {@code createAssetQuerySandbox()}). Because the state is shared, the result must
+    * <b>not</b> be disposed; call {@link #releaseTemporaryBox(ViewsheetSandbox)} instead.
+    *
+    * <p><b>Three limits a caller must respect</b>, all from the fact that a shallow copy shares
+    * object <i>references</i> while non-final fields are snapshots, and that this sandbox's
+    * collaborators are bound to <i>this</i> object rather than to the copy:
+    *
+    * <ol>
+    * <li><b>Scriptables for assemblies that exist only in {@code temp} will not resolve.</b>
+    * {@code getScope()} returns the {@link inetsoft.report.script.viewsheet.ViewsheetScope} built
+    * for <i>this</i> sandbox, and its fallback lookup tests
+    * {@code box.getViewsheet().containsAssembly(name)} against the real sheet. So
+    * {@code executeDynamicValue()} on a temp-only assembly gets a null scriptable. That is
+    * harmless only while such an assembly's dynamic values are already-resolved literals -- which
+    * is true of the calc-field measure crosstab, whose column, formula and group values are all
+    * plain strings. A caller that needs {@code =script} or {@code $variable} values on a
+    * temp-only assembly cannot use this.</li>
+    * <li><b>{@code disposed} is a snapshot.</b> If the real sandbox is disposed while the copy is
+    * in use, the copy's {@code disposed} guards will not fire. Keep the copy short-lived.</li>
+    * <li><b>Events fired by {@code temp} are handled against the real sheet.</b>
+    * {@link #actionPerformed} resolves names against {@code this.vs}, so a name present in both
+    * sheets would reset or cancel the <i>real</i> assembly. The calc-field measure path is safe
+    * because it adds and removes its crosstab with {@code fireEvent=false}.</li>
+    * </ol>
+    */
+   ViewsheetSandbox createTemporaryBox(Viewsheet temp) {
+      try {
+         ViewsheetSandbox tempBox = (ViewsheetSandbox) this.clone();
+         tempBox.vs = temp;
+         // registered on the clone for the duration, mirroring what setViewsheet() did, so edits
+         // to it still reach this sandbox and the metadata repository. The real viewsheet keeps
+         // its own registration; the old swap de-registered it and, on restore, re-added metarep
+         // only to the *clone's* worksheet (getWorksheet() resolved against the clone by then),
+         // permanently dropping the real worksheet's metarep listener.
+         temp.addActionListener(this);
+         temp.addActionListener(metarep);
+
+         return tempBox;
+      }
+      catch(CloneNotSupportedException ex) {
+         throw new IllegalStateException("ViewsheetSandbox is Cloneable", ex);
+      }
+   }
+
+   /** Undo the listener registration done by {@link #createTemporaryBox(Viewsheet)}. */
+   void releaseTemporaryBox(ViewsheetSandbox tempBox) {
+      if(tempBox == null) {
+         return;
+      }
+
+      Viewsheet temp = tempBox.vs;
+
+      if(temp != null) {
+         temp.removeActionListener(this);
+         temp.removeActionListener(metarep);
+      }
+   }
+
+   /**
     * Get the base worksheet.
     */
    public Worksheet getWorksheet() {
@@ -523,6 +605,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return qmgr;
+   }
+
+   /**
+    * Get the lock object used to serialize concurrent flyover requests (e.g. two different
+    * source assemblies flying over the same target) that would otherwise race on the target
+    * assembly's shared query/condition state. One lock per assembly name, scoped to this
+    * sandbox instance so it is reclaimed with it, mirroring {@link #getQueryManager(String)}.
+    */
+   public Object getFlyoverLock(String name) {
+      return flyoverLocks.computeIfAbsent(name, k -> new Object());
    }
 
    /**
@@ -1532,6 +1624,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      // a bookmark/state restore may have left a tab-bar reposition owed (Bug #76927).
+      // Apply it now that onInit/onLoad have had their chance to consume the flag through
+      // TabVSAScriptable, and before processSelections() starts dispatching assemblies to the
+      // client (its ReadyListener marks them processed, so the refresh's final pass skips them).
+      // A per-object tab script running later in executeView() sees the flag cleared and the
+      // value already matching, so it won't reposition a second time.
+      if(isRuntime()) {
+         TabVSAssemblyInfo.syncPendingBottomTabsPositions(vs);
+      }
+
       boolean processSelectionsFailed = false;
 
       // process selection and associations
@@ -2289,33 +2391,36 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             ThreadContext.setContextPrincipal(tmpPrincipal);
          }
 
-         executeVSScript(lastOnInit = onInit, null);
+         try {
+            executeVSScript(lastOnInit = onInit, null);
 
-         boolean scriptSelected = Arrays.stream(vs.getAssemblies())
-            .filter(a -> a instanceof AbstractSelectionVSAssembly)
-            .anyMatch(a -> ((AbstractSelectionVSAssembly) a).getScriptSelectedValues() != null);
+            boolean scriptSelected = Arrays.stream(vs.getAssemblies())
+               .filter(a -> a instanceof AbstractSelectionVSAssembly)
+               .anyMatch(a -> ((AbstractSelectionVSAssembly) a).getScriptSelectedValues() != null);
 
-         // if script set selection list states, we should run the associations so it behaves
-         // like as if a user has clicked on it. (45130)
-         if(scriptSelected) {
-            reset(new ChangedAssemblyList());
+            // if script set selection list states, we should run the associations so it behaves
+            // like as if a user has clicked on it. (45130)
+            if(scriptSelected) {
+               reset(new ChangedAssemblyList());
+            }
+
+            final ViewsheetScope scope = this.scope;
+
+            // save the initScope and use it on reset to avoid variables
+            // set in init scope being lost on reset
+            if(scope != null) {
+               ViewsheetScope initScope = (ViewsheetScope) scope.clone();
+               this.initScope = initScope;
+               // add the initScope to the env, so if the env has not be init'ed,
+               // it would be init'ed property with the parent scope set to
+               // the script engine
+               scope.getScriptEnv().put("__initViewsheetScope", initScope);
+            }
          }
-
-         final ViewsheetScope scope = this.scope;
-
-         // save the initScope and use it on reset to avoid variables
-         // set in init scope being lost on reset
-         if(scope != null) {
-            ViewsheetScope initScope = (ViewsheetScope) scope.clone();
-            this.initScope = initScope;
-            // add the initScope to the env, so if the env has not be init'ed,
-            // it would be init'ed property with the parent scope set to
-            // the script engine
-            scope.getScriptEnv().put("__initViewsheetScope", initScope);
-         }
-
-         if(!Tool.equals(ThreadContext.getContextPrincipal(),oPrincipal)) {
-            ThreadContext.setContextPrincipal(oPrincipal);
+         finally {
+            if(!Tool.equals(ThreadContext.getContextPrincipal(), oPrincipal)) {
+               ThreadContext.setContextPrincipal(oPrincipal);
+            }
          }
       }
    }
@@ -2333,12 +2438,34 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * process onload script for export thread.
     */
    public void prepareForExport() {
+      exportScriptError = null;
+
       try {
          processOnLoad(new ChangedAssemblyList(), false);
       }
       catch(Exception ex) {
-         LOG.warn("Failed to process onLoad script for export: " + ex, ex);
+         // An onLoad script routinely sets the query parameters the whole sheet is
+         // filtered by, so swallowing this quietly is not a cosmetic loss: every
+         // query then runs unfiltered and the export is a structurally valid file
+         // of the wrong data, sized to whatever the unfiltered result turned out to
+         // be. Nothing downstream can tell it apart from a good export. Record it
+         // so the exporter can say so on the document, and log it at ERROR -- the
+         // export is wrong, not merely suspect. (#76780)
+         exportScriptError = ex;
+         LOG.error("Failed to process the onLoad script for export of \"{}\"; the exported " +
+                      "content will not reflect anything that script sets, including any " +
+                      "query parameters it computes", getSheetName(), ex);
       }
+   }
+
+   /**
+    * The exception from the onLoad script run by {@link #prepareForExport()}, or
+    * {@code null} if it succeeded or has not run. Read by the exporters so a
+    * failed sheet script is visible on the exported document rather than only in
+    * the server log.
+    */
+   public Exception getExportScriptError() {
+      return exportScriptError;
    }
 
    /**
@@ -4032,8 +4159,19 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             EmbeddedTableAssembly eassembly = (EmbeddedTableAssembly) ass;
             // resolve the column from the current column selection instead of relying on
             // iassembly.getColumn(), which is only refreshed on a full sandbox reset and
-            // may be stale if the binding was changed without reopening the viewsheet
-            DataRef column = eassembly.getColumnSelection(false).getAttribute(iassembly.getColumnValue());
+            // may be stale if the binding was changed without reopening the viewsheet.
+            // use the runtime column value so a variable or expression binding resolves
+            // to the column it evaluates to instead of the literal $(var)/=expr text.
+            String cname = iassembly.getRuntimeColumnValue();
+            DataRef column = cname == null
+               ? null : eassembly.getColumnSelection(false).getAttribute(cname);
+
+            // a dynamic value that has not been executed yet resolves to null, fall back
+            // to the column resolved by InputVSAssemblyInfo.update()
+            if(column == null) {
+               column = iassembly.getColumn();
+            }
+
             int row = iassembly.getRow();
 
             if(column != null && row > 0) {
@@ -5231,6 +5369,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       if(obj == null) {
+         long skippedLocks = getSkippedLockCount();
          lockRead();
 
          try {
@@ -5316,6 +5455,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                      vstable.setCrosstabTree(((CrosstabVSAssembly) assembly).getCrosstabTree());
                   }
 
+                  // see the finally block below
+                  cache = cache && !isLockSkippedSince(skippedLocks);
+
                   if(cache && hint != VSAssembly.NONE_CHANGED) {
                      processChange0(name, hint, new ChangedAssemblyList());
                      obj = getVSTableLens0(name, detail, false);
@@ -5330,6 +5472,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   throw cex2;
                }
                finally {
+                  // Inside a script this thread proceeds without a sandbox lock it cannot get
+                  // (see lockRead()), so a writer may have been changing the sandbox while the
+                  // lens was built. Do not cache it or process the assembly's script changes
+                  // then, or a lens built from state the writer is resetting would stay in dmap.
+                  // The script reading Table.table keeps its own reference to it. (#76905)
+                  cache = cache && !isLockSkippedSince(skippedLocks);
+                  // The other direction is not guarded: a writer may cache a result built
+                  // from state this script thread changed without the lock (e.g. its
+                  // executeScript()). Accepted: script statements already ran without the
+                  // sandbox lock (#52463), and this only happens in the contention case that
+                  // used to deadlock.
+
                   if(cache) {
                      if(obj == null && VSUtil.isVSAssemblyBinding(assembly)) {
                         dmap.removeAll(name);
@@ -5545,6 +5699,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(obj == null && initial) {
          boolean cache = true;
          boolean inExec = JavaScriptEngine.getExecScriptable() != null;
+         long skippedLocks = inExec ? getSkippedLockCount() : 0;
 
          // if called from script, the locking should already be in place. lock it again
          // may cause deadlock if the processing is started in a separate thread. (52463)
@@ -5587,6 +5742,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
          finally {
+            // a query run without a sandbox lock it asked for (script thread, see lockRead())
+            // may have overlapped a writer, don't cache its result (#76905)
+            if(inExec && isLockSkippedSince(skippedLocks)) {
+               cache = false;
+            }
+
             // @by larryl, optimization, for selection data, the same table
             // is used again and again. For a large tree, the getObject could
             // get expensive if the table lens is nested very deep.
@@ -6521,6 +6682,35 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Mark {@code name} as an assembly a query is currently using that lives only in that query's
+    * private viewsheet (see {@link #createTemporaryBox(Viewsheet)}). Such a name is legitimately
+    * absent from this sandbox's {@code vs} while the query runs, so {@link #shrink()} must not
+    * prune and cancel its {@code QueryManager}. Always pair with
+    * {@link #endTempAssembly(String)} in a finally -- a name left registered is never pruned.
+    */
+   void beginTempAssembly(String name) {
+      if(name != null) {
+         activeTempAssemblies.merge(name, 1, Integer::sum);
+      }
+   }
+
+   /** Whether {@code name} currently has an outstanding registration. */
+   boolean isTempAssemblyActive(String name) {
+      return name != null && activeTempAssemblies.containsKey(name);
+   }
+
+   /** Undo {@link #beginTempAssembly(String)}, making the name prunable again. */
+   void endTempAssembly(String name) {
+      if(name == null) {
+         return;
+      }
+
+      // a count, not a flag: if two invocations ever register the same name, the first to finish
+      // must not drop the guard while the second is still running
+      activeTempAssemblies.computeIfPresent(name, (k, count) -> count <= 1 ? null : count - 1);
+   }
+
+   /**
     * Remove cached data that is no longer needed by the sheet.
     */
    public void shrink() {
@@ -6535,6 +6725,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       List<String> list = new ArrayList<>(qmgrs.keySet());
 
       for(String name : list) {
+         // an assembly that lives only in an in-flight query's private viewsheet is legitimately
+         // absent from this sandbox's vs; pruning would cancel that query mid-flight
+         if(activeTempAssemblies.containsKey(name)) {
+            continue;
+         }
+
          if(!vs.containsAssembly(name)) {
             QueryManager qmgr = qmgrs.remove(name);
 
@@ -7786,6 +7982,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
    /**
     * Acquire a write (exclusive) lock.
+    *
+    * <p>On a thread running a script this never blocks (see {@link #thisLock}): if the lock
+    * is not available the thread proceeds without it.</p>
     */
    public void lockWrite() {
       // script (OutputVSAScriptable) may call getData, which would be triggered from
@@ -7809,12 +8008,31 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
    /**
     * Acquire a read (shared) lock.
+    *
+    * <p>On a thread running a script this never blocks (see {@link #thisLock}): if the lock
+    * is not available the thread proceeds without it.</p>
     */
    public void lockRead() {
       // see above
       if(!AssetDataCache.isProcessorThread()) {
          thisLock.lockRead();
       }
+   }
+
+   /**
+    * Get the number of sandbox lock acquisitions this thread has skipped so far because it is
+    * running a script and the lock was not available (see lockRead()).
+    */
+   private long getSkippedLockCount() {
+      return AssetDataCache.isProcessorThread() ? 0 : thisLock.getSkippedCount();
+   }
+
+   /**
+    * Check if this thread skipped a sandbox lock acquisition since
+    * {@link #getSkippedLockCount()} returned {@code count}.
+    */
+   private boolean isLockSkippedSince(long count) {
+      return getSkippedLockCount() != count;
    }
 
    /**
@@ -7834,6 +8052,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     *
     * <p>Safe for re-entrant use: a nested unlockAll()/restoreLocks() pair on the same
     * thread does not discard the state saved by an enclosing unlockAll().</p>
+    *
+    * <p>On a thread running a script only the locks taken inside the script are released.
+    * Locks the thread took before the script started stay held: released while the thread
+    * holds the script engine lock they could not be taken back without blocking (#76905).
+    * The trade-off is that such a caller's lock stays held across a fetch nested in the
+    * script, so other requests on this viewsheet wait for that fetch.</p>
     */
    public void unlockAll() {
       if(!AssetDataCache.isProcessorThread()) {
@@ -8185,6 +8409,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private boolean refreshing = false;
    private final AssetEntry entry; // asset entry
    private Viewsheet vs; // current viewsheet
+   // assembly names an in-flight query is using that exist only in its own private
+   // viewsheet; shared with every temporary box, see createTemporaryBox()
+   // a count rather than a flag, so overlapping registrations of one name each hold the
+   // guard. Every mutation is a single atomic map operation (merge / computeIfPresent):
+   // a mutable value read out of the map and updated afterwards would leave a window in
+   // which the entry is removed and the increment orphaned.
+   private final Map<String, Integer> activeTempAssemblies = new ConcurrentHashMap<>();
    private final TableMetaDataRepository metarep; // table metadata repository
    private AssetQuerySandbox wbox; // worksheet sandbox
    private final ViewsheetSandbox root; // root viewsheet sandbox
@@ -8211,6 +8442,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private final boolean outputNullToZero = "true".equals(SreeEnv.getProperty("output.null.to.zero"));
    private final Set<String> nolimit; // tables to ignore time limit
    private final Map<String, QueryManager> qmgrs; // specific query manager for each assembly
+   private final Map<String, Object> flyoverLocks; // per-assembly lock for flyover coordination
    private long selectionTS; // selection timestamp
    private long touchTS = -1; // touch timestamp of data changes
    private long execTS = -1; // last execution time
@@ -8223,11 +8455,26 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private String exportFormat = null;
    private String oid; // original runtime viewsheet id
    private final Map<String, ReentrantLock> graphLocks = new ConcurrentHashMap<>();
-   private final UpgradableReadWriteLock thisLock = new UpgradableReadWriteLock();
+   // A thread running a script holds that script engine's execution lock, and other threads
+   // hold this lock while they wait for the engine lock (e.g. CalcTableVSAQuery holds the
+   // write lock across clens.process(), getVSTableLens0() the read lock across
+   // executeScript()). So a script thread must never block on this lock, or the two form a
+   // deadlock that takes the whole viewsheet with it (#76905): for it, lockRead()/lockWrite()
+   // only try the lock and proceed without it if it is not available, and unlockAll() keeps
+   // the locks it took before the script started. See UpgradableReadWriteLock.
+   // The overall order is: this lock -> assembly monitors -> monitors held across script
+   // execution (e.g. CalcTableLens.process0) -> engine lock -> GraalJavaScriptEnv monitor
+   // (leaf). The one intentional exception is PostProcessor$ConditionFilter2, which takes its
+   // AssetQuerySandbox's engine lock before its own monitor (#5506, #76918).
+   // isScriptThread() is true inside any engine's exec (viewsheet, worksheet or report), a
+   // deliberately conservative predicate: it also covers cross-sandbox/embedded scripts.
+   private final UpgradableReadWriteLock thisLock =
+      new UpgradableReadWriteLock(JavaScriptEngine::isScriptThread);
    private Object pviewsheet = new PViewsheetScriptable();
    private Map<String, String> limitMessages; //record the asselby limit message.
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
+   private Exception exportScriptError; // onLoad failure from prepareForExport()
    private boolean parametersApplied = false;
    // Accessed only while the write lock is held (resetRuntime → reset → applyParameterToInput),
    // so a plain HashSet is safe here; no concurrent access occurs outside that path.

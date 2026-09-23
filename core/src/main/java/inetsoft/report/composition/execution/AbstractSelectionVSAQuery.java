@@ -602,12 +602,35 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
    private void checkAndRunCalcFieldMeasureQuery(SelectionMeasureAggregation measureAggregation)
       throws Exception
    {
-      Viewsheet origViewsheet = box.getViewsheet();
-      Viewsheet vs = origViewsheet.clone();
+      Viewsheet vs = box.getViewsheet().clone();
+      // Run against a private view of the sandbox rather than installing the clone into the
+      // shared one. box.setViewsheet(clone) publishes it to every thread, so two overlapping
+      // requests swap each other's clone and restore the wrong one -- nothing serializes them and
+      // the nested crosstab query below drops the sandbox lock entirely. See
+      // ViewsheetSandbox.createTemporaryBox().
+      ViewsheetSandbox tempBox = box.createTemporaryBox(vs);
 
       try {
-         box.setViewsheet(vs, false);
-         AbstractSelectionVSAssembly assembly = (AbstractSelectionVSAssembly) getAssembly();
+         // resolve from the clone, not via getAssembly(), which goes through box and so returns
+         // the live assembly. Everything else here -- the crosstab, dimRefs, cinfo -- is built
+         // from the clone, and getDataRefs() is re-read on every iteration while the nested query
+         // drops the sandbox lock, so reading the live one could mix a mutated ref array into a
+         // snapshot-built crosstab. The old swap got this for free: box.getViewsheet() *was* the
+         // clone by this point.
+         AbstractSelectionVSAssembly assembly = (AbstractSelectionVSAssembly) vs.getAssembly(vname);
+
+         if(assembly == null) {
+            return;
+         }
+
+         // Namespace this invocation's temp crosstabs. The name used to derive only from the
+         // selection assembly, so two overlapping requests for the same selection list produced
+         // the same name -- which meant they shared one QueryManager (qmgrs is keyed by name, so
+         // either request's cancel killed both) and one activeTempAssemblies guard (whichever
+         // finished first unregistered it while the other was still running). Same reasoning as
+         // CalcTableVSAQuery for bug #76614.
+         long invocationId = CalcTableVSAQuery.nextInvocationId();
+         int tempCrosstabCount = 0;
 
          for(String btable : assembly.getTableNames()) {
             CalculateRef calc = vs.getCalcField(btable, assembly.getMeasure());
@@ -648,7 +671,9 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
                // always invisible crosstab
                CrosstabVSAssembly crosstab = new CrosstabVSAssembly(
-                  getViewsheet(), CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX + assembly.getName() + "_Crosstab") {
+                  vs,
+                  CalcTableVSAQuery.getTempCrosstabName(assembly.getName(), invocationId,
+                                                        tempCrosstabCount++)) {
                   @Override
                   protected VSAssemblyInfo createInfo() {
                      return new CrosstabVSAssemblyInfo() {
@@ -691,6 +716,9 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
                try {
                   vs.removeAssembly(crosstab.getName(), false);
                   vs.addAssembly(crosstab, false, false);
+                  // the crosstab exists only in this query's clone, so tell the shared sandbox
+                  // not to prune (and cancel) its QueryManager while the query is running
+                  tempBox.beginTempAssembly(crosstab.getName());
 
                   // clear the selections of selection assemblies with the same data ref including
                   // this assembly so that we get the measures for all the values
@@ -718,11 +746,11 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
                   }
 
                   // to make sure that the correct conditions are applied when executing the query
-                  box.refreshRuntimeConditionList(btable, false, new HashSet<>());
+                  tempBox.refreshRuntimeConditionList(btable, false, new HashSet<>());
                   // generate runtime aggregates and row headers
-                  box.updateAssembly(crosstab.getName());
+                  tempBox.updateAssembly(crosstab.getName());
 
-                  CrosstabVSAQuery cquery = new CrosstabVSAQuery(box, crosstab.getName(), false);
+                  CrosstabVSAQuery cquery = new CrosstabVSAQuery(tempBox, crosstab.getName(), false);
                   TableLens lens = cquery.getTableLens(false);
 
                   if(lens != null) {
@@ -757,6 +785,7 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
                   }
                }
                finally {
+                  tempBox.endTempAssembly(crosstab.getName());
                   vs.removeAssembly(crosstab.getName(), false);
                }
             }
@@ -766,7 +795,7 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
          measureAggregation.updateBounds();
       }
       finally {
-         box.setViewsheet(origViewsheet, false);
+         box.releaseTemporaryBox(tempBox);
       }
    }
 

@@ -23,6 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.lang.reflect.Modifier;
 
 /**
@@ -242,11 +244,13 @@ public class ScriptFunction implements ProxyExecutable {
    /**
     * Convert a host value to a String using JavaScript {@code ToString}
     * semantics (mirroring Rhino's {@code ScriptRuntime.toString}): a boolean
-    * maps to "true"/"false"; a whole number in the {@code long} range maps to
-    * its integer form ("3", not "3.0"); any other value (a fractional number, a
-    * whole number too large for {@code long}, or a non-Number) uses
-    * {@link String#valueOf}. Called only for a non-String value bound to a
-    * String parameter.
+    * maps to "true"/"false"; an exact integral type ({@code Long}/{@code
+    * Integer}/{@code Short}/{@code Byte}/{@link java.math.BigInteger}) and
+    * {@link java.math.BigDecimal} render their own digits; a whole double in the
+    * {@code long} range maps to its integer form ("3", not "3.0"); any other
+    * value (a fractional double, a whole double too large for {@code long}, or a
+    * non-Number) uses {@link String#valueOf}. Called only for a non-String value
+    * bound to a String parameter.
     *
     * <p>The {@code Math.abs(d) < 0x1p63} guard keeps a whole double outside the
     * {@code long} range (e.g. {@code 1e21}) out of the {@code (long) d} branch,
@@ -254,12 +258,37 @@ public class ScriptFunction implements ProxyExecutable {
     * falls through to {@code String.valueOf} instead. Note that
     * {@code String.valueOf} uses Java's {@code Double.toString} formatting
     * (scientific notation at 1e7/1e-3), which diverges from JS {@code ToString}
-    * (1e21/1e-6) for very large/small magnitudes. This is acceptable here
-    * because script values bound to a String parameter are effectively booleans,
-    * small integers (header/order constants), and strings; such magnitudes do
-    * not occur in practice.
+    * (1e21/1e-6) for very large/small magnitudes. That divergence remains for
+    * {@code double}/{@code Float} values, which are the only ones still reaching
+    * that branch; the exact integral types are handled above precisely because
+    * they do occur in practice (a JDBC numeric column arrives as a
+    * {@code BigDecimal} or {@code Long}) and rounding them through a double
+    * corrupts digits silently. (#76778)
     */
-   private static String toStringValue(Object value) {
+   // package-private: ScriptHostAccess reuses this for the equivalent coercion on
+   // direct host-object method calls, which do not go through ScriptFunction. (#76778)
+   static String toStringValue(Object value) {
+      // An exact integral type must render its own digits rather than go through
+      // doubleValue() below, which rounds anything past 2^53: a BigDecimal
+      // account number of 123456789012345678 came out as "123456789012345680",
+      // and 9007199254740993L as "9007199254740992". Silently corrupting digits
+      // is worse than the loud failure this coercion replaces, and the exact
+      // digits are also what Rhino produced -- it stringified a wrapped Java
+      // number through its own toString(), not through a double. (#76778)
+      if(value instanceof Long || value instanceof Integer || value instanceof Short
+         || value instanceof Byte || value instanceof BigInteger)
+      {
+         return value.toString();
+      }
+
+      // BigDecimal likewise carries more precision than a double and, unlike the
+      // types above, may be fractional. toPlainString() keeps every digit and
+      // avoids the scientific notation BigDecimal.toString() switches to;
+      // stripTrailingZeros drops the scale padding JS would not show ("1.50").
+      if(value instanceof BigDecimal dec) {
+         return dec.stripTrailingZeros().toPlainString();
+      }
+
       if(value instanceof Number) {
          double d = ((Number) value).doubleValue();
 

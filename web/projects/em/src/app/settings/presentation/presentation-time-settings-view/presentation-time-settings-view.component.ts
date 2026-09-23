@@ -22,7 +22,8 @@ import { PresentationTimeSettingsModel } from "./presentation-time-settings-mode
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { ContextHelp } from "../../../context-help";
 import { MatCheckbox } from "@angular/material/checkbox";
-import { MatInput } from "@angular/material/input";
+import { MatOption } from "@angular/material/core";
+import { MatSelect } from "@angular/material/select";
 import { MatFormField, MatLabel } from "@angular/material/form-field";
 import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
 
@@ -35,12 +36,38 @@ import { MatCard, MatCardTitle, MatCardContent } from "@angular/material/card";
     selector: "em-presentation-time-settings-view",
     templateUrl: "./presentation-time-settings-view.component.html",
     styleUrls: ["./presentation-time-settings-view.component.scss"],
-    imports: [MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatInput, FormsModule, MatCheckbox]
+    imports: [MatCard, MatCardTitle, MatCardContent, MatFormField, MatLabel, MatSelect, MatOption, FormsModule, MatCheckbox]
 })
 export class PresentationTimeSettingsViewComponent {
+   // week.start only accepts these day names; anything else falls back to Sunday on the
+   // server, so the field is a fixed list rather than free text.
+   readonly weekStartOptions = [
+      {label: "_#(js:Default)", value: ""},
+      {label: "_#(js:Sunday)", value: "Sunday"},
+      {label: "_#(js:Monday)", value: "Monday"},
+      {label: "_#(js:Tuesday)", value: "Tuesday"},
+      {label: "_#(js:Wednesday)", value: "Wednesday"},
+      {label: "_#(js:Thursday)", value: "Thursday"},
+      {label: "_#(js:Friday)", value: "Friday"},
+      {label: "_#(js:Saturday)", value: "Saturday"}
+   ];
+
    @Input() isSysAdmin: boolean;
    @Input() set model(model: PresentationTimeSettingsModel) {
       this._model = model;
+
+      if(model && model.weekStart) {
+         // the property is matched case-insensitively on the server, so map an existing
+         // value onto the option list rather than showing an empty select. A value that
+         // matches nothing is left alone: it already means Sunday on the server, and
+         // rewriting it here would blank the property on the next unrelated save.
+         const match = this.weekStartOptions
+            .find(o => !!o.value && o.value.toLowerCase() === model.weekStart.toLowerCase());
+
+         if(match) {
+            model.weekStart = match.value;
+         }
+      }
 
     if(this.model) {
       this.form.setValue(this.model, {emitEvent: false});

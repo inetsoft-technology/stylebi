@@ -117,16 +117,23 @@ public class ExportControllerService {
       BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
       DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
 
-      writeViewsheetExport(rvs, out, principal, format, previewPrintLayout, print, match,
-                           expandSelections, current, bookmarks, onlyDataComponents,
-                           csvConfig, null, false, exportAllTabbedTables);
-      binaryTransferService.closeOutputStream(data, out);
-
-      String fileName = VSExportService.getViewsheetFileName(rvs.getEntry());
-      String suffix = VSExportService.getSuffix(format);
-      String mime = VSExportService.getMime(format);
+      // Bug #76576: guard the real export work with __EXPORTING__ so that
+      // ViewsheetEngine.closeViewsheet() (called below, and possibly by a concurrent request
+      // for the same runtime viewsheet) defers disposing this rvs via _CLOSE_AFTER_EXPORT_
+      // instead of closing it out from under an export still in the synchronized(rvs) block
+      // in writeViewsheetExport(), which otherwise NPEs on the now-null viewsheet.
+      rvs.setProperty("__EXPORTING__", "true");
 
       try {
+         writeViewsheetExport(rvs, out, principal, format, previewPrintLayout, print, match,
+                              expandSelections, current, bookmarks, onlyDataComponents,
+                              csvConfig, null, false, exportAllTabbedTables);
+         binaryTransferService.closeOutputStream(data, out);
+
+         String fileName = VSExportService.getViewsheetFileName(rvs.getEntry());
+         String suffix = VSExportService.getSuffix(format);
+         String mime = VSExportService.getMime(format);
+
          return new ViewsheetExportResult(data, fileName, mime, suffix, disposition);
       }
       catch(Exception ex) {
@@ -134,8 +141,10 @@ public class ExportControllerService {
          throw ex;
       }
       finally {
+         rvs.setProperty("__EXPORTING__", null);
+
          if(!previewPrintLayout && (matchesAssetIdFormat ||
-            rvs != null && "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_"))))
+            "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_"))))
          {
             viewsheetService.closeViewsheet(runtimeId, principal);
          }
@@ -212,57 +221,65 @@ public class ExportControllerService {
       exporter.setLogExport(true);
 
       if(current) {
-         Viewsheet cviewsheet = viewsheet.clone();
-         rvs.setViewsheet(cviewsheet);
+         // Bug #76576: the live ViewsheetSandbox is mutated in place below (setViewsheet()
+         // is not synchronized), so overlapping exports of the same runtime viewsheet can
+         // swap each other's cloned viewsheet mid-export, producing null table lenses (NPE
+         // in the exporters) and leaving in-flight queries waiting on stale assembly state
+         // (perceived as a hang). Serialize this swap/export/restore per runtime viewsheet.
+         synchronized(rvs) {
+            Viewsheet originalViewsheet = rvs.getViewsheet();
+            Viewsheet cviewsheet = originalViewsheet.clone();
+            rvs.setViewsheet(cviewsheet);
 
-         try {
-            // don't use the scale-to-screen size for export
-            VSEventUtil.clearScale(cviewsheet);
-            Assembly[] assemblies = cviewsheet.getAssemblies(false);
+            try {
+               // don't use the scale-to-screen size for export
+               VSEventUtil.clearScale(cviewsheet);
+               Assembly[] assemblies = cviewsheet.getAssemblies(false);
 
-            for(int i = 0; rbox != null && i < assemblies.length; i++) {
-               VSAssembly assembly = (VSAssembly) assemblies[i];
-
-               if(assembly instanceof CalcTableVSAssembly) {
-                  continue;
-               }
-
-               AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, null, null);
-            }
-
-            ViewsheetSandbox exportBox = rbox.get();
-
-            if(previewPrintLayout && rbox.get().getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
-               exportBox =
-                  new ViewsheetSandbox(cviewsheet, vmode, rbox.get().getUser(), rbox.get().getAssetEntry());
-               exportBox.prepareMVCreation();
-
-               for(int i = 0; exportBox != null && i < assemblies.length; i++) {
+               for(int i = 0; rbox != null && i < assemblies.length; i++) {
                   VSAssembly assembly = (VSAssembly) assemblies[i];
-                  exportBox.executeScript(assembly);
+
+                  if(assembly instanceof CalcTableVSAssembly) {
+                     continue;
+                  }
+
+                  AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, null, null);
                }
 
-               final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
+               ViewsheetSandbox exportBox = rbox.get();
 
-               if(assetQuerySandbox != null) {
-                  assetQuerySandbox.refreshVariableTable(rbox.get().getVariableTable());
+               if(previewPrintLayout && rbox.get().getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
+                  exportBox =
+                     new ViewsheetSandbox(cviewsheet, vmode, rbox.get().getUser(), rbox.get().getAssetEntry());
+                  exportBox.prepareMVCreation();
+
+                  for(int i = 0; exportBox != null && i < assemblies.length; i++) {
+                     VSAssembly assembly = (VSAssembly) assemblies[i];
+                     exportBox.executeScript(assembly);
+                  }
+
+                  final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
+
+                  if(assetQuerySandbox != null) {
+                     assetQuerySandbox.refreshVariableTable(rbox.get().getVariableTable());
+                  }
                }
-            }
-            else {
-               exportBox.setViewsheet(cviewsheet, false);
-            }
-            Catalog catalog = Catalog.getCatalog(principal);
-            exporter.setSandbox(exportBox);
+               else {
+                  exportBox.setViewsheet(cviewsheet, false);
+               }
+               Catalog catalog = Catalog.getCatalog(principal);
+               exporter.setSandbox(exportBox);
 
-            if(exporter instanceof AbstractVSExporter) {
-               ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
-            }
+               if(exporter instanceof AbstractVSExporter) {
+                  ((AbstractVSExporter) exporter).setRuntimeViewsheet(rvs);
+               }
 
-            exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
-         }
-         finally {
-            rbox.get().setViewsheet(viewsheet, false);
-            rvs.setViewsheet(viewsheet);
+               exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
+            }
+            finally {
+               rbox.get().setViewsheet(originalViewsheet, false);
+               rvs.setViewsheet(originalViewsheet);
+            }
          }
       }
 

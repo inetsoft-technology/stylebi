@@ -19,6 +19,8 @@
 package inetsoft.report.composition.graph.calc;
 
 import inetsoft.graph.data.CalcColumn;
+import inetsoft.graph.data.DataSet;
+import inetsoft.graph.data.DataSetIndex;
 import inetsoft.report.composition.graph.BrushDataSet;
 import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.report.filter.CrossFilter;
@@ -429,28 +431,39 @@ public class ValueOfColumnTest {
    }
 
    /**
-    * Regression test for Bug #75664 (ranking follow-up): PREVIOUS navigation on a
-    * part-date-group dimension (e.g. HourOfDay) must use natural calendar order even when
-    * the dimension has an explicit value-based sort comparator — as set by a Top-N/Bottom-N
-    * "Sort By Value" ranking. Without this, DataSetRouter sorts by the ranking's value order
-    * (e.g. by Sum(contact_id) desc) instead of numeric hour order, so "previous hour"
-    * resolves to the wrong row or incorrectly returns INVALID, and every moving-average
-    * window over the dimension slides with it.
+    * Regression test for Bug #76039/#76906: PREVIOUS navigation on a part-date-group
+    * dimension (e.g. HourOfDay) must follow the dimension's display sort even when that sort
+    * is value-based, as set by a Top-N/Bottom-N "Sort By Value" ranking. The calc has to
+    * agree with the order the values are plotted in and with the order scripts see them in
+    * via getData(), so the value that is first in display order has no previous value, even
+    * though a numerically-earlier one exists elsewhere in the data.
     *
-    * This supersedes the inverted expectation briefly introduced for Bug #76039, which had
-    * value-based ranking order win over calendar order for these dimensions. The two cannot
-    * both hold, and "previous hour" only has meaning in calendar order. An explicit label
-    * sort (ascending, descending, specific order) is still honored — see
-    * {@link #testPreviousOnPartDateGroupFollowsLabelSortWithNullGroup()} — and so is the
-    * no-sort calendar fallback — see {@link #testPreviousOnPartDateGroupWithOthersLabel()}.
+    * This expectation was briefly inverted (as testPreviousOnPartDateGroupIgnoresRankingSortComparator)
+    * by Bug #76514's fix, which needed calendar order for MovingColumn's window/neighbor
+    * selection on a value-sorted part-date dimension. Bug #76906's first round tried to
+    * reconcile the two by giving the calendar-order fallback a per-caller opt-in flag on
+    * DataSetRouter/AbstractColumn.getRouter() (MovingColumn true, ValueOfColumn/RunningTotalColumn
+    * false) — but investigating a related bug (#76911) showed #76514's own premise was wrong
+    * for MovingColumn too: sort is applied first, then the calculation runs over the resulting
+    * (already-sorted, value-sort ranking included) row sequence, uniformly for every consumer.
+    * A moving average's "neighbor" is the adjacent bar in display order, not a calendar-adjacency
+    * concept layered on top of it. So #76906's second round reverted the per-caller flag
+    * entirely — DataSetRouter/getRouter() are back to their pre-#76514 (DataSet, String)
+    * signature, and the fallback to calendar order applies only when there is no display sort
+    * configured at all (comp == null), for every caller. See
+    * MovingColumnTest.testMovingAverageFollowsDisplayOrderOnValueSortedPartDateDim for the
+    * corresponding (now corrected) MovingColumn expectation. Do not flip this back a third time
+    * without re-reading that history.
     *
-    * Data is intentionally NOT in either row order or hour order (row order: 5, 2, 11), and
-    * the mock comparator sorts by an unrelated ranking value (id desc: 11, 5, 2) rather than
-    * by hour. Natural hour order is 2, 5, 11 — so "previous" of hour 5 must resolve to hour 2
-    * (id=20), not to whatever the ranking comparator would place before it.
+    * The natural-order fallback still applies when no sort is configured at all — see
+    * {@link #testPreviousOnPartDateGroupWithOthersLabel()} — and an explicit label sort is
+    * still honored — see {@link #testPreviousOnPartDateGroupFollowsLabelSortWithNullGroup()}.
+    *
+    * Row order is 5, 2, 11; the ranking comparator puts the hours in descending order
+    * (11, 5, 2), which is neither row order nor calendar order.
     */
    @Test
-   void testPreviousOnPartDateGroupIgnoresRankingSortComparator() {
+   void testPreviousOnPartDateGroupFollowsRankingSortOrder() {
       valueOfColumn = new ValueOfColumn("id", "sum(id)");
       valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS);
       valueOfColumn.setDim("HourOfDay(order_time)");
@@ -473,12 +486,16 @@ public class ValueOfColumnTest {
 
       vsDataSet = new VSDataSet(tb, new VSDataRef[] { hourRef });
 
-      // Row 0 = hour 5. Natural-order previous is hour 2 (id=20).
+      // Row 0 = hour 5; previous in display order (11, 5, 2) is hour 11 (id=30).
       Object result = valueOfColumn.calculate(vsDataSet, 0, false, false);
-      assertEquals(20, result);
+      assertEquals(30, result);
 
-      // Row 1 = hour 2, the earliest hour → no previous → INVALID.
+      // Row 1 = hour 2; previous in display order is hour 5 (id=10).
       result = valueOfColumn.calculate(vsDataSet, 1, false, false);
+      assertEquals(10, result);
+
+      // Row 2 = hour 11, first in display order -> no previous -> INVALID.
+      result = valueOfColumn.calculate(vsDataSet, 2, false, false);
       assertEquals(CalcColumn.INVALID, result);
    }
 
@@ -569,6 +586,55 @@ public class ValueOfColumnTest {
       // "Others" sorts last, so its previous is hour 5 (id=10).
       result = valueOfColumn.calculate(vsDataSet, 2, false, false);
       assertEquals(10, result);
+   }
+
+   /**
+    * Regression test for Bug #76890: PREVIOUS_QUARTER/PREVIOUS_YEAR's "first period" guard
+    * (getMinDate()) must be evaluated against the full comparison window, not the local data
+    * of a single facet cell. A 2-dimension axis like "Quarter(Date) x Category" makes
+    * Quarter(Date) the outer/facet dimension, so each facet cell's DataSet contains only one
+    * quarter's rows. Before the fix, getMinDate() scanned that narrow per-cell data and always
+    * found the cell's own single quarter as the minimum, so the guard fired for every row in
+    * every cell -- not just the chart's true first quarter -- turning every
+    * "Change from previous quarter" value to INVALID/null.
+    */
+   @Test
+   void testPreviousQuarterNotBlockedByFacetCellLocalMinDate() {
+      valueOfColumn = new ValueOfColumn("id", "sum(id)");
+      valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_QUARTER);
+      valueOfColumn.setDim("Quarter(Date)");
+      // Category is the plot axis inner dim, NOT the DC date dim -- the shape that makes
+      // Quarter(Date) the facet (outer) dimension for a real chart.
+      valueOfColumn.setInnerDim("Category");
+
+      DefaultTableLens tb = new DefaultTableLens(new Object[][]{
+         { "Quarter(Date)", "Category", "id" },
+         { toDate("2021-04-01"), "Educational", 411 },
+         { toDate("2021-04-01"), "Personal", 440 },
+         { toDate("2021-07-01"), "Educational", 401 },
+         { toDate("2021-07-01"), "Personal", 465 },
+      });
+
+      VSDimensionRef quarterVsRef = mock(VSDimensionRef.class);
+      when(quarterVsRef.getFullName()).thenReturn("Quarter(Date)");
+      VSDimensionRef categoryVsRef = mock(VSDimensionRef.class);
+      when(categoryVsRef.getFullName()).thenReturn("Category");
+      vsDataSet = new VSDataSet(tb, new VSDataRef[] { quarterVsRef, categoryVsRef });
+
+      // Simulate the facet cell for Q3 2021: only rows 2 and 3 (Quarter(Date) = 2021-07-01).
+      java.util.Map<String, Object> cond = new java.util.HashMap<>();
+      cond.put("Quarter(Date)", toDate("2021-07-01"));
+      DataSetIndex index =
+         new DataSetIndex(vsDataSet, java.util.Set.of("Quarter(Date)"), true);
+      DataSet facetCellQ3 = index.createSubDataSet(cond, false);
+
+      // Q3 is not the chart's first quarter (Q2 exists in the root dataset), so both rows
+      // must resolve to Q2's real values, not INVALID.
+      Object educationalResult = valueOfColumn.calculate(facetCellQ3, 0, true, false);
+      assertEquals(411, educationalResult);
+
+      Object personalResult = valueOfColumn.calculate(facetCellQ3, 1, false, true);
+      assertEquals(440, personalResult);
    }
 
    /**

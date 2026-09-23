@@ -18,6 +18,7 @@
 package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * GraalJS-based script engine. Replaces JavaScriptEngine (Rhino).
@@ -44,7 +44,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       .build();
 
    protected Context context;
-   protected final ReentrantLock lock = new ReentrantLock();
+   // lendable so a condition filter holding it can let a lens worker run while it
+   // waits for that worker (bug #76938), see LendableReentrantLock
+   protected final LendableReentrantLock lock = new LendableReentrantLock();
    protected final ScriptTimeoutGuard timeoutGuard = new ScriptTimeoutGuard();
    protected boolean sql;
 
@@ -177,6 +179,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // Installed before library functions so their bodies can navigate package
       // roots; gated live by the javascript.legacy.compatibility property.
       LegacyJavaShim.install(context, context.getBindings("js"), classFilter);
+      LegacyJavaShim.installStringCompat(context);
 
       installGlobalFunctions();
       installGlobalScope();
@@ -437,7 +440,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                // Strip "use strict" directives — strict mode forbids with statements,
                // so the wrapper would cause a SyntaxError and the function would be
                // silently dropped.
-               String wrapped = stripStrictDirectives(source);
+               String wrapped = stripStrictDirectives(rewriteJavaLengthCalls(source));
                context.eval(Source.newBuilder(
                   "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
                               .buildLiteral());
@@ -452,6 +455,176 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          // LibManager/provider unavailable (e.g. minimal/test contexts) — skip
          LOG.debug("Library functions not installed; LibManager unavailable", ex);
       }
+   }
+
+   /**
+    * Rewrite Rhino-era {@code .length()} calls into a form GraalJS can evaluate
+    * (#76780).
+    *
+    * <p>Rhino's {@code WrapFactory} wraps Java primitives by default, so a
+    * {@code java.lang.String} handed to script — e.g. an element of the
+    * {@code String[]} returned by {@code Calendar1.selectedObjects} — arrived as a
+    * host object and {@code s.length()} resolved to the Java method. GraalJS
+    * surfaces it as a guest string, where {@code length} is the spec-mandated own
+    * numeric property, so the same call throws
+    * {@code TypeError: ... length is not a function} and takes the whole script
+    * with it.
+    *
+    * <p>It cannot be fixed on {@code String.prototype}: the own {@code length}
+    * property shadows the prototype, and {@code s.length} must keep returning the
+    * number. So rewrite the call site instead —
+    * <pre>X.length()  -&gt;  X.length.__jlen()</pre>
+    * which needs no knowledge of what {@code X} is, and stays correct for every
+    * receiver a script can hold: for a guest string or an array {@code X.length}
+    * is a number and {@link LegacyJavaShim#LENGTH_HELPER} on
+    * {@code Number.prototype} returns it; for a host {@code CharSequence} such as
+    * {@code StringBuilder} — where {@code X.length()} already works today and must
+    * keep working — {@code X.length} is the bound Java method and the helper on
+    * {@code Function.prototype} invokes it.
+    *
+    * <p>Only the exact token sequence {@code .length} + {@code (} + {@code )} is
+    * rewritten, and only outside string/template/regex literals and comments, so
+    * a {@code ".length()"} inside a message string is left alone. An identifier
+    * merely ending in {@code length} is not matched, since the rewrite requires
+    * the preceding {@code .} and a non-identifier character after {@code length}.
+    * Optional chaining ({@code ?.length()}) is not rewritten; it did not exist in
+    * the Rhino-era scripts this restores.
+    *
+    * @return the rewritten source, or {@code cmd} unchanged when the legacy gate
+    * is off or there is nothing to rewrite.
+    */
+   static String rewriteJavaLengthCalls(String cmd) {
+      if(cmd == null || cmd.indexOf(".length") < 0 || !LegacyJavaShim.isEnabled()) {
+         return cmd;
+      }
+
+      StringBuilder out = null;   // allocated only once something is rewritten
+      int n = cmd.length();
+      int copied = 0;
+      char prevSig = 0;
+      int i = 0;
+
+      while(i < n) {
+         char c = cmd.charAt(i);
+
+         if(c == '/' && i + 1 < n && cmd.charAt(i + 1) == '/') {
+            i += 2;
+
+            while(i < n && !isLineBreak(cmd.charAt(i))) {
+               i++;
+            }
+
+            continue;
+         }
+
+         if(c == '/' && i + 1 < n && cmd.charAt(i + 1) == '*') {
+            i += 2;
+
+            while(i + 1 < n && !(cmd.charAt(i) == '*' && cmd.charAt(i + 1) == '/')) {
+               i++;
+            }
+
+            i = Math.min(i + 2, n);
+            continue;
+         }
+
+         if(c == '/' && regexAllowed(cmd, i, prevSig == LITERAL_END ? ')' : prevSig)) {
+            int end = scanRegexEnd(cmd, i);
+
+            if(end > 0) {
+               i = end;
+               prevSig = LITERAL_END;
+               continue;
+            }
+         }
+
+         if(c == '"' || c == '\'') {
+            i = skipStringLiteral(cmd, i + 1, c);
+            prevSig = LITERAL_END;
+            continue;
+         }
+
+         if(c == '`') {
+            i = skipTemplateLiteral(cmd, i + 1);
+            prevSig = LITERAL_END;
+            continue;
+         }
+
+         int end = matchLengthCall(cmd, i);
+
+         if(end > 0) {
+            if(out == null) {
+               out = new StringBuilder(n + 32);
+            }
+
+            out.append(cmd, copied, i).append(".length.")
+               .append(LegacyJavaShim.LENGTH_HELPER).append("()");
+            copied = end;
+            i = end;
+            prevSig = ')';
+            continue;
+         }
+
+         if(!Character.isWhitespace(c)) {
+            prevSig = c;
+         }
+
+         i++;
+      }
+
+      if(out == null) {
+         return cmd;
+      }
+
+      out.append(cmd, copied, n);
+      String rewritten = out.toString();
+
+      LOG.debug("Rewrote Rhino-style .length() call(s) to .length.{}() for GraalJS; " +
+                   "disable with {}=false",
+                LegacyJavaShim.LENGTH_HELPER, LegacyJavaShim.GATE_PROPERTY);
+
+      return rewritten;
+   }
+
+   /**
+    * If {@code cmd} has {@code .length} immediately followed by an empty argument
+    * list at {@code i} (the index of the {@code .}), return the index just past
+    * the closing paren; otherwise {@code -1}. Whitespace is allowed between the
+    * name and the parens and inside them, as anywhere else in a call.
+    */
+   private static int matchLengthCall(String cmd, int i) {
+      final String NAME = ".length";
+      int n = cmd.length();
+
+      if(cmd.charAt(i) != '.' || !cmd.startsWith(NAME, i)) {
+         return -1;
+      }
+
+      int j = i + NAME.length();
+
+      // "lengthy" / "length2" are different identifiers, not a length() call
+      if(j < n && isIdentPart(cmd.charAt(j))) {
+         return -1;
+      }
+
+      j = skipWhitespace(cmd, j);
+
+      if(j >= n || cmd.charAt(j) != '(') {
+         return -1;
+      }
+
+      j = skipWhitespace(cmd, j + 1);
+
+      // java's String.length() takes no arguments; anything else is not it
+      return j < n && cmd.charAt(j) == ')' ? j + 1 : -1;
+   }
+
+   private static int skipWhitespace(String s, int i) {
+      while(i < s.length() && Character.isWhitespace(s.charAt(i))) {
+         i++;
+      }
+
+      return i;
    }
 
    public Object compile(String cmd) throws Exception {
@@ -481,7 +654,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // the first statement of the eval'd body it *would* be recognized and flip
       // the body to strict eval, changing assignment/scope semantics — so remove
       // it to preserve the prior behavior.
-      String body = stripStrictDirectives(cmd);
+      String body = stripStrictDirectives(rewriteJavaLengthCalls(cmd));
 
       // Bug #75688: Rhino preserved the "last non-empty" statement-list
       // completion value — an `if(false)` with no `else`, or a loop that never
@@ -1019,6 +1192,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       finally {
          lock.unlock();
       }
+   }
+
+   /**
+    * @return this engine's execution lock (see
+    * {@link inetsoft.util.script.ScriptEnv#getExecutionLock()}). The lock is
+    * reentrant, so a caller pre-acquiring it before calling back into
+    * {@link #exec} on the same thread will not self-deadlock.
+    */
+   public LendableReentrantLock getExecutionLock() {
+      return lock;
    }
 
    public Object exec(Object script, Object scope, Object rscope) throws Exception {

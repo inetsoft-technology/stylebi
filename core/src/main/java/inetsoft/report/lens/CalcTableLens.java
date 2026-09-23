@@ -1007,13 +1007,19 @@ public class CalcTableLens extends DefaultTableLens {
       Object ofield = null;
 
       if(tableScope == null) {
+         // Every senv call below takes the script engine's execution lock, so none of them may
+         // run while this lens's monitor is held: a thread already inside a script (holding the
+         // execution lock) evaluates cached lenses too, and would wait for this monitor while
+         // the monitor's holder waited for the execution lock (#76905). Look up the parent
+         // scope before, and register the new scope after, the synchronized block.
+         VSAScriptable parentScope = elem != null ? getParentScope(senv, elem) : null;
+         CalcTableScope newScope = null;
+
          synchronized(this) {
             if(tableScope == null) {
                CalcTableScope scope = new CalcTableScope(CalcTableLens.this);
 
                if(elem != null) {
-                  senv.put(elem.getID() + "::calcTableScope", scope);
-
                   TableLens table = elem.getScriptTable();
                   setDataTable(table);
                   TableArray arr = new TableArray(table);
@@ -1032,28 +1038,19 @@ public class CalcTableLens extends DefaultTableLens {
                      }
                   }
 
-                  // To vs calc table, the formula cell's scope is
-                  // CalcTableScope. Its parent scope is calctable's scope(
-                  // TableDataVSAScriptable). The scope levels is this:
-                  // (CalcTableScope->TableDataVSAScriptable->ViewsheetScope).
-                  if(senv.get("viewsheet") instanceof ScriptScope) {
-                     String eid = elem.getID();
-
-                     if(eid.indexOf('.') >= 0) {
-                        eid = eid.substring(eid.lastIndexOf('.') + 1);
-                     }
-
-                     ViewsheetScope vscope = (ViewsheetScope) senv.get("viewsheet");
-                     VSAScriptable scriptable = vscope.getVSAScriptable(eid);
-                     scope.setParentScope(scriptable);
+                  if(parentScope != null) {
+                     scope.setParentScope(parentScope);
                   }
-               }
-               else {
-                  senv.put("calcTableScope", scope);
                }
 
                this.tableScope = scope;
+               newScope = scope;
             }
+         }
+
+         if(newScope != null) {
+            senv.put(elem != null ? elem.getID() + "::calcTableScope" : "calcTableScope",
+                     newScope);
          }
       }
 
@@ -1148,6 +1145,29 @@ public class CalcTableLens extends DefaultTableLens {
             }
          }
       }
+   }
+
+   /**
+    * To vs calc table, the formula cell's scope is CalcTableScope. Its parent scope is
+    * calctable's scope (TableDataVSAScriptable). The scope levels is this:
+    * (CalcTableScope->TableDataVSAScriptable->ViewsheetScope).
+    *
+    * @return the parent scope, or null if this is not a viewsheet calc table.
+    */
+   private static VSAScriptable getParentScope(ScriptEnv senv, FormulaTable elem) {
+      Object vscope = senv.get("viewsheet");
+
+      if(!(vscope instanceof ScriptScope)) {
+         return null;
+      }
+
+      String eid = elem.getID();
+
+      if(eid.indexOf('.') >= 0) {
+         eid = eid.substring(eid.lastIndexOf('.') + 1);
+      }
+
+      return ((ViewsheetScope) vscope).getVSAScriptable(eid);
    }
 
    /**
@@ -3403,7 +3423,7 @@ public class CalcTableLens extends DefaultTableLens {
    private final byte[] descLock = new byte[0];
    protected FormulaTable elem; //containing element
    private ReportSheet report;
-   private CalcTableScope tableScope;
+   private volatile CalcTableScope tableScope;
    private TableLens data;
    private SpanMap spanMap;
    private final Object spanMapLock = new byte[0];

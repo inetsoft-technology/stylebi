@@ -438,6 +438,9 @@ public class RunningTotalColumn extends AbstractColumn {
          return new PartDataSet(data, row);
       }
 
+      // Accumulation means "everything before this bar in display order", so this must follow
+      // the dimension's actual configured display order (value-sort ranking included), not
+      // calendar order — even for a part-date-group dimension. (76906)
       Router router = getRouter(data, innerDim);
       Object val = data.getData(innerDim, row);
       // use east

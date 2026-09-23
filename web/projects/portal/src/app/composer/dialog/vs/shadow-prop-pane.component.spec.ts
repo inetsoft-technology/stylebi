@@ -92,13 +92,112 @@ describe("shadow prop pane unit case: ", () => {
       expect(detectSpy).not.toHaveBeenCalled();
    });
 
-   it("treats a cleared field as 0 and forces the reflow", () => {
-      const changeRef = (shadowPropPane as any).changeRef;
-      const detectSpy = vi.spyOn(changeRef, "detectChanges");
+   // Bug #76946: clearing the field must not immediately write "0" back
+   // into the input; the empty value is normalized to 0 only on blur.
+   describe("editing through the real input", () => {
+      const getInput = (test: string): HTMLInputElement =>
+         fixture.nativeElement.querySelector(`input[data-test=${test}]`);
 
-      shadowPropPane.clamp("distance", "");
+      // NgModel writes model changes back to the DOM in a microtask, so wait
+      // for it to settle before asserting on input.value.
+      const type = async (input: HTMLInputElement, text: string) => {
+         input.value = text;
+         input.dispatchEvent(new Event("input"));
+         fixture.detectChanges();
+         await fixture.whenStable();
+      };
 
-      expect(shadowPropPane.model.distance).toBe(0);
-      expect(detectSpy).toHaveBeenCalled();
+      it("lets the distance field stay empty while editing", async () => {
+         await fixture.whenStable();
+         const input = getInput("shadowDistance");
+         expect(input.value).toBe("50");
+
+         await type(input, "");
+
+         expect(input.value).toBe("");
+         expect(shadowPropPane.model.distance).toBeNull();
+      });
+
+      it("lets the blur field stay empty while editing", async () => {
+         shadowPropPane.model.blur = 7;
+         fixture.detectChanges();
+         await fixture.whenStable();
+         const input = getInput("shadowBlur");
+
+         await type(input, "");
+
+         expect(input.value).toBe("");
+         expect(shadowPropPane.model.blur).toBeNull();
+      });
+
+      it("shows a typed value normally after clearing (no leading zero)", async () => {
+         await fixture.whenStable();
+         const input = getInput("shadowDistance");
+
+         await type(input, "");
+         await type(input, "5");
+
+         expect(input.value).toBe("5");
+         expect(shadowPropPane.model.distance).toBe(5);
+      });
+
+      it("strips a leading zero typed after an existing 0", async () => {
+         await fixture.whenStable();
+         const input = getInput("shadowBlur");
+         expect(input.value).toBe("0");
+
+         await type(input, "05");
+
+         expect(input.value).toBe("5");
+         expect(shadowPropPane.model.blur).toBe(5);
+      });
+
+      it("treats an empty field as 0 on blur", async () => {
+         await fixture.whenStable();
+         const input = getInput("shadowDistance");
+
+         await type(input, "");
+         input.dispatchEvent(new Event("blur"));
+         fixture.detectChanges();
+         await fixture.whenStable();
+
+         expect(shadowPropPane.model.distance).toBe(0);
+         expect(input.value).toBe("0");
+      });
+
+      it("clamps an out-of-range value to the maximum (60 -> 50)", async () => {
+         shadowPropPane.model.distance = 10;
+         fixture.detectChanges();
+         await fixture.whenStable();
+         const input = getInput("shadowDistance");
+
+         await type(input, "60");
+
+         expect(shadowPropPane.model.distance).toBe(50);
+         expect(input.value).toBe("50");
+      });
+
+      it("clamps a negative value to 0 (-3 -> 0)", async () => {
+         shadowPropPane.model.blur = 10;
+         fixture.detectChanges();
+         await fixture.whenStable();
+         const input = getInput("shadowBlur");
+
+         await type(input, "-3");
+
+         expect(shadowPropPane.model.blur).toBe(0);
+         expect(input.value).toBe("0");
+      });
+
+      it("still reflows when re-typing an out-of-range value at the boundary", async () => {
+         await fixture.whenStable();
+         const input = getInput("shadowDistance");
+         expect(shadowPropPane.model.distance).toBe(50);
+
+         await type(input, "999");
+
+         expect(shadowPropPane.model.distance).toBe(50);
+         expect(input.value).toBe("50");
+      });
    });
 });

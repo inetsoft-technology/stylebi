@@ -46,10 +46,41 @@ public class ScopeProxy implements ProxyObject {
       // into a string (e.g. an embedded viewsheet's "thisParameter") would
       // otherwise stringify as the generic "[object Object]".
       if("toString".equals(key) && !scope.hasMember(key)) {
-         return (ProxyExecutable) args -> scope.toString();
+         return (ProxyExecutable) args -> stringify(scope);
       }
 
       return ScriptValueConverter.toGuest(scope.getMember(key));
+   }
+
+   /**
+    * Stringify a scope for JS string-coercion. Only a scope that actually
+    * declares toString() has something meaningful to say. For the rest,
+    * delegating would reach Object.toString() and expose a Java class name and
+    * identity hash -- the script "event" object rendered as
+    * "inetsoft...InputScriptEvent@5f270f30" in a viewsheet tooltip. That text
+    * is also different on every JVM run, so nothing downstream (a captured
+    * screenshot, a baseline) can ever match it.
+    */
+   private static String stringify(ScriptScope scope) {
+      Class<?> clazz = scope.getClass();
+      Class<?> declaring;
+
+      try {
+         declaring = clazz.getMethod("toString").getDeclaringClass();
+      }
+      catch(NoSuchMethodException ex) {
+         // unreachable: Object declares a public toString()
+         declaring = Object.class;
+      }
+
+      if(declaring != Object.class) {
+         return scope.toString();
+      }
+
+      // getSimpleName() is empty for an anonymous class
+      String name = clazz.getSimpleName();
+
+      return "[object " + (name.isEmpty() ? "Object" : name) + "]";
    }
 
    @Override

@@ -43,6 +43,7 @@ import { VSDataTipDirective } from "../data-tip/vs-data-tip.directive";
 export class VSRectangle extends VSShape<VSRectangleModel> implements OnChanges {
    @Input() selected: boolean = false;
    roundCornerValue: number;
+   shadowRadius: string;
    shadowCss: string;
 
    constructor(protected viewsheetClientService: ViewsheetClientService,
@@ -59,8 +60,26 @@ export class VSRectangle extends VSShape<VSRectangleModel> implements OnChanges 
          this.updateLineStyle();
          this.roundCornerValue = Math.min(this.model.roundCornerValue,
             this.model.objectFormat.width, this.model.objectFormat.height);
+         this.shadowRadius = this.getShadowRadius();
          this.shadowCss = this.model.shadow
             ? ShapeShadowUtil.getBoxShadow(this.model.shadowInfo) : null;
       }
+   }
+
+   /**
+    * SVG clamps rect rx/ry to half the width/height independently, while css
+    * border-radius scales all radii uniformly, so a single value would give the
+    * shadow div a different outline than the rect. Use per-axis radii instead.
+    */
+   private getShadowRadius(): string {
+      const radius = this.roundCornerValue;
+
+      if(!(radius > 0)) {
+         return null;
+      }
+
+      const rx = Math.min(radius, this.model.objectFormat.width / 2);
+      const ry = Math.min(radius, this.model.objectFormat.height / 2);
+      return `${rx}px / ${ry}px`;
    }
 }

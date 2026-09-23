@@ -26,6 +26,11 @@
       width: 100%;
     }
   }
+
+  td.selected {
+    --bs-table-bg-state: var(--inet-selected-item-bg-color);
+    --bs-table-color-state: var(--inet-selected-item-text-color);
+  }
 }
 
 .filters-col {

@@ -36,6 +36,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +44,7 @@ import java.awt.*;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * CalcTableVSAQuery, the formula table viewsheet assembly query.
@@ -70,7 +72,22 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       final long startTime = System.nanoTime();
       final ViewsheetSandbox box = this.box;
 
-      box.lockWrite();
+      // If this call is nested inside a running GraalJS script (e.g. a script referencing
+      // this calc table, such as table["TableView1"], reached this query while resolving
+      // that reference), the calling thread holds the GraalJS engine lock, and a thread that
+      // holds the engine lock must never block on the sandbox lock (#76905): other threads
+      // hold the sandbox lock while they wait for the engine lock (e.g. a non-script
+      // getTableLens() holds the write lock across clens.process()). The sandbox lock itself
+      // enforces this -- on a script thread its lockRead()/lockWrite()/restoreLocks() only try
+      // the lock (see ViewsheetSandbox.thisLock) -- so the gate below is no longer what
+      // prevents the deadlock. It is kept because a script thread has nothing to gain from
+      // the write lock here ("if called from script, the locking should already be in place";
+      // 52463), the same as ViewsheetSandbox.doExecuteData()/getData().
+      boolean inExec = JavaScriptEngine.isScriptThread();
+
+      if(!inExec) {
+         box.lockWrite();
+      }
 
       try {
          Viewsheet vs = getViewsheet();
@@ -91,19 +108,25 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          // createCrosstabAssemblies() needs to return the number of columns
          // in the "header" for the rejoin later.
          AtomicInteger headerCols = new AtomicInteger();
+         // Each getTableLens() invocation must use its own unique temp assembly names so that
+         // two concurrent invocations for the same calc table (e.g. racing Data Tip requests,
+         // see bug #76614) never collide on the same assembly name while the sandbox write lock
+         // is transiently dropped in VSAQuery.getDataWithoutSandboxLock().
+         long invocationId = nextInvocationId();
 
          if(!isDetail()) {
             try {
-               crosstabs = createCrosstabAssemblies(cassemblyCopy, cassemblys, headerCols);
+               crosstabs = createCrosstabAssemblies(cassemblyCopy, cassemblys, headerCols,
+                                                     invocationId);
                LOG.debug("getTableLens() crosstabs.size(): " +
                   (crosstabs == null ? 0 : crosstabs.size()) + " headerCols: " + headerCols.get());
 
                if(crosstabs == null) {
-                  removeTempAssembly(cassembly.getName());
+                  removeTempAssembly(cassembly.getName(), invocationId);
                }
             }
             catch(Exception ex) {
-               removeTempAssembly(cassembly.getName());
+               removeTempAssembly(cassembly.getName(), invocationId);
             }
          }
 
@@ -121,18 +144,28 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             TableAssembly table = getTableAssembly();
 
             if(table == null) {
-               VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
-               CalcTableLens clens = (CalcTableLens) cassembly.getBaseTable();
-               TableLayout layout = cassembly.getTableLayout();
+               CalcTableLens clens;
+               boolean hasFormula;
 
-               if(hasFormulaBinding(layout)) {
-                  cassembly.setScriptTable(null);
-                  cassembly.setScriptEnv(box.getScope().getScriptEnv());
-                  clens.setFillBlankWithZero(info.isFillBlankWithZero());
-                  return clens.process();
+               // Mutates the shared (non-cloned) cassembly/clens state -- must stay free of
+               // any call that can reach the GraalJS engine lock (clens.process() below),
+               // otherwise a second thread blocked entering that lock while holding this
+               // same monitor would recreate the #76905 ABBA shape against this monitor
+               // instead of the sandbox lock.
+               synchronized(cassembly) {
+                  VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
+                  clens = (CalcTableLens) cassembly.getBaseTable();
+                  TableLayout layout = cassembly.getTableLayout();
+                  hasFormula = hasFormulaBinding(layout);
+
+                  if(hasFormula) {
+                     cassembly.setScriptTable(null);
+                     cassembly.setScriptEnv(box.getScope().getScriptEnv());
+                     clens.setFillBlankWithZero(info.isFillBlankWithZero());
+                  }
                }
 
-               return clens;
+               return hasFormula ? clens.process() : clens;
             }
 
             datas.add(getTableLens(table));
@@ -142,7 +175,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             cassemblys.add(cassembly);
          }
          else {
-            cassembly.setTable(null);
+            synchronized(cassembly) {
+               cassembly.setTable(null);
+            }
 
             // @by ChrisSpagnoli feature1414607346853 2014-10-27
             // If there are multiple crosstabs, evaluate each and store the
@@ -162,8 +197,10 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          }
 
          if(datas.size() == 0 || datas.contains(null)) {
-            VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
-            return cassembly.getBaseTable();
+            synchronized(cassembly) {
+               VSLayoutTool.createCalcLens(cassembly, null, box.getVariableTable(), false);
+               return cassembly.getBaseTable();
+            }
          }
 
          if(isDetail()) {
@@ -171,15 +208,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          }
 
          // really create calc expression
-         if(datas.size() > 0) {
-            for(int i = 0; i < datas.size(); i++) {
-               CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-               VSLayoutTool.createCalcLens(cassemblys.get(i), datas.get(i), box.getVariableTable(),
-                                           (crosstabs != null && crosstabs.size() > 0));
-               // copy back
-               cassemblyChild.setTable(cassemblyChild.getBaseTable());
-            }
-         }
+         List<TableLens> clenses = createCalcLenses(
+            cassembly, cassemblys, datas, box.getVariableTable(),
+            crosstabs != null && crosstabs.size() > 0);
 
          try {
             // @by ChrisSpagnoli feature1414607346853 2014-10-27
@@ -192,22 +223,35 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             for(int i = 0; i < datas.size(); i++) {
                TableLens dataChild = datas.get(i);
                CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-               cassemblyChild.setScriptTable(dataChild);
-               cassemblyChild.setScriptEnv(box.getScope().getScriptEnv());
-               CalcTableLens clens = (CalcTableLens) cassemblyChild.getBaseTable();
-               clens.setScriptTable(dataChild);
-               clens.setHeaderRowCount(info.getHeaderRowCount());
-               clens.setHeaderColCount(info.getHeaderColCount());
-               clens.setTrailerRowCount(info.getTrailerRowCount());
-               clens.setTrailerColCount(info.getTrailerColCount());
-               clens.setProperty(XTable.REPORT_NAME, box.getID());
-               clens.setProperty(XTable.REPORT_TYPE,
-                                 ExecutionBreakDownRecord.OBJECT_TYPE_VIEWSHEET);
-               clens.setFillBlankWithZero(info.isFillBlankWithZero());
-
                TableLayout layout = cassemblyCopy.getTableLayout();
+               CalcTableLens clens;
 
-               // 2. process CalcTableLens to generate RuntimeCalcTableLens
+               // Mutates the shared (non-cloned) cassembly/clens state when cassemblyChild is
+               // the original assembly (the crosstabs.size()==0 path) -- must stay free of any
+               // call that can reach the GraalJS engine lock (clens.process() below), otherwise
+               // a second thread blocked entering that lock while holding this same monitor
+               // would recreate the #76905 ABBA shape against this monitor instead of the
+               // sandbox lock.
+               synchronized(cassembly) {
+                  cassemblyChild.setScriptTable(dataChild);
+                  cassemblyChild.setScriptEnv(box.getScope().getScriptEnv());
+                  // the lens this invocation created, not cassemblyChild.getBaseTable(): see
+                  // createCalcLenses()
+                  clens = (CalcTableLens) clenses.get(i);
+                  clens.setScriptTable(dataChild);
+                  clens.setHeaderRowCount(info.getHeaderRowCount());
+                  clens.setHeaderColCount(info.getHeaderColCount());
+                  clens.setTrailerRowCount(info.getTrailerRowCount());
+                  clens.setTrailerColCount(info.getTrailerColCount());
+                  clens.setProperty(XTable.REPORT_NAME, box.getID());
+                  clens.setProperty(XTable.REPORT_TYPE,
+                                    ExecutionBreakDownRecord.OBJECT_TYPE_VIEWSHEET);
+                  clens.setFillBlankWithZero(info.isFillBlankWithZero());
+               }
+
+               // 2. process CalcTableLens to generate RuntimeCalcTableLens -- runs GraalJS
+               // formula evaluation, so it must stay outside the synchronized block above
+               // (see #76905).
                RuntimeCalcTableLens rlens = clens.process();
                ColumnIndexMap columnIndexMap = new ColumnIndexMap(dataChild, true);
 
@@ -253,19 +297,24 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                }
 
                // @by ChrisSpagnoli feature1414607346853 2014-10-27
-               // Combine the fully processed crosstab data back together.
-               if(rlensJoined == null) {
-                  rlensJoined = rlens;
+               // Combine the fully processed crosstab data back together. May mutate the
+               // shared cassembly's table layout (via getElement()) or read its layout
+               // (mergeCrosstabs -> mergeCalcAttrs), so keep this under the same monitor as
+               // the other cassembly touches above. No GraalJS call happens in either branch.
+               synchronized(cassembly) {
+                  if(rlensJoined == null) {
+                     rlensJoined = rlens;
 
-                  // If there will be multiple crosstabs combined, put original
-                  // layout into rlensJoined, replacing the layout fragment.
-                  if(datas.size() > 0) {
-                     rlensJoined.getCalcTableLens().getElement().setTableLayout(layout);
+                     // If there will be multiple crosstabs combined, put original
+                     // layout into rlensJoined, replacing the layout fragment.
+                     if(datas.size() > 0) {
+                        rlensJoined.getCalcTableLens().getElement().setTableLayout(layout);
+                     }
                   }
-               }
-               else {
-                  // Copy over the elements from the second+ child crosstabs
-                  mergeCrosstabs(rlensJoined, rlens, i, headerCols.get());
+                  else {
+                     // Copy over the elements from the second+ child crosstabs
+                     mergeCrosstabs(rlensJoined, rlens, i, headerCols.get());
+                  }
                }
             }
 
@@ -294,7 +343,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
          return null;
       }
       finally {
-         box.unlockWrite();
+         if(!inExec) {
+            box.unlockWrite();
+         }
       }
    }
 
@@ -426,11 +477,14 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       return true;
    }
 
-   private void removeTempAssembly(String assemblyName) {
+   // sweeps only the temp crosstabs created by the invocation identified by invocationId, so it
+   // never touches another concurrent invocation's still-in-use temp crosstab for the same calc
+   // table (bug #76614).
+   private void removeTempAssembly(String assemblyName, long invocationId) {
       Viewsheet vs = getViewsheet();
 
       for(int ct = 0; true; ct++) {
-         String name = TEMP_ASSEMBLY_PREFIX + assemblyName + "_Crosstab_" + ct;
+         String name = getTempCrosstabName(assemblyName, invocationId, ct);
 
          if(vs.getAssembly(name) == null) {
             break;
@@ -439,6 +493,63 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             vs.removeAssembly(name, false);
          }
       }
+   }
+
+   /**
+    * Create the calc table lens of each calc assembly for its data and return the lenses, in
+    * the same order. The caller must process the lenses returned here instead of reading
+    * {@code getBaseTable()} again later: on the no-crosstab path the assembly is the shared
+    * original, so a concurrent invocation can replace its base table in between. Two
+    * invocations would then process the same {@link CalcTableLens}, whose synchronized
+    * {@code process0()} runs GraalJS: a thread holding that monitor while it waits for the
+    * script engine lock and a script thread holding the engine lock while it waits for the
+    * monitor deadlock (#76905).
+    *
+    * <p>No GraalJS call happens here, so it is safe to hold the monitor across the whole loop
+    * (see the note on the main processing loop in {@link #getTableLens()} for why other blocks
+    * keep the monitor narrower).
+    *
+    * @param monitor the monitor guarding the shared calc assembly.
+    */
+   static List<TableLens> createCalcLenses(Object monitor, List<CalcTableVSAssembly> cassemblys,
+                                           List<TableLens> datas, VariableTable vars,
+                                           boolean crossTabSupported)
+   {
+      List<TableLens> clenses = new ArrayList<>();
+
+      synchronized(monitor) {
+         for(int i = 0; i < datas.size(); i++) {
+            CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
+            VSLayoutTool.createCalcLens(cassemblyChild, datas.get(i), vars, crossTabSupported);
+            // copy back
+            cassemblyChild.setTable(cassemblyChild.getBaseTable());
+            clenses.add(cassemblyChild.getBaseTable());
+         }
+      }
+
+      return clenses;
+   }
+
+   /**
+    * Build the name of a temp crosstab assembly created for one invocation of
+    * {@link #getTableLens()}. The invocation id makes the name unique per invocation so that
+    * two concurrent invocations of {@link #getTableLens()} for the same calc table (e.g. two
+    * racing Data Tip requests) never produce or address the same assembly, even though the
+    * sandbox write lock is transiently dropped mid-invocation
+    * (see {@code VSAQuery#getDataWithoutSandboxLock}).
+    */
+   static String getTempCrosstabName(String assemblyName, long invocationId, int ct) {
+      return TEMP_ASSEMBLY_PREFIX + assemblyName + "_" + invocationId + "_Crosstab_" + ct;
+   }
+
+   /**
+    * Allocate a new invocation id, unique for the lifetime of this JVM, used to namespace one
+    * {@link #getTableLens()} invocation's temp crosstab assembly names from every other
+    * invocation's (bug #76614). Package-private so it can be exercised directly by a
+    * concurrency test without going through a full sandbox/viewsheet harness.
+    */
+   static long nextInvocationId() {
+      return TEMP_ASSEMBLY_COUNTER.incrementAndGet();
    }
 
    /**
@@ -586,9 +697,10 @@ public class CalcTableVSAQuery extends DataVSAQuery {
     */
    private List<CrosstabVSAssembly> createCrosstabAssemblies(
       CalcTableVSAssembly cassembly, List<CalcTableVSAssembly> cassemblys,
-      AtomicInteger headerCols) throws Exception
+      AtomicInteger headerCols, long invocationId) throws Exception
    {
-      List<CrosstabVSAssembly> list = createCrosstabAssemblies0(cassembly, cassemblys, headerCols);
+      List<CrosstabVSAssembly> list =
+         createCrosstabAssemblies0(cassembly, cassemblys, headerCols, invocationId);
 
       if(list != null && list.size() > 0) {
          CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) cassembly.getInfo();
@@ -636,7 +748,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
    private List<CrosstabVSAssembly> createCrosstabAssemblies0(
       CalcTableVSAssembly cassembly, List<CalcTableVSAssembly> cassemblys,
-      AtomicInteger headerCols) throws Exception
+      AtomicInteger headerCols, long invocationId) throws Exception
    {
       CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) cassembly.getInfo();
       TableLayout parentLayout = info.getTableLayout();
@@ -848,7 +960,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
          // always invisible crosstab
          CrosstabVSAssembly crosstab = new CrosstabVSAssembly(
-            getViewsheet(), TEMP_ASSEMBLY_PREFIX + cassembly.getName() + "_Crosstab_" + ct)
+            getViewsheet(), getTempCrosstabName(cassembly.getName(), invocationId, ct))
          {
             @Override
             protected VSAssemblyInfo createInfo() {
@@ -1955,6 +2067,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
    }
 
    public static final String TEMP_ASSEMBLY_PREFIX = "__Temp_CalcTableVSAQuery__";
+   // Per-JVM monotonic counter used to make each getTableLens() invocation's temp crosstab
+   // names unique (bug #76614).
+   private static final AtomicLong TEMP_ASSEMBLY_COUNTER = new AtomicLong(0);
    private static final Logger LOG =
       LoggerFactory.getLogger(CalcTableVSAQuery.class);
    private static final Logger LOGCALCCROSSTAB =

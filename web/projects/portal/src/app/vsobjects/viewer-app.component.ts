@@ -2499,7 +2499,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.updateTabPositions();
       this.hyperlinkService.portalRepositoryPermission =
          this.toolbarPermissions.indexOf("PortalRepository") < 0;
-      this.profilingVisible = !!command.permissions && command.permissions.indexOf("Profiling") > 0;
+      this.profilingVisible = !!command.permissions && command.permissions.indexOf("Profiling") > -1;
    }
 
    processSetExportTypesCommand(command: SetExportTypesCommand): void {
@@ -3090,7 +3090,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    private openViewsheet(runtimeId: string = null): void {
       // wait a tick to ensure that the parent divs are properly sized
-      const waitResize = this.scaleToScreen && this.inPortal && !this.fitToWidth ? 100 : 0;
+      const waitResize = !this.inPortal || (this.scaleToScreen && !this.fitToWidth) ? 100 : 0;
       setTimeout(() => this.openViewsheet0(runtimeId), waitResize);
    }
 

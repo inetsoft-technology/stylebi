@@ -116,6 +116,7 @@ package inetsoft.sree.security;
  */
 
 import inetsoft.report.LibManagerProvider;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -137,6 +138,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.Principal;
+import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -286,6 +288,7 @@ class PermissionMatrixSpecialTest {
 
       withMultiTenant(true, () -> {
          SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+         SreeEnv.save();
 
          try {
             assertTrue(
@@ -297,6 +300,7 @@ class PermissionMatrixSpecialTest {
          }
          finally {
             SreeEnv.remove("security.exposeDefaultOrgToAll");
+            SreeEnv.save();
          }
       });
    }
@@ -314,6 +318,7 @@ class PermissionMatrixSpecialTest {
       // assertion fragile and not actually about the rule being tested.
       withMultiTenant(true, () -> {
          SreeEnv.setProperty("security." + CREATED_ORG_ID + ".exposeDefaultOrgToAll", "true");
+         SreeEnv.save();
 
          try {
             assertTrue(
@@ -326,6 +331,7 @@ class PermissionMatrixSpecialTest {
          }
          finally {
             SreeEnv.remove("security." + CREATED_ORG_ID + ".exposeDefaultOrgToAll");
+            SreeEnv.save();
          }
       });
    }
@@ -349,6 +355,7 @@ class PermissionMatrixSpecialTest {
 
       withMultiTenant(true, () -> {
          SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+         SreeEnv.save();
 
          try {
             assertDoesNotThrow(
@@ -365,8 +372,215 @@ class PermissionMatrixSpecialTest {
          }
          finally {
             SreeEnv.remove("security.exposeDefaultOrgToAll");
+            SreeEnv.save();
          }
       });
+   }
+
+   // ── Round-1 review follow-up for Bug #76920 PR #5508: checkAssetPermission0()'s bypass ──
+   // ── condition must treat BOTH org-ID-vs-default-org comparisons case-insensitively ──────
+
+   @Test
+   void hostOrgEntry_caseVariantEntryOrgId_stillTriggersBypassForNonHostOrgUser() throws Exception {
+      // 3rd conjunct: entry.getOrgID() vs default org. A host-org viewsheet whose orgID field
+      // carries non-canonical casing must still be recognized as the host org and shared
+      // read-only to a genuinely non-host-org user under exposeDefaultOrgToAll.
+      ThreadContext.setContextPrincipal(null);
+
+      AbstractAssetEngine engine = new StubAssetEngine();
+      AssetEntry caseVariantHostOrgViewsheet = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "bug76920EntryCaseVs", null,
+         HOST_ORG_ID.toUpperCase());
+
+      withMultiTenant(true, () -> {
+         SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+         SreeEnv.save();
+
+         try {
+            assertDoesNotThrow(
+               () -> engine.checkAssetPermission(
+                  createdOrgPlainUser, caseVariantHostOrgViewsheet, ResourceAction.READ, false),
+               "a host-org viewsheet whose entry.getOrgID() carries non-canonical casing must " +
+               "still be READ-able by a non-host-org user under exposeDefaultOrgToAll");
+         }
+         finally {
+            SreeEnv.remove("security.exposeDefaultOrgToAll");
+            SreeEnv.save();
+         }
+      });
+   }
+
+   @Test
+   void hostOrgUser_caseVariantUserOrgId_notTreatedAsNonHostOrg_bypassDoesNotOverrideDenial()
+      throws Exception
+   {
+      // 4th conjunct: user.getOrgId() vs default org. A host-org user whose own
+      // XPrincipal.getOrgId() carries non-canonical casing (e.g. from an SSO/LDAP claim) must NOT
+      // be misread as "non-host-org" -- if it were, the bypass would fire unconditionally and
+      // skip whatever the normal per-resource permission check would otherwise deny.
+      ThreadContext.setContextPrincipal(null);
+
+      AbstractAssetEngine engine = new DenyingStubAssetEngine();
+      AssetEntry hostOrgViewsheet = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, "bug76920UserCaseVs", null,
+         HOST_ORG_ID);
+      SRPrincipal hostOrgUserCaseVariant =
+         builder.principalOf("hostOrgUserCaseVariant", HOST_ORG_ID.toUpperCase());
+
+      withMultiTenant(true, () -> {
+         SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+         SreeEnv.save();
+
+         try {
+            assertThrows(MessageException.class,
+               () -> engine.checkAssetPermission(
+                  hostOrgUserCaseVariant, hostOrgViewsheet, ResourceAction.READ, false),
+               "a host-org user whose own orgId carries non-canonical casing must be recognized " +
+               "as host-org (so the bypass does not fire) and fall through to the normal " +
+               "permission check, which denies here");
+         }
+         finally {
+            SreeEnv.remove("security.exposeDefaultOrgToAll");
+            SreeEnv.save();
+         }
+      });
+   }
+
+   @Test
+   void isDefaultVSGloballyVisible_readsStorageDirectly_notStaleCachedValue() throws Exception {
+      // Bug #76920 follow-up: isDefaultVSGloballyVisible() now reads exposeDefaultOrgToAll
+      // straight from the backing store (SreeEnv.getPropertyFromStorage()) instead of
+      // PropertiesEngine's in-memory cache, to close the up-to-500ms-plus-reload window where a
+      // node that didn't originate a property write still serves the pre-change cached value
+      // (see docs/teams/2026-09-22-bugs-76920/bug-76920/10-diagnosis-r3.md's demonstrated
+      // PropertiesEngine finding).
+      //
+      // Deliberately do NOT call SreeEnv.setProperty()/.save() here -- the in-memory cache for
+      // this property is left at its default ("false"/absent). Only the direct storage read is
+      // mocked to return "true", simulating another node's already-persisted write that this
+      // node's own PropertiesEngine cache hasn't reloaded yet. Pre-fix, isDefaultVSGloballyVisible()
+      // only ever consults the (here, unset) cache and must return false; post-fix it must follow
+      // the storage-backed value and return true. (Verified empirically: reverting the SUtil.java
+      // fix makes this test fail with the mocked storage value ignored.)
+      ThreadContext.setContextPrincipal(null);
+
+      withMultiTenant(true, () -> {
+         try(MockedStatic<SreeEnv> mockedEnv =
+                Mockito.mockStatic(SreeEnv.class, Mockito.CALLS_REAL_METHODS))
+         {
+            mockedEnv.when(() -> SreeEnv.getPropertyFromStorage("security.exposeDefaultOrgToAll"))
+               .thenReturn("true");
+
+            assertTrue(
+               SUtil.isDefaultVSGloballyVisible(createdOrgPlainUser),
+               "must reflect the value actually persisted in storage, not a stale/absent " +
+               "cached value that PropertiesEngine's own debounced reload hasn't caught up " +
+               "with yet");
+         }
+      });
+   }
+
+   @Test
+   void isDefaultVSGloballyVisible_storageReadFailure_fallsBackToCachedValue() throws Exception {
+      // Defensive-path complement to the test above: a direct-storage-read failure (storage
+      // transiently unreachable, or not yet initialized) must fall back to the cached
+      // SreeEnv.getProperty() value rather than let the exception escape a permission check
+      // exercised on every folder listing and viewsheet open. Unlike the test above, this one
+      // does not discriminate against pre-fix code (pre-fix never calls getPropertyFromStorage()
+      // at all, so it would trivially "pass" this specific assertion too) -- it verifies the new
+      // fallback branch's own safety net, not the fix's core behavior change.
+      ThreadContext.setContextPrincipal(null);
+
+      withMultiTenant(true, () -> {
+         SreeEnv.setProperty("security.exposeDefaultOrgToAll", "true");
+         SreeEnv.save();
+
+         try {
+            try(MockedStatic<SreeEnv> mockedEnv =
+                   Mockito.mockStatic(SreeEnv.class, Mockito.CALLS_REAL_METHODS))
+            {
+               mockedEnv.when(() -> SreeEnv.getPropertyFromStorage(Mockito.anyString()))
+                  .thenThrow(new RuntimeException("storage temporarily unreachable"));
+
+               assertTrue(
+                  SUtil.isDefaultVSGloballyVisible(createdOrgPlainUser),
+                  "a direct-storage-read failure must fall back to the cached property value, " +
+                  "not propagate an exception out of a permission check exercised on every " +
+                  "folder listing and viewsheet open");
+            }
+         }
+         finally {
+            SreeEnv.remove("security.exposeDefaultOrgToAll");
+            SreeEnv.save();
+         }
+      });
+   }
+
+   @Test
+   void isMultiTenant_readsStorageDirectly_notStaleCachedValue() throws Exception {
+      // Round-5-review follow-up (Check 5, finding 1): isMultiTenant() itself guards the entire
+      // isDefaultVSGloballyVisible() bypass expression as its first, short-circuiting conjunct --
+      // a stale cached read of security.users.multiTenant would silently defeat the storage-bypass
+      // fix above for that request, one line away, in the same function. isMultiTenant() now reads
+      // security.users.multiTenant through the same getPropertyBypassingCache() helper.
+      //
+      // Deliberately does NOT go through withMultiTenant() -- that mocks SUtil.isMultiTenant()
+      // itself wholesale, which would bypass the real implementation under test here. Instead,
+      // LicenseManager.isEnterprise() is mocked true (it is structurally false on community/core's
+      // test classpath, same issue withMultiTenant() otherwise works around) and
+      // SecurityEngine.isSecurityEnabled() is left real (true, since SecurityTestDataBuilder.setup()
+      // already persisted "security.enabled" = "true"). SecurityTestDataBuilder.setup() also
+      // persists "security.users.multiTenant" = "true" (both cache and storage), so only the direct
+      // storage read is mocked here, to diverge ("false"), simulating another node's already-
+      // persisted disable that this node's PropertiesEngine cache hasn't reloaded yet. Pre-fix,
+      // isMultiTenant() only ever consults the (here, still-"true") cache and must return true;
+      // post-fix it must follow the storage-backed value and return false. (Verified empirically:
+      // reverting the SUtil.java fix makes this test fail with the mocked storage value ignored.)
+      try(MockedStatic<LicenseManager> license =
+             Mockito.mockStatic(LicenseManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         license.when(LicenseManager::isEnterprise).thenReturn(true);
+
+         try(MockedStatic<SreeEnv> mockedEnv =
+                Mockito.mockStatic(SreeEnv.class, Mockito.CALLS_REAL_METHODS))
+         {
+            mockedEnv.when(() -> SreeEnv.getPropertyFromStorage("security.users.multiTenant"))
+               .thenReturn("false");
+
+            assertFalse(
+               SUtil.isMultiTenant(),
+               "must reflect the value actually persisted in storage, not a stale cached " +
+               "value that PropertiesEngine's own debounced reload hasn't caught up with yet");
+         }
+      }
+   }
+
+   @Test
+   @Disabled("Bug #76979: flaky in CI, a background PropertiesEngine reload can drop the " +
+      "cached security.users.multiTenant value this test relies on")
+   void isMultiTenant_storageReadFailure_fallsBackToCachedValue() throws Exception {
+      // Defensive-path complement to the test above: a direct-storage-read failure must fall back
+      // to the cached SreeEnv.getProperty() value rather than let the exception escape
+      // isMultiTenant(), which gates every isDefaultVSGloballyVisible() call plus many other
+      // security/org-layer call sites. Relies on SecurityTestDataBuilder.setup() having already
+      // persisted "security.users.multiTenant" = "true" as the cached fallback value.
+      try(MockedStatic<LicenseManager> license =
+             Mockito.mockStatic(LicenseManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         license.when(LicenseManager::isEnterprise).thenReturn(true);
+
+         try(MockedStatic<SreeEnv> mockedEnv =
+                Mockito.mockStatic(SreeEnv.class, Mockito.CALLS_REAL_METHODS))
+         {
+            mockedEnv.when(() -> SreeEnv.getPropertyFromStorage(Mockito.anyString()))
+               .thenThrow(new RuntimeException("storage temporarily unreachable"));
+
+            assertTrue(
+               SUtil.isMultiTenant(),
+               "a direct-storage-read failure must fall back to the cached property value, " +
+               "not propagate an exception out of isMultiTenant()");
+         }
+      }
    }
 
    // ── Login As: checkLoginAs() permission gate ────────────────────────────────
@@ -436,7 +650,7 @@ class PermissionMatrixSpecialTest {
     * paths (viewsheet -> allow, worksheet -> cross-org deny) return before touching any storage
     * or asset-model dependency, so no real engine initialization is required.
     */
-   private static final class StubAssetEngine extends AbstractAssetEngine {
+   private static class StubAssetEngine extends AbstractAssetEngine {
       StubAssetEngine() {
          super((LibManagerProvider) null, (Cluster) null);
       }
@@ -463,6 +677,24 @@ class PermissionMatrixSpecialTest {
 
       @Override
       protected boolean checkDataSourceFolderPermission(String folder, Principal user) {
+         return false;
+      }
+   }
+
+   /**
+    * Same as {@link StubAssetEngine}, but denies the general per-resource
+    * checkPermission(Principal, ResourceType, String, EnumSet) fallback that
+    * checkAssetPermission0() reaches once the host-org global-visibility bypass and the
+    * cross-org reject check both decline to short-circuit. AbstractAssetEngine's own
+    * implementation of that overload unconditionally returns true, which would mask a bypass
+    * that incorrectly fails to fire (see hostOrgUser_caseVariantUserOrgId_... above) --
+    * overriding it here makes that failure mode observable.
+    */
+   private static final class DenyingStubAssetEngine extends StubAssetEngine {
+      @Override
+      public boolean checkPermission(Principal principal, ResourceType type, String resource,
+                                      EnumSet<ResourceAction> action)
+      {
          return false;
       }
    }

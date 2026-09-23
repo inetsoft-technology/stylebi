@@ -41,6 +41,8 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.TreeNodeModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -50,6 +52,8 @@ import java.util.stream.Collectors;
 
 @Component
 public class VSTreeHandler {
+   private static final Logger LOG = LoggerFactory.getLogger(VSTreeHandler.class);
+
    @Autowired
    public VSTreeHandler(VSChartHandler chartHandler, SecurityEngine securityEngine) {
       this.chartHandler = chartHandler;
@@ -117,6 +121,14 @@ public class VSTreeHandler {
                }
 
                ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
+
+               // viewsheet may have been disposed/reset concurrently since this chart was
+               // resolved earlier in this same request (e.g. a concurrent refresh), so chart
+               // can be null here even though the earlier lookup succeeded.
+               if(chart == null) {
+                  return;
+               }
+
                chart.setVSAssemblyInfo(info);
 
                if(!isWizard) {
@@ -231,10 +243,16 @@ public class VSTreeHandler {
       Viewsheet vs0 = rvs.getViewsheet();
       String aname = cinfo.getAbsoluteName();
       VSAssembly cass = vs0 == null ? null : (VSAssembly) vs0.getAssembly(aname);
+      LOG.debug("BUG76488-76485-TRACE getTableTreeModel resolving assembly name={} " +
+         "vs0Null={} found={} thread={} rvsId={}",
+         aname, vs0 == null, cass != null, Thread.currentThread().getName(), rvs.getID());
 
       // viewsheet may have been disposed/reset concurrently (e.g. user interacts with the
       // binding tree before a heavy operation finishes), so cass can be null here.
       if(cass == null) {
+         LOG.debug("BUG76488-76485-TRACE getTableTreeModel: cass NULL for name={} " +
+            "thread={} rvsId={} — returning null (tree round trip will still complete)",
+            aname, Thread.currentThread().getName(), rvs.getID());
          return null;
       }
 
@@ -274,6 +292,16 @@ public class VSTreeHandler {
                }
 
                VSAssembly assembly = vs.getAssembly(name);
+
+               // viewsheet may have been disposed/reset concurrently since this assembly was
+               // resolved earlier in this same request (e.g. a concurrent refresh), so
+               // assembly can be null here even though the earlier lookup succeeded. Skipping
+               // the update leaves getCubeTreeModel() free to finish and return a tree, so the
+               // client still gets its RefreshBindingTreeCommand and clears the loading state.
+               if(assembly == null) {
+                  return;
+               }
+
                box.get().updateAssembly(assembly.getAbsoluteName());
                assembly.setVSAssemblyInfo(info);
             }

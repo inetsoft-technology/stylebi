@@ -326,6 +326,8 @@ public class ValueOfColumn extends AbstractColumn {
          }
       }
       else {
+         // FIRST/LAST means the first/last displayed bar, so this must follow the dimension's
+         // actual configured display order (value-sort ranking included), not calendar order.
          Router router = getRouter(data, ndim);
          Object val = ctype == ValueOfCalc.FIRST ? router.getFirst() : router.getLast();
 
@@ -444,6 +446,9 @@ public class ValueOfColumn extends AbstractColumn {
             // data (the sorted dataset) so that previous/next navigation follows chart sort order.
             DataSet routerData = (ndimIsPartDate && data instanceof DataSetFilter)
                ? ((DataSetFilter) data).getRootDataSet() : data;
+            // PREVIOUS/NEXT means "the previous/next displayed bar", so this must follow the
+            // dimension's actual configured display order (value-sort ranking included), not
+            // calendar order — even for a part-date-group dimension. (76906)
             Router router = getRouter(routerData, ndim);
             tval = router.getValue(val, ctype == ValueOfCalc.PREVIOUS ? -1 : 1);
          }
@@ -533,11 +538,18 @@ public class ValueOfColumn extends AbstractColumn {
    // get the minimum date on the date dimention.
    private Date getMinDate(DataSet data) {
       if(minDate == null) {
+         // Use the root dataset instead of the (possibly per-facet-cell) data passed in.
+         // A faceted DC chart narrows each facet cell to just that cell's own period, so
+         // scanning the local data would always find that single period as the minimum,
+         // making the "first period" guard below fire for every row in every cell instead
+         // of only the chart's true first period.
+         DataSet rootData = data instanceof DataSetFilter ?
+            ((DataSetFilter) data).getRootDataSet() : data;
          minDate = new Date(Long.MAX_VALUE);
          String ndim = dim == null ? innerDim : dim;
 
-         for(int i = 0; i < data.getRowCount(); i++) {
-            Object dval = data.getData(ndim, i);
+         for(int i = 0; i < rootData.getRowCount(); i++) {
+            Object dval = rootData.getData(ndim, i);
 
             if(dval instanceof Date && minDate.after((Date) dval)) {
                minDate = (Date) dval;

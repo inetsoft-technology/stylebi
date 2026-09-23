@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.Comparer;
+import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
@@ -25,13 +26,16 @@ import inetsoft.report.internal.binding.FormulaHeaderInfo;
 import inetsoft.report.lens.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.Tool;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.ScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -73,6 +77,16 @@ public class PostProcessor {
    }
 
    public static TableLens filter(TableLens base, ConditionGroup cgroup) {
+      return filter(base, cgroup, null);
+   }
+
+   /**
+    * @param box the sandbox this filter is being created for, or {@code null} if
+    *            not running in a query-execution sandbox. Used to keep condition
+    *            row-filtering and script execution locks in a consistent
+    *            acquisition order (bug #76918); see {@link ConditionFilter2}.
+    */
+   public static TableLens filter(TableLens base, ConditionGroup cgroup, AssetQuerySandbox box) {
       if(cgroup.size() == 0) {
          return base;
       }
@@ -80,7 +94,7 @@ public class PostProcessor {
       // performance optimization, the base table is always
       // a formula table or xnode table, so it's meaningless but overhead
       // to delegate to base table when querying border or span info
-      return new ConditionFilter2(base, cgroup);
+      return new ConditionFilter2(base, cgroup, box);
    }
 
    public static TableLens sort(TableLens base, int[] carr, boolean[] sarr,
@@ -237,9 +251,173 @@ public class PostProcessor {
    }
 
    private static final class ConditionFilter2 extends ConditionFilter {
-      ConditionFilter2(TableLens table, ConditionGroup conditions) {
+      ConditionFilter2(TableLens table, ConditionGroup conditions, AssetQuerySandbox box) {
          super(table, conditions);
+         ScriptEnv senv = box == null ? null : box.peekScriptEnv();
+         this.senv = senv == null ? null : new WeakReference<>(senv);
+         // see needsScriptExecutionLock() below for what actually requires the
+         // lock -- not just a FormulaTableLens column read.
+         this.needsScriptLock = box != null && needsScriptExecutionLock(table);
       }
+
+      /**
+       * Populating this filter's row map (via the inherited synchronized
+       * {@code moreRows()}) can cascade into evaluating a calculated field, which
+       * blocks on the query sandbox's GraalJS engine lock -- and a guest script
+       * running concurrently on a *different* thread, already holding that same
+       * engine lock, can re-enter this exact method (a table-row column read
+       * routes back through {@code getObject()}/{@code getBaseRowIndex()}) and
+       * block on this filter's own monitor. Two different threads then each hold
+       * one of these locks while waiting on the other: an AB-BA deadlock
+       * (bug #76918).
+       *
+       * <p>Acquiring the engine lock here, before the inherited monitor, keeps
+       * both locks in the same order for every path into this filter, so the
+       * cycle cannot form: a thread already inside script execution just
+       * re-acquires its own (reentrant) engine lock and proceeds straight to the
+       * monitor, while a thread about to trigger script execution must first wait
+       * for the engine lock -- without yet holding this filter's monitor for
+       * anyone else to wait on. Only locks when the sandbox had a script
+       * environment when this filter was built, so filters that never end up
+       * evaluating a script are not forced to create one just to establish the
+       * ordering.
+       *
+       * <p>Narrower still (bug #76935): the engine lock is only requested at all
+       * when {@link #needsScriptLock} says this filter's own base table chain can
+       * plausibly reach the script engine during row population -- see
+       * {@link #needsScriptExecutionLock(TableLens)} for the two distinct ways
+       * that can happen ({@code FormulaTableLens} column reads, and the
+       * async-worker-filling lenses bug #76938 also cares about). A filter that
+       * can never reach either can never itself block waiting on the engine lock
+       * while holding this monitor, so it can never be the "A" side of the AB-BA
+       * cycle above regardless of what unrelated scripts elsewhere in the same
+       * sandbox are doing -- skipping the lock for it does not reopen #76918, it
+       * only stops it from queuing behind scripts it was never at risk of
+       * deadlocking against in the first place.
+       *
+       * <p>The held lock is recorded on this thread, so a lens below this filter
+       * that would otherwise hand its processing to a background worker and wait
+       * for it runs it on this thread instead, or lends the lock to that worker
+       * while waiting for it (bug #76938).
+       */
+      @Override
+      public boolean moreRows(int row) {
+         ScriptEnv senv = needsScriptLock && this.senv != null ? this.senv.get() : null;
+         Lock execLock = senv == null ? null : senv.getExecutionLock();
+
+         if(execLock == null) {
+            return super.moreRows(row);
+         }
+
+         execLock.lock();
+         JavaScriptEngine.pushHeldScriptLock(execLock);
+
+         try {
+            return super.moreRows(row);
+         }
+         finally {
+            JavaScriptEngine.popHeldScriptLock();
+            execLock.unlock();
+         }
+      }
+
+      /**
+       * @return {@code true} if {@code table}, or any table it wraps -- following
+       * both the single-child {@link TableFilter} chain (joins built from a
+       * single source, e.g. {@code SelfJoinTableLens}) and the two-child
+       * {@link BinaryTableFilter} chain ({@code JoinTableLens},
+       * {@code MergedJoinTableLens}, {@code CrossJoinTableLens}, and
+       * {@code SetTableLens}, the base of union/minus/intersect) -- can require
+       * the sandbox's script-execution lock while this filter populates its row
+       * map. Two distinct reasons, both real (see bug #76935's revisions):
+       *
+       * <ol>
+       * <li>{@code table} is a {@link FormulaTableLens}. Reading one of its
+       * columns can compile/execute a JavaScript formula (see
+       * {@code FormulaTableLens.getObject()}/{@code moreRows()}), and a join or
+       * set-op result can embed one of these on either side without itself being
+       * wrapped by an outer {@code FormulaTableLens} -- each side of a join/union
+       * is its own independently-recursed query, so a per-side formula column is
+       * already baked into that side's result before the join/union ever
+       * executes, while the *outer* query may have no expression columns of its
+       * own (see bug #76935 review round 1: both {@code TableFilter} and
+       * {@code BinaryTableFilter} must be walked, not just the former, or a
+       * formula embedded on one side of a join/union is invisible to this check
+       * and the join's first (lazy) access can run that formula's script while
+       * this filter still holds its own monitor -- reopening #76918).</li>
+       *
+       * <li>{@code table} is one of the async-worker-filling lenses bug #76938
+       * lends the lock to -- {@link SummaryFilter}, {@code DistinctTableLens},
+       * {@code SelfJoinTableLens}, {@code SetTableLens}. Their own background
+       * worker can itself need the script engine (a script-backed aggregate
+       * formula, or an inner base table's own formula column read from that
+       * worker thread -- bug #76937's jstack shows a {@code SummaryFilter}
+       * worker parked in {@code GraalJavaScriptEngine.exec()}), and unlike a
+       * {@code FormulaTableLens} column read that happens on *this* thread, the
+       * worker case only stays safe under #76938's own lend/reclaim machinery,
+       * which only has something to lend when this filter actually took the lock
+       * first. Treating mere presence of one of these four lens types as
+       * sufficient (rather than trying to also prove whether *their own*
+       * formula/config is script-backed) is deliberately conservative -- the
+       * failure mode of a false positive here is an unnecessary lock (a
+       * slowdown), while a false negative is #76938's deadlock again, and
+       * bug #76938's own regression suite (`AsyncLensScriptLockLendingTest`)
+       * fails without this branch even when nothing else in the chain is a
+       * {@code FormulaTableLens}.</li>
+       * </ol>
+       */
+      private static boolean needsScriptExecutionLock(TableLens table) {
+         if(table == null) {
+            return false;
+         }
+
+         if(table instanceof FormulaTableLens) {
+            return true;
+         }
+
+         if(table instanceof SummaryFilter || table instanceof DistinctTableLens ||
+            table instanceof SelfJoinTableLens || table instanceof SetTableLens)
+         {
+            return true;
+         }
+
+         if(table instanceof TableFilter) {
+            for(TableLens child : ((TableFilter) table).getTables()) {
+               if(needsScriptExecutionLock(child)) {
+                  return true;
+               }
+            }
+         }
+
+         if(table instanceof BinaryTableFilter) {
+            for(TableLens child : ((BinaryTableFilter) table).getTables()) {
+               if(needsScriptExecutionLock(child)) {
+                  return true;
+               }
+            }
+         }
+
+         return false;
+      }
+
+      /**
+       * The script environment the sandbox had when this filter was built, which is
+       * the one the lenses below it were built with. Captured rather than read from
+       * the sandbox on each call, because a cached lens chain outlives a reset or
+       * dispose of the sandbox that built it, after which the sandbox has no env or
+       * a new one while the lenses below still execute on this one (bug #76961).
+       * This covers lenses built by this sandbox, surviving a reset or dispose of it.
+       * It does not cover a filter over another sandbox's cached lens chain, whose
+       * lenses run on that sandbox's env (bug #76964).
+       *
+       * <p>Held weakly so a cached filter does not keep an unused env alive: if a
+       * lens below uses the env, that lens keeps it reachable, and if none does, no
+       * lock is needed. Transient: a filter deserialized from the distributed
+       * table cache has no captured env, so it takes no lock, like a filter built
+       * while its sandbox had no env.
+       */
+      private final transient WeakReference<ScriptEnv> senv;
+      private final boolean needsScriptLock;
 
       @Override
       public final int getColBorder(int r, int c) {

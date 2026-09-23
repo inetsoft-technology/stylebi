@@ -1926,7 +1926,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          int dayOfWeek = intervalToDateCal.get(Calendar.DAY_OF_WEEK);
          // use same week-of-month and month-of-year instead of week-of-year. this is
          // same as google analytics and is more comprehensible to human. (63990)
-         intervalToDateCal.add(Calendar.DATE, -(intervalToDateCal.get(Calendar.DAY_OF_WEEK) - Tool.getFirstDayOfWeek()));
+         DateComparisonUtil.moveToWeekStart(intervalToDateCal);
 
          int weekOfMonth = intervalToDateCal.get(Calendar.WEEK_OF_MONTH);
 
@@ -2376,7 +2376,7 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
       if(isWeekToDate) {
          Calendar intervalToDateCal = DateComparisonInfo.getCalendar();
          intervalToDateCal.setTime(getRangeToDate());
-         intervalToDateCal.add(Calendar.DATE, -(intervalToDateCal.get(Calendar.DAY_OF_WEEK) - 1));
+         DateComparisonUtil.moveToWeekStart(intervalToDateCal);
 
          return intervalToDateCal.get(Calendar.WEEK_OF_MONTH);
       }

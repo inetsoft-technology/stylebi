@@ -37,6 +37,7 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 
 /**
  * Static script utility functions and per-thread script state. These are the
@@ -100,6 +101,128 @@ public class JavaScriptEngine {
 
    public static void resetScriptThread() {
       getThreadLocals().execScriptable.remove();
+   }
+
+   /**
+    * Record that the current thread acquired a script engine's execution lock outside
+    * of script evaluation, e.g. condition filtering taking it before its own monitor
+    * (bug #76918). Must be balanced with {@link #popHeldScriptLock()} in a finally
+    * block, before the lock is released.
+    */
+   public static void pushHeldScriptLock(Lock lock) {
+      getThreadLocals().heldScriptLocks.get().push(lock);
+   }
+
+   /**
+    * Remove the most recent lock recorded by {@link #pushHeldScriptLock(Lock)}.
+    */
+   public static void popHeldScriptLock() {
+      // the empty deque is kept, this runs for every condition filter moreRows()
+      Deque<Lock> locks = getThreadLocals().heldScriptLocks.get();
+
+      if(!locks.isEmpty()) {
+         locks.pop();
+      }
+   }
+
+   /**
+    * Check if the current thread holds a script engine's execution lock, either
+    * because it is inside script evaluation or because it recorded the lock with
+    * {@link #pushHeldScriptLock(Lock)}. A thread holding the lock must not hand work
+    * that may run a script to another thread and then wait for it.
+    */
+   public static boolean holdsScriptLock() {
+      return isScriptThread() || !getThreadLocals().heldScriptLocks.get().isEmpty();
+   }
+
+   /**
+    * Check if {@link #lendScriptLocks} would lend anything to the worker task.
+    */
+   public static boolean canLendScriptLocks(LendableReentrantLock.Borrower worker) {
+      // never lend from inside script evaluation, the GraalJS context is in use on
+      // this thread and must not be entered by another thread
+      return worker != null && worker.isActive() && !isScriptThread() &&
+         (!getThreadLocals().heldScriptLocks.get().isEmpty() || hasBorrowedScriptLocks());
+   }
+
+   /**
+    * Check if the current thread runs a lens worker task that has been lent a script
+    * engine lock. Such a worker lends the lock on to a worker it waits for itself, e.g.
+    * with stacked async lenses.
+    */
+   private static boolean hasBorrowedScriptLocks() {
+      LendableReentrantLock.Borrower task = LendableReentrantLock.Borrower.current();
+      return task != null && !task.getLentLocks().isEmpty();
+   }
+
+   /**
+    * Get how long a lens wait site should wait before checking again. A lens worker
+    * task may be lent a script engine lock at any time while it waits for a nested
+    * worker, so it checks often, to lend the lock on promptly and to give it back soon
+    * after the lender reclaims it.
+    */
+   public static long getScriptLockWaitMillis(long millis) {
+      return LendableReentrantLock.Borrower.current() != null ? Math.min(millis, 50) : millis;
+   }
+
+   /**
+    * Lend the script engine locks held by the current thread (outside of script
+    * evaluation) to a background worker task the current thread is about to wait for,
+    * so the worker can run scripts and condition filters while this thread waits (bug
+    * #76938). The returned loan must be closed on this thread when the wait is over,
+    * outside of any monitor the worker may need, and this thread must not use the
+    * script engine before that.
+    *
+    * @param worker the worker task that is waited for.
+    *
+    * @return the loan, or {@link LendableReentrantLock#NO_LOAN} if nothing was lent.
+    */
+   public static LendableReentrantLock.Loan lendScriptLocks(LendableReentrantLock.Borrower worker) {
+      if(!canLendScriptLocks(worker)) {
+         return LendableReentrantLock.NO_LOAN;
+      }
+
+      java.util.List<LendableReentrantLock.Loan> loans = new ArrayList<>();
+      Set<Lock> lent = Collections.newSetFromMap(new IdentityHashMap<>());
+      // outermost first, loans are reclaimed in this order too, so a worker that takes
+      // the locks in the same nesting order can always finish before being cut off
+      Iterator<Lock> iter = getThreadLocals().heldScriptLocks.get().descendingIterator();
+
+      while(iter.hasNext()) {
+         Lock lock = iter.next();
+
+         if(lock instanceof LendableReentrantLock && lent.add(lock) &&
+            ((LendableReentrantLock) lock).isHeldByCurrentThread())
+         {
+            loans.add(((LendableReentrantLock) lock).lend(worker));
+         }
+      }
+
+      // locks lent to the worker task running on this thread (stacked async lenses):
+      // take the lock as the borrower and lend it on as a nested loan. if the loan to
+      // this task was revoked the lock can't be taken, and there is nothing to lend
+      LendableReentrantLock.Borrower task = LendableReentrantLock.Borrower.current();
+
+      if(task != null) {
+         for(LendableReentrantLock lock : task.getLentLocks()) {
+            if(lent.add(lock) && lock.tryLock()) {
+               LendableReentrantLock.Loan loan = lock.lend(worker);
+               loans.add(() -> {
+                  loan.close();
+                  lock.unlock();
+               });
+            }
+         }
+      }
+
+      if(loans.isEmpty()) {
+         return LendableReentrantLock.NO_LOAN;
+      }
+
+      // with several locks (nested sandboxes) the loans are closed in the order above. a
+      // worker taking two of them in the opposite nesting order could deadlock with the
+      // reclaim; that is theoretical, sandboxes are not known to nest that way
+      return loans.size() == 1 ? loans.get(0) : () -> loans.forEach(LendableReentrantLock.Loan::close);
    }
 
    /**
@@ -418,14 +541,17 @@ public class JavaScriptEngine {
 
       if(dateVal != null) {
          Calendar cal = CoreTool.calendar.get();
-         int oldStart = applyWeekStart ? cal.getFirstDayOfWeek() : 0;
+         int oldStart = cal.getFirstDayOfWeek();
          int minFirstWeek = cal.getMinimalDaysInFirstWeek();
 
          try {
-            if(applyWeekStart) {
-               cal.setFirstDayOfWeek(Tool.getFirstDayOfWeek());
-            }
-
+            // CoreTool.calendar is a shared ThreadLocal that other callers leave mutated
+            // (CalcDateTime.date() sets its first day and never restores it), so pin the
+            // week start explicitly in both branches rather than inheriting whatever ran
+            // earlier on this pooled thread. Without applyWeekStart the week parts here
+            // have always been Sunday-based; that is now true of the WEEK_OF_MONTH reads
+            // as well as the rewind, instead of half of each.
+            cal.setFirstDayOfWeek(applyWeekStart ? Tool.getFirstDayOfWeek() : Calendar.SUNDAY);
             cal.setMinimalDaysInFirstWeek(7);
             cal.setTime(dateVal);
 
@@ -436,7 +562,7 @@ public class JavaScriptEngine {
                return cal.get(Calendar.MONTH) % 3 + 1;
             // month of quarter of full week
             case "wmq":
-               cal.add(Calendar.DATE, -(cal.get(Calendar.DAY_OF_WEEK) - 1));
+               DateComparisonUtil.moveToWeekStart(cal);
                DateComparisonUtil.adjustCalendarByForceWM(cal, forceDcToDateWeekOfMonth);
 
                return cal.get(Calendar.MONTH) % 3 + 1;
@@ -445,8 +571,7 @@ public class JavaScriptEngine {
                return DateComparisonUtil.getWeekOfQuarter(cal, cal.getFirstDayOfWeek());
                // week of year
             case "wy":
-               int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-               cal.add(Calendar.DATE, -(dayOfWeek - 1));
+               DateComparisonUtil.moveToWeekStart(cal);
                int weekOfMonth = cal.get(Calendar.WEEK_OF_MONTH);
 
                if(DateComparisonUtil.adjustCalendarByForceWM(cal, forceDcToDateWeekOfMonth)) {
@@ -476,7 +601,7 @@ public class JavaScriptEngine {
 
                // if week-of-month is before the 1st week, it's the last week of previous month.
                if(val < 1 && "wm".equals(interval)) {
-                  cal.add(Calendar.DATE, -(cal.get(Calendar.DAY_OF_WEEK) - 1));
+                  DateComparisonUtil.moveToWeekStart(cal);
                   val = cal.get(field);
                }
 
@@ -484,10 +609,7 @@ public class JavaScriptEngine {
             }
          }
          finally {
-            if(applyWeekStart) {
-               cal.setFirstDayOfWeek(oldStart);
-            }
-
+            cal.setFirstDayOfWeek(oldStart);
             cal.setMinimalDaysInFirstWeek(minFirstWeek);
          }
       }
@@ -961,5 +1083,8 @@ public class JavaScriptEngine {
       // script evaluation (see GraalJavaScriptEngine.exec).
       private final ThreadLocal<Stack<ScriptScope>> execScriptable =
          ThreadLocal.withInitial(Stack::new);
+      // script engine locks held outside of script evaluation (see pushHeldScriptLock)
+      private final ThreadLocal<Deque<Lock>> heldScriptLocks =
+         ThreadLocal.withInitial(ArrayDeque::new);
    }
 }

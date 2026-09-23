@@ -285,6 +285,18 @@ public class VSWizardBindingHandler {
 
       if(assembly != null) {
          assembly.initDefaultFormat();
+
+         // Bug #76942 (Chart->Crosstab/other recommended-type-change follow-up): every
+         // recommended-type primary assembly (addOutputVSAssembly/addFilterVSAssembly/
+         // addTableVSAssembly/addCrosstabVSAssembly/addChartVSAssembly, i.e. all 11
+         // WizardRecommenderUtil#nextPrimaryAssemblyName call sites above) funnels through
+         // here, so a single call keeps any VS_ASSEMBLY-sourced ad hoc range filter (see
+         // addOriginalAsPrimary, which fixes the same gap for the "Original Type" path)
+         // pointed at whichever temp clone becomes the wizard's new primary assembly. A
+         // no-op whenever no such filter targets the original/a prior temp name.
+         VSWizardOriginalModel originalModel = tempInfo.getOriginalModel();
+         String originalName = originalModel != null ? originalModel.getOriginalName() : null;
+         WizardRecommenderUtil.repointAdhocFilterTableName(vs, originalName, assembly.getName());
          applyWizardSmoothLines(assembly);
       }
 
@@ -1214,6 +1226,12 @@ public class VSWizardBindingHandler {
       VSAssemblyInfo assemblyInfo = (VSAssemblyInfo) assembly.getInfo();
       assemblyInfo.setName(WizardRecommenderUtil.nextPrimaryAssemblyName());
       syncChartAssembly(tempInfo.getTempChart(), assembly);
+
+      // Bug #76942: keep any VS_ASSEMBLY-sourced ad hoc range filter (TimeSlider created from
+      // a chart bar's right-click "Filter" action) pointed at the wizard's renamed clone, since
+      // the original assembly (still holding the filter's tableName) isn't renamed itself while
+      // the wizard is editing it.
+      WizardRecommenderUtil.repointAdhocFilterTableName(vs, originalName, assemblyInfo.getName());
 
       vs.addAssembly(assembly);
       this.updatePrimaryAssembly(rvs, linkUri, assembly, true, selectOriginal, dispatcher);

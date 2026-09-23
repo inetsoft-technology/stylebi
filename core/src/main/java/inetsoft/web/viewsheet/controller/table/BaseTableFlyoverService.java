@@ -97,7 +97,13 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
             clist = new ConditionList();
          }
 
-         applyFlyovers(name, comp, rvs, box.get().getWorksheet(), clist, linkUri, dispatcher);
+         Worksheet ws = box.get().getWorksheet();
+
+         // applyFlyovers() manages its own lock scoping internally (see its doc comment and
+         // applyFlyoversLocked()/doApplyFlyovers()): it needs to be called while this thread
+         // still holds the sandbox read lock acquired above, so that the condition-list
+         // mutation it performs stays protected by that lock.
+         applyFlyovers(name, comp, rvs, ws, clist, linkUri, dispatcher);
       }
       finally {
          box.get().unlockRead();
@@ -205,7 +211,32 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
    }
 
    /**
-    * Execute the runtime viewsheet with the given condition list
+    * Execute the runtime viewsheet with the given condition list.
+    *
+    * Two flyover requests (e.g. from two different source assemblies that both fly over the
+    * same target, or whose source tables coincide) can otherwise run this concurrently on
+    * different threads, racing on the target's query state and on the source table's
+    * pre-runtime condition list save/restore. Serialize per touched assembly (narrower than
+    * a full per-runtimeId lock) so unrelated flyovers on the same viewsheet are not blocked.
+    *
+    * Callers must call this method while still holding the sandbox's own read lock: the
+    * condition-list mutation performed below (applyCondition(), and the final
+    * setPreRuntimeConditionList() restore) must run under that lock so it cannot interleave
+    * with a concurrent sandbox write-lock holder unrelated to flyovers (e.g. a script-triggered
+    * refresh or a binding/condition edit) — see doApplyFlyovers().
+    *
+    * Internally, this method's own lock scoping (applyFlyoversLocked()/doApplyFlyovers()) drops
+    * that read lock — via ViewsheetSandbox.unlockAll()/restoreLocks() — only for the narrow
+    * windows where it must: while this thread is acquiring (or blocked acquiring) the
+    * per-target flyoverLock monitors below, and around the two calls inside doApplyFlyovers()
+    * that can reach ViewsheetSandbox.lockWrite() (executeView(), coreLifecycleService.execute()).
+    * A thread blocked entering a flyoverLock monitor held by another thread must not itself be
+    * holding the sandbox lock: if it did, and the monitor's holder is itself blocked in
+    * lockWrite() waiting for that same lock to be released, the two threads deadlock (this was
+    * round 1's bug). This method restores the read lock as soon as all monitors are held, before
+    * any mutation runs, and re-acquires it between the two narrow release windows inside
+    * doApplyFlyovers(), so the mutation sequence stays protected everywhere except the specific
+    * calls that need to be lock-free.
     */
    private void applyFlyovers(String name, VSAssembly comp,
                               RuntimeViewsheet rvs, Worksheet ws,
@@ -222,6 +253,90 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
          ws.getAssembly(comp.getTableName());
       TipVSAssemblyInfo minfo = (TipVSAssemblyInfo) comp.getVSAssemblyInfo();
       String[] views = minfo.getFlyoverViews();
+
+      if(views == null || views.length == 0) {
+         return;
+      }
+
+      TreeSet<String> lockNames = new TreeSet<>();
+
+      if(tassembly != null) {
+         lockNames.add(tassembly.getName());
+      }
+
+      for(String view : views) {
+         VSAssembly tip = comp.getViewsheet().getAssembly(view);
+
+         if(tip != null && !view.equals(name)) {
+            lockNames.add(tip.getAbsoluteName());
+         }
+      }
+
+      List<Object> locks = new ArrayList<>();
+
+      for(String lockName : lockNames) {
+         locks.add(box.get().getFlyoverLock(lockName));
+      }
+
+      // Release this thread's sandbox lock before attempting to enter any of the per-target
+      // flyoverLock monitors acquired by applyFlyoversLocked() below — see this method's doc
+      // comment for why. Restored once applyFlyoversLocked() returns; by then, doApplyFlyovers()
+      // has already left the thread holding exactly the lock state it had here (its own narrow
+      // release windows are self-balancing), so this pairing is a no-op restore in the normal
+      // case and only matters if something above throws before reaching that point.
+      box.get().unlockAll();
+
+      try {
+         applyFlyoversLocked(locks, 0, name, comp, rvs, clist, linkUri, dispatcher, tassembly,
+                              views, box.get());
+      }
+      finally {
+         box.get().restoreLocks();
+      }
+   }
+
+   /**
+    * Recursively acquire the given locks (already sorted into a deterministic order by the
+    * caller to avoid deadlock against another request acquiring an overlapping lock set) while
+    * holding no sandbox lock (see applyFlyovers()), then re-acquire the sandbox read lock and
+    * run the actual flyover apply/execute/restore logic while holding all the per-target locks.
+    */
+   private void applyFlyoversLocked(List<Object> locks, int index, String name, VSAssembly comp,
+                                    RuntimeViewsheet rvs, ConditionList clist, String linkUri,
+                                    CommandDispatcher dispatcher, AbstractTableAssembly tassembly,
+                                    String[] views, ViewsheetSandbox box) throws Exception
+   {
+      if(index >= locks.size()) {
+         // All per-target monitors are held and this thread holds no sandbox lock (per
+         // applyFlyovers()). Re-acquire the read lock now, before any mutation runs, and hold
+         // it for the rest of this per-request body except the two narrow windows inside
+         // doApplyFlyovers() that must be lock-free.
+         box.restoreLocks();
+
+         try {
+            doApplyFlyovers(name, comp, rvs, clist, linkUri, dispatcher, tassembly, views, box);
+         }
+         finally {
+            // Leave this thread holding no sandbox lock again while unwinding back out through
+            // the monitors below (harmless — exiting a monitor never blocks), matching the
+            // lock-free state applyFlyovers() expects to restore once this call returns.
+            box.unlockAll();
+         }
+
+         return;
+      }
+
+      synchronized(locks.get(index)) {
+         applyFlyoversLocked(locks, index + 1, name, comp, rvs, clist, linkUri, dispatcher,
+                              tassembly, views, box);
+      }
+   }
+
+   private void doApplyFlyovers(String name, VSAssembly comp, RuntimeViewsheet rvs,
+                                ConditionList clist, String linkUri,
+                                CommandDispatcher dispatcher, AbstractTableAssembly tassembly,
+                                String[] views, ViewsheetSandbox box) throws Exception
+   {
       ConditionList preList = null;
 
       if(tassembly != null) {
@@ -229,10 +344,6 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
       }
 
       ArrayList<Integer> hints = new ArrayList<>();
-
-      if(views == null || views.length == 0) {
-         return;
-      }
 
       for(String view : views) {
          VSAssembly tip = comp.getViewsheet().getAssembly(view);
@@ -261,7 +372,19 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
             // separately in another loop.  This will ensure if the tip
             // assemblies are dependent on each other, their state will be
             // correct before one of the tip assemblies is executed.
-            box.get().executeView(tip.getAbsoluteName(), true);
+            //
+            // executeView() can reach ViewsheetSandbox.doExecuteData()'s lockWrite() upgrade
+            // (via reentrant execution paths). Drop the sandbox lock narrowly around just this
+            // call, mirroring the bug-74001 precedent (ViewsheetSandbox.doExecuteData() around
+            // query.getData()) — mutations above (applyCondition()) already ran under the lock.
+            box.unlockAll();
+
+            try {
+               box.executeView(tip.getAbsoluteName(), true);
+            }
+            finally {
+               box.restoreLocks();
+            }
          }
       }
 
@@ -277,7 +400,18 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
          int hint = hints.remove(0);
 
          if(hint != VSAssembly.NONE_CHANGED) {
-            coreLifecycleService.execute(rvs, tip.getAbsoluteName(), linkUri, hint, dispatcher);
+            // coreLifecycleService.execute() reaches ViewsheetSandbox.doExecuteData(), which
+            // does a real read-to-write lock upgrade (lockWrite()). Drop the sandbox lock
+            // narrowly around just this call, same reasoning as the executeView() call above.
+            box.unlockAll();
+
+            try {
+               coreLifecycleService.execute(rvs, tip.getAbsoluteName(), linkUri, hint, dispatcher);
+            }
+            finally {
+               box.restoreLocks();
+            }
+
             coreLifecycleService.refreshVSAssembly(rvs, view, dispatcher);
          }
          // @by ankitmathur, For bug1432218253134, We need to clear the
@@ -292,6 +426,10 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
          // components (or any other non fly-over assemblies).
          // UPDATE: 8-7-2015, Reset the Pre-Runtime Condition List to the
          // original value.
+         //
+         // This mutation must stay under the sandbox lock (held here, since the narrow
+         // release above is already restored) — it is the exact mutation round-1's F3
+         // required to be atomic with the query submission it wraps.
          if(tassembly != null) {
             tassembly.setPreRuntimeConditionList(preList);
          }

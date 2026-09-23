@@ -18,10 +18,13 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.EGraph;
+import inetsoft.graph.coord.Coordinate;
+import inetsoft.graph.coord.FacetCoord;
 import inetsoft.graph.coord.RectCoord;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.element.GraphtDataSelector;
+import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.LinearScale;
 import inetsoft.graph.scale.Scale;
@@ -33,7 +36,6 @@ import inetsoft.uql.viewsheet.graph.DefaultVSChartInfo;
 import inetsoft.uql.viewsheet.graph.VSChartDimensionRef;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,17 +72,18 @@ import static inetsoft.test.XTableUtil.date;
  * "isFacet()|isCompareAll()" core/src/test returned no hits against DateComparisonUtil before
  * this file was added) -- both fixes had previously been verified live only.
  *
- * <p>{@link #facetCausedByUnrelatedDimensionStillOrphansUnreachedChronologicalPart()} covers a
- * narrower, still-open question the two bugs above don't: {@code applyDateRange()}'s skip
- * condition only ever consults the single {@link VSChartInfo#isFacet()} flag, which is true
- * whenever the chart ends up with a {@code FacetCoord} for *any* reason (see
- * {@code GraphGenerator.createCoord()} -- any axis carrying 2+ dimensions produces one,
- * regardless of whether the DC part column is among them). It cannot distinguish "part IS the
- * faceted dimension" (Bug #76388's case, where skipping is correct) from "some unrelated
- * dimension is faceted and part is still a plain chronologically-ordered axis" (where skipping
- * means a genuinely-unreached future part -- e.g. December while the current year has only
- * reached April -- renders anyway). This test currently fails against the production code,
- * documenting that gap rather than asserting it is fixed.</p>
+ * <p>Bug #76518 narrowed the first of those two conditions. {@link VSChartInfo#isFacet()} is a
+ * single chart-wide boolean that {@code GraphGenerator.createCoord()} sets from
+ * "coordinate instanceof FacetCoord", so it is true whenever *any* axis carries 2+ dimensions,
+ * regardless of whether the DC part column is one of them. On its own it cannot distinguish
+ * "part IS the faceted dimension" (Bug #76388's case, where skipping is correct) from "some
+ * unrelated dimension is faceted and part is still a plain chronologically-ordered axis" (where
+ * skipping means a genuinely-unreached future part -- e.g. December while the current year has
+ * only reached April -- renders anyway). {@code applyDateRange()} now also checks the actual
+ * coordinate tree, so these tests pin down all three shapes via {@code CoordShape}:
+ * {@code NO_FACET}, {@code PART_IS_FACET} (part scale in the FacetCoord's outer coordinate) and
+ * {@code UNRELATED_FACET} (part scale in the inner coordinate, an unrelated dimension faceted
+ * around it).</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -99,7 +102,7 @@ class DateComparisonUtilApplyDateRangeTest {
       DataSet data = buildRows();
       DateComparisonInfo dcInfo = dcInfo(true);
 
-      Scale partScale = applyAndGetPartScale(dcInfo, data, false);
+      Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.NO_FACET);
 
       // 2019/2020's December weeks (51-52) are past what 2021 (the most recent period) has
       // reached (only up to week 17) -- Compare-All must keep them anyway.
@@ -118,7 +121,7 @@ class DateComparisonUtilApplyDateRangeTest {
       DataSet data = buildRows();
       DateComparisonInfo dcInfo = dcInfo(false);
 
-      Scale partScale = applyAndGetPartScale(dcInfo, data, false);
+      Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.NO_FACET);
 
       // Same rows as the Compare-All test above, but now Compare-All is off, so the heuristic
       // must run and exclude them as unreached-future parts (2021, the most recent period,
@@ -140,7 +143,7 @@ class DateComparisonUtilApplyDateRangeTest {
       DataSet data = buildRows();
       DateComparisonInfo dcInfo = dcInfo(false);
 
-      Scale partScale = applyAndGetPartScale(dcInfo, data, true);
+      Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.PART_IS_FACET);
 
       // facet group 5-7 (encoded here as parts 51/52) never appears in 2021 (the most recent
       // period) at all -- facet mode must still keep 2019/2020's real rows for them.
@@ -150,28 +153,23 @@ class DateComparisonUtilApplyDateRangeTest {
    }
 
    /**
-    * Same rows/DC config as {@link #nonCompareAllNonFacetModeStillOrphansUnreachedParts()} --
-    * part is a plain chronologically-ordered week number, not itself a facet dimension -- except
-    * {@code info.isFacet()} is true, simulating a chart where some *other*, DC-unrelated
-    * dimension (e.g. Region) shares the axis and happens to trigger a {@code FacetCoord}. Unlike
+    * Bug #76518: same rows/DC config as
+    * {@link #nonCompareAllNonFacetModeStillOrphansUnreachedParts()} -- part is a plain
+    * chronologically-ordered week number, not itself a facet dimension -- except the chart is a
+    * {@code FacetCoord} because some *other*, DC-unrelated dimension (e.g. Region) shares the
+    * axis, so {@code info.isFacet()} is true. Unlike
     * {@link #facetModeDoesNotOrphanFacetsTheMostRecentPeriodLacks()} (where part genuinely is the
     * faceted dimension), the most-recent period's own chronological reach is still meaningful
-    * here, so parts 51/52 (December) should still be orphaned -- the current implementation
-    * cannot tell these two facet causes apart and skips the heuristic either way, so this
-    * currently fails.
+    * here, so parts 51/52 (December) must still be orphaned.
     */
    @Test
-   @Disabled("Bug #76518 -- fails against current production code (applyDateRange() cannot yet "
-      + "distinguish 'part is the faceted dimension' from 'an unrelated dimension is faceted'); "
-      + "re-enable once #76518 is fixed.")
    void facetCausedByUnrelatedDimensionStillOrphansUnreachedChronologicalPart() {
       DataSet data = buildRows();
       DateComparisonInfo dcInfo = dcInfo(false);
 
-      // facet=true here stands in for "an unrelated dimension made the chart a FacetCoord",
-      // not "the DC part column is the faceted dimension" -- applyDateRange() has no way to
-      // tell the two apart from info.isFacet() alone.
-      Scale partScale = applyAndGetPartScale(dcInfo, data, true);
+      // the part scale sits in the FacetCoord's *inner* coordinate here -- the facet levels are
+      // the unrelated dimension's, so the orphan heuristic must still run.
+      Scale partScale = applyAndGetPartScale(dcInfo, data, CoordShape.UNRELATED_FACET);
 
       assertPartRowAccepted(partScale, data, false, "2019-01-01", 51);
       assertPartRowAccepted(partScale, data, false, "2019-01-01", 52);
@@ -237,15 +235,35 @@ class DateComparisonUtilApplyDateRangeTest {
    }
 
    /**
+    * The three coordinate shapes applyDateRange()'s facet handling has to tell apart. Mirrors
+    * what GraphGenerator.createCoord() produces: the innermost dimension of an axis becomes the
+    * plot axis of the inner coordinate, and every remaining outer dimension is wrapped in a
+    * FacetCoord.
+    */
+   private enum CoordShape {
+      /** Plain single-coordinate chart; {@code info.isFacet()} false. */
+      NO_FACET,
+      /** Bug #76388: the DC part column is the faceted dimension (part scale in the outer coord). */
+      PART_IS_FACET,
+      /** Bug #76518: an unrelated dimension is faceted; part stays a plain inner axis. */
+      UNRELATED_FACET
+   }
+
+   private static final String OTHER_DIM_COL = "region";
+   private static final String INNER_DIM_COL = "innerPeriod";
+
+   /**
     * Builds a minimal VSChartInfo bound to PERIOD_COL/PART_COL, a matching hand-built EGraph
     * (bypassing the full chart-generation pipeline, the same "construct only what the seam under
     * test needs" approach {@link DateComparisonFormatOrphanedFacetTest} uses), calls the real
     * DateComparisonUtil.applyDateRange() entry point, and returns the part-column Scale so the
     * test can inspect the GraphtDataSelector it ends up with.
     */
-   private static Scale applyAndGetPartScale(DateComparisonInfo dcInfo, DataSet data, boolean facet) {
+   private static Scale applyAndGetPartScale(DateComparisonInfo dcInfo, DataSet data,
+                                             CoordShape shape)
+   {
       VSChartInfo info = new DefaultVSChartInfo();
-      info.setFacet(facet);
+      info.setFacet(shape != CoordShape.NO_FACET);
       info.setDcBaseDateOnX(true);
       info.setDateComparisonRef(new VSDimensionRef(new AttributeRef(PERIOD_COL)));
 
@@ -260,11 +278,37 @@ class DateComparisonUtilApplyDateRangeTest {
       valueScale.setFields(VALUE_COL);
 
       EGraph egraph = new EGraph();
-      egraph.setCoordinate(new RectCoord(partScale, valueScale));
+      egraph.setCoordinate(buildCoord(shape, partScale, valueScale));
 
       DateComparisonUtil.applyDateRange(dcInfo, egraph, info, data);
 
       return partScale;
+   }
+
+   private static Coordinate buildCoord(CoordShape shape, Scale partScale, Scale valueScale) {
+      switch(shape) {
+      case PART_IS_FACET: {
+         // X = [part, innerPeriod]: createCoord() consumes the innermost dim (innerPeriod) as
+         // the plot axis and wraps part as the facet level -- Bug #76388's Month_SameWeek
+         // DayOfWeek-facet shape, where ChartDcProcessor appends the period ref after the part.
+         Scale innerScale = new CategoricalScale();
+         innerScale.setFields(INNER_DIM_COL);
+         RectCoord outer = new RectCoord(partScale, GTool.createFakeScale(null));
+
+         return new FacetCoord(outer, new RectCoord(innerScale, valueScale));
+      }
+      case UNRELATED_FACET: {
+         // X = [region, part]: part is still the innermost (plain chronological) axis; the facet
+         // level is an unrelated dimension.
+         Scale otherScale = new CategoricalScale();
+         otherScale.setFields(OTHER_DIM_COL);
+         RectCoord outer = new RectCoord(otherScale, GTool.createFakeScale(null));
+
+         return new FacetCoord(outer, new RectCoord(partScale, valueScale));
+      }
+      default:
+         return new RectCoord(partScale, valueScale);
+      }
    }
 
    private static void assertPartRowAccepted(Scale partScale, DataSet data, boolean expectAccepted,

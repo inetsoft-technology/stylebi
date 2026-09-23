@@ -275,6 +275,13 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
          result = senv.exec(script, scope = updateParameter(), null, null);
       }
       catch(Exception ex) {
+         if(senv == null) {
+            String msg = "Script failed, ScriptEnv is not available:\n" +
+               XUtil.numbering(runtimeFormula);
+            LOG.warn(msg, ex);
+            throw new ScriptException(msg, ex);
+         }
+
          String suggestion = senv.getSuggestion(ex, "field", scope);
          String msg = "Script error: " + ex.getMessage() +
             (suggestion != null ? "\nTo fix: " + suggestion : "") +

@@ -399,7 +399,10 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       resetTableLens();
       resetDefaultColumnSelection();
 
-      senv = null;
+      synchronized(lock) {
+         senv = null;
+      }
+
       scope = null;
    }
 
@@ -1177,6 +1180,22 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    }
 
    /**
+    * Peek at this sandbox's script environment without creating one if it does
+    * not already exist. Used by condition filtering (bugs #76918, #76961) to
+    * capture the env the lenses below the filter were built with, whose execution
+    * lock it acquires *before* taking any of its own locks, so the two never get
+    * acquired in opposite orders on different threads -- without forcing an
+    * unused env (and its GraalJS Context) to be created for queries that never
+    * touch scripts.
+    *
+    * @return the script environment, or {@code null} if none exists yet for this
+    *         sandbox.
+    */
+   public ScriptEnv peekScriptEnv() {
+      return senv;
+   }
+
+   /**
     * Get the scope for executing formulas. The scope should contain all
     * data tables.
     * @return the scope for executing formulas.
@@ -1546,8 +1565,11 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          }
 
          scope = null;
-         senv = null;
          vprovider2 = null;
+      }
+
+      synchronized(lock) {
+         senv = null;
       }
    }
 
@@ -1919,7 +1941,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private Hashtable<String, SelectionVSAssembly> selections; // selection assembly map,
    private ViewsheetSandbox vsbox;
    private AssetQueryScope scope; // scope for executing formulas
-   private ScriptEnv senv; // scripting env for executing scripts
+   private volatile ScriptEnv senv; // scripting env for executing scripts
    private final MVSession mvsession;
    private final Set<String> nolimit; // tables to ignore time limit
    private QueryManager queryMgr; // track pending queries
