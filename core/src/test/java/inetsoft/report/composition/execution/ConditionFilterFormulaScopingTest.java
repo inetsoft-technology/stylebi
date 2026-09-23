@@ -20,8 +20,10 @@ package inetsoft.report.composition.execution;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.ConditionGroup;
 import inetsoft.report.lens.FormulaTableLens;
+import inetsoft.report.lens.JoinTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.Condition;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.Tag;
@@ -130,6 +132,83 @@ class ConditionFilterFormulaScopingTest {
          scriptThread.get(5, TimeUnit.SECONDS);
          assertTrue(formulaThread.get(5, TimeUnit.SECONDS),
             "FormulaTableLens-backed filter never completed after the engine lock was released");
+      }
+      finally {
+         pool.shutdownNow();
+      }
+   }
+
+   /**
+    * Regression test for PR #5536 review round 1: {@code containsFormulaTableLens()} must not
+    * only walk the single-child {@link inetsoft.report.TableFilter} chain -- a
+    * {@link FormulaTableLens} embedded on one side of a real {@link JoinTableLens} (a
+    * {@link inetsoft.report.filter.BinaryTableFilter}, not a {@code TableFilter}) must still be
+    * found, or the join's lazily-built delegate (and the formula script it can trigger on first
+    * access) would run *inside* {@code ConditionFilter2}'s own monitor with no engine lock held
+    * first -- reopening #76918 for any join/union whose formula column lives on just one side.
+    */
+   @Test
+   void joinWithFormulaOnlyOnOneSideStillBlocksOnEngineLock() throws Exception {
+      GraalJavaScriptEnv senv = new GraalJavaScriptEnv();
+      senv.init();
+      Lock engineLock = senv.getExecutionLock();
+      assertNotNull(engineLock, "senv.init() should have created the engine and its lock");
+
+      AssetQuerySandbox box = new AssetQuerySandbox(null);
+      injectSenv(box, senv);
+
+      TableLens left = XTableUtil.getDefaultTableLens();
+      TableLens rightWithFormula = new FormulaTableLens(XTableUtil.getDefaultTableLens(),
+         new String[] { "f1" }, new String[] { "1" }, senv, null);
+
+      // inner-join on col2 (index 1); the formula column lives only on the right side, and
+      // the outer join lens itself is neither a FormulaTableLens nor wrapped by one.
+      TableLens joined = PostProcessor.join(left, rightWithFormula, new int[] { 1 },
+         new int[] { 1 }, XConstants.INNER_JOIN);
+      assertFalse(joined instanceof FormulaTableLens, "test setup: join lens itself must not be" +
+         " the formula lens -- the point is that the formula is hidden on one side");
+      assertTrue(joined instanceof JoinTableLens, "test setup: expected a real JoinTableLens");
+
+      TableLens joinFiltered = PostProcessor.filter(joined, col2GreaterThanZero(), box);
+
+      CountDownLatch scriptHasLock = new CountDownLatch(1);
+      CountDownLatch releaseScript = new CountDownLatch(1);
+
+      ExecutorService pool = Executors.newFixedThreadPool(2, r -> {
+         Thread t = new Thread(r);
+         t.setDaemon(true);
+         return t;
+      });
+
+      try {
+         Future<?> scriptThread = pool.submit(() -> {
+            engineLock.lock();
+
+            try {
+               scriptHasLock.countDown();
+               assertTrue(releaseScript.await(10, TimeUnit.SECONDS),
+                  "test never released the simulated script's hold on the engine lock");
+            }
+            finally {
+               engineLock.unlock();
+            }
+
+            return null;
+         });
+
+         assertTrue(scriptHasLock.await(10, TimeUnit.SECONDS),
+            "simulated script thread never acquired the engine lock");
+
+         Future<Boolean> joinThread = pool.submit(() -> joinFiltered.moreRows(0));
+
+         assertThrows(TimeoutException.class, () -> joinThread.get(300, TimeUnit.MILLISECONDS),
+            "ConditionFilter2 over a join with a formula column hidden on one side did not " +
+            "wait for the engine lock -- containsFormulaTableLens() missed it, reopening #76918");
+
+         releaseScript.countDown();
+         scriptThread.get(5, TimeUnit.SECONDS);
+         assertTrue(joinThread.get(5, TimeUnit.SECONDS),
+            "join-backed filter never completed after the engine lock was released");
       }
       finally {
          pool.shutdownNow();

@@ -321,26 +321,49 @@ public class PostProcessor {
       }
 
       /**
-       * @return {@code true} if {@code table} (or a table it wraps, following the
-       * {@link TableFilter} chain) is a {@link FormulaTableLens} -- i.e. reading
-       * one of its columns can compile/execute a JavaScript formula (see
-       * {@code FormulaTableLens.getObject()}/{@code moreRows()}). Per
-       * {@link #filter(TableLens, ConditionGroup, AssetQuerySandbox)}'s own
-       * comment, the table handed to a condition filter "is always a formula
-       * table or xnode table" -- i.e. exactly the two cases this walk
-       * distinguishes.
+       * @return {@code true} if {@code table}, or any table it wraps -- following
+       * both the single-child {@link TableFilter} chain (joins built from a
+       * single source, e.g. {@code SelfJoinTableLens}) and the two-child
+       * {@link BinaryTableFilter} chain ({@code JoinTableLens},
+       * {@code MergedJoinTableLens}, {@code CrossJoinTableLens}, and
+       * {@code SetTableLens}, the base of union/minus/intersect) -- is a
+       * {@link FormulaTableLens}. Reading one of its columns can compile/execute
+       * a JavaScript formula (see {@code FormulaTableLens.getObject()}/
+       * {@code moreRows()}), and a join or set-op result can embed one of these
+       * on either side without itself being wrapped by an outer
+       * {@code FormulaTableLens} -- each side of a join/union is its own
+       * independently-recursed query, so a per-side formula column is already
+       * baked into that side's result before the join/union ever executes,
+       * while the *outer* query may have no expression columns of its own (see
+       * bug #76935 review round 1: both {@code TableFilter} and
+       * {@code BinaryTableFilter} must be walked, not just the former, or a
+       * formula embedded on one side of a join/union is invisible to this
+       * check and the join's first (lazy) access can run that formula's script
+       * while this filter still holds its own monitor -- reopening #76918).
        */
       private static boolean containsFormulaTableLens(TableLens table) {
-         while(table != null) {
-            if(table instanceof FormulaTableLens) {
-               return true;
-            }
+         if(table == null) {
+            return false;
+         }
 
-            if(!(table instanceof TableFilter)) {
-               return false;
-            }
+         if(table instanceof FormulaTableLens) {
+            return true;
+         }
 
-            table = ((TableFilter) table).getTable();
+         if(table instanceof TableFilter) {
+            for(TableLens child : ((TableFilter) table).getTables()) {
+               if(containsFormulaTableLens(child)) {
+                  return true;
+               }
+            }
+         }
+
+         if(table instanceof BinaryTableFilter) {
+            for(TableLens child : ((BinaryTableFilter) table).getTables()) {
+               if(containsFormulaTableLens(child)) {
+                  return true;
+               }
+            }
          }
 
          return false;
