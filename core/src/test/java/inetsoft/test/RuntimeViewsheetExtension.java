@@ -23,6 +23,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
+import inetsoft.util.ThreadContext;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.controller.OpenViewsheetController;
@@ -69,6 +70,9 @@ public class RuntimeViewsheetExtension implements BeforeEachCallback, AfterEachC
       OpenViewsheetController openViewsheetController = ctx.getBean(OpenViewsheetController.class);
       RuntimeViewsheetRef runtimeViewsheetRef = ctx.getBean(RuntimeViewsheetRef.class);
       viewsheetService = ctx.getBean(ViewsheetService.class);
+      // opening the viewsheet sets the thread's principal, restored in afterEach() so that it
+      // does not leak into the test classes that surefire runs later on the same thread
+      oldPrincipal = ThreadContext.getPrincipal();
 
       Principal principal = SUtil.getPrincipal(
          new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()),
@@ -127,9 +131,13 @@ public class RuntimeViewsheetExtension implements BeforeEachCallback, AfterEachC
 
          runtimeId = null;
       }
+
+      ThreadContext.setPrincipal(oldPrincipal);
+      oldPrincipal = null;
    }
 
    private final OpenViewsheetEvent openViewsheetEvent;
+   private Principal oldPrincipal;
    private ViewsheetService viewsheetService;
    private String runtimeId;
 }
