@@ -15,7 +15,7 @@ Background, only if something below does not make sense: `docs/superpowers/specs
 ## Global Constraints
 
 - **Branch:** cut from `origin/epic-74519` @ `e7e83e9c2`. Community-only change — the PR goes in the community repo alone. Nothing in `enterprise/` is touched.
-- **Two slices, two pull requests.** Slice A is Tasks 1–8, slice B is Tasks 9–13. Slice B must not be opened before slice A merges: Task 10 rebinds the same three table templates Task 6 touches. Commit per task.
+- **Two slices, two pull requests.** Slice A is Tasks 1–8, slice B is Tasks 9–13. Slice B must not be opened before slice A merges, because it builds directly on slice A's surface: Task 13 consumes the `resetPadding`/`isUserPadding` that Task 9 hoists, and Task 11 consumes the `BaseTableModel.padding` that Task 10 adds. Commit per task.
 - **Scope is charts plus the three table types only.** `TableVSAssemblyInfo`, `CrosstabVSAssemblyInfo` and `CalcTableVSAssemblyInfo` (all extend `TableDataVSAssemblyInfo`), plus `ChartVSAssemblyInfo`. Selection lists, selection trees, gauges and text are explicitly out — D4 exists to keep the selection family unmoved.
 - **The value matrices are fixed by D2 and are not to be re-derived:**
 
@@ -1299,22 +1299,25 @@ class TableCellPaddingResolutionTest {
       assertEquals(32, stored, "stored as a content height, not the typed one");
    }
 
+   // seedChromeDefaults is protected and this test is in a different package, so the value is
+   // set directly at the tier the seed would have written. The seed itself is covered by
+   // TableCellPaddingSeedTest; this test is about the lens.
    private TableVSAssemblyInfo markedTable(String density) {
-      SreeEnv.setProperty("viewsheet.density", density);
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
-      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      info.setCellPadding(VSDensityDefaults.cellPaddingForMode(density),
+                          CompositeValue.Type.DEFAULT);
       return info;
    }
 
    private TableVSAssemblyInfo unmarkedTable() {
       TableVSAssemblyInfo info = new TableVSAssemblyInfo();
-      info.seedChromeDefaults(VizContext.of((VizMark) null));
+      info.setCellPadding(null, CompositeValue.Type.DEFAULT);
       return info;
    }
 }
 ```
 
-`seedChromeDefaults` is `protected` and this test is in a different package, so either call it through a small package-private helper in `inetsoft.uql.viewsheet.internal` or set the padding directly with `setCellPadding(VSDensityDefaults.cellPaddingForMode(density), CompositeValue.Type.DEFAULT)`. Prefer the direct set — the seed itself is already covered by `TableCellPaddingSeedTest`, and this test is about the lens.
+`cellPaddingForMode` is package-private in `inetsoft.uql.viewsheet.internal`. If it is not reachable from `inetsoft.report.composition`, use the public `VSDensityDefaults.cellPadding(VizContext.of(VizMark.MODERN_LIGHT))` with `SreeEnv.setProperty("viewsheet.density", density)` set first, which resolves to the same value.
 
 - [ ] **Step 9b: Record the three cases a unit test cannot reach**
 
@@ -1863,14 +1866,16 @@ Create `UserPaddingHoistTest.java`, with the same class annotations as `ChartCar
    }
 
    @Test
-   void copyInfoCarriesTheFlag() {
-      // the dialog's clone-and-merge runs through copyInfo; dropping the flag there would make
-      // every OK on a chart or table property dialog forget that the author set the inset
+   void copyViewInfoCarriesTheFlag() {
+      // the dialog's clone-and-merge runs through copyViewInfo; dropping the flag there would
+      // make every OK on a chart or table property dialog forget that the author set the inset.
+      // Note copyViewInfo (protected boolean, VSAssemblyInfo:607), NOT copyInfo, which is a
+      // different method returning int
       ChartVSAssemblyInfo from = new ChartVSAssemblyInfo();
       from.setUserPadding(true);
       ChartVSAssemblyInfo to = new ChartVSAssemblyInfo();
 
-      assertTrue(to.copyInfo(from), "copyInfo reports a change");
+      assertTrue(to.copyViewInfo(from, true), "copyViewInfo reports a change");
       assertTrue(to.isUserPadding());
    }
 
@@ -1951,7 +1956,7 @@ In `VSAssemblyInfo.parseAttributes`, after the `paddingTop` block:
       setUserPadding("true".equalsIgnoreCase(Tool.getAttribute(elem, "userPadding")));
 ```
 
-In `VSAssemblyInfo.copyInfo`, beside the existing `padding` copy:
+In `VSAssemblyInfo.copyViewInfo` (`:607` — the `protected boolean` one, **not** the `public int copyInfo` at `:552`), beside the existing `padding` copy at `:695`:
 
 ```java
       if(userPadding != info.userPadding) {
@@ -1959,6 +1964,8 @@ In `VSAssemblyInfo.copyInfo`, beside the existing `padding` copy:
          result = true;
       }
 ```
+
+The block being deleted from `ChartVSAssemblyInfo` is in that class's own `copyViewInfo` override (`:1882`), at `:1992`.
 
 - [ ] **Step 4: Move resetCardInset down as resetPadding**
 
@@ -2027,18 +2034,27 @@ and in `TableDataVSAssemblyInfo`:
    }
 ```
 
-Simplify the chart's seed branch to use the shared helper:
+Leave the chart's seed branch exactly as Task 2 wrote it:
 
 ```java
       if(!isUserPadding() && !isCssPaddingDefined()) {
-         setPadding(VSDensityDefaults.chartPadding(ctx));
+         setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding(ctx)
+                       : VSObjectChromeDefaults.legacyChartPadding());
       }
 ```
 
-- [ ] **Step 5: Repoint resetCardInset's callers**
+Do **not** collapse it to `VSDensityDefaults.chartPadding(ctx)`. That would read more directly, but it would leave `VSObjectChromeDefaults.modernChartPadding(VizContext)` — added in Task 2 — with no callers, and dead code is a review finding. The branch and `defaultPadding` resolve to the same value by construction, since `chartPadding(ctx)` is `modernChartPadding` plus the legacy branch.
+
+`isCssPaddingDefined` moves to the base class as `protected`, so this call still resolves.
+
+- [ ] **Step 5: Repoint resetCardInset's callers and its test**
 
 Run: `grep -rn "resetCardInset" --include=*.java core/src`
-Change each hit to `resetPadding`. `ChartPropertyDialogService:414` is the one that matters.
+
+Change each hit to `resetPadding`. Two matter:
+
+- `ChartPropertyDialogService:414` — the padding pane's follow-the-default branch.
+- `ChartCardInsetDensityTest.resetCardInsetFollowsTheCurrentDensity`, written in Task 2 — rename the method to `resetPaddingFollowsTheCurrentDensity` and change its call. Missing this one fails the core suite.
 
 - [ ] **Step 6: Run the tests**
 
