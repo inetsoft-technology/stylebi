@@ -253,10 +253,9 @@ public class PostProcessor {
       ConditionFilter2(TableLens table, ConditionGroup conditions, AssetQuerySandbox box) {
          super(table, conditions);
          this.box = box;
-         // only a FormulaTableLens column read can cascade into script
-         // execution from inside checkCondition()/moreRows() -- see
-         // containsFormulaTableLens() below.
-         this.needsScriptLock = box != null && containsFormulaTableLens(table);
+         // see needsScriptExecutionLock() below for what actually requires the
+         // lock -- not just a FormulaTableLens column read.
+         this.needsScriptLock = box != null && needsScriptExecutionLock(table);
       }
 
       /**
@@ -281,19 +280,17 @@ public class PostProcessor {
        * not forced to create one just to establish the ordering.
        *
        * <p>Narrower still (bug #76935): the engine lock is only requested at all
-       * when {@link #needsScriptLock} says this filter's own base table can reach
-       * a {@code FormulaTableLens} formula column -- the only place a
-       * {@code checkCondition()}/{@code ConditionGroup.evaluate()} column read can
-       * cascade into GraalJS script execution (confirmed by
-       * {@code ConditionFilterGraalLockOrderingTest}'s own account of the original
-       * jstack trace: {@code table.moreRows() -> FormulaTableLens.exec() ->
-       * GraalJavaScriptEngine.exec()}'s {@code lock.lock()}). A filter that can
-       * never reach a formula column can never itself block waiting on the engine
-       * lock while holding this monitor, so it can never be the "A" side of the
-       * AB-BA cycle above regardless of what unrelated scripts elsewhere in the
-       * same sandbox are doing -- skipping the lock for it does not reopen
-       * #76918, it only stops it from queuing behind scripts it was never at risk
-       * of deadlocking against in the first place.
+       * when {@link #needsScriptLock} says this filter's own base table chain can
+       * plausibly reach the script engine during row population -- see
+       * {@link #needsScriptExecutionLock(TableLens)} for the two distinct ways
+       * that can happen ({@code FormulaTableLens} column reads, and the
+       * async-worker-filling lenses bug #76938 also cares about). A filter that
+       * can never reach either can never itself block waiting on the engine lock
+       * while holding this monitor, so it can never be the "A" side of the AB-BA
+       * cycle above regardless of what unrelated scripts elsewhere in the same
+       * sandbox are doing -- skipping the lock for it does not reopen #76918, it
+       * only stops it from queuing behind scripts it was never at risk of
+       * deadlocking against in the first place.
        *
        * <p>The held lock is recorded on this thread, so a lens below this filter
        * that would otherwise hand its processing to a background worker and wait
@@ -326,22 +323,46 @@ public class PostProcessor {
        * single source, e.g. {@code SelfJoinTableLens}) and the two-child
        * {@link BinaryTableFilter} chain ({@code JoinTableLens},
        * {@code MergedJoinTableLens}, {@code CrossJoinTableLens}, and
-       * {@code SetTableLens}, the base of union/minus/intersect) -- is a
-       * {@link FormulaTableLens}. Reading one of its columns can compile/execute
-       * a JavaScript formula (see {@code FormulaTableLens.getObject()}/
-       * {@code moreRows()}), and a join or set-op result can embed one of these
-       * on either side without itself being wrapped by an outer
-       * {@code FormulaTableLens} -- each side of a join/union is its own
-       * independently-recursed query, so a per-side formula column is already
-       * baked into that side's result before the join/union ever executes,
-       * while the *outer* query may have no expression columns of its own (see
-       * bug #76935 review round 1: both {@code TableFilter} and
+       * {@code SetTableLens}, the base of union/minus/intersect) -- can require
+       * the sandbox's script-execution lock while this filter populates its row
+       * map. Two distinct reasons, both real (see bug #76935's revisions):
+       *
+       * <ol>
+       * <li>{@code table} is a {@link FormulaTableLens}. Reading one of its
+       * columns can compile/execute a JavaScript formula (see
+       * {@code FormulaTableLens.getObject()}/{@code moreRows()}), and a join or
+       * set-op result can embed one of these on either side without itself being
+       * wrapped by an outer {@code FormulaTableLens} -- each side of a join/union
+       * is its own independently-recursed query, so a per-side formula column is
+       * already baked into that side's result before the join/union ever
+       * executes, while the *outer* query may have no expression columns of its
+       * own (see bug #76935 review round 1: both {@code TableFilter} and
        * {@code BinaryTableFilter} must be walked, not just the former, or a
-       * formula embedded on one side of a join/union is invisible to this
-       * check and the join's first (lazy) access can run that formula's script
-       * while this filter still holds its own monitor -- reopening #76918).
+       * formula embedded on one side of a join/union is invisible to this check
+       * and the join's first (lazy) access can run that formula's script while
+       * this filter still holds its own monitor -- reopening #76918).</li>
+       *
+       * <li>{@code table} is one of the async-worker-filling lenses bug #76938
+       * lends the lock to -- {@link SummaryFilter}, {@code DistinctTableLens},
+       * {@code SelfJoinTableLens}, {@code SetTableLens}. Their own background
+       * worker can itself need the script engine (a script-backed aggregate
+       * formula, or an inner base table's own formula column read from that
+       * worker thread -- bug #76937's jstack shows a {@code SummaryFilter}
+       * worker parked in {@code GraalJavaScriptEngine.exec()}), and unlike a
+       * {@code FormulaTableLens} column read that happens on *this* thread, the
+       * worker case only stays safe under #76938's own lend/reclaim machinery,
+       * which only has something to lend when this filter actually took the lock
+       * first. Treating mere presence of one of these four lens types as
+       * sufficient (rather than trying to also prove whether *their own*
+       * formula/config is script-backed) is deliberately conservative -- the
+       * failure mode of a false positive here is an unnecessary lock (a
+       * slowdown), while a false negative is #76938's deadlock again, and
+       * bug #76938's own regression suite (`AsyncLensScriptLockLendingTest`)
+       * fails without this branch even when nothing else in the chain is a
+       * {@code FormulaTableLens}.</li>
+       * </ol>
        */
-      private static boolean containsFormulaTableLens(TableLens table) {
+      private static boolean needsScriptExecutionLock(TableLens table) {
          if(table == null) {
             return false;
          }
@@ -350,9 +371,15 @@ public class PostProcessor {
             return true;
          }
 
+         if(table instanceof SummaryFilter || table instanceof DistinctTableLens ||
+            table instanceof SelfJoinTableLens || table instanceof SetTableLens)
+         {
+            return true;
+         }
+
          if(table instanceof TableFilter) {
             for(TableLens child : ((TableFilter) table).getTables()) {
-               if(containsFormulaTableLens(child)) {
+               if(needsScriptExecutionLock(child)) {
                   return true;
                }
             }
@@ -360,7 +387,7 @@ public class PostProcessor {
 
          if(table instanceof BinaryTableFilter) {
             for(TableLens child : ((BinaryTableFilter) table).getTables()) {
-               if(containsFormulaTableLens(child)) {
+               if(needsScriptExecutionLock(child)) {
                   return true;
                }
             }
