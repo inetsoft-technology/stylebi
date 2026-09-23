@@ -912,6 +912,38 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * The cell's content padding, resolved across the tiers, or null when nothing defines one.
+    * Null rather than a zero Insets: null is what the cell pipeline reads as "nothing here".
+    */
+   public Insets getCellPadding() {
+      return cellPadding.get();
+   }
+
+   /**
+    * Set the cell's content padding at one tier. DEFAULT is the density seed, USER the author.
+    */
+   public void setCellPadding(Insets cellPadding, CompositeValue.Type type) {
+      this.cellPadding.setValue(cellPadding, type);
+   }
+
+   /**
+    * Whether the author set the cell padding. Surfaced in the property dialog as the cell padding
+    * pane's follow-the-default checkbox, inverted.
+    */
+   public boolean isUserCellPadding() {
+      return cellPadding.hasUserValue();
+   }
+
+   /**
+    * Drop the author's cell padding and let the density decide again. What the follow-the-default
+    * checkbox calls when it is checked - writing the density value into the USER tier instead
+    * would pin the current tier.
+    */
+   public void resetUserCellPadding() {
+      cellPadding.resetUserValue();
+   }
+
+   /**
     * Rename the depended. This method should be called when an assembly or
     * other named variables are renamed. It updates of the dynamic references
     * to use the new name.
@@ -949,6 +981,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" dataRowHeight=\"" + dataRowHeight + "\"");
       writer.print(" userHeaderRowHeight=\"" + isUserHeaderRowHeight() + "\"");
       writer.print(" userDataRowHeight=\"" + isUserDataRowHeight() + "\"");
+      writer.print(" cellPadding=\"" + cellPadding + "\"");
    }
 
    /**
@@ -1007,6 +1040,8 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          prop = getAttributeStr(elem, "userDataRowHeight", (getDataRowHeight() != AssetUtil.defh) + "");
          setUserDataRowHeight("true".equalsIgnoreCase(prop));
       }
+
+      cellPadding.parse(Tool.getAttribute(elem, "cellPadding"));
    }
 
    /**
@@ -1464,6 +1499,11 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          result = true;
       }
 
+      if(!Tool.equals(cellPadding, cinfo.cellPadding)) {
+         cellPadding = (CompositeValue<Insets>) cinfo.cellPadding.clone();
+         result = true;
+      }
+
      return result;
    }
 
@@ -1626,6 +1666,13 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
          // to null both or a runtime foreground survives it
          def.setForeground(null);
       }
+
+      // the cell's content padding. Seeded rather than resolved at render so it travels in an
+      // exported asset. Both branches write: Revert calls this with an unmarked context and
+      // needs the legacy absence restored, not the modern value left in place
+      if(!isUserCellPadding()) {
+         setCellPadding(VSDensityDefaults.cellPadding(ctx), CompositeValue.Type.DEFAULT);
+      }
    }
 
    /**
@@ -1707,6 +1754,11 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    private boolean userHeaderRowHeight = false;
    private boolean userDataRowHeight = false;
    private boolean keepRowHeightOnPrint = false;
+   // the cell's content padding. A CompositeValue rather than a plain Insets so authorship needs
+   // no companion boolean: the USER tier IS the author's opinion. Deliberately no CSS tier - a
+   // table's CSS cell padding arrives through CSSTableStyle, and a second CSS source here would
+   // give two mechanisms a claim on one value
+   private CompositeValue<Insets> cellPadding = new CompositeValue<>(Insets.class, null);
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TableDataVSAssemblyInfo.class);
