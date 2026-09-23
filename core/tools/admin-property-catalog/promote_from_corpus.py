@@ -124,6 +124,24 @@ def parse_frontmatter(text):
         key = key.strip()
         val = val.strip()
 
+        if val.startswith("[") and not val.endswith("]"):
+            # An inline list wrapped across lines (crosstab.datetime.expandall.level's
+            # allowedValues is the live case). Parsed line by line it came back as the string
+            # '["Year", ...' and was proposed as a one-element enum; join the continuation
+            # lines, and fail loud if the list is never closed rather than guess.
+            j = i + 1
+
+            while j < n and not val.endswith("]"):
+                val += " " + lines[j].strip()
+                j += 1
+
+            if not val.endswith("]"):
+                raise ValueError(f"unterminated inline list for {key!r}")
+
+            meta[key] = parse_scalar(val)
+            i = j
+            continue
+
         if val:
             meta[key] = parse_scalar(val)
             i += 1
