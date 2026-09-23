@@ -23,19 +23,27 @@
  *   Group 2 - round corner clamping (pre-existing behavior, guarded against regression)
  *   Group 3 - shadow div border-radius must match the SVG rect's per-axis rx/ry
  *             clamping (Bug #76962)
+ *   Group 4 - the rendered template binds that radius to the shadow div (Bug #76962)
  *
  * The shadow used to be a hardcoded scss rule; it is now computed from
  * model.shadowInfo, so the defaults must still approximate the old look.
  *
  * Mocking strategy:
- *   - direct class instantiation with lightweight service stubs; no DOM or HTTP
- *     interception is needed, so this is a plain spec rather than a .tl one
+ *   - Groups 1-3: direct class instantiation with lightweight service stubs
+ *   - Group 4: TestBed render with the child directives stripped, so the real
+ *     template bindings are exercised; no HTTP interception is needed, so this
+ *     is a plain spec rather than a .tl one
  */
-import { NgZone } from "@angular/core";
+import { NO_ERRORS_SCHEMA, NgZone } from "@angular/core";
+import { TestBed } from "@angular/core/testing";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 
 import { TestUtils } from "../../../common/test/test-utils";
 import { ShapeShadowUtil } from "../../../common/util/shape-shadow-util";
+import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ContextProvider } from "../../context-provider.service";
 import { VSRectangleModel } from "../../model/vs-rectangle-model";
+import { DataTipService } from "../data-tip/data-tip.service";
 import { VSRectangle } from "./vs-rectangle.component";
 
 function createComponent(modelOverrides: Partial<VSRectangleModel> = {}) {
@@ -176,5 +184,42 @@ describe("VSRectangle - Group 3: shadow border-radius (Bug #76962)", () => {
          objectFormat: { ...comp.model.objectFormat, width: 100, height: 400 } };
       comp.ngOnChanges({ model: {} as any });
       expect(comp.shadowRadius).toBe("50px / 100px");
+   });
+});
+
+describe("VSRectangle - Group 4: rendered shadow div (Bug #76962)", () => {
+   function renderShadowDiv(width: number, height: number, roundCornerValue: number): HTMLElement {
+      TestBed.overrideComponent(VSRectangle, { set: { imports: [], schemas: [NO_ERRORS_SCHEMA] } });
+      TestBed.configureTestingModule({
+         imports: [VSRectangle],
+         providers: [
+            { provide: ViewsheetClientService, useValue: { runtimeId: "runtime-1", sendEvent: vi.fn() } },
+            { provide: NgbModal, useValue: {} },
+            { provide: ContextProvider,
+              useValue: { viewer: true, preview: false, composer: false, binding: false } },
+            { provide: DataTipService, useValue: { isDataTip: vi.fn().mockReturnValue(false) } },
+         ]
+      });
+
+      const fixture = TestBed.createComponent(VSRectangle);
+      const model = TestUtils.createMockVSRectangleModel("Rectangle1");
+      model.objectFormat.width = width;
+      model.objectFormat.height = height;
+      model.roundCornerValue = roundCornerValue;
+      model.shadow = true;
+      fixture.componentRef.setInput("model", model);
+      fixture.componentInstance.ngOnChanges({ model: {} as any });
+      fixture.detectChanges();
+      return fixture.nativeElement.querySelector(".vs-rectangle__box-shadow");
+   }
+
+   it("should give the shadow div elliptical corners matching the svg rect", () => {
+      // a single "240px" radius would make the browser draw a stadium-shaped shadow
+      expect(renderShadowDiv(240, 320, 240).style.borderRadius).toBe("120px / 160px");
+   });
+
+   it("should leave the shadow div square when there is no round corner", () => {
+      // no radius at all and an explicit zero radius both render square corners
+      expect(["", "0px"]).toContain(renderShadowDiv(240, 320, 0).style.borderRadius);
    });
 });
