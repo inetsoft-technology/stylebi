@@ -158,6 +158,31 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       assertEquals("var   {p, q} = o; var [r] = a", rewrite("const {p, q} = o; let [r] = a"));
    }
 
+   // review r1: after `)` (and other division-ambiguous tokens) the lexer reads
+   // `/` as division, so a regex literal's content looks like code; a `const`
+   // or `let` there is not a declaration shape and must not be rewritten
+   @Test void regexAfterDivisionAmbiguousTokenNotRewritten() throws Exception {
+      assertEquals("if(x) /const/.test(s)", rewrite("if(x) /const/.test(s)"));
+      assertEquals("if(x) /const x/.test(s)", rewrite("if(x) /const x/.test(s)"));
+      assertEquals("if(x) /let y/.test(s)", rewrite("if(x) /let y/.test(s)"));
+      assertEquals("while(x) /const [a]/.test(s)", rewrite("while(x) /const [a]/.test(s)"));
+      assertEquals("a[0] /const/g", rewrite("a[0] /const/g"));
+      assertEquals("n /const {b}/ 2", rewrite("n /const {b}/ 2"));
+
+      MapScope scope = new MapScope();
+      scope.putMember("s", "has const here");
+      assertEquals(true, engine.exec(engine.compile(
+         "var hit = false; if(1) /const/.test(s) && (hit = true); if(false) {} hit"), scope, scope));
+      assertEquals(true, engine.exec(engine.compile(
+         "var ok = false; if(1) /const here/.test(s) && (ok = true); if(false) {} ok"), scope, scope));
+   }
+
+   // a real declaration after `)` (ASI) is still rewritten
+   @Test void constAfterCloseParenOnNextLineRewritten() throws Exception {
+      assertEquals("f()\nvar   z = 1", rewrite("f()\nconst z = 1"));
+      assertEquals(2.0, num("function f(){}\nf()\nconst z2 = 2\nif(z2) {}\nz2"));
+   }
+
    // #75688 regression check: var-based completion preservation is unchanged
    @Test void varCompletionPreservationUnchanged() throws Exception {
       assertEquals("1,2", String.valueOf(run("var hv = [1,2]; if(1 > 0) { hv.join(',') } if(false) { 0 }")));

@@ -873,7 +873,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     *       {@code TypeError: redeclaration of const});</li>
     *   <li>under {@code with(__scope__)}, when the scope already has a member of
     *       the same name, the initializer writes to that scope member, as a
-    *       {@code var} always has;</li>
+    *       {@code var} always has and as Rhino did (e.g. {@code const data = ...}
+    *       in an element script now sets the element's {@code data} member when
+    *       it has one);</li>
     *   <li>top-level {@code let}/{@code const} names become globals that persist
     *       across scripts on the engine (like the #75596 {@code var} hoist), and
     *       lose TDZ and immutability;</li>
@@ -904,22 +906,25 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    /**
     * Whether the {@code let}/{@code const} keyword {@code word}, ending at
     * {@code end} at depth 0 (not after a member {@code .}), begins a lexical
-    * declaration. {@code const} is reserved, so at depth 0 of valid source it
-    * can only start a declaration. {@code let} is also an identifier in sloppy
-    * code, so it must be at statement position and followed by a binding name,
-    * {@code [} or {@code {} (e.g. not {@code x = let}, {@code let in o},
-    * {@code let.x}); after a {@code )} (ambiguous with a control-flow header,
-    * where {@code if(c) let\ny = 1} is an expression) the binding must follow on
-    * the same line.
+    * declaration: it must be at statement position (not after an operator or
+    * {@code return}/{@code typeof}/...) and be followed by a binding name,
+    * {@code [} or {@code {}. {@code let} is also an identifier in sloppy code
+    * (e.g. {@code x = let}, {@code let in o}, {@code let.x}). Requiring the same
+    * shape for {@code const} guards against the lexer misreading a regex literal
+    * as division — after {@code )} it treats {@code /} as division, so in
+    * {@code if(x) /const/.test(s)} the {@code const} looks like code; the
+    * following {@code /} (or the preceding {@code /} for {@code /const x/}) is
+    * not a declaration shape. After a {@code )} (ambiguous with a control-flow
+    * header, where {@code if(c) let\ny = 1} is an expression) a {@code let}
+    * binding must follow on the same line; a reserved {@code const} cannot be
+    * an expression, so no such rule is needed for it.
     */
    private static boolean isTopLevelLexicalDeclaration(String body, String word, int end,
                                                        char prevSig, String prevWord)
    {
-      if(word.equals("const")) {
-         return true;
-      }
+      boolean isConst = word.equals("const");
 
-      if(!word.equals("let")) {
+      if(!isConst && !word.equals("let")) {
          return false;
       }
 
@@ -935,7 +940,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          return false;
       }
 
-      if(prevSig == ')' && body.substring(end, j).chars().anyMatch(ch -> isLineBreak((char) ch))) {
+      if(!isConst && prevSig == ')' &&
+         body.substring(end, j).chars().anyMatch(ch -> isLineBreak((char) ch)))
+      {
          return false;
       }
 
