@@ -1186,6 +1186,12 @@ public class VSWizardBindingHandler {
       assemblyInfo.setName(WizardRecommenderUtil.nextPrimaryAssemblyName());
       syncChartAssembly(tempInfo.getTempChart(), assembly);
 
+      // Bug #76942: keep any VS_ASSEMBLY-sourced ad hoc range filter (TimeSlider created from
+      // a chart bar's right-click "Filter" action) pointed at the wizard's renamed clone, since
+      // the original assembly (still holding the filter's tableName) isn't renamed itself while
+      // the wizard is editing it.
+      WizardRecommenderUtil.repointAdhocFilterTableName(vs, originalName, assemblyInfo.getName());
+
       vs.addAssembly(assembly);
       this.updatePrimaryAssembly(rvs, linkUri, assembly, true, selectOriginal, dispatcher);
 
