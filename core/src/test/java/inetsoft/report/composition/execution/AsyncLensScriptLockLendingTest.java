@@ -79,7 +79,6 @@ public class AsyncLensScriptLockLendingTest {
       when(senv.getExecutionLock()).thenReturn(lock);
       box = mock(AssetQuerySandbox.class);
       when(box.peekScriptEnv()).thenReturn(senv);
-      this.senv = senv;
       pool = Executors.newCachedThreadPool(r -> {
          Thread thread = new Thread(() -> {
             FAST.set(true);
@@ -632,8 +631,6 @@ public class AsyncLensScriptLockLendingTest {
    private GraalJavaScriptEngine engine;
    private LendableReentrantLock lock;
    private AssetQuerySandbox box;
-   // strongly held so the filters' weak reference to it stays valid
-   private ScriptEnv senv;
    private ExecutorService pool;
    private AtomicBoolean lentSeen;
    private volatile boolean watching;

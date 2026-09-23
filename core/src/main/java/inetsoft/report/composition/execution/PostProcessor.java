@@ -412,9 +412,11 @@ public class PostProcessor {
        *
        * <p>Held weakly so a cached filter does not keep an unused env alive: if a
        * lens below uses the env, that lens keeps it reachable, and if none does, no
-       * lock is needed.
+       * lock is needed. Transient: a filter deserialized from the distributed
+       * table cache has no captured env, so it takes no lock, like a filter built
+       * while its sandbox had no env.
        */
-      private final WeakReference<ScriptEnv> senv;
+      private final transient WeakReference<ScriptEnv> senv;
       private final boolean needsScriptLock;
 
       @Override
