@@ -173,4 +173,12 @@ public interface ScriptEnv {
    default java.util.concurrent.locks.Lock getExecutionLock() {
       return null;
    }
+
+   /**
+    * Open a span of script work on this thread (see {@link ScriptSpan}). Environments without
+    * pooled contexts return {@link ScriptSpan#NONE}.
+    */
+   default ScriptSpan openSpan() {
+      return ScriptSpan.NONE;
+   }
 }

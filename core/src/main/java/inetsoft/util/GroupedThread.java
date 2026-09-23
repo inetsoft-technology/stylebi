@@ -24,6 +24,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.affinity.AffinitySupport;
 import inetsoft.util.audit.*;
 import inetsoft.util.log.LogContext;
+import inetsoft.util.script.graal.pool.SlotClaim;
 import org.slf4j.*;
 
 import java.security.Principal;
@@ -161,7 +162,14 @@ public class GroupedThread extends Thread {
          }
       }
 
-      doRun();
+      try {
+         doRun();
+      }
+      finally {
+         // a worksheet script claim left open by a bug would keep its context locked
+         // forever (bug #76960, spec N5)
+         SlotClaim.releaseLeaked(getName());
+      }
    }
 
    /**
