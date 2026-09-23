@@ -19,6 +19,7 @@ package inetsoft.web.wiz.worksheet;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.internal.binding.BaseField;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.Condition;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
@@ -588,6 +589,122 @@ class WorksheetReadServiceTest {
          tableNamed(read(ws), "T").preConditions().get(0);
 
       assertNull(condition.choiceQuery());
+   }
+
+   // -------------------------------------------------------------------------
+   // valueSpecs read-back (bug #76922): extractValues() collapses a field-reference or
+   // expression condition value (written via set_conditions/set_post_conditions's own
+   // valueSpecs) to a bare Object.toString() string, indistinguishable from a plain literal.
+   // extractValueSpecs() recovers each such value's real identity, indexed to match its
+   // position in the pre-existing (unchanged) values list.
+   // -------------------------------------------------------------------------
+
+   @Test
+   void filterConditionSurfacesValueSpecsForUnaliasedFieldReference() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = new EmbeddedTableAssembly(ws, "T");
+
+      // TestWorksheets.tableWithColumns builds columns with a null entity (getName() then
+      // renders as the bare attribute), so build the column selection directly here with a
+      // real entity name to exercise the "entity.attr" qualified-name collapse the diagnosis
+      // observed live (e.g. "MixedValuesProbe.B").
+      ColumnSelection cs = new ColumnSelection();
+      cs.addAttribute(new ColumnRef(new AttributeRef("T", "A")));
+      cs.addAttribute(new ColumnRef(new AttributeRef("T", "B")));
+      t.setColumnSelection(cs, false);
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t,
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "A", "ONE_OF", List.of("5"), false, null,
+               List.of(new WorksheetMutationSupport.ConditionValueSpec(
+                  "field", "T.B", null, null))),
+            null, 0)),
+         false);
+
+      WorksheetModel.FilterModel condition =
+         tableNamed(read(ws), "T").preConditions().get(0);
+
+      // values is unchanged (backward compat) -- the field reference still collapses to its
+      // qualified name there.
+      assertEquals(List.of("5", "T.B"), condition.values());
+
+      assertEquals(
+         List.of(new WorksheetModel.ValueSpecModel(1, "field", "T.B", null, null)),
+         condition.valueSpecs());
+   }
+
+   @Test
+   void filterConditionSurfacesValueSpecsForAliasedFieldReferenceAsBareAlias() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "A", "B");
+      ws.addAssembly(t);
+
+      // Give column B a display alias -- ColumnRef.getName() then returns the bare alias
+      // instead of "entity.attr" (AbstractDataRef.getName0()'s convention), so the read-back
+      // "field" value must be the bare alias too, not a qualified name.
+      var cs = t.getColumnSelection(false);
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         if(cs.getAttribute(i) instanceof ColumnRef cr && "B".equals(cr.getAttribute())) {
+            cr.setAlias("BAlias");
+         }
+      }
+
+      WorksheetMutationSupport.setConditions(t,
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "A", "ONE_OF", List.of("5"), false, null,
+               List.of(new WorksheetMutationSupport.ConditionValueSpec(
+                  "field", "BAlias", null, null))),
+            null, 0)),
+         false);
+
+      WorksheetModel.FilterModel condition =
+         tableNamed(read(ws), "T").preConditions().get(0);
+
+      assertEquals(
+         List.of(new WorksheetModel.ValueSpecModel(1, "field", "BAlias", null, null)),
+         condition.valueSpecs());
+   }
+
+   @Test
+   void filterConditionSurfacesValueSpecsForJsExpression() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "A", "B");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t,
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "A", "ONE_OF", List.of("7"), false, null,
+               List.of(new WorksheetMutationSupport.ConditionValueSpec(
+                  "expression", null, "field['B']*2", "js"))),
+            null, 0)),
+         false);
+
+      WorksheetModel.FilterModel condition =
+         tableNamed(read(ws), "T").preConditions().get(0);
+
+      assertEquals(
+         List.of(new WorksheetModel.ValueSpecModel(
+            1, "expression", null, "field['B']*2", "js")),
+         condition.valueSpecs());
+   }
+
+   @Test
+   void filterConditionValueSpecsIsNullWhenEveryValueIsLiteral() {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "region");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.addFilter(t, "region", "=", "East");
+
+      WorksheetModel.FilterModel condition =
+         tableNamed(read(ws), "T").preConditions().get(0);
+
+      assertNull(condition.valueSpecs());
    }
 
    // -------------------------------------------------------------------------

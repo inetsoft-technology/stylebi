@@ -767,9 +767,10 @@ public class WorksheetReadService {
             String operation = xc != null ? operationName(xc) : null;
             List<String> values = extractValues(xc);
             String choiceQuery = extractChoiceQuery(xc);
+            List<WorksheetModel.ValueSpecModel> valueSpecs = extractValueSpecs(xc);
 
             result.add(new WorksheetModel.FilterModel(
-               field, operation, values, pendingJunction, choiceQuery));
+               field, operation, values, pendingJunction, choiceQuery, valueSpecs));
             pendingJunction = null;
          }
       }
@@ -872,6 +873,58 @@ public class WorksheetReadService {
       }
 
       return null;
+   }
+
+   /**
+    * Recovers the field-reference/expression values {@link #extractValues} collapses to a bare,
+    * indistinguishable string via {@code Object.toString()} (Bug #76922) -- scans a plain
+    * {@link Condition}'s values for a {@link DataRef} (field reference, from a
+    * {@code valueSpecs} {@code "field"} entry, or a native-UI field-vs-field condition value)
+    * or an {@link ExpressionValue} (from a {@code valueSpecs} {@code "expression"} entry, or a
+    * native-UI expression condition value), and reports each one's real identity plus its
+    * position in {@code values} -- so a caller can tell it apart from an ordinary literal (a
+    * {@code $(name)} variable is already distinguishable via its own "$(" convention and is not
+    * reported here). Returns {@code null} (never an empty list) when the condition has none, so
+    * an ordinary literal-only condition's JSON is unaffected -- matching
+    * {@link #extractChoiceQuery}'s own null-for-absent convention. Not applicable to
+    * {@code RankingCondition}/{@code DateCondition}, same reasoning as
+    * {@link #extractChoiceQuery}. SUBQUERY-typed condition values (native UI only -- never
+    * written by set_conditions' own valueSpecs) are not modeled here and remain unaddressed,
+    * same as before this fix.
+    */
+   private List<WorksheetModel.ValueSpecModel> extractValueSpecs(XCondition xc) {
+      if(!(xc instanceof Condition c)) {
+         return null;
+      }
+
+      List<WorksheetModel.ValueSpecModel> specs = null;
+
+      for(int i = 0; i < c.getValueCount(); i++) {
+         Object v = c.getValue(i);
+
+         if(v instanceof ExpressionValue ev) {
+            if(specs == null) {
+               specs = new ArrayList<>();
+            }
+
+            // ExpressionValue.getType() renders "Javascript"/"SQL" (its own constants); the
+            // write side's ConditionValueSpec.expressionType contract is lower-case "js"/"sql"
+            // -- map back to that token for symmetry, so a value read back here round-trips
+            // straight into a new set_conditions/set_post_conditions/set_mv_conditions call.
+            String expressionType = ExpressionValue.JAVASCRIPT.equals(ev.getType()) ? "js" : "sql";
+            specs.add(new WorksheetModel.ValueSpecModel(
+               i, "expression", null, ev.getExpression(), expressionType));
+         }
+         else if(v instanceof DataRef ref) {
+            if(specs == null) {
+               specs = new ArrayList<>();
+            }
+
+            specs.add(new WorksheetModel.ValueSpecModel(i, "field", ref.getName(), null, null));
+         }
+      }
+
+      return specs;
    }
 
    // -------------------------------------------------------------------------
