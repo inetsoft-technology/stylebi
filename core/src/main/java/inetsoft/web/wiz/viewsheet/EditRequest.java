@@ -37,4 +37,21 @@ public record EditRequest(String op,
                           List<String> assemblies,
                           String newName,
                           Integer type,
-                          String axis) {}
+                          String axis,
+                          String path,
+                          String scope) {
+   /**
+    * Compatibility constructor for callers built before {@code path}/{@code scope} were added
+    * (op:"add" with type:200/"viewsheet", naming the existing saved viewsheet asset to embed as
+    * a component -- same shape as {@code attach_base_worksheet}'s own {@code path}/{@code scope})
+    * -- defaults both to {@code null}.
+    */
+   public EditRequest(String op, String assembly, Integer x, Integer y, Integer width,
+                      Integer height, Integer zIndex, String title, Boolean locked,
+                      String container, List<String> assemblies, String newName, Integer type,
+                      String axis)
+   {
+      this(op, assembly, x, y, width, height, zIndex, title, locked, container, assemblies,
+          newName, type, axis, null, null);
+   }
+}

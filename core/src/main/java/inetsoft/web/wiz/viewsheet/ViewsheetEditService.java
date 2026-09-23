@@ -18,8 +18,12 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.AssetContent;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.AbstractSelectionVSAssembly;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
@@ -275,6 +279,11 @@ public class ViewsheetEditService {
          event.setType(request.type());
          event.setxOffset(request.x());
          event.setyOffset(request.y());
+
+         if(request.type() == AbstractSheet.VIEWSHEET_ASSET) {
+            event.setEntry(resolveEmbeddedViewsheetEntry(rvs, request, user));
+         }
+
          String name = objects.addNewObject(runtimeId, event, user, dispatcher, linkUri);
 
          if(name == null) {
@@ -307,6 +316,73 @@ public class ViewsheetEditService {
             objects.resizeObject(runtimeId, resize, user, dispatcher, linkUri);
          }
       });
+   }
+
+   /**
+    * Resolves {@code path}/{@code scope} into a permission-checked {@link AssetEntry} naming the
+    * existing viewsheet asset to embed, for {@code edit(op:"add", type:200)} — the type the
+    * native Composer's own "Viewsheet" toolbox entry creates when a repository-tree viewsheet is
+    * dragged onto another viewsheet's canvas ({@code AddNewVSObjectEvent.entry}, consumed by
+    * {@code ComposerObjectService#addEmbeddedViewsheet}). Bug #76928: this agent surface exposed
+    * no way to supply that entry at all, so every {@code type:200} attempt was refused up front by
+    * the plugin's own client-side type whitelist. Same {@code path}/{@code scope} shape and
+    * resolution as {@code ViewsheetAssemblyAgentController#resolveDataSourceEntry}'s
+    * {@code "worksheet"} branch ({@code attach_base_worksheet}), applied to
+    * {@link AssetEntry.Type#VIEWSHEET} instead of {@code WORKSHEET}.
+    *
+    * <p>Validated here, ahead of {@code addEmbeddedViewsheet}, because that method has no null/
+    * not-found handling of its own — it asserts {@code entry.isViewsheet()} (a no-op unless
+    * assertions are enabled) and otherwise flows an unresolved entry straight into a raw
+    * {@code NullPointerException} once it dereferences the {@code null} sheet {@code getSheet}
+    * would return for a nonexistent or unreadable path.
+    *
+    * @throws IllegalArgumentException naming the specific missing field or resolution failure —
+    *                                  never a generic message.
+    */
+   private AssetEntry resolveEmbeddedViewsheetEntry(RuntimeViewsheet rvs, EditRequest request,
+                                                     Principal user) throws Exception
+   {
+      String path = request.path();
+
+      if(path == null || path.isBlank()) {
+         throw new IllegalArgumentException(
+            "Edit op 'add' with type:200 (viewsheet) requires 'path' — the existing viewsheet " +
+            "asset to embed as a component (e.g. \"Sample Dashboards/Sales Summary\").");
+      }
+
+      String trimmedPath = path.trim();
+
+      if(trimmedPath.indexOf('^') >= 0) {
+         throw new IllegalArgumentException(
+            "Edit op 'add' with type:200 (viewsheet): 'path' must not contain '^'.");
+      }
+
+      IdentityID uname = IdentityID.getIdentityIDFromKey(user.getName());
+      int assetScope = "user".equalsIgnoreCase(request.scope())
+         ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
+      IdentityID owner = assetScope == AssetRepository.USER_SCOPE ? uname : null;
+      AssetEntry entry = new AssetEntry(assetScope, AssetEntry.Type.VIEWSHEET, trimmedPath, owner,
+                                        uname.orgID);
+
+      AssetRepository rep = rvs.getAssetRepository();
+      Object resolved;
+
+      try {
+         resolved = rep.getSheet(entry, user, true, AssetContent.ALL, false);
+      }
+      catch(Exception e) {
+         throw new IllegalArgumentException(
+            "no viewsheet named '" + trimmedPath + "' was found, or you lack permission to " +
+            "read it", e);
+      }
+
+      if(resolved == null) {
+         throw new IllegalArgumentException(
+            "no viewsheet named '" + trimmedPath + "' was found, or you lack permission to " +
+            "read it");
+      }
+
+      return entry;
    }
 
    private void remove(String sessionToken, Principal user, EditRequest request, String linkUri)

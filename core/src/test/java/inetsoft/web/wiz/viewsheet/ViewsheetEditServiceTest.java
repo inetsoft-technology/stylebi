@@ -19,6 +19,9 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.uql.asset.AbstractSheet;
+import inetsoft.uql.asset.AssetContent;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.controller.ClipboardControllerService;
 import inetsoft.web.composer.vs.objects.controller.ComposerObjectService;
@@ -357,6 +360,128 @@ class ViewsheetEditServiceTest {
       Exception thrown = assertThrows(IllegalArgumentException.class,
          () -> service.apply("tok", principal(), request, ""));
       assertTrue(thrown.getMessage().contains("height"));
+   }
+
+   /**
+    * Regression for Bug #76928: {@code edit op:"add", type:200} (an embedded/reference viewsheet
+    * -- the same type the Composer's own asset-tree "drag a viewsheet onto another viewsheet's
+    * canvas" gesture creates) requires {@code path} naming the existing viewsheet asset to embed.
+    * This agent surface used to have no way to supply that entry at all, so every {@code type:200}
+    * attempt was refused client-side by the plugin's own type whitelist before it ever reached
+    * here.
+    */
+   @Test
+   void addViewsheetTypeRequiresAPathAndFailsLoudWithoutOne() {
+      ViewsheetEditService service = serviceWith(mock(ComposerObjectService.class));
+      EditRequest request = new EditRequest("add", null, 10, 10, null, null, null, null,
+                                            null, null, null, null, 200, null, null, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+                                      () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("path"));
+   }
+
+   @Test
+   void addViewsheetTypeResolvesPathToAPermissionCheckedEntryAndSetsItOnTheEvent()
+      throws Exception
+   {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rep.getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                        eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "Sample Dashboards/Sales Summary", null);
+      service.apply("tok", principal(), request, "");
+
+      ArgumentCaptor<AddNewVSObjectEvent> captor =
+         ArgumentCaptor.forClass(AddNewVSObjectEvent.class);
+      verify(objects).addNewObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals(200, captor.getValue().getType());
+      assertNotNull(captor.getValue().getEntry());
+      assertEquals("Sample Dashboards/Sales Summary", captor.getValue().getEntry().getPath());
+      assertEquals(AssetRepository.GLOBAL_SCOPE, captor.getValue().getEntry().getScope());
+   }
+
+   @Test
+   void addViewsheetTypeWithUserScopeResolvesAUserOwnedEntry() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rep.getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                        eq(AssetContent.ALL), eq(false)))
+         .thenReturn(mock(Viewsheet.class));
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "My Reports/Draft", "user");
+      service.apply("tok", principal(), request, "");
+
+      ArgumentCaptor<AddNewVSObjectEvent> captor =
+         ArgumentCaptor.forClass(AddNewVSObjectEvent.class);
+      verify(objects).addNewObject(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                   anyString());
+      assertEquals(AssetRepository.USER_SCOPE, captor.getValue().getEntry().getScope());
+   }
+
+   @Test
+   void addViewsheetTypeFailsLoudWhenThePathDoesNotResolve() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetRepository rep = mock(AssetRepository.class);
+      when(rvs.getAssetRepository()).thenReturn(rep);
+      when(rep.getSheet(any(AssetEntry.class), any(Principal.class), eq(true),
+                        eq(AssetContent.ALL), eq(false)))
+         .thenReturn(null);
+
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "Nonexistent/Path", null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("Nonexistent/Path"));
+      verify(objects, never()).addNewObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
+   }
+
+   /**
+    * A caret in {@code path} would corrupt the orgID recovered on a later round-trip through
+    * {@code AssetEntry.createAssetEntry(identifier)} -- see {@code WizUtil#requireNoCaret}'s own
+    * javadoc for the mechanism. Refused before any repository lookup, so it never reaches
+    * {@code addNewObject}.
+    */
+   @Test
+   void addViewsheetTypeRejectsACaretInThePath() throws Exception {
+      ComposerObjectService objects = mock(ComposerObjectService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      ViewsheetEditService service = serviceWithRuntime(rvs, mock(ViewsheetReadService.class),
+         objects, mock(VSObjectPropertyService.class));
+
+      EditRequest request = new EditRequest("add", null, 40, 60, null, null, null, null,
+                                            null, null, null, null, 200, null,
+                                            "Sample^Dashboards/Sales Summary", null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.apply("tok", principal(), request, ""));
+      assertTrue(thrown.getMessage().contains("'^'"));
+      verify(objects, never()).addNewObject(anyString(), any(), any(Principal.class), any(),
+                                            anyString());
    }
 
    @Test
