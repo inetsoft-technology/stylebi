@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
@@ -39,11 +40,13 @@ import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
+import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TextInputPropertyDialogModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -1311,13 +1314,15 @@ class AssemblyPropertyServiceTest {
                    "an explicit tooltipMode must not be overridden by the tooltip implication");
    }
 
-   // ── showType alias/domain (bug #76542) ───────────────────────────────────
+   // ── showType/mode/sortType int-enum alias/domain (bugs #76542, #76925) ───
    //
    // selectionGeneralPaneModel.showType and calendarAdvancedPaneModel.showType share the short
    // alias "showType" but have different, overlapping int domains (Selection: list=0/dropdown=1;
    // Calendar: calendar=1/dropdown=2) -- a leaf-name-only canonicalization would silently misapply
-   // "dropdown" on whichever collides. canonicalShowType is keyed by the resolved full path
-   // instead, so these tests exercise both paths explicitly.
+   // "dropdown" on whichever collides. canonicalIntEnum is keyed by the resolved full path
+   // instead, so these tests exercise both paths explicitly. selectionTreePaneModel.mode and
+   // selectionGeneralPaneModel.sortType (shared by SelectionList and SelectionTree) are the same
+   // mechanism, added for bug #76925.
 
    @Test
    void canonicalizesDropdownTokenOnASelectionListShowType() throws Exception {
@@ -1377,6 +1382,221 @@ class AssemblyPropertyServiceTest {
       service.set("tok", principal(), "Calendar1", Map.of("showType", "calendar"), "");
 
       assertEquals(1, model.getCalendarAdvancedPaneModel().getShowType());
+   }
+
+   // ── selectionTreePaneModel.mode alias/domain (bug #76925) ────────────────
+   //
+   // mode is SelectionTree-only, a closed 2-value enum (column=1, id=2) -- see
+   // SelectionTreeVSAssemblyInfo.COLUMN/ID and selection-tree-pane.component.html's two radio
+   // buttons, the only real producer of this value.
+
+   @Test
+   void canonicalizesColumnTokenOnASelectionTreeMode() throws Exception {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+
+      service.set("tok", principal(), "SelectionTree1", Map.of("mode", "column"), "");
+
+      assertEquals(SelectionTreeVSAssemblyInfo.COLUMN, model.getSelectionTreePaneModel().getMode());
+   }
+
+   @Test
+   void canonicalizesColumnsPluralTokenOnASelectionTreeMode() throws Exception {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+
+      service.set("tok", principal(), "SelectionTree1", Map.of("mode", "columns"), "");
+
+      assertEquals(SelectionTreeVSAssemblyInfo.COLUMN, model.getSelectionTreePaneModel().getMode());
+   }
+
+   @Test
+   void canonicalizesIdTokenCaseInsensitivelyOnASelectionTreeMode() throws Exception {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+
+      service.set("tok", principal(), "SelectionTree1", Map.of("mode", "ID"), "");
+
+      assertEquals(SelectionTreeVSAssemblyInfo.ID, model.getSelectionTreePaneModel().getMode());
+   }
+
+   @Test
+   void refusesAnUnrecognizedModeTokenNamingTheValidValues() {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "SelectionTree1", Map.of("mode", "bogus"), ""));
+
+      assertTrue(thrown.getMessage().contains("bogus"));
+      assertTrue(thrown.getMessage().contains("column"), "must name the valid tokens: " +
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("id"), "must name the valid tokens: " +
+                 thrown.getMessage());
+   }
+
+   /** An out-of-domain numeric mode must be rejected too, not just silently stored. */
+   @Test
+   void refusesAnOutOfDomainNumericMode() {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "SelectionTree1", Map.of("mode", 999), ""));
+
+      assertTrue(thrown.getMessage().contains("999"));
+   }
+
+   /** An already-numeric, in-domain mode must still work exactly as before -- no regression. */
+   @Test
+   void stillAcceptsAnAlreadyNumericInDomainMode() throws Exception {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+
+      service.set("tok", principal(), "SelectionTree1", Map.of("mode", 2), "");
+
+      assertEquals(SelectionTreeVSAssemblyInfo.ID, model.getSelectionTreePaneModel().getMode());
+   }
+
+   // ── selectionGeneralPaneModel.sortType alias/domain (bug #76925) ──────────
+   //
+   // sortType is shared by SelectionList and SelectionTree (one resolved path, one domain entry
+   // covers both -- see AssemblyPropertyService.INT_ENUM_DOMAINS's own javadoc). Its domain is
+   // four values (none=0, asc=1, desc=2, specific=8): the three the Selection dialog's own "Sort"
+   // radios can produce, plus SORT_NONE, which SelectionBaseVSAssemblyInfo#setSortType's own
+   // javadoc documents as legal and which the assembly's script API
+   // (SelectionListVSAScriptable/SelectionTreeVSAScriptable) can write under this identical name
+   // -- refuting it would be a regression, not a fix (see 02-refute.md).
+
+   @Test
+   void canonicalizesAscTokenOnASelectionListSortType() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("sortType", "asc"), "");
+
+      assertEquals(XConstants.SORT_ASC, model.getSelectionGeneralPaneModel().getSortType());
+   }
+
+   @Test
+   void canonicalizesDescendingTokenCaseInsensitivelyOnASelectionListSortType() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("sortType", "Descending"), "");
+
+      assertEquals(XConstants.SORT_DESC, model.getSelectionGeneralPaneModel().getSortType());
+   }
+
+   @Test
+   void canonicalizesHideOthersTokenOnASelectionListSortType() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("sortType", "hideothers"), "");
+
+      assertEquals(XConstants.SORT_SPECIFIC, model.getSelectionGeneralPaneModel().getSortType());
+   }
+
+   /**
+    * SORT_NONE (0) is the amendment 02-refute.md required: it is not one of the dialog's own
+    * three radios, but it is a documented-legal, script-API-reachable value that must not be
+    * refused by this fix.
+    */
+   @Test
+   void canonicalizesNoneTokenOnASelectionListSortType() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("sortType", "none"), "");
+
+      assertEquals(XConstants.SORT_NONE, model.getSelectionGeneralPaneModel().getSortType());
+   }
+
+   @Test
+   void canonicalizesAscTokenOnASelectionTreeSortType() throws Exception {
+      SelectionTreePropertyDialogModel model = new SelectionTreePropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionTree(mock(SelectionTreeVSAssembly.class), model);
+
+      service.set("tok", principal(), "SelectionTree1", Map.of("sortType", "asc"), "");
+
+      assertEquals(XConstants.SORT_ASC, model.getSelectionGeneralPaneModel().getSortType());
+   }
+
+   @Test
+   void refusesAnUnrecognizedSortTypeTokenNamingTheValidValues() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Selection1", Map.of("sortType", "bogus"), ""));
+
+      assertTrue(thrown.getMessage().contains("bogus"));
+      assertTrue(thrown.getMessage().contains("asc"), "must name the valid tokens: " +
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("desc"), "must name the valid tokens: " +
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("specific"), "must name the valid tokens: " +
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("none"), "must name the valid tokens: " +
+                 thrown.getMessage());
+   }
+
+   /**
+    * An out-of-domain numeric sortType must be rejected too, not just silently stored -- {@code
+    * 999} is syntactically a valid int but not one this dialog/script surface ever produces.
+    */
+   @Test
+   void refusesAnOutOfDomainNumericSortType() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Selection1", Map.of("sortType", 999), ""));
+
+      assertTrue(thrown.getMessage().contains("999"));
+   }
+
+   /**
+    * {@code SORT_ASC|SORT_DESC} combined (3) is syntactically a valid int but is not a value
+    * this dialog/script surface ever produces either -- it must be refused the same as 999, not
+    * accepted just because it happens to be a combination of two in-domain bits.
+    */
+   @Test
+   void refusesABitmaskCombinationOfTwoInDomainSortTypeValues() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Selection1", Map.of("sortType", 3), ""));
+
+      assertTrue(thrown.getMessage().contains("3"));
+   }
+
+   /** An already-numeric, in-domain sortType must still work exactly as before -- no regression. */
+   @Test
+   void stillAcceptsAnAlreadyNumericInDomainSortType() throws Exception {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      service.set("tok", principal(), "Selection1", Map.of("sortType", 8), "");
+
+      assertEquals(XConstants.SORT_SPECIFIC, model.getSelectionGeneralPaneModel().getSortType());
    }
 
    // ── calendarAdvancedPaneModel.min/max: DynamicValueModel coercion (bug #76888) ────────────
@@ -1831,6 +2051,12 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, null, null);
    }
 
+   private static AssemblyPropertyService serviceWithSelectionTree(
+      VSAssembly assembly, SelectionTreePropertyDialogModel model)
+   {
+      return serviceWith(assembly, model, null, null);
+   }
+
    private static AssemblyPropertyService serviceWithCalendar(
       VSAssembly assembly, CalendarPropertyDialogModel model)
    {
@@ -1924,6 +2150,20 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      SelectionTreePropertyDialogService selectionTree =
+         mock(SelectionTreePropertyDialogService.class);
+
+      if(model instanceof SelectionTreePropertyDialogModel selectionTreeModel) {
+         try {
+            when(selectionTree.getSelectionTreePropertyModel(anyString(), anyString(),
+                                                              any(Principal.class)))
+               .thenReturn(selectionTreeModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       CalendarPropertyDialogService calendar = mock(CalendarPropertyDialogService.class);
 
       if(model instanceof CalendarPropertyDialogModel calendarModel) {
@@ -2011,7 +2251,7 @@ class AssemblyPropertyServiceTest {
          chart, table,
          mock(CrosstabPropertyDialogService.class),
          selectionList,
-         mock(SelectionTreePropertyDialogService.class),
+         selectionTree,
          inputService,
          mock(RangeSliderPropertyDialogService.class),
          calendar, mock(TabPropertyDialogService.class),

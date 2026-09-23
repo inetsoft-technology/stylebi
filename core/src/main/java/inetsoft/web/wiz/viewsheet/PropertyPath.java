@@ -661,7 +661,7 @@ public final class PropertyPath {
       // Path-keyed first, then leaf-keyed. A leaf name alone is not always specific enough to
       // carry a domain: "type" is a String property on a dozen unrelated models, so keying it
       // globally would impose one model's vocabulary on all the others. CONSTRAINED_PATHS is the
-      // same idea as AssemblyPropertyService's SHOW_TYPE_DOMAINS, which is keyed by resolved
+      // same idea as AssemblyPropertyService's INT_ENUM_DOMAINS, which is keyed by resolved
       // path for exactly this reason.
       Set<String> byPath = CONSTRAINED_PATHS.get(path);
       final Set<String> allowed = byPath != null ? byPath

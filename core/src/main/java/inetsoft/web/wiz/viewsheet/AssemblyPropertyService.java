@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
@@ -26,6 +27,7 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -260,7 +262,7 @@ public class AssemblyPropertyService {
          // to absorb the rebuild — see PropertyPath's own note), the wither produces a new
          // instance and the original reference silently stops reflecting the write.
          for(Map.Entry<String, String> entry : resolved.entrySet()) {
-            Object value = canonicalShowType(type, entry.getValue(), patch.get(entry.getKey()));
+            Object value = canonicalIntEnum(type, entry.getValue(), patch.get(entry.getKey()));
 
             if(entry.getValue().endsWith(".tableStylePaneModel.tableStyle")) {
                requireKnownTableStyle(model, entry.getValue(), value);
@@ -935,54 +937,93 @@ public class AssemblyPropertyService {
       ImageVSAssemblyInfo.SKIN_IMAGE);
 
    /**
-    * {@code showType}'s domain, keyed by the alias-resolved <b>full path</b> rather than by the
-    * short property name both share -- {@code selectionGeneralPaneModel.showType} (SelectionList
-    * and SelectionTree) and {@code calendarAdvancedPaneModel.showType} (Calendar) are aliased
+    * A closed int-enum property's own display name (for its rejection message) plus its
+    * token-to-int mapping. {@link #INT_ENUM_DOMAINS} keys these by <b>resolved path</b> rather
+    * than by this name, since more than one property can share a short alias/leaf name across
+    * unrelated assembly types -- see {@link #INT_ENUM_DOMAINS}'s own javadoc.
+    */
+   private record IntEnumDomain(String propertyName, Map<String, Integer> tokens) {}
+
+   /**
+    * A closed int-enum property's domain, keyed by the alias-resolved <b>full path</b> rather
+    * than by the short property name it may share with an unrelated property on a different
+    * assembly type -- e.g. {@code selectionGeneralPaneModel.showType} (SelectionList and
+    * SelectionTree) and {@code calendarAdvancedPaneModel.showType} (Calendar) are both aliased
     * under the identical short name {@code "showType"}, but their int domains are different and
     * overlapping: {@code 1} means "dropdown" for Selection ({@link
     * SelectionVSAssemblyInfo#DROPDOWN_SHOW_TYPE}) and "calendar" mode for Calendar ({@link
     * CalendarVSAssemblyInfo#CALENDAR_SHOW_TYPE}), whose own dropdown is {@code 2} ({@link
     * CalendarVSAssemblyInfo#DROPDOWN_SHOW_TYPE}). A table keyed by leaf name alone would silently
     * misapply "dropdown" on one of the two -- so this is keyed by the resolved path, the same
-    * reason {@link #canonicalShowType} needs it rather than {@code PropertyPath}'s leaf-name-keyed
-    * {@code CONSTRAINED_STRINGS}.
+    * reason {@link #canonicalIntEnum} needs it rather than {@code PropertyPath}'s
+    * leaf-name-keyed {@code CONSTRAINED_STRINGS}.
     *
-    * <p>Only {@code showType} is covered here. {@code sortType} (a bitmask, more complex),
-    * {@code mode}, {@code linkType}, {@code rangeType}, {@code refType} and {@code newObjectType}
-    * are the same class of gap (a closed int domain with no alias/validation), but out of scope
-    * for this fix.
+    * <p>{@code showType} (bug #76542), {@code selectionTreePaneModel.mode} and
+    * {@code selectionGeneralPaneModel.sortType} (both bug #76925) are covered here.
+    * {@code sortType}'s domain is narrowed to the four values its dialog (asc/desc/specific) and
+    * its script API ({@code SelectionBaseVSAssemblyInfo#setSortType}'s own javadoc, plus
+    * {@code SelectionListVSAScriptable}/{@code SelectionTreeVSAScriptable} exposing
+    * {@code sortType} under this same name) can legitimately produce -- none of
+    * {@link inetsoft.uql.XConstants}'s {@code SORT_ORIGINAL}/{@code SORT_VALUE_ASC}/
+    * {@code SORT_VALUE_DESC} are ever written into a Selection assembly's own stored
+    * {@code sortType} by either producer, so those three stay out of this domain.
+    * {@code linkType}, {@code rangeType}, {@code refType} and {@code newObjectType} are the same
+    * class of gap (a closed int domain with no alias/validation) but are not currently aliased in
+    * {@link PropertyAliases} at all, so they are not reachable through this service's short-alias
+    * vocabulary and remain out of scope.
     */
-   private static final Map<String, Map<String, Integer>> SHOW_TYPE_DOMAINS;
+   private static final Map<String, IntEnumDomain> INT_ENUM_DOMAINS;
 
    static {
-      Map<String, Integer> selection = new LinkedHashMap<>();
-      selection.put("list", SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
-      selection.put("dropdown", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      Map<String, Integer> selectionShowType = new LinkedHashMap<>();
+      selectionShowType.put("list", SelectionVSAssemblyInfo.LIST_SHOW_TYPE);
+      selectionShowType.put("dropdown", SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
 
-      Map<String, Integer> calendar = new LinkedHashMap<>();
-      calendar.put("calendar", CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
-      calendar.put("dropdown", CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      Map<String, Integer> calendarShowType = new LinkedHashMap<>();
+      calendarShowType.put("calendar", CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE);
+      calendarShowType.put("dropdown", CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
 
-      Map<String, Map<String, Integer>> domains = new LinkedHashMap<>();
-      domains.put("selectionGeneralPaneModel.showType", selection);
-      domains.put("calendarAdvancedPaneModel.showType", calendar);
-      SHOW_TYPE_DOMAINS = Collections.unmodifiableMap(domains);
+      Map<String, Integer> mode = new LinkedHashMap<>();
+      mode.put("column", SelectionTreeVSAssemblyInfo.COLUMN);
+      mode.put("columns", SelectionTreeVSAssemblyInfo.COLUMN);
+      mode.put("id", SelectionTreeVSAssemblyInfo.ID);
+
+      Map<String, Integer> sortType = new LinkedHashMap<>();
+      sortType.put("none", XConstants.SORT_NONE);
+      sortType.put("unsorted", XConstants.SORT_NONE);
+      sortType.put("asc", XConstants.SORT_ASC);
+      sortType.put("ascending", XConstants.SORT_ASC);
+      sortType.put("desc", XConstants.SORT_DESC);
+      sortType.put("descending", XConstants.SORT_DESC);
+      sortType.put("specific", XConstants.SORT_SPECIFIC);
+      sortType.put("hideothers", XConstants.SORT_SPECIFIC);
+      sortType.put("hide_others", XConstants.SORT_SPECIFIC);
+
+      Map<String, IntEnumDomain> domains = new LinkedHashMap<>();
+      domains.put("selectionGeneralPaneModel.showType",
+                  new IntEnumDomain("showType", selectionShowType));
+      domains.put("calendarAdvancedPaneModel.showType",
+                  new IntEnumDomain("showType", calendarShowType));
+      domains.put("selectionTreePaneModel.mode", new IntEnumDomain("mode", mode));
+      domains.put("selectionGeneralPaneModel.sortType", new IntEnumDomain("sortType", sortType));
+      INT_ENUM_DOMAINS = Collections.unmodifiableMap(domains);
    }
 
    /**
-    * Canonicalizes a {@code showType} value before it reaches {@code PropertyPath.set/coerce()},
-    * the same way {@link ChartRegionPropertyService#canonicalRotation} pre-transforms
-    * {@code rotation} for its own service: {@code showType} is a plain primitive {@code int} on
-    * both models it can resolve to, so {@code PropertyPath.coerce()}'s numeric branch never
-    * consults any alias/domain table -- a token like {@code "dropdown"} falls straight to
+    * Canonicalizes a closed int-enum property's value before it reaches
+    * {@code PropertyPath.set/coerce()}, the same way
+    * {@link ChartRegionPropertyService#canonicalRotation} pre-transforms {@code rotation} for
+    * its own service: every property in {@link #INT_ENUM_DOMAINS} is a plain primitive
+    * {@code int} on the model it resolves to, so {@code PropertyPath.coerce()}'s numeric branch
+    * never consults any alias/domain table -- a token like {@code "dropdown"} falls straight to
     * {@code Double.parseDouble} and fails with no valid values named, and an out-of-domain int
-    * (e.g. {@code 2} on a SelectionList) is silently stored as-is.
+    * (e.g. {@code 999} for {@code sortType}) is silently stored as-is.
     *
-    * <p>Additive: any path with no entry in {@link #SHOW_TYPE_DOMAINS} (i.e. every property this
-    * service writes except {@code showType}) is returned unchanged.
+    * <p>Additive: any path with no entry in {@link #INT_ENUM_DOMAINS} (i.e. every property this
+    * service writes except the ones covered here) is returned unchanged.
     */
-   private static Object canonicalShowType(String type, String resolvedPath, Object value) {
-      Map<String, Integer> domain = SHOW_TYPE_DOMAINS.get(resolvedPath);
+   private static Object canonicalIntEnum(String type, String resolvedPath, Object value) {
+      IntEnumDomain domain = INT_ENUM_DOMAINS.get(resolvedPath);
 
       if(domain == null) {
          return value;
@@ -990,7 +1031,7 @@ public class AssemblyPropertyService {
 
       String text = value == null ? "" : String.valueOf(value).trim();
 
-      for(Map.Entry<String, Integer> token : domain.entrySet()) {
+      for(Map.Entry<String, Integer> token : domain.tokens().entrySet()) {
          if(token.getKey().equalsIgnoreCase(text)) {
             return token.getValue();
          }
@@ -999,7 +1040,7 @@ public class AssemblyPropertyService {
       try {
          int parsed = (int) Double.parseDouble(text);
 
-         if(domain.containsValue(parsed)) {
+         if(domain.tokens().containsValue(parsed)) {
             return parsed;
          }
       }
@@ -1009,7 +1050,7 @@ public class AssemblyPropertyService {
 
       StringBuilder allowed = new StringBuilder();
 
-      for(Map.Entry<String, Integer> token : domain.entrySet()) {
+      for(Map.Entry<String, Integer> token : domain.tokens().entrySet()) {
          if(allowed.length() > 0) {
             allowed.append(", ");
          }
@@ -1019,8 +1060,8 @@ public class AssemblyPropertyService {
       }
 
       throw new IllegalArgumentException(
-         "'showType' on a " + type + " accepts only " + allowed + "; '" + value +
-         "' is not one of them.");
+         "'" + domain.propertyName() + "' on a " + type + " accepts only " + allowed + "; '" +
+         value + "' is not one of them.");
    }
 
    // ── convention dispatch ───────────────────────────────────────────────────
