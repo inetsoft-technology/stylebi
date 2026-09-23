@@ -1757,8 +1757,10 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    // the cell's content padding. A CompositeValue rather than a plain Insets so authorship needs
    // no companion boolean: the USER tier IS the author's opinion. Deliberately no CSS tier - a
    // table's CSS cell padding arrives through CSSTableStyle, and a second CSS source here would
-   // give two mechanisms a claim on one value
-   private CompositeValue<Insets> cellPadding = new CompositeValue<>(Insets.class, null);
+   // give two mechanisms a claim on one value. saveDefault is on so the seeded DEFAULT tier
+   // survives a save/reload, not just an in-memory session
+   private CompositeValue<Insets> cellPadding =
+      new CompositeValue<>(Insets.class, null, true);
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TableDataVSAssemblyInfo.class);

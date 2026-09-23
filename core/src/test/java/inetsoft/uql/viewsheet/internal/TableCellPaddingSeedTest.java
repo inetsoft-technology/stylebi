@@ -27,8 +27,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Element;
 
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.Insets;
+import java.io.ByteArrayInputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -131,5 +136,54 @@ class TableCellPaddingSeedTest {
 
       assertFalse(info.isUserCellPadding());
       assertEquals(new Insets(6, 8, 6, 8), info.getCellPadding());
+   }
+
+   @Test
+   void seededOnlyCellPaddingSurvivesARoundTrip() throws Exception {
+      // Review Focus 5's defect: a 2-arg CompositeValue writes nothing for a DEFAULT-only tier,
+      // so a density-seeded, never-overridden table lost its padding on save/reload
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+
+      TableVSAssemblyInfo restored = roundTrip(info, new TableVSAssemblyInfo());
+
+      assertEquals(new Insets(6, 8, 6, 8), restored.getCellPadding());
+      assertFalse(restored.isUserCellPadding());
+   }
+
+   @Test
+   void userAndDefaultCellPaddingBothSurviveARoundTrip() throws Exception {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.seedChromeDefaults(VizContext.of(VizMark.MODERN_LIGHT));
+      info.setCellPadding(new Insets(1, 2, 1, 2), CompositeValue.Type.USER);
+
+      TableVSAssemblyInfo restored = roundTrip(info, new TableVSAssemblyInfo());
+
+      assertEquals(new Insets(1, 2, 1, 2), restored.getCellPadding());
+      assertTrue(restored.isUserCellPadding());
+   }
+
+   // round-trips through writeAttributes/parseAttributes, the path a saved or exported asset
+   // actually takes - the seven other tests here never leave memory
+   private static TableVSAssemblyInfo roundTrip(TableVSAssemblyInfo source,
+                                                 TableVSAssemblyInfo target) throws Exception
+   {
+      StringWriter sw = new StringWriter();
+      PrintWriter pw = new PrintWriter(sw);
+      source.writeAttributes(pw);
+      pw.flush();
+
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+      factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+      factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+      Element elem = factory.newDocumentBuilder()
+         .parse(new ByteArrayInputStream(("<assembly" + sw + "/>").getBytes()))
+         .getDocumentElement();
+
+      target.parseAttributes(elem);
+      return target;
    }
 }
