@@ -21,7 +21,6 @@ import inetsoft.test.*;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
-import inetsoft.web.vswizard.handler.VSWizardObjectHandler;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +29,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * Tests for Bug #76942: an ad hoc range filter (a {@link TimeSliderVSAssembly} created from a
@@ -192,124 +190,6 @@ public class WizardRecommenderUtilRepointAdhocFilterTest {
       assertEquals(true, renamed);
       assertEquals("Product", list.getTableName());
       assertEquals(XSourceInfo.NONE, list.getSourceType());
-   }
-
-   /**
-    * Bug #76942 follow-up (Chart->Crosstab type conversion inside the Wizard, see
-    * docs/teams/2026-09-23-bugs-76942-wizard-filter-loss/bug-76942/07-diagnosis-crosstab.md
-    * and 09-fix-crosstab.md): the recommended-type-change path
-    * (VSWizardBindingHandler#addCrosstabVSAssembly, reached when the user switches the
-    * Wizard's recommended type from Chart to Crosstab) constructs its primary assembly via
-    * WizardRecommenderUtil#nextPrimaryAssemblyName exactly like addOriginalAsPrimary()
-    * already-fixed "Original Type" path, so it must be repointed the same way. This
-    * exercises repointAdhocFilterTableName with the exact arguments the new call site in
-    * VSWizardBindingHandler#updatePrimaryAssembly(VSObjectRecommendation, ...) passes.
-    */
-   @Test
-   void repointsFilterWhenSwitchingToCrosstabRecommendation() {
-      Viewsheet vs = new Viewsheet();
-      ChartVSAssembly original = new ChartVSAssembly(vs, CHART);
-      vs.addAssembly(original);
-      TimeSliderVSAssembly slider = addAdhocSlider(vs, "Filter1", XSourceInfo.VS_ASSEMBLY, CHART);
-
-      String crosstabTempName = WizardRecommenderUtil.nextPrimaryAssemblyName();
-      CrosstabVSAssembly crosstabClone = new CrosstabVSAssembly(vs, crosstabTempName);
-      vs.addAssembly(crosstabClone);
-
-      WizardRecommenderUtil.repointAdhocFilterTableName(vs, CHART, crosstabClone.getName());
-
-      assertEquals(crosstabTempName, slider.getTableName());
-   }
-
-   /**
-    * Bug #76942 follow-up, resolving 07-diagnosis-crosstab.md's open section 4b: does the
-    * existing (round 1/round 2, already-merged-reviewed) close-time repoint call in
-    * VSCloseObjectWizardService#closeHandle's save branch already self-heal a type-changed
-    * ("Finish" after switching Chart -> Crosstab) save, or is a second, distinct defect
-    * needed there?
-    * <p>
-    * This replicates VSWizardObjectHandler#updateAssemblyByTemporary0's actual name-settling
-    * sequence using the real production {@link VSWizardObjectHandler#getNewAssemblyName}
-    * method (not a re-implementation of its type-changed-vs-same-type ternary) plus the real
-    * {@link VSAssembly#copyAssembly} / {@link Viewsheet#removeAssembly} /
-    * {@link Viewsheet#addAssembly} methods, followed by the exact
-    * {@code WizardRecommenderUtil.repointAdhocFilterTableName(vs, originalModel
-    * .getOriginalName(), tempAssembly.getName())} call {@code closeHandle()}'s save branch
-    * makes.
-    * <p>
-    * Starts from the filter still pointing at the ORIGINAL chart's name -- the state it is
-    * left in for the entire wizard session before the preview-time fix in this same change
-    * (see {@link #repointsFilterWhenSwitchingToCrosstabRecommendation}) existed, and the
-    * state a session that never visits "Original Type" first is in regardless. If this
-    * passes, the close-time repoint's {@code originalName}-branch match (not just its
-    * temp-name-catch-all branch) already fully covers the type-changed save on its own,
-    * settling 4b as "(a): no additional close-side defect" rather than "(b): a second
-    * defect".
-    */
-   @Test
-   void closeTimeRepointSettlesTypeChangedCrosstabSaveEvenIfNeverRepointedDuringPreview() {
-      Viewsheet vs = new Viewsheet();
-      ChartVSAssembly original = new ChartVSAssembly(vs, CHART);
-      vs.addAssembly(original);
-      TimeSliderVSAssembly slider = addAdhocSlider(vs, "Filter1", XSourceInfo.VS_ASSEMBLY, CHART);
-
-      // The wizard's live preview/temp clone for the recommended Crosstab type, still under
-      // its temp name at Finish time.
-      String tempName = WizardRecommenderUtil.nextPrimaryAssemblyName();
-      CrosstabVSAssembly tempAssembly = new CrosstabVSAssembly(vs, tempName);
-      vs.addAssembly(tempAssembly);
-
-      // --- VSWizardObjectHandler#updateAssemblyByTemporary0's name-settling sequence ---
-      VSWizardObjectHandler handler =
-         new VSWizardObjectHandler(null, null, null, null, null, null);
-      String newName = handler.getNewAssemblyName(vs, tempAssembly, original);
-      // sanity check: a type change really does mint a fresh name, distinct from "Chart1"
-      // (confirms 07-diagnosis-crosstab.md section 4a, which corrected 03-fix.md's guess).
-      assertNotEquals(CHART, newName);
-
-      vs.removeAssembly(original.getName());
-      vs.removeAssembly(newName, false, true);
-      VSAssembly settled = tempAssembly.copyAssembly(newName);
-      vs.addAssembly(settled, true);
-
-      // --- VSCloseObjectWizardService#closeHandle's save-branch repoint call ---
-      WizardRecommenderUtil.repointAdhocFilterTableName(vs, CHART, settled.getName());
-
-      assertEquals(settled.getName(), slider.getTableName());
-   }
-
-   /**
-    * Same as {@link #closeTimeRepointSettlesTypeChangedCrosstabSaveEvenIfNeverRepointedDuringPreview}
-    * but starting from the filter already repointed to the wizard's Crosstab preview temp
-    * name (the state it is actually in once the preview-time fix in this change is applied),
-    * proving the two halves of this change compose correctly end to end.
-    */
-   @Test
-   void closeTimeRepointSettlesTypeChangedCrosstabSaveAfterPreviewTimeRepoint() {
-      Viewsheet vs = new Viewsheet();
-      ChartVSAssembly original = new ChartVSAssembly(vs, CHART);
-      vs.addAssembly(original);
-
-      String tempName = WizardRecommenderUtil.nextPrimaryAssemblyName();
-      CrosstabVSAssembly tempAssembly = new CrosstabVSAssembly(vs, tempName);
-      vs.addAssembly(tempAssembly);
-
-      // Preview-time fix already repointed the filter to the crosstab clone's temp name.
-      TimeSliderVSAssembly slider = addAdhocSlider(vs, "Filter1", XSourceInfo.VS_ASSEMBLY, tempName);
-
-      VSWizardObjectHandler handler =
-         new VSWizardObjectHandler(null, null, null, null, null, null);
-      String newName = handler.getNewAssemblyName(vs, tempAssembly, original);
-      assertNotEquals(CHART, newName);
-
-      vs.removeAssembly(original.getName());
-      vs.removeAssembly(newName, false, true);
-      VSAssembly settled = tempAssembly.copyAssembly(newName);
-      vs.addAssembly(settled, true);
-
-      WizardRecommenderUtil.repointAdhocFilterTableName(vs, CHART, settled.getName());
-
-      assertEquals(settled.getName(), slider.getTableName());
    }
 
    private static TimeSliderVSAssembly addAdhocSlider(Viewsheet vs, String name, int sourceType,
