@@ -1145,11 +1145,25 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          sliderSelection.setIncrement(rsize0);
          sliderSelection.setLabelFormat(fmt);
 
+         // bug #76942: track the tick closest to the previously selected value (curr,
+         // unscaled by factor) while we build the (possibly freshly recomputed) tick grid,
+         // in case the exact bucket-index match below fails.
+         double currActual = curr / factor;
+         int nearestPos = -1;
+         double nearestDist = Double.MAX_VALUE;
+
          for(double tick : ticks) {
             if(rsize != 0 && pos == -1 &&
                Math.round((tick - ticks[0]) * factor) / rsize == currV)
             {
                pos = counter;
+            }
+
+            double dist = Math.abs(tick - currActual);
+
+            if(dist < nearestDist) {
+               nearestDist = dist;
+               nearestPos = counter;
             }
 
             String val = Tool.toString(tick);
@@ -1159,6 +1173,23 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
             sval.setLevel(0);
             slist.addSelectionValue(sval);
             counter++;
+         }
+
+         // bug #76942: the tick grid above is recomputed fresh from this query's own min/max
+         // every time (e.g. TimeSliderVSAQuery.getNiceNumbers()/getPreferredTicks()), and two
+         // structurally different query pipelines over conceptually the same underlying data
+         // (e.g. a Wizard Chart -> Crosstab type change repointing an ad hoc VS_ASSEMBLY range
+         // filter) can legitimately compute a slightly different "nice" grid even when nothing
+         // about the data itself changed. Requiring an exact bucket-index match above then
+         // fails to find the previous selection, and the fallback below would otherwise clear
+         // the selection to the full range. Only apply this tolerant, nearest-tick recovery
+         // when the previously selected value is still within (a tick's width of) the freshly
+         // computed data range -- if it isn't, the underlying data itself has genuinely moved
+         // out from under the selection, and falling back to the full range remains correct.
+         if(pos < 0 && rsize != 0 && nearestPos >= 0 &&
+            currActual >= mind - rsize0 && currActual <= maxd + rsize0)
+         {
+            pos = nearestPos;
          }
       }
       else if(min instanceof Date && max instanceof Date) {
