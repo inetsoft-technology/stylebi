@@ -251,6 +251,8 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
    @CsvSource(delimiter = '|', value = {
       "var i = 0; i++\\nconst d = 1; if(d) { d }",
       "var i = 0; i--\\nconst d = 1; if(d) { d }",
+      "var x = 0; x--\\nconst d = 1; if(d) { d }",
+      "var a = 1; a\\nconst d = 1; if(d) { d }",
       "var a = [0]; a[0]++\\nconst d = 1; if(d) { d }",
       "var a = [5]; a[0]\\nconst d = 1; if(d) { d }",
       "function f() { return 0; } f()\\nconst d = 1; if(d) { d }",
