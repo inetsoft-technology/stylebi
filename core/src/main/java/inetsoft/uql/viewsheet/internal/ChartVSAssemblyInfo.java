@@ -120,7 +120,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // asset. isUserPadding is the author's opinion, and setCSSDefaults installs a CSS padding
       // just before this hook runs, so both are left alone
       if(!isUserPadding() && !isCssPaddingDefined()) {
-         setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding()
+         setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding(ctx)
                        : VSObjectChromeDefaults.legacyChartPadding());
       }
 
@@ -240,7 +240,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          return;
       }
 
-      setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding()
+      setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding(ctx)
                     : VSObjectChromeDefaults.legacyChartPadding());
    }
 
