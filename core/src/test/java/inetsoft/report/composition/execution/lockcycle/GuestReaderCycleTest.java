@@ -160,14 +160,16 @@ public class GuestReaderCycleTest {
    }
 
    /**
-    * Design refutation INV_RACE, over a formula table. Not a lock cycle: the
-    * {@code AbstractConditionFilter} rowmap vs {@code invalidate()} thread-safety gap (#76972,
-    * pre-#5506). A reader of data rows races with {@code invalidate()} and re-population of
-    * the same condition filter; every read must return the right value and never throw.
-    * {@code getBaseRowIndex} reads {@code rowmap} after {@code moreRows} has released both the
-    * engine lock and the filter's monitor, and {@code invalidate()} takes only the monitor, so
-    * the engine lock this filter takes does not close the gap. It only makes it rarer: this
-    * variant usually shows no wrong read in 3 s, but can on any run, so it is known.
+    * Regression test for bug #76972, over a formula table. Not a lock cycle: a reader of data
+    * rows races with {@code invalidate()} and re-population of the same condition filter.
+    * {@code getBaseRowIndex} used to read a {@code rowmap} snapshot after {@code moreRows} had
+    * released both the engine lock and the filter's monitor; once its bounded retries were
+    * exhausted with the row still unmapped, it indexed past the map's count and
+    * {@code XIntFragment.getSafely} silently returned 0, which maps to the header row -- a
+    * wrong value with no signal. {@code getBaseRowIndex} now falls back to one snapshot taken
+    * under the filter's own monitor and either returns the mapped row or throws
+    * {@code IndexOutOfBoundsException}, so every read here must return the right value or
+    * throw -- never a silently wrong one.
     */
    @Test
    public void mappedRowReadsDuringInvalidate() throws Exception {
@@ -177,14 +179,16 @@ public class GuestReaderCycleTest {
    }
 
    /**
-    * Design refutation INV_RACE, over a formula-free base. Not a lock cycle: the
-    * {@code AbstractConditionFilter} rowmap vs {@code invalidate()} thread-safety gap (#76972,
-    * pre-#5506), a wrong result rather than a hang. {@code getBaseRowIndex}
-    * ({@code AbstractConditionFilter.java:138}) reads {@code rowmap} after {@code moreRows}
-    * returns, holding nothing, while {@code invalidate()} swaps in a new list holding only the
-    * header entries (so the row maps to base row 0, the header value {@code "value"}) or
-    * disposes the old one (so it maps to -1 and the base throws). This filter takes no engine
-    * lock, so nothing slows the two threads down, and wrong reads show up in every run.
+    * Regression test for bug #76972, over a formula-free base -- a wrong result rather than a
+    * hang. {@code getBaseRowIndex} reads {@code rowmap} after {@code moreRows} returns, while
+    * {@code invalidate()} concurrently swaps in a new list holding only the header entries.
+    * This filter takes no engine lock, so nothing slows the two threads down and the race used
+    * to fire on every run: once retries were exhausted with the row still unmapped, reading
+    * past the new map's count silently came back as 0, the header value ({@code "value"}),
+    * instead of the real row. {@code getBaseRowIndex} now falls back to a snapshot taken under
+    * the filter's own monitor and either returns the mapped row or throws
+    * {@code IndexOutOfBoundsException}, so every read here must return the right value or
+    * throw.
     */
    @Test
    public void mappedRowReadsDuringInvalidateWithoutLock() throws Exception {

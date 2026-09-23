@@ -137,7 +137,8 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
       }
 
       // invalidate() can publish a new row map after moreRows() returned (bug #76972). Read
-      // one snapshot, and if it does not reach the row yet, populate the current map again.
+      // one snapshot, and if it does not reach the row yet, populate the current map again by
+      // retrying moreRows() a bounded number of times.
       XSwappableIntList map = rowmap;
 
       for(int i = 0; i < 3 && row >= map.size() && !map.isCompleted(); i++) {
@@ -145,7 +146,28 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
          map = rowmap;
       }
 
-      return map.get(row);
+      if(row < map.size()) {
+         return map.get(row);
+      }
+
+      // The retries above are exhausted and the row still isn't mapped (this also covers a
+      // map that completed short of the row). map.get(row) would read past count and
+      // XIntFragment.getSafely() would silently return 0, which maps to the header row -- a
+      // wrong value handed back with no signal. Instead take one final snapshot under this
+      // filter's own monitor only (no moreRows() call here, so this cannot invert
+      // ConditionFilter2.moreRows's env-lock-then-monitor order) and use it if it now reaches
+      // the row; otherwise fail loudly rather than guess.
+      synchronized(this) {
+         map = rowmap;
+      }
+
+      if(row < map.size()) {
+         return map.get(row);
+      }
+
+      throw new IndexOutOfBoundsException(
+         "Row " + row + " is not mapped in the condition filter's row map (size " +
+         map.size() + ")");
    }
 
    /**
