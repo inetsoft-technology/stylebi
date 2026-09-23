@@ -39,6 +39,7 @@ import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
+import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
@@ -1599,6 +1600,81 @@ class AssemblyPropertyServiceTest {
       assertEquals(XConstants.SORT_SPECIFIC, model.getSelectionGeneralPaneModel().getSortType());
    }
 
+   // ── rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.rangeType (bug #76936) ─────────
+   //
+   // rangeType is a closed int-enum too (TimeInfo.YEAR/MONTH/NUMBER/MEMBER/DAY/HOUR/MINUTE/
+   // HOUR_OF_DAY/MINUTE_OF_DAY, non-sequential -- gaps at 5-15 and 19), same mechanism as
+   // showType/mode/sortType above.
+
+   @Test
+   void canonicalizesDayTokenOnARangeSliderRangeType() throws Exception {
+      RangeSliderPropertyDialogModel model = new RangeSliderPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRangeSlider(mock(TimeSliderVSAssembly.class), model);
+
+      service.set("tok", principal(), "RangeSlider1", Map.of("rangeType", "day"), "");
+
+      assertEquals(TimeInfo.DAY, model.getRangeSliderAdvancedPaneModel()
+         .getRangeSliderSizePaneModel().getRangeType());
+   }
+
+   @Test
+   void canonicalizesHourOfDayTokenCaseInsensitivelyOnARangeSliderRangeType() throws Exception {
+      RangeSliderPropertyDialogModel model = new RangeSliderPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRangeSlider(mock(TimeSliderVSAssembly.class), model);
+
+      service.set("tok", principal(), "RangeSlider1", Map.of("rangeType", "Hour_Of_Day"), "");
+
+      assertEquals(TimeInfo.HOUR_OF_DAY, model.getRangeSliderAdvancedPaneModel()
+         .getRangeSliderSizePaneModel().getRangeType());
+   }
+
+   @Test
+   void refusesAnUnrecognizedRangeTypeTokenNamingTheValidValues() {
+      RangeSliderPropertyDialogModel model = new RangeSliderPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRangeSlider(mock(TimeSliderVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "RangeSlider1", Map.of("rangeType", "bogus"), ""));
+
+      assertTrue(thrown.getMessage().contains("bogus"));
+      assertTrue(thrown.getMessage().contains("day"), "must name the valid tokens: " +
+                 thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("year"), "must name the valid tokens: " +
+                 thrown.getMessage());
+   }
+
+   /**
+    * An out-of-domain numeric rangeType must be rejected too, not just silently stored -- {@code
+    * 999} is syntactically a valid int but not one of TimeInfo's own non-sequential constants.
+    */
+   @Test
+   void refusesAnOutOfDomainNumericRangeType() {
+      RangeSliderPropertyDialogModel model = new RangeSliderPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRangeSlider(mock(TimeSliderVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "RangeSlider1", Map.of("rangeType", 999), ""));
+
+      assertTrue(thrown.getMessage().contains("999"));
+   }
+
+   /** An already-numeric, in-domain rangeType must still work exactly as before -- no regression. */
+   @Test
+   void stillAcceptsAnAlreadyNumericInDomainRangeType() throws Exception {
+      RangeSliderPropertyDialogModel model = new RangeSliderPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithRangeSlider(mock(TimeSliderVSAssembly.class), model);
+
+      service.set("tok", principal(), "RangeSlider1", Map.of("rangeType", TimeInfo.MINUTE), "");
+
+      assertEquals(TimeInfo.MINUTE, model.getRangeSliderAdvancedPaneModel()
+         .getRangeSliderSizePaneModel().getRangeType());
+   }
+
    // ── calendarAdvancedPaneModel.min/max: DynamicValueModel coercion (bug #76888) ────────────
    //
    // min/max are DynamicValueModel-typed (value/type/dataType), not a plain scalar, so there was
@@ -2063,6 +2139,12 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, null, null);
    }
 
+   private static AssemblyPropertyService serviceWithRangeSlider(
+      VSAssembly assembly, RangeSliderPropertyDialogModel model)
+   {
+      return serviceWith(assembly, model, null, null);
+   }
+
    private static AssemblyPropertyService serviceWithTable(
       VSAssembly assembly, TableViewPropertyDialogModel model)
    {
@@ -2245,6 +2327,20 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      RangeSliderPropertyDialogService rangeSlider =
+         mock(RangeSliderPropertyDialogService.class);
+
+      if(model instanceof RangeSliderPropertyDialogModel rangeSliderModel) {
+         try {
+            when(rangeSlider.getRangeSliderPropertyModel(anyString(), anyString(),
+                                                          any(Principal.class)))
+               .thenReturn(rangeSliderModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       return new AssemblyPropertyService(
          sessions, gauge, imageService,
          mock(TextPropertyDialogService.class),
@@ -2253,7 +2349,7 @@ class AssemblyPropertyServiceTest {
          selectionList,
          selectionTree,
          inputService,
-         mock(RangeSliderPropertyDialogService.class),
+         rangeSlider,
          calendar, mock(TabPropertyDialogService.class),
          calcTable,
          mock(GroupContainerPropertyDialogService.class),
