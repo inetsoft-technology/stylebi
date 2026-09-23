@@ -18,10 +18,12 @@
 package inetsoft.util.script.graal;
 
 import org.graalvm.polyglot.*;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.junit.jupiter.api.*;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
@@ -83,8 +85,119 @@ class ScriptTimeoutGuardTest {
       }
    }
 
-   @Test void interruptThatCannotStopTheExecIsReported() {
+   @Test void noOpGuardReportsNoInterruptTimeout() {
       ScriptTimeoutGuard.Guard none = new ScriptTimeoutGuard().guard(null, Duration.ZERO);
       assertFalse(none.interruptTimedOut());
+   }
+
+   /**
+    * Bug #76960: while the exec sits in a host callback longer than ctx.interrupt's 2 s bound,
+    * the interrupt cannot stop it, so the guard must report interruptTimedOut().
+    */
+   @Test void interruptThatCannotStopTheExecIsReported() {
+      try(Context ctx = Context.newBuilder("js").build()) {
+         CountDownLatch inHost = new CountDownLatch(1);
+         ctx.getBindings("js").putMember("hostSleep", hostSleep(inHost));
+         holdInterruptUntil(inHost);
+
+         try {
+            ScriptTimeoutGuard.Guard guard =
+               new ScriptTimeoutGuard().guard(ctx, Duration.ofMillis(50));
+
+            try(guard) {
+               ctx.eval("js", "hostSleep()");
+            }
+            catch(PolyglotException ignore) {
+               // the interrupt may still land once guest code resumes; not what is tested
+            }
+
+            assertTrue(guard.interruptTimedOut());
+         }
+         finally {
+            ScriptTimeoutGuard.beforeInterruptHook = null;
+         }
+      }
+   }
+
+   /**
+    * Bug #76960: exec's finally must call onInterruptTimeout() when this exec's interrupt
+    * timed out.
+    */
+   @Test void execCallsOnInterruptTimeoutWhenInterruptTimesOut() throws Exception {
+      AtomicInteger calls = new AtomicInteger();
+      GraalJavaScriptEngine engine = new GraalJavaScriptEngine() {
+         @Override
+         protected Duration currentTimeout() {
+            return Duration.ofMillis(50);
+         }
+
+         @Override
+         protected void onInterruptTimeout() {
+            calls.incrementAndGet();
+         }
+      };
+
+      engine.init(new java.util.HashMap<>());
+
+      try {
+         CountDownLatch inHost = new CountDownLatch(1);
+         engine.context.getBindings("js").putMember("hostSleep", hostSleep(inHost));
+         holdInterruptUntil(inHost);
+         Object src = engine.compile("hostSleep()");
+
+         try {
+            engine.exec(src, null, null);
+         }
+         catch(Exception ignore) {
+            // the interrupt may still land once guest code resumes; not what is tested
+         }
+         finally {
+            ScriptTimeoutGuard.beforeInterruptHook = null;
+         }
+
+         assertEquals(1, calls.get());
+      }
+      finally {
+         engine.close();
+      }
+   }
+
+   /** Hold the claimed interrupt until the exec is inside the host callback. */
+   private static void holdInterruptUntil(CountDownLatch inHost) {
+      ScriptTimeoutGuard.beforeInterruptHook = () -> {
+         try {
+            inHost.await(10, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+      };
+   }
+
+   /**
+    * A host callback that signals entry, then stays out of guest code for 3 s, longer than
+    * ctx.interrupt's 2 s bound (the interrupt starts only after entry, via the hook).
+    */
+   private static ProxyExecutable hostSleep(CountDownLatch inHost) {
+      return args -> {
+         inHost.countDown();
+         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+         boolean interrupted = false;
+
+         for(long left; (left = end - System.nanoTime()) > 0; ) {
+            try {
+               TimeUnit.NANOSECONDS.sleep(left);
+            }
+            catch(InterruptedException ex) {
+               interrupted = true;
+            }
+         }
+
+         if(interrupted) {
+            Thread.currentThread().interrupt();
+         }
+
+         return 1;
+      };
    }
 }

@@ -128,6 +128,8 @@ public class ScriptTimeoutGuard {
             interruptDone.await(3, TimeUnit.SECONDS);
          }
          catch(InterruptedException ex) {
+            // deliberate trade-off: restore the flag and return rather than keep waiting,
+            // so a claimed interrupt could still land on a later exec on this Context
             Thread.currentThread().interrupt();
          }
       }

@@ -1431,18 +1431,24 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          Duration timeout = currentTimeout();
 
-         ScriptTimeoutGuard.Guard guard = timeoutGuard.guard(context, timeout);
+         // created inside the try so a throw from guard(...) still runs the finally cleanup
+         ScriptTimeoutGuard.Guard guard = null;
 
-         try(guard) {
-            // FIX B: per-Source error count check (read limit while holding lock)
-            int limit = maxErrors();
+         try {
+            guard = timeoutGuard.guard(context, timeout);
 
-            if(limit > 0 && errorCounts.getOrDefault(script, 0) >= limit) {
-               return null;
+            // the inner try-with-resources closes the guard before the catch below runs
+            try(ScriptTimeoutGuard.Guard ignored = guard) {
+               // FIX B: per-Source error count check (read limit while holding lock)
+               int limit = maxErrors();
+
+               if(limit > 0 && errorCounts.getOrDefault(script, 0) >= limit) {
+                  return null;
+               }
+
+               Value result = context.eval((Source) script);
+               return ScriptValueConverter.toHost(result);
             }
-
-            Value result = context.eval((Source) script);
-            return ScriptValueConverter.toHost(result);
          }
          catch(PolyglotException ex) {
             // FIX B: increment per-Source error count and warn when limit first crossed
@@ -1488,8 +1494,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
             // an interrupt that could not stop this exec leaves the Context in an unknown
             // state (bug #76960, spec §9); the base engine keeps it, a pooled one dooms it
-            if(guard.interruptTimedOut()) {
-               onInterruptTimeout();
+            if(guard != null && guard.interruptTimedOut()) {
+               try {
+                  onInterruptTimeout();
+               }
+               catch(Exception ex) {
+                  // never let the hook mask the exec's own result or exception
+                  LOG.warn("Failed to handle script interrupt timeout", ex);
+               }
             }
          }
       }
