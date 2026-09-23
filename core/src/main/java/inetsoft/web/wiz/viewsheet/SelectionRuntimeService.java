@@ -523,6 +523,44 @@ public class SelectionRuntimeService {
       return result;
    }
 
+   /**
+    * Every candidate value of a selection list or selection tree, annotated with its live
+    * Association-narrowed state -- what StyleBI's own "Select All" toolbar action treats as
+    * still selectable, and what it grays out. NOT available on a range slider, which has no
+    * per-value included/excluded/compatible state (see class javadoc).
+    *
+    * <p>Never cached across calls -- this reads whatever the live RuntimeViewsheet's
+    * SelectionList/CompositeSelectionValue tree currently holds, and that changes the moment any
+    * OTHER selection filter on the same viewsheet changes.
+    */
+   public Map<String, Object> selectionState(String sessionToken, Principal user, String assemblyName)
+      throws Exception
+   {
+      requireName(assemblyName);
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      SelectionVSAssembly assembly = requireSelection(rvs, assemblyName);
+
+      if(assembly instanceof TimeSliderVSAssembly) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is a range slider, which has no per-value included/excluded/" +
+            "compatible state -- it selects a numeric bucket range, not discrete candidate values. " +
+            "get_selection_state only applies to a selection list or selection tree.");
+      }
+
+      SelectionList list = selectionListOf(assembly);
+      Map<String, Object> result = new LinkedHashMap<>();
+      result.put("assembly", assemblyName);
+      result.put("type", describe(assembly));
+      result.put("associationEnabled", rvs.getViewsheet().getViewsheetInfo().isAssociationEnabled());
+      result.put("computed", list != null);
+
+      List<Map<String, Object>> values = selectionState(
+         list == null ? null : list.getSelectionValues());
+      result.put("values", values);
+      result.put("totalValues", countAll(values));
+      return result;
+   }
+
    // ── guards ────────────────────────────────────────────────────────────────
 
    private static void requireName(String assemblyName) {
@@ -796,6 +834,67 @@ public class SelectionRuntimeService {
       }
 
       return paths;
+   }
+
+   /** Recursive walk mirroring selectedPaths(SelectionValue[])'s shape -- see its own javadoc --
+    *  but emitting every value (not just selected ones) with its full narrowing state. */
+   static List<Map<String, Object>> selectionState(SelectionValue[] values) {
+      if(values == null) {
+         return List.of();
+      }
+
+      List<Map<String, Object>> out = new ArrayList<>();
+
+      for(SelectionValue value : values) {
+         if(value == null) {
+            continue;
+         }
+
+         boolean excluded = value.isExcluded();
+         boolean included = value.isIncluded();
+         boolean compatible = (value.getState() & SelectionValue.STATE_COMPATIBLE) != 0;
+
+         Map<String, Object> entry = new LinkedHashMap<>();
+         entry.put("value", value.getValue());
+         entry.put("label", value.getLabel());
+         entry.put("selected", value.isSelected());
+         // The one field a caller replicating "Select All" should use -- mirrors
+         // vs-selection.component.ts:2121's own selectAll() predicate exactly (isIncluded ||
+         // isCompatible), confirmed mutually exclusive with excluded by SelectionListVSAQuery's own
+         // construction (refute-B.md, "Point 3"). Listed first: this is the load-bearing field.
+         entry.put("selectableInSelectAll", included || compatible);
+         entry.put("excluded", excluded);
+         entry.put("included", included);
+         entry.put("compatible", compatible);
+
+         if(value instanceof CompositeSelectionValue composite) {
+            SelectionList childList = composite.getSelectionList();
+            entry.put("children", selectionState(
+               childList == null ? null : childList.getSelectionValues()));
+         }
+
+         out.add(entry);
+      }
+
+      return out;
+   }
+
+   /** Flattened count including children -- cheap, mirrors set_selection's own count disclosures. */
+   static int countAll(List<Map<String, Object>> values) {
+      int count = 0;
+
+      for(Map<String, Object> value : values) {
+         count++;
+         Object children = value.get("children");
+
+         if(children instanceof List<?> childList) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> typed = (List<Map<String, Object>>) childList;
+            count += countAll(typed);
+         }
+      }
+
+      return count;
    }
 
    /** Every currently selected node, counted directly — what an ID-mode tree's "clear" counts. */

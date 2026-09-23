@@ -1489,6 +1489,147 @@ class SelectionRuntimeServiceTest {
       verifyNoInteractions(h.selections);
    }
 
+   // ── selection state (bug-76936, VFL-010) ───────────────────────────────────
+
+   /**
+    * selectableInSelectAll must be computed from included/compatible/excluded alone, never
+    * conflated with selected -- a selected value can still be STATE_EXCLUDED in principle
+    * ({@code requiresReset()}'s own logic treats {@code isSelected() && !compatible && !excluded}
+    * as the needs-reset case, implying selected+excluded is a real reachable combination).
+    */
+   @Test
+   void computesSelectableInSelectAllFromIncludedOrCompatibleOnly() {
+      SelectionValue compatibleOnly = mock(SelectionValue.class);
+      when(compatibleOnly.getState()).thenReturn(SelectionValue.STATE_COMPATIBLE);
+      when(compatibleOnly.isExcluded()).thenReturn(false);
+      when(compatibleOnly.isIncluded()).thenReturn(false);
+
+      SelectionValue includedOnly = mock(SelectionValue.class);
+      when(includedOnly.getState()).thenReturn(SelectionValue.STATE_INCLUDED);
+      when(includedOnly.isExcluded()).thenReturn(false);
+      when(includedOnly.isIncluded()).thenReturn(true);
+
+      SelectionValue excludedValue = mock(SelectionValue.class);
+      when(excludedValue.getState()).thenReturn(SelectionValue.STATE_EXCLUDED);
+      when(excludedValue.isExcluded()).thenReturn(true);
+      when(excludedValue.isIncluded()).thenReturn(false);
+
+      SelectionValue selectedOnly = mock(SelectionValue.class);
+      when(selectedOnly.getState()).thenReturn(SelectionValue.STATE_SELECTED);
+      when(selectedOnly.isExcluded()).thenReturn(false);
+      when(selectedOnly.isIncluded()).thenReturn(false);
+
+      List<Map<String, Object>> out = SelectionRuntimeService.selectionState(
+         new SelectionValue[]{ compatibleOnly, includedOnly, excludedValue, selectedOnly });
+
+      assertEquals(true, out.get(0).get("selectableInSelectAll"));
+      assertEquals(false, out.get(0).get("included"));
+      assertEquals(true, out.get(1).get("selectableInSelectAll"));
+      assertEquals(false, out.get(1).get("compatible"));
+      assertEquals(false, out.get(2).get("selectableInSelectAll"));
+      assertEquals(false, out.get(3).get("selectableInSelectAll"),
+                  "a plain selected value with no included/compatible/excluded bit is not " +
+                  "selectable via Select All");
+   }
+
+   /** Mirrors {@link #aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath}'s own
+    *  unstubbed-getSelectionList() shape: children must come back as an empty list, not null and
+    *  not a missing map key. */
+   @Test
+   void aCompositeWithNoChildListStillReportsAnEmptyChildrenList() {
+      CompositeSelectionValue east = mock(CompositeSelectionValue.class);
+      when(east.getValue()).thenReturn("East");
+      // getSelectionList() left unstubbed (null) -- SelectionList cannot be mocked outside a
+      // Spring context, see aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath.
+
+      List<Map<String, Object>> out = SelectionRuntimeService.selectionState(
+         new SelectionValue[]{ east });
+
+      assertEquals(List.of(), out.get(0).get("children"));
+   }
+
+   @Test
+   void selectionStateOfNullReturnsAnEmptyList() {
+      assertEquals(List.of(), SelectionRuntimeService.selectionState(null));
+   }
+
+   /** A null entry inside the array must be skipped without NPE (mirrors
+    *  {@link #mapsOnlySelectedValuesIntoPathsToDeselect}'s own null-entry case). */
+   @Test
+   void selectionStateSkipsANullEntryWithoutNpe() {
+      SelectionValue east = mock(SelectionValue.class);
+      when(east.getValue()).thenReturn("East");
+
+      List<Map<String, Object>> out = SelectionRuntimeService.selectionState(
+         new SelectionValue[]{ east, null });
+
+      assertEquals(1, out.size());
+   }
+
+   @Test
+   void countAllSumsAFlatListAndNestedChildrenRecursively() {
+      Map<String, Object> leaf1 = new LinkedHashMap<>();
+      Map<String, Object> leaf2 = new LinkedHashMap<>();
+      Map<String, Object> parent = new LinkedHashMap<>();
+      parent.put("children", List.of(leaf1, leaf2));
+      Map<String, Object> sibling = new LinkedHashMap<>();
+
+      assertEquals(4, SelectionRuntimeService.countAll(List.of(parent, sibling)));
+      assertEquals(0, SelectionRuntimeService.countAll(List.of()));
+   }
+
+   /** Range Slider is refused outright -- it has no per-value included/excluded/compatible state,
+    *  mirroring {@link #refusesASortOrderOnARangeSlider}'s assertion style exactly. */
+   @Test
+   void refusesSelectionStateOnARangeSlider() throws Exception {
+      TimeSliderVSAssembly slider = mock(TimeSliderVSAssembly.class);
+      Harness h = harness(slider);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.selectionState("tok", principal(), "Slider1"));
+
+      assertTrue(e.getMessage().contains("range slider"), e.getMessage());
+   }
+
+   @Test
+   void refusesSelectionStateOnAnUnknownAssembly() {
+      Harness h = harness(null);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.selectionState("tok", principal(), "Nope"));
+
+      assertTrue(e.getMessage().contains("Nope"), e.getMessage());
+   }
+
+   /** The new not-yet-computed contract (design doc 1.5): a null/unstubbed getSelectionList()
+    *  must be reported as computed:false with an empty values array, never silently treated as a
+    *  genuinely empty domain. */
+   @Test
+   void selectionStateOfAnUncomputedListReportsComputedFalse() throws Exception {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      // getSelectionList() left unstubbed (null): the domain-not-yet-known convention every other
+      // integration test in this file already uses.
+      Harness h = harness(assembly);
+
+      Map<String, Object> result = h.service.selectionState("tok", principal(), "Filter1");
+
+      assertEquals(false, result.get("computed"));
+      assertEquals(List.of(), result.get("values"));
+      assertEquals(0, result.get("totalValues"));
+   }
+
+   @Test
+   void selectionStateReportsAssemblyTypeAndAssociationEnabled() throws Exception {
+      SelectionListVSAssembly assembly = list(XConstants.SORT_ASC, false, null);
+      Harness h = harness(assembly);
+
+      Map<String, Object> result = h.service.selectionState("tok", principal(), "Filter1");
+
+      assertEquals("Filter1", result.get("assembly"));
+      assertEquals("a selection list", result.get("type"));
+      assertEquals(false, result.get("associationEnabled"));
+   }
+
    // ── fixtures ──────────────────────────────────────────────────────────────
 
    /**
@@ -1527,6 +1668,7 @@ class SelectionRuntimeServiceTest {
    private static Harness harness(VSAssembly assembly) {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
+      when(vs.getViewsheetInfo()).thenReturn(mock(ViewsheetInfo.class));
 
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.getViewsheet()).thenReturn(vs);
@@ -1539,6 +1681,7 @@ class SelectionRuntimeServiceTest {
             mutation.run(rvs, "rt1", null);
             return null;
          }).when(sessions).mutate(anyString(), any(Principal.class), any());
+         when(sessions.resolve(anyString(), any(Principal.class))).thenReturn(rvs);
       }
       catch(Exception e) {
          throw new IllegalStateException(e);

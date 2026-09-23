@@ -1265,6 +1265,21 @@ public class ViewsheetAssemblyAgentController {
    }
 
    /**
+    * Every candidate value of a selection list or selection tree, annotated with its live
+    * Association-narrowed state (included/excluded/compatible) -- a pure read, no mutate, no undo
+    * checkpoint, same shape as browseConditionValues.
+    */
+   @GetMapping("/api/wiz/v1/agent/viewsheet/{sessionToken}/selection/state")
+   public Map<String, Object> selectionState(@PathVariable String sessionToken,
+                                             @RequestParam String assembly,
+                                             Principal user)
+      throws Exception
+   {
+      requireEnabled();
+      return selectionService.selectionState(sessionToken, user, assembly);
+   }
+
+   /**
     * Sets a selection assembly's state. The response reports how many sort cycles it took and
     * whether an active search string scoped the apply — neither is visible in the dashboard.
     * {@code search} sets that search string first, the same as typing into the widget's search
