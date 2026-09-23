@@ -207,6 +207,32 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
    ) {}
 
    /**
+    * One non-literal value inside a {@link FilterModel}'s {@code values} list -- a comparison
+    * against another column ({@code "field"}) or a computed expression ({@code "expression"}),
+    * mirroring {@code WorksheetMutationSupport.ConditionValueSpec} field-for-field so a value
+    * read back here can be fed straight into {@code set_conditions}/{@code set_post_conditions}/
+    * {@code set_mv_conditions}'s own {@code valueSpecs} without reshaping (Bug #76922). Not
+    * accepted by {@code edit_condition}/{@code add_filter} -- those two tools have no
+    * {@code valueSpecs} parameter at all.
+    *
+    * @param index          0-based position of this value within the condition's own
+    *                       {@code values} list -- {@code values.get(index)} is this SAME
+    *                       value's pre-existing, lossy plain-string fallback (e.g.
+    *                       {@code "MixedValuesProbe.B"} for a field reference), left there
+    *                       unchanged for backward compatibility.
+    * @param valueType      {@code "field"} or {@code "expression"}
+    * @param field          the referenced column's qualified name (or bare alias, when the
+    *                       column has a display alias); set only when valueType is
+    *                       {@code "field"}
+    * @param expression     the expression body; set only when valueType is {@code "expression"}
+    * @param expressionType {@code "sql"} or {@code "js"}; set only when valueType is
+    *                       {@code "expression"}
+    */
+   @JsonInclude(JsonInclude.Include.NON_NULL)
+   public record ValueSpecModel(int index, String valueType, String field,
+                                 String expression, String expressionType) {}
+
+   /**
     * A single filter condition item.
     *
     * @param field     attribute name the condition applies to
@@ -217,11 +243,18 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                  {@code "NULL"}, {@code "NOT_NULL"}.
     *                  These are exactly the strings accepted by the {@code operation}
     *                  parameter of {@code add_filter} / {@code edit_condition}.
-    * @param values      literal value(s) used in the condition
+    * @param values      literal value(s) used in the condition -- a field-reference or
+    *                    expression entry appears here too, collapsed to a plain,
+    *                    indistinguishable-from-a-literal string (see {@code valueSpecs} for
+    *                    its real, round-trippable identity)
     * @param junction    {@code "AND"} or {@code "OR"} — the junction that precedes
     *                    this condition in the list (may be {@code null} for the first item)
     * @param choiceQuery browse-query marker ({@code "table]:[column"}) for a {@code $(name)}
     *                    variable value's picker, if set; {@code null}/omitted otherwise
+    * @param valueSpecs  the real identity of any non-literal {@code values} entry (field
+    *                    reference or expression), indexed to match its position in
+    *                    {@code values}; {@code null}/omitted when every value is a plain
+    *                    literal or {@code $(name)} variable (Bug #76922)
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record FilterModel(
@@ -229,7 +262,8 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       String operation,
       List<String> values,
       String junction,
-      String choiceQuery
+      String choiceQuery,
+      List<ValueSpecModel> valueSpecs
    ) {}
 
    /**
