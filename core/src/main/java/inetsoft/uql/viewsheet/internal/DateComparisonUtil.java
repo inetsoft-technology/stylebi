@@ -868,9 +868,35 @@ public class DateComparisonUtil {
             }
 
             Object part = data.getData(partCol, i);
+            List<Object> partPrefix = mergePartCellPrefix(part);
+            boolean sharesMaxPartsLeadingFamily =
+               maxPartPrefix != null && maxPartPrefix.equals(partPrefix);
 
-            if(Tool.compare(part, maxPart) <= 0 ||
-               (maxPartPrefix != null && maxPartPrefix.equals(mergePartCellPrefix(part))))
+            // A MergePartCell's leading component(s) (everything mergePartCellPrefix()
+            // returns) reset at the start of every period instance -- that is precisely why
+            // DateComparisonInfo.getTempDateGroupRef() had to manufacture them as a
+            // disambiguating leading value in the first place: the granularity value alone
+            // (e.g. WeekOfMonth) repeats within one period instance and needs a
+            // period-relative tiebreaker to stay unambiguous. Such a component therefore
+            // carries no meaning *across* different period instances: an older period's
+            // leading value sorting after the most recent period's own maxPart does not mean
+            // that older period is "further in the future" -- it belongs to a different
+            // cycle instance entirely, most commonly an older, already fully-elapsed period
+            // whose own data legitimately spans its whole leading-component range (e.g. an
+            // older quarter's real month-2/month-3 data, compared against the current,
+            // still-in-progress quarter's own month-1 reach). Only a part that shares
+            // maxPart's own leading family is a meaningful "did the most recent period reach
+            // this position" comparison (the existing prefix rescue above/below); a part
+            // whose leading family genuinely differs from maxPart's is never treated as an
+            // unreached future bucket by this heuristic. This generalizes to any
+            // period/context-level combination whose disambiguating leading component resets
+            // per period instance (Bug #76945), not only the QUARTER-period/MONTH-context
+            // shape that surfaced it -- e.g. the YEAR-period/MONTH-of-quarter-or-finer family
+            // from Bug #76391 is equally covered.
+            boolean differentLeadingFamily = partPrefix != null && !sharesMaxPartsLeadingFamily;
+
+            if(Tool.compare(part, maxPart) <= 0 || sharesMaxPartsLeadingFamily ||
+               differentLeadingFamily)
             {
                validParts.add(part);
             }
