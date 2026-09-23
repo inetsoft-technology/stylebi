@@ -408,7 +408,7 @@ public class PostProcessor {
        * a new one while the lenses below still execute on this one (bug #76961).
        * This covers lenses built by this sandbox, surviving a reset or dispose of it.
        * It does not cover a filter over another sandbox's cached lens chain, whose
-       * lenses run on that sandbox's env (follow-up).
+       * lenses run on that sandbox's env (bug #76964).
        *
        * <p>Held weakly so a cached filter does not keep an unused env alive: if a
        * lens below uses the env, that lens keeps it reachable, and if none does, no
