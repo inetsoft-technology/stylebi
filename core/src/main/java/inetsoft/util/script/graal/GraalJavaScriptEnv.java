@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Hashtable;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Lock;
 
 /**
  * GraalJS-based ScriptEnv implementation. Replaces JavaScriptEnv (Rhino).
@@ -402,7 +402,7 @@ public class GraalJavaScriptEnv implements ScriptEnv {
             continue;
          }
 
-         ReentrantLock lock = e.getExecutionLock();
+         Lock lock = e.getExecutionLock();
          lock.lock();
 
          try {

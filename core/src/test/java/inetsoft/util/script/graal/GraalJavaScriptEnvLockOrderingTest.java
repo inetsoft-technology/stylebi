@@ -24,7 +24,6 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -161,7 +160,7 @@ class GraalJavaScriptEnvLockOrderingTest {
                                                   Callable<?> otherCall)
       throws Exception
    {
-      ReentrantLock engineLock = (ReentrantLock) env.getExecutionLock();
+      Lock engineLock = env.getExecutionLock();
       assertNotNull(engineLock, "engine should exist after init()");
 
       CountDownLatch scriptHoldsEngineLock = new CountDownLatch(1);
@@ -198,7 +197,7 @@ class GraalJavaScriptEnvLockOrderingTest {
    }
 
    /** Wait until the thread in {@code ref} is queued on {@code lock}. */
-   private static boolean awaitQueued(ReentrantLock lock, AtomicReference<Thread> ref)
+   private static boolean awaitQueued(Lock lock, AtomicReference<Thread> ref)
       throws InterruptedException
    {
       long deadline = System.currentTimeMillis() + 10_000;
@@ -206,7 +205,7 @@ class GraalJavaScriptEnvLockOrderingTest {
       while(System.currentTimeMillis() < deadline) {
          Thread t = ref.get();
 
-         if(t != null && lock.hasQueuedThread(t)) {
+         if(t != null && isParkedIn(lock, t)) {
             return true;
          }
 
@@ -222,6 +221,34 @@ class GraalJavaScriptEnvLockOrderingTest {
          t.setDaemon(true);
          return t;
       });
+   }
+
+   /**
+    * Check if {@code t} is parked inside {@code lock}'s lock method. Works for any lock
+    * implementation (the engine lock is a ReentrantLock, or a lock without queue introspection
+    * such as LendableReentrantLock, #76938): a WAITING thread with a {@code lock*} frame of the
+    * lock's own class (or one of its nested classes, e.g. ReentrantLock$Sync) on its stack.
+    */
+   private static boolean isParkedIn(Lock lock, Thread t) {
+      Thread.State state = t.getState();
+
+      if(state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
+         return false;
+      }
+
+      String cls = lock.getClass().getName();
+
+      for(StackTraceElement frame : t.getStackTrace()) {
+         String name = frame.getClassName();
+
+         if((name.equals(cls) || name.startsWith(cls + "$")) &&
+            frame.getMethodName().startsWith("lock"))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static final String SPLIT_SCRIPT = "var a = 1;\nif(a > 0) { a + 1 }";

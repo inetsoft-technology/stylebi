@@ -8441,6 +8441,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    // deadlock that takes the whole viewsheet with it (#76905): for it, lockRead()/lockWrite()
    // only try the lock and proceed without it if it is not available, and unlockAll() keeps
    // the locks it took before the script started. See UpgradableReadWriteLock.
+   // The overall order is: this lock -> assembly monitors -> monitors held across script
+   // execution (e.g. CalcTableLens.process0) -> engine lock -> GraalJavaScriptEnv monitor
+   // (leaf). The one intentional exception is PostProcessor$ConditionFilter2, which takes its
+   // AssetQuerySandbox's engine lock before its own monitor (#5506, #76918).
    private final UpgradableReadWriteLock thisLock =
       new UpgradableReadWriteLock(JavaScriptEngine::isScriptThread);
    private Object pviewsheet = new PViewsheetScriptable();

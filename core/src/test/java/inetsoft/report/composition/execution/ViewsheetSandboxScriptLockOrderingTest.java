@@ -31,7 +31,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Lock;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -71,7 +71,7 @@ class ViewsheetSandboxScriptLockOrderingTest {
                                  null);
       env = new GraalJavaScriptEnv();
       env.init();
-      engineLock = (ReentrantLock) env.getExecutionLock();
+      engineLock = env.getExecutionLock();
       pool = Executors.newFixedThreadPool(3, r -> {
          Thread t = new Thread(r);
          t.setDaemon(true);
@@ -294,7 +294,7 @@ class ViewsheetSandboxScriptLockOrderingTest {
       while(System.currentTimeMillis() < deadline) {
          Thread t = ref.get();
 
-         if(t != null && engineLock.hasQueuedThread(t)) {
+         if(t != null && isParkedIn(engineLock, t)) {
             return true;
          }
 
@@ -332,6 +332,34 @@ class ViewsheetSandboxScriptLockOrderingTest {
       void run() throws Exception;
    }
 
+   /**
+    * Check if {@code t} is parked inside {@code lock}'s lock method. Works for any lock
+    * implementation (the engine lock is a ReentrantLock, or a lock without queue introspection
+    * such as LendableReentrantLock, #76938): a WAITING thread with a {@code lock*} frame of the
+    * lock's own class (or one of its nested classes, e.g. ReentrantLock$Sync) on its stack.
+    */
+   private static boolean isParkedIn(Lock lock, Thread t) {
+      Thread.State state = t.getState();
+
+      if(state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
+         return false;
+      }
+
+      String cls = lock.getClass().getName();
+
+      for(StackTraceElement frame : t.getStackTrace()) {
+         String name = frame.getClassName();
+
+         if((name.equals(cls) || name.startsWith(cls + "$")) &&
+            frame.getMethodName().startsWith("lock"))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private static final long TIMEOUT = 15;
 
    private static final ScriptScope NOOP_SCOPE = new ScriptScope() {
@@ -357,6 +385,6 @@ class ViewsheetSandboxScriptLockOrderingTest {
 
    private ViewsheetSandbox box;
    private GraalJavaScriptEnv env;
-   private ReentrantLock engineLock;
+   private Lock engineLock;
    private ExecutorService pool;
 }
