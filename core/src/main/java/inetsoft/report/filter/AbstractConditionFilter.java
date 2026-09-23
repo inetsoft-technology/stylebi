@@ -58,22 +58,23 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    /**
     * Invalidate the table filter forcely, and the table filter will perform
     * filtering calculation to validate itself.
+    *
+    * <p>The new row map is built completely before it is published, and the old one is not
+    * disposed here: a reader outside the monitor may still hold it (bug #76972). Its
+    * finalizer frees it once no reader does.
     */
    private void invalidate(boolean fire) {
       completed = false;
-      baseRow = 0;
+      XSwappableIntList map = new XSwappableIntList();
+      int headers = table.getHeaderRowCount();
 
-      if(rowmap != null) {
-         rowmap.dispose();
+      for(int i = 0; i < headers; i++) {
+         map.add(i);
       }
 
-      rowmap = new XSwappableIntList();
-      hcount = table.getHeaderRowCount();
-
-      for(int i = 0; i < hcount; i++) {
-         rowmap.add(i);
-         baseRow++;
-      }
+      hcount = headers;
+      baseRow = headers;
+      rowmap = map;
 
       if(fire) {
          fireChangeEvent();
@@ -134,9 +135,17 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
       if(row < hcount) {
          return row;
       }
-      else {
-         return rowmap.get(row);
+
+      // invalidate() can publish a new row map after moreRows() returned (bug #76972). Read
+      // one snapshot, and if it does not reach the row yet, populate the current map again.
+      XSwappableIntList map = rowmap;
+
+      for(int i = 0; i < 3 && row >= map.size() && !map.isCompleted(); i++) {
+         moreRows(row);
+         map = rowmap;
       }
+
+      return map.get(row);
    }
 
    /**
@@ -664,7 +673,8 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    private static final Logger LOG = LoggerFactory.getLogger(AbstractConditionFilter.class);
    private TableLens table;
    private transient TableDataDescriptor hdescriptor;
-   private XSwappableIntList rowmap;
+   // volatile: getBaseRowIndex reads it outside the monitor (bug #76972)
+   private volatile XSwappableIntList rowmap;
    private boolean completed = false;
    private transient boolean debug = "true".equals(SreeEnv.getProperty("filter.debug", "false"));
    private int baseRow = 0;

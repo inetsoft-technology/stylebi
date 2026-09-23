@@ -170,12 +170,10 @@ public class GuestReaderCycleTest {
     * variant usually shows no wrong read in 3 s, but can on any run, so it is known.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void mappedRowReadsDuringInvalidate() throws Exception {
       Sandbox s = harness.sandbox();
       assertEquals(Collections.emptyMap(),
-                   invalidateRace(cf2(s.formula(new SlowTable(INV_ROWS, Slow.NONE)), s.box), KNOWN_CAP));
+                   invalidateRace(cf2(s.formula(new SlowTable(INV_ROWS, Slow.NONE)), s.box), ACTIVE_CAP));
    }
 
    /**
@@ -189,12 +187,10 @@ public class GuestReaderCycleTest {
     * lock, so nothing slows the two threads down, and wrong reads show up in every run.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void mappedRowReadsDuringInvalidateWithoutLock() throws Exception {
       Sandbox s = harness.sandbox();
       assertEquals(Collections.emptyMap(),
-                   invalidateRace(cf2(new SlowTable(INV_ROWS, Slow.NONE), s.box), KNOWN_CAP));
+                   invalidateRace(cf2(new SlowTable(INV_ROWS, Slow.NONE), s.box), ACTIVE_CAP));
    }
 
    /**
