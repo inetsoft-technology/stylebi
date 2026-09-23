@@ -5369,6 +5369,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       if(obj == null) {
+         long skippedLocks = getSkippedLockCount();
          lockRead();
 
          try {
@@ -5454,6 +5455,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                      vstable.setCrosstabTree(((CrosstabVSAssembly) assembly).getCrosstabTree());
                   }
 
+                  // see the finally block below
+                  cache = cache && !isLockSkippedSince(skippedLocks);
+
                   if(cache && hint != VSAssembly.NONE_CHANGED) {
                      processChange0(name, hint, new ChangedAssemblyList());
                      obj = getVSTableLens0(name, detail, false);
@@ -5468,6 +5472,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   throw cex2;
                }
                finally {
+                  // Inside a script this thread proceeds without a sandbox lock it cannot get
+                  // (see lockRead()), so a writer may have been changing the sandbox while the
+                  // lens was built. Do not cache it or process the assembly's script changes
+                  // then, or a lens built from state the writer is resetting would stay in dmap.
+                  // The script reading Table.table keeps its own reference to it. (#76905)
+                  cache = cache && !isLockSkippedSince(skippedLocks);
+                  // The other direction is not guarded: a writer may cache a result built
+                  // from state this script thread changed without the lock (e.g. its
+                  // executeScript()). Accepted: script statements already ran without the
+                  // sandbox lock (#52463), and this only happens in the contention case that
+                  // used to deadlock.
+
                   if(cache) {
                      if(obj == null && VSUtil.isVSAssemblyBinding(assembly)) {
                         dmap.removeAll(name);
@@ -5683,6 +5699,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(obj == null && initial) {
          boolean cache = true;
          boolean inExec = JavaScriptEngine.getExecScriptable() != null;
+         long skippedLocks = inExec ? getSkippedLockCount() : 0;
 
          // if called from script, the locking should already be in place. lock it again
          // may cause deadlock if the processing is started in a separate thread. (52463)
@@ -5725,6 +5742,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
          finally {
+            // a query run without a sandbox lock it asked for (script thread, see lockRead())
+            // may have overlapped a writer, don't cache its result (#76905)
+            if(inExec && isLockSkippedSince(skippedLocks)) {
+               cache = false;
+            }
+
             // @by larryl, optimization, for selection data, the same table
             // is used again and again. For a large tree, the getObject could
             // get expensive if the table lens is nested very deep.
@@ -7959,6 +7982,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
    /**
     * Acquire a write (exclusive) lock.
+    *
+    * <p>On a thread running a script this never blocks (see {@link #thisLock}): if the lock
+    * is not available the thread proceeds without it.</p>
     */
    public void lockWrite() {
       // script (OutputVSAScriptable) may call getData, which would be triggered from
@@ -7982,12 +8008,31 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
    /**
     * Acquire a read (shared) lock.
+    *
+    * <p>On a thread running a script this never blocks (see {@link #thisLock}): if the lock
+    * is not available the thread proceeds without it.</p>
     */
    public void lockRead() {
       // see above
       if(!AssetDataCache.isProcessorThread()) {
          thisLock.lockRead();
       }
+   }
+
+   /**
+    * Get the number of sandbox lock acquisitions this thread has skipped so far because it is
+    * running a script and the lock was not available (see lockRead()).
+    */
+   private long getSkippedLockCount() {
+      return AssetDataCache.isProcessorThread() ? 0 : thisLock.getSkippedCount();
+   }
+
+   /**
+    * Check if this thread skipped a sandbox lock acquisition since
+    * {@link #getSkippedLockCount()} returned {@code count}.
+    */
+   private boolean isLockSkippedSince(long count) {
+      return getSkippedLockCount() != count;
    }
 
    /**
@@ -8007,6 +8052,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     *
     * <p>Safe for re-entrant use: a nested unlockAll()/restoreLocks() pair on the same
     * thread does not discard the state saved by an enclosing unlockAll().</p>
+    *
+    * <p>On a thread running a script only the locks taken inside the script are released.
+    * Locks the thread took before the script started stay held: released while the thread
+    * holds the script engine lock they could not be taken back without blocking (#76905).
+    * The trade-off is that such a caller's lock stays held across a fetch nested in the
+    * script, so other requests on this viewsheet wait for that fetch.</p>
     */
    public void unlockAll() {
       if(!AssetDataCache.isProcessorThread()) {
@@ -8404,7 +8455,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private String exportFormat = null;
    private String oid; // original runtime viewsheet id
    private final Map<String, ReentrantLock> graphLocks = new ConcurrentHashMap<>();
-   private final UpgradableReadWriteLock thisLock = new UpgradableReadWriteLock();
+   // A thread running a script holds that script engine's execution lock, and other threads
+   // hold this lock while they wait for the engine lock (e.g. CalcTableVSAQuery holds the
+   // write lock across clens.process(), getVSTableLens0() the read lock across
+   // executeScript()). So a script thread must never block on this lock, or the two form a
+   // deadlock that takes the whole viewsheet with it (#76905): for it, lockRead()/lockWrite()
+   // only try the lock and proceed without it if it is not available, and unlockAll() keeps
+   // the locks it took before the script started. See UpgradableReadWriteLock.
+   // The overall order is: this lock -> assembly monitors -> monitors held across script
+   // execution (e.g. CalcTableLens.process0) -> engine lock -> GraalJavaScriptEnv monitor
+   // (leaf). The one intentional exception is PostProcessor$ConditionFilter2, which takes its
+   // AssetQuerySandbox's engine lock before its own monitor (#5506, #76918).
+   // isScriptThread() is true inside any engine's exec (viewsheet, worksheet or report), a
+   // deliberately conservative predicate: it also covers cross-sandbox/embedded scripts.
+   private final UpgradableReadWriteLock thisLock =
+      new UpgradableReadWriteLock(JavaScriptEngine::isScriptThread);
    private Object pviewsheet = new PViewsheetScriptable();
    private Map<String, String> limitMessages; //record the asselby limit message.
    private VSBookmarkInfo openedBookmark; // the current opened bookmark

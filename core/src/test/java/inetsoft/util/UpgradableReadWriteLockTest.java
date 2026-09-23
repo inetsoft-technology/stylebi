@@ -20,6 +20,7 @@ package inetsoft.util;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.EmptyStackException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -272,10 +273,289 @@ class UpgradableReadWriteLockTest {
       // lock that lockWriteBounded()'s rewind had already physically released and never
       // restored on timeout, so this threw IllegalMonitorStateException instead of
       // completing cleanly.
+      //
+      // The frame that took the write lock unwinds first: since bug #76905 the failed restore
+      // records the write it could not restore as skipped, so that frame's unlockWrite() pops
+      // its own entry (without touching the real lock) instead of the read below it.
+      assertDoesNotThrow(lock::unlockWrite,
+                          "the write frame's unlock after the timeout");
       assertDoesNotThrow(lock::unlockRead,
                           "the lock-state stack desynced from the real lock after the timeout");
 
       assertLockFree(lock);
+   }
+
+   /**
+    * Bug #76905: after a bounded write restore timed out, the caller's
+    * {@code finally unlockWrite()} (CalcTableVSAQuery.getTableLens()) popped an empty stack and
+    * threw EmptyStackException, which replaced the informative IllegalStateException and left
+    * the client with "An unexpected error has occurred". Every frame that owned an entry the
+    * failed restore did not get back must be able to unwind cleanly.
+    */
+   @Test
+   void unlockAfterFailedWriteRestoreDoesNotThrowEmptyStack() throws InterruptedException {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(200);
+      lock.lockWrite(); // outer caller, e.g. CoreLifecycleService
+      lock.lockWrite(); // CalcTableVSAQuery.getTableLens()
+      lock.unlockAll(); // VSAQuery.getDataWithoutSandboxLock()
+
+      runWhileAnotherThreadHoldsRead(lock, () ->
+         assertThrows(IllegalStateException.class, lock::restoreLocks));
+
+      assertDoesNotThrow(lock::unlockWrite, "inner frame's unlock after the failed restore");
+      assertDoesNotThrow(lock::unlockWrite, "outer frame's unlock after the failed restore");
+      assertLockFree(lock);
+
+      // the stack is balanced again: the thread can use the lock normally
+      lock.lockWrite();
+      lock.unlockWrite();
+      assertLockFree(lock);
+   }
+
+   /**
+    * Same as above with a partial restore: the outer read is restored, the inner write is not.
+    * The inner unlockWrite() used to pop the outer read entry and throw
+    * IllegalMonitorStateException on the write lock it did not hold.
+    */
+   @Test
+   void unlockAfterPartialRestoreUnwindsEachFrame() throws InterruptedException {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(200);
+      lock.lockRead();  // e.g. ViewsheetSandbox.getVSTableLens0()
+      lock.lockWrite(); // e.g. CalcTableVSAQuery.getTableLens()
+      lock.unlockAll();
+
+      runWhileAnotherThreadHoldsRead(lock, () ->
+         assertThrows(IllegalStateException.class, lock::restoreLocks));
+
+      assertDoesNotThrow(lock::unlockWrite, "inner frame's unlock after the partial restore");
+      assertDoesNotThrow(lock::unlockRead, "outer frame's unlock after the partial restore");
+      assertLockFree(lock);
+   }
+
+   /** The failed-restore tolerance must not hide a genuine unlock without a lock. */
+   @Test
+   void unbalancedUnlockStillFailsFast() {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock();
+      assertThrows(EmptyStackException.class, lock::unlockWrite);
+      assertThrows(EmptyStackException.class, lock::unlockRead);
+   }
+
+   /**
+    * Bug #76905: in non-blocking mode (a thread running a script) a lock that is not available
+    * is skipped instead of waited for, and the matching unlock follows the recorded decision.
+    */
+   @Test
+   void nonBlockingLockIsSkippedWhileAnotherThreadHoldsWrite() throws InterruptedException {
+      // per thread, like JavaScriptEngine.isScriptThread()
+      ThreadLocal<Boolean> inScript = ThreadLocal.withInitial(() -> false);
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(inScript::get);
+
+      runWhileAnotherThreadHoldsWrite(lock, () -> {
+         inScript.set(true);
+
+         try {
+            lock.lockRead();
+            assertEquals(1, lock.getSkippedCount());
+            lock.lockWrite();
+            assertEquals(2, lock.getSkippedCount());
+            // the decision is replayed even though the predicate changed in between
+            inScript.set(false);
+            assertDoesNotThrow(lock::unlockWrite);
+            assertDoesNotThrow(lock::unlockRead);
+         }
+         finally {
+            inScript.set(false);
+         }
+      });
+
+      assertLockFree(lock);
+   }
+
+   @Test
+   void nonBlockingLockIsTakenWhenAvailable() {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(() -> true);
+      lock.lockRead();
+      assertEquals(0, lock.getSkippedCount());
+      // an upgrade would have to drop the read first, and could not get it back without
+      // blocking, so the write is skipped while the read is held
+      lock.lockWrite();
+      assertEquals(1, lock.getSkippedCount());
+      lock.unlockWrite();
+      lock.unlockRead();
+      assertLockFree(lock);
+
+      lock.lockWrite();
+      lock.lockRead();
+      assertEquals(1, lock.getSkippedCount());
+      lock.unlockRead();
+      lock.unlockWrite();
+      assertLockFree(lock);
+   }
+
+   /**
+    * In non-blocking mode unlockAll() releases only what was taken in that mode; locks taken
+    * before (by the caller that started the script) stay held, because they could not be taken
+    * back without blocking.
+    */
+   @Test
+   void nonBlockingUnlockAllKeepsLocksTakenBefore() throws Exception {
+      // per thread, like JavaScriptEngine.isScriptThread()
+      ThreadLocal<Boolean> inScript = ThreadLocal.withInitial(() -> false);
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock(inScript::get);
+      lock.lockWrite();
+
+      try {
+         inScript.set(true);
+         lock.lockRead();
+
+         try {
+            lock.unlockAll();
+
+            try {
+               Thread reader = new Thread(() -> {
+                  lock.lockRead();
+                  lock.unlockRead();
+               });
+               reader.setDaemon(true);
+               reader.start();
+               reader.join(300);
+               assertTrue(reader.isAlive(), "the write lock taken before the script was released");
+            }
+            finally {
+               lock.restoreLocks();
+            }
+         }
+         finally {
+            lock.unlockRead();
+            inScript.set(false);
+         }
+      }
+      finally {
+         lock.unlockWrite();
+      }
+
+      assertLockFree(lock);
+   }
+
+   /**
+    * Releasing an upgraded write lock re-takes the rewound read locks before releasing the
+    * write (a downgrade), so it cannot wait behind another thread's queued writer.
+    */
+   @Test
+   void downgradeDoesNotWaitBehindQueuedWriter() throws InterruptedException {
+      UpgradableReadWriteLock lock = new UpgradableReadWriteLock();
+      lock.lockRead();
+      lock.lockWrite();
+
+      CountDownLatch writerHolds = new CountDownLatch(1);
+      Thread writer = new Thread(() -> {
+         lock.lockWrite();
+         writerHolds.countDown();
+
+         try {
+            Thread.sleep(3000);
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+         finally {
+            lock.unlockWrite();
+         }
+      });
+      writer.setDaemon(true);
+      writer.start();
+
+      long deadline = System.currentTimeMillis() + 5000;
+
+      while(writer.getState() != Thread.State.WAITING && System.currentTimeMillis() < deadline) {
+         Thread.sleep(10);
+      }
+
+      long start = System.currentTimeMillis();
+      lock.unlockWrite();
+      long elapsed = System.currentTimeMillis() - start;
+
+      assertTrue(elapsed < 1000, "unlockWrite() waited " + elapsed + "ms for the queued writer");
+      assertEquals(1, writerHolds.getCount(), "the writer got the lock while the read was held");
+
+      lock.unlockRead();
+      writer.join(10000);
+      assertFalse(writer.isAlive());
+      assertLockFree(lock);
+   }
+
+   private static void runWhileAnotherThreadHoldsWrite(UpgradableReadWriteLock lock,
+                                                       Runnable action)
+      throws InterruptedException
+   {
+      CountDownLatch writerHoldsLock = new CountDownLatch(1);
+      CountDownLatch releaseWriter = new CountDownLatch(1);
+
+      Thread writer = new Thread(() -> {
+         lock.lockWrite();
+         writerHoldsLock.countDown();
+
+         try {
+            releaseWriter.await();
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+         finally {
+            lock.unlockWrite();
+         }
+      });
+      writer.setDaemon(true);
+      writer.start();
+
+      try {
+         assertTrue(writerHoldsLock.await(5, TimeUnit.SECONDS),
+                    "writer thread never acquired the write lock");
+         action.run();
+      }
+      finally {
+         releaseWriter.countDown();
+         writer.join(5000);
+      }
+
+      assertFalse(writer.isAlive(), "writer thread did not exit");
+   }
+
+   private static void runWhileAnotherThreadHoldsRead(UpgradableReadWriteLock lock,
+                                                      Runnable action)
+      throws InterruptedException
+   {
+      CountDownLatch readerHoldsLock = new CountDownLatch(1);
+      CountDownLatch releaseReader = new CountDownLatch(1);
+
+      Thread reader = new Thread(() -> {
+         lock.lockRead();
+         readerHoldsLock.countDown();
+
+         try {
+            releaseReader.await();
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+         finally {
+            lock.unlockRead();
+         }
+      });
+      reader.setDaemon(true);
+      reader.start();
+
+      try {
+         assertTrue(readerHoldsLock.await(5, TimeUnit.SECONDS),
+                    "reader thread never acquired the read lock");
+         action.run();
+      }
+      finally {
+         releaseReader.countDown();
+         reader.join(5000);
+      }
+
+      assertFalse(reader.isAlive(), "reader thread did not exit");
    }
 
    /**
