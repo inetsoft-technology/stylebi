@@ -656,6 +656,17 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // it to preserve the prior behavior.
       String body = stripStrictDirectives(rewriteJavaLengthCalls(cmd));
 
+      // Bug #76980: Rhino (language version 0) scoped a top-level `const` like
+      // `var` — a property of the executing scope, visible to the rest of the
+      // script and to later scripts (e.g. an onInit `const` read by an assembly
+      // script). GraalJS gives it ES6 block scoping, which the per-piece evals of
+      // the #75688 split below confine to one piece (a ReferenceError, or a
+      // silently wrong value inside try/catch), and which neither the plain-with
+      // path nor the #75596 hoist carries across scripts. Rewrite top-level
+      // `const`/`let` to `var` before the split and the hoist scan so every path
+      // below sees a `var`.
+      body = rewriteTopLevelLexicalDeclarations(body);
+
       // Bug #75688: Rhino preserved the "last non-empty" statement-list
       // completion value — an `if(false)` with no `else`, or a loop that never
       // entered its body, produced an *empty* completion, so a value-producing
@@ -746,9 +757,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * across scripts via {@link #buildDeclarationHoist} (#75596), and — because
     * each piece is a direct, non-strict {@code eval} in the same function — such
     * declarations remain visible to later pieces just as they were in a single
-    * evaluation. (Top-level {@code let}/{@code const}/{@code class} are confined
-    * to their own piece; this is immaterial for the legacy {@code var}-based
-    * binding scripts this restores.)
+    * evaluation. (Top-level {@code let}/{@code const} have already been rewritten
+    * to {@code var} by {@link #rewriteTopLevelLexicalDeclarations} (#76980); a
+    * top-level {@code class} is still confined to its own piece.)
     */
    private Object buildCompletionPreservingSource(String body, List<String> statements) {
       StringBuilder sb = new StringBuilder();
@@ -828,6 +839,115 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    private static List<String> splitTopLevelStatements(String body) {
       List<String> out = new ArrayList<>();
+      scanTopLevel(body, out, null);
+      return out;
+   }
+
+   /**
+    * Bug #76980: rewrite each top-level (depth-0) {@code let}/{@code const}
+    * declaration keyword in {@code body} to {@code var}, so the declaration is
+    * visible to later statement pieces of the #75688 completion wrapper (each
+    * piece is its own direct eval, which confines lexical declarations but not
+    * {@code var}) and persists to later scripts via the plain-with path or the
+    * #75596 hoist — restoring the Rhino (language version 0) scoping, where a
+    * top-level {@code const} was a property of the executing scope.
+    *
+    * <p>Uses the same lexer as {@link #splitTopLevelStatements}, so strings,
+    * template literals, regex literals and comments are never touched, and
+    * anything nested in parens/brackets/braces (a {@code for(let ...)} head, a
+    * block, a function body) keeps its block scoping. {@code class} is left
+    * unchanged (it was a SyntaxError in Rhino, and no keyword rewrite of it is
+    * parse-safe). The replacement keeps character offsets so error positions do
+    * not move. Known difference: a rewritten {@code const} can be reassigned.
+    */
+   private static String rewriteTopLevelLexicalDeclarations(String body) {
+      List<Integer> decls = new ArrayList<>();
+      scanTopLevel(body, null, decls);
+
+      if(decls.isEmpty()) {
+         return body;
+      }
+
+      StringBuilder sb = new StringBuilder(body);
+
+      for(int pos : decls) {
+         // "let" -> "var"; "const" -> "var  " (padded to keep offsets)
+         int len = body.startsWith("const", pos) ? 5 : 3;
+         sb.replace(pos, pos + len, len == 5 ? "var  " : "var");
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Whether the {@code let}/{@code const} keyword {@code word}, ending at
+    * {@code end} at depth 0 (not after a member {@code .}), begins a lexical
+    * declaration. {@code const} is reserved, so at depth 0 of valid source it
+    * can only start a declaration. {@code let} is also an identifier in sloppy
+    * code, so it must be at statement position and followed by a binding name,
+    * {@code [} or {@code {} (e.g. not {@code x = let}, {@code let in o},
+    * {@code let.x}); after a {@code )} (ambiguous with a control-flow header,
+    * where {@code if(c) let\ny = 1} is an expression) the binding must follow on
+    * the same line.
+    */
+   private static boolean isTopLevelLexicalDeclaration(String body, String word, int end,
+                                                       char prevSig, String prevWord)
+   {
+      if(word.equals("const")) {
+         return true;
+      }
+
+      if(!word.equals("let")) {
+         return false;
+      }
+
+      boolean statementStart = prevSig == 0 || prevSig == ')' || boundaryAllowedBefore(prevSig);
+
+      if(!statementStart || prevWord != null && SUPPRESS_BOUNDARY_AFTER.contains(prevWord)) {
+         return false;
+      }
+
+      int j = skipWhitespaceAndComments(body, end);
+
+      if(j >= body.length()) {
+         return false;
+      }
+
+      if(prevSig == ')' && body.substring(end, j).chars().anyMatch(ch -> isLineBreak((char) ch))) {
+         return false;
+      }
+
+      char c = body.charAt(j);
+
+      if(c == '[' || c == '{') {
+         return true;
+      }
+
+      if(!isIdentStart(c)) {
+         return false;
+      }
+
+      int k = j + 1;
+
+      while(k < body.length() && isIdentPart(body.charAt(k))) {
+         k++;
+      }
+
+      String next = body.substring(j, k);
+      return !next.equals("in") && !next.equals("instanceof");
+   }
+
+   /**
+    * The top-level lexer shared by {@link #splitTopLevelStatements} (which
+    * collects the statement pieces into {@code statements}) and
+    * {@link #rewriteTopLevelLexicalDeclarations} (which collects the offsets of
+    * depth-0 {@code let}/{@code const} declaration keywords into
+    * {@code lexicalDecls}). Either list may be {@code null}.
+    */
+   private static void scanTopLevel(String body, List<String> statements,
+                                    List<Integer> lexicalDecls)
+   {
+      List<String> out = statements != null ? statements : new ArrayList<>();
       int n = body.length();
       int depth = 0;
       int start = 0;
@@ -908,6 +1028,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             boolean afterDot = prevSig == '.';
 
             if(depth == 0 && !afterDot) {
+               if(lexicalDecls != null &&
+                  isTopLevelLexicalDeclaration(body, word, i, prevSig, prevWord))
+               {
+                  lexicalDecls.add(s);
+               }
+
                boolean whileTail = word.equals("while") && openDo > 0;
                // A label (`name:` at statement position, e.g. `outer: for(...)`)
                // begins a statement whose completion can be empty, but the label
@@ -956,8 +1082,6 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       if(start < n) {
          addStatement(out, body.substring(start));
       }
-
-      return out;
    }
 
    /** Add {@code stmt} to {@code out} unless it is blank (whitespace only). */
@@ -1465,8 +1589,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * (e.g. names declared inside a nested function) — those are harmless because
     * the emitted copy is {@code typeof}-guarded — and it does not attempt to
     * handle destructuring patterns. Only {@code var}/{@code function} are
-    * considered, because {@code let}/{@code const} at an eval's top level are
-    * confined to the eval and never persist anyway.
+    * considered: top-level {@code let}/{@code const} are rewritten to
+    * {@code var} before this scan (#76980), and nested ones are block-scoped
+    * and never persist anyway.
     */
    private static Set<String> collectTopLevelDeclarations(String body) {
       String src = stripStringsAndComments(body);
