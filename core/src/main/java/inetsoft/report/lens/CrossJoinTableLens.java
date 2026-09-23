@@ -23,6 +23,7 @@ import inetsoft.report.filter.DefaultTableChangeListener;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
+import inetsoft.util.script.JavaScriptEngine;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -201,6 +202,15 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
     */
    private synchronized void validate() {
       if(lthread != null || isCompleted()) {
+         return;
+      }
+
+      // if this is called from JavaScriptEngine.exec() or a condition filter, the script
+      // engine is already locked. loading the tables in separate threads would deadlock
+      // if they need the engine, e.g. for a condition filter or formula (bug #76935).
+      if(JavaScriptEngine.holdsScriptLock()) {
+         loadTable(true, null);
+         loadTable(false, null);
          return;
       }
 
@@ -882,6 +892,32 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    }
 
    /**
+    * Load a table and update its row count.
+    * @param left <tt>true</tt> left table, <tt>false</tt> right table.
+    * @param thread the waiting thread loading the table, or <tt>null</tt> if it is
+    * loaded on the calling thread.
+    */
+   private void loadTable(boolean left, WaitingThread thread) {
+      TableLens table = left ? ltable : rtable;
+      int hrows = left? lhrows : rhrows;
+
+      for(int i = hrows; table.moreRows(i); i += 100) {
+         if(thread != null && thread.disposed || disposed || cancelled) {
+            break;
+         }
+
+         updateRowCount(left, i - hrows + 1, false);
+      }
+
+      if((thread == null || !thread.disposed) && !disposed && !cancelled) {
+         int count = table.getRowCount() - hrows;
+         count = count < 0 ? 0 : count;
+
+         updateRowCount(left, count, true);
+      }
+   }
+
+   /**
     * Waiting thread.
     */
    private class WaitingThread extends GroupedThread {
@@ -898,23 +934,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
       @Override
       protected void doRun() {
-         TableLens table = left ? ltable : rtable;
-         int hrows = left? lhrows : rhrows;
-
-         for(int i = hrows; table.moreRows(i); i += 100) {
-            if(this.disposed || CrossJoinTableLens.this.disposed || cancelled) {
-               break;
-            }
-
-            updateRowCount(left, i - hrows + 1, false);
-         }
-
-         if(!this.disposed && !CrossJoinTableLens.this.disposed && !cancelled) {
-            int count = table.getRowCount() - hrows;
-            count = count < 0 ? 0 : count;
-
-            updateRowCount(left, count, true);
-         }
+         loadTable(left, this);
       }
 
       private boolean left;

@@ -91,14 +91,13 @@ public class MonitorFirstLensCycleTest {
     * Bug #76960 B (R2) at the formula lens itself (architect probe FTL_R2): T1 populates a
     * shared calc-field {@code FormulaTableLens} directly, holding its {@code lock} and
     * waiting for E in {@code exec}; T2's filter over the same formula lens holds E and waits
-    * for {@code FormulaTableLens.lock}.
+    * for {@code FormulaTableLens.lock}. Fixed by bug #76935: the formula lens takes E before
+    * its own lock.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void sharedFormulaLens() throws Exception {
       runShared(g -> s -> s.formula(new SlowTable(ROWS, Slow.EVERYWHERE, g), "f", "field['value'] + 1"),
-                KNOWN_CAP);
+                ACTIVE_CAP);
    }
 
    /**
