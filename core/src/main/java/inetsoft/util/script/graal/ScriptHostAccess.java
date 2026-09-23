@@ -20,6 +20,7 @@ package inetsoft.util.script.graal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.internal.FormUtil;
 import org.graalvm.polyglot.HostAccess;
+import org.graalvm.polyglot.Value;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Predicate;
@@ -160,7 +161,7 @@ public final class ScriptHostAccess {
       if(hostAccess == null) {
          synchronized(ScriptHostAccess.class) {
             if(hostAccess == null) {
-               hostAccess = HostAccess.newBuilder()
+               HostAccess.Builder builder = HostAccess.newBuilder()
                   // allow @Export-annotated instance members and all public access
                   // on class-filter-allowed types (e.g. Java.type('java.lang.Math').max)
                   .allowAccessAnnotatedBy(HostAccess.Export.class)
@@ -322,8 +323,27 @@ public final class ScriptHostAccess {
                   .targetTypeMapping(Double.class, Long.class,
                                      ScriptHostAccess::isFractional,
                                      Double::longValue,
-                                     HostAccess.TargetMappingPrecedence.LOWEST)
-                  .build();
+                                     HostAccess.TargetMappingPrecedence.LOWEST);
+
+               // A graph object a script holds is a HostBeanProxy (a ProxyObject),
+               // which GraalJS cannot convert to its Java type on its own, so it
+               // failed every hand-off whose receiver is not itself a
+               // HostBeanProxy: `new StackTextFrame(elem, "Quantity")` reported
+               // "Invalid argument when instantiating ... [HostBeanProxy,
+               // TruffleString]", and likewise for Java.type construction, static
+               // methods, instance methods of plain host objects, varargs and
+               // arrays. Map a wrapper back to its target wherever a parameter is
+               // declared as exactly one of the wrapped types. (#76969)
+               //
+               // Deliberately no mapping to Object or any other supertype: an
+               // Object parameter must keep receiving GraalJS's polyglot view of
+               // the wrapper, so an element stored in a Java collection comes back
+               // to the script as the same wrapper (=== and bean access intact).
+               for(Class<?> type : HostBeanProxy.WRAPPED_TYPES) {
+                  addUnwrapMapping(builder, type);
+               }
+
+               hostAccess = builder.build();
             }
          }
       }
@@ -602,6 +622,18 @@ public final class ScriptHostAccess {
     */
    private static boolean fitsInInt(double d) {
       return d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE;
+   }
+
+   /**
+    * Declares the conversion of a {@link HostBeanProxy} wrapper back to its target
+    * for a parameter declared as exactly {@code type}. The predicate also checks
+    * the target's type, so e.g. a wrapped {@code EGraph} is never offered to a
+    * {@code GraphElement} parameter. (#76969)
+    */
+   private static <T> void addUnwrapMapping(HostAccess.Builder builder, Class<T> type) {
+      builder.targetTypeMapping(Value.class, type,
+                                v -> type.isInstance(HostBeanProxy.unwrap(v)),
+                                v -> type.cast(HostBeanProxy.unwrap(v)));
    }
 
    private static Set<String> parseExtra(String prop) {
