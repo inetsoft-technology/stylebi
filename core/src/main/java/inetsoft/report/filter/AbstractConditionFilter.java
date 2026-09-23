@@ -124,9 +124,11 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
 
    /**
     * Get the base table row index corresponding to the filtered table.
-    * If the row does not exist in the base table, it returns -1.
     * @param row row index in the filtered table.
     * @return corresponding row index in the base table.
+    * @throws IndexOutOfBoundsException if the row is still not mapped after the bounded
+    *         retries and the final locked-snapshot fallback, meaning the row does not (yet)
+    *         exist in the filter's row map.
     */
    @Override
    public final int getBaseRowIndex(int row) {
