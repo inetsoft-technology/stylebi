@@ -37,7 +37,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       String code = c.mint("Worksheet/foo-7", "stomp-1", SheetType.WORKSHEET, owner).code();
@@ -55,7 +55,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(false);
-      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       assertThrows(ResponseStatusException.class,
@@ -67,7 +67,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
 
       ResponseStatusException ex = assertThrows(ResponseStatusException.class,
          () -> c.mint("Worksheet/foo-7", "stomp-1", SheetType.WORKSHEET, null));
@@ -79,7 +79,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
       Principal owner = TestPrincipals.user("alice", "host-org");
 
       // Build a SimpMessageHeaderAccessor with a known session id
@@ -98,7 +98,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(false);
-      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
       Principal owner = TestPrincipals.user("alice", "host-org");
       SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
       accessor.setSessionId("stomp-x");
@@ -123,7 +123,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
       Principal owner = TestPrincipals.user("alice", "host-org");
       SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
       accessor.setSessionId("stomp-x");
@@ -140,7 +140,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       when(feature.isEnabled()).thenReturn(true);
-      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, new SheetSessionService(), feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
       Principal owner = TestPrincipals.user("alice", "host-org");
       SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
       accessor.setSessionId("stomp-x");
@@ -157,7 +157,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetSessionService sessions = new SheetSessionService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
-      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
 
       EditorContext ctx = new EditorContext("assemblyMain", "Chart1", null, null);
       JoinSession pane = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
@@ -177,7 +177,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetSessionService sessions = new SheetSessionService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
-      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
 
       JoinSession sheet = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
                                         "stomp-9", "alice", null);
@@ -198,7 +198,7 @@ class SheetPairingControllerTest {
       SheetPairingService pairing = new SheetPairingService();
       SheetSessionService sessions = new SheetSessionService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
-      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, mock(SheetAgentBroadcastService.class), true);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, mock(SheetAgentBroadcastService.class), mock(SheetJoinService.class), true);
 
       JoinSession sheet = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
                                         "stomp-9", "alice", null);
@@ -217,7 +217,7 @@ class SheetPairingControllerTest {
       SheetSessionService sessions = new SheetSessionService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
-      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, true);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, mock(SheetJoinService.class), true);
 
       JoinSession sheet = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
                                         "stomp-9", "alice", null);
@@ -241,7 +241,7 @@ class SheetPairingControllerTest {
       SheetSessionService sessions = new SheetSessionService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
-      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, true);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, mock(SheetJoinService.class), true);
 
       JoinSession sheet = sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET,
                                         "stomp-9", "alice", null);
@@ -281,7 +281,7 @@ class SheetPairingControllerTest {
       SheetSessionService sessions = new SheetSessionService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
-      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, true);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, mock(SheetJoinService.class), true);
 
       SimpMessageHeaderAccessor accessor = SimpMessageHeaderAccessor.create();
       accessor.setSessionId("no-such-socket");
@@ -304,7 +304,7 @@ class SheetPairingControllerTest {
       SheetSessionService sessions = new SheetSessionService();
       SheetAgentFeature feature = mock(SheetAgentFeature.class);
       SheetAgentBroadcastService broadcast = mock(SheetAgentBroadcastService.class);
-      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, true);
+      SheetPairingController c = new SheetPairingController(pairing, sessions, feature, broadcast, mock(SheetJoinService.class), true);
 
       sessions.open("Viewsheet/vs-1", "alice~;~host-org", SheetType.VIEWSHEET, "stomp-9",
                    "alice", null);
@@ -314,5 +314,55 @@ class SheetPairingControllerTest {
       c.popFocusViaSocket(new SheetPairingController.PopFocusRequest("Viewsheet/vs-1"), accessor);
 
       verifyNoInteractions(broadcast);
+   }
+
+   // ---------------------------------------------------------------------------
+   // GET /api/wiz/v1/agent/pairing/peek (VSS-001 / Redmine #76955)
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void peekReportsRuntimeIdAndLowercaseSheetTypeWithoutConsumingTheCode() throws PairingException {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      SheetSessionService sessions = new SheetSessionService();
+      SheetJoinService joinService = new SheetJoinService(
+         pairing, sessions, feature, mock(SheetRuntimeAccess.class),
+         mock(SheetAgentBroadcastService.class));
+      SheetPairingController c = new SheetPairingController(
+         pairing, sessions, feature, mock(SheetAgentBroadcastService.class), joinService, true);
+      Principal owner = TestPrincipals.user("alice", "host-org");
+
+      String code = c.mint("Viewsheet/peek-1", "stomp-1", SheetType.VIEWSHEET, owner).code();
+
+      SheetPairingController.PeekResponse peek = c.peek(code, owner);
+
+      assertEquals("Viewsheet/peek-1", peek.runtimeId());
+      // Lowercase, matching what every agent controller's JoinResponse serializes -- the plugin
+      // compares this against its own runtime-type keys.
+      assertEquals("viewsheet", peek.sheetType());
+      // Still redeemable: peek is a read, not a join.
+      assertNotNull(pairing.peek(code));
+   }
+
+   @Test
+   void peekAtAnUnknownCodeIsNotFound() {
+      SheetPairingService pairing = new SheetPairingService();
+      SheetAgentFeature feature = mock(SheetAgentFeature.class);
+      when(feature.isEnabled()).thenReturn(true);
+      SheetSessionService sessions = new SheetSessionService();
+      SheetJoinService joinService = new SheetJoinService(
+         pairing, sessions, feature, mock(SheetRuntimeAccess.class),
+         mock(SheetAgentBroadcastService.class));
+      SheetPairingController c = new SheetPairingController(
+         pairing, sessions, feature, mock(SheetAgentBroadcastService.class), joinService, true);
+      Principal owner = TestPrincipals.user("alice", "host-org");
+
+      PairingException ex = assertThrows(PairingException.class, () -> c.peek("NOPE", owner));
+
+      // The controller's own @ExceptionHandler is what turns this into the 404 the plugin reads
+      // as "this deployment cannot describe a code" and falls back on.
+      assertEquals(HttpStatus.NOT_FOUND,
+                   c.handlePairingException(ex).getStatusCode());
    }
 }
