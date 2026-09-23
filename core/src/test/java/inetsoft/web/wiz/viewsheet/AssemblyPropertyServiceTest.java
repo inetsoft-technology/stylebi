@@ -40,6 +40,7 @@ import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.StaticImagePaneModel;
 import inetsoft.web.composer.model.vs.RadioButtonPropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
+import inetsoft.web.composer.model.vs.SelectionContainerPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionListPropertyDialogModel;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
 import inetsoft.web.composer.model.vs.TableViewPropertyDialogModel;
@@ -231,6 +232,55 @@ class AssemblyPropertyServiceTest {
          Exception.class, () -> service.list("tok", principal(), "Annotation1"));
 
       assertTrue(thrown.getMessage().contains("gauge"), "name what is covered");
+   }
+
+   /**
+    * The Selection Container's class is CurrentSelectionVSAssembly, which strips to
+    * "currentselection" -- a key nothing registers. It must resolve to "selectioncontainer", the
+    * key PropertyAliases and the bindings use, or none of its aliases are reachable.
+    */
+   @Test
+   @SuppressWarnings("unchecked")
+   void resolvesACurrentSelectionAssemblyAsSelectionContainer() throws Exception {
+      SelectionContainerPropertyDialogModel model = new SelectionContainerPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWith(mock(CurrentSelectionVSAssembly.class), model);
+
+      Map<String, Object> listed = service.list("tok", principal(), "SelectionContainer1");
+
+      assertEquals("selectioncontainer", listed.get("assemblyType"));
+      java.util.List<String> names =
+         ((java.util.List<Map<String, Object>>) listed.get("properties")).stream()
+            .map(p -> (String) p.get("name"))
+            .toList();
+      assertTrue(names.contains("showCurrentSelection"), "listed: " + names);
+      assertTrue(names.contains("adhocEnabled"), "listed: " + names);
+   }
+
+   @Test
+   @SuppressWarnings("unchecked")
+   void getsSelectionContainerValues() throws Exception {
+      SelectionContainerPropertyDialogModel model = new SelectionContainerPropertyDialogModel();
+      model.getSelectionContainerGeneralPaneModel().setShowCurrentSelection(true);
+      AssemblyPropertyService service =
+         serviceWith(mock(CurrentSelectionVSAssembly.class), model);
+
+      Map<String, Object> values =
+         (Map<String, Object>) service.get("tok", principal(), "SelectionContainer1", false);
+
+      assertEquals(true, values.get("showCurrentSelection"));
+      assertEquals(false, values.get("adhocEnabled"));
+   }
+
+   @Test
+   void setsASelectionContainerAlias() throws Exception {
+      SelectionContainerPropertyDialogModel model = new SelectionContainerPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWith(mock(CurrentSelectionVSAssembly.class), model);
+
+      service.set("tok", principal(), "SelectionContainer1", Map.of("adhocEnabled", true), "");
+
+      assertTrue(model.getSelectionContainerGeneralPaneModel().isAdhocEnabled());
    }
 
    /** Image is covered now — the Immutables write path is what made it reachable. */
@@ -2341,6 +2391,20 @@ class AssemblyPropertyServiceTest {
          }
       }
 
+      SelectionContainerPropertyDialogService selectionContainer =
+         mock(SelectionContainerPropertyDialogService.class);
+
+      if(model instanceof SelectionContainerPropertyDialogModel selectionContainerModel) {
+         try {
+            when(selectionContainer.getSelectionContainerPropertyModel(anyString(), anyString(),
+                                                                        any(Principal.class)))
+               .thenReturn(selectionContainerModel);
+         }
+         catch(Exception e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       return new AssemblyPropertyService(
          sessions, gauge, imageService,
          mock(TextPropertyDialogService.class),
@@ -2355,7 +2419,7 @@ class AssemblyPropertyServiceTest {
          mock(GroupContainerPropertyDialogService.class),
          mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
          mock(RectanglePropertyDialogService.class),
-         mock(SelectionContainerPropertyDialogService.class),
+         selectionContainer,
          mock(SubmitPropertyDialogService.class));
    }
 

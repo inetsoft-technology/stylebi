@@ -1194,6 +1194,12 @@ public class AssemblyPropertyService {
       return bindings;
    }
 
+   // Assembly classes whose name does not strip to their registry key. The Composer calls
+   // CurrentSelectionVSAssembly a "Selection Container", and the registry and bindings key it that
+   // way; stripping VSAssembly would yield "currentselection", which nothing registers.
+   private static final Map<String, String> TYPE_OVERRIDES =
+      Map.of("CurrentSelectionVSAssembly", "SelectionContainer");
+
    private String typeOf(RuntimeViewsheet rvs, String assemblyName) {
       Viewsheet vs = rvs == null ? null : rvs.getViewsheet();
       Object assembly = vs == null ? null : vs.getAssembly(assemblyName);
@@ -1203,7 +1209,8 @@ public class AssemblyPropertyService {
       }
 
       String simple = assembly.getClass().getSimpleName();
-      String type = simple.endsWith("VSAssembly")
+      String type = TYPE_OVERRIDES.containsKey(simple) ? TYPE_OVERRIDES.get(simple)
+         : simple.endsWith("VSAssembly")
          ? simple.substring(0, simple.length() - "VSAssembly".length()) : simple;
       String normalized = type.toLowerCase();
 
