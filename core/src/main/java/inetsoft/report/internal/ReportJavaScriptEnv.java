@@ -47,25 +47,33 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
     * Reset the scripting environment.
     */
    @Override
-   public synchronized void reset() {
-      if(rengine != null) {
-         try {
-            rengine.setReport(report);
-            rengine.init(vars);
+   public void reset() {
+      // execution lock before the monitor, see GraalJavaScriptEnv.withEngine() (#76905)
+      withEngine(false, e -> {
+         if(e != null) {
+            // e, not the rengine field, which an unsynchronized dispose() may clear
+            ReportGraalJavaScriptEngine re = (ReportGraalJavaScriptEngine) e;
+
+            try {
+               re.setReport(report);
+               re.init(vars);
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to initialize script engine when " +
+                  "resetting environment", ex);
+               // init(vars) closes the old Context before building the replacement,
+               // so a failure here leaves rengine referencing a closed Context that
+               // init() (a no-op while rengine != null) would never rebuild. Drop
+               // the engine so the next init()/exec() rebuilds it from scratch
+               // rather than poisoning a long-lived env. (mirrors the base
+               // GraalJavaScriptEnv.reset() fix)
+               rengine = null;
+               engine = null;
+            }
          }
-         catch(Exception ex) {
-            LOG.error("Failed to initialize script engine when " +
-               "resetting environment", ex);
-            // init(vars) closes the old Context before building the replacement,
-            // so a failure here leaves rengine referencing a closed Context that
-            // init() (a no-op while rengine != null) would never rebuild. Drop
-            // the engine so the next init()/exec() rebuilds it from scratch
-            // rather than poisoning a long-lived env. (mirrors the base
-            // GraalJavaScriptEnv.reset() fix)
-            rengine = null;
-            engine = null;
-         }
-      }
+
+         return null;
+      });
    }
 
    /**
@@ -136,24 +144,24 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
    @Override
    public synchronized void init() {
       if(rengine == null) {
-         rengine = (ReportGraalJavaScriptEngine) createScriptEngine();
-         engine = rengine;
+         ReportGraalJavaScriptEngine e = (ReportGraalJavaScriptEngine) createScriptEngine();
 
          try {
-            rengine.setReport(report);
-            rengine.setSQL(sql);
-            rengine.init(vars);
+            e.setReport(report);
+            e.setSQL(sql);
+            e.init(vars);
+            // publish only once initialized, see GraalJavaScriptEnv.init() (#76905)
+            rengine = e;
+            engine = e;
          }
-         catch(Exception e) {
+         catch(Exception ex) {
             LOG.error("Failed to initialize script engine when " +
-               "initializing environment", e);
+               "initializing environment", ex);
             // init(vars) may close/replace the Context; a failure here leaves
-            // rengine referencing a broken/closed Context that this method (a
-            // no-op while rengine != null) would never rebuild. Drop it so the
-            // next init()/exec() rebuilds from scratch rather than poisoning
+            // the engine referencing a broken/closed Context. It is not published,
+            // so the next init()/exec() rebuilds from scratch rather than poisoning
             // this (now long-lived, per-thread) env. Mirrors the reset() fix.
-            rengine = null;
-            engine = null;
+            closeQuietly(e);
          }
       }
    }

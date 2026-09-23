@@ -34,7 +34,11 @@ import { BehaviorSubject, forkJoin, Subscription } from "rxjs";
 import { Tool } from "../../../../../shared/util/tool";
 import { Dimension } from "../../common/data/dimension";
 import { GuiTool } from "../../common/util/gui-tool";
-import { CommandProcessor, ViewsheetClientService } from "../../common/viewsheet-client";
+import {
+   CommandProcessor,
+   ViewsheetClientService,
+   ViewsheetCommandMessage
+} from "../../common/viewsheet-client";
 import { TouchAssetEvent } from "../../composer/gui/ws/socket/touch-asset-event";
 import { AbstractVSActions } from "../../vsobjects/action/abstract-vs-actions";
 import { AddVSObjectCommand } from "../../vsobjects/command/add-vs-object-command";
@@ -142,6 +146,17 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    timeoutError: boolean;
    @ViewChild("viewerRoot") viewerRoot: ElementRef;
 
+   // Commands whose process*Command handler mutates a field this component's template reads
+   // directly: runtimeId ([attr.runtime-id], the <vs-chart> @if), vsInfo ([vsInfo]),
+   // vsObject/vsObjectActions ([model]/[actions], the <vs-chart> @if), showError (the error
+   // panel @if). Every other command this component receives either has no process*Command
+   // handler at all (falls through CommandProcessor's dispatch as a no-op) or only has side
+   // effects the template never reads -- so only these five need a forced check.
+   private static readonly CD_TICK_COMMAND_TYPES = new Set<string>([
+      "SetRuntimeIdCommand", "SetViewsheetInfoCommand", "AddVSObjectCommand",
+      "RefreshVSObjectCommand", "EmbedErrorCommand"
+   ]);
+
    private subscriptions: Subscription = new Subscription();
    private _runtimeId: string;
    private serverUpdateIntervalId: any;
@@ -173,6 +188,21 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       super(viewsheetClient, zone, true);
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
       showHyperlinkService.inEmbed = true;
+
+      // When bootstrapped as a <inetsoft-chart> custom element (@angular/elements), this
+      // component's view is attached directly to the page-wide ApplicationRef and is only
+      // auto-refreshed when the shared NgZone reports itself stable. That signal can be missed
+      // when this element's STOMP command stream races another <inetsoft-chart> instance's own
+      // async round-trips on the same page (bug #76903) -- the command handlers below correctly
+      // update this component's fields, but the view is never re-checked. Force a check after
+      // the specific commands whose handler mutates a template-bound field (see
+      // CD_TICK_COMMAND_TYPES above) instead of relying on the implicit app-wide tick.
+      this.subscriptions.add(this.viewsheetClient.commands.subscribe(
+         (message: ViewsheetCommandMessage) => {
+            if(EmbedChartComponent.CD_TICK_COMMAND_TYPES.has(message.type)) {
+               this.cdRef.detectChanges();
+            }
+         }));
    }
 
    get runtimeId(): string {

@@ -29,6 +29,8 @@ import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.util.XIdentifierContainer;
 import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.swap.XSwappableObjectList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -525,36 +527,64 @@ public abstract class SetTableLens
          merged.addTable(tables.get(i), i, cols);
       }
 
-      // concurrent process
       final MergedTable merged2 = merged;
+
+      // if this is called from JavaScriptEngine.exec() or a condition filter
+      // (bug #76938), the script engine is already locked. merging in a separate
+      // thread would create a deadlock waiting forever for the JavaScriptEngine lock
+      // to be released.
+      if(JavaScriptEngine.holdsScriptLock()) {
+         merge(merged2);
+         return;
+      }
+
+      // concurrent process. a thread holding the lock may still wait for this worker
+      // later on, it lends the lock to the worker then (see moreRows)
+      LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+      worker = borrower;
+
       ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
          @Override
          public void run() {
+            borrower.begin();
+
             try {
-               merged2.accept(getVisitor());
+               merge(merged2);
             }
-            catch(InterruptedException ex) {
-               // ignore it
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to merge tables", ex);
-            }
-
-            synchronized(SetTableLens.this) {
-               if(rows != null) {
-                  rows.complete();
-               }
-
-               if(!merged2.isDisposed()) {
-                  merged.dispose();
-                  merged = null;
-                  completed = true;
-                  // notify waiting consumers
-                  SetTableLens.this.notifyAll();
-               }
+            finally {
+               borrower.end();
             }
          }
       });
+   }
+
+   /**
+    * Merge the tables into the set rows.
+    */
+   private void merge(MergedTable merged2) {
+      try {
+         merged2.accept(getVisitor());
+      }
+      catch(InterruptedException ex) {
+         // ignore it
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to merge tables", ex);
+      }
+
+      synchronized(SetTableLens.this) {
+         if(rows != null) {
+            rows.complete();
+         }
+
+         if(!merged2.isDisposed()) {
+            merged.dispose();
+            merged = null;
+            completed = true;
+            // notify waiting consumers
+            SetTableLens.this.notifyAll();
+         }
+      }
    }
 
    /**
@@ -568,24 +598,55 @@ public abstract class SetTableLens
     * @return true if the row exists, or false if no more rows.
     */
    @Override
-   public synchronized boolean moreRows(int row) {
+   public boolean moreRows(int row) {
       try {
-         validate();
+         while(true) {
+            LendableReentrantLock.Borrower lendTo;
 
-         while((rows == null || row >= rows.size()) && !completed) {
-            try {
-               wait(50);
+            synchronized(this) {
                validate();
+
+               if(rows != null && row < rows.size() || completed) {
+                  return rows != null && row < rows.size();
+               }
+
+               lendTo = worker;
+
+               if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
+                  try {
+                     wait(50);
+                  }
+                  catch(InterruptedException ex) {
+                     // ignore it
+                  }
+
+                  continue;
+               }
             }
-            catch(InterruptedException ex) {
-               // ignore it
+
+            // this thread holds or was lent a script engine lock (e.g. by a condition filter)
+            // that the worker may need to read the base tables, lend it to the worker
+            // while waiting (bug #76938). the loan is closed outside of this lens's
+            // monitor, which the worker needs in order to publish rows
+            try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
+               synchronized(this) {
+                  if((rows == null || row >= rows.size()) && !completed) {
+                     try {
+                        wait(50);
+                     }
+                     catch(InterruptedException ex) {
+                        // ignore it
+                     }
+                  }
+               }
             }
          }
-
-         return rows != null && row < rows.size();
       }
       catch(Exception ex) {
-         completed = true;
+         synchronized(this) {
+            completed = true;
+         }
+
          LOG.error("Failed to validate rows when checking if row " +
             "is available: " + row, ex);
          return false;
@@ -1276,6 +1337,8 @@ public abstract class SetTableLens
    private volatile boolean cancelled;           // cancelled flag
    private final Lock cancelLock = new ReentrantLock();
    private boolean validated = false;   // validated flag
+   // the background task merging the tables, if any
+   private transient volatile LendableReentrantLock.Borrower worker;
 
    // optimization
    private transient Row lastRow = null;

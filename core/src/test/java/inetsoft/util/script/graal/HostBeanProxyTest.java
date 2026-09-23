@@ -18,6 +18,10 @@
 package inetsoft.util.script.graal;
 
 import inetsoft.graph.EGraph;
+import inetsoft.graph.aesthetic.StackTextFrame;
+import inetsoft.graph.aesthetic.TextFrame;
+import inetsoft.graph.element.GraphElement;
+import inetsoft.graph.element.IntervalElement;
 import inetsoft.graph.element.LineElement;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -97,6 +101,94 @@ class HostBeanProxyTest {
    }
 
    @Test
+   void scriptConstructedElementPassesToGraphElementConstructor() {
+      // (#76969) the reported chart script: since #76915 a script-built `elem` is a
+      // HostBeanProxy, and a host constructor is not a HostBeanProxy receiver, so
+      // nothing unwrapped it -- StackTextFrame(GraphElement, String...) failed with
+      // "Invalid argument when instantiating ... [HostBeanProxy, TruffleString]".
+      LegacyJavaShim.install(ctx, ctx.getBindings("js"), ScriptHostAccess.classFilter());
+
+      ctx.eval("js",
+               "var graph = new inetsoft.graph.EGraph();" +
+               "var elem = new inetsoft.graph.element.IntervalElement('State', 'Quantity');" +
+               "elem.setTextFrame(new inetsoft.graph.aesthetic.StackTextFrame(elem, 'Quantity'));" +
+               "graph.addElement(elem);" +
+               "globalThis.__graph = graph;");
+
+      EGraph graph = (EGraph) ScriptValueConverter.toHost(
+         ctx.getBindings("js").getMember("__graph"));
+      assertEquals(1, graph.getElementCount());
+      assertStackTextFrameOn(graph.getElement(0));
+   }
+
+   @Test
+   void scriptConstructedElementPassesToJavaTypeConstructor() {
+      // (#76969) Java.type construction bypasses JavaClassProxy entirely, so the
+      // unwrapping must happen in GraalJS's own argument conversion.
+      LegacyJavaShim.install(ctx, ctx.getBindings("js"), ScriptHostAccess.classFilter());
+
+      ctx.eval("js",
+               "var StackTextFrame = Java.type('inetsoft.graph.aesthetic.StackTextFrame');" +
+               "var elem = new inetsoft.graph.element.IntervalElement('State', 'Quantity');" +
+               "elem.setTextFrame(new StackTextFrame(elem, 'Quantity'));" +
+               "globalThis.__elem = elem;");
+
+      assertStackTextFrameOn(
+         (GraphElement) ScriptValueConverter.toHost(ctx.getBindings("js").getMember("__elem")));
+   }
+
+   @Test
+   void methodReturnedElementPassesToGraphElementConstructor() {
+      // (#76969) an element returned by a wrapped graph method is wrapped too
+      // (HostBeanProxy.wrapResult); this has failed since #75577.
+      LegacyJavaShim.install(ctx, ctx.getBindings("js"), ScriptHostAccess.classFilter());
+
+      ctx.eval("js",
+               "var graph = new inetsoft.graph.EGraph();" +
+               "graph.addElement(new inetsoft.graph.element.IntervalElement('State', 'Quantity'));" +
+               "graph.getElement(0).setTextFrame(" +
+               "   new inetsoft.graph.aesthetic.StackTextFrame(graph.getElement(0), 'Quantity'));" +
+               "globalThis.__graph = graph;");
+
+      EGraph graph = (EGraph) ScriptValueConverter.toHost(
+         ctx.getBindings("js").getMember("__graph"));
+      assertStackTextFrameOn(graph.getElement(0));
+   }
+
+   @Test
+   void elementRoundTripsThroughJavaCollectionAsSameWrapper() {
+      // (#76969 regression guard) the GraphElement/EGraph unwrap mappings must not
+      // extend to Object: an Object parameter has to keep receiving GraalJS's view of
+      // the wrapper so it comes back as the same wrapper. Unwrapping there would store
+      // the raw element, which ArrayList.get returns unwrapped, so === fails and a
+      // bean write becomes the silent no-op #76915 fixed.
+      LegacyJavaShim.install(ctx, ctx.getBindings("js"), ScriptHostAccess.classFilter());
+
+      ctx.eval("js",
+               "var elem = new inetsoft.graph.element.LineElement('State', 'Quantity');" +
+               "var l = new java.util.ArrayList();" +
+               "l.add(elem);" +
+               "globalThis.__same = l.get(0) === elem;" +
+               "l.get(0).endArrow = true;" +
+               "globalThis.__elem = elem;");
+
+      assertTrue(ctx.getBindings("js").getMember("__same").asBoolean(),
+                 "an element read back from a Java list must be the same wrapper");
+      LineElement elem = (LineElement) ScriptValueConverter.toHost(
+         ctx.getBindings("js").getMember("__elem"));
+      assertTrue(elem.isEndArrow(),
+                 "a bean write on an element read back from a Java list must reach setEndArrow");
+   }
+
+   private static void assertStackTextFrameOn(GraphElement elem) {
+      assertTrue(elem instanceof IntervalElement, "expected the host IntervalElement, got " + elem);
+      TextFrame frame = elem.getTextFrame();
+      assertTrue(frame instanceof StackTextFrame, "expected a StackTextFrame, got " + frame);
+      // the constructor read the dimensions from the real element
+      assertArrayEquals(new String[] { "State" }, ((StackTextFrame) frame).getDimensions());
+   }
+
+   @Test
    void shouldWrapOnlyGraphObjects() {
       assertTrue(HostBeanProxy.shouldWrap(new EGraph()));
       assertTrue(HostBeanProxy.shouldWrap(new LineElement("d", "m")));
@@ -119,6 +211,27 @@ class HostBeanProxyTest {
 
       assertTrue(((LineElement) graph.getElement(0)).isEndArrow());
       assertTrue(((LineElement) graph.getElement(1)).isEndArrow());
+   }
+
+   /**
+    * A bean write goes through {@code Value.invokeMember}, i.e. GraalJS's own
+    * interop rather than {@link ScriptFunction}, so it depends on the
+    * Rhino-parity numeric target-type mappings in {@link ScriptHostAccess} to
+    * narrow a computed non-integral number to the setter's declared primitive.
+    * See ScriptHostAccessNumberCoercionTest for the mappings themselves; this
+    * pins that the bean path actually reaches them.
+    */
+   @Test
+   void beanWriteNarrowsAFractionalNumberToAnIntSetter() {
+      EGraph graph = new EGraph();
+      graph.addElement(new LineElement("State", "Total 1"));
+      ctx.getBindings("js").putMember("graph", HostBeanProxy.wrap(graph));
+
+      // setStartRow(int) is the only signature, so 5.7 must truncate to 5 as it
+      // did under Rhino rather than fail as a lossy primitive coercion
+      ctx.eval("js", "graph.getElement(0).startRow = 5.7;");
+
+      assertEquals(5, graph.getElement(0).getStartRow());
    }
 
    @Test

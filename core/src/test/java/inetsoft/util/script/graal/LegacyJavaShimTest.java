@@ -63,6 +63,26 @@ class LegacyJavaShimTest {
       assertEquals(255.0, num(eval("new java.awt.Color(255, 0, 0).getRed()")));
    }
 
+   /**
+    * A computed, non-integral number must still reach the Java constructor that
+    * declares it, through both shim construction forms. Rhino narrowed such a
+    * value to the selected overload's primitive; GraalJS refuses the conversion
+    * as lossy, which broke unchanged viewsheet scripts building a colour from
+    * 0..1 components. See ScriptHostAccessNumberCoercionTest for the mapping.
+    */
+   @Test
+   void fractionalConstructionSelectsTheFloatOverload() throws Exception {
+      // Color(float,float,float): (int) (0.4 * 255 + 0.5) == 102
+      assertEquals(102.0, num(eval("java.awt.Color(0.2, 0.4, 0.6).getGreen()")));
+      assertEquals(51.0, num(eval("new java.awt.Color(0.2, 0.4, 0.6).getRed()")));
+   }
+
+   /** Dimension has no non-integral overload, so 60.96 must narrow to 60. */
+   @Test
+   void fractionalConstructionNarrowsToTheOnlyIntOverload() throws Exception {
+      assertEquals(60.0, num(eval("new java.awt.Dimension(60.96, 60.96).width")));
+   }
+
    @Test
    void staticMethodAccessViaShim() throws Exception {
       assertEquals(5.0, num(eval("java.lang.Math.max(2, 5)")));

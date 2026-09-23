@@ -113,6 +113,19 @@ public class InputScriptEvent implements ScriptEvent, ScriptScope {
       return new String[]{ "name", "type", "source" };
    }
 
+   /**
+    * Describe the event for a script that concatenates it into a string.
+    * Without this, ScopeProxy's string-coercion member has nothing to delegate
+    * to and the event renders as an opaque "[object InputScriptEvent]".
+    *
+    * "source" is deliberately left out: it is a VSAScriptable, whose toString()
+    * carries an identity hash that differs on every JVM run.
+    */
+   @Override
+   public String toString() {
+      return "Event[name=" + name + ", type=" + type + "]";
+   }
+
    public VSAScriptable source;     // source scriptable object
    public String name;              // source assembly name
    public String type;              // assembly type

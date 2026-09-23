@@ -95,7 +95,7 @@
     <div class="vs-rectangle__box-shadow"
       [style.width.px]="model.objectFormat.width"
       [style.height.px]="model.objectFormat.height"
-      [style.border-radius.px]="roundCornerValue"
+      [style.border-radius]="shadowRadius"
       [style.box-shadow]="shadowCss">
     </div>
     @if (viewer) {

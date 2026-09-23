@@ -77,23 +77,43 @@ export class ShadowPropPane implements OnInit {
       this.alphaInvalid = invalid;
    }
 
-   /** Keep a cleared or out-of-range entry from reaching the server. */
+   /**
+    * Keep an out-of-range entry from reaching the server. The value is the
+    * input's raw text, so a cleared field can stay empty while editing (it is
+    * normalized to 0 on blur) and a leading zero such as "05" is re-rendered.
+    */
    clamp(field: "distance" | "blur", value: any): void {
-      const raw = parseInt(value, 10);
+      const text = value == null ? "" : String(value).trim();
+
+      // Leave the model empty (not 0) so NgModel does not write "0" back into
+      // the input while the user is still editing.
+      if(text === "") {
+         this.model[field] = null;
+         return;
+      }
+
+      const raw = Math.trunc(Number(text));
       const clamped = isNaN(raw) ? 0 : Math.max(0, Math.min(MAX_LENGTH, raw));
       this.model[field] = clamped;
 
       // If the clamped result happens to equal the value the model already
       // held (e.g. re-typing another out-of-range number into a field
-      // already at the clamp boundary), the [ngModel] binding sees no change
-      // and never re-writes the input's DOM value, leaving the raw,
-      // out-of-range text on screen. Force a real transition so NgModel
-      // always re-renders the clamped value, mirroring AlphaDropdown's
-      // changeAlpha0().
-      if(clamped !== raw) {
+      // already at the clamp boundary, or "05" for a model of 5), the
+      // [ngModel] binding sees no change and never re-writes the input's DOM
+      // value, leaving the raw text on screen. Force a real transition so
+      // NgModel always re-renders the clamped value, mirroring
+      // AlphaDropdown's changeAlpha0().
+      if(String(clamped) !== text) {
          this.model[field] = null;
          this.changeRef.detectChanges();
          this.model[field] = clamped;
+      }
+   }
+
+   /** Treat a field left empty as 0 once the user leaves it. */
+   commit(field: "distance" | "blur"): void {
+      if(this.model[field] == null) {
+         this.model[field] = 0;
       }
    }
 }

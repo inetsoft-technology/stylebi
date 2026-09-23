@@ -120,6 +120,14 @@ public class VSCloseObjectWizardService {
 
          // Treat the finish of the wizard empty assembly as cancel.
          if(!save || tempAssembly == null) {
+            // Bug #76942: on cancel, the original assembly survives unrenamed, so repoint any
+            // VS_ASSEMBLY-sourced ad hoc filter that was repointed at a wizard temp clone (see
+            // VSWizardBindingHandler#addOriginalAsPrimary) back to the original assembly's name.
+            if(originalAssembly != null) {
+               String originalName = originalModel.getOriginalName();
+               WizardRecommenderUtil.repointAdhocFilterTableName(vs, originalName, originalName);
+            }
+
             temporaryInfoService.destroyTemporary(vsId, principal);
 
             // if cancelled a new chart, clean up calc fields created in the temp chart
@@ -185,6 +193,15 @@ public class VSCloseObjectWizardService {
 
          if(event.getViewer() && originalAssembly != null) {
             tempAssembly.getInfo().setName(originalAssembly.getInfo().getName());
+         }
+
+         // Bug #76942: on save, tempAssembly has now settled on its final name (typically the
+         // original assembly's own name for a same-type edit). Repoint any VS_ASSEMBLY-sourced
+         // ad hoc filter that was pointed at a wizard temp clone name back to that final name so
+         // it keeps applying to the saved assembly instead of being left orphaned.
+         if(originalAssembly != null) {
+            WizardRecommenderUtil.repointAdhocFilterTableName(
+               vs, originalModel.getOriginalName(), tempAssembly.getName());
          }
 
          if(wizardDashboard) {

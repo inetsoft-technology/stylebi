@@ -318,6 +318,13 @@ export class SchemaThumbnailService {
    public unregisterColumn(tableColumn: TableColumnPair, sourceId: string): void {
       delete this.tableColumns[sourceId];
       this.sourceIds.delete(tableColumn.column);
+      const refs = this.refMap[tableColumn.table];
+      const index = refs ? refs.indexOf(tableColumn.column) : -1;
+
+      // remove the stale ref so getId() doesn't find it instead of a re-registered column
+      if(index >= 0) {
+         refs.splice(index, 1);
+      }
    }
 
    public addToDragSelection(tableNames: string[]): void {

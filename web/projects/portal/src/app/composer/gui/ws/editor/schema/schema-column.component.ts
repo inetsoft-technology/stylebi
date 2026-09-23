@@ -24,8 +24,10 @@ import {
    HostBinding,
    HostListener,
    Input,
+   OnChanges,
    OnDestroy,
    OnInit,
+   SimpleChanges,
 } from "@angular/core";
 import { Subscription } from "rxjs";
 import { ColumnRef } from "../../../../../binding/data/column-ref";
@@ -48,7 +50,7 @@ import { DateRangeRef } from "../../../../../common/data/date-range-ref";
     changeDetection: ChangeDetectionStrategy.OnPush,
     standalone: true
 })
-export class SchemaColumnComponent implements OnInit, AfterViewInit, OnDestroy {
+export class SchemaColumnComponent implements OnChanges, OnInit, AfterViewInit, OnDestroy {
    @Input() schemaTable: AbstractTableAssembly;
    @Input() column: ColumnRef;
    @Input() twoStepJoinColumn: TableColumnPair | null;
@@ -59,6 +61,7 @@ export class SchemaColumnComponent implements OnInit, AfterViewInit, OnDestroy {
    private highlighted: boolean;
    private tableColumn: TableColumnPair;
    private columnHeader: string;
+   private viewInit: boolean = false;
 
    constructor(private readonly hostRef: ElementRef,
                private readonly schemaThumbnailService: SchemaThumbnailService,
@@ -68,11 +71,13 @@ export class SchemaColumnComponent implements OnInit, AfterViewInit, OnDestroy {
       this.jsp = schemaThumbnailService.jsPlumbInstance;
    }
 
-   ngOnInit(): void {
-      this.tableColumn = {column: this.column, table: this.schemaTable.name};
-      this.columnHeader = this.schemaTable.colInfos
-         .find(colInfo => colInfo.name == this.column.name)?.header || this.column.name;
+   ngOnChanges(changes: SimpleChanges): void {
+      if(changes.column || changes.schemaTable) {
+         this.updateTableColumn();
+      }
+   }
 
+   ngOnInit(): void {
       this.connSub = this.schemaThumbnailService.getConnectingColumnSubject()
          .subscribe((tableColumn) => {
             if(tableColumn == null) {
@@ -105,6 +110,7 @@ export class SchemaColumnComponent implements OnInit, AfterViewInit, OnDestroy {
    ngAfterViewInit(): void {
       this.makeSourceTarget();
       this.schemaThumbnailService.registerColumn(this.tableColumn, this.hostRef.nativeElement.id);
+      this.viewInit = true;
    }
 
    ngOnDestroy(): void {
@@ -168,6 +174,28 @@ export class SchemaColumnComponent implements OnInit, AfterViewInit, OnDestroy {
 
    getTooltip(): string {
       return ColumnRef.getTooltip(this.column);
+   }
+
+   /**
+    * Rebuilds the cached table column pair. The component may be reused for a different column
+    * (e.g. when the columns are reordered), so the registration must follow the current column.
+    */
+   private updateTableColumn(): void {
+      const oldTableColumn = this.tableColumn;
+      this.columnHeader = this.schemaTable.colInfos
+         .find(colInfo => colInfo.name == this.column.name)?.header || this.column.name;
+
+      if(oldTableColumn?.column === this.column && oldTableColumn?.table === this.schemaTable.name) {
+         return;
+      }
+
+      this.tableColumn = {column: this.column, table: this.schemaTable.name};
+
+      if(this.viewInit) {
+         const id = this.hostRef.nativeElement.id;
+         this.schemaThumbnailService.unregisterColumn(oldTableColumn, id);
+         this.schemaThumbnailService.registerColumn(this.tableColumn, id);
+      }
    }
 
    private makeSourceTarget(): void {

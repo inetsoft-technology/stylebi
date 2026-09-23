@@ -275,6 +275,129 @@ public class TabVSAScriptableTest {
       assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
    }
 
+   @Test
+   void testSyncPendingBottomTabsPositionsRepositionsTabWithNoObjectScript() throws Exception {
+      // Bug #76927, sibling of #76923: the Tab's bottomTabs is set only by the viewsheet-level
+      // onInit script, so the Tab has no per-object script to re-assert it. onInit's run-once
+      // guard isn't reset when switching to a named/shared bookmark (only the HOME bookmark
+      // calls ViewsheetSandbox.clearInit()), so TabVSAScriptable.setBottomTabs() -- the only
+      // other consumer of the pending-reposition flag -- never runs and the tab bar keeps its
+      // stale pre-restore pixel position.
+      TextVSAssembly tall = new TextVSAssembly();
+      tall.getVSAssemblyInfo().setName("Tall");
+      tall.getVSAssemblyInfo().setPixelOffset(new Point(0, 60));
+      tall.getVSAssemblyInfo().setPixelSize(new Dimension(180, 100));
+      viewsheet.addAssembly(tall);
+
+      TextVSAssembly shortChild = new TextVSAssembly();
+      shortChild.getVSAssemblyInfo().setName("Short");
+      shortChild.getVSAssemblyInfo().setPixelOffset(new Point(0, 60));
+      shortChild.getVSAssemblyInfo().setPixelSize(new Dimension(180, 50));
+      viewsheet.addAssembly(shortChild);
+
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Tall", "Short"});
+      // stale top-tabs layout, as it stood before the bookmark was applied
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+
+      String bookmarkStateXml = "<assembly class=\"inetsoft.uql.viewsheet.TabVSAssembly\">" +
+         "<name><![CDATA[Tab1]]></name>" +
+         "<state_bottomTabs>true</state_bottomTabs></assembly>";
+      tabVSAssembly.parseState(parseXml(bookmarkStateXml));
+
+      assertTrue(tabVSAssemblyInfo.isBottomTabs());
+      assertTrue(tabVSAssemblyInfo.isPositionNeedsSync());
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
+
+      // no per-object script runs this cycle; the refresh's sweep must settle the debt
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(viewsheet);
+
+      // tab bar moves below the lowest child's bottom edge (60 + 100 = 160)
+      assertEquals(160, tabVSAssemblyInfo.getPixelOffset().y);
+      // the tall child defines the extent and stays put; the short one follows the tab bar
+      assertEquals(60, tall.getVSAssemblyInfo().getPixelOffset().y);
+      assertEquals(110, shortChild.getVSAssemblyInfo().getPixelOffset().y);
+      assertFalse(tabVSAssemblyInfo.isPositionNeedsSync());
+   }
+
+   @Test
+   void testSyncPendingBottomTabsPositionsRestoresTopTabs() throws Exception {
+      TextVSAssembly child = new TextVSAssembly();
+      child.getVSAssemblyInfo().setName("Text1");
+      child.getVSAssemblyInfo().setPixelOffset(new Point(0, 60));
+      child.getVSAssemblyInfo().setPixelSize(new Dimension(180, 100));
+      viewsheet.addAssembly(child);
+
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      // stale bottom-tabs layout: tab bar below the child
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 160));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+      tabVSAssemblyInfo.setBottomTabsValue(true);
+
+      String bookmarkStateXml = "<assembly class=\"inetsoft.uql.viewsheet.TabVSAssembly\">" +
+         "<name><![CDATA[Tab1]]></name>" +
+         "<state_bottomTabs>false</state_bottomTabs></assembly>";
+      tabVSAssembly.parseState(parseXml(bookmarkStateXml));
+
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(viewsheet);
+
+      // tab bar moves above the child's top edge (60 - 30 = 30); child flushes below it
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+      assertFalse(tabVSAssemblyInfo.isPositionNeedsSync());
+   }
+
+   @Test
+   void testSyncPendingBottomTabsPositionsLeavesTabWithoutPendingFlagAlone() {
+      TextVSAssembly child = new TextVSAssembly();
+      child.getVSAssemblyInfo().setName("Text1");
+      child.getVSAssemblyInfo().setPixelOffset(new Point(0, 60));
+      child.getVSAssemblyInfo().setPixelSize(new Dimension(180, 100));
+      viewsheet.addAssembly(child);
+
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+      // rValue set the ordinary way (script/design) -- no reposition owed
+      tabVSAssemblyInfo.setBottomTabs(true);
+
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(viewsheet);
+
+      // the sweep is gated on the flag alone, so an ordinary refresh can't fight a tab
+      // position the user or a script established
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+   }
+
+   @Test
+   void testSyncPendingBottomTabsPositionsIsIdempotentAndNullSafe() throws Exception {
+      TextVSAssembly child = new TextVSAssembly();
+      child.getVSAssemblyInfo().setName("Text1");
+      child.getVSAssemblyInfo().setPixelOffset(new Point(0, 60));
+      child.getVSAssemblyInfo().setPixelSize(new Dimension(180, 100));
+      viewsheet.addAssembly(child);
+
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+
+      String bookmarkStateXml = "<assembly class=\"inetsoft.uql.viewsheet.TabVSAssembly\">" +
+         "<name><![CDATA[Tab1]]></name>" +
+         "<state_bottomTabs>true</state_bottomTabs></assembly>";
+      tabVSAssembly.parseState(parseXml(bookmarkStateXml));
+
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(viewsheet);
+      assertEquals(160, tabVSAssemblyInfo.getPixelOffset().y);
+
+      // a second sweep in the same cycle (or a later refresh) must not drift the layout
+      tabVSAssemblyInfo.restoreBottomTabs(true);
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(viewsheet);
+      assertEquals(160, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+
+      TabVSAssemblyInfo.syncPendingBottomTabsPositions(null);
+   }
+
    @ParameterizedTest
    @CsvSource({
       "labels, []",

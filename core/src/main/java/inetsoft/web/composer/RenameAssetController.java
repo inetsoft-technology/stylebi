@@ -203,7 +203,11 @@ public class RenameAssetController {
             assetRepository.changeSheet(entry, nentry, principal, true);
          }
 
-         if(!AssetUtil.isLibraryType(nentry)) {
+         // Permissions are only keyed by path for global-scope assets. A private asset shares
+         // its path namespace with a same-named global asset, so moving the permission here
+         // would move/clear the global asset's permission. See the same guard in
+         // AbstractAssetEngine.updatePermission().
+         if(!AssetUtil.isLibraryType(nentry) && entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
             updatePermission(resourceType, oldPath, nentry.getPath(), oldPermission);
          }
 

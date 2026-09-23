@@ -97,7 +97,8 @@ public class ConfigurationContext implements AutoCloseable {
     *
     * @param <T> the type of the value.
     *
-    * @return the value.
+    * @return the value. Concurrent callers get the same value, although the mapping
+    *         function may be called more than once, the extra values are discarded.
     *
     * @see Map#computeIfAbsent(Object, Function)
     */
@@ -109,7 +110,16 @@ public class ConfigurationContext implements AutoCloseable {
          T newValue;
 
          if((newValue = mappingFunction.apply(key)) != null) {
-            put(key, newValue);
+            // only store the value if no other thread stored one meanwhile, so all callers
+            // get the same value (bug #76938). the function is called outside of the
+            // map's locking, so it may use this context itself
+            T oldValue = (T) data.putIfAbsent(key, newValue);
+
+            if(oldValue != null) {
+               return oldValue;
+            }
+
+            support.firePropertyChange(key, null, newValue);
             return newValue;
          }
       }

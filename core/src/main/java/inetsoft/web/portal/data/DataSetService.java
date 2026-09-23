@@ -622,8 +622,14 @@ public class DataSetService {
       Permission oldPermission = securityProvider.getPermission(ResourceType.ASSET, path);
 
       assetRepository.changeSheet(oldEntry, newEntry, principal, true);
-      securityProvider.setPermission(ResourceType.ASSET, newPath, oldPermission);
-      securityProvider.removePermission(ResourceType.ASSET, info.path());
+
+      // Permissions are only keyed by path for global-scope assets. A private asset shares its
+      // path namespace with a same-named global asset, so moving the permission here would
+      // move/clear the global asset's permission. See AbstractAssetEngine.updatePermission().
+      if(oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE) {
+         securityProvider.setPermission(ResourceType.ASSET, newPath, oldPermission);
+         securityProvider.removePermission(ResourceType.ASSET, info.path());
+      }
    }
 
    public void renameFolder(String auditPath, WorksheetBrowserInfo info, String newName,
@@ -655,8 +661,12 @@ public class DataSetService {
 
          assetRepository.changeFolder(oldEntry, newEntry, principal, true);
 
-         securityProvider.setPermission(ResourceType.ASSET, newPath, oldPermission);
-         securityProvider.removePermission(ResourceType.ASSET, oldPath);
+         // Permissions are only keyed by path for global-scope assets; see the same guard in
+         // AbstractAssetEngine.updatePermission().
+         if(oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE) {
+            securityProvider.setPermission(ResourceType.ASSET, newPath, oldPermission);
+            securityProvider.removePermission(ResourceType.ASSET, oldPath);
+         }
       }
       catch (Exception ex) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -1014,7 +1024,13 @@ public class DataSetService {
 
       if(RecycleUtils.isInRecycleBin(path)) {
          assetRepository.removeFolder(entry, principal, true);
-         securityProvider.removePermission(ResourceType.ASSET, path);
+
+         // Permissions are only keyed by path for global-scope assets; see the same guard in
+         // AbstractAssetEngine.updatePermission().
+         if(entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
+            securityProvider.removePermission(ResourceType.ASSET, path);
+         }
+
          recycleBin.removeEntry(path);
       }
       else {
@@ -1042,8 +1058,12 @@ public class DataSetService {
 
          assetRepository.changeFolder(entry, newEntry, principal, true);
 
-         securityProvider.removePermission(ResourceType.ASSET, entry.getPath());
-         securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), oldPermission);
+         // Permissions are only keyed by path for global-scope assets; see the same guard in
+         // AbstractAssetEngine.updatePermission().
+         if(entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
+            securityProvider.removePermission(ResourceType.ASSET, entry.getPath());
+            securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), oldPermission);
+         }
 
          recycleBin.addEntry(newEntry.getPath(), entry.getPath(), entry.getName(),
                              oldPermission, RepositoryEntry.WORKSHEET_FOLDER, entry.getScope(), entry.getUser());
@@ -1065,15 +1085,23 @@ public class DataSetService {
          throw new FileNotFoundException(path);
       }
 
+      // Permissions are only keyed by path for global-scope assets; see the same guard in
+      // AbstractAssetEngine.updatePermission().
       if(RecycleUtils.isInRecycleBin(path)) {
          assetRepository.removeSheet(entry, principal, true);
-         securityProvider.removePermission(ResourceType.ASSET, path);
+
+         if(entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
+            securityProvider.removePermission(ResourceType.ASSET, path);
+         }
 
          recycleBin.removeEntry(entry.getPath());
       }
       else if(force) {
          assetRepository.removeSheet(entry, principal, true);
-         securityProvider.removePermission(ResourceType.ASSET, path);
+
+         if(entry.getScope() == AssetRepository.GLOBAL_SCOPE) {
+            securityProvider.removePermission(ResourceType.ASSET, path);
+         }
       }
       else {
          moveSheetToBin(entry, scope, principal);
@@ -1319,8 +1347,13 @@ public class DataSetService {
 
       assetRepository.changeSheet(oldEntry, newEntry, principal, true);
 
-      securityProvider.removePermission(ResourceType.ASSET, oldEntry.getPath());
-      securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), permission);
+      // Permissions are only keyed by path for global-scope assets; see the same guard in
+      // AbstractAssetEngine.updatePermission().
+      if(oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE) {
+         securityProvider.removePermission(ResourceType.ASSET, oldEntry.getPath());
+         securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), permission);
+      }
+
       SecurityEngine.touch();
 
       recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(), permission,

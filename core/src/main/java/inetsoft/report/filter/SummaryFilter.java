@@ -31,6 +31,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.swap.XSwappableObjectList;
 import inetsoft.util.swap.XSwapper;
@@ -1937,18 +1938,52 @@ public class SummaryFilter extends AbstractGroupedTable
          Tool.addUserMessage(userMsg);
       }
 
-      synchronized(SummaryFilter.this) {
-         while(!completed && !cancelled && row >= getRowCount(sumrows)) {
-            try {
-               SummaryFilter.this.wait(10000);
+      waitForRow(row);
+
+      return sumrows.moreRows(row);
+   }
+
+   /**
+    * Wait until the row is processed or the processing is done.
+    */
+   private void waitForRow(int row) {
+      while(true) {
+         LendableReentrantLock.Borrower lendTo = worker;
+
+         synchronized(SummaryFilter.this) {
+            if(completed || cancelled || row < getRowCount(sumrows)) {
+               return;
             }
-            catch(Exception ex) {
-               // ignore it
+
+            if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
+               try {
+                  SummaryFilter.this.wait(JavaScriptEngine.getScriptLockWaitMillis(10000));
+               }
+               catch(Exception ex) {
+                  // ignore it
+               }
+
+               continue;
+            }
+         }
+
+         // this thread holds or was lent a script engine lock (e.g. by a condition filter)
+         // that the worker may need to read the base table, lend it to the worker while
+         // waiting (bug #76938). the loan is closed outside of this filter's monitor,
+         // which the worker needs in order to finish
+         try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
+            synchronized(SummaryFilter.this) {
+               if(!completed && !cancelled && row >= getRowCount(sumrows)) {
+                  try {
+                     SummaryFilter.this.wait(JavaScriptEngine.getScriptLockWaitMillis(10000));
+                  }
+                  catch(Exception ex) {
+                     // ignore it
+                  }
+               }
             }
          }
       }
-
-      return sumrows.moreRows(row);
    }
 
    /**
@@ -2079,8 +2114,16 @@ public class SummaryFilter extends AbstractGroupedTable
          }
       }
 
-      if(c < getColCount() && sumrows.moreRows(r)) {
-         return sumrows.getObject(r, c);
+      if(c < getColCount()) {
+         // sumrows.moreRows() blocks until the worker adds the row, so lend the worker
+         // the script engine lock first if this thread holds it (bug #76938)
+         if(!completed && JavaScriptEngine.canLendScriptLocks(worker)) {
+            waitForRow(r);
+         }
+
+         if(sumrows.moreRows(r)) {
+            return sumrows.getObject(r, c);
+         }
       }
 
       return null;
@@ -2217,20 +2260,29 @@ public class SummaryFilter extends AbstractGroupedTable
          synchronized(this) {
             if(!inited) {
                inited = true;
-               boolean inExec = JavaScriptEngine.getExecScriptable() != null;
+               boolean inExec = JavaScriptEngine.holdsScriptLock();
 
-               // if this is called from JavaScriptEngine.exec(), the script engine is already
-               // locked. running process() in a separate thread would create a deadlock
-               // waiting forever for the JavaScriptEngine lock to be released.
+               // if this is called from JavaScriptEngine.exec() or a condition filter
+               // (bug #76938), the script engine is already locked. running process() in
+               // a separate thread would create a deadlock waiting forever for the
+               // JavaScriptEngine lock to be released.
 
                if(!inExec) {
+                  // a thread holding the lock may still wait for this worker later on,
+                  // it lends the lock to the worker then (see waitForRow)
+                  LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+                  worker = borrower;
+
                   Runnable r = new ThreadPool.AbstractContextRunnable() {
                      @Override
                      public void run() {
+                        borrower.begin();
+
                         try {
                            SummaryFilter.this.process();
                         }
                         finally {
+                           borrower.end();
                            userMsg = Tool.getUserMessage();
                         }
                      }
@@ -3435,6 +3487,8 @@ public class SummaryFilter extends AbstractGroupedTable
    private transient SparseMatrix summaryLabelArea;
    private transient SparseMatrix cellValues;
    private transient volatile boolean cancelled = false;
+   // the background task running process(), if any
+   private transient volatile LendableReentrantLock.Borrower worker;
    private final Lock cancelLock = new ReentrantLock();
    private boolean sortOthersLast = true; // whether sort others last
    private List<OrderInfo> orderInfo = new ArrayList<>();

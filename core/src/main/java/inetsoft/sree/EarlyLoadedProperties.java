@@ -45,6 +45,17 @@ public class EarlyLoadedProperties {
          EarlyLoadedProperties.class.getName(), k -> new EarlyLoadedProperties());
    }
 
+   /**
+    * Discards the current instance so that the next {@link #getInstance()} call rebuilds it from
+    * the system properties, the {@code INETSOFT_*} environment variables and the built-in
+    * defaults only. {@link PropertiesEngine} loads the key-value storage contents into this
+    * instance, so it must be reset before a reload; otherwise keys deleted from the storage would
+    * never be removed from memory.
+    */
+   static void reset() {
+      ConfigurationContext.getContext().remove(EarlyLoadedProperties.class.getName());
+   }
+
    public String getProperty(String name) {
       return properties.getProperty(name);
    }
