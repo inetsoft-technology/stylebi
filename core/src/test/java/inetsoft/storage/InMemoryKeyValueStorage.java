@@ -41,6 +41,16 @@ public class InMemoryKeyValueStorage<T extends Serializable> implements KeyValue
       duringNextWrite = action;
    }
 
+   /**
+    * When enabled, writes made through the {@code KeyValueStorage} API also fire events, like the
+    * real storage does for a node's own writes. The events are delivered asynchronously, on
+    * another thread and after a short delay, to the listeners registered when they are
+    * dispatched, which is how {@code LocalKeyValueStorage} delivers the Ignite cache events.
+    */
+   public void setAsyncLocalEvents(boolean asyncLocalEvents) {
+      this.asyncLocalEvents = asyncLocalEvents;
+   }
+
    public void remotePut(String key, T value, boolean fireEvent) {
       T oldValue = map.put(key, value);
 
@@ -91,7 +101,11 @@ public class InMemoryKeyValueStorage<T extends Serializable> implements KeyValue
 
    @Override
    public Future<?> putAll(SortedMap<String, T> values) {
-      map.putAll(values);
+      for(Map.Entry<String, T> e : values.entrySet()) {
+         T oldValue = map.put(e.getKey(), e.getValue());
+         fireLocalEvent(e.getKey(), oldValue, e.getValue());
+      }
+
       afterWrite();
       return CompletableFuture.completedFuture(null);
    }
@@ -103,7 +117,14 @@ public class InMemoryKeyValueStorage<T extends Serializable> implements KeyValue
 
    @Override
    public Future<?> removeAll(Set<String> keys) {
-      keys.forEach(map::remove);
+      for(String key : keys) {
+         T oldValue = map.remove(key);
+
+         if(oldValue != null) {
+            fireLocalEvent(key, oldValue, null);
+         }
+      }
+
       afterWrite();
       return CompletableFuture.completedFuture(null);
    }
@@ -161,6 +182,28 @@ public class InMemoryKeyValueStorage<T extends Serializable> implements KeyValue
 
    @Override
    public void close() {
+      eventExecutor.shutdownNow();
+   }
+
+   private void fireLocalEvent(String key, T oldValue, T newValue) {
+      if(!asyncLocalEvents) {
+         return;
+      }
+
+      Event<T> event = new Event<>(this, key, "test", oldValue, newValue);
+      eventExecutor.schedule(() -> {
+         for(Listener<T> listener : new ArrayList<>(listeners)) {
+            if(newValue == null) {
+               listener.entryRemoved(event);
+            }
+            else if(oldValue == null) {
+               listener.entryAdded(event);
+            }
+            else {
+               listener.entryUpdated(event);
+            }
+         }
+      }, 50L, TimeUnit.MILLISECONDS);
    }
 
    private void afterWrite() {
@@ -175,4 +218,11 @@ public class InMemoryKeyValueStorage<T extends Serializable> implements KeyValue
    private final Map<String, T> map = new ConcurrentSkipListMap<>();
    private final Set<Listener<T>> listeners = new CopyOnWriteArraySet<>();
    private volatile Runnable duringNextWrite;
+   private volatile boolean asyncLocalEvents;
+   private final ScheduledExecutorService eventExecutor =
+      Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread thread = new Thread(r, "InMemoryKeyValueStorage-events");
+         thread.setDaemon(true);
+         return thread;
+      });
 }

@@ -30,6 +30,7 @@ import java.beans.PropertyChangeListener;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.Lock;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -92,6 +93,54 @@ class PropertiesEngineClusterSyncTest {
       }
       finally {
          engine.removePropertyChangeListener(theirs, listener);
+      }
+   }
+
+   @Test
+   void ownSaveReloadKeepsEditsMadeAfterTheSave() throws Exception {
+      // the change listener now stays attached during save(), so this node's own writes come back
+      // as change events and trigger a reload about 500 ms later; an EM request that sets several
+      // properties before its save() can run into that reload
+      String saved = prefix + "saved";
+      String updated = prefix + "updated";
+      String removed = prefix + "removed";
+      String added = prefix + "added";
+      String marker = prefix + "marker";
+      storage.remotePut(updated, "stored", false);
+      storage.remotePut(removed, "stored", false);
+      initEngine();
+      storage.setAsyncLocalEvents(true);
+
+      try {
+         engine.setProperty(saved, "one");
+         engine.save();
+
+         // the next request edits properties before the reload triggered by the save runs
+         engine.setProperty(updated, "edit");
+         engine.remove(removed);
+         engine.setProperty(added, "new");
+         // stored without an event, so it only shows up in memory once the reload ran
+         storage.remotePut(marker, "reloaded", false);
+
+         waitForReload(marker, "reloaded");
+
+         assertEquals("one", engine.getProperty(saved));
+         assertEquals("edit", engine.getProperty(updated));
+         assertNull(engine.getProperty(removed));
+         assertEquals("new", engine.getProperty(added));
+
+         engine.save();
+         assertEquals("one", storage.get(saved));
+         assertEquals("edit", storage.get(updated));
+         assertFalse(storage.contains(removed));
+         assertEquals("new", storage.get(added));
+
+         // let the reload triggered by the second save finish before the storage is restored
+         storage.remotePut(marker, "reloaded again", false);
+         waitForReload(marker, "reloaded again");
+      }
+      finally {
+         storage.setAsyncLocalEvents(false);
       }
    }
 
@@ -241,6 +290,20 @@ class PropertiesEngineClusterSyncTest {
       catch(Exception e) {
          throw new RuntimeException(e);
       }
+   }
+
+   /**
+    * Waits until a reload made a property that was stored without an event visible, and then
+    * until the reload finished re-applying the pending properties, which it does while holding
+    * the engine's properties lock.
+    */
+   private void waitForReload(String marker, String value) throws Exception {
+      waitFor(() -> value.equals(engine.getProperty(marker)));
+      Field field = PropertiesEngine.class.getDeclaredField("propertiesLock");
+      field.setAccessible(true);
+      Lock lock = (Lock) field.get(engine);
+      lock.lock();
+      lock.unlock();
    }
 
    private static void waitFor(BooleanSupplier condition) throws InterruptedException {
