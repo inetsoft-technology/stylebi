@@ -115,9 +115,13 @@ public class AsyncLensScriptLockLendingTest {
       }
 
       created.clear();
-      // the engine has no context to close, and closing would take the lock, which a
-      // regression could leave held forever
       pool.shutdownNow();
+
+      // closing takes the lock, which a regression could leave held forever
+      if(lock.tryLock()) {
+         lock.unlock();
+         engine.close();
+      }
    }
 
    /**
@@ -360,8 +364,83 @@ public class AsyncLensScriptLockLendingTest {
       });
    }
 
+   /**
+    * The worker itself runs script: the lens reads a base table whose values are
+    * computed by GraalJavaScriptEngine.exec() on the engine whose lock the sandbox
+    * hands out, like a calc field (the #76937 jstack shows a SummaryFilter worker
+    * parked in exec() on the engine lock while the holder waits in
+    * SummaryFilter.moreRows()). No condition filter below the lens. The worker is
+    * started by an unlocked getRowCount() at build time.
+    */
+   @ParameterizedTest
+   @EnumSource(value = Kind.class, names = { "SUMMARY", "DISTINCT", "SELF_JOIN" })
+   public void execWorkerStartedByGetRowCountThenAwaitedUnderLock(Kind kind) throws Exception {
+      List<List<Object>> expected = execControl(kind);
+      Object script = initEngine(engine);
+      Pipeline pipeline = buildExec(kind, box, engine, script);
+      pool.submit(() -> pipeline.lens.getRowCount()).get(TIMEOUT, TimeUnit.SECONDS);
+
+      Future<List<List<Object>>> holder = pool.submit(() -> drain(pipeline.outer));
+
+      assertEquals(expected, holder.get(TIMEOUT, TimeUnit.SECONDS));
+      assertTrue(lentSeen.get(), "the lock holder never lent the lock to the worker");
+      assertFalse(lock.isLocked());
+   }
+
+   /**
+    * Same, but the condition filter lock holder is the first to touch the lens.
+    */
+   @ParameterizedTest
+   @EnumSource(value = Kind.class, names = { "SUMMARY", "DISTINCT", "SELF_JOIN" })
+   public void execWorkerFirstTouchUnderLock(Kind kind) throws Exception {
+      List<List<Object>> expected = execControl(kind);
+      Object script = initEngine(engine);
+      Pipeline pipeline = buildExec(kind, box, engine, script);
+      Future<List<List<Object>>> holder = pool.submit(() -> {
+         assertTrue(pipeline.outer.moreRows(1));
+         return drain(pipeline.outer);
+      });
+
+      assertEquals(expected, holder.get(TIMEOUT, TimeUnit.SECONDS));
+      assertFalse(lock.isLocked());
+   }
+
+   private static Object initEngine(GraalJavaScriptEngine engine) throws Exception {
+      engine.init(new HashMap<>());
+      return engine.compile("1 + 1");
+   }
+
+   /**
+    * The rows of the same pipeline without a sandbox, on an engine of its own so it
+    * can't contend with a deadlocked pipeline.
+    */
+   private List<List<Object>> execControl(Kind kind) throws Exception {
+      GraalJavaScriptEngine controlEngine = new GraalJavaScriptEngine();
+
+      try {
+         Object script = initEngine(controlEngine);
+         List<List<Object>> rows = drain(buildExec(kind, null, controlEngine, script).outer);
+         assertTrue(rows.size() > 2, "control pipeline is empty");
+         // exec() leaves the values unchanged, so the rows equal the plain pipeline's
+         assertEquals(control(kind).outerRows, rows);
+         return rows;
+      }
+      finally {
+         controlEngine.close();
+      }
+   }
+
+   private Pipeline buildExec(Kind kind, AssetQuerySandbox box, GraalJavaScriptEngine engine,
+                              Object script)
+   {
+      return build(kind, box, new ExecTable(engine, script));
+   }
+
    private Pipeline build(Kind kind, AssetQuerySandbox box) {
-      TableLens inner = PostProcessor.filter(new SlowTable(), allRows(), box);
+      return build(kind, box, PostProcessor.filter(new SlowTable(), allRows(), box));
+   }
+
+   private Pipeline build(Kind kind, AssetQuerySandbox box, TableLens inner) {
       TableLens lens;
 
       switch(kind) {
@@ -448,7 +527,7 @@ public class AsyncLensScriptLockLendingTest {
     * A base table with duplicate rows that is slow to read on any thread other than the
     * test's own threads, i.e. on the lens workers.
     */
-   private static final class SlowTable extends DefaultTableLens {
+   private static class SlowTable extends DefaultTableLens {
       SlowTable() {
          super(data());
       }
@@ -477,6 +556,37 @@ public class AsyncLensScriptLockLendingTest {
 
          return data;
       }
+   }
+
+   /**
+    * A slow base table whose values are computed by running a script on the engine,
+    * like a calc field. The script returns 2 and leaves the value unchanged.
+    */
+   private static final class ExecTable extends SlowTable {
+      ExecTable(GraalJavaScriptEngine engine, Object script) {
+         this.engine = engine;
+         this.script = script;
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         Object value = super.getObject(r, c);
+
+         if(r > 0 && c == 1) {
+            try {
+               int two = ((Number) engine.exec(script, null, null)).intValue();
+               return (Integer) value + two - 2;
+            }
+            catch(Exception ex) {
+               throw new RuntimeException(ex);
+            }
+         }
+
+         return value;
+      }
+
+      private final GraalJavaScriptEngine engine;
+      private final Object script;
    }
 
    private static final int ROWS = 120;
