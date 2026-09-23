@@ -58,16 +58,16 @@
       <div class="col">
         <div class="form-floating">
           <input type="number" class="form-control" data-test="shadowDistance"
-                 min="0" max="50" [ngModel]="model.distance" [disabled]="!enabled"
-                 (ngModelChange)="clamp('distance', $event)"/>
+                 #distanceInput min="0" max="50" [ngModel]="model.distance" [disabled]="!enabled"
+                 (ngModelChange)="clamp('distance', distanceInput.value)" (blur)="commit('distance')"/>
           <label>_#(Distance)</label>
         </div>
       </div>
       <div class="col">
         <div class="form-floating">
           <input type="number" class="form-control" data-test="shadowBlur"
-                 min="0" max="50" [ngModel]="model.blur" [disabled]="!enabled"
-                 (ngModelChange)="clamp('blur', $event)"/>
+                 #blurInput min="0" max="50" [ngModel]="model.blur" [disabled]="!enabled"
+                 (ngModelChange)="clamp('blur', blurInput.value)" (blur)="commit('blur')"/>
           <label>_#(Blur)</label>
         </div>
       </div>
