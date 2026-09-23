@@ -22,6 +22,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
@@ -416,7 +417,7 @@ class CalcFieldAgentServiceTest {
          "ORDERS", "Crosstab1", "NetTotal", null, "field['Total']", "double", false, true, false,
          true);
 
-      List<String> warnings = service.modify("tok", principal(), req, "");
+      List<String> warnings = service.modify("tok", principal(), req, "").warnings();
 
       assertEquals(expectedWarnings, warnings);
    }
@@ -438,5 +439,69 @@ class CalcFieldAgentServiceTest {
       verify(proxy).modifyCalculateField(eq("rt1"), captor.capture(), eq(agent), any(), eq(""));
 
       assertFalse(captor.getValue().calculateRef().isBaseOnDetail());
+   }
+
+   private static CalculateRef calc(String name, String expression, boolean baseOnDetail) {
+      ExpressionRef eref = new ExpressionRef(null, name);
+      eref.setExpression(expression);
+      CalculateRef calc = new CalculateRef(baseOnDetail);
+      calc.setDataRef(eref);
+      return calc;
+   }
+
+   private static ViewsheetSessionService sessionsOver(Viewsheet vs) throws Exception {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      when(sessions.mutate(anyString(), any(Principal.class), any())).thenAnswer(invocation -> {
+         ViewsheetSessionService.Mutation mutation = invocation.getArgument(2);
+         mutation.run(rvs, "rt1", null);
+         return List.of();
+      });
+      return sessions;
+   }
+
+   /**
+    * Bug #76951 (VCF-002): a rename rewrites the other calc fields that reference the old name,
+    * and the caller has no tool that reads a calc field's expression back -- so the response must
+    * name them. Only the actual dependents are named, not every calc field on the table.
+    */
+   @Test
+   void renameReportsTheDependentCalcFieldsThatReferenceTheOldName() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef netSales = calc("Net Sales", "field['Total'] * (1 - field['Discount'])", true);
+      CalculateRef share = calc("Discount Share",
+         "(field['Sum(Total)'] - field['Sum(Net Sales)']) / field['Sum(Total)']", false);
+      CalculateRef unrelated = calc("Tax", "field['Total'] * 0.08", true);
+      when(vs.getCalcField("ORDERS", "Net Sales")).thenReturn(netSales);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { netSales, share, unrelated });
+
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsOver(vs), fieldsServiceWithOrdersTable(),
+         mock(ModifyCalculateFieldServiceProxy.class), allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Net Sales", "Net Revenue",
+         "field['Total'] * (1 - field['Discount'])", null, null, true, false, false);
+
+      assertEquals(List.of("Discount Share"),
+         service.modify("tok", principal(), req, "").rewrittenDependents());
+   }
+
+   @Test
+   void editWithoutRenameReportsNoRewrittenDependents() throws Exception {
+      Viewsheet vs = mock(Viewsheet.class);
+      CalculateRef netSales = calc("Net Sales", "field['Total']", true);
+      CalculateRef share = calc("Discount Share", "field['Sum(Net Sales)']", false);
+      when(vs.getCalcField("ORDERS", "Net Sales")).thenReturn(netSales);
+      when(vs.getCalcFields("ORDERS")).thenReturn(new CalculateRef[] { netSales, share });
+
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsOver(vs), fieldsServiceWithOrdersTable(),
+         mock(ModifyCalculateFieldServiceProxy.class), allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest("ORDERS", null, "Net Sales", null,
+         "field['Total'] * 0.9", null, null, null, false, false);
+
+      assertTrue(service.modify("tok", principal(), req, "").rewrittenDependents().isEmpty());
    }
 }

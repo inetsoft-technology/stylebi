@@ -727,6 +727,7 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
 
             if(Tool.equals(aref.getColumnValue(), oname)) {
                VSUtil.setVSAggregateRefName(aref, nname);
+               renameResolvedRef(aref, nname);
             }
 
             if(VSUtil.matchRefName(sname, oname)) {
@@ -770,6 +771,25 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
             }
          }
       }
+   }
+
+   /**
+    * Rename the column a renamed aggregate had already resolved to. VSAggregateRef.update() names
+    * the aggregate's alias from a clone of this ref taken before it re-resolves it, so a stale
+    * ref keeps the crosstab labelling the renamed measure with the old name (and missing the
+    * format keyed on the new one). A ref that can't be renamed in place is dropped instead, so
+    * update() resolves it again from the new column value.
+    */
+   private static void renameResolvedRef(VSAggregateRef aref, String nname) {
+      DataRef ref = aref.getDataRef();
+
+      if(ref == null) {
+         return;
+      }
+
+      DataRef nref = (DataRef) ref.clone();
+      VSUtil.renameDataRef(nref, nname);
+      aref.setDataRef(Tool.equals(nref.getAttribute(), nname) ? nref : null);
    }
 
    /**

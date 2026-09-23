@@ -21,8 +21,10 @@ import inetsoft.report.internal.binding.ExpertNamedGroupInfo;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.asset.AggregateInfo;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.internal.CrosstabTree;
 import org.junit.jupiter.api.Tag;
@@ -113,6 +115,39 @@ class CrosstabVSAssemblyTest {
       assertDoesNotThrow(() -> invokeUpdateGroupExpandPath(assembly, nref, oref));
       assertFalse(assembly.getCrosstabTree().isDrilled(oref.getFullName()),
          "changing an Expert named group's conditions should invalidate the drill path");
+   }
+
+   /**
+    * Bug #76951 (VCF-002), found live: renaming a bound calc field renamed the aggregate's column
+    * value but left the ref it had already resolved to on the old name. VSAggregateRef.update()
+    * names the aggregate's alias from a clone of that stale ref, so the crosstab kept labelling
+    * the renamed measure 'Sum(Net Sales)' and lost the format keyed on 'Sum(Net Revenue)'.
+    */
+   @Test
+   void renameBindingColAlsoRenamesTheAggregatesResolvedRef() {
+      ExpressionRef expr = new ExpressionRef(null, "Net Sales");
+      expr.setExpression("field['Total']");
+      CalculateRef resolved = new CalculateRef(true);
+      resolved.setDataRef(expr);
+
+      VSAggregateRef aggr = new VSAggregateRef();
+      aggr.setColumnValue("Net Sales");
+      aggr.setFormulaValue("Sum");
+      aggr.setDataRef(resolved);
+
+      VSCrosstabInfo cinfo = new VSCrosstabInfo();
+      cinfo.setDesignAggregates(new inetsoft.uql.erm.DataRef[] { aggr });
+      cinfo.setAggregateInfo(new AggregateInfo());
+      CrosstabVSAssembly assembly = new CrosstabVSAssembly();
+      assembly.setVSCrosstabInfo(cinfo);
+
+      assembly.renameBindingCol("Net Sales", "Net Revenue");
+
+      assertEquals("Net Revenue", aggr.getColumnValue());
+      assertEquals("Net Revenue", aggr.getDataRef().getAttribute());
+      assertEquals("Net Revenue", aggr.getVSName());
+      assertEquals("Net Sales", resolved.getAttribute(),
+         "the rename must work on a copy, never mutate the ref it was resolved from");
    }
 
    @Test

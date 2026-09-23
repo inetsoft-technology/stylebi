@@ -578,7 +578,7 @@ class BindingAgentControllerTest {
          "Crosstab1: could not refresh the crosstab's aggregate info after the write; the " +
          "calc field was saved");
       when(calcFieldService.modify(eq("tok"), any(Principal.class), any(), eq("")))
-         .thenReturn(expectedWarnings);
+         .thenReturn(new CalcFieldAgentService.CalcFieldResult(expectedWarnings, List.of("Discount Share")));
 
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions,
@@ -595,6 +595,7 @@ class BindingAgentControllerTest {
          controller.modifyCalcField("tok", request, "", principal());
 
       assertEquals(expectedWarnings, response.warnings());
+      assertEquals(List.of("Discount Share"), response.rewrittenDependents());
    }
 
    /** A clean write (no guarded refresh failure) must report an empty warnings list, not null. */
@@ -605,7 +606,7 @@ class BindingAgentControllerTest {
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       CalcFieldAgentService calcFieldService = mock(CalcFieldAgentService.class);
       when(calcFieldService.modify(eq("tok"), any(Principal.class), any(), eq("")))
-         .thenReturn(List.of());
+         .thenReturn(new CalcFieldAgentService.CalcFieldResult(List.of(), List.of()));
 
       BindingAgentController controller = new BindingAgentController(
          feature, mock(SheetJoinService.class), mock(SheetSessionService.class), sessions,
