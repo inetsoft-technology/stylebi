@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
@@ -252,7 +253,8 @@ public class PostProcessor {
    private static final class ConditionFilter2 extends ConditionFilter {
       ConditionFilter2(TableLens table, ConditionGroup conditions, AssetQuerySandbox box) {
          super(table, conditions);
-         this.box = box;
+         ScriptEnv senv = box == null ? null : box.peekScriptEnv();
+         this.senv = senv == null ? null : new WeakReference<>(senv);
          // see needsScriptExecutionLock() below for what actually requires the
          // lock -- not just a FormulaTableLens column read.
          this.needsScriptLock = box != null && needsScriptExecutionLock(table);
@@ -275,9 +277,10 @@ public class PostProcessor {
        * re-acquires its own (reentrant) engine lock and proceeds straight to the
        * monitor, while a thread about to trigger script execution must first wait
        * for the engine lock -- without yet holding this filter's monitor for
-       * anyone else to wait on. Only locks when a script engine already exists
-       * for this sandbox, so filters that never end up evaluating a script are
-       * not forced to create one just to establish the ordering.
+       * anyone else to wait on. Only locks when the sandbox had a script
+       * environment when this filter was built, so filters that never end up
+       * evaluating a script are not forced to create one just to establish the
+       * ordering.
        *
        * <p>Narrower still (bug #76935): the engine lock is only requested at all
        * when {@link #needsScriptLock} says this filter's own base table chain can
@@ -299,7 +302,8 @@ public class PostProcessor {
        */
       @Override
       public boolean moreRows(int row) {
-         Lock execLock = needsScriptLock ? box.peekScriptExecutionLock() : null;
+         ScriptEnv senv = needsScriptLock && this.senv != null ? this.senv.get() : null;
+         Lock execLock = senv == null ? null : senv.getExecutionLock();
 
          if(execLock == null) {
             return super.moreRows(row);
@@ -396,7 +400,23 @@ public class PostProcessor {
          return false;
       }
 
-      private final AssetQuerySandbox box;
+      /**
+       * The script environment the sandbox had when this filter was built, which is
+       * the one the lenses below it were built with. Captured rather than read from
+       * the sandbox on each call, because a cached lens chain outlives a reset or
+       * dispose of the sandbox that built it, after which the sandbox has no env or
+       * a new one while the lenses below still execute on this one (bug #76961).
+       * This covers lenses built by this sandbox, surviving a reset or dispose of it.
+       * It does not cover a filter over another sandbox's cached lens chain, whose
+       * lenses run on that sandbox's env (bug #76964).
+       *
+       * <p>Held weakly so a cached filter does not keep an unused env alive: if a
+       * lens below uses the env, that lens keeps it reachable, and if none does, no
+       * lock is needed. Transient: a filter deserialized from the distributed
+       * table cache has no captured env, so it takes no lock, like a filter built
+       * while its sandbox had no env.
+       */
+      private final transient WeakReference<ScriptEnv> senv;
       private final boolean needsScriptLock;
 
       @Override

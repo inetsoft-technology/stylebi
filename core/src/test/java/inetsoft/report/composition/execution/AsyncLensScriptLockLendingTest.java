@@ -27,6 +27,7 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,8 +74,11 @@ public class AsyncLensScriptLockLendingTest {
       FAST.set(true);
       engine = new GraalJavaScriptEngine();
       lock = engine.getExecutionLock();
+      // stubbed before any condition filter is built: the filter captures the env then
+      ScriptEnv senv = mock(ScriptEnv.class);
+      when(senv.getExecutionLock()).thenReturn(lock);
       box = mock(AssetQuerySandbox.class);
-      when(box.peekScriptExecutionLock()).thenReturn(lock);
+      when(box.peekScriptEnv()).thenReturn(senv);
       pool = Executors.newCachedThreadPool(r -> {
          Thread thread = new Thread(() -> {
             FAST.set(true);
@@ -122,6 +126,34 @@ public class AsyncLensScriptLockLendingTest {
          lock.unlock();
          engine.close();
       }
+   }
+
+   /**
+    * The condition filter must take the sandbox env's lock, or the tests below would
+    * pass without exercising the lock at all. The lock holder is the first to touch the
+    * summary, so it reads the base on its own thread.
+    */
+   @Test
+   public void conditionFilterTakesSandboxLock() throws Exception {
+      AtomicBoolean held = new AtomicBoolean();
+      TableLens base = new SlowTable() {
+         @Override
+         public Object getObject(int r, int c) {
+            if(r > 0 && lock.isHeldByCurrentThread()) {
+               held.set(true);
+            }
+
+            return super.getObject(r, c);
+         }
+      };
+      TableLens summary = new SummaryFilter(base, new int[] {0}, new int[] {1}, new SumFormula(), null);
+      TableLens filter = PostProcessor.filter(summary, allRows(), box);
+      created.add(summary);
+      created.add(filter);
+
+      assertTrue(pool.submit(() -> filter.moreRows(1)).get(TIMEOUT, TimeUnit.SECONDS));
+      assertTrue(held.get(), "the condition filter did not take the sandbox lock");
+      assertFalse(lock.isLocked());
    }
 
    /**
