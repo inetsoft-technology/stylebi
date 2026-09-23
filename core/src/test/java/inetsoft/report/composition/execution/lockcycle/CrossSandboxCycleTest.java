@@ -21,11 +21,10 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Sandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
+import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Started;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.filter.SummaryFilter;
 import inetsoft.test.*;
-import inetsoft.util.script.JavaScriptEngine;
-import inetsoft.util.script.graal.ScriptScope;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +38,6 @@ import java.util.concurrent.Future;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
 
 /**
  * Lock cycles between two sandboxes' engine locks. A lens graph cached in
@@ -92,23 +90,13 @@ public class CrossSandboxCycleTest {
       Sandbox s2 = harness.sandbox();
       Summary summary = summary(s1);
 
-      Future<List<List<Object>>> h = harness.submit(() -> {
-         s2.lock.lock();
-         JavaScriptEngine.pushExecScriptable(mock(ScriptScope.class));
-
-         try {
-            return drain(summary.summary);
-         }
-         finally {
-            JavaScriptEngine.popExecScriptable();
-            s2.lock.unlock();
-         }
-      });
-      Thread.sleep(60);
+      Started<List<List<Object>>> h = harness.start(() -> s2.asGuest(() -> drain(summary.summary)));
+      assertTrue(awaitInFrame(h, SUMMARY, PROCESS, KNOWN_CAP),
+                 "H never processed the summary inline first");
       Future<List<List<Object>>> b = harness.submit(() -> drain(cf2(summary.summary, s1.box)));
 
       assertEquals(summary.expectedOuter, harness.await(b, KNOWN_CAP, "B, sandbox 1's filter holder"));
-      assertEquals(summary.expectedLens, harness.await(h, KNOWN_CAP, "H, the other engine's script thread"));
+      assertEquals(summary.expectedLens, harness.await(h.future, KNOWN_CAP, "H, the other engine's script thread"));
    }
 
    /**
@@ -146,8 +134,9 @@ public class CrossSandboxCycleTest {
    }
 
    /**
-    * The R2-X shape with sandbox 1's own filter holder touching first: its worker is lent L1
-    * (#5531), so this completes on main.
+    * The R2-X shape with sandbox 1's own filter holder touching first. It holds L1, so
+    * #5531's synchronous path runs {@code process()} inline on its thread, and the inner
+    * filter re-enters L1; this completes on main.
     */
    @Test
    public void summaryFirstTouchedByOwnSandbox() throws Exception {
@@ -175,12 +164,15 @@ public class CrossSandboxCycleTest {
       TableLens first = ownFirst ? own : other;
       TableLens second = ownFirst ? other : own;
 
-      Future<List<List<Object>>> h = harness.submit(() -> drain(first));
-      Thread.sleep(60);
+      Started<List<List<Object>>> h = harness.start(() -> drain(first));
+      // the first holder holds a lock, so it processes the summary inline: wait until it
+      // does before the second holder arrives
+      assertTrue(awaitInFrame(h, SUMMARY, PROCESS, cap),
+                 "the first filter holder never processed the summary inline first");
       Future<List<List<Object>>> t3 = harness.submit(() -> drain(second));
 
       assertEquals(summary.expectedOuter, harness.await(t3, cap, "the second filter holder"));
-      assertEquals(summary.expectedOuter, harness.await(h, cap, "the first filter holder"));
+      assertEquals(summary.expectedOuter, harness.await(h.future, cap, "the first filter holder"));
       assertFalse(s1.lock.isLocked());
       assertFalse(s2.lock.isLocked());
    }
@@ -211,6 +203,8 @@ public class CrossSandboxCycleTest {
       List<List<Object>> expectedOuter;
    }
 
+   private static final String SUMMARY = SummaryFilter.class.getName();
+   private static final String PROCESS = "process0";
    private static final int ROWS = 300;
    private LockCycleHarness harness;
 }

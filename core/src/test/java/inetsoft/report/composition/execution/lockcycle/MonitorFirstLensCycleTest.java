@@ -21,6 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Sandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
+import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Started;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.lens.*;
 import inetsoft.test.*;
@@ -82,7 +83,7 @@ public class MonitorFirstLensCycleTest {
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void lensOverFilteredFormula(Kind kind) throws Exception {
       runShared(s -> build(kind, () -> s.filteredFormula(new SlowTable(ROWS, Slow.EVERYWHERE))),
-                KNOWN_CAP);
+                kind.monitorClass.getName(), kind.monitorMethod, true, KNOWN_CAP);
    }
 
    /**
@@ -96,7 +97,7 @@ public class MonitorFirstLensCycleTest {
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void sharedFormulaLens() throws Exception {
       runShared(s -> s.formula(new SlowTable(ROWS, Slow.EVERYWHERE), "f", "field['value'] + 1"),
-                KNOWN_CAP);
+                FormulaTableLens.class.getName(), "moreRows", true, KNOWN_CAP);
    }
 
    /**
@@ -107,15 +108,22 @@ public class MonitorFirstLensCycleTest {
    @ParameterizedTest
    @EnumSource(Kind.class)
    public void lensOverFormulaFreeFilter(Kind kind) throws Exception {
+      // no cycle either way, so T1 may finish before it is seen in the monitor
       runShared(s -> build(kind, () -> cf2(new SlowTable(FREE_ROWS, Slow.EVERYWHERE), s.box)),
-                ACTIVE_CAP);
+                kind.monitorClass.getName(), kind.monitorMethod, false, ACTIVE_CAP);
    }
 
    /**
-    * T1 drains the lens, holding no lock; 60 ms later T2 drains a condition filter over the
-    * same lens instance. Both must see the rows of the same pipeline built without a lock.
+    * T1 drains the lens, holding no lock; once T1 is inside {@code frameClass.frameMethod}
+    * (the lens holding its monitor while it reads its base), T2 drains a condition filter over
+    * the same lens instance. Both must see the rows of the same pipeline built without a lock.
+    *
+    * @param requireFrame fail unless T1 was seen in the frame before T2 started.
     */
-   private void runShared(Function<Sandbox, TableLens> build, long cap) throws Exception {
+   private void runShared(Function<Sandbox, TableLens> build, String frameClass,
+                          String frameMethod, boolean requireFrame, long cap)
+      throws Exception
+   {
       Sandbox control = harness.control();
       TableLens controlLens = harness.track(build.apply(control));
       List<List<Object>> expectedLens = harness.await(
@@ -128,12 +136,13 @@ public class MonitorFirstLensCycleTest {
       TableLens lens = harness.track(build.apply(sandbox));
       TableLens outer = harness.track(cf2(lens, sandbox.box));
 
-      Future<List<List<Object>>> t1 = harness.submit(() -> drain(lens));
-      Thread.sleep(60);
+      Started<List<List<Object>>> t1 = harness.start(() -> drain(lens));
+      boolean inFrame = awaitInFrame(t1, frameClass, frameMethod, cap);
+      assertTrue(inFrame || !requireFrame, "T1 was never seen in " + frameClass + "." + frameMethod);
       Future<List<List<Object>>> t2 = harness.submit(() -> drain(outer));
 
       assertEquals(expectedOuter, harness.await(t2, cap, "T2, the filter lock holder"));
-      assertEquals(expectedLens, harness.await(t1, cap, "T1, the unlocked lens reader"));
+      assertEquals(expectedLens, harness.await(t1.future, cap, "T1, the unlocked lens reader"));
       assertFalse(sandbox.lock.isLocked());
    }
 
@@ -157,8 +166,22 @@ public class MonitorFirstLensCycleTest {
       }
    }
 
+   /**
+    * The lenses, each with the frame in which it holds its monitor while reading its base.
+    */
    public enum Kind {
-      SORT, MAX_ROWS, UNION_ALL, RANKING
+      SORT(SortFilter.class, "sort"),
+      MAX_ROWS(MaxRowsTableLens.class, "moreRows"),
+      UNION_ALL(UnionTableLens.class, "moreRows0"),
+      RANKING(RankingTableLens.class, "validate");
+
+      Kind(Class<?> monitorClass, String monitorMethod) {
+         this.monitorClass = monitorClass;
+         this.monitorMethod = monitorMethod;
+      }
+
+      final Class<?> monitorClass;
+      final String monitorMethod;
    }
 
    private static final int ROWS = 300;

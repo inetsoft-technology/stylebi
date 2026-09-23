@@ -20,11 +20,15 @@ package inetsoft.report.composition.execution.lockcycle;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Sandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
+import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Started;
 import inetsoft.report.filter.AbstractConditionFilter;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.lens.*;
+import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.test.*;
+import inetsoft.uql.asset.Worksheet;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +36,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
@@ -41,6 +46,8 @@ import java.util.stream.Collectors;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 /**
  * Cycles whose lock holder is a true guest: a thread inside {@code exec} holding the
@@ -96,8 +103,9 @@ public class GuestReaderCycleTest {
 
       Sandbox s = harness.sandbox();
       TableLens cf = harness.track(cf2(calcField(s, new SlowTable(ROWS, Slow.EVERYWHERE)), s.box));
-      Future<List<List<Object>>> populator = harness.submit(() -> drain(cf));
-      Thread.sleep(80);
+      Started<List<List<Object>>> populator = harness.start(() -> drain(cf));
+      // the guest reads ahead of a populator that has started (order does not matter on main)
+      awaitInFrame(populator, FormulaTableLens.class.getName(), "moreRows", ACTIVE_CAP);
       Future<Integer> guest = harness.submit(() -> s.asGuest(() -> {
          cf.moreRows(ROWS - 1);
          cf.moreRows(TableLens.EOT);
@@ -105,7 +113,7 @@ public class GuestReaderCycleTest {
       }));
 
       assertEquals(expected, (int) harness.await(guest, ACTIVE_CAP, "guest reading ahead"));
-      assertEquals(expected, harness.await(populator, ACTIVE_CAP, "populator").size());
+      assertEquals(expected, harness.await(populator.future, ACTIVE_CAP, "populator").size());
    }
 
    /**
@@ -113,7 +121,8 @@ public class GuestReaderCycleTest {
     * under a filter, read by a guest formula. A populates the filter (filter monitor →
     * {@code UnionTableLens} monitor → E in {@code exec}); B's current-row read goes
     * filter → {@code Union.getObject} → {@code Union.moreRows} → Union monitor while B holds
-    * E. On main this hangs in some runs (a race), not in all.
+    * E. On main this hangs in some runs (a race), not in all: 1 of 7 runs here, 1 of 3 in
+    * the refuter's.
     */
    @Test
    @Tag("known-deadlock")
@@ -140,16 +149,40 @@ public class GuestReaderCycleTest {
 
    /**
     * Design refutation INV_RACE: a reader of already-mapped rows racing with
-    * {@code invalidate()} and re-population of the same condition filter. Every read must
-    * return the right value and never throw. On main a read occasionally throws
-    * {@code ArrayIndexOutOfBoundsException} (a wrong result, not a hang), so this is known.
+    * {@code invalidate()} and re-population of the same condition filter over a formula
+    * table. Every read must return the right value and never throw. On main the filter takes
+    * the engine lock for every {@code moreRows}, which serializes the reader's
+    * {@code getBaseRowIndex} with the re-population, so this passes; a lock-free read path in
+    * the redesign must keep it passing.
+    */
+   @Test
+   public void mappedRowReadsDuringInvalidate() throws Exception {
+      Sandbox s = harness.sandbox();
+      assertEquals(Collections.emptyMap(),
+                   invalidateRace(cf2(s.formula(new SlowTable(INV_ROWS, Slow.NONE)), s.box), ACTIVE_CAP));
+   }
+
+   /**
+    * INV_RACE over a formula-free base. Since bug #76935 this filter takes no lock, and on
+    * main a read during re-population returns the header value ({@code "value"}) for a data
+    * row: a wrong result, not a hang.
     */
    @Test
    @Tag("known-deadlock")
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
-   public void mappedRowReadsDuringInvalidate() throws Exception {
+   public void mappedRowReadsDuringInvalidateWithoutLock() throws Exception {
       Sandbox s = harness.sandbox();
-      TableLens cf = cf2(new SlowTable(INV_ROWS, Slow.NONE), s.box);
+      assertEquals(Collections.emptyMap(),
+                   invalidateRace(cf2(new SlowTable(INV_ROWS, Slow.NONE), s.box), KNOWN_CAP));
+   }
+
+   /**
+    * Invalidate and re-drain {@code cf} on one thread while another reads random data rows of
+    * column 1 for 3 s.
+    *
+    * @return the wrong values and exceptions the reader saw, by kind.
+    */
+   private Map<String, Integer> invalidateRace(TableLens cf, long cap) throws Exception {
       drain(cf);
       AtomicBoolean stop = new AtomicBoolean();
       Future<Integer> invalidator = harness.submit(() -> {
@@ -191,8 +224,65 @@ public class GuestReaderCycleTest {
          return bad;
       });
 
-      assertEquals(Collections.emptyMap(), harness.await(reader, KNOWN_CAP, "reader"));
-      assertTrue(harness.await(invalidator, KNOWN_CAP, "invalidator") > 0);
+      Map<String, Integer> bad = harness.await(reader, cap, "reader");
+      assertTrue(harness.await(invalidator, cap, "invalidator") > 0);
+      return bad;
+   }
+
+   /**
+    * Design refutation AQS_RACE: four script threads of one sandbox using one real
+    * {@link AssetQueryScope}, whose {@code tablemap} and {@code members} are plain maps. On
+    * main every access runs inside {@code exec}, under the sandbox's engine lock, which
+    * serializes them; without that lock the refuter's probe lost entries. The invariant the
+    * redesign must keep: accesses made the way scripts make them (each holding the engine
+    * lock) lose no entry.
+    */
+   @Test
+   public void assetQueryScopeUnderEngineLock() throws Exception {
+      Sandbox s = harness.sandbox();
+      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+      doReturn(new Worksheet()).when(box).getWorksheet();
+      AssetQueryScope scope = new AssetQueryScope(box);
+      // the scope starts with entries of its own
+      int tables = mapField(scope, "tablemap").size();
+      int members = mapField(scope, "members").size();
+      CountDownLatch go = new CountDownLatch(1);
+      List<Future<Void>> threads = new ArrayList<>();
+
+      for(int t = 0; t < AQS_THREADS; t++) {
+         int id = t;
+         threads.add(harness.submit(() -> {
+            go.await();
+
+            for(int i = 0; i < AQS_OPS; i++) {
+               int n = i;
+               s.asGuest(() -> {
+                  scope.hasMember("id_" + id + "_" + n);
+                  scope.putMember("m_" + id + "_" + n, n);
+                  return null;
+               });
+            }
+
+            return null;
+         }));
+      }
+
+      go.countDown();
+
+      for(Future<Void> thread : threads) {
+         harness.await(thread, ACTIVE_CAP, "scope user");
+      }
+
+      assertEquals(tables + AQS_THREADS * AQS_OPS, mapField(scope, "tablemap").size(),
+                   "lost tablemap entries");
+      assertEquals(members + AQS_THREADS * AQS_OPS, mapField(scope, "members").size(),
+                   "lost members");
+   }
+
+   private static Map<?, ?> mapField(AssetQueryScope scope, String name) throws Exception {
+      Field field = AssetQueryScope.class.getDeclaredField(name);
+      field.setAccessible(true);
+      return (Map<?, ?>) field.get(scope);
    }
 
    /**
@@ -237,12 +327,13 @@ public class GuestReaderCycleTest {
 
       Sandbox s = harness.sandbox();
       TableLens sort = build.apply(s);
-      Future<List<List<Object>>> t1 = harness.submit(() -> drain(sort));
-      Thread.sleep(60);
+      Started<List<List<Object>>> t1 = harness.start(() -> drain(sort));
+      assertTrue(awaitInFrame(t1, SortFilter.class.getName(), "sort", KNOWN_CAP),
+                 "T1 never started sorting");
       Future<List<List<Object>>> guest = harness.submit(() -> s.asGuest(() -> drain(sort)));
 
       assertEquals(expected, harness.await(guest, KNOWN_CAP, "guest reading the sort"));
-      assertEquals(expected, harness.await(t1, KNOWN_CAP, "T1, the unlocked sorter"));
+      assertEquals(expected, harness.await(t1.future, KNOWN_CAP, "T1, the unlocked sorter"));
    }
 
    /**
@@ -327,6 +418,8 @@ public class GuestReaderCycleTest {
    private static final int ROWS = 100;
    private static final int JOIN_ROWS = 120;
    private static final int INV_ROWS = 300;
+   private static final int AQS_THREADS = 4;
+   private static final int AQS_OPS = 5000;
    private static final int UNION_ROWS = 300;
    private LockCycleHarness harness;
 }

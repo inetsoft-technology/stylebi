@@ -178,6 +178,60 @@ public final class LockCycleHarness implements AutoCloseable {
    }
 
    /**
+    * Submit {@code task} and publish the thread that runs it, so a case can wait for that
+    * thread to reach a frame before starting the next thread.
+    */
+   public <T> Started<T> start(Callable<T> task) {
+      Started<T> started = new Started<>();
+      started.future = submit(() -> {
+         started.thread = Thread.currentThread();
+         return task.call();
+      });
+      return started;
+   }
+
+   /**
+    * Wait until {@code started}'s thread has {@code className.method} on its stack. Orders
+    * threads by observed state rather than by sleeping, so a loaded machine cannot flip the
+    * order.
+    *
+    * @return {@code true} if the frame was seen, {@code false} if the task finished first or
+    *         {@code capSeconds} passed.
+    */
+   public static boolean awaitInFrame(Started<?> started, String className, String method,
+                                      long capSeconds)
+      throws InterruptedException
+   {
+      long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(capSeconds);
+
+      while(System.currentTimeMillis() < deadline && !started.future.isDone()) {
+         Thread thread = started.thread;
+
+         if(thread != null) {
+            for(StackTraceElement element : thread.getStackTrace()) {
+               if(element.getClassName().equals(className) &&
+                  element.getMethodName().equals(method))
+               {
+                  return true;
+               }
+            }
+         }
+
+         Thread.sleep(2);
+      }
+
+      return false;
+   }
+
+   /**
+    * A task submitted with {@link #start}.
+    */
+   public static final class Started<T> {
+      public Future<T> future;
+      public volatile Thread thread;
+   }
+
+   /**
     * Cancel {@code lenses} when the harness is closed.
     */
    public <T extends TableLens> T track(T lens) {
@@ -218,7 +272,12 @@ public final class LockCycleHarness implements AutoCloseable {
       pool.shutdownNow();
 
       if(forcedHash) {
-         SreeEnv.setProperty("join.table.forceHash", oldForceHash == null ? "false" : oldForceHash);
+         if(oldForceHash == null) {
+            SreeEnv.remove("join.table.forceHash");
+         }
+         else {
+            SreeEnv.setProperty("join.table.forceHash", oldForceHash);
+         }
       }
 
       // closing takes the lock, which a deadlocked case leaves held forever
