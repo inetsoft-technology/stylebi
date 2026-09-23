@@ -129,7 +129,8 @@ final class Slot {
     * Set a variable on this context now, and expect it (spec N2, §14.2). Owner only.
     */
    void applyOwn(String name, Object value) {
-      engine.context().getBindings("js").putMember(name, ScriptValueConverter.toGuest(value));
+      engine.context().getBindings("js").putMember(
+         name, WsValueCopier.markForeign(ScriptValueConverter.toGuest(value), engine.context()));
       cleaner.expect(name);
    }
 

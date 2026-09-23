@@ -20,6 +20,8 @@ package inetsoft.util.script.graal.pool;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.ScriptTimeoutGuard;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
+import org.graalvm.polyglot.HostAccess;
 
 import java.time.Duration;
 import java.util.Map;
@@ -76,6 +78,55 @@ final class WsEngine extends GraalJavaScriptEngine {
       if(owner != null) {
          owner.doom();
       }
+   }
+
+   /**
+    * The dedicated Engine of all pooled worksheet contexts (spec §6.8), so their HostAccess
+    * leaves the viewsheet and report engines untouched.
+    */
+   static final Engine SHARED_WS_ENGINE = Engine.newBuilder()
+      .allowExperimentalOptions(true)
+      .option("engine.WarnInterpreterOnly", "false")
+      .build();
+
+   @Override
+   protected Engine polyglotEngine() {
+      return SHARED_WS_ENGINE;
+   }
+
+   @Override
+   protected HostAccess hostAccessPolicy() {
+      return WsHostAccess.get();
+   }
+
+   /**
+    * Marks this context as executing on the thread, for the host-boundary conversions and
+    * per-context host state; restored on exit so nesting is correct.
+    */
+   @Override
+   protected Object enterExecContext() {
+      return WsExecContext.enter(slot);
+   }
+
+   @Override
+   protected void exitExecContext(Object token) {
+      WsExecContext.exit((Slot) token);
+   }
+
+   /**
+    * A value of another context installed at init is marked foreign (bug #76960, §14.11).
+    */
+   @Override
+   protected void initScope(Map<String, Object> vars) {
+      super.initScope(WsValueCopier.markForeign(vars, context));
+   }
+
+   /**
+    * A value of another context put here is marked foreign (bug #76960, §14.11).
+    */
+   @Override
+   public void put(String name, Object value) {
+      super.put(name, WsValueCopier.markForeign(value, context));
    }
 
    private final InitSnapshot snapshot;

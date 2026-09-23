@@ -20,6 +20,7 @@ package inetsoft.util.script.graal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.pool.WsExecContext;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,8 +143,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          scopeProxy = null; // rebound against the new context on next exec
 
          context = Context.newBuilder("js")
-            .engine(SHARED_ENGINE)
-            .allowHostAccess(ScriptHostAccess.hostAccess())
+            .engine(polyglotEngine())
+            .allowHostAccess(hostAccessPolicy())
             .allowHostClassLookup(classFilter)
             .allowIO(false)
             .allowCreateThread(false)
@@ -160,6 +161,21 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       finally {
          lock.unlock();
       }
+   }
+
+   /**
+    * The polyglot Engine this engine's Contexts share. Pooled worksheet contexts use their own
+    * engine, since every Context of one Engine must use an identical HostAccess (bug #76960).
+    */
+   protected Engine polyglotEngine() {
+      return SHARED_ENGINE;
+   }
+
+   /**
+    * The HostAccess of this engine's Contexts.
+    */
+   protected HostAccess hostAccessPolicy() {
+      return ScriptHostAccess.hostAccess();
    }
 
    /** Install engine globals. Overridden/extended by report + viewsheet layers. */
@@ -1443,6 +1459,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
    public Object exec(Object script, Object scope, Object rscope) throws Exception {
       lock.lock();
+      // marks which pooled worksheet context, if any, is executing (bug #76960)
+      Object execMark = enterExecContext();
 
       try {
          // FIX A: guard against null context before initialization
@@ -1487,7 +1505,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                }
 
                Value result = context.eval((Source) script);
-               return ScriptValueConverter.toHost(result);
+               return ScriptValueConverter.toHostResult(result);
             }
          }
          catch(PolyglotException ex) {
@@ -1546,8 +1564,28 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
       }
       finally {
+         exitExecContext(execMark);
          lock.unlock();
       }
+   }
+
+   /**
+    * Called at the start of every exec to mark the pooled worksheet context executing on this
+    * thread (bug #76960). This engine is not pooled, so it suspends any mark set by an outer
+    * pooled exec: a nested exec of this engine must never see the host-boundary conversions of
+    * the outer worksheet context. With the pool off no mark is ever set and this is a no-op.
+    *
+    * @return the token {@link #exitExecContext} restores.
+    */
+   protected Object enterExecContext() {
+      return WsExecContext.suspend();
+   }
+
+   /**
+    * Restore the mark {@link #enterExecContext} replaced.
+    */
+   protected void exitExecContext(Object token) {
+      WsExecContext.resume(token);
    }
 
    /**
