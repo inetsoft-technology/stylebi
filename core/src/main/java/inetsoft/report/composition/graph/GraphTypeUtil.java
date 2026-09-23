@@ -816,6 +816,25 @@ public class GraphTypeUtil {
       try {
          return SecurityEngine.getSecurity().checkPermission(principal, type, resource, action);
       }
+      catch(inetsoft.sree.security.SecurityException ex) {
+         // this overload's only documented failure mode is the principal not being logged in
+         // (see SecurityEngine.checkPermission javadoc) -- that is not the same as "no
+         // permission for this chart type" and must not be reported as such (76953). Only
+         // surface this distinctly for the handful of interactive callers that opted in via
+         // setStrictLoginCheck() and can translate it into a user-facing message -- the many
+         // internal callers of this method through getAvailableAutoChartType()/
+         // AbstractChartInfo.updateChartType() (report generation, the script engine, EM
+         // admin/monitoring, chart binding processors) have no such translation layer, so they
+         // must keep getting the old silent "no permission" result instead of an uncaught
+         // exception.
+         if(Boolean.TRUE.equals(STRICT_LOGIN_CHECK.get())) {
+            LOG.warn("Failed to check chart style permission, principal is not logged in", ex);
+            throw new MessageException(ex.getMessage(), LogLevel.WARN, false, ConfirmException.ERROR);
+         }
+
+         LOG.debug("Failed to get chart styles", ex);
+         return false;
+      }
       catch(Exception ex) {
          LOG.debug("Failed to get chart styles", ex);
          return false;
@@ -938,6 +957,23 @@ public class GraphTypeUtil {
       GraphTypes.CHART_STEP_AREA_STACK, GraphTypes.CHART_JUMP, GraphTypes.CHART_INTERVAL
    };
 
+   /**
+    * Set (per-thread) whether checkChartStylePermission() should throw a MessageException,
+    * instead of silently returning false, when the principal is not logged in. Must only be
+    * enabled by interactive callers (STOMP/controller code) that can translate the resulting
+    * exception into a user-facing message, and must always be cleared in a finally block once
+    * that call tree completes (76953).
+    */
+   public static void setStrictLoginCheck(boolean strict) {
+      if(strict) {
+         STRICT_LOGIN_CHECK.set(Boolean.TRUE);
+      }
+      else {
+         STRICT_LOGIN_CHECK.remove();
+      }
+   }
+
+   private static final ThreadLocal<Boolean> STRICT_LOGIN_CHECK = new ThreadLocal<>();
    private static final Logger LOG = LoggerFactory.getLogger(GraphUtil.class);
 
    public static boolean isScatterMatrix(ChartInfo info) {

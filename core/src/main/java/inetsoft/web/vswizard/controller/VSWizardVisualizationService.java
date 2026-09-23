@@ -23,6 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
 import inetsoft.web.vswizard.command.RefreshDescriptionCommand;
@@ -74,6 +75,10 @@ public class VSWizardVisualizationService {
 
       box.get().cancel(true);
       box.get().lockWrite();
+      // let a not-logged-in principal surface as a distinct session-invalid message rather
+      // than a misleading "no permission" result -- WizardEventAspect translates the resulting
+      // MessageException into a client-visible command (76953).
+      GraphTypeUtil.setStrictLoginCheck(true);
 
       try {
          VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -124,6 +129,7 @@ public class VSWizardVisualizationService {
          }
       }
       finally {
+         GraphTypeUtil.setStrictLoginCheck(false);
          box.get().unlockWrite();
          viewsheetService.flushRuntimeSheet(id);
       }

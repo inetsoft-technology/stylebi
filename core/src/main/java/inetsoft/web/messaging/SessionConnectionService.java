@@ -111,12 +111,14 @@ public class SessionConnectionService {
    }
 
    private void messageReceived(MessageEvent event) {
-      if(event.getMessage() instanceof SessionExpiredEvent sessionExpiredEvent) {
-         onSessionExpiredEvent(sessionExpiredEvent);
+      if(event.getMessage() instanceof SessionExpiredEvent ||
+         event.getMessage() instanceof SessionDeletedEvent)
+      {
+         onSessionExpiredEvent((inetsoft.web.session.SessionEvent) event.getMessage());
       }
    }
 
-   private void onSessionExpiredEvent(SessionExpiredEvent event) {
+   private void onSessionExpiredEvent(inetsoft.web.session.SessionEvent event) {
       cleanReferences();
       String httpSessionId = event.getSessionId();
 
