@@ -136,7 +136,7 @@ class DefaultCheckPermissionStrategyTest {
       lenient().when(mockProvider.getPermission(any(ResourceType.class), any(IdentityID.class))).thenReturn(null);
       // suppress org-level admin permission check (DefaultCheckPermissionStrategy line 59)
       lenient().when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), any(IdentityID.class))).thenReturn(null);
-      // authentication chain stub used by getCurrentProvider (line 596)
+      // authentication provider stub
       AuthenticationProvider mockAuthProvider = Mockito.mock(AuthenticationProvider.class);
       lenient().when(mockProvider.getAuthenticationProvider()).thenReturn(mockAuthProvider);
       // organization stub for PermissionChecker.checkRolePermission (line 191)
@@ -834,6 +834,103 @@ class DefaultCheckPermissionStrategyTest {
                                          ResourceAction.ADMIN),
             "ADMIN on org A's \"Organization Roles\" root must not leak onto org B's role");
       }
+   }
+
+   // ─────────────────────────────────────────────────────────────────
+   // [Path C] Multi-provider chain — org-admin checks resolve against the whole chain
+   // ─────────────────────────────────────────────────────────────────
+
+   // checkOrgAdminPermission used to scope user/role lookups to the single chain provider that
+   // holds the caller whenever the principal was internal (every password login). A target user
+   // defined in a different provider then resolved to null and hit the Bug #66393 org-name
+   // fallback, granting an org admin ADMIN over a system administrator in the same org.
+   @Test
+   void orgAdminCannotAdminSysAdminUserDefinedInAnotherChainProvider() {
+      IdentityID callerId = new IdentityID(TEST_USER, TEST_ORG);
+      IdentityID callerRoleId = new IdentityID(TEST_ROLE, TEST_ORG);
+      IdentityID sysAdminRoleId = new IdentityID("Administrator", null);
+      IdentityID targetId = new IdentityID("siteAdmin", TEST_ORG);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         stubInternalCallerInChain(sutilMock, omMock, callerId, callerRoleId, true);
+
+         // chain-wide view: the target is a system administrator in the caller's org
+         User targetUser = mock(User.class);
+         when(targetUser.getIdentityID()).thenReturn(targetId);
+         when(targetUser.getOrganizationID()).thenReturn(TEST_ORG);
+         when(mockProvider.getUser(eq(targetId))).thenReturn(targetUser);
+         when(mockProvider.getRoles(eq(targetId))).thenReturn(new IdentityID[]{ sysAdminRoleId });
+         when(mockProvider.isSystemAdministratorRole(eq(sysAdminRoleId))).thenReturn(true);
+         when(mockProvider.isOrgAdministratorRole(eq(callerRoleId))).thenReturn(true);
+
+         assertFalse(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_USER, targetId.convertToKey(),
+                                         ResourceAction.ADMIN),
+            "org admin must not gain ADMIN over a system administrator defined in another provider");
+      }
+   }
+
+   // Converse: the caller's org-admin role is defined and flagged in a different chain provider
+   // than the one holding the caller's user record. The org admin must still be recognized.
+   @Test
+   void orgAdminRecognizedWhenAdminRoleDefinedInAnotherChainProvider() {
+      IdentityID callerId = new IdentityID(TEST_USER, TEST_ORG);
+      IdentityID callerRoleId = new IdentityID(TEST_ROLE, TEST_ORG);
+      IdentityID targetId = new IdentityID("orgMember", TEST_ORG);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         // the caller's own provider does NOT flag the role as org admin
+         stubInternalCallerInChain(sutilMock, omMock, callerId, callerRoleId, false);
+
+         User targetUser = mock(User.class);
+         when(targetUser.getIdentityID()).thenReturn(targetId);
+         when(targetUser.getOrganizationID()).thenReturn(TEST_ORG);
+         when(mockProvider.getUser(eq(targetId))).thenReturn(targetUser);
+         when(mockProvider.isOrgAdministratorRole(eq(callerRoleId))).thenReturn(true);
+
+         assertTrue(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_USER, targetId.convertToKey(),
+                                         ResourceAction.ADMIN),
+            "org admin whose admin role lives in another provider must be able to admin org users");
+      }
+   }
+
+   /**
+    * Marks {@link #mockUser} internal and exposes an {@link AuthenticationChain} whose first
+    * provider holds the caller's user record but knows nothing about any other identity.
+    */
+   private void stubInternalCallerInChain(MockedStatic<SUtil> sutilMock,
+                                          MockedStatic<OrganizationManager> omMock,
+                                          IdentityID callerId, IdentityID callerRoleId,
+                                          boolean callerProviderFlagsOrgAdmin)
+   {
+      sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+      sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(true);
+
+      OrganizationManager mockOM = mock(OrganizationManager.class);
+      omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+      omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+      when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+      when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+      when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+      AuthenticationProvider callerProvider = mock(AuthenticationProvider.class);
+      User callerUser = mock(User.class);
+      lenient().when(callerProvider.getUser(eq(callerId))).thenReturn(callerUser);
+      lenient().when(callerProvider.getAllRoles(any(IdentityID[].class)))
+         .thenAnswer(inv -> inv.getArgument(0));
+      lenient().when(callerProvider.isOrgAdministratorRole(eq(callerRoleId)))
+         .thenReturn(callerProviderFlagsOrgAdmin);
+
+      AuthenticationChain chain = mock(AuthenticationChain.class);
+      lenient().when(chain.getProviders()).thenReturn(List.of(callerProvider));
+      lenient().when(mockProvider.getAuthenticationProvider()).thenReturn(chain);
    }
 
    // ─────────────────────────────────────────────────────────────────
