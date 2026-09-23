@@ -3045,15 +3045,15 @@ public class SUtil {
    public static boolean isMultiTenant() {
       return SecurityEngine.getSecurity().isSecurityEnabled() &&
          LicenseManager.isEnterprise() &&
-         Boolean.parseBoolean(SreeEnv.getProperty("security.users.multiTenant", "false"));
+         Boolean.parseBoolean(getPropertyBypassingCache("security.users.multiTenant"));
    }
 
    public static boolean isDefaultVSGloballyVisible() {
       String orgScopedProperty = "security." + OrganizationManager.getInstance().getCurrentOrgID() + ".exposeDefaultOrgToAll";
 
       return SUtil.isMultiTenant() &&
-         (Boolean.parseBoolean(getExposeDefaultOrgToAllProperty("security.exposeDefaultOrgToAll")) ||
-          Boolean.parseBoolean(getExposeDefaultOrgToAllProperty(orgScopedProperty)));
+         (Boolean.parseBoolean(getPropertyBypassingCache("security.exposeDefaultOrgToAll")) ||
+          Boolean.parseBoolean(getPropertyBypassingCache(orgScopedProperty)));
    }
 
    public static boolean isDefaultVSGloballyVisible(Principal principal) {
@@ -3069,21 +3069,26 @@ public class SUtil {
 
       String orgScopedProperty = "security." + orgId + ".exposeDefaultOrgToAll";
       return SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal) &&
-         (Boolean.parseBoolean(getExposeDefaultOrgToAllProperty("security.exposeDefaultOrgToAll")) ||
-          Boolean.parseBoolean(getExposeDefaultOrgToAllProperty(orgScopedProperty)));
+         (Boolean.parseBoolean(getPropertyBypassingCache("security.exposeDefaultOrgToAll")) ||
+          Boolean.parseBoolean(getPropertyBypassingCache(orgScopedProperty)));
    }
 
    /**
-    * Reads an exposeDefaultOrgToAll-family property straight from the backing store, bypassing
-    * PropertiesEngine's in-memory cache -- that cache lags a write by at least its 500ms debounce
-    * (plus reload time) on every node that didn't originate the write, which is long enough to
-    * flip this bypass check for a request landing on a node still serving the pre-change value.
+    * Reads a property straight from the backing store, bypassing PropertiesEngine's in-memory
+    * cache -- that cache lags a write by at least its 500ms debounce (plus reload time) on every
+    * node that didn't originate the write, which is long enough to flip a bypass check gated on
+    * this property for a request landing on a node still serving the pre-change value. Used for
+    * the exposeDefaultOrgToAll-family properties and security.users.multiTenant, all three of
+    * which gate the same isDefaultVSGloballyVisible() access-control decision (multiTenant is the
+    * first, short-circuiting conjunct in both overloads, so a stale cached read of it alone would
+    * silently defeat the fix for the other two).
+    * <p>
     * Falls back to the cached SreeEnv read if the direct store read itself fails (storage not yet
     * initialized, transient backend hiccup), so a storage blip degrades to the old staleness
     * window instead of throwing out of a permission check exercised on every folder listing and
     * viewsheet open.
     */
-   private static String getExposeDefaultOrgToAllProperty(String name) {
+   private static String getPropertyBypassingCache(String name) {
       try {
          return SreeEnv.getPropertyFromStorage(name);
       }
