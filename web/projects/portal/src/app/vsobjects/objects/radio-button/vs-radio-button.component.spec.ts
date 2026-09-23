@@ -266,6 +266,65 @@ describe("VSRadioButton pending selection (Bug #76959)", () => {
       expect(await checkedIndex()).toBe(0);
    });
 
+   it("sends only the last of several clicks inside one debounce window and guards it", async () => {
+      await click(1);
+      await click(2);
+      flushDebounce();
+      expect(sentEvents(APPLY_URL).map((e) => e.value)).toEqual(["C"]);
+
+      pushModel("A");
+      pushModel("B");
+      expect(await checkedIndex()).toBe(2);
+
+      pushModel("C");
+      pushModel("A");
+      expect(await checkedIndex()).toBe(0);
+   });
+
+   it("compares the ack with the same normalization as getIndex", async () => {
+      const numeric = (selected: any) => {
+         const model = createModel("A");
+         model.values = <any[]> [1, 2, 3];
+         model.selectedObject = selected;
+         return model;
+      };
+
+      fixture.componentRef.setInput("model", numeric(1));
+      await click(1);
+      flushDebounce();
+
+      fixture.componentRef.setInput("model", numeric(1));
+      expect(await checkedIndex()).toBe(1);
+
+      // the server serializes the value as a string, which is still the ack
+      fixture.componentRef.setInput("model", numeric("2"));
+      fixture.componentRef.setInput("model", numeric(3));
+      expect(await checkedIndex()).toBe(2);
+   });
+
+   it("clears the pending timeout when the component is destroyed", async () => {
+      await click(1);
+      flushDebounce();
+      const release = vi.spyOn(<any> radio, "releasePendingValue");
+
+      fixture.destroy();
+      vi.advanceTimersByTime(5000);
+
+      expect(release).not.toHaveBeenCalled();
+   });
+
+   it("does not guard a selection that is written back directly", async () => {
+      const model = createModel("A");
+      model.writeBackDirectly = true;
+      fixture.componentRef.setInput("model", model);
+      await click(1);
+      flushDebounce();
+      expect(sentEvents(APPLY_URL).map((e) => e.value)).toEqual(["B"]);
+
+      pushModel("A");
+      expect(await checkedIndex()).toBe(0);
+   });
+
    it("does not guard the ctrl-held selection", async () => {
       radio.onKeyDown(<KeyboardEvent> {keyCode: 17});
       await click(1);
