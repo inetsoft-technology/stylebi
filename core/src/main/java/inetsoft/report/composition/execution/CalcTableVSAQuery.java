@@ -74,19 +74,15 @@ public class CalcTableVSAQuery extends DataVSAQuery {
 
       // If this call is nested inside a running GraalJS script (e.g. a script referencing
       // this calc table, such as table["TableView1"], reached this query while resolving
-      // that reference), the calling thread already holds the GraalJS engine's per-Context
-      // lock and whatever sandbox lock the script's caller took before starting the script
-      // -- per the same rationale already applied in ViewsheetSandbox.doExecuteData() and
-      // getData() ("if called from script, the locking should already be in place"; 52463).
-      // Taking a *fresh* write lock here is not just redundant in that case, it is actively
-      // dangerous: VSAQuery.getDataWithoutSandboxLock(), called a few frames down, transiently
-      // drops this write lock around the (possibly slow) data fetch and then restores it with
-      // a blocking lockWrite(). That reacquire can race a second, non-script thread that grabs
-      // the freed write lock and then blocks trying to enter the same GraalJS engine lock this
-      // thread already holds (e.g. FormatPainterService.getFormat() -> CalcTableLens.evaluate()
-      // -> GraalJavaScriptEnv.put()) -- an ABBA deadlock between the sandbox write lock and the
-      // GraalJS engine lock. See #76905 (confirmed via live thread dump) and the identical
-      // isScriptThread()-gated pattern in ConcatenatedQuery/JoinQuery for the same engine lock.
+      // that reference), the calling thread holds the GraalJS engine lock, and a thread that
+      // holds the engine lock must never block on the sandbox lock (#76905): other threads
+      // hold the sandbox lock while they wait for the engine lock (e.g. a non-script
+      // getTableLens() holds the write lock across clens.process()). The sandbox lock itself
+      // enforces this -- on a script thread its lockRead()/lockWrite()/restoreLocks() only try
+      // the lock (see ViewsheetSandbox.thisLock) -- so the gate below is no longer what
+      // prevents the deadlock. It is kept because a script thread has nothing to gain from
+      // the write lock here ("if called from script, the locking should already be in place";
+      // 52463), the same as ViewsheetSandbox.doExecuteData()/getData().
       boolean inExec = JavaScriptEngine.isScriptThread();
 
       if(!inExec) {

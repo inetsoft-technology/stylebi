@@ -350,7 +350,20 @@ public class GraalJavaScriptEnv implements ScriptEnv {
             // engine referencing a broken/closed Context. It is not published, so the
             // next compile()/exec() rebuilds from scratch rather than poisoning this
             // (now long-lived, per-thread) env. Mirrors the reset() fix.
+            closeQuietly(e);
          }
+      }
+   }
+
+   /**
+    * Close an engine that failed to initialize, so its Context is not leaked.
+    */
+   protected static void closeQuietly(GraalJavaScriptEngine e) {
+      try {
+         e.close();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to close GraalJavaScriptEngine", ex);
       }
    }
 

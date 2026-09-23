@@ -5468,6 +5468,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   // then, or a lens built from state the writer is resetting would stay in dmap.
                   // The script reading Table.table keeps its own reference to it. (#76905)
                   cache = cache && !isLockSkippedSince(skippedLocks);
+                  // The other direction is not guarded: a writer may cache a result built
+                  // from state this script thread changed without the lock (e.g. its
+                  // executeScript()). Accepted: script statements already ran without the
+                  // sandbox lock (#52463), and this only happens in the contention case that
+                  // used to deadlock.
 
                   if(cache) {
                      if(obj == null && VSUtil.isVSAssemblyBinding(assembly)) {
@@ -8037,6 +8042,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     *
     * <p>Safe for re-entrant use: a nested unlockAll()/restoreLocks() pair on the same
     * thread does not discard the state saved by an enclosing unlockAll().</p>
+    *
+    * <p>On a thread running a script only the locks taken inside the script are released.
+    * Locks the thread took before the script started stay held: released while the thread
+    * holds the script engine lock they could not be taken back without blocking (#76905).
+    * The trade-off is that such a caller's lock stays held across a fetch nested in the
+    * script, so other requests on this viewsheet wait for that fetch.</p>
     */
    public void unlockAll() {
       if(!AssetDataCache.isProcessorThread()) {
@@ -8445,6 +8456,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    // execution (e.g. CalcTableLens.process0) -> engine lock -> GraalJavaScriptEnv monitor
    // (leaf). The one intentional exception is PostProcessor$ConditionFilter2, which takes its
    // AssetQuerySandbox's engine lock before its own monitor (#5506, #76918).
+   // isScriptThread() is true inside any engine's exec (viewsheet, worksheet or report), a
+   // deliberately conservative predicate: it also covers cross-sandbox/embedded scripts.
    private final UpgradableReadWriteLock thisLock =
       new UpgradableReadWriteLock(JavaScriptEngine::isScriptThread);
    private Object pviewsheet = new PViewsheetScriptable();

@@ -51,9 +51,12 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
       // execution lock before the monitor, see GraalJavaScriptEnv.withEngine() (#76905)
       withEngine(false, e -> {
          if(e != null) {
+            // e, not the rengine field, which an unsynchronized dispose() may clear
+            ReportGraalJavaScriptEngine re = (ReportGraalJavaScriptEngine) e;
+
             try {
-               rengine.setReport(report);
-               rengine.init(vars);
+               re.setReport(report);
+               re.init(vars);
             }
             catch(Exception ex) {
                LOG.error("Failed to initialize script engine when " +
@@ -158,6 +161,7 @@ public class ReportJavaScriptEnv extends GraalJavaScriptEnv
             // the engine referencing a broken/closed Context. It is not published,
             // so the next init()/exec() rebuilds from scratch rather than poisoning
             // this (now long-lived, per-thread) env. Mirrors the reset() fix.
+            closeQuietly(e);
          }
       }
    }
