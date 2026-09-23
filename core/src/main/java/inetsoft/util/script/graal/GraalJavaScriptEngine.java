@@ -18,6 +18,7 @@
 package inetsoft.util.script.graal;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * GraalJS-based script engine. Replaces JavaScriptEngine (Rhino).
@@ -44,7 +44,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       .build();
 
    protected Context context;
-   protected final ReentrantLock lock = new ReentrantLock();
+   // lendable so a condition filter holding it can let a lens worker run while it
+   // waits for that worker (bug #76938), see LendableReentrantLock
+   protected final LendableReentrantLock lock = new LendableReentrantLock();
    protected final ScriptTimeoutGuard timeoutGuard = new ScriptTimeoutGuard();
    protected boolean sql;
 
@@ -1194,11 +1196,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
    /**
     * @return this engine's execution lock (see
-    * {@link inetsoft.util.script.ScriptEnv#getExecutionLock()}). The lock is a
-    * {@link ReentrantLock}, so a caller pre-acquiring it before calling back into
+    * {@link inetsoft.util.script.ScriptEnv#getExecutionLock()}). The lock is
+    * reentrant, so a caller pre-acquiring it before calling back into
     * {@link #exec} on the same thread will not self-deadlock.
     */
-   public ReentrantLock getExecutionLock() {
+   public LendableReentrantLock getExecutionLock() {
       return lock;
    }
 

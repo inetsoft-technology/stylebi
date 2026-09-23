@@ -25,6 +25,7 @@ import inetsoft.report.internal.binding.FormulaHeaderInfo;
 import inetsoft.report.lens.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.Tool;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.ScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -273,6 +274,11 @@ public class PostProcessor {
        * anyone else to wait on. Only locks when a script engine already exists
        * for this sandbox, so filters that never end up evaluating a script are
        * not forced to create one just to establish the ordering.
+       *
+       * <p>The held lock is recorded on this thread, so a lens below this filter
+       * that would otherwise hand its processing to a background worker and wait
+       * for it runs it on this thread instead, or lends the lock to that worker
+       * while waiting for it (bug #76938).
        */
       @Override
       public boolean moreRows(int row) {
@@ -283,11 +289,13 @@ public class PostProcessor {
          }
 
          execLock.lock();
+         JavaScriptEngine.pushHeldScriptLock(execLock);
 
          try {
             return super.moreRows(row);
          }
          finally {
+            JavaScriptEngine.popHeldScriptLock();
             execLock.unlock();
          }
       }

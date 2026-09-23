@@ -26,6 +26,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.swap.XSwappableIntList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.slf4j.Logger;
@@ -246,21 +247,34 @@ public class DistinctTableLens extends AbstractTableLens
 
       validated = true;
 
-      boolean inExec = JavaScriptEngine.getExecScriptable() != null;
+      boolean inExec = JavaScriptEngine.holdsScriptLock();
 
-      // if this is called from JavaScriptEngine.exec(), the script engine is already
-      // locked. running process() in a separate thread would create a deadlock
-      // waiting forever for the JavaScriptEngine lock to be released.
+      // if this is called from JavaScriptEngine.exec() or a condition filter
+      // (bug #76938), the script engine is already locked. running process() in a
+      // separate thread would create a deadlock waiting forever for the
+      // JavaScriptEngine lock to be released.
 
       if(inExec) {
          validate0();
       }
       // concurrent process
       else {
+         // a thread holding the lock may still wait for this worker later on, it lends
+         // the lock to the worker then (see moreRows)
+         LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+         worker = borrower;
+
          Runnable runnable = new ThreadPool.AbstractContextRunnable() {
             @Override
             public void run() {
-               validate0();
+               borrower.begin();
+
+               try {
+                  validate0();
+               }
+               finally {
+                  borrower.end();
+               }
             }
          };
          ThreadPool.addOnDemand(runnable);
@@ -474,22 +488,60 @@ public class DistinctTableLens extends AbstractTableLens
     * @return true if the row exists, or false if no more rows.
     */
    @Override
-   public synchronized boolean moreRows(int row) {
+   public boolean moreRows(int row) {
       try {
-         while((rows == null || row >= rows.size()) && !completed) {
-            try {
+         while(true) {
+            LendableReentrantLock.Borrower lendTo;
+
+            synchronized(this) {
+               if(rows != null && row < rows.size() || completed) {
+                  return rows != null && row < rows.size();
+               }
+
                validate();
-               wait(500);
+
+               // validated on this thread (see validate)
+               if(rows != null && row < rows.size() || completed) {
+                  continue;
+               }
+
+               lendTo = worker;
+
+               if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
+                  try {
+                     wait(JavaScriptEngine.getScriptLockWaitMillis(500));
+                  }
+                  catch(InterruptedException ex) {
+                     // ignore it
+                  }
+
+                  continue;
+               }
             }
-            catch(InterruptedException ex) {
-               // ignore it
+
+            // this thread holds or was lent a script engine lock (e.g. by a condition filter)
+            // that the worker may need to read the base table, lend it to the worker while
+            // waiting (bug #76938). the loan is closed outside of this lens's monitor,
+            // which the worker needs in order to publish rows
+            try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
+               synchronized(this) {
+                  if((rows == null || row >= rows.size()) && !completed) {
+                     try {
+                        wait(JavaScriptEngine.getScriptLockWaitMillis(500));
+                     }
+                     catch(InterruptedException ex) {
+                        // ignore it
+                     }
+                  }
+               }
             }
          }
-
-         return rows != null && row < rows.size();
       }
       catch(Exception ex) {
-         completed = true;
+         synchronized(this) {
+            completed = true;
+         }
+
          LOG.error("Failed to validate table rows when checking " +
             "if row is available: " + row, ex);
          return false;
@@ -1045,6 +1097,8 @@ public class DistinctTableLens extends AbstractTableLens
    private final Lock cancelLock = new ReentrantLock();
    private boolean stable;          // true to not reorder rows
    private boolean validated;       // check if validated
+   // the background task finding distinct rows, if any
+   private transient volatile LendableReentrantLock.Borrower worker;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(DistinctTableLens.class);
