@@ -21,6 +21,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 
+import java.awt.Insets;
+
 /**
  * Resolves the default row/header/control height for viewsheet assemblies from the org-scoped
  * modern-visualization density mode. Applied only where the assembly still carries the legacy
@@ -226,6 +228,79 @@ public final class VSDensityDefaults {
          return 28;
       default:
          return 24;
+      }
+   }
+
+   /**
+    * The chart's card inset for the context's mode, or the legacy inset when not modern. The
+    * legacy branch matters as much as the modern one: Revert calls the seed with an unmarked
+    * context and needs the legacy value written, not left alone.
+    */
+   public static Insets chartPadding(VizContext ctx) {
+      return ctx.modern ? chartPaddingForMode(ctx.density) : new Insets(10, 10, 10, 10);
+   }
+
+   /**
+    * A table's card inset for the context's mode. Legacy is zero on all four edges - a table has
+    * never drawn a card inset, so that is the value Revert has to restore.
+    */
+   public static Insets tablePadding(VizContext ctx) {
+      return ctx.modern ? tablePaddingForMode(ctx.density) : new Insets(0, 0, 0, 0);
+   }
+
+   /**
+    * A table cell's content padding, or null when not modern. Null rather than a zero Insets
+    * because null is what the cell pipeline already reads as "nothing defined here", falling
+    * through to the 1px/2px in vs-table-cell.component.scss and to no inset at all in export.
+    */
+   public static Insets cellPadding(VizContext ctx) {
+      return ctx.modern ? cellPaddingForMode(ctx.density) : null;
+   }
+
+   /**
+    * Card inset for a density mode, uniform on all four edges. Unrecognized modes fall back to
+    * dense. Compact holds the value the flat modern inset shipped at, so the org default mode
+    * reflows nothing. A fresh Insets every call: the type is mutable.
+    */
+   static Insets chartPaddingForMode(String mode) {
+      int inset;
+
+      switch(mode) {
+      case COMFORTABLE:
+         inset = 16;
+         break;
+      case COMPACT:
+         inset = 12;
+         break;
+      default:
+         inset = 8;
+      }
+
+      return new Insets(inset, inset, inset, inset);
+   }
+
+   /**
+    * A table's card inset for a density mode. Deliberately the chart's matrix rather than a
+    * second one: a table card and a chart card beside it are the same object with different
+    * contents, and two matrices would drift.
+    */
+   static Insets tablePaddingForMode(String mode) {
+      return chartPaddingForMode(mode);
+   }
+
+   /**
+    * Cell content padding for a density mode. The two axes carry different values because they
+    * do different work - vertical sets the scan rhythm, horizontal the column rhythm.
+    * Unrecognized modes fall back to dense. A fresh Insets every call.
+    */
+   static Insets cellPaddingForMode(String mode) {
+      switch(mode) {
+      case COMFORTABLE:
+         return new Insets(6, 8, 6, 8);
+      case COMPACT:
+         return new Insets(4, 6, 4, 6);
+      default:
+         return new Insets(3, 4, 3, 4);
       }
    }
 

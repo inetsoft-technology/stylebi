@@ -28,6 +28,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.awt.Insets;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(SpringExtension.class)
@@ -295,5 +297,74 @@ class VSDensityDefaultsTest {
       CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
       info.setVizMark(VizMark.MODERN_LIGHT);
       assertEquals(AssetUtil.defh, VSDensityDefaults.titleHeight(info, 36));
+   }
+
+   @Test
+   void chartPaddingMatrix() {
+      assertEquals(new Insets(16, 16, 16, 16), VSDensityDefaults.chartPaddingForMode("comfortable"));
+      assertEquals(new Insets(12, 12, 12, 12), VSDensityDefaults.chartPaddingForMode("compact"));
+      assertEquals(new Insets(8, 8, 8, 8), VSDensityDefaults.chartPaddingForMode("dense"));
+   }
+
+   @Test
+   void compactChartPaddingHoldsTheShippedFlatInset() {
+      // compact is the org default (defaults.properties: viewsheet.density=compact), so holding
+      // 12 here is what makes a default-density dashboard reflow nothing
+      assertEquals(new Insets(12, 12, 12, 12), VSDensityDefaults.chartPaddingForMode("compact"));
+   }
+
+   @Test
+   void tablePaddingSharesTheChartMatrix() {
+      // one card inset concept, one set of numbers
+      assertEquals(VSDensityDefaults.chartPaddingForMode("comfortable"),
+                   VSDensityDefaults.tablePaddingForMode("comfortable"));
+      assertEquals(VSDensityDefaults.chartPaddingForMode("compact"),
+                   VSDensityDefaults.tablePaddingForMode("compact"));
+      assertEquals(VSDensityDefaults.chartPaddingForMode("dense"),
+                   VSDensityDefaults.tablePaddingForMode("dense"));
+   }
+
+   @Test
+   void cellPaddingMatrix() {
+      assertEquals(new Insets(6, 8, 6, 8), VSDensityDefaults.cellPaddingForMode("comfortable"));
+      assertEquals(new Insets(4, 6, 4, 6), VSDensityDefaults.cellPaddingForMode("compact"));
+      assertEquals(new Insets(3, 4, 3, 4), VSDensityDefaults.cellPaddingForMode("dense"));
+   }
+
+   @Test
+   void unrecognizedPaddingModeFallsBackToDense() {
+      assertEquals(new Insets(8, 8, 8, 8), VSDensityDefaults.chartPaddingForMode("Comfortable"));
+      assertEquals(new Insets(3, 4, 3, 4), VSDensityDefaults.cellPaddingForMode("bogus"));
+   }
+
+   @Test
+   void paddingAccessorsReturnFreshInstances() {
+      // Insets is mutable; a shared constant would let one caller's edit reach every other
+      Insets first = VSDensityDefaults.chartPaddingForMode("compact");
+      Insets second = VSDensityDefaults.chartPaddingForMode("compact");
+      assertNotSame(first, second);
+
+      first.left = 99;
+      assertEquals(12, VSDensityDefaults.chartPaddingForMode("compact").left);
+   }
+
+   @Test
+   void unmarkedContextTakesLegacyPadding() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      VizContext legacy = VizContext.of((VizMark) null);
+
+      assertEquals(new Insets(10, 10, 10, 10), VSDensityDefaults.chartPadding(legacy));
+      assertEquals(new Insets(0, 0, 0, 0), VSDensityDefaults.tablePadding(legacy));
+      assertNull(VSDensityDefaults.cellPadding(legacy));
+   }
+
+   @Test
+   void markedContextTakesTheDensityPadding() {
+      SreeEnv.setProperty("viewsheet.density", "comfortable");
+      VizContext modern = VizContext.of(VizMark.MODERN_LIGHT);
+
+      assertEquals(new Insets(16, 16, 16, 16), VSDensityDefaults.chartPadding(modern));
+      assertEquals(new Insets(16, 16, 16, 16), VSDensityDefaults.tablePadding(modern));
+      assertEquals(new Insets(6, 8, 6, 8), VSDensityDefaults.cellPadding(modern));
    }
 }
