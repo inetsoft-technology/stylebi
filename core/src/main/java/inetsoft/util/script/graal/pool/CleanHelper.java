@@ -66,7 +66,10 @@ final class CleanHelper {
    }
 
    /**
-    * Install the helper on a context whose globals are its baseline. Caller holds the lock.
+    * Install the helper on a context whose globals are its baseline. The context is not yet
+    * reachable by any other thread (its slot is unpublished), or the caller holds its lock.
+    * The helper's functions are returned to the host as this eval's result and kept only as
+    * Value handles; nothing on the guest global refers to them.
     */
    static CleanHelper install(Context context) {
       Value handles = context.eval(
@@ -113,7 +116,6 @@ final class CleanHelper {
          const hasOwn = Object.hasOwn;
          const create = Object.create;
          const MAX_DELETES = %MAX_DELETES%;
-         const CARRIER = '__inetsoft_clean__';
 
          function copyDesc(d) {
             const o = create(null);
@@ -230,14 +232,12 @@ final class CleanHelper {
             expected[k] = undefined;
          }
 
+         // the handles go to the host only, as this eval's result; nothing on the global
+         // refers to them, so guest code can never reach expect/forget/clean
          const handles = create(null);
          handles.clean = clean;
          handles.expect = expect;
          handles.forget = forget;
-
-         const cd = create(null);
-         cd.value = handles; cd.writable = false; cd.enumerable = false; cd.configurable = false;
-         defProp(G, CARRIER, cd);
 
          const base = ownKeys(G);
          for(let i = 0; i < base.length; i++) {

@@ -236,6 +236,46 @@ class SlotCleanTest {
       return engine.exec(engine.compile(js), null, null);
    }
 
+   /**
+    * The helper's expect/forget/clean are host-only handles: no global names them, and no
+    * global value exposes them, so guest code cannot keep a foreign global alive or poison
+    * the baseline.
+    */
+   @Test
+   void guestCannotReachTheCleanHandles() throws Exception {
+      slot = newSlot(Map.of());
+      assertEquals("undefined", run("typeof __inetsoft_clean__"));
+      assertEquals("", run("""
+         (function () {
+            const hits = [];
+            const keys = Reflect.ownKeys(globalThis);
+            for(let i = 0; i < keys.length; i++) {
+               const k = keys[i];
+               const name = String(k);
+               if(name.indexOf('inetsoft_clean') >= 0) { hits.push(name); continue; }
+               let v;
+               try {
+                  const d = Reflect.getOwnPropertyDescriptor(globalThis, k);
+                  if(!d || !('value' in d)) continue;
+                  v = d.value;
+               }
+               catch(e) { continue; }
+               if(v === null || (typeof v !== 'object' && typeof v !== 'function')) continue;
+               try {
+                  if(typeof v.expect === 'function' || typeof v.forget === 'function' ||
+                     typeof v.clean === 'function')
+                  {
+                     hits.push(name);
+                  }
+               }
+               catch(e) { }
+            }
+            return hits.join(',');
+         })()
+         """));
+      assertReusable(slot.clean());
+   }
+
    private static void assertReusable(CleanHelper.Result result) {
       assertFalse(result.failed(), "clean failed: " + result);
       assertFalse(result.tooMany(), "too many foreign keys: " + result);

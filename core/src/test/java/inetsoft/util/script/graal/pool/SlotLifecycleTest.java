@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import inetsoft.util.script.LendableReentrantLock;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -114,6 +115,65 @@ class SlotLifecycleTest {
       assertEquals(5.0, engine.exec(engine.compile("SUM"), null, null));
       slot.removeOwn("SUM");
       assertEquals(fresh, engine.exec(engine.compile("typeof SUM"), null, null), "fresh=" + fresh);
+   }
+
+   @Test
+   void closeByANonHolderIsRejected() throws Exception {
+      slot = newSlot();
+      ExecutorService other = Executors.newSingleThreadExecutor();
+
+      try {
+         ExecutionException ex = assertThrows(ExecutionException.class,
+            () -> other.submit(slot::close).get(10, TimeUnit.SECONDS));
+         assertInstanceOf(IllegalStateException.class, ex.getCause());
+      }
+      finally {
+         other.shutdownNow();
+      }
+
+      assertFalse(slot.isClosed(), "a rejected close must leave the slot open");
+      assertEquals(2.0, slot.engine().exec(slot.engine().compile("1 + 1"), null, null));
+   }
+
+   /**
+    * A borrower of the holder's lent lock may lock it, but must not take the slot as a second
+    * claim.
+    */
+   @Test
+   void borrowerOfALentLockDoesNotAcquireTheSlot() throws Exception {
+      slot = newSlot();
+      LendableReentrantLock lock = slot.engine().getExecutionLock();
+      LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+      ExecutorService other = Executors.newSingleThreadExecutor();
+
+      try(LendableReentrantLock.Loan loan = lock.lend(borrower)) {
+         Future<boolean[]> result = other.submit(() -> {
+            borrower.begin();
+
+            try {
+               boolean taken = slot.tryAcquire();
+               boolean stillFree = !lock.isHeldByCurrentThread();
+
+               if(taken) {
+                  slot.unlock();
+               }
+
+               return new boolean[] { taken, stillFree };
+            }
+            finally {
+               borrower.end();
+            }
+         });
+
+         boolean[] r = result.get(10, TimeUnit.SECONDS);
+         assertFalse(r[0], "a borrower must not claim the slot");
+         assertTrue(r[1], "a refused tryAcquire must not leave the lock held");
+      }
+      finally {
+         other.shutdownNow();
+      }
+
+      assertTrue(slot.isHeldByCurrentThread(), "the loan returns the lock to the holder");
    }
 
    private static Slot newSlot() throws Exception {

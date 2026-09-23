@@ -86,7 +86,10 @@ final class Slot {
          return false;
       }
 
-      if(closed) {
+      // Invariant: a slot has at most one claim, its lock holder's. Pool mode never lends a
+      // slot's lock; if it is lent anyway, the tryLock above succeeded only as the borrower
+      // of the holder's claim, which must not become a second claim on the same slot.
+      if(closed || lock.isLent()) {
          lock.unlock();
          return false;
       }
@@ -206,16 +209,33 @@ final class Slot {
    }
 
    /**
-    * Close the context. The caller holds the lock; the lock stays held.
+    * Close the context. The caller must hold the lock; the lock stays held. The slot is marked
+    * closed even if its Context fails to close, so it is never handed out again.
+    *
+    * @throws IllegalStateException if the current thread does not hold the lock.
     */
    void close() {
+      if(!lock.isHeldByCurrentThread()) {
+         throw new IllegalStateException(
+            "A worksheet script context may only be closed by its lock holder");
+      }
+
       if(closed) {
          return;
       }
 
       closed = true;
       attachments.clear();
-      closeQuietly(engine);
+
+      try {
+         engine.close();
+      }
+      catch(Exception ex) {
+         // still retired: closed stays true, so the slot is never reused
+         LOG.warn("A worksheet script context failed to close; the slot is retired and " +
+                  "never reused, but its Context may not have been released", ex);
+      }
+
       metrics.slotClosed();
    }
 
