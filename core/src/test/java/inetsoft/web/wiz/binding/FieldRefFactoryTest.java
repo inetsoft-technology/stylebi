@@ -351,6 +351,32 @@ class FieldRefFactoryTest {
       assertNull(ref.secondaryY());
    }
 
+   // ── secondaryColumn (bug #76931, VTB-034) ────────────────────────────────
+
+   /** The read-side mirror of {@code TableBindingMutatorTest#setsAggregatesSecondaryColumn}. */
+   @Test
+   void readsAMeasuresSecondaryColumn() {
+      BAggregateRefModel model = new BAggregateRefModel();
+      model.setColumnValue("DISCOUNT");
+      model.setFormula("Correlation");
+      model.setSecondaryColumnValue("PAID");
+
+      FieldRef ref = FieldRefFactory.from(model);
+
+      assertEquals("PAID", ref.secondaryColumn());
+   }
+
+   @Test
+   void readsNoSecondaryColumnFromAPlainCrosstabAggregate() {
+      BAggregateRefModel model = new BAggregateRefModel();
+      model.setColumnValue("Sales");
+      model.setFormula("Sum");
+
+      FieldRef ref = FieldRefFactory.from(model);
+
+      assertNull(ref.secondaryColumn());
+   }
+
    @Test
    void requireTypeRejectsAMissingDiscriminatorNamingTheField() {
       FieldRef ref = new FieldRef("Sales", null, null, null, null);

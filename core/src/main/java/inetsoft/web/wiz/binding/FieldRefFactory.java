@@ -287,7 +287,7 @@ public final class FieldRefFactory {
 
          return new FieldRef(aggregate.getColumnValue(), MEASURE, aggregate.getFormula(),
                              null, null, null, null, null, aggregate.getCalculateInfo(),
-                             secondaryY);
+                             null, secondaryY, null, null, aggregate.getSecondaryColumnValue());
       }
 
       if(ref instanceof BDimensionRefModel dimension) {

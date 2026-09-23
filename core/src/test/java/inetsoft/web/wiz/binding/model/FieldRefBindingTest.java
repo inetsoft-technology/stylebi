@@ -107,4 +107,24 @@ class FieldRefBindingTest {
       assertEquals(new FieldRef("PAID", "measure", "Sum", null, null, 5, 1),
                    mapper.readValue(json, FieldRef.class));
    }
+
+   /**
+    * Bug #76931 (VTB-034): {@code secondaryColumn} -- the second column a Covariance/Correlation/
+    * WeightedAverage aggregate compares {@code column} against -- was entirely absent from this
+    * record, so Jackson's default strict deserialization rejected any request naming it before
+    * the handler ever ran.
+    */
+   @Test
+   void bindsAndRoundTripsSecondaryColumn() throws Exception {
+      FieldRef ref = mapper.readValue(
+         """
+         { "column": "DISCOUNT", "type": "measure", "aggregate": "Correlation",
+           "secondaryColumn": "PAID" }
+         """, FieldRef.class);
+
+      assertEquals("PAID", ref.secondaryColumn());
+
+      String json = mapper.writeValueAsString(ref);
+      assertEquals(ref, mapper.readValue(json, FieldRef.class));
+   }
 }
