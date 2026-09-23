@@ -476,6 +476,37 @@ class DataSpaceSettingsServiceTest {
       assertEquals(20260103120000L, actual.get(2).timestamp());
    }
 
+   // FilesystemExternalStorageService.getAvailableFile appends a "(1)" disambiguator when a
+   // same-second write collides with an existing file - getTimestamp must still parse the real
+   // timestamp instead of falling back to -1 (bug 76645).
+   @Test
+   void listAiSnapshots_parsesCollisionSuffixedTimestamp() {
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-chg-1-20260101120000.zip",
+         "admin-chg-1-20260101120000(1).zip"));
+
+      List<AiSnapshotInfo> actual = service.listAiSnapshots("chg-1");
+
+      assertEquals(2, actual.size());
+      assertEquals(20260101120000L, actual.get(0).timestamp());
+      assertEquals(20260101120000L, actual.get(1).timestamp());
+   }
+
+   // The disambiguator counter increments per further collision and can reach two (or more)
+   // digits - the strip must not be anchored to a single digit.
+   @Test
+   void listAiSnapshots_parsesMultiDigitCollisionSuffixedTimestamp() {
+      when(externalStorageService.listFiles("ai-snapshots")).thenReturn(List.of(
+         "admin-chg-1-20260101120000.zip",
+         "admin-chg-1-20260101120000(10).zip"));
+
+      List<AiSnapshotInfo> actual = service.listAiSnapshots("chg-1");
+
+      assertEquals(2, actual.size());
+      assertEquals(20260101120000L, actual.get(0).timestamp());
+      assertEquals(20260101120000L, actual.get(1).timestamp());
+   }
+
    // A transactionId with no matching files returns an empty list, not an error - the zero-row
    // landmine this fix was chosen specifically to avoid.
    @Test

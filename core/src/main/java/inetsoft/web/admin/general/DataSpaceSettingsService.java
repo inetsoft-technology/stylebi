@@ -357,6 +357,12 @@ public class DataSpaceSettingsService extends BackupSupport {
       }
 
       String timestamp = pathParts[pathParts.length - 1];
+      // FilesystemExternalStorageService.getAvailableFile appends a "(" + counter + ")"
+      // disambiguator (counter starting at 1, incrementing per further collision - can be
+      // multi-digit) immediately before the extension on a filename collision. Strip it before
+      // parsing so a collision-suffixed file still resolves to its real creation timestamp
+      // instead of -1.
+      timestamp = timestamp.replaceAll("\\(\\d+\\)$", "");
 
       try {
          return Long.parseLong(timestamp);
