@@ -462,11 +462,13 @@ public class PropertiesEngine {
 
       String oldHome = null;
       Properties oldProperties = null;
+      EarlyLoadedProperties oldEarlyLoaded = null;
 
       try {
          if(fromChange) {
             oldHome = getProperty("sree.home");
             oldProperties = getInternalProperties();
+            oldEarlyLoaded = EarlyLoadedProperties.getInstance();
             // keep the change listener attached, so that no change stored during the reload is
             // missed (Bug #76954)
             clear(false);
@@ -513,9 +515,22 @@ public class PropertiesEngine {
          }
       }
       catch(Exception ex) {
-         LOG.error("Failed to initialize SreeEnv: {}", ex, ex);
-         Properties prop = getDefaultProperties();
-         internalProperties = new DefaultProperties(prop, prop);
+         if(oldProperties != null) {
+            LOG.error("Failed to reload SreeEnv, keeping the previous properties: {}", ex, ex);
+
+            // a failed reload keeps the previously loaded properties. Publishing the defaults
+            // would drop every stored property, the security settings included, until the next
+            // reload succeeds (Bug #76979)
+            if(getInternalProperties() == null) {
+               EarlyLoadedProperties.restore(oldEarlyLoaded);
+               internalProperties = oldProperties;
+            }
+         }
+         else {
+            LOG.error("Failed to initialize SreeEnv: {}", ex, ex);
+            Properties prop = getDefaultProperties();
+            internalProperties = new DefaultProperties(prop, prop);
+         }
       }
       finally {
          propertiesLock.unlock();
