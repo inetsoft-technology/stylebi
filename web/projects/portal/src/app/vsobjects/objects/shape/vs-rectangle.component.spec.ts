@@ -21,6 +21,8 @@
  * Risk-first coverage:
  *   Group 1 - ngOnChanges: the derived css box-shadow for the configured settings
  *   Group 2 - round corner clamping (pre-existing behavior, guarded against regression)
+ *   Group 3 - shadow div border-radius must match the SVG rect's per-axis rx/ry
+ *             clamping (Bug #76962)
  *
  * The shadow used to be a hardcoded scss rule; it is now computed from
  * model.shadowInfo, so the defaults must still approximate the old look.
@@ -134,5 +136,45 @@ describe("VSRectangle - Group 2: round corner", () => {
       comp.ngOnChanges({ model: {} as any });
 
       expect(comp.roundCornerValue).toBe(60);
+   });
+});
+
+describe("VSRectangle - Group 3: shadow border-radius (Bug #76962)", () => {
+   function radiusFor(width: number, height: number, roundCornerValue: number): string {
+      const { comp } = createComponent({ shadow: true, roundCornerValue });
+      comp.model.objectFormat.width = width;
+      comp.model.objectFormat.height = height;
+      comp.ngOnChanges({ model: {} as any });
+      return comp.shadowRadius;
+   }
+
+   it("should clamp each axis to half its side when the corner exceeds half the shorter side", () => {
+      // svg rect renders an ellipse here; a single css radius would render a stadium
+      expect(radiusFor(240, 320, 300)).toBe("120px / 160px");
+      expect(radiusFor(240, 320, 150)).toBe("120px / 150px");
+      expect(radiusFor(320, 240, 200)).toBe("160px / 120px");
+   });
+
+   it("should keep circular corners when the corner fits within half the shorter side", () => {
+      expect(radiusFor(240, 320, 50)).toBe("50px / 50px");
+      expect(radiusFor(240, 240, 240)).toBe("120px / 120px");
+   });
+
+   it("should not set a radius for a zero or missing corner value", () => {
+      expect(radiusFor(240, 320, 0)).toBeNull();
+      expect(radiusFor(240, 320, undefined)).toBeNull();
+   });
+
+   it("should recompute the radius when the model size changes", () => {
+      const { comp } = createComponent({ shadow: true, roundCornerValue: 300 });
+      comp.model.objectFormat.width = 240;
+      comp.model.objectFormat.height = 320;
+      comp.ngOnChanges({ model: {} as any });
+      expect(comp.shadowRadius).toBe("120px / 160px");
+
+      comp.model = { ...comp.model,
+         objectFormat: { ...comp.model.objectFormat, width: 100, height: 400 } };
+      comp.ngOnChanges({ model: {} as any });
+      expect(comp.shadowRadius).toBe("50px / 100px");
    });
 });
