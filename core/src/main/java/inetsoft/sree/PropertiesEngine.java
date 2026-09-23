@@ -1097,8 +1097,8 @@ public class PropertiesEngine {
    private final Set<String> changedProps = new TreeSet<>();
    private final PropertyChangeSupport support = new PropertyChangeSupport(PropertiesEngine.class);
    private KeyValueStorage<String> kvStorage;
-   private Properties internalProperties;
-   private Properties defaultProperties;
+   private volatile Properties internalProperties;
+   private volatile Properties defaultProperties;
    private final Lock propertiesLock = new ReentrantLock();
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
    private final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
