@@ -29,11 +29,13 @@ import inetsoft.uql.XTable;
 import inetsoft.util.Tool;
 import inetsoft.util.script.ArrayObject;
 import inetsoft.util.script.graal.ScriptArrayScope;
+import inetsoft.util.script.graal.pool.WsExecContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -273,27 +275,25 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
       XTable lens = getTable();
 
       if(lens != null && min <= index && lens.moreRows(index)) {
+         RowWindow window = window();
          int cacheIdx = index - min;
-         int rowsIdx = cacheIdx - rowsStartIdx;
+         int rowsIdx = cacheIdx - window.rowsStartIdx;
          TableRow row = null;
 
          if(rowsIdx >= 0 && rowsIdx < MAX_ROWS) {
-            row = rows[rowsIdx];
+            row = window.rows[rowsIdx];
          }
 
          if(row == null) {
             row = new TableRow(getTable(), index, property, pType);
 
             if(rowsIdx < 0 || rowsIdx >= MAX_ROWS) {
-               rowsStartIdx = cacheIdx;
+               window.rowsStartIdx = cacheIdx;
                rowsIdx = 0;
-
-               for(int i = 0; i < MAX_ROWS; i++) {
-                  rows[i] = null;
-               }
+               Arrays.fill(window.rows, null);
             }
 
-            rows[rowsIdx] = row;
+            window.rows[rowsIdx] = row;
          }
 
          return row;
@@ -409,19 +409,17 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
     */
    public XTable getTable() {
       XTable ntable = getElementTable();
+      RowWindow window = window();
 
       // if a new table, clear cache
-      if(ntable != cached) {
-         for(int i = 0; i < MAX_ROWS; i++) {
-            rows[i] = null;
-         }
-
-         rowsStartIdx = 0;
-         cached = ntable;
+      if(ntable != window.cached) {
+         Arrays.fill(window.rows, null);
+         window.rowsStartIdx = 0;
+         window.cached = ntable;
          table = ntable;
       }
 
-      return table;
+      return window == sharedWindow ? table : ntable;
    }
 
    /**
@@ -451,9 +449,42 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
     * Clear the cached data.
     */
    protected void clearCache() {
-      for(int i = 0; i < rows.length; i++) {
-         rows[i] = null;
+      Arrays.fill(window().rows, null);
+   }
+
+   /**
+    * Whether to keep the row window per pooled worksheet context (bug #76960, spec §6.4).
+    * Pooled contexts of one sandbox read a table array at the same time; one shared window
+    * would hand one context another's rows.
+    */
+   protected boolean usePerSlotWindows() {
+      return false;
+   }
+
+   RowWindow windowForTest() {
+      return window();
+   }
+
+   private RowWindow window() {
+      if(usePerSlotWindows()) {
+         RowWindow window = WsExecContext.currentSlotAttachment(this, RowWindow::new);
+
+         if(window != null) {
+            return window;
+         }
       }
+
+      return sharedWindow;
+   }
+
+   /**
+    * The cached TableRow objects of a range of rows.
+    */
+   static final class RowWindow implements java.io.Serializable {
+      final TableRow[] rows = new TableRow[MAX_ROWS];
+      int rowsStartIdx = 0; // starting row index corresponds to rows[0]
+      // table corresponding to the rows (cached)
+      transient XTable cached = null;
    }
 
    private static final int MAX_ROWS = 100;
@@ -461,15 +492,11 @@ public class TableArray implements ArrayObject, ScriptArrayScope {
 
    protected final Map<String, Object> members = new LinkedHashMap<>();
    private XTable table = null; // table lens
-   private TableRow[] rows = new TableRow[MAX_ROWS]; // cached TableRow
-   private int rowsStartIdx = 0; // starting row index corresponds to rows[0]
+   private final RowWindow sharedWindow = new RowWindow();
    private String property = "Object"; // property type
    private Class pType = Object.class; // property type
    private int min = 0;
    private boolean calcArray = false;
-
-   // chart corresponding to the rows (cached)
-   private transient XTable cached = null;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TableArray.class);

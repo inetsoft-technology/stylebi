@@ -124,6 +124,14 @@ public class TableAssemblyScriptable extends TableArray {
       return true;
    }
 
+   /**
+    * In pool mode (bug #76960) each pooled context keeps its own row window.
+    */
+   @Override
+   protected boolean usePerSlotWindows() {
+      return box != null && box.isScriptPoolMode();
+   }
+
    @Override
    public XTable getElementTable() {
       // @by billh, fix customer bug bug1300398961679

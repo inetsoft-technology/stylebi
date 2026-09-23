@@ -28,6 +28,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.ConditionListHandler;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.ScriptScope;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -143,8 +144,16 @@ public class MVConditionListHandler extends ConditionListHandler {
       MVScriptable scriptable = new MVScriptable(mvdef, mvcol, mv);
 
       try {
-         senv.put("MV", scriptable);
-         val = senv.exec(senv.compile(exp), box.getScope(), null, box.getWorksheet());
+         if(box.isScriptPoolMode()) {
+            // pool mode: MV is this exec's own name, not an env global that every pooled
+            // context would replay (bug #76960, spec §6.6)
+            ScriptScope scope = new MVExecScope(scriptable, box.getScope());
+            val = senv.exec(senv.compile(exp), scope, null, box.getWorksheet());
+         }
+         else {
+            senv.put("MV", scriptable);
+            val = senv.exec(senv.compile(exp), box.getScope(), null, box.getWorksheet());
+         }
       }
       catch(Exception ex) {
          throw new ScriptException("MV Script error: " + ex.getMessage());
@@ -267,4 +276,45 @@ public class MVConditionListHandler extends ConditionListHandler {
    private MV mv;
    private VariableTable vars;
    private AssetQuerySandbox box;
+
+   /**
+    * The exec scope of a pooled MV condition script: {@code MV}, then the sandbox scope. A
+    * write to any other name goes to the sandbox scope, as it did when that was the root.
+    */
+   static final class MVExecScope implements ScriptScope {
+      MVExecScope(Object mv, ScriptScope parent) {
+         this.mv = mv;
+         this.parent = parent;
+      }
+
+      @Override
+      public Object getMember(String name) {
+         return "MV".equals(name) ? mv : null;
+      }
+
+      @Override
+      public boolean hasMember(String name) {
+         return "MV".equals(name);
+      }
+
+      @Override
+      public void putMember(String name, Object value) {
+         if(!"MV".equals(name)) {
+            parent.putMember(name, value);
+         }
+      }
+
+      @Override
+      public Object[] getMemberKeys() {
+         return new Object[] { "MV" };
+      }
+
+      @Override
+      public ScriptScope getParentScope() {
+         return parent;
+      }
+
+      private final Object mv;
+      private final ScriptScope parent;
+   }
 }

@@ -1424,8 +1424,17 @@ public abstract class AssetQuery extends PreAssetQuery {
          String[] sarr = scripts.toArray(new String[0]);
          Boolean[] marr = mergeables.toArray(new Boolean[0]);
          AssetQueryScope scope = box.getScope();
-         scope.setVariableTable(vars);
-         scope.setMode(mode);
+
+         if(box.isScriptPoolMode()) {
+            // this query's own parameters and mode: queries of one sandbox run their scripts
+            // at the same time on pooled contexts (bug #76960)
+            scope = scope.queryView(vars, mode);
+         }
+         else {
+            scope.setVariableTable(vars);
+            scope.setMode(mode);
+         }
+
          TableAssembly table = getTable();
          ScriptEnv env = box.getScriptEnv();
          boolean cube = AssetUtil.isCubeTable(table);
@@ -1460,7 +1469,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
 
          base = PostProcessor.formula(
-            base, harr, sarr, env, box.getScope(), marr,
+            base, harr, sarr, env, box.isScriptPoolMode() ? scope : box.getScope(), marr,
             getTable().getName(), hinfos, types, restricted);
          formulaCols = new HashSet<>(Arrays.asList(harr));
 
@@ -3344,11 +3353,20 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
 
             AssetQueryScope scope = box.getScope();
-            scope.setVariableTable(vars);
-            scope.setMode(mode);
+
+            if(box.isScriptPoolMode()) {
+               // this query's own parameters and mode (bug #76960)
+               scope = scope.queryView(vars, mode);
+            }
+            else {
+               scope.setVariableTable(vars);
+               scope.setMode(mode);
+            }
+
             getTable(); // kept because it could have side effects
             ScriptEnv env = box.getScriptEnv();
-            form = new CalcFieldFormula(expression, names, forms, cols, env, box.getScope());
+            form = new CalcFieldFormula(expression, names, forms, cols, env,
+                                        box.isScriptPoolMode() ? scope : box.getScope());
          }
          else {
             form = Util.createFormula(lens, fstr);

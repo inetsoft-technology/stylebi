@@ -28,6 +28,7 @@ import inetsoft.util.script.graal.ScriptScope;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -42,8 +43,26 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
     * Create a scope for an asset query.
     */
    public AssetQueryScope(AssetQuerySandbox box) {
+      this.shared = null;
       this.box = box;
       setVariableTable(box.getVariableTable());
+   }
+
+   /**
+    * A per-query view of this scope, for a sandbox in pool mode (bug #76960, spec §6.5): it
+    * has its own parameters, mode and table scriptables, so queries of one sandbox that run
+    * scripts at the same time do not overwrite each other's; every other member is this
+    * shared scope's.
+    */
+   public AssetQueryScope queryView(VariableTable vars, int mode) {
+      return new AssetQueryScope(this, vars, mode);
+   }
+
+   private AssetQueryScope(AssetQueryScope shared, VariableTable vars, int mode) {
+      this.shared = shared;
+      this.box = shared.box;
+      this.mode = mode;
+      members.put(PARAMETER, new VariableScriptable(vars));
    }
 
    /**
@@ -117,6 +136,10 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
 
       Object value = members.get(id);
 
+      if(value == null && shared != null && !PARAMETER.equals(id)) {
+         value = shared.members.get(id);
+      }
+
       if(value != null) {
          return value == NULL_VALUE ? null : value;
       }
@@ -143,7 +166,7 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
          // ignore
       }
 
-      if(members.containsKey(id)) {
+      if(members.containsKey(id) || shared != null && !PARAMETER.equals(id) && shared.members.containsKey(id)) {
          return true;
       }
 
@@ -218,23 +241,38 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
 
    @Override
    public void putMember(String id, Object value) {
+      if(shared != null && !PARAMETER.equals(id)) {
+         shared.putMember(id, value);
+         return;
+      }
+
       members.put(id, value == null ? NULL_VALUE : value);
    }
 
    @Override
    public boolean removeMember(String id) {
+      if(shared != null && !PARAMETER.equals(id)) {
+         return shared.removeMember(id);
+      }
+
       Object old = members.remove(id);
       return old != null && old != NULL_VALUE;
    }
 
    @Override
    public Object[] getMemberKeys() {
-      return members.keySet().toArray(new Object[0]);
+      if(shared == null) {
+         return members.keySet().toArray(new Object[0]);
+      }
+
+      LinkedHashSet<Object> keys = new LinkedHashSet<>(members.keySet());
+      keys.addAll(shared.members.keySet());
+      return keys.toArray(new Object[0]);
    }
 
    @Override
    public ScriptScope getParentScope() {
-      return parentScope;
+      return shared != null ? shared.getParentScope() : parentScope;
    }
 
    @Override
@@ -268,6 +306,8 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    private static Object NOT_TABLE = new String("NOT_TABLE");
    // stands for a member stored as null, which a ConcurrentHashMap cannot hold
    private static final Object NULL_VALUE = new Object();
+   private static final String PARAMETER = "parameter";
+   private final AssetQueryScope shared; // null unless this is a per-query view
    private int mode;
    private AssetQuerySandbox box;
    // concurrent: reached by several script threads without a common lock (bug #76960)
