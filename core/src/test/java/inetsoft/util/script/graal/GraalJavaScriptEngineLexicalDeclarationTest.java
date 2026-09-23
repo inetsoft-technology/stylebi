@@ -245,6 +245,32 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       assertEquals(2.0, num("function f(){}\nf()\nconst z2 = 2\nif(z2) {}\nz2"));
    }
 
+   // review r2: a declaration on the line after a postfix `++`/`--` (or any
+   // other statement end) is at statement position by ASI and must be rewritten
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "var i = 0; i++\\nconst d = 1; if(d) { d }",
+      "var i = 0; i--\\nconst d = 1; if(d) { d }",
+      "var a = [0]; a[0]++\\nconst d = 1; if(d) { d }",
+      "var a = [5]; a[0]\\nconst d = 1; if(d) { d }",
+      "function f() { return 0; } f()\\nconst d = 1; if(d) { d }",
+      "var i = 0; i++ // note\\nconst d = 1; if(d) { d }",
+      "var i = 0; i++ /* a\\nb */ const d = 1; if(d) { d }",
+      "var i = 0; i++\\nlet d = 1; if(d) { d }",
+      "var i = 3; i--\\nlet d = 1; if(d) { d }",
+   })
+   void declarationAfterLineBreakRewritten(String script) throws Exception {
+      assertEquals(1.0, num(script.replace("\\n", "\n")), script);
+   }
+
+   // `let` after a line break that follows an operator may still be an operand
+   @Test void letAfterOperatorLineBreakNotRewritten() throws Exception {
+      assertEquals("x = y +\nlet [0]", rewrite("x = y +\nlet [0]"));
+      assertEquals("x =\nlet\ny = 1", rewrite("x =\nlet\ny = 1"));
+      assertEquals("i++\nvar d = 1", rewrite("i++\nlet d = 1"));
+      assertEquals("i++\nvar   d = 1", rewrite("i++\nconst d = 1"));
+   }
+
    // #75688 regression check: var-based completion preservation is unchanged
    @Test void varCompletionPreservationUnchanged() throws Exception {
       assertEquals("1,2", String.valueOf(run("var hv = [1,2]; if(1 > 0) { hv.join(',') } if(false) { 0 }")));

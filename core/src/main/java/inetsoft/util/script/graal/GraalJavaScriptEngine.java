@@ -921,10 +921,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * (ambiguous with a control-flow header, where {@code if(c) let\ny = 1} is
     * an expression) a {@code let} binding must follow on the same line; a
     * reserved {@code const} cannot be an expression, so no such rule is needed
-    * for it.
+    * for it. A {@code const} after a line break, and a {@code let} after a
+    * postfix {@code ++}/{@code --}, are at statement position by ASI
+    * ({@code i++\nconst d = 1}).
     */
    private static boolean isTopLevelLexicalDeclaration(String body, String word, int end,
-                                                       char prevSig, String prevWord)
+                                                       char prevSig, String prevWord,
+                                                       boolean afterPostfix,
+                                                       boolean lineBreak)
    {
       boolean isConst = word.equals("const");
 
@@ -932,7 +936,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          return false;
       }
 
-      boolean statementStart = prevSig == 0 || prevSig == ')' || boundaryAllowedBefore(prevSig);
+      // a line break ends the previous statement by ASI when the next token
+      // cannot continue it: always for the reserved `const`, and after a postfix
+      // `++`/`--` for `let` (`i++\nlet d = 1`); elsewhere `let` may still be an
+      // operand (`x =\nlet[0]`), so it keeps the stricter check
+      boolean statementStart = prevSig == 0 || prevSig == ')' || boundaryAllowedBefore(prevSig) ||
+         afterPostfix || isConst && lineBreak;
 
       if(!statementStart || prevWord != null && SUPPRESS_BOUNDARY_AFTER.contains(prevWord)) {
          return false;
@@ -991,6 +1000,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // head, whose `)` is followed by a statement (so a `/` there is a regex)
       java.util.Deque<Boolean> brackets = new java.util.ArrayDeque<>();
       boolean afterHead = false;   // the previous token closed a control-flow head
+      boolean afterPostfix = false; // the previous token was a postfix `++`/`--`
+      boolean lineBreak = false;   // a line break since the previous token
       int i = 0;
 
       while(i < n) {
@@ -1012,6 +1023,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             i += 2;
 
             while(i + 1 < n && !(body.charAt(i) == '*' && body.charAt(i + 1) == '/')) {
+               lineBreak |= isLineBreak(body.charAt(i));
                i++;
             }
 
@@ -1032,7 +1044,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                i = end;
                prevSig = LITERAL_END;
                prevWord = null;
-               afterHead = false;
+               afterHead = afterPostfix = lineBreak = false;
                continue;
             }
          }
@@ -1042,7 +1054,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             i = skipStringLiteral(body, i + 1, c);
             prevSig = LITERAL_END;
             prevWord = null;
-            afterHead = false;
+            afterHead = afterPostfix = lineBreak = false;
             continue;
          }
 
@@ -1051,11 +1063,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             i = skipTemplateLiteral(body, i + 1);
             prevSig = LITERAL_END;
             prevWord = null;
-            afterHead = false;
+            afterHead = afterPostfix = lineBreak = false;
             continue;
          }
 
          if(Character.isWhitespace(c)) {
+            lineBreak |= isLineBreak(c);
             i++;
             continue;
          }
@@ -1074,7 +1087,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
             if(depth == 0 && !afterDot) {
                if(lexicalDecls != null &&
-                  isTopLevelLexicalDeclaration(body, word, i, prevSig, prevWord))
+                  isTopLevelLexicalDeclaration(body, word, i, prevSig, prevWord,
+                                               afterPostfix, lineBreak))
                {
                   lexicalDecls.add(s);
                }
@@ -1107,7 +1121,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
             prevSig = body.charAt(i - 1);
             prevWord = afterDot ? null : word;   // a property name isn't a keyword
-            afterHead = false;
+            afterHead = afterPostfix = lineBreak = false;
             continue;
          }
 
@@ -1130,6 +1144,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          prevSig = c;
          prevWord = null;
          afterHead = closedHead;
+         // `x++`/`a[0]--`/`f()++`: the second char of a postfix operator
+         afterPostfix = (c == '+' || c == '-') && i >= 2 && body.charAt(i - 1) == c &&
+            (isIdentPart(body.charAt(i - 2)) || body.charAt(i - 2) == ')' ||
+             body.charAt(i - 2) == ']');
+         lineBreak = false;
          i++;
       }
 
