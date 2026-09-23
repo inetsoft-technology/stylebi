@@ -44,6 +44,9 @@ import static org.mockito.Mockito.*;
 /**
  * Bug #76933: saveScriptAs must enforce WRITE permission itself instead of relying on the
  * advisory save-script-dialog validation being called first by the client.
+ * Bug #76934: saveScript must check WRITE permission against the trusted target name rather
+ * than the client-supplied id, which can be crafted to decode to REPORT_SCOPE and bypass the
+ * check entirely.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -104,6 +107,50 @@ class OpenScriptControllerTest {
       assertEquals(AssetRepository.COMPONENT_SCOPE, checked.getScope());
       assertEquals(AssetEntry.Type.SCRIPT, checked.getType());
       assertEquals("sharedFn", checked.getName());
+   }
+
+   @Test
+   void saveScriptChecksTargetScriptIgnoringClientScope() throws Exception {
+      // REPORT_SCOPE entries pass checkAssetPermission unconditionally, so the checked entry
+      // must be built from the trusted target name (the label), not the client-supplied id
+      when(libManager.getScript("sharedFn")).thenReturn("old text");
+
+      ScriptModel scriptModel = new ScriptModel();
+      scriptModel.setId(new AssetEntry(AssetRepository.REPORT_SCOPE, AssetEntry.Type.SCRIPT,
+         "sharedFn", null).toIdentifier());
+      scriptModel.setLabel("sharedFn");
+      scriptModel.setText("new text");
+
+      controller.saveScript(scriptModel, principal);
+
+      ArgumentCaptor<AssetEntry> captor = ArgumentCaptor.forClass(AssetEntry.class);
+      verify(assetRepository).checkAssetPermission(eq(principal), captor.capture(),
+         eq(ResourceAction.WRITE));
+      AssetEntry checked = captor.getValue();
+      assertEquals(AssetRepository.COMPONENT_SCOPE, checked.getScope());
+      assertEquals(AssetEntry.Type.SCRIPT, checked.getType());
+      assertEquals("sharedFn", checked.getName());
+   }
+
+   @Test
+   void saveScriptDeniedWithReportScopeIdDoesNotWriteLibrary() throws Exception {
+      // Regression test for the REPORT_SCOPE bypass: a crafted id that decodes to REPORT_SCOPE
+      // must not let the write through even though checkAssetPermission0 would otherwise pass it
+      when(libManager.getScript("sharedFn")).thenReturn("old text");
+      doThrow(new MessageException("denied")).when(assetRepository)
+         .checkAssetPermission(eq(principal), any(AssetEntry.class), eq(ResourceAction.WRITE));
+
+      ScriptModel scriptModel = new ScriptModel();
+      scriptModel.setId(new AssetEntry(AssetRepository.REPORT_SCOPE, AssetEntry.Type.SCRIPT,
+         "sharedFn", null).toIdentifier());
+      scriptModel.setLabel("sharedFn");
+      scriptModel.setText("new text");
+
+      String result = controller.saveScript(scriptModel, principal);
+
+      assertFalse(result.isEmpty());
+      verify(libManager, never()).setScript(anyString(), anyString());
+      verify(libManager, never()).save();
    }
 
    @Test

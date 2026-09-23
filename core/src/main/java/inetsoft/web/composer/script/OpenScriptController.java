@@ -80,7 +80,11 @@ public class OpenScriptController {
 
          if(change) {
             try {
-               assetRepository.checkAssetPermission(principal, entry, ResourceAction.WRITE);
+               // build from trusted data: the client-supplied id could decode to REPORT_SCOPE,
+               // which skips the check entirely, and the actual write target is `name`, not entry
+               AssetEntry permissionEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
+                  AssetEntry.Type.SCRIPT, name, null);
+               assetRepository.checkAssetPermission(principal, permissionEntry, ResourceAction.WRITE);
             }
             catch(Exception ex) {
                permissionDenied = catalog.getString(
