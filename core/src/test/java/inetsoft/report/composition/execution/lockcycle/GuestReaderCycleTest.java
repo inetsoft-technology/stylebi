@@ -121,16 +121,24 @@ public class GuestReaderCycleTest {
     * under a filter, read by a guest formula. A populates the filter (filter monitor →
     * {@code UnionTableLens} monitor → E in {@code exec}); B's current-row read goes
     * filter → {@code Union.getObject} → {@code Union.moreRows} → Union monitor while B holds
-    * E. On main this hangs in some runs (a race), not in all: 1 of 7 runs here, 1 of 3 in
-    * the refuter's.
+    * E. A single run hangs only sometimes on main (1 of 7 runs here, 1 of 3 in the
+    * refuter's), so this is a stress case: it repeats the shape {@code UNION_ITERATIONS}
+    * times, each on a fresh pipeline and sandbox, within {@code UNION_TOTAL_CAP} seconds.
+    * The redesign must make every iteration complete.
     */
    @Test
    @Tag("known-deadlock")
    @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void unionOfFormulasUnderGuest() throws Exception {
-      runPopulatorAndGuest(s -> cf2(union(calcField(s, new SlowTable(UNION_ROWS, Slow.EVERYWHERE)),
-                                          calcField(s, new SlowTable(UNION_ROWS, Slow.EVERYWHERE))), s.box),
-                           ACTIVE_CAP);
+      long deadline = System.currentTimeMillis() + UNION_TOTAL_CAP * 1000;
+
+      for(int i = 0; i < UNION_ITERATIONS; i++) {
+         long left = (deadline - System.currentTimeMillis()) / 1000;
+         assertTrue(left > 0, "stress case exceeded its total cap after " + i + " iterations");
+         runPopulatorAndGuest(s -> cf2(union(calcField(s, new SlowTable(UNION_ROWS, Slow.EVERYWHERE)),
+                                             calcField(s, new SlowTable(UNION_ROWS, Slow.EVERYWHERE))), s.box),
+                              Math.min(ACTIVE_CAP, left), "iteration " + (i + 1) + ": ");
+      }
    }
 
    /**
@@ -163,9 +171,12 @@ public class GuestReaderCycleTest {
    }
 
    /**
-    * INV_RACE over a formula-free base. Since bug #76935 this filter takes no lock, and on
-    * main a read during re-population returns the header value ({@code "value"}) for a data
-    * row: a wrong result, not a hang.
+    * INV_RACE over a formula-free base: a wrong result, not a hang. {@code getBaseRowIndex}
+    * reads {@code rowmap} outside the filter's monitor after {@code moreRows} returns, while
+    * {@code invalidate()} swaps in a new list holding only the header entries (so the row
+    * maps to base row 0, the header value {@code "value"}) or disposes the old one (so it maps
+    * to -1 and the base throws). The race predates bug #76935, but that change takes the
+    * engine lock off this filter, which made it about 40 times likelier per read.
     */
    @Test
    @Tag("known-deadlock")
@@ -379,6 +390,12 @@ public class GuestReaderCycleTest {
    private void runPopulatorAndGuest(Function<Sandbox, TableLens> build, long cap)
       throws Exception
    {
+      runPopulatorAndGuest(build, cap, "");
+   }
+
+   private void runPopulatorAndGuest(Function<Sandbox, TableLens> build, long cap, String label)
+      throws Exception
+   {
       Sandbox control = harness.control();
       TableLens controlCf = harness.track(build.apply(control));
       List<List<Object>> expectedCf = harness.await(
@@ -392,8 +409,8 @@ public class GuestReaderCycleTest {
       Future<List<List<Object>>> a = harness.submit(() -> drain(cf));
       Future<List<List<Object>>> b = harness.submit(() -> drain(outer));
 
-      assertEquals(expectedOuter, harness.await(b, cap, "B, the guest formula reader"));
-      assertEquals(expectedCf, harness.await(a, cap, "A, the filter populator"));
+      assertEquals(expectedOuter, harness.await(b, cap, label + "B, the guest formula reader"));
+      assertEquals(expectedCf, harness.await(a, cap, label + "A, the filter populator"));
       assertFalse(s.lock.isLocked());
    }
 
@@ -420,6 +437,8 @@ public class GuestReaderCycleTest {
    private static final int INV_ROWS = 300;
    private static final int AQS_THREADS = 4;
    private static final int AQS_OPS = 5000;
-   private static final int UNION_ROWS = 300;
+   private static final int UNION_ROWS = 150;
+   private static final int UNION_ITERATIONS = 20;
+   private static final long UNION_TOTAL_CAP = 300;
    private LockCycleHarness harness;
 }
