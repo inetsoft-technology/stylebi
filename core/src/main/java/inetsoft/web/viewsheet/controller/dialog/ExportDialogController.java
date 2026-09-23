@@ -27,6 +27,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -109,7 +110,7 @@ public class ExportDialogController {
       List<String> tableDataAssemblies = new ArrayList<>();
 
       if(vs != null) {
-         hasPrintLayout = vs.getLayoutInfo().getPrintLayout() != null;
+         hasPrintLayout = PrintLayoutResolver.hasPrintLayout(vs);
 
          VSUtil.getTableDataAssemblies(vs, true)
             .stream().forEach(assembly -> {

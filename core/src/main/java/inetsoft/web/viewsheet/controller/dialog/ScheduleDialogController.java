@@ -35,6 +35,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.IdentityNode;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -257,8 +258,7 @@ public class ScheduleDialogController {
          .csvConfigModel(CSVConfigModel.builder().from(new CSVConfig()).build())
          .build();
 
-      boolean hasPrintLayout = rvs.getViewsheet().getLayoutInfo() != null &&
-         rvs.getViewsheet().getLayoutInfo().getPrintLayout() != null;
+      boolean hasPrintLayout = PrintLayoutResolver.hasPrintLayout(rvs.getViewsheet());
 
       ViewsheetActionModel viewsheetActionModel = ViewsheetActionModel.builder()
          .viewsheet(entry.toIdentifier())

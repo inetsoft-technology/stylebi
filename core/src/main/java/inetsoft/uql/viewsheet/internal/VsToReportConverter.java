@@ -86,6 +86,10 @@ public class VsToReportConverter {
       Viewsheet vs = box.getViewsheet().clone();
       LayoutInfo layoutinfo = vs.getLayoutInfo();
       playout = layoutinfo.getPrintLayout();
+      // null for the sheet being exported, the embedded assembly name when the layout is
+      // driven from an embedded viewsheet's own sandbox. Assemblies report names absolute to
+      // the root, while the layout of an embedded viewsheet names them relative to itself.
+      baseName = vs.isEmbedded() ? vs.getAbsoluteName() : null;
 
       if(playout == null) {
          return new TabularSheet();
@@ -244,7 +248,7 @@ public class VsToReportConverter {
 
       VSAssembly container = getTopContainer((VSAssembly) assembly);
       assembly = container == null ? assembly : container;
-      String name = assembly.getAbsoluteName();
+      String name = relativeName(assembly.getAbsoluteName());
       int idx = name.indexOf(".");
 
       if(idx != -1) {
@@ -252,6 +256,21 @@ public class VsToReportConverter {
       }
 
       return layout.getVSAssemblyLayout(name);
+   }
+
+   /**
+    * Convert an absolute assembly name into the name space the print layout is written in.
+    * A layout that belongs to an embedded viewsheet names its assemblies relative to that
+    * viewsheet, while the assemblies themselves are still named absolute to the root.
+    * @param name the absolute assembly name.
+    * @return the name as the print layout spells it.
+    */
+   private String relativeName(String name) {
+      if(baseName == null || name == null || !name.startsWith(baseName + ".")) {
+         return name;
+      }
+
+      return name.substring(baseName.length() + 1);
    }
 
    /**
@@ -540,7 +559,7 @@ public class VsToReportConverter {
       for(int i = 0; i < layouts.size(); i++) {
          VSAssemblyLayout assemblyLayout = layouts.get(i);
 
-         if(assemblyLayout.getName().equals(assembly.getAbsoluteName())) {
+         if(assemblyLayout.getName().equals(relativeName(assembly.getAbsoluteName()))) {
             return true;
          }
       }
@@ -2914,7 +2933,10 @@ public class VsToReportConverter {
    private VSAssembly getTopContainer(VSAssembly assembly) {
       Viewsheet vs = assembly.getViewsheet();
 
-      if(vs != null && vs.isEmbedded()) {
+      // stop at the viewsheet the print layout belongs to. Its own containers are the ones the
+      // layout names, so resolution has to continue inside it rather than climbing out to the
+      // sheet that embeds it.
+      if(vs != null && vs.isEmbedded() && !Tool.equals(baseName, vs.getAbsoluteName())) {
          return getTopContainer(vs);
       }
 
@@ -3147,6 +3169,7 @@ public class VsToReportConverter {
    private int zindex = 0;
    private float scalefont = 1;
    private PrintLayout playout = null;
+   private String baseName = null;
    private ViewsheetSandbox box = null;
    private TabularSheet report = new TabularSheet();
    // sections used to hold content elements

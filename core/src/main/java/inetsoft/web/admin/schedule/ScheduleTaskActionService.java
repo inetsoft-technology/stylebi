@@ -44,6 +44,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.RepletRegistryManager;
@@ -92,8 +93,8 @@ public class ScheduleTaskActionService {
       String id = engine.openViewsheet(entry, principal, false);
       RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
 
-      if(rvs != null && rvs.getViewsheet() != null && rvs.getViewsheet().getLayoutInfo() != null) {
-         result = rvs.getViewsheet().getLayoutInfo().getPrintLayout() != null;
+      if(rvs != null) {
+         result = PrintLayoutResolver.hasPrintLayout(rvs.getViewsheet());
       }
 
       engine.closeViewsheet(id, principal);
