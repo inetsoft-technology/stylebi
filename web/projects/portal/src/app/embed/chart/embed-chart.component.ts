@@ -52,6 +52,7 @@ import { NgbModal, NgbModalConfig } from "@ng-bootstrap/ng-bootstrap";
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { VSChartModel } from "../../vsobjects/model/vs-chart-model";
+import { horizontalPlotResizerShown } from "../../vsobjects/objects/chart/plot-resizer-length";
 import { EmbedChartActions } from "./embed-chart-actions";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
@@ -339,9 +340,9 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          return false;
       }
 
-      if(this.vsObject.objectType == "VSChart" && (<any>this.vsObject).showPlotResizers &&
-         (<any>this.vsObject).horizontallyResizable)
-      {
+      // the horizontal slider takes the toolbar's row, so test that it is drawn rather than
+      // showPlotResizers, which can be set on a plot too small to carry one
+      if(this.vsObject.objectType == "VSChart" && horizontalPlotResizerShown(this.vsObject)) {
          return false;
       }
 

@@ -44,7 +44,7 @@
     @if (showDCIcon) {
       <i [wTooltip]="model.dateComparisonDescription"
         class="compare-icon date-comparison-tip" [style]="dateComparisonTipStyle"
-        [style.color]="model.dateComparisonDefined && !model.appliedDateComparison ? 'red' : 'black'"
+        [style.color]="model.dateComparisonDefined && !model.appliedDateComparison ? 'red' : null"
         [class.move-down]="isTipOverlapToolbar()"
       (click)="showDateComparisonDialog()"></i>
     }
@@ -129,11 +129,12 @@
         [container]="container"
         [emptyPlotLinkTooltip]="model.emptyPlotLinkModel?.tooltip">
         <!-- chart data annotations rendered at vs-object-container level to avoid stacking context issues -->
-        @if (model.showPlotResizers && model.horizontallyResizable) {
+        @if (horizontalResizerShown) {
           <div class="chart-plot-resizer-horizontal">
             <div class="chart-plot-resizer-horizontal-container">
               <input id="horizontal-resize-slider"
                 type="range"
+                [style.width.px]="horizontalResizerLength"
                 [attr.min]="model.initialWidthRatio"
                 [attr.max]="model.maxHorizontalResize"
                 step="0.01"
@@ -143,11 +144,12 @@
             </div>
           </div>
         }
-        @if (model.showPlotResizers && model.verticallyResizable) {
+        @if (verticalResizerShown) {
           <div class="chart-plot-resizer-vertical">
             <div class="chart-plot-resizer-vertical-container">
               <input id="vertical-resize-slider"
                 type="range"
+                [style.width.px]="verticalResizerLength"
                 [attr.min]="model.initialHeightRatio"
                 [attr.max]="model.maxVerticalResize"
                 step="0.01"

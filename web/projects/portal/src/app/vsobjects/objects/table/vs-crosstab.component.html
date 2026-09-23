@@ -46,7 +46,7 @@
     }
     @if (showDCIcon) {
       <i [wTooltip]="model.dateComparisonDescription"
-        [style.color]="model.dateComparisonDefined && !model.appliedDateComparison ? 'red' : 'black'"
+        [style.color]="model.dateComparisonDefined && !model.appliedDateComparison ? 'red' : null"
         class="compare-icon date-comparison-tip" [style]="dateComparisonTipStyle"
         [class.move-down]="isTipOverlapToolbar()"
       (click)="showDateComparisonDialog()"></i>
