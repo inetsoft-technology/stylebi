@@ -478,6 +478,17 @@ public class VSWizardObjectService {
          VSAssembly originalAssembly = oname == null ? null : ovs.getAssembly(oname);
          tempAssembly = objectHandler.updateAssemblyByTemporary(orvs, rvs, tempAssembly,
                                                                 originalAssembly, dispatcher, linkUri);
+
+         // Bug #76942 (round 2): finishing the wizard from the Binding pane ("click cancel on
+         // objectWizard and finish on binding", see the comment above) performs the exact same
+         // settle-final-name-then-destroy-temp sequence as
+         // VSCloseObjectWizardService#closeHandle's save branch, so it needs the same repoint of
+         // any VS_ASSEMBLY-sourced ad hoc filter to the assembly's final settled name — otherwise
+         // the filter is left pointing at the temp clone name that destroyTemporary() below removes.
+         if(originalAssembly != null) {
+            WizardRecommenderUtil.repointAdhocFilterTableName(ovs, oname, tempAssembly.getName());
+         }
+
          temporaryInfoService.destroyTemporary(rid, principal);
          //sync drill filter assembly
          syncDrillFilterAssembly(orvs, vs, originalAssembly == null);

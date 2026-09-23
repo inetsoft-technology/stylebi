@@ -26,6 +26,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -695,6 +696,49 @@ public final class WizardRecommenderUtil {
    public static boolean isWizardTempBindingAssembly(String assemblyName) {
       return !StringUtils.isEmpty(assemblyName) &&
          (assemblyName.startsWith(TEMP_CROSSTAB_NAME) || TEMP_CHART_NAME.equals(assemblyName));
+   }
+
+   /**
+    * Repoint any {@code VS_ASSEMBLY}-sourced ad hoc range filter (a {@link TimeSliderVSAssembly}
+    * created from a chart bar's right-click "Filter" action on an aggregate, see
+    * ComposerAdhocFilterService#addFilter) that is currently bound to {@code originalName} or to
+    * a previous wizard temp assembly name, so it now targets {@code newName} instead.
+    * <p>
+    * The Object Wizard clones the assembly being edited under a temporary name
+    * ({@link #nextPrimaryAssemblyName()}) while the original assembly (still referenced by such
+    * ad hoc filters by name) keeps living, unrenamed, in the same viewsheet. Without this,
+    * {@code VSAQuery#createPostConds()}'s exact-name match against the clone's temp name would
+    * never find the filter, silently dropping it from the Wizard's preview query; and if left
+    * unrepaired when the Wizard session ends, the filter would stay orphaned against a temp
+    * assembly name that no longer exists. This is called both when the wizard clone is (re)created
+    * and when the wizard session closes (save or cancel), to keep the binding symmetric.
+    *
+    * @param vs           the viewsheet containing the filter and the renamed assembly.
+    * @param originalName the original (non-wizard) assembly name the filter may still reference.
+    * @param newName      the name the filter should reference after this call.
+    */
+   public static void repointAdhocFilterTableName(Viewsheet vs, String originalName, String newName) {
+      if(vs == null || StringUtils.isEmpty(originalName) || StringUtils.isEmpty(newName)) {
+         return;
+      }
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof TimeSliderVSAssembly)) {
+            continue;
+         }
+
+         TimeSliderVSAssembly slider = (TimeSliderVSAssembly) assembly;
+
+         if(slider.getSourceType() != XSourceInfo.VS_ASSEMBLY) {
+            continue;
+         }
+
+         String source = slider.getTableName();
+
+         if((originalName.equals(source) || isTempAssembly(source)) && !newName.equals(source)) {
+            slider.setTableName(newName);
+         }
+      }
    }
 
    private static boolean isQueryMergeable(RuntimeViewsheet rvs, String tableName) throws Exception
