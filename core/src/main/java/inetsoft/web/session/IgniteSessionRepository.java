@@ -307,6 +307,16 @@ public class IgniteSessionRepository
       destroySessionAttributeMap(event.getOldValue().getId());
    }
 
+   /**
+    * Deregisters {@code session}'s principal, if still active. Only works when {@code session}
+    * resolves attributes via the per-session DistributedMap (an {@link IgniteSession}, as
+    * {@link #invalidateSession} passes) -- {@link #entryRemoved}/{@link #entryExpired} instead pass
+    * the bare {@link MapSession} from the cache event, whose own attribute map is never populated
+    * (attribute reads/writes go only through the per-session DistributedMap, never back to the
+    * cached MapSession), so this is a no-op for those two callers. Do not rewrap it to "fix" that:
+    * it would let one node's independently re-derived, possibly-stale expiry verdict unilaterally
+    * force a cluster-wide logout of a still-active session (bug #76953).
+    */
    private void logout(Session session, String logoffReason) {
       Principal principal = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
@@ -421,6 +431,11 @@ public class IgniteSessionRepository
       if(session != null) {
          withRetry(() -> this.sessions.remove(id));
          sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
+
+         // deregister the principal explicitly -- this removal doesn't publish a
+         // SessionLoggedOutEvent, and entryRemoved()'s own reaction to the cache removal is a
+         // no-op here (see logout()'s javadoc), so nothing else would do it (bug #76953)
+         logout(session, "");
       }
    }
 
