@@ -377,8 +377,9 @@ public class FormulaTableLens extends AbstractTableLens
 
          boolean first = true;
          // advance at least 10 to avoid going through this once per row; in pool mode at
-         // least batchRows, so one context clean serves a batch (spec §14.8)
-         final int advance = Math.max(Math.min(Math.max(r / 100, 10), 100), span.batchRows());
+         // least one pooled batch, so one context clean serves a batch (spec §14.8)
+         final int advance = Math.max(Math.min(Math.max(r / 100, 10), 100),
+                                      nextPoolBatch(span, r, nrows + hrows));
          final int maxr = Math.max(r, nrows + hrows + advance);
 
          for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null; i++) {
@@ -1374,6 +1375,27 @@ public class FormulaTableLens extends AbstractTableLens
       return val;
    }
 
+   /**
+    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}: batches
+    * start at batchRows and double, up to maxBatchRows, while this lens is read sequentially,
+    * that is while each batch starts at the first row not yet computed; any other access
+    * starts over at batchRows. 0 off the pool, where batchRows is 0.
+    *
+    * @param next the first row not yet computed.
+    */
+   private int nextPoolBatch(ScriptSpan span, int r, int next) {
+      int min = span.batchRows();
+
+      if(min <= 0) {
+         return 0;
+      }
+
+      int max = Math.max(min, span.maxBatchRows());
+      int batch = poolBatch > 0 && r <= next ? (poolBatch >= max / 2 ? max : poolBatch * 2) : min;
+      poolBatch = Math.min(Math.max(batch, min), max);
+      return poolBatch;
+   }
+
    // Get the number of rows already processed
    private int getProcessedRowCount() {
       XSwappableTable rows = this.rows;
@@ -1473,6 +1495,8 @@ public class FormulaTableLens extends AbstractTableLens
    private transient TableChangeListener listener = null;
    private transient TableIteratorScriptable iterator = null;
    private transient Lock lock = new ReentrantLock();
+   // the rows of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
+   private transient int poolBatch;
    private transient boolean forceType = Drivers.getInstance().isDataCached();
    private transient String reportName;
 

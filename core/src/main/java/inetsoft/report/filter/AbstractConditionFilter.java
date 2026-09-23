@@ -289,6 +289,14 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    }
 
    /**
+    * @return the rows, headers included, the last population published for
+    * {@link #isRowMapped(int)}; exact when read under this filter's monitor.
+    */
+   protected final int getMappedRowCount() {
+      return mappedCount;
+   }
+
+   /**
     * Return the number of rows in the table. The number of rows includes
     * the header rows.
     * @return number of rows in table.

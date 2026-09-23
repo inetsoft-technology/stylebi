@@ -239,7 +239,7 @@ class SlotPoolTest {
 
    @Test
    void evictorRacingCheckoutNeverHandsOutAClosedSlot() throws Exception {
-      pool = newPool(new PoolConfig(0L, 256, 16, 2000, 256));
+      pool = newPool(new PoolConfig(0L, 256, 16, 2000, 256, 8192));
       CountDownLatch go = new CountDownLatch(1);
       // two users, so pooled contexts exist for the evictor to race with
       Callable<Integer> use = () -> {

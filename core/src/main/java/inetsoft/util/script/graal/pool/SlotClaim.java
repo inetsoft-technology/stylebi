@@ -111,6 +111,11 @@ public final class SlotClaim implements ScriptSpan {
    }
 
    @Override
+   public int maxBatchRows() {
+      return pool.config().maxBatchRows();
+   }
+
+   @Override
    public void close() {
       if(Thread.currentThread() != owner) {
          throw new IllegalStateException(

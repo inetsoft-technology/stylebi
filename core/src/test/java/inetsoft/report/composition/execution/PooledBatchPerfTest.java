@@ -22,6 +22,7 @@ import inetsoft.test.*;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
+import inetsoft.util.script.graal.pool.SlotClaim;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -52,22 +53,33 @@ import static org.mockito.Mockito.when;
 public class PooledBatchPerfTest {
    @ParameterizedTest
    @EnumSource(Shape.class)
-   public void poolOnWithinTenPercentOfPoolOff(Shape shape) {
+   public void poolOnWithinTenPercentOfPoolOff(Shape shape) throws Exception {
       long off = Long.MAX_VALUE;
       long on = Long.MAX_VALUE;
       WorksheetScriptEnv pooled = null;
+      long cleans = 0;
 
-      for(int run = 0; run < 3; run++) {
+      // symmetric (spec §14.14): both envs, and the pooled env's first slot with its first
+      // clean, are built before the timed region; the minimum of 5 runs per shape
+      for(int run = 0; run < 5; run++) {
          GraalJavaScriptEnv plain = new GraalJavaScriptEnv();
          plain.init();
          off = Math.min(off, time(shape, plain, false));
          pooled = PoolTestSupport.env();
+         pooled.init();
+
+         try(SlotClaim warm = pooled.claimSlot()) {
+            PoolTestSupport.run(pooled, "1");
+         }
+
+         long before = pooled.getMetrics().getCleans();
          on = Math.min(on, time(shape, pooled, true));
+         cleans = pooled.getMetrics().getCleans() - before;
       }
 
-      long cleans = pooled.getMetrics().getCleans();
-      System.out.printf("G6 %s: pool off %d ms, pool on %d ms, cleans %d, cleansPerExec %.6f%n",
-                        shape, off, on, cleans, pooled.getMetrics().cleansPerExec());
+      System.out.printf("G6 %s: pool off %d ms, pool on %d ms, ratio %.3f, cleans %d, " +
+                        "cleansPerExec %.6f%n", shape, off, on, (double) on / off, cleans,
+                        pooled.getMetrics().cleansPerExec());
       assertTrue(on <= off * 1.10, shape + ": pool on " + on + " ms vs off " + off + " ms");
       assertTrue(cleans <= PERF_ROWS / pooled.getConfig().batchRows() + 1, "cleans " + cleans);
    }

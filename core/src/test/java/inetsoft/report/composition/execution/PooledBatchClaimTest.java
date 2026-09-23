@@ -22,6 +22,7 @@ import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.test.*;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import inetsoft.util.script.graal.pool.SlotClaim;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
@@ -31,6 +32,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.util.*;
 
 import static inetsoft.report.composition.execution.PoolOffConditionFilterLockingTest.allRows;
 import static org.junit.jupiter.api.Assertions.*;
@@ -154,6 +157,155 @@ public class PooledBatchClaimTest {
       }
 
       assertEquals(cleans, env.getMetrics().getCleans());
+   }
+
+   /**
+    * Spec §14.14: under sequential reads a bare formula lens's batches double from batchRows
+    * up to maxBatchRows, and never exceed it. Each bare batch is cleaned at its end, so the
+    * accumulator restarts at 1 in the next one; a batch spans its read-ahead plus the row
+    * that asked for it.
+    */
+   @Test
+   public void sequentialFormulaBatchesDoubleUpToTheCap() {
+      WorksheetScriptEnv env = geometricEnv(1024);
+      List<Integer> runs = runs(formula(table(8000), env, ACCUMULATOR), 1, 8000);
+
+      assertEquals(List.of(257, 513, 1025, 1025, 1025, 1025, 1025), runs.subList(0, 7));
+      runs.forEach(run -> assertTrue(run <= 1025, "batch of " + run + " rows"));
+   }
+
+   /**
+    * Spec §14.14: a non-sequential access starts the batches over at batchRows.
+    */
+   @Test
+   public void formulaBatchesResetOnARandomAccess() {
+      WorksheetScriptEnv env = geometricEnv(4096);
+      FormulaTableLens formula = formula(table(8000), env, ACCUMULATOR);
+
+      // rows 1-1795 are computed; reading row 1795 itself would ask for the next batch
+      assertEquals(List.of(257, 513, 1024), runs(formula, 1, 1794));
+      // skip ahead of the first row not yet computed (1796)
+      assertTrue(formula.moreRows(1798));
+      assertEquals(List.of(257, 513), runs(formula, 1796, 1796 + 257 + 513 - 1));
+   }
+
+   /**
+    * Spec §14.14: under sequential reads a pooled filter's populations double from batchRows
+    * up to maxBatchRows, and never exceed it.
+    */
+   @Test
+   public void sequentialFilterBatchesDoubleUpToTheCap() {
+      WorksheetScriptEnv env = geometricEnv(1024);
+      TableLens filter = PostProcessor.filter(formula(table(8000), env, "1"), allRows(),
+                                              poolBox(env));
+      List<Integer> batches = new ArrayList<>();
+      int mapped = mappedRows(filter);
+
+      for(int r = 1; filter.moreRows(r); r++) {
+         int now = mappedRows(filter);
+
+         if(now != mapped) {
+            batches.add(now - mapped);
+            mapped = now;
+         }
+      }
+
+      assertEquals(List.of(256, 512, 1024, 1024, 1024, 1024, 1024), batches.subList(0, 7));
+      batches.forEach(batch -> assertTrue(batch <= 1024, "batch of " + batch + " rows"));
+      assertEquals(0, SlotClaim.openClaims());
+   }
+
+   /**
+    * Spec §14.14: a non-sequential access to a pooled filter starts its populations over at
+    * batchRows.
+    */
+   @Test
+   public void filterBatchesResetOnARandomAccess() {
+      WorksheetScriptEnv env = geometricEnv(4096);
+      TableLens filter = PostProcessor.filter(formula(table(8000), env, "1"), allRows(),
+                                              poolBox(env));
+
+      for(int r = 1; r < 1793; r++) {
+         assertTrue(filter.moreRows(r));
+      }
+
+      assertEquals(1 + 256 + 512 + 1024, mappedRows(filter));
+      // skip ahead of the first row not yet mapped (1793)
+      assertTrue(filter.moreRows(1795));
+      assertEquals(1793 + 256, mappedRows(filter));
+      assertTrue(filter.moreRows(1793 + 256));
+      assertEquals(1793 + 256 + 512, mappedRows(filter));
+   }
+
+   /**
+    * perf-g6 (c)(i): a long sequential scan pays O(log(max/batchRows) + rows/max) cleans.
+    */
+   @Test
+   public void longSequentialScanCleansLogarithmically() {
+      WorksheetScriptEnv env = PoolTestSupport.env();
+      FormulaTableLens formula = formula(table(100_000), env, "field['value'] + 1");
+
+      for(int r = 1; formula.moreRows(r); r++) {
+         formula.getObject(r, 3);
+      }
+
+      PoolConfig config = env.getConfig();
+      long bound = 5 + 100_000 / config.maxBatchRows() + 2;
+      assertTrue(env.getMetrics().getCleans() <= bound,
+                 "cleans " + env.getMetrics().getCleans() + " > " + bound);
+   }
+
+   /**
+    * perf-g6 (c)(ii): an early-stop consumer of a fresh lens computes at most one batchRows
+    * batch beyond the row it asked for.
+    */
+   @Test
+   public void earlyStopReadsAtMostOneBatchAhead() {
+      WorksheetScriptEnv env = PoolTestSupport.env();
+      int[] deepest = new int[1];
+      DefaultTableLens base = new DefaultTableLens(table(5000)) {
+         @Override
+         public boolean moreRows(int row) {
+            deepest[0] = Math.max(deepest[0], row);
+            return super.moreRows(row);
+         }
+      };
+
+      assertTrue(formula(base, env, "field['value'] + 1").moreRows(300));
+      assertTrue(deepest[0] <= 300 + env.getConfig().batchRows() + 1,
+                 "computed through base row " + deepest[0]);
+   }
+
+   private static WorksheetScriptEnv geometricEnv(int maxBatchRows) {
+      return PoolTestSupport.env(new PoolConfig(60000L, 256, 16, 2000, 256, maxBatchRows),
+                                 Map.of());
+   }
+
+   /**
+    * @return the lengths of the accumulator's runs over rows {@code from..to}, read in order.
+    */
+   private static List<Integer> runs(FormulaTableLens formula, int from, int to) {
+      List<Integer> runs = new ArrayList<>();
+      int run = 0;
+
+      for(int r = from; r <= to && formula.moreRows(r); r++) {
+         double value = (Double) formula.getObject(r, 3);
+
+         if(value == 1.0 && run > 0) {
+            runs.add(run);
+            run = 0;
+         }
+
+         run++;
+      }
+
+      runs.add(run);
+      return runs;
+   }
+
+   private static int mappedRows(TableLens filter) {
+      int count = filter.getRowCount();
+      return count < 0 ? -count - 1 : count;
    }
 
    static AssetQuerySandbox poolBox(ScriptEnv env) {

@@ -331,10 +331,11 @@ public class PostProcessor {
       }
 
       /**
-       * Pool mode (bug #76960, spec §5.3, §6.7, §14.8): rows already mapped are answered
-       * without any claim; otherwise one lazy claimed span covers the population batch, which
-       * reads ahead at least batchRows base rows, so the formula lenses below share one
-       * context and one clean. No lock is taken.
+       * Pool mode (bug #76960, spec §5.3, §6.7, §14.8, §14.14): rows already mapped are
+       * answered without any claim; otherwise one lazy claimed span covers the population
+       * batch, which reads ahead at least batchRows base rows, so the formula lenses below
+       * share one context and one clean. No lock is taken besides this filter's own monitor,
+       * which the population takes anyway, after the span is opened as before.
        */
       private boolean moreRowsPooled(int row, ScriptEnv senv) {
          if(isRowMapped(row)) {
@@ -346,10 +347,30 @@ public class PostProcessor {
          }
 
          try(ScriptSpan span = senv.openSpan()) {
-            // the same value for every thread: the captured env's configuration
-            readAhead = span.batchRows();
-            return super.moreRows(row);
+            synchronized(this) {
+               readAhead = nextReadAhead(span, row);
+               return super.moreRows(row);
+            }
          }
+      }
+
+      /**
+       * The read-ahead of the next pooled population, under this filter's monitor: batches
+       * start at batchRows and double, up to maxBatchRows, while the filter is read
+       * sequentially, that is while each population is asked for the first row not yet
+       * mapped; any other access starts over at batchRows (spec §14.14).
+       */
+      private int nextReadAhead(ScriptSpan span, int row) {
+         int min = span.batchRows();
+
+         if(min <= 0) {
+            return 0;
+         }
+
+         int max = Math.max(min, span.maxBatchRows());
+         int batch = readAhead > 0 && row == getMappedRowCount()
+            ? (readAhead >= max / 2 ? max : readAhead * 2) : min;
+         return Math.min(Math.max(batch, min), max);
       }
 
       @Override
@@ -456,8 +477,8 @@ public class PostProcessor {
       private final boolean needsScriptLock;
       private final boolean poolMode;
       // read-ahead of a pooled population batch; 0 until the first pooled batch, and always
-      // 0 off the pool
-      private volatile int readAhead;
+      // 0 off the pool. Written and read under this filter's monitor.
+      private int readAhead;
 
       @Override
       public final int getColBorder(int r, int c) {

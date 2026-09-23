@@ -45,6 +45,15 @@ public interface ScriptSpan extends AutoCloseable {
     */
    int batchRows();
 
+   /**
+    * @return the most rows one batch may read ahead: under sequential access a consumer's
+    * batches grow geometrically from {@link #batchRows()} up to this (bug #76960, spec
+    * §14.14). Equal to {@link #batchRows()} when not adaptive, so 0 for {@link #NONE}.
+    */
+   default int maxBatchRows() {
+      return batchRows();
+   }
+
    @Override
    void close();
 }

@@ -29,9 +29,12 @@ import inetsoft.sree.SreeEnv;
  * @param warnSlotsPerSandbox warn (never cap) when one sandbox has more contexts than this.
  * @param warnSlotsPerNode    warn (never cap) when the node has more pooled contexts than this.
  * @param batchRows           the minimum rows a lens populates under one claimed span.
+ * @param maxBatchRows        the most rows one batch reads ahead: under sequential access a
+ *                            consumer's batches double from batchRows up to this (spec §14.14).
+ *                            Never below batchRows.
  */
 public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSandbox,
-                         int warnSlotsPerNode, int batchRows)
+                         int warnSlotsPerNode, int batchRows, int maxBatchRows)
 {
    public static final String ENABLED = "script.ws.contextPool";
    public static final String IDLE_MILLIS = "script.ws.contextPool.idleMillis";
@@ -39,6 +42,7 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
    public static final String WARN_SLOTS_PER_SANDBOX = "script.ws.contextPool.warnSlotsPerSandbox";
    public static final String WARN_SLOTS_PER_NODE = "script.ws.contextPool.warnSlotsPerNode";
    public static final String BATCH_ROWS = "script.ws.contextPool.batchRows";
+   public static final String MAX_BATCH_ROWS = "script.ws.contextPool.maxBatchRows";
 
    /**
     * A claim that leaves more configurable foreign globals than this closes its context
@@ -47,7 +51,7 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
    public static final int MAX_FOREIGN_DELETES = 32;
 
    public static PoolConfig defaults() {
-      return new PoolConfig(60000L, 256, 16, 2000, 256);
+      return new PoolConfig(60000L, 256, 16, 2000, 256, 8192);
    }
 
    /**
@@ -64,12 +68,14 @@ public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSa
 
    public static PoolConfig read() {
       PoolConfig def = defaults();
+      int batchRows = (int) longProperty(BATCH_ROWS, def.batchRows());
       return new PoolConfig(
          longProperty(IDLE_MILLIS, def.idleMillis()),
          (int) longProperty(CLEAN_THRESHOLD, def.cleanThreshold()),
          (int) longProperty(WARN_SLOTS_PER_SANDBOX, def.warnSlotsPerSandbox()),
          (int) longProperty(WARN_SLOTS_PER_NODE, def.warnSlotsPerNode()),
-         (int) longProperty(BATCH_ROWS, def.batchRows()));
+         batchRows,
+         Math.max(batchRows, (int) longProperty(MAX_BATCH_ROWS, def.maxBatchRows())));
    }
 
    private static long longProperty(String name, long def) {
