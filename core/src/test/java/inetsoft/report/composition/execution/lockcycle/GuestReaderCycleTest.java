@@ -161,8 +161,8 @@ public class GuestReaderCycleTest {
 
    /**
     * Design refutation INV_RACE, over a formula table. Not a lock cycle: the
-    * {@code AbstractConditionFilter} rowmap vs {@code invalidate()} thread-safety gap
-    * (pre-#5506). A reader of data rows races with {@code invalidate()} and re-population of
+    * {@code AbstractConditionFilter} rowmap vs {@code invalidate()} thread-safety gap (#76972,
+    * pre-#5506). A reader of data rows races with {@code invalidate()} and re-population of
     * the same condition filter; every read must return the right value and never throw.
     * {@code getBaseRowIndex} reads {@code rowmap} after {@code moreRows} has released both the
     * engine lock and the filter's monitor, and {@code invalidate()} takes only the monitor, so
@@ -180,8 +180,8 @@ public class GuestReaderCycleTest {
 
    /**
     * Design refutation INV_RACE, over a formula-free base. Not a lock cycle: the
-    * {@code AbstractConditionFilter} rowmap vs {@code invalidate()} thread-safety gap
-    * (pre-#5506), a wrong result rather than a hang. {@code getBaseRowIndex}
+    * {@code AbstractConditionFilter} rowmap vs {@code invalidate()} thread-safety gap (#76972,
+    * pre-#5506), a wrong result rather than a hang. {@code getBaseRowIndex}
     * ({@code AbstractConditionFilter.java:138}) reads {@code rowmap} after {@code moreRows}
     * returns, holding nothing, while {@code invalidate()} swaps in a new list holding only the
     * header entries (so the row maps to base row 0, the header value {@code "value"}) or
