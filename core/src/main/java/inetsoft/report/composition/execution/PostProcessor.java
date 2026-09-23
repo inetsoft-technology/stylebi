@@ -24,6 +24,9 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.FormulaHeaderInfo;
 import inetsoft.report.lens.*;
+import inetsoft.uql.XConditionGroup;
+import inetsoft.uql.asset.AssetCondition;
+import inetsoft.uql.asset.SubQueryValue;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
@@ -254,8 +257,10 @@ public class PostProcessor {
          super(table, conditions);
          this.box = box;
          // see needsScriptExecutionLock() below for what actually requires the
-         // lock -- not just a FormulaTableLens column read.
-         this.needsScriptLock = box != null && needsScriptExecutionLock(table);
+         // lock -- not just a FormulaTableLens column read. sub-query conditions read
+         // their sub table from inside this filter's monitor (bug #76965).
+         this.needsScriptLock = box != null &&
+            (needsScriptExecutionLock(table) || hasSubQueryCondition(conditions));
       }
 
       /**
@@ -315,6 +320,33 @@ public class PostProcessor {
             JavaScriptEngine.popHeldScriptLock();
             execLock.unlock();
          }
+      }
+
+      /**
+       * @return {@code true} if {@code conditions} has a sub-query condition
+       * ({@link AssetCondition} with a {@link SubQueryValue}). Its sub table's rows are
+       * read lazily from {@code checkCondition()}, i.e. inside this filter's monitor
+       * ({@code SubQueryValue.getValues()}), and the sub table is built by a query in
+       * the same sandbox, so it can be a {@code FormulaTableLens} or a
+       * {@code DistinctTableLens} that needs the script engine lock just like a formula
+       * in the base table (bug #76965). Any sub-query condition takes the lock, which
+       * is conservative: the cost of a false positive is a lock, of a false negative
+       * #76918's deadlock.
+       */
+      private static boolean hasSubQueryCondition(ConditionGroup conditions) {
+         for(int i = 0; conditions != null && i < conditions.size(); i++) {
+            Object item = conditions.getItem(i);
+
+            if(item instanceof XConditionGroup.CondItem &&
+               ((XConditionGroup.CondItem) item).condition instanceof AssetCondition &&
+               ((AssetCondition) ((XConditionGroup.CondItem) item).condition)
+                  .getSubQueryValue() != null)
+            {
+               return true;
+            }
+         }
+
+         return false;
       }
 
       /**
