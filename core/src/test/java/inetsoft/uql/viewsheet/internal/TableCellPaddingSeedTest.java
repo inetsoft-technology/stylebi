@@ -28,11 +28,13 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Element;
+import org.xml.sax.InputSource;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.Insets;
 import java.io.ByteArrayInputStream;
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -165,8 +167,19 @@ class TableCellPaddingSeedTest {
       assertTrue(restored.isUserCellPadding());
    }
 
+   @Test
+   void anAssetSavedBeforeTheFieldExistedParsesWithNoCellPadding() throws Exception {
+      // the attribute is simply absent; that must read as "nothing defined", not as a crash
+      TableVSAssemblyInfo read = new TableVSAssemblyInfo();
+      Element elem = parseElement("<assembly class=\"TableVSAssemblyInfo\"/>");
+      read.parseAttributes(elem);
+
+      assertNull(read.getCellPadding());
+      assertFalse(read.isUserCellPadding());
+   }
+
    // round-trips through writeAttributes/parseAttributes, the path a saved or exported asset
-   // actually takes - the seven other tests here never leave memory
+   // actually takes - the nine other tests here never leave memory
    private static TableVSAssemblyInfo roundTrip(TableVSAssemblyInfo source,
                                                  TableVSAssemblyInfo target) throws Exception
    {
@@ -175,15 +188,19 @@ class TableCellPaddingSeedTest {
       source.writeAttributes(pw);
       pw.flush();
 
+      Element elem = parseElement("<assembly" + sw + "/>");
+
+      target.parseAttributes(elem);
+      return target;
+   }
+
+   private static Element parseElement(String xml) throws Exception {
       DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
       factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
       factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
       factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-      Element elem = factory.newDocumentBuilder()
-         .parse(new ByteArrayInputStream(("<assembly" + sw + "/>").getBytes()))
+      return factory.newDocumentBuilder()
+         .parse(new ByteArrayInputStream(xml.getBytes()))
          .getDocumentElement();
-
-      target.parseAttributes(elem);
-      return target;
    }
 }
