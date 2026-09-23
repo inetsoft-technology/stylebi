@@ -36,8 +36,8 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
+import inetsoft.uql.viewsheet.vslayout.PrintLayoutResolver;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
 import org.slf4j.Logger;
@@ -92,35 +92,78 @@ public class PDFVSExporter extends AbstractVSExporter {
          throws Exception
    {
       Viewsheet viewsheet = box.getViewsheet();
-      LayoutInfo layoutinfo = viewsheet.getLayoutInfo();
-      PrintLayout playout = layoutinfo.getPrintLayout();
+      ViewsheetSandbox layoutBox = box;
+      PrintLayout playout = viewsheet.getLayoutInfo().getPrintLayout();
 
-      if(playout != null) {
-         if(playout.isEmpty()) {
-            LOG.warn("Empty print layout ignored.");
-         }
-         else {
-            try {
-               executeViewDynamicValues(viewsheet, box);
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to execute dynamic values", ex);
-            }
+      if(playout != null && playout.isEmpty()) {
+         LOG.warn("Empty print layout ignored.");
+         playout = null;
+      }
 
-            viewsheet.updateCSSFormat("pdf", null, box);
+      if(playout == null) {
+         // the sheet being exported may be a thin wrapper around a reusable viewsheet that
+         // carries the print layout; render that one instead of falling back to the canvas
+         ViewsheetSandbox embeddedBox = getInheritedLayoutSandbox(box, viewsheet);
+         Viewsheet embeddedVS = embeddedBox == null ? null : embeddedBox.getViewsheet();
+         PrintLayout embeddedLayout = embeddedVS == null ?
+            null : embeddedVS.getLayoutInfo().getPrintLayout();
 
-            VsToReportConverter converter = new VsToReportConverter(box, libManagerProvider, cluster, fileSystemService, dataSpace);
-            ReportSheet report = converter.generateReport();
-
-            // Build a list of report sheets instead of generating a printlayout
-            // pdf here so we can build a CompositeSheet later; see write()
-            reportList.add(report);
-
-            return;
+         // the sandbox is not guaranteed to hold the same viewsheet instance the layout was
+         // resolved from, so validate the layout that is actually going to be rendered
+         if(embeddedLayout != null && !embeddedLayout.isEmpty()) {
+            layoutBox = embeddedBox;
+            viewsheet = embeddedVS;
+            playout = embeddedLayout;
+            LOG.debug("Exporting with the print layout of embedded viewsheet {}.",
+                      viewsheet.getName());
          }
       }
 
+      if(playout != null) {
+         try {
+            executeViewDynamicValues(viewsheet, layoutBox);
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to execute dynamic values", ex);
+         }
+
+         viewsheet.updateCSSFormat("pdf", null, layoutBox);
+
+         VsToReportConverter converter = new VsToReportConverter(layoutBox, libManagerProvider, cluster, fileSystemService, dataSpace);
+         ReportSheet report = converter.generateReport();
+
+         // Build a list of report sheets instead of generating a printlayout
+         // pdf here so we can build a CompositeSheet later; see write()
+         reportList.add(report);
+
+         return;
+      }
+
       super.export(box, sheet, index, helper);
+   }
+
+   /**
+    * Get the sandbox of the embedded viewsheet whose print layout the exported sheet inherits.
+    * Returns <tt>null</tt> when nothing is inherited or the embedded sandbox is unavailable, in
+    * which case the caller falls back to the master layout.
+    * @param box the sandbox of the sheet being exported.
+    * @param viewsheet the sheet being exported.
+    */
+   private ViewsheetSandbox getInheritedLayoutSandbox(ViewsheetSandbox box, Viewsheet viewsheet) {
+      String owner = PrintLayoutResolver.getInheritedOwner(viewsheet);
+
+      if(owner == null) {
+         return null;
+      }
+
+      ViewsheetSandbox embeddedBox = box.getSandbox(owner);
+
+      if(embeddedBox == null) {
+         LOG.warn("Ignoring the print layout of embedded viewsheet {}, its sandbox is " +
+                     "not available.", owner);
+      }
+
+      return embeddedBox;
    }
 
    /**
