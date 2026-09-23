@@ -47,9 +47,16 @@ export class VSRadioButton extends VSCompound<VSRadioButtonModel>
 {
    // delay before the selection is sent to the server, see applySelection()
    private static readonly APPLY_DELAY = 500;
-   // how long a sent selection is protected from stale models before the latest
-   // server model is shown regardless of its value
+   // How long a sent selection is protected after the send or after the last stale model,
+   // before the latest server model is shown regardless of its value. Stale models keep
+   // arriving while the server is still processing the previous apply, so each of them
+   // restarts this deadline. It is also how late a server side override (e.g. by script)
+   // of the selection is shown.
    private static readonly PENDING_TIMEOUT = 2000;
+   // Absolute limit for protecting a sent selection, measured from the send, so a stream of
+   // non-matching models (e.g. a server override refreshed again and again) is eventually
+   // shown. It also limits waiting for the form data check before the selection is sent.
+   private static readonly PENDING_MAX_TIMEOUT = 10000;
 
    selectIndex: number = 0;
 
@@ -61,6 +68,7 @@ export class VSRadioButton extends VSCompound<VSRadioButtonModel>
    // true once the pending selection has actually been sent to the server
    private pendingSent: boolean = false;
    private pendingTimer: any = null;
+   private pendingMaxTimer: any = null;
 
    constructor(socket: ViewsheetClientService,
                formDataService: CheckFormDataService,
@@ -137,8 +145,11 @@ export class VSRadioButton extends VSCompound<VSRadioButtonModel>
       this.formDataService.checkFormData(
          this.socket.runtimeId, this.model.absoluteName, null,
          () => {
-            const event =
-               new VSInputSelectionEvent(this.model.absoluteName, this.model.selectedObject);
+            // a stale model received while the form data check waited for the user must
+            // not replace the protected selection that is sent
+            const value = this.hasPendingValue ? this.pendingValue : this.model.selectedObject;
+            const event = new VSInputSelectionEvent(this.model.absoluteName, value);
+            this.pendingValueConfirmed(event.value);
             this.debounceService.debounce(
                `InputSelectionEvent.${this.model.absoluteName}`,
                (evt, socket) => {
@@ -174,18 +185,39 @@ export class VSRadioButton extends VSCompound<VSRadioButtonModel>
       this.hasPendingValue = true;
       this.pendingValue = value;
       this.pendingSent = false;
-      // safety net in case the selection is never sent (e.g. form data check dismissed)
-      this.schedulePendingTimeout(VSRadioButton.APPLY_DELAY + VSRadioButton.PENDING_TIMEOUT);
+      // safety net in case the form data check never confirms the selection (e.g. the
+      // dialog is dismissed or the check fails), replaced once it is confirmed
+      this.pendingTimer = this.schedulePendingTimeout(
+         this.pendingTimer, VSRadioButton.PENDING_MAX_TIMEOUT);
+   }
+
+   /**
+    * Called when the form data check has confirmed the selection and its send is debounced.
+    */
+   private pendingValueConfirmed(value: any): void {
+      if(this.isPendingValue(value) && !this.pendingSent) {
+         // safety net in case the selection is never sent
+         this.pendingTimer = this.schedulePendingTimeout(
+            this.pendingTimer, VSRadioButton.APPLY_DELAY + VSRadioButton.PENDING_TIMEOUT);
+      }
    }
 
    /**
     * Called when the (debounced) selection event has been sent to the server.
     */
    private pendingValueSent(value: any): void {
-      if(this.hasPendingValue && this.normalizeValue(value) === this.normalizeValue(this.pendingValue)) {
+      if(this.isPendingValue(value)) {
          this.pendingSent = true;
-         this.schedulePendingTimeout(VSRadioButton.PENDING_TIMEOUT);
+         this.pendingTimer = this.schedulePendingTimeout(
+            this.pendingTimer, VSRadioButton.PENDING_TIMEOUT);
+         this.pendingMaxTimer = this.schedulePendingTimeout(
+            this.pendingMaxTimer, VSRadioButton.PENDING_MAX_TIMEOUT);
       }
+   }
+
+   private isPendingValue(value: any): boolean {
+      return this.hasPendingValue &&
+         this.normalizeValue(value) === this.normalizeValue(this.pendingValue);
    }
 
    /**
@@ -200,11 +232,17 @@ export class VSRadioButton extends VSCompound<VSRadioButtonModel>
          return;
       }
 
-      // the server has applied the pending selection
-      if(this.pendingSent &&
-         this.normalizeValue(this.model.selectedObject) === this.normalizeValue(this.pendingValue))
-      {
-         this.clearPendingValue();
+      if(this.pendingSent) {
+         // the server has applied the pending selection
+         if(this.isPendingValue(this.model.selectedObject)) {
+            this.clearPendingValue();
+         }
+         // the server is still sending models built before the selection was applied, so
+         // keep protecting it (up to PENDING_MAX_TIMEOUT from the send)
+         else {
+            this.pendingTimer = this.schedulePendingTimeout(
+               this.pendingTimer, VSRadioButton.PENDING_TIMEOUT);
+         }
       }
 
       this.selectIndex = pendingIndex;
@@ -235,23 +273,31 @@ export class VSRadioButton extends VSCompound<VSRadioButtonModel>
          clearTimeout(this.pendingTimer);
          this.pendingTimer = null;
       }
+
+      if(this.pendingMaxTimer != null) {
+         clearTimeout(this.pendingMaxTimer);
+         this.pendingMaxTimer = null;
+      }
    }
 
-   private schedulePendingTimeout(delay: number): void {
-      if(this.pendingTimer != null) {
-         clearTimeout(this.pendingTimer);
+   /**
+    * Replace the given timer with one that releases the pending selection after the delay.
+    */
+   private schedulePendingTimeout(timer: any, delay: number): any {
+      if(timer != null) {
+         clearTimeout(timer);
       }
 
-      this.pendingTimer = setTimeout(() => {
-         this.pendingTimer = null;
+      // the timer should not cause an extra change detection, only the release does
+      return this.zone.runOutsideAngular(() => setTimeout(() => {
          this.zone.run(() => this.releasePendingValue());
-      }, delay);
+      }, delay));
    }
 
    /**
     * Normalize a value the same way as getIndex() does.
     */
-   private normalizeValue(value: any): string {
+   private normalizeValue(value: any): string | null {
       return value == null ? null : value + "";
    }
 }

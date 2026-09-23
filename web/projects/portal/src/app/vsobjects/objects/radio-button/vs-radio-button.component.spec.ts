@@ -43,7 +43,9 @@ describe("VSRadioButton pending selection (Bug #76959)", () => {
    let context: any;
    // debounced callbacks that have not been fired yet, keyed like DebounceService
    let debounced: Map<string, { fn: Function, args: any[] }>;
-   let formCheckResult: "confirm" | "cancel";
+   let formCheckResult: "confirm" | "cancel" | "defer";
+   // the confirm callback of a form data check that is still waiting for the user
+   let deferredConfirm: Function;
 
    function createModel(selected: string, values: string[] = ["A", "B", "C"]): VSRadioButtonModel {
       const model = TestUtils.createMockVSRadioButtonModel("RadioButton1");
@@ -94,11 +96,15 @@ describe("VSRadioButton pending selection (Bug #76959)", () => {
       vi.useFakeTimers({toFake: ["setTimeout", "clearTimeout"]});
       debounced = new Map();
       formCheckResult = "confirm";
+      deferredConfirm = null;
       socket = {sendEvent: vi.fn(), runtimeId: "vs1", commands: new Subject<any>()};
       formDataService = {
          checkFormData: vi.fn((runtimeId, name, selection, confirmed, canceled) => {
             if(formCheckResult === "confirm") {
                confirmed();
+            }
+            else if(formCheckResult === "defer") {
+               deferredConfirm = confirmed;
             }
             else {
                canceled();
@@ -227,6 +233,85 @@ describe("VSRadioButton pending selection (Bug #76959)", () => {
 
       vi.advanceTimersByTime(2500);
 
+      expect(await checkedIndex()).toBe(0);
+   });
+
+   it("keeps the sent selection while stale models keep arriving past the ack deadline", async () => {
+      await click(1);
+      flushDebounce();
+
+      // a slow server keeps sending models of the previous apply for longer than 2s
+      for(let i = 0; i < 4; i++) {
+         pushModel("A");
+         vi.advanceTimersByTime(1500);
+         expect(await checkedIndex()).toBe(1);
+      }
+
+      pushModel("B");
+      expect(await checkedIndex()).toBe(1);
+
+      // the ack cleared the pending selection
+      pushModel("C");
+      expect(await checkedIndex()).toBe(2);
+   });
+
+   it("shows the latest server model once the absolute limit after the send is reached", async () => {
+      await click(1);
+      flushDebounce();
+
+      for(let t = 0; t < 10000; t += 1000) {
+         pushModel("A");
+         expect(await checkedIndex()).toBe(1);
+         vi.advanceTimersByTime(1000);
+      }
+
+      expect(await checkedIndex()).toBe(0);
+   });
+
+   it("shows a server override that follows a stream of stale models", async () => {
+      await click(1);
+      flushDebounce();
+
+      for(let i = 0; i < 3; i++) {
+         pushModel("A");
+         vi.advanceTimersByTime(1500);
+      }
+
+      pushModel("C");
+      vi.advanceTimersByTime(1999);
+      expect(await checkedIndex()).toBe(1);
+
+      vi.advanceTimersByTime(1);
+      expect(await checkedIndex()).toBe(2);
+   });
+
+   it("keeps the selection while the form data check waits for the user", async () => {
+      formCheckResult = "defer";
+      await click(1);
+      pushModel("A");
+      vi.advanceTimersByTime(5000);
+      expect(await checkedIndex()).toBe(1);
+
+      deferredConfirm();
+      flushDebounce();
+      expect(sentEvents(APPLY_URL).map((e) => e.value)).toEqual(["B"]);
+
+      pushModel("A");
+      expect(await checkedIndex()).toBe(1);
+
+      pushModel("B");
+      pushModel("C");
+      expect(await checkedIndex()).toBe(2);
+   });
+
+   it("releases the selection if the form data check never confirms it", async () => {
+      formCheckResult = "defer";
+      await click(1);
+      pushModel("A");
+      vi.advanceTimersByTime(9999);
+      expect(await checkedIndex()).toBe(1);
+
+      vi.advanceTimersByTime(1);
       expect(await checkedIndex()).toBe(0);
    });
 
