@@ -3423,7 +3423,7 @@ public class CalcTableLens extends DefaultTableLens {
    private final byte[] descLock = new byte[0];
    protected FormulaTable elem; //containing element
    private ReportSheet report;
-   private CalcTableScope tableScope;
+   private volatile CalcTableScope tableScope;
    private TableLens data;
    private SpanMap spanMap;
    private final Object spanMapLock = new byte[0];
