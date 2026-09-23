@@ -1340,6 +1340,133 @@ class SelectionRuntimeServiceTest {
          1, "Tree1", List.of("USA East")));
    }
 
+   // ── bug-76544 (P3): select_subtree domain-existence validation ─────────────
+   //
+   // selectSubtree() itself is not exercised end-to-end with a non-null domain below, the same
+   // constraint documented on aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath:
+   // SelectionList cannot be constructed or mocked outside a Spring context, and none of this
+   // class's list(...)/tree(...) fixtures stub getSelectionList() for exactly that reason. These
+   // tests instead exercise findUnmatchedPaths directly -- the same package-visible seam
+   // selectSubtree's new check calls -- mirroring how setSelection's own P1 fix
+   // (refusesATypoedValueRatherThanSilentlyDroppingIt et al.) is tested above.
+
+   /**
+    * The reported gap: a path whose first segment names nothing in the live tree used to still
+    * reach {@code selections.selectSubtree(...)} unconditionally, reporting {@code ok:true} for a
+    * no-op that selected nothing.
+    */
+   @Test
+   void refusesANonexistentRootSegment() {
+      SelectionValue usaEast = mock(SelectionValue.class);
+      when(usaEast.getValue()).thenReturn("USA East");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ usaEast }, List.of(List.of("Nonexistent")), false);
+
+      assertEquals(List.of(List.of("Nonexistent")), unmatched);
+   }
+
+   /**
+    * A valid parent whose children don't include the requested segment. Modelled by a composite
+    * whose own child list is left unstubbed (null) -- {@code matchesPath} then descends into a
+    * null child list and finds nothing, the same outcome a real, populated child list without
+    * "Nonexistent" in it would produce.
+    */
+   @Test
+   void refusesAValidParentWithANonexistentChild() {
+      CompositeSelectionValue usaEast = mock(CompositeSelectionValue.class);
+      when(usaEast.getValue()).thenReturn("USA East");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ usaEast }, List.of(List.of("USA East", "Nonexistent")), false);
+
+      assertEquals(List.of(List.of("USA East", "Nonexistent")), unmatched);
+   }
+
+   /**
+    * A prefix path -- a subtree root, not necessarily a leaf -- must pass: {@code matchesPath}
+    * resolves it as soon as the last requested segment is found, without needing to look at that
+    * node's own children at all. This is the case the refute called out by name: selecting a
+    * whole ancestor node (not a leaf) is a legitimate {@code select_subtree} call and must not be
+    * rejected as if it were an unresolved path.
+    */
+   @Test
+   void allowsAValidPrefixPathThatIsNotALeaf() {
+      CompositeSelectionValue usaEast = mock(CompositeSelectionValue.class);
+      when(usaEast.getValue()).thenReturn("USA East");
+      // getSelectionList() intentionally left unstubbed -- matchesPath must not need to touch it
+      // to accept a path that ends exactly at this composite node.
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ usaEast }, List.of(List.of("USA East")), false);
+
+      assertEquals(List.of(), unmatched);
+   }
+
+   /** A valid leaf resolves -- the ordinary happy path {@code select_subtree} must keep working. */
+   @Test
+   void allowsAValidLeafPath() {
+      SelectionValue ct = mock(SelectionValue.class);
+      when(ct.getValue()).thenReturn("CT");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ ct }, List.of(List.of("CT")), false);
+
+      assertEquals(List.of(), unmatched);
+   }
+
+   /**
+    * {@code mode:"clear"} on a fabricated path is the identical silent no-op as {@code select} --
+    * {@code VSSelectionService.selectSubtree} returns null from the very same early-return point
+    * either way (see {@code findSubtreeRoot}/{@code findIDSubtreeRoot}). The fix in
+    * {@code selectSubtree} places this check before branching on {@code select}, so it runs for
+    * both modes unconditionally; this pins that the check itself gives the same "unmatched"
+    * answer a clear-mode call would see, not just a select-mode one.
+    */
+   @Test
+   void clearAlsoRefusesANonexistentPath() {
+      SelectionValue usaEast = mock(SelectionValue.class);
+      when(usaEast.getValue()).thenReturn("USA East");
+
+      List<List<String>> unmatched = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ usaEast }, List.of(List.of("TotallyWrongRoot")), false);
+
+      assertEquals(List.of(List.of("TotallyWrongRoot")), unmatched);
+   }
+
+   /**
+    * The refute's required case. {@code findIDSubtreeRoot} is positional from the root, exactly
+    * like {@code findSubtreeRoot} -- NOT the flat "does this value appear anywhere in the tree"
+    * scan {@code matchesAnywhere}/{@code updateIDSelectionTree} use for {@code setSelection}'s own
+    * idMode branch. So {@code selectSubtree} must call {@code findUnmatchedPaths} with
+    * {@code idMode=false} for an ID-mode tree too. With {@code idMode=true} (the diagnosis's
+    * original proposal, before the refute's objection), a typo'd PARENT segment would be
+    * silently forgiven whenever the CHILD segment happens to exist anywhere else in the tree --
+    * reproducing the exact silent no-op this bug is about. Both assertions below run the identical
+    * domain and path through both modes to make that contrast explicit, and lock in that
+    * {@code selectSubtree} must hardcode {@code false} rather than thread {@code tree.isIDMode()}
+    * through here.
+    */
+   @Test
+   void idModeTreeUsesPositionalMatchingNotAnywhereMatching() {
+      SelectionValue realChildElsewhere = mock(SelectionValue.class);
+      when(realChildElsewhere.getValue()).thenReturn("RealChild");
+
+      List<List<String>> path = List.of(List.of("TypoParent", "RealChild"));
+
+      // What selectSubtree actually calls: idMode=false, positional from the root. The typo'd
+      // parent never resolves, so this is unmatched -- correctly refused.
+      List<List<String>> positional = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ realChildElsewhere }, path, false);
+      assertEquals(List.of(List.of("TypoParent", "RealChild")), positional);
+
+      // What the diagnosis originally proposed: idMode=true, "anywhere". "RealChild" appears
+      // somewhere in the requested path array, so the whole path is wrongly treated as matched.
+      List<List<String>> anywhere = SelectionRuntimeService.findUnmatchedPaths(
+         new SelectionValue[]{ realChildElsewhere }, path, true);
+      assertEquals(List.of(), anywhere);
+   }
+
    // ── the shared guards ─────────────────────────────────────────────────────
 
    @Test

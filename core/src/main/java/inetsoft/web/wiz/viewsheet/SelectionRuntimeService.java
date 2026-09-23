@@ -494,12 +494,31 @@ public class SelectionRuntimeService {
 
          SelectionTreeVSAssembly tree = (SelectionTreeVSAssembly) assembly;
 
-         // Not extended to an ID-mode tree: an ID-mode path is matched anywhere in the tree by
-         // value (see matchesAnywhere, used the same way by setSelection's own idMode branch),
-         // not positionally from the root, so path.size() says nothing about how many levels
-         // remain below the named node -- the depth heuristic below would be actively wrong here,
-         // not just imprecise. An ID-mode single-select tree's own version of this bug (VFL-004)
-         // is therefore still open; see treatsAnIdModeSingleSelectTreeAsUnguarded in the test.
+         // findSubtreeRoot/findIDSubtreeRoot (VSSelectionService) both resolve path positionally
+         // from the root -- an exact match at each level, descending into a
+         // CompositeSelectionValue's own children -- for a non-ID-mode AND an ID-mode tree alike.
+         // A subtree apply is not the flat "does this value appear anywhere in the tree" scan
+         // updateIDSelectionTree/matchesAnywhere use for setSelection's own idMode branch; that
+         // scan belongs to a values apply, not a subtree one. So the same positional predicate
+         // (idMode=false) validates both tree shapes here, reusing the domain-existence check
+         // already shipped for setSelection's values-mode fix (bug 76544): refuse a path that
+         // resolves to nothing in the live tree -- for both select and clear -- before applying
+         // anything, rather than a silent no-op reported back as ok:true.
+         List<List<String>> unmatched = findUnmatchedPaths(selectionListOf(assembly),
+            List.of(path), false);
+
+         if(!unmatched.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' has no subtree at " + path + " -- confirm the exact " +
+               "spelling via browse_condition_values before selecting it.");
+         }
+
+         // Not extended to an ID-mode tree: findIDSubtreeRoot is positional (see above), not an
+         // anywhere-in-the-tree scan, so this exclusion is no longer justified by path.size()
+         // being meaningless for an ID-mode tree the way the depth heuristic below assumes -- it
+         // is simply still tracked separately as an open gap (VFL-004), not fixed here. An ID-mode
+         // single-select tree's own version of that bug is therefore still open; see
+         // treatsAnIdModeSingleSelectTreeAsUnguarded in the test.
          if(select && !tree.isIDMode()) {
             refuseAmbiguousSingleSelectSubtree(tree, assemblyName, path);
          }
