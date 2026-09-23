@@ -111,11 +111,20 @@ public class UnionTableLens extends SetTableLens {
    }
 
    @Override
-   public synchronized boolean moreRows(int row) {
+   public boolean moreRows(int row) {
+      // not holding this lens's monitor, SetTableLens.moreRows() may lend the script
+      // engine lock while waiting and must reclaim it outside the monitor (bug #76938)
       if(distinct) {
          return super.moreRows(row);
       }
-      else if(row == EOT) {
+
+      synchronized(this) {
+         return moreRows0(row);
+      }
+   }
+
+   private boolean moreRows0(int row) {
+      if(row == EOT) {
          if(rowCounts == null) {
             rowCounts = new int[getTableCount()];
             Arrays.fill(rowCounts, -1);

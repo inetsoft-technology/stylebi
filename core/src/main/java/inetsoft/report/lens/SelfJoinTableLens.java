@@ -24,6 +24,8 @@ import inetsoft.report.internal.table.SelfJoinOperator;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
 import inetsoft.util.*;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -210,55 +212,83 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
          notifyAll();
       }
 
-      // concurrent process
       final XSwappableIntList rows2 = rows;
+
+      // if this is called from JavaScriptEngine.exec() or a condition filter
+      // (bug #76938), the script engine is already locked. joining in a separate
+      // thread would create a deadlock waiting forever for the JavaScriptEngine lock
+      // to be released.
+      if(JavaScriptEngine.holdsScriptLock()) {
+         join(rows2);
+         return;
+      }
+
+      // concurrent process. a thread holding the lock may still wait for this worker
+      // later on, it lends the lock to the worker then (see moreRows)
+      LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+      worker = borrower;
+
       ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
          @Override
          public void run() {
-            SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
-            oplist.toArray(ops);
+            borrower.begin();
 
             try {
-               OUTER:
-               for(int i = table.getHeaderRowCount(); table.moreRows(i); i++) {
-                  for(int j = 0; j < ops.length; j++) {
-                     if(!ops[j].evaluate(i)) {
-                        continue OUTER;
-                     }
-                  }
-
-                  synchronized(SelfJoinTableLens.this) {
-                     if(rows2.isDisposed()) {
-                        return;
-                     }
-
-                     rows2.add(i);
-
-                     // notify waiting consumers
-                     SelfJoinTableLens.this.notifyAll();
-
-                     if(rows2.size() >= maxRows) {
-                        maxAlert = true;
-                        break OUTER;
-                     }
-                  }
-               }
+               join(rows2);
             }
-            catch(Exception ex) {
-               LOG.error("Failed to validate table rows", ex);
-            }
-
-            synchronized(SelfJoinTableLens.this) {
-               if(!rows2.isDisposed()) {
-                  completed = true;
-                  rows2.complete();
-
-                  // notify waiting consumers
-                  SelfJoinTableLens.this.notifyAll();
-               }
+            finally {
+               borrower.end();
             }
          }
       });
+   }
+
+   /**
+    * Find the rows matching the join operators.
+    */
+   private void join(XSwappableIntList rows2) {
+      SelfJoinOperator[] ops = new SelfJoinOperator[oplist.size()];
+      oplist.toArray(ops);
+
+      try {
+         OUTER:
+         for(int i = table.getHeaderRowCount(); table.moreRows(i); i++) {
+            for(int j = 0; j < ops.length; j++) {
+               if(!ops[j].evaluate(i)) {
+                  continue OUTER;
+               }
+            }
+
+            synchronized(SelfJoinTableLens.this) {
+               if(rows2.isDisposed()) {
+                  return;
+               }
+
+               rows2.add(i);
+
+               // notify waiting consumers
+               SelfJoinTableLens.this.notifyAll();
+
+               if(rows2.size() >= maxRows) {
+                  maxAlert = true;
+                  break OUTER;
+               }
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to validate table rows", ex);
+      }
+
+      synchronized(SelfJoinTableLens.this) {
+         if(!rows2.isDisposed()) {
+            completed = true;
+            rows2.complete();
+
+            // notify waiting consumers
+            SelfJoinTableLens.this.notifyAll();
+         }
+      }
    }
 
    /**
@@ -272,34 +302,62 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
     * @return true if the row exists, or false if no more rows.
     */
    @Override
-   public synchronized boolean moreRows(int row) {
-      validate();
+   public boolean moreRows(int row) {
+      while(true) {
+         LendableReentrantLock.Borrower lendTo;
 
-      while((rows == null || row >= rows.size()) && !completed) {
-         try {
-            wait(50);
+         synchronized(this) {
             validate();
+
+            if(rows != null && row < rows.size() || completed) {
+               if(maxAlert) {
+                  String message = Catalog.getCatalog().getString("join.table.limited", maxRows);
+                  boolean messageExist = Tool.existUserMessage(message);
+                  Tool.addUserMessage(message);
+
+                  if(!messageExist) {
+                     LOG.info(message);
+                  }
+
+                  if(!"true".equals(SreeEnv.getProperty("always.warn.joinMaxRows"))) {
+                     maxAlert = true;
+                  }
+               }
+
+               return rows != null && row < rows.size();
+            }
+
+            lendTo = worker;
+
+            if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
+               try {
+                  wait(50);
+               }
+               catch(InterruptedException ex) {
+                  // ignore it
+               }
+
+               continue;
+            }
          }
-         catch(InterruptedException ex) {
-            // ignore it
+
+         // this thread holds a script engine lock (e.g. from a condition filter above)
+         // that the worker may need to read the base table, lend it to the worker while
+         // waiting (bug #76938). the loan is closed outside of this lens's monitor,
+         // which the worker needs in order to publish rows
+         try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
+            synchronized(this) {
+               if((rows == null || row >= rows.size()) && !completed) {
+                  try {
+                     wait(50);
+                  }
+                  catch(InterruptedException ex) {
+                     // ignore it
+                  }
+               }
+            }
          }
       }
-
-      if(maxAlert) {
-         String message = Catalog.getCatalog().getString("join.table.limited", maxRows);
-         boolean messageExist = Tool.existUserMessage(message);
-         Tool.addUserMessage(message);
-
-         if(!messageExist) {
-            LOG.info(message);
-         }
-
-         if(!"true".equals(SreeEnv.getProperty("always.warn.joinMaxRows"))) {
-            maxAlert = true;
-         }
-      }
-
-      return rows != null && row < rows.size();
    }
 
    /**
@@ -819,6 +877,8 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    private final Lock cancelLock = new ReentrantLock();
    private int maxRows = Integer.MAX_VALUE;
    private transient boolean maxAlert = false;
+   // the background task joining the rows, if any
+   private transient volatile LendableReentrantLock.Borrower worker;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(SelfJoinTableLens.class);

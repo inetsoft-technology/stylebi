@@ -37,6 +37,7 @@ import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 
 /**
  * Static script utility functions and per-thread script state. These are the
@@ -100,6 +101,91 @@ public class JavaScriptEngine {
 
    public static void resetScriptThread() {
       getThreadLocals().execScriptable.remove();
+   }
+
+   /**
+    * Record that the current thread acquired a script engine's execution lock outside
+    * of script evaluation, e.g. condition filtering taking it before its own monitor
+    * (bug #76918). Must be balanced with {@link #popHeldScriptLock()} in a finally
+    * block, before the lock is released.
+    */
+   public static void pushHeldScriptLock(Lock lock) {
+      getThreadLocals().heldScriptLocks.get().push(lock);
+   }
+
+   /**
+    * Remove the most recent lock recorded by {@link #pushHeldScriptLock(Lock)}.
+    */
+   public static void popHeldScriptLock() {
+      Deque<Lock> locks = getThreadLocals().heldScriptLocks.get();
+
+      if(!locks.isEmpty()) {
+         locks.pop();
+      }
+
+      if(locks.isEmpty()) {
+         getThreadLocals().heldScriptLocks.remove();
+      }
+   }
+
+   /**
+    * Check if the current thread holds a script engine's execution lock, either
+    * because it is inside script evaluation or because it recorded the lock with
+    * {@link #pushHeldScriptLock(Lock)}. A thread holding the lock must not hand work
+    * that may run a script to another thread and then wait for it.
+    */
+   public static boolean holdsScriptLock() {
+      return isScriptThread() || !getThreadLocals().heldScriptLocks.get().isEmpty();
+   }
+
+   /**
+    * Check if {@link #lendScriptLocks} would lend anything to the worker task.
+    */
+   public static boolean canLendScriptLocks(LendableReentrantLock.Borrower worker) {
+      // never lend from inside script evaluation, the GraalJS context is in use on
+      // this thread and must not be entered by another thread
+      return worker != null && worker.isActive() && !isScriptThread() &&
+         !getThreadLocals().heldScriptLocks.get().isEmpty();
+   }
+
+   /**
+    * Lend the script engine locks held by the current thread (outside of script
+    * evaluation) to a background worker task the current thread is about to wait for,
+    * so the worker can run scripts and condition filters while this thread waits (bug
+    * #76938). The returned loan must be closed on this thread when the wait is over,
+    * outside of any monitor the worker may need, and this thread must not use the
+    * script engine before that.
+    *
+    * @param worker the worker task that is waited for.
+    *
+    * @return the loan, or {@link LendableReentrantLock#NO_LOAN} if nothing was lent.
+    */
+   public static LendableReentrantLock.Loan lendScriptLocks(LendableReentrantLock.Borrower worker) {
+      if(!canLendScriptLocks(worker)) {
+         return LendableReentrantLock.NO_LOAN;
+      }
+
+      java.util.List<LendableReentrantLock.Loan> loans = new ArrayList<>();
+      Set<Lock> lent = Collections.newSetFromMap(new IdentityHashMap<>());
+      // outermost first, loans are reclaimed in this order too, so a worker that takes
+      // the locks in the same nesting order can always finish before being cut off
+      Iterator<Lock> iter = getThreadLocals().heldScriptLocks.get().descendingIterator();
+
+      while(iter.hasNext()) {
+         Lock lock = iter.next();
+
+         if(lock instanceof LendableReentrantLock && lent.add(lock) &&
+            ((LendableReentrantLock) lock).isHeldByCurrentThread())
+         {
+            loans.add(((LendableReentrantLock) lock).lend(worker));
+         }
+      }
+
+      if(loans.isEmpty()) {
+         return LendableReentrantLock.NO_LOAN;
+      }
+
+      return loans.size() == 1 ? loans.get(0) : () -> loans.forEach(LendableReentrantLock.Loan::close);
    }
 
    /**
@@ -960,5 +1046,8 @@ public class JavaScriptEngine {
       // script evaluation (see GraalJavaScriptEngine.exec).
       private final ThreadLocal<Stack<ScriptScope>> execScriptable =
          ThreadLocal.withInitial(Stack::new);
+      // script engine locks held outside of script evaluation (see pushHeldScriptLock)
+      private final ThreadLocal<Deque<Lock>> heldScriptLocks =
+         ThreadLocal.withInitial(ArrayDeque::new);
    }
 }
