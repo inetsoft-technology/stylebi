@@ -153,7 +153,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .build();
 
          // FIX B: reset per-Source error counts on (re)init
-         errorCounts.clear();
+         resetErrorCounts();
 
          initScope(vars);
       }
@@ -423,6 +423,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * being unavailable in minimal/test contexts.
     */
    private void installLibraryFunctions() {
+      Map<String, String> sources = librarySources();
+
+      if(sources != null) {
+         for(Map.Entry<String, String> entry : sources.entrySet()) {
+            installLibraryFunction(entry.getKey(), entry.getValue());
+         }
+
+         return;
+      }
+
       try {
          inetsoft.report.LibManager mgr =
             inetsoft.report.LibManagerProvider.getInstance().getManager();
@@ -430,35 +440,65 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          while(names.hasMoreElements()) {
             String name = (String) names.nextElement();
-            String source = mgr.getScript(name);
-
-            if(source == null || source.isEmpty()) {
-               continue;
-            }
-
-            try {
-               // Strip "use strict" directives — strict mode forbids with statements,
-               // so the wrapper would cause a SyntaxError and the function would be
-               // silently dropped. Bug #76980: rewrite top-level const/let to var
-               // as compile() does, so a library constant is visible to other
-               // scripts (Rhino put it on the scope) instead of being confined to
-               // the with-block.
-               String wrapped = rewriteTopLevelLexicalDeclarations(
-                  stripStrictDirectives(rewriteJavaLengthCalls(source)));
-               context.eval(Source.newBuilder(
-                  "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
-                              .buildLiteral());
-            }
-            catch(PolyglotException ex) {
-               // don't let one bad library function break engine init
-               LOG.warn("Failed to compile library function " + name, ex);
-            }
+            installLibraryFunction(name, mgr.getScript(name));
          }
       }
       catch(Throwable ex) {
          // LibManager/provider unavailable (e.g. minimal/test contexts) — skip
          LOG.debug("Library functions not installed; LibManager unavailable", ex);
       }
+   }
+
+   /**
+    * Install one library function; a malformed one is logged and skipped.
+    */
+   private void installLibraryFunction(String name, String source) {
+      if(source == null || source.isEmpty()) {
+         return;
+      }
+
+      try {
+         // Strip "use strict" directives — strict mode forbids with statements,
+         // so the wrapper would cause a SyntaxError and the function would be
+         // silently dropped. Bug #76980: rewrite top-level const/let to var
+         // as compile() does, so a library constant is visible to other
+         // scripts (Rhino put it on the scope) instead of being confined to
+         // the with-block.
+         String wrapped = rewriteTopLevelLexicalDeclarations(
+            stripStrictDirectives(rewriteJavaLengthCalls(source)));
+         context.eval(Source.newBuilder(
+            "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
+                         .buildLiteral());
+      }
+      catch(PolyglotException ex) {
+         // don't let one bad library function break engine init
+         LOG.warn("Failed to compile library function " + name, ex);
+      }
+   }
+
+   /**
+    * The library script sources to install, by name, in install order. {@code null} (the
+    * default) reads the LibManager at install time. A pooled worksheet engine returns the
+    * snapshot its env took, so every one of its contexts gets the same library (bug #76960).
+    */
+   protected Map<String, String> librarySources() {
+      return null;
+   }
+
+   /**
+    * The per-Source error counts ({@code script.max.errors}). Only accessed while holding
+    * {@code lock}, unless an override returns a thread-safe map. A pooled worksheet engine
+    * returns the map its env owns (spec §6.9).
+    */
+   protected Map<Object, Integer> errorCounts() {
+      return errorCounts;
+   }
+
+   /**
+    * Clear the error counts on (re)init. A pooled worksheet engine keeps its env's counts.
+    */
+   protected void resetErrorCounts() {
+      errorCounts.clear();
    }
 
    /**
@@ -1442,7 +1482,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                // FIX B: per-Source error count check (read limit while holding lock)
                int limit = maxErrors();
 
-               if(limit > 0 && errorCounts.getOrDefault(script, 0) >= limit) {
+               if(limit > 0 && errorCounts().getOrDefault(script, 0) >= limit) {
                   return null;
                }
 
@@ -1455,9 +1495,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             int limit = maxErrors();
 
             if(limit > 0) {
-               int prev = errorCounts.getOrDefault(script, 0);
+               int prev = errorCounts().getOrDefault(script, 0);
                int next = prev + 1;
-               errorCounts.put(script, next);
+               errorCounts().put(script, next);
 
                if(next == limit) {
                   LOG.warn("Script max errors exceeded ({})", limit);
