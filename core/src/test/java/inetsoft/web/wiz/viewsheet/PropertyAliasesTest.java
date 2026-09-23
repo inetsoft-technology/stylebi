@@ -907,4 +907,67 @@ class PropertyAliasesTest {
                     type + " does not apply submitOnChange and must not advertise it");
       }
    }
+
+   // ── bug #76936 (Track A): SelectionTree/RangeSlider/SelectionContainer alias gaps ────────
+
+   /**
+    * Problem A: {@code singleSelectionLevels} is real on SelectionTree
+    * (SelectionTreePropertyDialogService reads/writes it via
+    * {@code getSingleSelectionLevelNames}/{@code setSingleSelectionLevelNames}), but must NOT be
+    * added to the shared {@code selectionGeneral} helper both selectionList() and selectionTree()
+    * call -- SelectionListPropertyDialogService never reads it back, so it would be a dead-field
+    * trap for SelectionList.
+    */
+   @Test
+   void singleSelectionLevelsIsAliasedOnSelectionTreeOnly() {
+      assertEquals("selectionGeneralPaneModel.singleSelectionLevels",
+                   PropertyAliases.resolve("selectiontree", "singleSelectionLevels"));
+      assertNull(PropertyAliases.forType("selectionlist").aliases().get("singleSelectionLevels"),
+                 "singleSelectionLevels is dead on SelectionList and must not be advertised");
+   }
+
+   /** Problem C: the plain-scalar RangeSliderSizePaneModel fields. */
+   @Test
+   void rangeSliderExposesTheSizePaneFields() {
+      String prefix = "rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.";
+      assertEquals(prefix + "length", PropertyAliases.resolve("timeslider", "length"));
+      assertEquals(prefix + "logScale", PropertyAliases.resolve("timeslider", "logScale"));
+      assertEquals(prefix + "upperInclusive",
+                   PropertyAliases.resolve("timeslider", "upperInclusive"));
+      assertEquals(prefix + "rangeType", PropertyAliases.resolve("timeslider", "rangeType"));
+      assertEquals(prefix + "rangeSize", PropertyAliases.resolve("timeslider", "rangeSize"));
+      assertEquals(prefix + "maxRangeSize",
+                   PropertyAliases.resolve("timeslider", "maxRangeSize"));
+   }
+
+   /**
+    * Problem D: {@code tick}/{@code currentValue}/{@code showMin}/{@code showMax} are real on
+    * RangeSlider's own {@code sliderLabelPaneModel} copy, named {@code showMin}/{@code showMax}
+    * to match {@code slider()}'s own naming for the identical {@code minimum}/{@code maximum}
+    * visibility-toggle fields. {@code label}/{@code showLabel} are dead on RangeSlider (confirmed
+    * by reading the full get/set method bodies of RangeSliderPropertyDialogService) and must NOT
+    * be aliased, unlike Slider's own separate {@code sliderLabelPaneModel.label}.
+    */
+   @Test
+   void rangeSliderExposesTheLabelPaneFieldsButNotDeadOnes() {
+      String prefix = "rangeSliderAdvancedPaneModel.sliderLabelPaneModel.";
+      assertEquals(prefix + "tick", PropertyAliases.resolve("timeslider", "tick"));
+      assertEquals(prefix + "currentValue", PropertyAliases.resolve("timeslider", "currentValue"));
+      assertEquals(prefix + "minimum", PropertyAliases.resolve("timeslider", "showMin"));
+      assertEquals(prefix + "maximum", PropertyAliases.resolve("timeslider", "showMax"));
+
+      assertNull(PropertyAliases.forType("timeslider").aliases().get("label"),
+                 "label is dead on RangeSlider and must not be advertised");
+      assertNull(PropertyAliases.forType("timeslider").aliases().get("showLabel"),
+                 "showLabel is dead on RangeSlider and must not be advertised");
+   }
+
+   /** Problem E: the plain-boolean SelectionContainerGeneralPaneModel fields. */
+   @Test
+   void selectionContainerExposesShowCurrentSelectionAndAdhocEnabled() {
+      assertEquals("selectionContainerGeneralPaneModel.showCurrentSelection",
+                   PropertyAliases.resolve("selectioncontainer", "showCurrentSelection"));
+      assertEquals("selectionContainerGeneralPaneModel.adhocEnabled",
+                   PropertyAliases.resolve("selectioncontainer", "adhocEnabled"));
+   }
 }

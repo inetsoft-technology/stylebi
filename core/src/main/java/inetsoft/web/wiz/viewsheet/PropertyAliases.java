@@ -963,6 +963,12 @@ public final class PropertyAliases {
       selectionGeneral(aliases);
       aliases.put("selectChildren", "selectionTreePaneModel.selectChildren");
       aliases.put("mode", "selectionTreePaneModel.mode");
+      // Not in selectionGeneral(): SelectionListPropertyDialogService never reads or writes
+      // getSingleSelectionLevels() on its own copy of SelectionGeneralPaneModel, even though the
+      // field resolves fine there too -- aliasing it in the shared helper would silently accept
+      // a value SelectionList discards. SelectionTreePropertyDialogService is the only real
+      // reader/writer (setSingleSelectionLevelNames).
+      aliases.put("singleSelectionLevels", "selectionGeneralPaneModel.singleSelectionLevels");
       return aliases;
    }
 
@@ -1082,8 +1088,32 @@ public final class PropertyAliases {
       // Not submitOnChange(aliases, ...) -- a range slider keeps the same setting on its own
       // RangeSliderSizePaneModel instead of the shared GeneralPropPaneModel, and it is the
       // size pane's copy that RangeSliderPropertyDialogService reads back on write.
-      aliases.put("submitOnChange",
-         "rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.submitOnChange");
+      String rangeSliderSize = "rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel";
+      aliases.put("submitOnChange", rangeSliderSize + ".submitOnChange");
+      aliases.put("length", rangeSliderSize + ".length");
+      aliases.put("logScale", rangeSliderSize + ".logScale");
+      aliases.put("upperInclusive", rangeSliderSize + ".upperInclusive");
+      // rangeType is a closed int-enum (TimeInfo.YEAR/MONTH/NUMBER/MEMBER/DAY/HOUR/MINUTE/
+      // HOUR_OF_DAY/MINUTE_OF_DAY, non-sequential) -- see AssemblyPropertyService's
+      // INT_ENUM_DOMAINS entry for this same path, which validates/canonicalizes it.
+      aliases.put("rangeType", rangeSliderSize + ".rangeType");
+      // rangeSize/maxRangeSize are only written back for certain rangeType/logScale
+      // combinations (RangeSliderPropertyDialogService#setTimeInfo), but are real doubles with
+      // real setters -- the conditionality is UI/business logic, not a coercion problem.
+      aliases.put("rangeSize", rangeSliderSize + ".rangeSize");
+      aliases.put("maxRangeSize", rangeSliderSize + ".maxRangeSize");
+
+      // sliderLabelPaneModel's "tick"/"currentValue" and "minimum"/"maximum" (named showMin/
+      // showMax here, matching slider()'s own naming) are read and written unconditionally by
+      // RangeSliderPropertyDialogService. Unlike slider()'s own sliderLabelPaneModel, "label" and
+      // "showLabel" are deliberately NOT aliased here: RangeSliderPropertyDialogService never
+      // reads or writes either field (grepped in full, both get and set method bodies) -- they
+      // are dead on RangeSlider, not simply ported from Slider's own separate pane instance.
+      String rangeSliderLabel = "rangeSliderAdvancedPaneModel.sliderLabelPaneModel";
+      aliases.put("tick", rangeSliderLabel + ".tick");
+      aliases.put("currentValue", rangeSliderLabel + ".currentValue");
+      aliases.put("showMin", rangeSliderLabel + ".minimum");
+      aliases.put("showMax", rangeSliderLabel + ".maximum");
       return aliases;
    }
 
@@ -1175,6 +1205,9 @@ public final class PropertyAliases {
       dataGeneral(aliases, "selectionContainerGeneralPaneModel");
       sizePosition(aliases, "selectionContainerGeneralPaneModel");
       title(aliases, "selectionContainerGeneralPaneModel");
+      aliases.put("showCurrentSelection",
+         "selectionContainerGeneralPaneModel.showCurrentSelection");
+      aliases.put("adhocEnabled", "selectionContainerGeneralPaneModel.adhocEnabled");
       return aliases;
    }
 

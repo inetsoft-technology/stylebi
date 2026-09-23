@@ -24,6 +24,7 @@ import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.viewsheet.TimeInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
@@ -967,8 +968,13 @@ public class AssemblyPropertyService {
     * {@link inetsoft.uql.XConstants}'s {@code SORT_ORIGINAL}/{@code SORT_VALUE_ASC}/
     * {@code SORT_VALUE_DESC} are ever written into a Selection assembly's own stored
     * {@code sortType} by either producer, so those three stay out of this domain.
-    * {@code linkType}, {@code rangeType}, {@code refType} and {@code newObjectType} are the same
-    * class of gap (a closed int domain with no alias/validation) but are not currently aliased in
+    * {@code rangeType} (RangeSlider, bug #76936) is now covered here too, keyed by
+    * {@code rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.rangeType} -- its domain is
+    * {@link TimeInfo}'s own non-sequential constants ({@code YEAR=1, MONTH=2, NUMBER=3, MEMBER=4,
+    * DAY=16, HOUR=17, MINUTE=18, HOUR_OF_DAY=20, MINUTE_OF_DAY=21}), the same "wrong guess is a
+    * valid-looking value" hazard {@code sortType}/{@code mode} guard against above.
+    * {@code linkType}, {@code refType} and {@code newObjectType} are the same class of gap (a
+    * closed int domain with no alias/validation) but are not currently aliased in
     * {@link PropertyAliases} at all, so they are not reachable through this service's short-alias
     * vocabulary and remain out of scope.
     */
@@ -999,6 +1005,19 @@ public class AssemblyPropertyService {
       sortType.put("hideothers", XConstants.SORT_SPECIFIC);
       sortType.put("hide_others", XConstants.SORT_SPECIFIC);
 
+      Map<String, Integer> rangeType = new LinkedHashMap<>();
+      rangeType.put("year", TimeInfo.YEAR);
+      rangeType.put("month", TimeInfo.MONTH);
+      rangeType.put("number", TimeInfo.NUMBER);
+      rangeType.put("member", TimeInfo.MEMBER);
+      rangeType.put("day", TimeInfo.DAY);
+      rangeType.put("hour", TimeInfo.HOUR);
+      rangeType.put("minute", TimeInfo.MINUTE);
+      rangeType.put("hourofday", TimeInfo.HOUR_OF_DAY);
+      rangeType.put("hour_of_day", TimeInfo.HOUR_OF_DAY);
+      rangeType.put("minuteofday", TimeInfo.MINUTE_OF_DAY);
+      rangeType.put("minute_of_day", TimeInfo.MINUTE_OF_DAY);
+
       Map<String, IntEnumDomain> domains = new LinkedHashMap<>();
       domains.put("selectionGeneralPaneModel.showType",
                   new IntEnumDomain("showType", selectionShowType));
@@ -1006,6 +1025,8 @@ public class AssemblyPropertyService {
                   new IntEnumDomain("showType", calendarShowType));
       domains.put("selectionTreePaneModel.mode", new IntEnumDomain("mode", mode));
       domains.put("selectionGeneralPaneModel.sortType", new IntEnumDomain("sortType", sortType));
+      domains.put("rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.rangeType",
+                  new IntEnumDomain("rangeType", rangeType));
       INT_ENUM_DOMAINS = Collections.unmodifiableMap(domains);
    }
 
