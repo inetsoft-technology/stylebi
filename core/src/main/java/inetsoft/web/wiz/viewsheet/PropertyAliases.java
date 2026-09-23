@@ -50,6 +50,9 @@ public final class PropertyAliases {
    public record TypeAliases(String assemblyType, Class<?> modelClass,
                              Map<String, String> aliases) {}
 
+   /** The one chart pane with no scalar write path at all; see {@link #chartWriteRefusal}. */
+   private static final String TARGET_LINES_PANE = "chartTargetLinesPaneModel";
+
    /**
     * The chart line pane's read-only capability flags — what the dialog uses to decide which
     * controls to <i>show</i>, not what any of them is set to.
@@ -401,6 +404,22 @@ public final class PropertyAliases {
    private static String chartWriteRefusal(String normalizedType, String pathOrKey) {
       if(!"chart".equals(normalizedType) || pathOrKey == null) {
          return null;
+      }
+
+      // Checked before the leaf lookup below, which returns early for anything that is not one
+      // of the capability flags. `contains` rather than isOrUnder because the pane is reachable
+      // by its own name as well as under chartAdvancedPaneModel, and both spellings deserve the
+      // same answer.
+      if(pathOrKey.contains(TARGET_LINES_PANE)) {
+         return "'" + TARGET_LINES_PANE + "' is not settable through set_assembly_properties. " +
+            "Its chartTargets are TargetInfo objects, not scalars -- PropertyPath builds arrays " +
+            "of primitives, String and enums and nothing else -- and hand-writing one is how " +
+            "you get a target that saves, lists back, and never draws: a tabFlag outside 0/1/2 " +
+            "is a total no-op, a null measure or colour NPEs inside the commit, a non-numeric " +
+            "value produces a line with no boundaries, and an index the descriptor does not " +
+            "have is silently dropped. Use add_chart_target_line / remove_chart_target_line, " +
+            "which build the target from the model's own newTargetInfo template. Reading is " +
+            "fine -- call get_assembly_properties with raw=true, or list_chart_target_lines.";
       }
 
       String leaf = pathOrKey.substring(pathOrKey.lastIndexOf('.') + 1);
