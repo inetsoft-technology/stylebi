@@ -111,13 +111,13 @@ public final class LockCycleHarness implements AutoCloseable {
    }
 
    /**
-    * Make {@code box} hand its condition filters {@code env}'s execution lock. This is the only
-    * place that knows how {@code ConditionFilter2} finds the lock, so a change of that API
-    * (e.g. PR #5548 replacing {@code peekScriptExecutionLock()} with {@code peekScriptEnv()})
+    * Make {@code box} hand its condition filters {@code env}, whose execution lock they take.
+    * This is the only place that knows how {@code ConditionFilter2} finds the lock (since
+    * PR #5548, by capturing {@code peekScriptEnv()} at construction), so a change of that API
     * changes only this line.
     */
    static void stubScriptLock(AssetQuerySandbox box, ScriptEnv env) {
-      when(box.peekScriptExecutionLock()).thenReturn(env.getExecutionLock());
+      when(box.peekScriptEnv()).thenReturn(env);
    }
 
    /**
