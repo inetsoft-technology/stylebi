@@ -295,6 +295,92 @@ class ScriptLibraryControllerTest {
       verify(fixture.lib).save();
    }
 
+   /*
+    * Bug #76932: every endpoint must check permission before existence. Otherwise a caller with no
+    * permission on a name can tell whether it exists from the error ("no function named X" /
+    * "already exists" vs "no permission"). Each case below denies permission and asserts the same
+    * SecurityException comes back whether or not the name exists.
+    */
+
+   @Test
+   void read_withoutPermission_failsTheSameWhetherOrNotTheNameExists() throws Exception {
+      assertDeniedRegardlessOfExistence("helper", ResourceAction.READ,
+                                        f -> f.controller.read("helper", f.principal));
+   }
+
+   @Test
+   void create_withoutPermission_doesNotRevealThatTheNameIsTaken() throws Exception {
+      assertDeniedRegardlessOfExistence("helper", ResourceAction.WRITE,
+         f -> f.controller.create(
+            new ScriptLibraryController.CreateScriptLibraryFunctionRequest(
+               "helper", "return 1;", null), f.principal));
+   }
+
+   @Test
+   void update_withoutPermission_failsTheSameWhetherOrNotTheNameExists() throws Exception {
+      assertDeniedRegardlessOfExistence("helper", ResourceAction.WRITE,
+         f -> f.controller.update(
+            "helper",
+            new ScriptLibraryController.UpdateScriptLibraryFunctionRequest("return 2;", null),
+            f.principal));
+   }
+
+   @Test
+   void delete_withoutPermission_failsTheSameWhetherOrNotTheNameExists() throws Exception {
+      assertDeniedRegardlessOfExistence("helper", ResourceAction.DELETE,
+                                        f -> f.controller.delete("helper", false, f.principal));
+   }
+
+   @Test
+   void rename_withoutPermissionOnOldName_failsTheSameWhetherOrNotItExists() throws Exception {
+      assertDeniedRegardlessOfExistence("oldFn", ResourceAction.WRITE,
+         f -> f.controller.rename(
+            "oldFn", new ScriptLibraryController.RenameScriptLibraryFunctionRequest("newFn"),
+            f.principal));
+   }
+
+   @Test
+   void rename_withoutPermissionOnNewName_doesNotRevealThatItIsTaken() throws Exception {
+      for(boolean newNameExists : new boolean[] { true, false }) {
+         Fixture fixture = new Fixture();
+         when(fixture.lib.getScript("oldFn")).thenReturn("function oldFn(x) { return x; }");
+         when(fixture.lib.getScript("existingFn"))
+            .thenReturn(newNameExists ? "function existingFn(x) { return x; }" : null);
+         fixture.deny("existingFn", ResourceAction.WRITE);
+
+         SecurityException e = assertThrows(SecurityException.class, () -> fixture.controller.rename(
+            "oldFn", new ScriptLibraryController.RenameScriptLibraryFunctionRequest("existingFn"),
+            fixture.principal));
+
+         assertEquals("No WRITE permission on script library function 'existingFn'.",
+                      e.getMessage());
+         verify(fixture.lib, never()).renameScript(anyString(), anyString());
+      }
+   }
+
+   private interface ControllerCall {
+      void call(Fixture fixture) throws Exception;
+   }
+
+   private static void assertDeniedRegardlessOfExistence(String name, ResourceAction action,
+                                                         ControllerCall call)
+      throws Exception
+   {
+      for(boolean exists : new boolean[] { true, false }) {
+         Fixture fixture = new Fixture();
+         when(fixture.lib.getScript(name)).thenReturn(exists ? "return 1;" : null);
+         fixture.deny(name, action);
+
+         SecurityException e = assertThrows(SecurityException.class, () -> call.call(fixture),
+                                            "exists=" + exists);
+         assertEquals("No " + action + " permission on script library function '" + name + "'.",
+                      e.getMessage(), "exists=" + exists);
+         verify(fixture.lib, never()).setScript(anyString(), anyString());
+         verify(fixture.lib, never()).removeScript(anyString());
+         verify(fixture.lib, never()).save();
+      }
+   }
+
    private static String componentScopedId(String name) {
       return new AssetEntry(AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT, name, null)
          .toIdentifier();
@@ -312,6 +398,11 @@ class ScriptLibraryControllerTest {
                                              any(ResourceAction.class))).thenReturn(true);
          when(libManagerProvider.getManager(any(Principal.class))).thenReturn(lib);
          controller = new ScriptLibraryController(libManagerProvider, securityEngine);
+      }
+
+      void deny(String name, ResourceAction action) throws Exception {
+         when(securityEngine.checkPermission(any(), eq(ResourceType.SCRIPT), eq(name),
+                                             eq(action))).thenReturn(false);
       }
 
       final LibManagerProvider libManagerProvider = mock(LibManagerProvider.class);
