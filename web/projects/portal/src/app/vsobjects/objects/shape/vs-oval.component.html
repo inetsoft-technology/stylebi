@@ -48,7 +48,10 @@
             <feMergeNode in="SourceGraphic"></feMergeNode>
           </feMerge>
         </filter>
-        <mask [attr.id]="ovalMaskId">
+        <mask [attr.id]="ovalMaskId" maskUnits="userSpaceOnUse"
+          [attr.x]="-shadowMargin" [attr.y]="-shadowMargin"
+          [attr.width]="model.objectFormat.width + shadowMargin * 2"
+          [attr.height]="model.objectFormat.height + shadowMargin * 2">
           <rect [attr.x]="-shadowMargin" [attr.y]="-shadowMargin"
             [attr.width]="model.objectFormat.width + shadowMargin * 2"
             [attr.height]="model.objectFormat.height + shadowMargin * 2"
