@@ -123,9 +123,11 @@ public class TouchAssetService {
             ViewsheetInfo vinfo = vs.getViewsheetInfo();
 
             if(rs.isRuntime()) {
-               long changeTime = worksheetService.getDataChangedTime(rvs.getEntry());
-
-               if(update && vinfo.isUpdateEnabled() && (changeTime != 0 && changeTime > rvs.getTouchTimestamp())) {
+               // Nothing records a data-change time (ViewsheetEngine.dataChanged() has no
+               // callers since the asset monitor was removed), so gating on it meant
+               // server-side update never fired. As with assetMonitor disabled, every
+               // update tick refreshes the viewsheet.
+               if(update && vinfo.isUpdateEnabled()) {
                   // refresh content
                   processRefreshEvent(principal, commandDispatcher, linkUri, width, height);
                }
