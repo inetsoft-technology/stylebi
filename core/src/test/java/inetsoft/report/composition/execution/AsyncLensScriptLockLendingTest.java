@@ -131,22 +131,26 @@ public class AsyncLensScriptLockLendingTest {
 
    /**
     * The condition filter must take the sandbox env's lock, or the tests below would
-    * pass without exercising the lock at all.
+    * pass without exercising the lock at all. The lock holder is the first to touch the
+    * summary, so it reads the base on its own thread.
     */
    @Test
    public void conditionFilterTakesSandboxLock() throws Exception {
       AtomicBoolean held = new AtomicBoolean();
       TableLens base = new SlowTable() {
          @Override
-         public boolean moreRows(int row) {
-            if(row > 0 && lock.isHeldByCurrentThread()) {
+         public Object getObject(int r, int c) {
+            if(r > 0 && lock.isHeldByCurrentThread()) {
                held.set(true);
             }
 
-            return super.moreRows(row);
+            return super.getObject(r, c);
          }
       };
-      TableLens filter = PostProcessor.filter(base, allRows(), box);
+      TableLens summary = new SummaryFilter(base, new int[] {0}, new int[] {1}, new SumFormula(), null);
+      TableLens filter = PostProcessor.filter(summary, allRows(), box);
+      created.add(summary);
+      created.add(filter);
 
       assertTrue(pool.submit(() -> filter.moreRows(1)).get(TIMEOUT, TimeUnit.SECONDS));
       assertTrue(held.get(), "the condition filter did not take the sandbox lock");
