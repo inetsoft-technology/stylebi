@@ -354,7 +354,11 @@ public class IdentityChangePlanService {
       if(!isAbsent(spec.getId())) {
          String proposedId = spec.getId().trim();
 
-         if(!proposedId.equalsIgnoreCase(organizationId)) {
+         // case-SENSITIVE on purpose: IdentityService.setOrganizationInfo gates its migration
+         // cascade on !Tool.equals(), so a case-only rename (e.g. "host-org" -> "HOST-ORG") is a
+         // real rename there and must be gated here too. The guards themselves stay
+         // case-insensitive -- see their own doc comments.
+         if(!proposedId.equals(organizationId)) {
             requireNotReservedOrganizationIdRename(label, organizationId, proposedId);
             requireNoDuplicateOrganizationId(label, organizationId, proposedId, user);
          }
@@ -372,7 +376,11 @@ public class IdentityChangePlanService {
     * The narrower, update-only counterpart to {@link #requireNotProtectedOrganization} (delete-
     * only) -- refuses an id-changing update only when the id is ACTUALLY changing and either side
     * of that change is the default/self organization's id, mirroring {@code
-    * UserTreeService.editOrganization}'s own conditional guard (lines 1257-1261). Deliberately not
+    * UserTreeService.editOrganization}'s own conditional guard. Both call sites decide "is the id
+    * ACTUALLY changing" case-SENSITIVELY, matching the {@code !Tool.equals()} gate on {@code
+    * IdentityService.setOrganizationInfo}'s migration cascade; the two must move together, or a
+    * case-only rename slips past this refusal while still triggering the full cascade. The
+    * comparisons below stay case-INSENSITIVE on purpose. Deliberately not
     * a reuse of {@link #requireNotProtectedOrganization}: that helper fires unconditionally on the
     * default/self org's CURRENT id, which would wrongly refuse a plain orgName/locale-only update
     * of the default/self organization -- behavior this area's own charter (counter-assertion 6,
