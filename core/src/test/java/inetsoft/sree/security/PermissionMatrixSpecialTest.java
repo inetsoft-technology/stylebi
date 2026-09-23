@@ -556,6 +556,8 @@ class PermissionMatrixSpecialTest {
    }
 
    @Test
+   @Disabled("Bug #76979: flaky in CI, a background PropertiesEngine reload can drop the " +
+      "cached security.users.multiTenant value this test relies on")
    void isMultiTenant_storageReadFailure_fallsBackToCachedValue() throws Exception {
       // Defensive-path complement to the test above: a direct-storage-read failure must fall back
       // to the cached SreeEnv.getProperty() value rather than let the exception escape

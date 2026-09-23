@@ -175,6 +175,10 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       AnalyticRepository repository = SUtil.getRepletRepository();
 
       if(repository.isWrapperFor(RepletEngine.class)) {
+         // restore the thread's principal afterwards, so that it does not leak into the test
+         // classes that surefire runs later on the same thread
+         Principal oldPrincipal = ThreadContext.getPrincipal();
+
          try(InputStream input = url.openStream()) {
             XPrincipal testPrincipal = SUtil.getPrincipal(
                new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
@@ -183,6 +187,9 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             Tool.copyTo(input, buffer);
             repository.unwrap(RepletEngine.class).importAssets(buffer.toByteArray(), true);
+         }
+         finally {
+            ThreadContext.setPrincipal(oldPrincipal);
          }
       }
       else {
