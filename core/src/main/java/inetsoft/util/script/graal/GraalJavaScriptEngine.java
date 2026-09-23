@@ -1431,7 +1431,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          Duration timeout = currentTimeout();
 
-         try(ScriptTimeoutGuard.Guard ignored = timeoutGuard.guard(context, timeout)) {
+         ScriptTimeoutGuard.Guard guard = timeoutGuard.guard(context, timeout);
+
+         try(guard) {
             // FIX B: per-Source error count check (read limit while holding lock)
             int limit = maxErrors();
 
@@ -1483,11 +1485,24 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             scopeProxy.swapGlobal(prevScope);
             scopeProxy.swapImports(prevImports);
             scopeProxy.swapAssigned(prevAssigned);
+
+            // an interrupt that could not stop this exec leaves the Context in an unknown
+            // state (bug #76960, spec §9); the base engine keeps it, a pooled one dooms it
+            if(guard.interruptTimedOut()) {
+               onInterruptTimeout();
+            }
          }
       }
       finally {
          lock.unlock();
       }
+   }
+
+   /**
+    * Called when a timeout interrupt of an exec could not stop it within its bound, so this
+    * engine's Context is in an unknown state. The base engine keeps using it, as before.
+    */
+   protected void onInterruptTimeout() {
    }
 
    /** Lazily create the reusable __scope__ proxy and bind it once. Caller holds lock. */

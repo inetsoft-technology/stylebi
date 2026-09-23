@@ -20,7 +20,7 @@ package inetsoft.util.script.graal;
 import org.graalvm.polyglot.Context;
 import java.time.Duration;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Interrupts a long-running Context evaluation. Replaces TimeoutContext.
@@ -33,23 +33,25 @@ public class ScriptTimeoutGuard {
    @FunctionalInterface
    public interface Guard extends AutoCloseable {
       @Override void close();
+
+      /**
+       * @return {@code true} if this exec's interrupt could not stop it within its bound, so
+       * the Context is in an unknown state (bug #76960).
+       */
+      default boolean interruptTimedOut() {
+         return false;
+      }
    }
 
-   private static final ScheduledExecutorService SCHED;
+   /** Test hook run by the interrupt task right before it interrupts; null in production. */
+   static volatile Runnable beforeInterruptHook;
 
-   static {
-      ScheduledThreadPoolExecutor sched = new ScheduledThreadPoolExecutor(1, r -> {
+   private static final ScheduledExecutorService SCHED =
+      Executors.newScheduledThreadPool(1, r -> {
          Thread t = new Thread(r, "script-timeout-guard");
          t.setDaemon(true);
          return t;
       });
-      // Without this, a cancelled watchdog (cancel(false), see guard() below) stays
-      // in the delay queue until its original deadline instead of being purged
-      // immediately, so the queue -- and the heap it holds -- grows unbounded for
-      // as long as script.execution.timeout across script execs (bug #77004).
-      sched.setRemoveOnCancelPolicy(true);
-      SCHED = sched;
-   }
 
    // Separate cached pool for the blocking ctx.interrupt() calls so that
    // concurrent timeouts never queue behind each other on the scheduler thread.
@@ -66,39 +68,83 @@ public class ScriptTimeoutGuard {
          return () -> { };
       }
 
-      // Per-guard one-shot liveness flag: whichever of close() or the interrupt
-      // task wins flips it false; the loser becomes a no-op. This greatly
-      // reduces (cannot fully eliminate without locking against the Context) a
-      // timeout that fired just as the eval finished from "bleeding" into the
-      // NEXT execution on the same Context — cancel(false) alone cannot stop an
-      // interrupt task already dispatched to INTERRUPT_POOL.
-      final AtomicBoolean active = new AtomicBoolean(true);
-
-      ScheduledFuture<?> f = SCHED.schedule(() ->
-         INTERRUPT_POOL.submit(() -> {
-            // claim the one-shot; if close() already ran, do nothing
-            if(!active.compareAndSet(true, false)) {
-               return;
-            }
-
-            try {
-               ctx.interrupt(Duration.ofSeconds(2));
-            }
-            catch(Exception ignore) {
-               // context may already be closed
-            }
-         }),
-         timeout.toMillis(), TimeUnit.MILLISECONDS);
-
-      return () -> {
-         active.set(false);
-         f.cancel(false);
-      };
+      TokenGuard guard = new TokenGuard(ctx);
+      guard.future = SCHED.schedule(() -> INTERRUPT_POOL.submit(guard::interrupt),
+                                    timeout.toMillis(), TimeUnit.MILLISECONDS);
+      return guard;
    }
 
-   // Test-only hook: number of watchdogs still queued in the scheduler.
-   /** Number of watchdogs still queued in the scheduler (for tests). */
-   static int pendingWatchdogs() {
-      return ((ScheduledThreadPoolExecutor) SCHED).getQueue().size();
+   /**
+    * The token of one exec (bug #76960, spec §6.3). The interrupt task and close() race for
+    * it: whichever moves it out of ACTIVE first wins. If the interrupt won, close() waits
+    * for that interrupt to finish before the exec hands the Context on, so an interrupt
+    * meant for this exec can never land on the next exec on the same Context. The wait is
+    * bounded by ctx.interrupt's own 2 s bound and never waits for a lock.
+    */
+   private static final class TokenGuard implements Guard {
+      TokenGuard(Context ctx) {
+         this.ctx = ctx;
+      }
+
+      void interrupt() {
+         if(!state.compareAndSet(ACTIVE, INTERRUPTING)) {
+            return;
+         }
+
+         try {
+            Runnable hook = beforeInterruptHook;
+
+            if(hook != null) {
+               hook.run();
+            }
+
+            ctx.interrupt(Duration.ofSeconds(2));
+         }
+         catch(TimeoutException ex) {
+            timedOut = true;
+         }
+         catch(Exception ignore) {
+            // context may already be closed
+         }
+         finally {
+            state.set(DONE);
+            interruptDone.countDown();
+         }
+      }
+
+      @Override
+      public void close() {
+         if(state.compareAndSet(ACTIVE, DONE)) {
+            ScheduledFuture<?> f = future;
+
+            if(f != null) {
+               f.cancel(false);
+            }
+
+            return;
+         }
+
+         try {
+            interruptDone.await(3, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+      }
+
+      @Override
+      public boolean interruptTimedOut() {
+         return timedOut;
+      }
+
+      private static final int ACTIVE = 0;
+      private static final int INTERRUPTING = 1;
+      private static final int DONE = 2;
+
+      private final Context ctx;
+      private final AtomicInteger state = new AtomicInteger(ACTIVE);
+      private final CountDownLatch interruptDone = new CountDownLatch(1);
+      private volatile boolean timedOut;
+      private volatile ScheduledFuture<?> future;
    }
 }

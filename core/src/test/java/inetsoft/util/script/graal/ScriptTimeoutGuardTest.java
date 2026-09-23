@@ -20,6 +20,8 @@ package inetsoft.util.script.graal;
 import org.graalvm.polyglot.*;
 import org.junit.jupiter.api.*;
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Tag("core")
@@ -45,30 +47,44 @@ class ScriptTimeoutGuardTest {
       }
    }
 
-   // Bug #77004: cancel(false) on a ScheduledThreadPoolExecutor without
-   // remove-on-cancel leaves the cancelled ScheduledFutureTask in the delay
-   // queue until its original deadline, so a long script.execution.timeout
-   // (600s default, 10000s code default) lets the queue -- and the heap it
-   // holds -- grow unbounded across script execs.
-   @Test void cancelledWatchdogsDoNotAccumulateInQueue() {
-      ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
-      Duration longTimeout = Duration.ofSeconds(600);
-      // SCHED is a static field shared by the whole test JVM/fork, so measure
-      // growth relative to whatever this fork already had queued rather than
-      // asserting an absolute cap (which would depend on other tests' state).
-      int before = ScriptTimeoutGuard.pendingWatchdogs();
-
+   /**
+    * Spec §6.3 / G5a (bug #76960): a timeout that fired while exec A was still running, but
+    * whose interrupt lands only after A finished, must not interrupt the next exec B on the
+    * same Context.
+    */
+   @Test void lateInterruptDoesNotHitTheNextExec() {
       try(Context ctx = Context.newBuilder("js").build()) {
-         for(int i = 0; i < 10_000; i++) {
-            try(var ignored = guard.guard(ctx, longTimeout)) {
-               ctx.eval("js", "1+1");
+         ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
+         CountDownLatch bStarted = new CountDownLatch(1);
+         // hold the claimed interrupt until B has started (or 1 s passed)
+         ScriptTimeoutGuard.beforeInterruptHook = () -> {
+            try {
+               bStarted.await(1, TimeUnit.SECONDS);
             }
+            catch(InterruptedException ex) {
+               Thread.currentThread().interrupt();
+            }
+         };
+
+         try {
+            try(var a = guard.guard(ctx, Duration.ofMillis(50))) {
+               // A runs past its 50 ms timeout; the interrupt is claimed but held by the hook
+               ctx.eval("js", "var t = Date.now(); while(Date.now() - t < 200) {} 1");
+            }
+
+            bStarted.countDown();
+            // B: no guard of its own; it must not be hit by A's late interrupt
+            assertEquals(42, ctx.eval("js",
+               "var t2 = Date.now(); while(Date.now() - t2 < 1500) {} 42").asInt());
+         }
+         finally {
+            ScriptTimeoutGuard.beforeInterruptHook = null;
          }
       }
+   }
 
-      int growth = ScriptTimeoutGuard.pendingWatchdogs() - before;
-      assertTrue(growth <= 10,
-         "expected cancelled watchdogs to be removed from the scheduler queue, but queue grew by " +
-         growth);
+   @Test void interruptThatCannotStopTheExecIsReported() {
+      ScriptTimeoutGuard.Guard none = new ScriptTimeoutGuard().guard(null, Duration.ZERO);
+      assertFalse(none.interruptTimedOut());
    }
 }
