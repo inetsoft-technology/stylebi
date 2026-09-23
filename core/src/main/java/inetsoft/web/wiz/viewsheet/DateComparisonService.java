@@ -758,6 +758,14 @@ public class DateComparisonService {
             "shown for a *ToDate/same* interval, never 'all'. Pass 'interval', or drop " +
             "'intervalEndDate'/'intervalEndToday'.");
       }
+
+      if(!hasIntervalEndDate && Boolean.FALSE.equals(comparison.intervalEndToday())) {
+         throw new IllegalArgumentException(
+            "'intervalEndToday:false' needs 'intervalEndDate' — otherwise the interval's own " +
+            "cutoff has no anchor at all, and the comparison silently does nothing. Pass " +
+            "'intervalEndDate', drop 'intervalEndToday' (the interval then anchors on today by " +
+            "default), or pass 'intervalEndToday:true'.");
+      }
    }
 
    /** Whether the call asks for any period change at all. */

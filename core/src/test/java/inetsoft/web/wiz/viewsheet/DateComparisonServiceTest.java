@@ -892,6 +892,32 @@ class DateComparisonServiceTest {
    }
 
    /**
+    * DCG-026: {@code intervalEndToday:false} explicitly opts out of the "anchor on today"
+    * default, so — unlike omitting the field entirely (a no-op, see
+    * {@link #omittingBothNewFieldsLeavesTheIntervalsOwnAnchorUntouched}) — it commits to needing
+    * a literal cutoff instead. Without {@code intervalEndDate} in the same call (and none
+    * previously stored), the interval's own anchor has nothing at all to use:
+    * {@code DateComparisonInfo.invalid()} then rejects the whole comparison and it silently
+    * renders as if no comparison were applied, with the existing "no date field bound" disclosure
+    * message reporting an unrelated, false reason. Mirrors the conflicting-pair case just above
+    * ({@link #refusesBothTheIntervalsLiteralDateAndItsTodayAnchor}) for the missing-pair shape
+    * instead: reject at the boundary rather than silently no-op deep in the render pipeline.
+    */
+   @Test
+   void refusesIntervalEndTodayFalseWithoutAnIntervalEndDate() {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "quarter", null, true, "quarterToDate", null, null, null, null, null, null, null,
+         null, false);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> DateComparisonService.requireEndAnchor(comparison));
+
+      assertTrue(thrown.getMessage().contains("intervalEndDate"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("intervalEndToday"), thrown.getMessage());
+   }
+
+   /**
     * {@code customPeriods} already excludes {@code interval} outright (ticket 64217) — the new
     * fields are meaningful only inside the {@code interval} path, so they naturally inherit that
     * same exclusion. Mirrors {@link #refusesCustomPeriodsCombinedWithInterval} but names
