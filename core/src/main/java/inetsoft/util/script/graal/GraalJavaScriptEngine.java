@@ -804,6 +804,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       "return", "throw", "typeof", "void", "delete", "new", "yield", "await",
       "async", "else", "do", "in", "of", "instanceof", "case");
 
+   // Keywords whose parenthesized head is followed by a statement, so the head's
+   // closing `)` puts the top-level lexer in regex (not division) context.
+   private static final Set<String> CONTROL_HEAD_KEYWORDS = Set.of(
+      "if", "while", "for", "with");
+
    // prevSig sentinel: a string/regex/template literal just ended (a value-ender
    // for both regex-vs-division disambiguation and statement-boundary decisions).
    private static final char LITERAL_END = '\u0001';
@@ -909,15 +914,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * declaration: it must be at statement position (not after an operator or
     * {@code return}/{@code typeof}/...) and be followed by a binding name,
     * {@code [} or {@code {}. {@code let} is also an identifier in sloppy code
-    * (e.g. {@code x = let}, {@code let in o}, {@code let.x}). Requiring the same
-    * shape for {@code const} guards against the lexer misreading a regex literal
-    * as division — after {@code )} it treats {@code /} as division, so in
-    * {@code if(x) /const/.test(s)} the {@code const} looks like code; the
-    * following {@code /} (or the preceding {@code /} for {@code /const x/}) is
-    * not a declaration shape. After a {@code )} (ambiguous with a control-flow
-    * header, where {@code if(c) let\ny = 1} is an expression) a {@code let}
-    * binding must follow on the same line; a reserved {@code const} cannot be
-    * an expression, so no such rule is needed for it.
+    * (e.g. {@code x = let}, {@code let in o}, {@code let.x}). The same shape is
+    * required for {@code const} as defense in depth: should the lexer ever read
+    * a regex literal as code, a {@code const} inside it (e.g. {@code /const/})
+    * is not followed or preceded by a declaration shape. After a {@code )}
+    * (ambiguous with a control-flow header, where {@code if(c) let\ny = 1} is
+    * an expression) a {@code let} binding must follow on the same line; a
+    * reserved {@code const} cannot be an expression, so no such rule is needed
+    * for it.
     */
    private static boolean isTopLevelLexicalDeclaration(String body, String word, int end,
                                                        char prevSig, String prevWord)
@@ -983,6 +987,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       int openDo = 0;          // depth-0 `do`s awaiting their trailing `while`
       char prevSig = 0;        // previous significant char (LITERAL_END for a literal)
       String prevWord = null;  // previous identifier/keyword token, else null
+      // one entry per open bracket: whether it is the `(` of an if/while/for/with
+      // head, whose `)` is followed by a statement (so a `/` there is a regex)
+      java.util.Deque<Boolean> brackets = new java.util.ArrayDeque<>();
+      boolean afterHead = false;   // the previous token closed a control-flow head
       int i = 0;
 
       while(i < n) {
@@ -1011,14 +1019,20 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             continue;
          }
 
-         // regex literal (only where a `/` cannot be division)
-         if(c == '/' && regexAllowed(body, i, prevSig == LITERAL_END ? ')' : prevSig)) {
+         // regex literal (only where a `/` cannot be division). The `)` closing a
+         // control-flow head (`if(x) /re/.test(s)`) is followed by a statement,
+         // so a `/` there starts a regex; any other `)` (a call or grouping)
+         // ends an expression, so a `/` after it is division.
+         if(c == '/' &&
+            (afterHead || regexAllowed(body, i, prevSig == LITERAL_END ? ')' : prevSig)))
+         {
             int end = scanRegexEnd(body, i);
 
             if(end > 0) {
                i = end;
                prevSig = LITERAL_END;
                prevWord = null;
+               afterHead = false;
                continue;
             }
          }
@@ -1028,6 +1042,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             i = skipStringLiteral(body, i + 1, c);
             prevSig = LITERAL_END;
             prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -1036,6 +1051,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             i = skipTemplateLiteral(body, i + 1);
             prevSig = LITERAL_END;
             prevWord = null;
+            afterHead = false;
             continue;
          }
 
@@ -1091,20 +1107,29 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
             prevSig = body.charAt(i - 1);
             prevWord = afterDot ? null : word;   // a property name isn't a keyword
+            afterHead = false;
             continue;
          }
 
+         boolean closedHead = false;
+
          if(c == '(' || c == '[' || c == '{') {
             depth++;
+            brackets.push(c == '(' && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
          }
          else if(c == ')' || c == ']' || c == '}') {
             if(depth > 0) {
                depth--;
             }
+
+            if(!brackets.isEmpty()) {
+               closedHead = brackets.pop() && c == ')';
+            }
          }
 
          prevSig = c;
          prevWord = null;
+         afterHead = closedHead;
          i++;
       }
 

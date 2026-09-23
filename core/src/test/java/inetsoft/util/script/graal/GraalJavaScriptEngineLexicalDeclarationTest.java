@@ -177,6 +177,68 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
          "var ok = false; if(1) /const here/.test(s) && (ok = true); if(false) {} ok"), scope, scope));
    }
 
+   // round 4: the `)` closing an if/while/for/with head is followed by a
+   // statement, so the lexer must read a following `/` as a regex — including
+   // one whose text holds `; const`/`; let`, which no shape check can catch
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "if(x) /const/.test(s)",
+      "if(x) /const [a-z]+/.test(s)",
+      "if(x) /const x/.test(s)",
+      "if(x) /; const y/.test(s)",
+      "if(x) /; const y = 1/.test(s)",
+      "while(x-- > 0) /const/.test(s)",
+      "while(x-- > 0) /; const w/.test(s)",
+      "if(x) /let/.test(s)",
+      "if(x) /let y/.test(s)",
+      "if(x) /; let y/.test(s)",
+      "while(x-- > 0) /; let [a]/.test(s)",
+      "if ((a)) /; const q/.test(s)",
+      "if (f(a, (b))) /; let q/.test(s)",
+      "for(;;) /; const r/.test(s)",
+      "for(var k = 0; k < 1; k++) /; let r/.test(s)",
+      "with(o) /; const t/.test(s)",
+      "do {} while(x) /; const u/.test(s)",
+   })
+   void regexAfterControlHeadNotRewritten(String script) throws Exception {
+      assertEquals(script, rewrite(script));
+   }
+
+   // the tester's probes run end to end: these returned false (a rewritten
+   // regex) where main returns true
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "var r = false; if(1) /; const y/.test(s) && (r = true); if(false) {} r",
+      "var r = false, x = 1; while(x-- > 0) /const/.test(s) && (r = true); if(false) {} r",
+      "var r = false; if(1) /; let y/.test(s) && (r = true); if(false) {} r",
+      "var r = false; if ((1)) /x/.test(s) && (r = true); if(false) {} r",
+      "var r = false; for(var k = 0; k < 1; k++) /; const y/.test(s) && (r = true); if(false) {} r",
+      "var r = false; with({}) /; let y/.test(s) && (r = true); if(false) {} r",
+   })
+   void regexAfterControlHeadEvaluates(String script) throws Exception {
+      MapScope scope = new MapScope();
+      scope.putMember("s", "x; const y; let y");
+      assertEquals(true, engine.exec(engine.compile(script), scope, scope), script);
+   }
+
+   // a `)` closing a call or grouping still ends an expression: `/` is division.
+   // If the lexer read `/ 2; const e = d /` as a regex, `const e` would not be
+   // rewritten and the later piece would throw ReferenceError.
+   @Test void divisionAfterCallOrGroupingParen() throws Exception {
+      assertEquals(1.0, num("function f(a) { return a * 2; } var d = f(2) / 2; " +
+                               "const e = d / 2; if(e) {} e"));
+      assertEquals(2.0, num("var g = (8) / 2 / 2; const h = g; if(h) {} h"));
+      assertEquals("x = f(a) / 2; var   e = x / 2", rewrite("x = f(a) / 2; const e = x / 2"));
+   }
+
+   // the splitter shares the lexer: a regex after a control head is one token,
+   // so no boundary is placed inside it (piecesAllParse remains the backstop)
+   @Test void splitterDoesNotBreakInsideRegexAfterControlHead() throws Exception {
+      assertEquals(List.of("var r = 0; ", "if(1) /; if(y) {}/.test(s)"),
+                   split("var r = 0; if(1) /; if(y) {}/.test(s)"));
+      assertEquals(List.of("x = f(a) / 2; ", "if(x) {}"), split("x = f(a) / 2; if(x) {}"));
+   }
+
    // a real declaration after `)` (ASI) is still rewritten
    @Test void constAfterCloseParenOnNextLineRewritten() throws Exception {
       assertEquals("f()\nvar   z = 1", rewrite("f()\nconst z = 1"));
@@ -200,5 +262,13 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
          .getDeclaredMethod("rewriteTopLevelLexicalDeclarations", String.class);
       m.setAccessible(true);
       return (String) m.invoke(null, body);
+   }
+
+   @SuppressWarnings("unchecked")
+   private static List<String> split(String body) throws Exception {
+      java.lang.reflect.Method m = GraalJavaScriptEngine.class
+         .getDeclaredMethod("splitTopLevelStatements", String.class);
+      m.setAccessible(true);
+      return (List<String>) m.invoke(null, body);
    }
 }
