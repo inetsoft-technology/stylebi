@@ -816,6 +816,13 @@ public class GraphTypeUtil {
       try {
          return SecurityEngine.getSecurity().checkPermission(principal, type, resource, action);
       }
+      catch(inetsoft.sree.security.SecurityException ex) {
+         // this overload's only documented failure mode is the principal not being logged in
+         // (see SecurityEngine.checkPermission javadoc) -- that is not the same as "no
+         // permission for this chart type" and must not be reported as such (76953).
+         LOG.warn("Failed to check chart style permission, principal is not logged in", ex);
+         throw new MessageException(ex.getMessage(), LogLevel.WARN, false, ConfirmException.ERROR);
+      }
       catch(Exception ex) {
          LOG.debug("Failed to get chart styles", ex);
          return false;

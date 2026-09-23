@@ -22,6 +22,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -75,8 +76,18 @@ public class ChartStylesController {
          String resource = GraphTypeUtil.getChartStylePath(ntypeNum, ntypeStr);
          ResourceType type = resource != null && resource.contains("/") ?
             ResourceType.CHART_TYPE : ResourceType.CHART_TYPE_FOLDER;
-         boolean allowed = GraphTypeUtil.checkChartStylePermission(
-            resource, type, ResourceAction.READ, principal);
+         boolean allowed;
+
+         try {
+            allowed = GraphTypeUtil.checkChartStylePermission(
+               resource, type, ResourceAction.READ, principal);
+         }
+         catch(MessageException ex) {
+            // principal is not logged in (76953); this plain data endpoint has no
+            // user-facing message channel, so fall back to the prior behavior of
+            // omitting this style rather than surfacing a misleading permission error.
+            allowed = false;
+         }
 
          if(allowed) {
             typeStr = catalog.getString(typeStr);

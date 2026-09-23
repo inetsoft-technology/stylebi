@@ -34,6 +34,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.*;
@@ -103,13 +104,23 @@ public class ChangeChartTypeService {
          return null;
       }
 
-      if(!GraphTypeUtil.checkChartStylePermission(event.getType())) {
+      try {
+         if(!GraphTypeUtil.checkChartStylePermission(event.getType())) {
+            MessageCommand command = new MessageCommand();
+            Catalog catalog = Catalog.getCatalog();
+            String msg = catalog.getString("chartTypes.user.noPermission",
+                                           GraphTypes.getDisplayName(event.getType()) + " " + catalog.getString("Chart"));
+            command.setMessage(msg);
+            command.setType(MessageCommand.Type.ERROR);
+            dispatcher.sendCommand(command);
+            return null;
+         }
+      }
+      catch(MessageException ex) {
+         // principal is not logged in (76953) -- distinct from the no-permission case above
          MessageCommand command = new MessageCommand();
-         Catalog catalog = Catalog.getCatalog();
-         String msg = catalog.getString("chartTypes.user.noPermission",
-                                        GraphTypes.getDisplayName(event.getType()) + " " + catalog.getString("Chart"));
-         command.setMessage(msg);
-         command.setType(MessageCommand.Type.ERROR);
+         command.setMessage(ex.getMessage());
+         command.setType(MessageCommand.Type.fromCode(ex.getWarningLevel()));
          dispatcher.sendCommand(command);
          return null;
       }
