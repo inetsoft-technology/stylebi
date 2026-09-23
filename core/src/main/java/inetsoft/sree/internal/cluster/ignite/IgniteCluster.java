@@ -22,6 +22,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
@@ -2343,6 +2344,31 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
          catch(Exception e) {
             error = e;
+         }
+         finally {
+            // The affinity executor's threads (IgniteAffinity GroupedThreads) are pooled and
+            // reused across unrelated AffinityCallable invocations, but unlike the STOMP dispatch
+            // path (see MessageScopeInterceptor.afterMessageHandled()), nothing previously reset
+            // per-call principal/org/MDC state here, so it could leak from one affinity call into
+            // the next one scheduled on the same pooled thread.
+            try {
+               OrganizationContextHolder.clear();
+
+               if(Thread.currentThread() instanceof GroupedThread groupedThread) {
+                  groupedThread.setPrincipal(null);
+                  groupedThread.removeRecords();
+               }
+               else {
+                  ThreadContext.setContextPrincipal(null);
+               }
+
+               ThreadContext.setPrincipal(null);
+               ThreadContext.setLocale(null);
+               ThreadContext.setProfiling(null);
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to clear thread-local context after affinity call: {}", request, ex);
+            }
          }
 
          AffinityCallResponse<T> response =
