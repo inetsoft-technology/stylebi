@@ -74,9 +74,10 @@ public class CalcFieldAgentService {
     * @param newName     a new name, when renaming an existing calc field; {@code null} to keep
     *                    {@code name}. Ignored when {@code remove} is {@code true}.
     * @param expression  the formula text. Required unless {@code remove} is {@code true}.
-    * @param dataType    the calc field's data type (e.g. {@code "double"}, {@code "string"}). On
-    *                    create, {@code null} leaves it to the engine to infer; on edit, {@code
-    *                    null} keeps the existing calc field's current data type.
+    * @param dataType    the calc field's data type (e.g. {@code "double"}, {@code "string"}).
+    *                    Required on create -- nothing downstream infers one from the expression,
+    *                    so a missing type would silently become a string dimension. On edit,
+    *                    {@code null} keeps the existing calc field's current data type.
     * @param sql         {@code true} for a native-SQL expression, {@code false} for a JavaScript
     *                    one. On create, {@code null} defaults to {@code false}; on edit, {@code
     *                    null} keeps the existing calc field's current setting.
@@ -127,6 +128,17 @@ public class CalcFieldAgentService {
       if(!req.remove() && (req.expression() == null || req.expression().isBlank())) {
          throw new IllegalArgumentException(
             "Creating or editing a calc field requires 'expression'.");
+      }
+
+      // Bug #77015 (DCG-020 a): a null dataType on create is not inferred anywhere downstream --
+      // CalculateRef keeps its default string type, so a numeric expression silently lands as a
+      // string dimension. The native Formula Editor never sends null (it defaults the dropdown to
+      // double/string by calc type), so refuse rather than guess.
+      if(req.create() && !req.remove() && (req.dataType() == null || req.dataType().isBlank())) {
+         throw new IllegalArgumentException(
+            "Creating a calc field requires 'dataType' (e.g. \"double\" or \"integer\" for a " +
+            "numeric measure, \"string\" or \"date\" for a dimension) -- StyleBI does not " +
+            "infer it from the expression.");
       }
 
       String newName = req.newName() != null && !req.newName().isBlank()

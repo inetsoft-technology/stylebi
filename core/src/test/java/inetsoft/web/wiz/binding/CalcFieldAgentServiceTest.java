@@ -159,6 +159,25 @@ class CalcFieldAgentServiceTest {
       verifyNoInteractions(proxy);
    }
 
+   /**
+    * Bug #77015 (DCG-020 a): nothing downstream infers a calc field's type from its expression --
+    * a null dataType on create silently became a string dimension, even for numeric arithmetic.
+    */
+   @Test
+   void createRequiresDataType() throws Exception {
+      ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
+      CalcFieldAgentService service = new CalcFieldAgentService(
+         sessionsRunningAgainstRt1(), fieldsServiceWithOrdersTable(), proxy, allowingSecurityEngine());
+
+      CalcFieldRequest req = new CalcFieldRequest(
+         "ORDERS", null, "Doubled", null, "field['Total'] * 2", null, null, null, false, true);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.modify("tok", principal(), req, ""));
+      assertTrue(thrown.getMessage().contains("dataType"), thrown.getMessage());
+      verifyNoInteractions(proxy);
+   }
+
    @Test
    void refusesATableTheListingDoesNotHave() throws Exception {
       ModifyCalculateFieldServiceProxy proxy = mock(ModifyCalculateFieldServiceProxy.class);
