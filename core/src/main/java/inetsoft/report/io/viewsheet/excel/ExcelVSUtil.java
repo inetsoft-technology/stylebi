@@ -361,7 +361,7 @@ public class ExcelVSUtil {
             h = DEFAULT_ROWWIDTH;
          }
 
-         h = (int) lens.getRowHeightWithPadding(h, i);
+         h = (int) lens.getRowHeightWithPadding(h, i, info);
          hs[i] = h;
          totalHeight += h;
       }

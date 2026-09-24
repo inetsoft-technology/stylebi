@@ -463,11 +463,11 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
 
       if(ctx.modern) {
          if(!tinfo.isUserDataRowHeight() && dataRowHeight == AssetUtil.defh) {
-            dataRowHeight = VSDensityDefaults.rowHeight(ctx);
+            dataRowHeight = VSDensityDefaults.rowHeight(ctx, tinfo);
          }
 
          if(!tinfo.isUserHeaderRowHeight()) {
-            int headerHeight = VSDensityDefaults.headerRowHeight(ctx);
+            int headerHeight = VSDensityDefaults.headerRowHeight(ctx, tinfo);
 
             for(int i = 0; i < headerRowHeights.length; i++) {
                if(headerRowHeights[i] == AssetUtil.defh) {
@@ -489,13 +489,13 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       }
 
       if(dataRowHeight > 0) {
-         dataRowHeight += lens.getCSSRowPadding(lens.getHeaderRowCount());
+         dataRowHeight += lens.getRowPadding(lens.getHeaderRowCount(), tinfo);
       }
 
       if(lens.getHeaderRowCount() > 0) {
          for(int i = 0; i < headerRowHeights.length; i++) {
             if(headerRowHeights[i] > 0) {
-               headerRowHeights[i] += lens.getCSSRowPadding(i);
+               headerRowHeights[i] += lens.getRowPadding(i, tinfo);
             }
          }
       }
@@ -594,7 +594,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
    }
 
    public static int[] getHeaderRowPositions(VSTableLens lens, boolean isWrapped,
-                                             int headerRowCount)
+                                             int headerRowCount, TableDataVSAssemblyInfo info)
    {
       int[] headerRowPositions = new int[headerRowCount + 1];
 
@@ -607,7 +607,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
 
       for(int row = 0; row < headerRowCount && lens.moreRows(row); row++) {
          headerRowPositions[row] = position;
-         height = (int) lens.getRowHeightWithPadding(lens.getWrappedHeight(row, true), row);
+         height = (int) lens.getRowHeightWithPadding(lens.getWrappedHeight(row, true), row, info);
          position += height;
       }
 
@@ -617,7 +617,8 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
    }
 
    public static int[] getDataRowPositions(VSTableLens lens, boolean isWrapped,
-                                           int headerRowCount, int dataRowCount)
+                                           int headerRowCount, int dataRowCount,
+                                           TableDataVSAssemblyInfo info)
    {
       int[] dataRowPositions = new int[dataRowCount + 1];
 
@@ -632,7 +633,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          dataRowPositions[r] = position;
 
          if(row < lens.getRowHeights().length) {
-            height = (int) lens.getRowHeightWithPadding(lens.getWrappedHeight(row, true), row);
+            height = (int) lens.getRowHeightWithPadding(lens.getWrappedHeight(row, true), row, info);
          }
 
          position += height;
@@ -679,8 +680,11 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       if(wrapped) {
          // Since this is used to also calculate the row heights, we need one extra position
          // to calculate the last row height.
-         int[] headerRowPositions = getHeaderRowPositions(lens, true, headerRowCount);
-         int[] dataRowPositions = getDataRowPositions(lens, true, headerRowCount, dataRowCount);
+         TableDataVSAssemblyInfo tinfo =
+            info instanceof TableDataVSAssemblyInfo ? (TableDataVSAssemblyInfo) info : null;
+         int[] headerRowPositions = getHeaderRowPositions(lens, true, headerRowCount, tinfo);
+         int[] dataRowPositions =
+            getDataRowPositions(lens, true, headerRowCount, dataRowCount, tinfo);
 
          final int dataRowsHeight = dataRowPositions[dataRowCount];
          builder.headerRowPositions(headerRowPositions)
@@ -1170,7 +1174,13 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          if(ctx.modern && !tinfo.isUserDataRowHeight() &&
             dataRowHeight == AssetUtil.defh)
          {
-            dataRowHeight = VSDensityDefaults.rowHeight(ctx);
+            dataRowHeight = VSDensityDefaults.rowHeight(ctx, tinfo);
+         }
+
+         // the stored height is a content height; add the padding back so this model agrees
+         // with the one LoadTableDataCommand later replaces it with
+         if(dataRowHeight > 0) {
+            dataRowHeight += lens.getRowPadding(lens.getHeaderRowCount(), tinfo);
          }
 
          model.setDataRowHeight(dataRowHeight);

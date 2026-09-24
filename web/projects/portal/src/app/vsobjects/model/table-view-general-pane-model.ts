@@ -19,6 +19,7 @@ import { GeneralPropPaneModel } from "./general-prop-pane-model";
 import { TitlePropPaneModel } from "./title-prop-pane-model";
 import { TableStylePaneModel } from "../../widget/table-style/table-style-pane-model";
 import { SizePositionPaneModel } from "./size-position-pane-model";
+import { PaddingPaneModel } from "./padding-pane-model";
 
 export interface TableViewGeneralPaneModel {
    showMaxRows: boolean;
@@ -29,4 +30,5 @@ export interface TableViewGeneralPaneModel {
    titlePropPaneModel: TitlePropPaneModel;
    tableStylePaneModel: TableStylePaneModel;
    sizePositionPaneModel: SizePositionPaneModel;
+   cellPaddingPaneModel: PaddingPaneModel;
 }

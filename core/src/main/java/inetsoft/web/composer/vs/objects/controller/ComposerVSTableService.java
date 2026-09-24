@@ -956,7 +956,7 @@ public class ComposerVSTableService {
             int height = event.rowHeight();
 
             if(removePadding) {
-               height = Math.max(0, height - lens.getCSSRowPadding(i + event.row()));
+               height = Math.max(0, height - lens.getRowPadding(i + event.row(), info));
             }
 
             info.setHeaderRowHeight(i + event.row(), height);
@@ -967,7 +967,7 @@ public class ComposerVSTableService {
          int height = event.rowHeight();
 
          if(removePadding) {
-            height = Math.max(0, height - lens.getCSSRowPadding(lens.getHeaderRowCount()));
+            height = Math.max(0, height - lens.getRowPadding(lens.getHeaderRowCount(), info));
          }
 
          info.setDataRowHeight(height);

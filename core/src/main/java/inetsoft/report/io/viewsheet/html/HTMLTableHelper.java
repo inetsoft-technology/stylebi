@@ -114,13 +114,13 @@ public class HTMLTableHelper extends HTMLTableDataHelper {
 
       for(int r = 0; r < rowCount; r++) {
          if(lens.getRowHeights() == null || r >= heights.length) {
-            rowHeights[r] = (int) lens.getRowHeightWithPadding(AssetUtil.defh, r);
+            rowHeights[r] = (int) lens.getRowHeightWithPadding(AssetUtil.defh, r, info);
             totalHeight += rowHeights[r];
             continue;
          }
 
          int h = lens.getWrappedHeight(r, true);
-         rowHeights[r] = (int) lens.getRowHeightWithPadding(Double.isNaN(h) ? AssetUtil.defh : h, r);
+         rowHeights[r] = (int) lens.getRowHeightWithPadding(Double.isNaN(h) ? AssetUtil.defh : h, r, info);
          totalHeight += rowHeights[r];
       }
 
@@ -285,7 +285,7 @@ public class HTMLTableHelper extends HTMLTableDataHelper {
          (lastColumn ? "100%" : (w - hBorderWidth * 2 + "px")) + ";height:" +
          (h - vBorderWidth) + "px;");
       table.append(getCellContentStyle(cfmt));
-      table.append(vHelper.getPaddingString(lens.getInsets(r, c)));
+      table.append(vHelper.getPaddingString(lens.getCellInsets(r, c, info)));
 
       if(link != null) {
          table.append("text-decoration:underline' onclick='window.open(\"" + link + "\");");

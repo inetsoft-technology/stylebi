@@ -23,6 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -116,6 +117,17 @@ public class TableViewPropertyDialogService {
       sizePositionPaneModel.setTitleHeightFollowsDensity(
          tableAssemblyInfo.getVizMark() == null ? null : !tableAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(tableAssembly.getContainer() != null);
+
+      PaddingPaneModel cellPaddingPaneModel = tableViewGeneralPaneModel.getCellPaddingPaneModel();
+      Insets cellPadding = tableAssemblyInfo.getCellPadding();
+      cellPaddingPaneModel.setTop(cellPadding == null ? 0 : cellPadding.top);
+      cellPaddingPaneModel.setLeft(cellPadding == null ? 0 : cellPadding.left);
+      cellPaddingPaneModel.setBottom(cellPadding == null ? 0 : cellPadding.bottom);
+      cellPaddingPaneModel.setRight(cellPadding == null ? 0 : cellPadding.right);
+      // null hides the checkbox: an unmarked table has no default to follow, and the pane then
+      // behaves exactly as it did before the checkbox existed
+      cellPaddingPaneModel.setFollowsDefault(
+         tableAssemblyInfo.getVizMark() == null ? null : !tableAssemblyInfo.isUserCellPadding());
 
       boolean embeddedSource = this.vsObjectPropertyService.isEmbeddedEnabled(rvs, tableAssemblyInfo);
       tableAdvancedPaneModel.setFormVisible(embeddedSource && FormUtil.isFormEnabled());
@@ -220,6 +232,30 @@ public class TableViewPropertyDialogService {
       else {
          tableAssemblyInfo.setUserTitleHeight(true);
          tableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
+
+      PaddingPaneModel cellPaddingPaneModel = tableViewGeneralPaneModel.getCellPaddingPaneModel();
+      Insets editedCellPadding = new Insets(
+         cellPaddingPaneModel.getTop(), cellPaddingPaneModel.getLeft(),
+         cellPaddingPaneModel.getBottom(), cellPaddingPaneModel.getRight());
+      Boolean cellPaddingFollowsDefault = cellPaddingPaneModel.getFollowsDefault();
+      if(cellPaddingFollowsDefault == null) {
+         // no checkbox was shown, so this table is not marked; store only a real edit. the load
+         // side shows 0 for an absent padding, so all zeros means none rather than a pinned 0
+         if(editedCellPadding.equals(new Insets(0, 0, 0, 0))) {
+            tableAssemblyInfo.resetUserCellPadding();
+         }
+         else if(!editedCellPadding.equals(tableAssemblyInfo.getCellPadding())) {
+            tableAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+         }
+      }
+      else if(cellPaddingFollowsDefault) {
+         // clear the opinion and let the density decide, the same shape Revert uses. Writing the
+         // current density value into the USER tier here would pin this tier
+         tableAssemblyInfo.resetUserCellPadding();
+      }
+      else {
+         tableAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
       }
 
       if(!tableAssemblyInfo.isForm() && tableAdvancedPaneModel.isForm()) {

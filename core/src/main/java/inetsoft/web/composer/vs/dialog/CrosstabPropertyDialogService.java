@@ -128,6 +128,17 @@ public class CrosstabPropertyDialogService {
             !crosstabAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(crosstabAssembly.getContainer() != null);
 
+      PaddingPaneModel cellPaddingPaneModel = tableViewGeneralPaneModel.getCellPaddingPaneModel();
+      Insets cellPadding = crosstabAssemblyInfo.getCellPadding();
+      cellPaddingPaneModel.setTop(cellPadding == null ? 0 : cellPadding.top);
+      cellPaddingPaneModel.setLeft(cellPadding == null ? 0 : cellPadding.left);
+      cellPaddingPaneModel.setBottom(cellPadding == null ? 0 : cellPadding.bottom);
+      cellPaddingPaneModel.setRight(cellPadding == null ? 0 : cellPadding.right);
+      // null hides the checkbox: an unmarked table has no default to follow, and the pane then
+      // behaves exactly as it did before the checkbox existed
+      cellPaddingPaneModel.setFollowsDefault(
+         crosstabAssemblyInfo.getVizMark() == null ? null : !crosstabAssemblyInfo.isUserCellPadding());
+
       VSCrosstabInfo vsCrossTabInfo = crosstabAssemblyInfo.getVSCrosstabInfo();
 
       if(vsCrossTabInfo != null) {
@@ -314,6 +325,30 @@ public class CrosstabPropertyDialogService {
       else {
          assemblyInfo.setUserTitleHeight(true);
          assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
+
+      PaddingPaneModel cellPaddingPaneModel = tableViewGeneralPaneModel.getCellPaddingPaneModel();
+      Insets editedCellPadding = new Insets(
+         cellPaddingPaneModel.getTop(), cellPaddingPaneModel.getLeft(),
+         cellPaddingPaneModel.getBottom(), cellPaddingPaneModel.getRight());
+      Boolean cellPaddingFollowsDefault = cellPaddingPaneModel.getFollowsDefault();
+      if(cellPaddingFollowsDefault == null) {
+         // no checkbox was shown, so this table is not marked; store only a real edit. the load
+         // side shows 0 for an absent padding, so all zeros means none rather than a pinned 0
+         if(editedCellPadding.equals(new Insets(0, 0, 0, 0))) {
+            assemblyInfo.resetUserCellPadding();
+         }
+         else if(!editedCellPadding.equals(assemblyInfo.getCellPadding())) {
+            assemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+         }
+      }
+      else if(cellPaddingFollowsDefault) {
+         // clear the opinion and let the density decide, the same shape Revert uses. Writing the
+         // current density value into the USER tier here would pin this tier
+         assemblyInfo.resetUserCellPadding();
+      }
+      else {
+         assemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
       }
 
       if(vsCrossTabInfo != null) {

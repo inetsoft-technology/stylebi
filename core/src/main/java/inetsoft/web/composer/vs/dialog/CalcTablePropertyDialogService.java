@@ -25,6 +25,7 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableTool;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -144,6 +145,18 @@ public class CalcTablePropertyDialogService {
             !calcTableAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(calcTableAssembly.getContainer() != null);
 
+      PaddingPaneModel cellPaddingPaneModel = tableViewGeneralPaneModel.getCellPaddingPaneModel();
+      Insets cellPadding = calcTableAssemblyInfo.getCellPadding();
+      cellPaddingPaneModel.setTop(cellPadding == null ? 0 : cellPadding.top);
+      cellPaddingPaneModel.setLeft(cellPadding == null ? 0 : cellPadding.left);
+      cellPaddingPaneModel.setBottom(cellPadding == null ? 0 : cellPadding.bottom);
+      cellPaddingPaneModel.setRight(cellPadding == null ? 0 : cellPadding.right);
+      // null hides the checkbox: an unmarked table has no default to follow, and the pane then
+      // behaves exactly as it did before the checkbox existed
+      cellPaddingPaneModel.setFollowsDefault(
+         calcTableAssemblyInfo.getVizMark() == null ? null :
+            !calcTableAssemblyInfo.isUserCellPadding());
+
       advPane.setShrink(calcTableAssemblyInfo.getShrinkValue());
       advPane.setTrailerColCount(calcTableAssemblyInfo.getTrailerColCount());
       advPane.setTrailerRowCount(calcTableAssemblyInfo.getTrailerRowCount());
@@ -203,8 +216,8 @@ public class CalcTablePropertyDialogService {
 
       try {
          if(isWrapped) {
-            tableHeight = BaseTableService.getHeaderRowPositions(lens,
-                                                                    isWrapped, headerRowCount)[headerRowCount];
+            tableHeight = BaseTableService.getHeaderRowPositions(
+               lens, isWrapped, headerRowCount, calcTableAssemblyInfo)[headerRowCount];
          }
          else {
             tableHeight = Arrays.stream(calcTableAssemblyInfo.getHeaderRowHeights()).sum();
@@ -242,15 +255,15 @@ public class CalcTablePropertyDialogService {
       }
 
       if(rowCount < headerRowcount) {
-         return BaseTableService.getHeaderRowPositions(lens, isWrapped,
-                                                          headerRowcount)[rowCount];
+         return BaseTableService.getHeaderRowPositions(
+            lens, isWrapped, headerRowcount, calcTableAssemblyInfo)[rowCount];
       }
 
       int dataRowCount = Math.max(0, rowCount - headerRowcount);
       lens.initTableGrid(calcTableAssemblyInfo);
 
-      return BaseTableService.getDataRowPositions(lens, isWrapped,
-                                                     headerRowcount, dataRowCount)[dataRowCount];
+      return BaseTableService.getDataRowPositions(
+         lens, isWrapped, headerRowcount, dataRowCount, calcTableAssemblyInfo)[dataRowCount];
    }
 
    private double getApproxVisibleRows(VSTableLens lens,
@@ -391,6 +404,30 @@ public class CalcTablePropertyDialogService {
       else {
          calcTableAssemblyInfo.setUserTitleHeight(true);
          calcTableAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
+
+      PaddingPaneModel cellPaddingPaneModel = tableViewGeneralPaneModel.getCellPaddingPaneModel();
+      Insets editedCellPadding = new Insets(
+         cellPaddingPaneModel.getTop(), cellPaddingPaneModel.getLeft(),
+         cellPaddingPaneModel.getBottom(), cellPaddingPaneModel.getRight());
+      Boolean cellPaddingFollowsDefault = cellPaddingPaneModel.getFollowsDefault();
+      if(cellPaddingFollowsDefault == null) {
+         // no checkbox was shown, so this table is not marked; store only a real edit. the load
+         // side shows 0 for an absent padding, so all zeros means none rather than a pinned 0
+         if(editedCellPadding.equals(new Insets(0, 0, 0, 0))) {
+            calcTableAssemblyInfo.resetUserCellPadding();
+         }
+         else if(!editedCellPadding.equals(calcTableAssemblyInfo.getCellPadding())) {
+            calcTableAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
+         }
+      }
+      else if(cellPaddingFollowsDefault) {
+         // clear the opinion and let the density decide, the same shape Revert uses. Writing the
+         // current density value into the USER tier here would pin this tier
+         calcTableAssemblyInfo.resetUserCellPadding();
+      }
+      else {
+         calcTableAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
       }
 
       calcTableAssemblyInfo.setShrinkValue(advPane.isShrink());
