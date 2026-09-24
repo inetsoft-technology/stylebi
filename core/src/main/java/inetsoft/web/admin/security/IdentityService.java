@@ -1323,6 +1323,34 @@ public class IdentityService {
          SreeEnv.setProperty(newName, SreeEnv.getProperty(oldName));
          SreeEnv.remove(oldName);
       }
+
+      updateOrgLogProperties(properties, oId, id);
+   }
+
+   /**
+    * Moves the organization's log level properties (e.g. {@code log.USER.level.bob^oldOrg}) to
+    * the new organization ID. This must happen before {@link #removeOrgProperties(String)}
+    * removes the properties of the old organization, because removing a log level property also
+    * resets its running level (Bug #77006).
+    */
+   private void updateOrgLogProperties(Properties properties, String oId, String id) {
+      String oldSuffix = "^" + oId;
+      Set<String> logProperties = properties.keySet().stream()
+         .map(prop -> (String) prop)
+         .filter(prop -> prop.startsWith("log.") && prop.endsWith(oldSuffix))
+         .collect(Collectors.toSet());
+
+      for(String oldName : logProperties) {
+         String value = properties.getProperty(oldName);
+
+         if(value != null) {
+            String newName =
+               oldName.substring(0, oldName.length() - oldSuffix.length()) + "^" + id;
+            SreeEnv.setProperty(newName, value);
+         }
+
+         SreeEnv.remove(oldName);
+      }
    }
 
    /**

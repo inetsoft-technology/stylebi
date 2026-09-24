@@ -25,6 +25,7 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.log.*;
 import inetsoft.web.admin.properties.PropertiesController;
+import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.ObjectProvider;
@@ -35,6 +36,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -233,6 +235,95 @@ class PropertiesEngineLogLevelResetTest {
       storage.remoteRemove("inetsoft.org.org77006.log.level." + logger, false);
       engine.init(true);
       assertEquals(LogLevel.DEBUG, logManager.getLevel(logger));
+   }
+
+   @Test
+   void orgRenameKeepsOrgLogLevels() throws Exception {
+      // the rename path of AbstractEditableAuthenticationProvider.copyOrganizationInternal()
+      // (replace = true) followed by IdentityService.syncIdentity() (Bug #71473)
+      String oldOrg = "org77006old";
+      String newOrg = "org77006new";
+      String user = logger + ".user";
+      String group = logger + ".group";
+      initEngine();
+      engine.setProperty("log.USER.level." + user + "^" + oldOrg, "debug");
+      engine.setProperty("log.GROUP.level." + group + "^" + oldOrg, "error");
+      engine.setProperty("log.level." + logger + "^" + oldOrg, "debug");
+      engine.save();
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.USER, user + "^" + oldOrg));
+
+      IdentityService identityService = createIdentityService();
+      identityService.updateOrgProperties(oldOrg, newOrg);
+      identityService.removeOrgProperties(oldOrg);
+      logManager.renameOrgLogLevels(oldOrg, newOrg);
+
+      assertOrgLogLevels(user, group, oldOrg, newOrg);
+
+      // the renamed levels are stored, so a reload (or a restart) keeps them
+      engine.save();
+      engine.init(true);
+      assertOrgLogLevels(user, group, oldOrg, newOrg);
+   }
+
+   @Test
+   void orgDeleteClearsOrgLogLevels() throws Exception {
+      String org = "org77006deleted";
+      String user = logger + ".user";
+      initEngine();
+      engine.setProperty("log.USER.level." + user + "^" + org, "debug");
+      engine.setProperty("log.level." + logger + "^" + org, "debug");
+      engine.setProperty("log.level." + logger, "error");
+      engine.save();
+
+      // the delete path of IdentityService.syncIdentity()
+      createIdentityService().removeOrgProperties(org);
+      logManager.removeOrgLogLevels(org);
+
+      assertNull(engine.getProperty("log.USER.level." + user + "^" + org));
+      assertNull(contextLevel(LogContext.USER, user + "^" + org));
+      assertNull(logManager.getLevel(logger + "^" + org));
+      assertEquals(LogLevel.ERROR, logManager.getLevel(logger), "the host logger was reset");
+
+      engine.save();
+      engine.init(true);
+      assertNull(contextLevel(LogContext.USER, user + "^" + org));
+      assertNull(logManager.getLevel(logger + "^" + org));
+   }
+
+   private void assertOrgLogLevels(String user, String group, String oldOrg, String newOrg)
+      throws Exception
+   {
+      assertEquals(LogLevel.DEBUG, contextLevel(LogContext.USER, user + "^" + newOrg),
+                   "the renamed org's user level was lost");
+      assertEquals(LogLevel.ERROR, contextLevel(LogContext.GROUP, group + "^" + newOrg),
+                   "the renamed org's group level was lost");
+      assertEquals(LogLevel.DEBUG, logManager.getLevel(logger + "^" + newOrg));
+      assertNull(contextLevel(LogContext.USER, user + "^" + oldOrg));
+      assertNull(contextLevel(LogContext.GROUP, group + "^" + oldOrg));
+      assertNull(logManager.getLevel(logger + "^" + oldOrg));
+
+      // stored, so that the other nodes and a restart see them too
+      assertEquals("debug", engine.getProperty("log.USER.level." + user + "^" + newOrg));
+      assertEquals("error", engine.getProperty("log.GROUP.level." + group + "^" + newOrg));
+      assertEquals("debug", engine.getProperty("log.level." + logger + "^" + newOrg));
+      assertNull(engine.getProperty("log.USER.level." + user + "^" + oldOrg));
+      assertNull(engine.getProperty("log.GROUP.level." + group + "^" + oldOrg));
+      assertNull(engine.getProperty("log.level." + logger + "^" + oldOrg));
+   }
+
+   private static IdentityService createIdentityService() {
+      return new IdentityService(
+         null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+         Optional.empty(), null, null, null, null, null, null, null, null, null, null, null,
+         null, null, Optional.empty());
+   }
+
+   @SuppressWarnings("unchecked")
+   private LogLevel contextLevel(LogContext context, String name) throws Exception {
+      Field field = LogManager.class.getDeclaredField("contextLevels");
+      field.setAccessible(true);
+      return ((Map<LogContext, Map<String, LogLevel>>) field.get(logManager))
+         .get(context).get(name);
    }
 
    private boolean isListed(LogContext context, String name) {

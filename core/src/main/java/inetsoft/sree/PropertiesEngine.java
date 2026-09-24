@@ -855,9 +855,9 @@ public class PropertiesEngine {
    }
 
    /**
-    * Resets the running log level of a removed log property to the level it would have after a
-    * restart: the effective value of the property (e.g. from defaults.properties), else the
-    * built-in level set by {@link #initLogging()}, else no level, so that it is inherited.
+    * Resets the running log level of a removed log property to the effective value of the
+    * property (e.g. from defaults.properties), else the built-in level set by
+    * {@link #initLogging()}, else no level, so that it is inherited.
     *
     * @param prop the name of the removed property.
     */
