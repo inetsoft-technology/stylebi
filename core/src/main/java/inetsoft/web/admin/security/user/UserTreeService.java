@@ -1041,7 +1041,15 @@ public class UserTreeService {
          return getRootOrganizationModel(principal, currentProvider);
       }
 
-      Organization organization = currentProvider.getOrganization(orgID.orgID);
+      Organization organization = orgID.orgID == null ? null :
+         currentProvider.getOrganization(orgID.orgID);
+
+      // a key without a matching org id (e.g. name only) must not resolve to another organization
+      if(organization == null || !Tool.equals(organization.getName(), orgID.name)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.organization.not.exist", orgID.name));
+      }
+
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       Set<Object> keyset = SreeEnv.getProperties().keySet();
