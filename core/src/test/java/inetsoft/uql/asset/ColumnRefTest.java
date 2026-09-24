@@ -18,8 +18,16 @@
 package inetsoft.uql.asset;
 
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.ByteArrayInputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -68,5 +76,116 @@ class ColumnRefTest {
 
       assertEquals("Other", column.getEntity());
       assertEquals("integer", column.getDataType());
+   }
+
+   // =========================================================================
+   // Data-type provenance (bug #77000/WBS-082) -- setDataType/setInferredDataType/
+   // clearInferredDataType/getDataTypeProvenance, and their XML round-trip.
+   // =========================================================================
+
+   @Test
+   void setDataTypeMarksProvenanceExplicit() {
+      ColumnRef column = new ColumnRef(new AttributeRef("a"));
+      column.setDataType("double");
+
+      assertEquals(Boolean.FALSE, column.getDataTypeProvenance());
+   }
+
+   @Test
+   void setInferredDataTypeMarksProvenanceInferred() {
+      ColumnRef column = new ColumnRef(new AttributeRef("a"));
+      column.setInferredDataType("double");
+
+      assertEquals("double", column.getDataType());
+      assertEquals(Boolean.TRUE, column.getDataTypeProvenance());
+   }
+
+   @Test
+   void clearInferredDataTypeResetsToUntypedDefaultAndUnknownProvenance() {
+      ColumnRef column = new ColumnRef(new AttributeRef("a"));
+      column.setInferredDataType("double");
+
+      column.clearInferredDataType();
+
+      assertFalse(column.isDataTypeSet());
+      assertNull(column.getDataTypeProvenance());
+   }
+
+   @Test
+   void newColumnRefHasUnknownProvenanceUntilTypeIsSet() {
+      ColumnRef column = new ColumnRef(new AttributeRef("a"));
+
+      assertNull(column.getDataTypeProvenance());
+   }
+
+   @Test
+   void xmlRoundTripPreservesInferredProvenance() throws Exception {
+      ColumnRef column = new ColumnRef(new AttributeRef("a"));
+      column.setInferredDataType("double");
+
+      ColumnRef copy = (ColumnRef) writeAndParse(column);
+
+      assertEquals("double", copy.getDataType());
+      assertEquals(Boolean.TRUE, copy.getDataTypeProvenance());
+   }
+
+   @Test
+   void xmlRoundTripPreservesExplicitProvenance() throws Exception {
+      ColumnRef column = new ColumnRef(new AttributeRef("a"));
+      column.setDataType("double");
+
+      ColumnRef copy = (ColumnRef) writeAndParse(column);
+
+      assertEquals("double", copy.getDataType());
+      assertEquals(Boolean.FALSE, copy.getDataTypeProvenance());
+   }
+
+   /**
+    * Simulates a worksheet persisted by a version of the product before the
+    * {@code dataTypeInferred} XML attribute existed: the same XML {@code writeAndParse}
+    * produces for an explicitly-typed column, but with that one attribute stripped out
+    * before parsing. Confirms the legacy-migration default is "provenance unknown"
+    * ({@code null}), not silently guessed as either explicit or inferred -- see
+    * {@code WorksheetMutationSupport.isReInferEligible}'s fix notes (bug
+    * #77000/WBS-082) for why that default matters.
+    */
+   @Test
+   void legacyXmlWithoutProvenanceAttributeParsesAsUnknownProvenance() throws Exception {
+      ColumnRef column = new ColumnRef(new AttributeRef("a"));
+      column.setDataType("double");
+
+      StringWriter sw = new StringWriter();
+      PrintWriter writer = new PrintWriter(sw);
+      column.writeXML(writer);
+      writer.flush();
+
+      String legacyXml = sw.toString().replaceAll(" dataTypeInferred=\"[a-z]+\"", "");
+      assertFalse(legacyXml.contains("dataTypeInferred"),
+                  "sanity check: the provenance attribute must actually be stripped");
+
+      ColumnRef copy = (ColumnRef) parseXml(legacyXml);
+
+      assertEquals("double", copy.getDataType(),
+                   "the data type itself must still round-trip from legacy XML");
+      assertNull(copy.getDataTypeProvenance(),
+                 "a worksheet saved before this field existed has no recorded provenance");
+   }
+
+   private static DataRef writeAndParse(DataRef ref) throws Exception {
+      StringWriter sw = new StringWriter();
+      PrintWriter writer = new PrintWriter(sw);
+      ref.writeXML(writer);
+      writer.flush();
+
+      return parseXml(sw.toString());
+   }
+
+   private static DataRef parseXml(String xml) throws Exception {
+      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+      Document doc = factory.newDocumentBuilder().parse(
+         new ByteArrayInputStream(xml.getBytes()));
+      Element elem = doc.getDocumentElement();
+
+      return inetsoft.uql.erm.AbstractDataRef.createDataRef(elem);
    }
 }

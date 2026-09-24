@@ -4447,6 +4447,162 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void editExpressionReinfersAfterPriorAutoInferWhenExpressionShapeChanges() throws Exception {
+      // Bug #77000/WBS-082 repro: add_expression_column auto-infers DOUBLE for a
+      // numeric ternary (no explicit type), then a later edit_expression -- also
+      // omitting type -- rewrites the expression to an unambiguously string-producing
+      // shape. The stale isDataTypeSet()-only guard used to stick at the stale DOUBLE
+      // forever; the type must now re-evaluate to STRING.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 3 : 1", null, false));
+
+      ColumnRef afterAdd = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertEquals(XSchema.DOUBLE, afterAdd.getDataType(), "sanity check: auto-infer on add");
+      assertEquals(Boolean.TRUE, afterAdd.getDataTypeProvenance(),
+                   "sanity check: the auto-inferred type is tracked as inferred, not explicit");
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 'High' : 'Low'", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType(),
+                   "the stale DOUBLE from the prior auto-infer must not stick after the " +
+                   "expression shape changes to something non-numeric");
+   }
+
+   @Test
+   void editExpressionReinfersRepeatedlyAcrossMultipleAutoInferredEdits() throws Exception {
+      // A column can flip back and forth between numeric and non-numeric shapes across
+      // several edits, all omitting type -- each one must be re-evaluated on its own,
+      // not just the first transition after the initial add.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER", "field['QUANTITY'] * 2", null, false));
+      assertEquals(XSchema.DOUBLE,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER")).getDataType());
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 'High' : 'Low'", null, false));
+      assertEquals(XSchema.STRING,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER")).getDataType());
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "QTY_TIER", "field['QUANTITY'] + 1", null, false));
+      assertEquals(XSchema.DOUBLE,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER")).getDataType(),
+         "flipping back to a numeric shape on a THIRD edit must also re-infer, not just the first transition");
+   }
+
+   @Test
+   void editExpressionReinfersWhenLegacyProvenanceUnknownAndConsistentWithInference() throws Exception {
+      // Bug #77000/WBS-082 persistence-migration coverage: simulates a worksheet
+      // persisted by a version of the product before ColumnRef#getDataTypeProvenance()
+      // existed -- the column's dtype is DOUBLE (as it would be after an auto-infer),
+      // but its provenance is unknown (null), matching what parsing legacy XML lacking
+      // the new "dataTypeInferred" attribute produces (see
+      // ColumnRefTest#legacyXmlWithoutProvenanceAttributeParsesAsUnknownProvenance).
+      // Since re-running inference against the PRIOR expression still produces the
+      // same DOUBLE the column already holds, the heuristic fallback must treat it as
+      // eligible and re-infer against the new, non-numeric expression.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 3 : 1", null, false));
+
+      ColumnRef afterAdd = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      forgetDataTypeProvenance(afterAdd);
+      assertNull(afterAdd.getDataTypeProvenance(), "sanity check: provenance forgotten");
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 'High' : 'Low'", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertEquals(XSchema.STRING, col.getDataType(),
+                   "a legacy column whose stored type still matches what re-running " +
+                   "inference on its PRIOR expression would produce must be treated as " +
+                   "plausibly inferred and re-evaluated");
+   }
+
+   @Test
+   void editExpressionPreservesLegacyExplicitTypeWhenProvenanceUnknownAndInconsistentWithInference()
+      throws Exception
+   {
+      // The other half of the persistence-migration heuristic: a legacy column whose
+      // provenance is unknown, but whose stored type does NOT match what re-running
+      // inference on its prior expression would currently produce -- e.g. an explicit
+      // "integer" on a "field['a'] * 1" expression that inference would itself guess as
+      // DOUBLE -- is a strong signal the type was genuinely caller-explicit, and must
+      // stay untouched. This exercises the SAME logical branch as
+      // editExpressionPreservesExplicitPriorTypeWhenTypeOmitted, but via the legacy
+      // heuristic fallback (provenance forgotten) rather than the live provenance flag.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "integer", false));
+
+      ColumnRef afterAdd = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      forgetDataTypeProvenance(afterAdd);
+      assertNull(afterAdd.getDataTypeProvenance(), "sanity check: provenance forgotten");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.INTEGER, col.getDataType(),
+                   "a legacy explicit type that inference would NOT have produced from " +
+                   "the prior expression must stay untouched, even with provenance " +
+                   "forgotten");
+   }
+
+   /**
+    * Simulates a {@link ColumnRef} loaded from a worksheet persisted by a version of
+    * the product before {@link ColumnRef#getDataTypeProvenance()} existed -- its
+    * {@code dtype} is already set, but nothing recorded whether that came from an
+    * explicit caller request or our own inference heuristic. There is no public API to
+    * reach this state directly (every live code path that sets a type also records its
+    * provenance), so this reflects into the private field the same way
+    * {@code ColumnRef#parseAttributes} leaves it when the persisted XML lacks the
+    * {@code dataTypeInferred} attribute -- see
+    * {@code ColumnRefTest#legacyXmlWithoutProvenanceAttributeParsesAsUnknownProvenance}
+    * for the equivalent coverage via a real XML round-trip.
+    */
+   private static void forgetDataTypeProvenance(ColumnRef cr) throws Exception {
+      java.lang.reflect.Field f = ColumnRef.class.getDeclaredField("dtypeInferred");
+      f.setAccessible(true);
+      f.set(cr, null);
+   }
+
+   @Test
    void editJoinUpdatesKeyColumns() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly left  = TestWorksheets.tableWithColumns(ws, "L", "id", "altId");

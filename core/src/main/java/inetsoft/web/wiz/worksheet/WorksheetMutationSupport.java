@@ -1570,7 +1570,7 @@ public final class WorksheetMutationSupport {
          String inferred = inferNumericExpressionType(t, expression);
 
          if(inferred != null) {
-            colRef.setDataType(inferred);
+            colRef.setInferredDataType(inferred);
          }
       }
 
@@ -1603,20 +1603,30 @@ public final class WorksheetMutationSupport {
 
          if(ref instanceof ColumnRef cr && cr.getDataRef() instanceof ExpressionRef er) {
             if(name.equals(er.getName()) || name.equals(er.getAttribute())) {
+               String priorExpression = er.getExpression();
                er.setExpression(expression != null ? expression : "");
                cr.setSQL(sql);
 
                if(type != null) {
                   cr.setDataType(type);
                }
-               else if(!cr.isDataTypeSet()) {
-                  // Only re-infer when the column has never had an explicit type set --
-                  // a real, previously-set explicit type (even "string") must be left
-                  // alone per the "null = leave unchanged" contract above.
+               else if(isReInferEligible(t, cr, priorExpression)) {
+                  // Only re-infer when the column's current type is not explicitly
+                  // caller-set -- a real, previously-set explicit type (even "string")
+                  // must be left alone per the "null = leave unchanged" contract above.
+                  // Bug #77000/WBS-082: unlike the old `!cr.isDataTypeSet()` guard,
+                  // this stays eligible across repeated edits as long as the type was
+                  // itself only ever set by our own inference heuristic (tracked via
+                  // ColumnRef#getDataTypeProvenance()), so a later shape-changing edit
+                  // that flips a numeric expression to a non-numeric one is correctly
+                  // re-evaluated instead of sticking at the stale first-guessed type.
                   String inferred = inferNumericExpressionType(t, expression);
 
                   if(inferred != null) {
-                     cr.setDataType(inferred);
+                     cr.setInferredDataType(inferred);
+                  }
+                  else {
+                     cr.clearInferredDataType();
                   }
                }
 
@@ -1628,6 +1638,49 @@ public final class WorksheetMutationSupport {
 
       // Not found — add as new expression column.
       addExpressionColumn(t, name, expression, type, sql);
+   }
+
+   /**
+    * Decides whether {@code editExpression} should re-run type inference for a column
+    * whose {@code type} argument was omitted (bug #77000/WBS-082).
+    *
+    * <p>A column that has never had a type set at all, or whose current type was set
+    * by our own inference heuristic ({@link ColumnRef#getDataTypeProvenance()} ==
+    * {@code Boolean.TRUE}), is always eligible -- the caller never explicitly chose
+    * that value, so re-evaluating it against the new expression cannot clobber a
+    * deliberate decision. A column whose provenance is known to be explicit
+    * ({@code Boolean.FALSE}) is never eligible.</p>
+    *
+    * <p>When the provenance is unknown ({@code null} -- a worksheet persisted by a
+    * version of the product before {@link ColumnRef#getDataTypeProvenance()} existed),
+    * this falls back to a heuristic: re-run inference against the PRIOR (pre-edit)
+    * expression and compare it to the column's current type. A match is a strong
+    * signal the current type came from that same inference mechanism, not a caller's
+    * own explicit request, so it is treated as eligible. A mismatch is left alone. This
+    * cannot repair every pre-existing instance of the stale-type symptom -- a caller
+    * who explicitly chose a type that happens to equal what inference would produce
+    * from the same (now-prior) expression is indistinguishable, under this heuristic,
+    * from a genuinely inferred one, and would incorrectly become eligible too. That is
+    * a disclosed, narrower-than-the-original-bug limitation of the migration path for
+    * already-persisted worksheets, not something a boolean flag alone can resolve --
+    * see the bug #77000/WBS-082 fix notes for the full reasoning. It does not affect
+    * any column mutated under this fixed code going forward, whose provenance is always
+    * known (never {@code null}).</p>
+    */
+   private static boolean isReInferEligible(TableAssembly t, ColumnRef cr, String priorExpression) {
+      if(!cr.isDataTypeSet()) {
+         return true;
+      }
+
+      Boolean provenance = cr.getDataTypeProvenance();
+
+      if(provenance != null) {
+         return provenance;
+      }
+
+      String reInferred = inferNumericExpressionType(t, priorExpression);
+      String expectedIfInferred = reInferred != null ? reInferred : XSchema.STRING;
+      return expectedIfInferred.equals(cr.getDataType());
    }
 
    /** Matches {@code field['a'] - field['b']} with arbitrary whitespace around the minus. */
