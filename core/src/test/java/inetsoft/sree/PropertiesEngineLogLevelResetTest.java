@@ -17,6 +17,8 @@
  */
 package inetsoft.sree;
 
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.util.ContextInitializer;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.InMemoryKeyValueStorage;
@@ -28,6 +30,7 @@ import inetsoft.web.admin.properties.PropertiesController;
 import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.test.annotation.DirtiesContext;
@@ -85,6 +88,19 @@ class PropertiesEngineLogLevelResetTest {
       setField("kvStorage", originalStorage);
       setField("logManagerProvider", originalLogManagerProvider);
       engine.init();
+   }
+
+   /**
+    * The real log manager configures the global Logback context whenever the logging framework
+    * is reloaded (a root logger at ERROR, file appenders and the log context turbo filter).
+    * Restore the test configuration, so that the WARN events that later tests capture from
+    * their loggers are not dropped.
+    */
+   @AfterAll
+   static void restoreLogback() throws Exception {
+      LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+      context.reset();
+      new ContextInitializer(context).autoConfig();
    }
 
    @Test
