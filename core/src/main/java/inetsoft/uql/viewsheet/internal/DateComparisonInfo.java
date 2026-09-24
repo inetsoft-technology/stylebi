@@ -2250,8 +2250,17 @@ public class DateComparisonInfo implements Cloneable, XMLSerializable {
          int intervalLevel = dcInterval.getLevel();
          int granularity = dcInterval.getGranularity();
 
+         // Skip generating a disambiguating temp ref only when the granularity's own
+         // parent level (i.e. the level the value actually resets against) matches
+         // contextLevel/granularity itself -- meaning no coarser period wraps around and
+         // resets the granularity value. When the period level is coarser (e.g. a QUARTER
+         // period with WEEK granularity/context, "week of quarter"), the granularity value
+         // genuinely resets within each period instance and a temp ref is required so
+         // downstream computeValidParts() can distinguish same-period-instance values from
+         // different-instance ones (Bug #77010).
          if((intervalLevel & granularity) == granularity &&
-            contextLevel == DateComparisonUtil.dcIntervalLevelToDateGroupLevel(granularity))
+            contextLevel == DateComparisonUtil.dcIntervalLevelToDateGroupLevel(granularity) &&
+            getGranularityParentLevel() == contextLevel)
          {
             return refs.toArray(new XDimensionRef[0]);
          }
