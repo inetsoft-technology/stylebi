@@ -21,6 +21,7 @@ package inetsoft.report.filter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -78,6 +79,33 @@ public class SortFilterTest {
       LockStallException stall = new LockStallException("nested.site", "worker", 1234, null);
       SortFilter filter =
          new SortFilter(new FailingBase(new RuntimeException("wrapped", stall)), SORT_COLS, true);
+
+      Assertions.assertSame(stall, Assertions.assertThrows(
+         LockStallException.class, () -> filter.moreRows(1)));
+   }
+
+   /**
+    * A failed expression of the base is reported to the user and the filter has no rows, as
+    * before bug #76967.
+    */
+   @Test
+   public void baseExpressionFailureIsReportedNotThrown() {
+      ExpressionFailedException failure = new ExpressionFailedException(
+         1, "value", "base", new IllegalStateException("expression failed"));
+      SortFilter filter = new SortFilter(new FailingBase(failure), SORT_COLS, true);
+
+      Assertions.assertFalse(filter.moreRows(1));
+   }
+
+   /**
+    * A lock stall of an expression of the base escapes the sort, it is never the end of the
+    * table (bug #76967).
+    */
+   @Test
+   public void expressionStallEscapesTheSort() {
+      LockStallException stall = new LockStallException("nested.site", "worker", 1234, null);
+      ExpressionFailedException failure = new ExpressionFailedException(1, "value", "base", stall);
+      SortFilter filter = new SortFilter(new FailingBase(failure), SORT_COLS, true);
 
       Assertions.assertSame(stall, Assertions.assertThrows(
          LockStallException.class, () -> filter.moreRows(1)));

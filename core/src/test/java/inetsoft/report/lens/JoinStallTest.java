@@ -159,15 +159,8 @@ public class JoinStallTest {
          .get(15, TimeUnit.SECONDS);
       drain(join);
 
-      try {
-         join.getObject(30, 0);
-      }
-      catch(LockStallException ex) {
-         fail("a completed join is not stalled: " + ex);
-      }
-      catch(RuntimeException ex) {
-         // past the end of the table, as on main
-      }
+      // past the end of the table the swapped rows read as 0, as on main; no stall, no throw
+      assertEquals(0, join.getObject(30, 0));
    }
 
    /**

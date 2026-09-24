@@ -204,6 +204,17 @@ public class SortFilter extends AbstractTableLens
          //sort(asc);
       }
       catch(ExpressionFailedException scriptException) {
+         // the failed expression keeps its cause as the original exception, not in getCause()
+         LockStallException stall = LockStallException.find(scriptException);
+
+         if(stall == null) {
+            stall = LockStallException.find(scriptException.getOriginalException());
+         }
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.warn("Failed to process sort filter: {}", scriptException.getMessage());
          CoreTool.addUserMessage(scriptException.getMessage());
       }

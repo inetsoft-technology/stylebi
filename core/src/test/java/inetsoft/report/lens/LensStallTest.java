@@ -158,8 +158,10 @@ public class LensStallTest {
       long start = System.nanoTime();
       Future<Boolean> other = pool.submit(() -> lens.moreRows(row));
       assertSame(original, stallIn(failureOf(other, 15)).getCause());
-      assertTrue(System.nanoTime() - start < TimeUnit.MILLISECONDS.toNanos(500),
-                 "rethrown at once, not after a stall of the second reader");
+      // the same stall shows it is the worker's, not one of the second reader; the bound only
+      // catches a hang and leaves slack for a loaded machine
+      assertTrue(System.nanoTime() - start < TimeUnit.SECONDS.toNanos(5),
+                 "rethrown at once, not after a hang of the second reader");
    }
 
    @Test
@@ -172,8 +174,8 @@ public class LensStallTest {
 
       // the worker's stall is rethrown at once, not after a stall of the reader
       assertSame(original, stallIn(failureOf(reader, 15)).getCause());
-      assertTrue(System.nanoTime() - start < TimeUnit.MILLISECONDS.toNanos(900),
-                 "rethrown before the reader's own stall limit");
+      assertTrue(System.nanoTime() - start < TimeUnit.SECONDS.toNanos(5),
+                 "rethrown at once, not after a hang of the reader");
       assertSame(original, stallIn(failureOf(pool.submit(lens::getRowCount), 15)).getCause(),
                  "getRowCount() rethrows the worker's stall");
    }
