@@ -19,6 +19,7 @@ import { VSObjectModel } from "./vs-object-model";
 import { VSFormatModel } from "./vs-format-model";
 import { VSAnnotationModel } from "./annotation/vs-annotation-model";
 import { SortInfo } from "../objects/table/sort-info";
+import { TablePadding } from "../objects/table/table-content-rect";
 import { TableDataPath } from "../../common/data/table-data-path";
 
 export interface BaseTableModel extends VSObjectModel {
@@ -81,5 +82,5 @@ export interface BaseTableModel extends VSObjectModel {
    maxMode?: boolean;
    resizingCell?: boolean;
    maxModeOriginalWidth?: number;
-   padding?: { top: number, left: number, bottom: number, right: number };
+   padding?: TablePadding;
 }

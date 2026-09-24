@@ -491,7 +491,13 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
          return super.getCardWidth();
       }
       else {
-         return Math.max(this.actualTableWidth, super.getCardWidth());
+         // actualTableWidth is the rendered grid's own width, so the inset goes back on before
+         // it competes with the card — otherwise the content rect lands narrower than the grid
+         // and .vstable-wrapper, which is overflow:hidden and 100% wide here, clips the last of
+         // the columns with no way to scroll to them.
+         const padding = this.getPadding();
+         return Math.max(this.actualTableWidth + padding.left + padding.right,
+                         super.getCardWidth());
       }
    }
 
