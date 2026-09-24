@@ -237,7 +237,9 @@ export class VSCalcTable extends BaseTable<VSCalcTableModel> implements OnDestro
 
    protected updateTableHeight(): void {
       let titleH = this.model.titleVisible ? this.model.titleFormat.height : 0;
-      this.tableHeight = this.model.objectFormat.height - this.getHeaderHeight() - titleH;
+      const padding = this.getPadding();
+      this.tableHeight = this.model.objectFormat.height - padding.top - padding.bottom -
+         this.getHeaderHeight() - titleH;
    }
 
    openMaxMode(): void {

@@ -521,8 +521,9 @@ describe("VSTable — Pass 3: Display", () => {
          comp.vsInfo = new ViewsheetInfo(
             [{ absoluteName: "tab1", bottomTabs: true }] as any, null, false, "vs1",
          );
-         // getObjectHeight() implementation reads tableHeight+scrollHeight — mock to control the offset.
-         vi.spyOn(comp as any, "getObjectHeight").mockReturnValue(120);
+         // The offset is a card-edge measurement: getCardHeight() reads tableHeight+scrollHeight,
+         // so mock it rather than the content height to control the offset.
+         vi.spyOn(comp as any, "getCardHeight").mockReturnValue(120);
 
          // top + (height - renderedHeight) = 50 + (200 - 120) = 130
          expect(comp.getObjectTop()).toBe(designTop + designHeight - 120);

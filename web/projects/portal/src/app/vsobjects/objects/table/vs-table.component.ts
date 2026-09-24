@@ -328,7 +328,9 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
    }
 
    protected updateTableHeight() {
-      this.tableHeight = this.model.objectFormat.height - this.getHeaderHeight();
+      const padding = this.getPadding();
+      this.tableHeight = this.model.objectFormat.height - padding.top - padding.bottom -
+         this.getHeaderHeight();
 
       if((!this.viewer || this.model.titleVisible) && !this.isBinding) {
          this.tableHeight -= this.model.titleFormat.height;
@@ -484,12 +486,12 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
       }
    }
 
-   public getObjectWidth(): number {
+   public getCardWidth(): number {
       if(!this.scrollWrapper) {
-         return super.getObjectWidth();
+         return super.getCardWidth();
       }
       else {
-         return Math.max(this.actualTableWidth, super.getObjectWidth());
+         return Math.max(this.actualTableWidth, super.getCardWidth());
       }
    }
 
