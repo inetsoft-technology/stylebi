@@ -918,8 +918,11 @@ public class UserTreeService {
                }
             }
          }
-         else if(editProvider.getOrganization(orgID) != null) {
-            //provided org id already exists, return error
+         else if(editProvider.getOrganization(orgID) != null ||
+            Arrays.stream(getSecurityProvider().getOrganizationIDs())
+               .anyMatch(o -> o != null && o.equalsIgnoreCase(orgID)))
+         {
+            // provided org id already exists (org ids are case-insensitive), return error
             throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationID"));
          }
          else if(editProvider.getOrgIdFromName(orgName) != null) {
