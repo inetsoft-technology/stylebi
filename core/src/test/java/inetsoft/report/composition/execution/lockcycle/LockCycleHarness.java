@@ -171,7 +171,9 @@ public final class LockCycleHarness implements AutoCloseable {
       long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(capSeconds);
 
       while(System.currentTimeMillis() < deadline) {
-         if(thread != null && thread.getState() == Thread.State.WAITING) {
+         if(thread != null && (thread.getState() == Thread.State.WAITING ||
+            thread.getState() == Thread.State.TIMED_WAITING))
+         {
             for(StackTraceElement element : thread.getStackTrace()) {
                if(element.getClassName().equals(LendableReentrantLock.class.getName()) &&
                   element.getMethodName().equals("lock"))

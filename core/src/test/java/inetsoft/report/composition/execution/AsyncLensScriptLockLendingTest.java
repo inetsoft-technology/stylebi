@@ -533,11 +533,17 @@ public class AsyncLensScriptLockLendingTest {
    {
       long deadline = System.currentTimeMillis() + TIMEOUT * 1000L;
 
-      // the only wait after the flag is set is the lock's
-      while(!locking.get() || ref.get().getState() != Thread.State.WAITING) {
+      // the only wait after the flag is set is the lock's, which waits in slices for the
+      // lock-stall watchdog (bug #76967)
+      while(!locking.get() || !isParked(ref.get())) {
          assertTrue(System.currentTimeMillis() < deadline, "script thread never queued on the lock");
          Thread.sleep(5);
       }
+   }
+
+   private static boolean isParked(Thread thread) {
+      Thread.State state = thread.getState();
+      return state == Thread.State.WAITING || state == Thread.State.TIMED_WAITING;
    }
 
    public enum Kind {

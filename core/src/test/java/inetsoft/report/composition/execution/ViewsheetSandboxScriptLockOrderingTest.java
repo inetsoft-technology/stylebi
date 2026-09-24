@@ -317,7 +317,9 @@ class ViewsheetSandboxScriptLockOrderingTest {
          Thread t = ref.get();
          Future<?> f = task.get();
 
-         if(t != null && f != null && !f.isDone() && t.getState() == Thread.State.WAITING) {
+         if(t != null && f != null && !f.isDone() &&
+            (t.getState() == Thread.State.WAITING || t.getState() == Thread.State.TIMED_WAITING))
+         {
             return true;
          }
 

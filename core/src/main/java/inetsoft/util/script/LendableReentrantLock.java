@@ -17,6 +17,9 @@
  */
 package inetsoft.util.script;
 
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -44,30 +47,94 @@ import java.util.concurrent.locks.Lock;
  * FIFO queue), so a borrower is let in even when other threads started waiting before
  * the lock was lent. Loans nest: a borrower that owns the lock may lend it on to its own
  * worker, and the loans are reclaimed in LIFO order.
+ *
+ * <p>A thread that has to wait in {@link #lock()} registers the wait with the lock-stall
+ * watchdog and waits in slices (bug #76967). If neither the lock (owner, loans) nor the
+ * thread it waits for makes progress for {@code stall.watchdog.noProgressMillis}, it throws
+ * a {@link inetsoft.util.stall.LockStallException} holding nothing of this lock. Who may
+ * acquire is decided by the same check as before on every wake-up.
  */
 public final class LendableReentrantLock implements Lock {
    @Override
    public void lock() {
-      boolean interrupted = false;
-
       synchronized(monitor) {
          Thread thread = Thread.currentThread();
          checkNotLending(thread);
 
-         while(!canAcquire(thread)) {
-            try {
-               monitor.wait();
-            }
-            catch(InterruptedException ex) {
-               interrupted = true;
-            }
+         if(canAcquire(thread)) {
+            acquire(thread);
+            return;
          }
-
-         acquire(thread);
       }
 
-      if(interrupted) {
-         Thread.currentThread().interrupt();
+      lockBounded();
+   }
+
+   /**
+    * Wait for the lock in slices, checking for a stall between them outside of the monitor,
+    * holding nothing of this lock (bug #76967). Admission is decided by canAcquire() on
+    * every wake-up exactly as before, so a borrower still bypasses earlier waiters (#5531).
+    */
+   private void lockBounded() {
+      boolean interrupted = false;
+
+      try(WaitRecord record = WaitRegistry.begin("LendableReentrantLock.lock",
+                                                 this::getGeneration, this::getBlockers))
+      {
+         Thread thread = Thread.currentThread();
+
+         while(true) {
+            synchronized(monitor) {
+               if(canAcquire(thread)) {
+                  acquire(thread);
+                  return;
+               }
+
+               try {
+                  monitor.wait(record.waitMillis(10000));
+               }
+               catch(InterruptedException ex) {
+                  interrupted = true;
+               }
+
+               if(canAcquire(thread)) {
+                  acquire(thread);
+                  return;
+               }
+            }
+
+            record.checkStall();
+         }
+      }
+      finally {
+         if(interrupted) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   /**
+    * Progress of the lock for the watchdog: changes on every acquire, release, loan and
+    * reclaim.
+    */
+   private long getGeneration() {
+      synchronized(monitor) {
+         return generation;
+      }
+   }
+
+   /**
+    * The threads a waiter waits for: the owner, or while the lock is lent and free, the
+    * lender (which waits for its worker).
+    */
+   private Thread[] getBlockers() {
+      synchronized(monitor) {
+         if(owner != null) {
+            return new Thread[] { owner };
+         }
+
+         LoanImpl loan = loans.peek();
+         return loan != null ? new Thread[] { loan.lender } : NO_THREADS;
       }
    }
 
@@ -139,6 +206,7 @@ public final class LendableReentrantLock implements Lock {
 
          if(--holds == 0) {
             owner = null;
+            generation++;
             monitor.notifyAll();
          }
       }
@@ -213,6 +281,7 @@ public final class LendableReentrantLock implements Lock {
          borrower.lentLocks.add(this);
          owner = null;
          holds = 0;
+         generation++;
          monitor.notifyAll();
          return loan;
       }
@@ -250,6 +319,7 @@ public final class LendableReentrantLock implements Lock {
    private void acquire(Thread thread) {
       owner = thread;
       holds++;
+      generation++;
    }
 
    private void reclaim(LoanImpl loan) {
@@ -282,6 +352,7 @@ public final class LendableReentrantLock implements Lock {
          owner = loan.lender;
          holds = loan.holds;
          loan.closed = true;
+         generation++;
       }
 
       if(interrupted) {
@@ -337,6 +408,14 @@ public final class LendableReentrantLock implements Lock {
       }
 
       /**
+       * Get the thread running this task, or {@code null} if it has not started or has
+       * ended. Wait sites use it to tell a working task from a stalled one (bug #76967).
+       */
+      public Thread getThread() {
+         return thread;
+      }
+
+      /**
        * Get the locks currently lent to this task. The task may acquire them and lend
        * them on to its own worker (nested loans).
        */
@@ -380,8 +459,12 @@ public final class LendableReentrantLock implements Lock {
       private boolean closed;
    }
 
+   private static final Thread[] NO_THREADS = new Thread[0];
+
    private final Object monitor = new Object();
    private final Deque<LoanImpl> loans = new ArrayDeque<>();
    private Thread owner;
    private int holds;
+   // changes on every acquire, release, loan and reclaim, the watchdog's progress (bug #76967)
+   private long generation;
 }
