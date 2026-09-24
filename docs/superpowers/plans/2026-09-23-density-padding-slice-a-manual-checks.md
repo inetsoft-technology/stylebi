@@ -1,7 +1,6 @@
 # Density padding, slice A — manual checks
 
-Six checks that no automated test covers. Five are release-gating; MT-2 additionally surfaces an
-open design question.
+Six checks that no automated test covers, all release-gating.
 
 **Branch:** `feature-density-padding` @ `c27f5e2d3`
 **Automated state:** `core` 5977/0/0 · portal 1497 · em 376 · TL 46 · utils-inclusive build exit 0
@@ -61,13 +60,40 @@ the save/reopen: a compounding drift confirms it.
 
 ---
 
-## MT-2 — a `format.css` table style (highest risk, and one open question)
+## MT-2 — a `format.css` table style (highest risk)
 
 **Why it matters.** This is the regression most likely to reach a customer, because it only appears
 on a dashboard that has a table stylesheet. It is also the case `isCSSRowFullyPadded` exists for.
 
-1. Upload a `format.css` via EM → Settings → Presentation → Look and Feel, defining a `TableStyle`
-   rule with **2px padding on all edges**.
+### Writing the stylesheet — two traps that make this check silently pass while testing nothing
+
+Both verified in the parser source. Get either wrong and no inset is set at all, so every
+measurement below reads as if the stylesheet were absent:
+
+1. **There is no `padding` shorthand.** `CSSDictionary.parsePadding` reads only `padding-top`,
+   `padding-bottom`, `padding-left` and `padding-right`. `padding: 2px` is valid CSS and sets
+   nothing.
+2. **`region="Table"` carries no padding.** `CSSTableStyle.applyTable()` handles borders, colours
+   and fonts but never calls `setAttributes`, so it never reaches the padding branch. Only the five
+   region-scoped blocks do: `HeaderRow`, `HeaderCol`, `TrailerRow`, `TrailerCol`, `Body`.
+
+Set all five regions, so every column of every row carries an inset whatever shape the table is.
+That total coverage is the point — `isCSSRowFullyPadded` is true only when no cell falls back to the
+assembly's own seeded padding, and this check exists for that branch.
+
+```css
+TableStyle[region="Body"] {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+/* repeat verbatim for HeaderRow, HeaderCol, TrailerRow and TrailerCol */
+```
+
+### Steps
+
+1. Upload that `format.css` via EM → Settings → Presentation → Look and Feel.
 2. Build two dashboards with the same table: one **not** modernized, one modernized.
 3. Measure a data row in each.
 
@@ -80,8 +106,7 @@ on a dashboard that has a table stylesheet. It is also the case `isCSSRowFullyPa
 **Pass:** 24px. **Fail:** 32px means the seeded 12px is being added on top of the stylesheet's 4px —
 every stylesheet customer's tables just got taller.
 
-**Part B — an open question, not a pass/fail.** Measure the *modernized* table with the same
-stylesheet:
+**Part B — confirm the decided behaviour.** Measure the *modernized* table with the same stylesheet:
 
 | | height | why |
 |---|---|---|
@@ -89,14 +114,17 @@ stylesheet:
 | marked, **with** the 2px stylesheet | **20px** | stored 16 + css 4; the stylesheet wins wholesale |
 | same table unmarked | 24px | stored 20 + css 4 |
 
-I traced this in `VSTableLens.getRowPadding` and `BaseTableService:466/492` and it is what the code
-does today. It follows the documented "css wins" rule, but it has a consequence nobody decided:
-**a stylesheet customer's table gets *shorter* when modernized** — 20px, which is identical to
-dense, and 4px shorter than before they modernized it.
+**Pass:** 20px.
 
-Record what you measure. If 20px is wrong, the fix is in `getRowPadding`'s fully-covered branch —
-it would need to return `max(css, seeded)` for marked tables while still returning `css` alone for
-unmarked ones. That was never specified either way.
+That a stylesheet table gets *shorter* when modernized — 20px, identical to dense, and 4px shorter
+than before it was modernized — is deliberate and was decided on 2026-09-24. The rule is that a
+stylesheet wins wholesale, for marked and unmarked assemblies alike: one rule beats two, and a
+stylesheet author overriding padding is asking to own it. `getRowPadding`'s fully-covered branch
+returns `css` alone and is not to be changed to `max(css, seeded)`.
+
+Slice B's card inset carries the same decision through a different mechanism — the assembly's own
+CSS class via `setCSSDefaults` rather than `CSSTableStyle` — and is named in that PR. The two were
+decided together and should stay that way.
 
 ---
 
