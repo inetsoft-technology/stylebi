@@ -1721,16 +1721,20 @@ public final class WorksheetMutationSupport {
     * #getDataType()}).
     *
     * <p>Only infers when the intent is unambiguous: every {@code field['x']} reference
-    * in the expression must resolve to an existing numeric column, and everything
-    * outside those references must be pure arithmetic (digits, {@code + - * /},
-    * parentheses, whitespace) -- or a conditional/ternary expression ({@code cond ? a
-    * : b}, possibly nested) whose every branch independently satisfies that same
-    * pure-arithmetic requirement. The condition portion of a ternary is not itself
-    * required to be pure arithmetic -- it legitimately contains comparison operators
-    * (e.g. {@code >=}) that are not part of the arithmetic character class. Any other
-    * shape (string concatenation, a non-numeric branch, unresolvable fields,
-    * non-numeric fields) is left alone -- returning {@code null} preserves the existing
-    * string default rather than guessing.</p>
+    * used OUTSIDE a ternary's condition segment must resolve to an existing numeric
+    * column, and everything outside those references must be pure arithmetic (digits,
+    * {@code + - * /}, parentheses, whitespace) -- or a conditional/ternary expression
+    * ({@code cond ? a : b}, possibly nested, and possibly embedded as a parenthesized
+    * operand of a larger arithmetic expression, e.g. {@code field['a'] * (cond ? 1 :
+    * 0)}) whose every branch independently satisfies that same pure-numeric
+    * requirement. The condition portion of a ternary is never itself required to be
+    * numeric or arithmetic -- it legitimately contains comparison operators (e.g.
+    * {@code >=}) and may legitimately reference a non-numeric field (e.g. a string
+    * equality check); a field reference used only in a condition is not evidence either
+    * way about the ternary's own result type, so it is not type-checked there. Any
+    * other shape (string concatenation, a non-numeric branch, unresolvable fields,
+    * non-numeric fields used outside a condition) is left alone -- returning
+    * {@code null} preserves the existing string default rather than guessing.</p>
     *
     * @return {@link XSchema#DOUBLE}, or {@code null} if the expression's type cannot be
     *         unambiguously inferred as numeric
@@ -1746,26 +1750,10 @@ public final class WorksheetMutationSupport {
          return null;
       }
 
-      java.util.regex.Matcher m = FIELD_REF_PATTERN.matcher(expression);
-      StringBuilder remainder = new StringBuilder();
-      int last = 0;
-      int fieldCount = 0;
+      int[] fieldCount = { 0 };
+      boolean numeric = isNumericFragment(cs, expression, fieldCount);
 
-      while(m.find()) {
-         remainder.append(expression, last, m.start());
-         last = m.end();
-         fieldCount++;
-
-         DataRef ref = resolveColumn(cs, m.group(1));
-
-         if(ref == null || !XSchema.isNumericType(ref.getDataType())) {
-            return null;
-         }
-      }
-
-      remainder.append(expression.substring(last));
-
-      if(fieldCount == 0 || !isNumericFragment(remainder.toString())) {
+      if(fieldCount[0] == 0 || !numeric) {
          return null;
       }
 
@@ -1773,31 +1761,125 @@ public final class WorksheetMutationSupport {
    }
 
    /**
-    * Checks whether {@code text} -- a fragment of an expression with every
-    * {@code field['x']} reference already stripped out by the caller -- is "pure
-    * numeric": either plain arithmetic (see {@link #inferNumericExpressionType}), or a
-    * top-level ternary whose every branch independently satisfies this same check. The
-    * condition part of a ternary is intentionally not checked against the arithmetic
-    * character class here -- see {@link #inferNumericExpressionType}'s doc comment.
+    * Recursively determines whether {@code text} -- the whole expression, or a fragment
+    * of it produced by recursing into a ternary branch or a parenthesized sub-term -- is
+    * "pure numeric" under the rules described on {@link #inferNumericExpressionType}.
     *
-    * <p>This is a lightweight, paren-aware splitter, not a full expression parser: it
+    * <p>Every {@code field['x']} reference encountered anywhere in {@code text},
+    * including inside a ternary's condition segment, increments {@code fieldCount[0]}
+    * -- this lets the caller still detect "no field references anywhere" (a pure
+    * literal expression) and decline to infer, even though a condition-only field
+    * reference is never itself required to be numeric.</p>
+    *
+    * <p>This is a lightweight, paren-aware walker, not a full expression parser: it
     * does not track quoted string literals, so a {@code ?}/{@code :} character inside a
-    * quoted string could in principle be mis-split. That cannot misclassify a
-    * non-numeric expression as numeric in practice, because whatever ends up on the
-    * "branch" side of a mis-split still has to pass the plain arithmetic character-class
-    * check to be accepted.</p>
+    * quoted string could in principle be mis-split by {@link #findTopLevelTernary}.
+    * That cannot misclassify a non-numeric expression as numeric in practice, because
+    * whatever ends up on the "branch" side of a mis-split still has to pass this same
+    * check (ultimately the plain arithmetic character-class check below) to be
+    * accepted.</p>
     */
-   private static boolean isNumericFragment(String text) {
+   private static boolean isNumericFragment(ColumnSelection cs, String text, int[] fieldCount) {
       text = unwrapOuterParens(text);
-      int[] split = findTopLevelTernary(text);
+      int[] ternary = findTopLevelTernary(text);
 
-      if(split != null) {
-         String branchA = text.substring(split[0] + 1, split[1]);
-         String branchB = text.substring(split[1] + 1);
-         return isNumericFragment(branchA) && isNumericFragment(branchB);
+      if(ternary != null) {
+         String condition = text.substring(0, ternary[0]);
+         String branchA = text.substring(ternary[0] + 1, ternary[1]);
+         String branchB = text.substring(ternary[1] + 1);
+
+         // The condition's own field references count toward "any field referenced at
+         // all", but are never required to be numeric -- see the doc comment above.
+         countFieldRefs(condition, fieldCount);
+
+         return isNumericFragment(cs, branchA, fieldCount) &&
+            isNumericFragment(cs, branchB, fieldCount);
       }
 
-      return text.matches("[\\s+\\-*/().0-9eE]*");
+      // Not a whole-fragment ternary -- walk left to right. Every field['x'] reference
+      // must resolve to a numeric column; every top-level parenthesized group is
+      // recursively checked as its own fragment (so a ternary embedded as an operand of
+      // an outer arithmetic expression, e.g. "field['a'] * (cond ? 1 : 0)", is found
+      // rather than falling through to the plain-arithmetic character class below);
+      // everything else left over must be a pure arithmetic character.
+      StringBuilder leftover = new StringBuilder();
+      int i = 0;
+
+      while(i < text.length()) {
+         char c = text.charAt(i);
+
+         if(c == '(') {
+            int groupEnd = findMatchingParen(text, i);
+
+            if(groupEnd < 0) {
+               return false;
+            }
+
+            if(!isNumericFragment(cs, text.substring(i + 1, groupEnd), fieldCount)) {
+               return false;
+            }
+
+            i = groupEnd + 1;
+            continue;
+         }
+
+         if(c == 'f' && text.startsWith("field['", i)) {
+            java.util.regex.Matcher fm = FIELD_REF_PATTERN.matcher(text);
+            fm.region(i, text.length());
+
+            if(fm.lookingAt()) {
+               fieldCount[0]++;
+               DataRef ref = resolveColumn(cs, fm.group(1));
+
+               if(ref == null || !XSchema.isNumericType(ref.getDataType())) {
+                  return false;
+               }
+
+               i = fm.end();
+               continue;
+            }
+         }
+
+         leftover.append(c);
+         i++;
+      }
+
+      return leftover.toString().matches("[\\s+\\-*/().0-9eE]*");
+   }
+
+   /** Counts every {@code field['x']} reference in {@code text} into {@code fieldCount[0]}. */
+   private static void countFieldRefs(String text, int[] fieldCount) {
+      java.util.regex.Matcher m = FIELD_REF_PATTERN.matcher(text);
+
+      while(m.find()) {
+         fieldCount[0]++;
+      }
+   }
+
+   /**
+    * Finds the index of the {@code )} that matches the {@code (} at {@code openIdx}.
+    *
+    * @return the matching close-paren index, or {@code -1} if unbalanced
+    */
+   private static int findMatchingParen(String text, int openIdx) {
+      int depth = 0;
+
+      for(int i = openIdx; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(c == '(') {
+            depth++;
+         }
+         else if(c == ')') {
+            depth--;
+
+            if(depth == 0) {
+               return i;
+            }
+         }
+      }
+
+      return -1;
    }
 
    /**

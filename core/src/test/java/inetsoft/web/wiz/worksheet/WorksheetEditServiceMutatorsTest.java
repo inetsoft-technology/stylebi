@@ -2894,6 +2894,120 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void addExpressionColumnInfersNumericTypeForTernaryWithNonNumericFieldInCondition() throws Exception {
+      // Bug 76901 (layer1-remaining): a ternary whose CONDITION references a
+      // non-numeric field (STATE) -- the condition's own field type is irrelevant, only
+      // the branches (both plain numeric literals here) determine the result type. Must
+      // infer numeric instead of the flat field-numeric gate rejecting the whole
+      // expression the instant it sees STATE.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "STATE");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("STATE")).setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "IS_NY", "field['STATE'] == 'NY' ? 1 : 0", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("IS_NY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForTernaryEmbeddedInArithmetic() throws Exception {
+      // Bug 76901 (layer1-remaining): a ternary embedded as a parenthesized operand of
+      // an outer arithmetic expression (not occupying the whole fragment) must still be
+      // recognized -- not just a ternary that is the entire expression.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "DISCOUNTED_QTY",
+         "field['QUANTITY'] * (field['QUANTITY'] > 5 ? 1 : 0)", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("DISCOUNTED_QTY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForComposedTernaryConditionAndEmbeddedShapes() throws Exception {
+      // Composition of both layer1-remaining shapes in one expression -- a ternary
+      // embedded as an arithmetic operand, whose own condition references a non-numeric
+      // field. Confirms the two fixes work together rather than each only handling its
+      // own isolated repro shape.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY", "STATE");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("STATE")).setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "NY_QTY",
+         "field['QUANTITY'] * (field['STATE'] == 'NY' ? 1 : 0)", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("NY_QTY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForNonNumericFieldInTernaryBranch() throws Exception {
+      // Guard against over-widening: a non-numeric FIELD referenced in a ternary BRANCH
+      // (not just a string literal branch, and not just the condition) must still keep
+      // the expression at the untyped "string" default.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY", "STATE");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("STATE")).setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_OR_STATE",
+         "field['QUANTITY'] > 5 ? field['STATE'] : '0'", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_OR_STATE");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForNonNumericExpressionEmbeddedInArithmetic() throws Exception {
+      // Guard against over-widening: a genuinely non-numeric embedded-in-parens
+      // sub-expression (string concatenation, not a ternary at all) used as an operand
+      // of outer arithmetic must still keep the expression at the "string" default.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY", "NAME");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("NAME")).setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "BAD", "field['QUANTITY'] * (field['NAME'] + 'x')", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("BAD");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
    void addExpressionColumnHonorsExplicitTypeOverInference() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
