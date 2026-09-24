@@ -49,6 +49,10 @@ final class SlotPool {
     * @return a slot locked by the calling thread.
     */
    Slot checkout() {
+      // Terminates: a taken slot fails prepare() only if it is stale or doomed, and each
+      // stale idle slot is discarded once. A freshly created slot fails only if a retire()
+      // (env reset/drop) lands between create() stamping its epoch and prepare(), so every
+      // extra pass needs another retire. Never waits, so no backoff.
       while(true) {
          Slot slot = takePrimary();
 
