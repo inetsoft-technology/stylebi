@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class StallWatchdogTest {
    @BeforeEach
    public void setUp() {
+      StallTestSupport.resetGlobalStallState();
       policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir);
       dumper = new StallDumper(now::get, () -> dumpDir, 60000);
       registry = new WaitRegistry(now::get, () -> policy, dumper);
@@ -120,18 +121,55 @@ public class StallWatchdogTest {
    }
 
    @Test
-   public void persistingAlertModeStallIsUnreleased() {
+   public void alertModeStallIsNeverUnreleasedWhileFailModeIs() {
       policy = new StallPolicy(StallPolicy.Mode.ALERT, 1000, 500, dumpDir);
-      WaitRecord record = registry.open("alert.site", () -> 0, NONE);
+      // never checked by its waiter, so it becomes overdue
+      WaitRecord alert = runOnOtherThread(() -> registry.open("alert.site", () -> 0, NONE));
+      // tripped by its waiter and still registered: an alert wait goes on by design
+      WaitRecord alertTripped = registry.open("alert.tripped", () -> 0, NONE);
       advance(1500);
-      record.checkStall();
-      assertTrue(record.isTripped());
+      alertTripped.checkStall();
+      assertTrue(alertTripped.isTripped());
 
+      // the mode changes mid-episode: each record keeps the mode it was opened with
+      policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir);
+      WaitRecord fail = runOnOtherThread(() -> registry.open("fail.site", () -> 0, NONE));
+      assertEquals(StallPolicy.Mode.ALERT, alert.getMode());
+      assertEquals(StallPolicy.Mode.FAIL, fail.getMode());
+      advance(1500);
+
+      for(int i = 0; i < 4; i++) {
+         watchdog.scan();
+         advance(500);
+      }
+
+      String reason = watchdog.getUnreleasedStall();
+      assertNotNull(reason, "an overdue fail-mode wait is unreleased");
+      assertTrue(reason.contains("fail.site"), reason);
+      assertFalse(reason.contains("alert.site"), "an overdue alert wait is never unreleased");
+      assertFalse(reason.contains("alert.tripped"),
+                  "a tripped alert wait that persists is never unreleased");
+      assertNotNull(alertTripped.getDumpPath(), "an alert stall is still dumped");
+      assertTrue(alert.isWatchdogReported(), "an alert stall is still logged");
+
+      fail.close();
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall(), "alert waits alone never turn health DOWN");
+      alert.close();
+      alertTripped.close();
+   }
+
+   @Test
+   public void offModeWaitIsNeverUnreleased() {
+      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir);
+      WaitRecord record = registry.open("off.site", () -> 0, NONE);
+      assertSame(WaitRecord.NOOP, record);
+      assertEquals(StallPolicy.Mode.OFF, record.getMode());
+      advance(3000);
       watchdog.scan();
       advance(500);
       watchdog.scan();
-      assertTrue(watchdog.getUnreleasedStall().contains("alert.site"));
-      assertEquals(1, dumper.getDumpCount(), "the watchdog reuses the waiter's dump");
+      assertNull(watchdog.getUnreleasedStall());
       record.close();
    }
 

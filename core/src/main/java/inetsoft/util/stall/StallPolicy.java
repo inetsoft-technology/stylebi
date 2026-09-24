@@ -32,6 +32,11 @@ import java.util.function.Function;
  * {@link LockStallException}, in {@code alert} mode it only dumps the threads and logs a
  * warning, and {@code off} registers no waits at all.
  *
+ * <p>Only a {@code fail}-mode wait that its timeout did not release (its thread could not
+ * unwind, or never reached its check) turns the deadlock health check DOWN. {@code alert}
+ * never fails a query and never turns health DOWN by itself; a JVM deadlock is DOWN in every
+ * mode, as before the watchdog.
+ *
  * <p>The properties are cached for 10 seconds, like {@code SreeEnv.Value}, so a change takes
  * effect without a restart. Before the server environment is initialized (e.g. in plain unit
  * tests) the defaults are used.
@@ -50,9 +55,15 @@ public final class StallPolicy {
     * What to do when a wait stalls.
     */
    public enum Mode {
-      /** Fail the stalled wait with a {@link LockStallException}, after a thread dump. */
+      /**
+       * Fail the stalled wait with a {@link LockStallException}, after a thread dump. A wait
+       * that is not released by its timeout turns health DOWN.
+       */
       FAIL,
-      /** Only dump the threads and log a warning, the wait goes on. */
+      /**
+       * Only dump the threads and log a warning, the wait goes on. Never fails a query and
+       * never turns health DOWN by itself, however long the stall persists.
+       */
       ALERT,
       /** No watchdog, waits are not registered. */
       OFF

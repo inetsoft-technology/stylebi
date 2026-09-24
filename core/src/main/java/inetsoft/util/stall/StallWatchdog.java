@@ -42,15 +42,21 @@ import java.util.regex.Pattern;
  * itself, and it dumps JVM-level deadlocks.
  *
  * <p>A stalled wait is first left to its own timeout, which the waiting thread notices up to
- * one wait slice late. It is reported by {@link #getUnreleasedStall()}, which turns the
- * deadlock health check DOWN so an orchestrator can restart the server as a last resort, only
- * once the timeout evidently did not release it:
+ * one wait slice late. A wait opened in {@code fail} mode is reported by
+ * {@link #getUnreleasedStall()}, which turns the deadlock health check DOWN so an orchestrator
+ * can restart the server as a last resort, only once the timeout evidently did not release it:
  * <ul>
- *    <li>the waiter tripped (failed or alerted) at an earlier scan and the wait is still
- *        registered: in fail mode its thread could not unwind, in alert mode it persists;</li>
+ *    <li>the waiter failed at an earlier scan and the wait is still registered: its thread
+ *        could not unwind;</li>
  *    <li>or the waiter never reached its check, the wait being overdue by two slices past the
  *        limit, on two scans.</li>
  * </ul>
+ *
+ * <p>A wait opened in {@code alert} mode is logged and dumped like any other stall, but it is
+ * never unreleased, however long it persists: its timeout releases nothing by design, so
+ * waiting on is no evidence that the thread cannot be released. Each record keeps the mode it
+ * was opened with, so a mode change during a stall does not change how that stall is handled.
+ * Besides fail-mode waits, only a JVM deadlock is unreleased.
  */
 public final class StallWatchdog {
    public StallWatchdog(WaitRegistry registry, Supplier<long[]> deadlockFinder) {
@@ -399,6 +405,11 @@ public final class StallWatchdog {
             record.setWatchdogReported(true);
             LOG.warn("Lock stall detected by the watchdog: {}, thread dump: {}", reason,
                      record.getDumpPath() == null ? "deferred" : record.getDumpPath());
+         }
+
+         // an alert-mode stall is only logged and dumped, it never turns health DOWN
+         if(record.getMode() != StallPolicy.Mode.FAIL) {
+            return;
          }
 
          boolean tripped = record.isTripped();

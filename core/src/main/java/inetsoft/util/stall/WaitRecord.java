@@ -66,8 +66,9 @@ public final class WaitRecord implements AutoCloseable {
 
    /**
     * Sample the progress and handle a stall: in {@code fail} mode dump the threads and throw,
-    * in {@code alert} mode dump and warn once per stall episode. Once the wait failed, every
-    * later call rethrows the same exception.
+    * in {@code alert} mode dump and warn once per stall episode (an alert-mode wait never
+    * turns health DOWN, see {@link StallWatchdog}). Once the wait failed, every later call
+    * rethrows the same exception.
     *
     * <p>Only the waiting thread may call this method: the progress sample is not
     * synchronized. Other threads, such as the watchdog, never call it.
@@ -216,6 +217,14 @@ public final class WaitRecord implements AutoCloseable {
     */
    public long getProgressNanos() {
       return progressNanos;
+   }
+
+   /**
+    * Get the mode of the policy the wait was opened with. It never changes during the wait,
+    * even if the policy does.
+    */
+   public StallPolicy.Mode getMode() {
+      return mode;
    }
 
    public long getLimitNanos() {
