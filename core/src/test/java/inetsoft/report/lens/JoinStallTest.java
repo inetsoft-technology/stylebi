@@ -104,6 +104,27 @@ public class JoinStallTest {
    }
 
    @Test
+   public void mergeJoinBaseStallIsNotTheEndOfTheTable() throws Exception {
+      // the merge join sorts its bases with SortFilter on its worker, the stall must escape it
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      TableLens left = new FailingTable(30, 5, original);
+      Future<List<List<Object>>> reader =
+         pool.submit(() -> drain(merge(left, new DefaultTableLens(data(30)))));
+
+      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+   }
+
+   @Test
+   public void mergeJoinWrappedBaseStallIsNotTheEndOfTheTable() throws Exception {
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      TableLens left = new WrappingFailingTable(30, 5, original);
+      Future<List<List<Object>>> reader =
+         pool.submit(() -> drain(merge(left, new DefaultTableLens(data(30)))));
+
+      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+   }
+
+   @Test
    public void rowCountOfAStalledJoinThrows() throws Exception {
       LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
       // built on a reader, the base fails only on the join's worker threads

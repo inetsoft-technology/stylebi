@@ -27,6 +27,7 @@ import inetsoft.util.algo.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.XSwappableIntList;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -207,6 +208,14 @@ public class SortFilter extends AbstractTableLens
          CoreTool.addUserMessage(scriptException.getMessage());
       }
       catch(Exception ex) {
+         // a lock stall of the base must not look like the end of the table, e.g. of a merge
+         // join over this filter; the rows stay unsorted and a later read tries again (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.error("Failed to process sort filter", ex);
       }
    }
