@@ -186,7 +186,7 @@ class PaddingFollowDefaultTest {
       }
       else if(followsDefault) {
          info.setUserPadding(false);
-         info.resetCardInset(VizContext.of(info));
+         info.resetPadding(VizContext.of(info));
       }
       else {
          info.setUserPadding(true);

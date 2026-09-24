@@ -697,6 +697,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          result = true;
       }
 
+      if(userPadding != info.userPadding) {
+         userPadding = info.userPadding;
+         result = true;
+      }
+
       return result;
    }
 
@@ -872,6 +877,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
                          "\" paddingRight=\"" + padding.right + "\"");
       }
 
+      writer.print(" userPadding=\"" + isUserPadding() + "\"");
       writer.print(" zIndex=\"" + zIndex + "\"");
       writer.print(" scriptEnabled=\"" + scriptEnabled + "\"");
 
@@ -917,6 +923,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
                               Integer.parseInt(Tool.getAttribute(elem, "paddingBottom")),
                               Integer.parseInt(Tool.getAttribute(elem, "paddingRight")));
       }
+
+      // absent in files saved before the flag existed; a missing flag means no opinion, and the
+      // seed's comparison against the creation default decides
+      setUserPadding("true".equalsIgnoreCase(Tool.getAttribute(elem, "userPadding")));
 
       String idxStr = Tool.getAttribute(elem, "zIndex");
       zIndex = idxStr == null ? 0 : Integer.parseInt(idxStr);
@@ -1255,7 +1265,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     * Called once at creation, and again by Modernize, Revert and reseedAfterRestore - all in this
     * package, which is why this is protected rather than public. A caller that needs only one
     * value back (the padding pane's "follow default" checkbox) gets a narrower seam of its own
-    * instead of the whole hook - see ChartVSAssemblyInfo.resetCardInset.
+    * instead of the whole hook - see resetPadding.
     */
    protected void seedChromeDefaults(VizContext ctx) {
       if(bypassesBaseChrome()) {
@@ -1393,6 +1403,64 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     */
    public void setPadding(Insets padding) {
       this.padding = padding;
+   }
+
+   /**
+    * Whether the author set the padding. Surfaced in the property dialog as the padding pane's
+    * follow-the-default checkbox, inverted.
+    */
+   public boolean isUserPadding() {
+      return userPadding;
+   }
+
+   /**
+    * Set whether the padding was set by the author.
+    */
+   public void setUserPadding(boolean userPadding) {
+      this.userPadding = userPadding;
+   }
+
+   /**
+    * Whether a format.css class set this assembly's padding. setCSSDefaults writes it before the
+    * seed runs and there is no tier to record it in, so the dictionary is asked directly.
+    */
+   protected boolean isCssPaddingDefined() {
+      VSCompositeFormat objFormat = getFormat();
+
+      if(objFormat == null) {
+         return false;
+      }
+
+      return CSSDictionary.getDictionary()
+         .isPaddingDefined(objFormat.getCSSFormat().getCSSParam());
+   }
+
+   /**
+    * The card inset this type takes when nobody has an opinion. Overridden by the types that have
+    * one; every other assembly keeps whatever it was constructed with.
+    */
+   protected Insets defaultPadding(VizContext ctx) {
+      return getPadding();
+   }
+
+   /**
+    * Reset the card inset to whatever "follow the default" means right now. The padding pane's
+    * checkbox needs only this write - the full seedChromeDefaults hook also re-runs the card
+    * background, the title lane and the colour palette, none of which that checkbox asked for.
+    *
+    * A format.css class still wins: it already installed its own padding through setCSSDefaults,
+    * and this re-reads it live rather than trusting whatever the field currently holds, which is
+    * what keeps the checkbox sane after an author had overridden that CSS padding and is now
+    * asking to give it back.
+    */
+   public void resetPadding(VizContext ctx) {
+      if(isCssPaddingDefined()) {
+         setPadding(CSSDictionary.getDictionary()
+                       .getPadding(getFormat().getCSSFormat().getCSSParam()));
+         return;
+      }
+
+      setPadding(defaultPadding(ctx));
    }
 
    /**
@@ -1782,6 +1850,10 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    private ObjectOpenHashSet<String> actionNames = new ObjectOpenHashSet<>(0);
    private boolean controlByScript = false; // visible is control by script
    private Insets padding = new Insets(0, 0, 0, 0);
+   // whether the author set the padding. Distinguishes a deliberate inset from the creation
+   // default, so the seed substitutes for the latter only. Lives here rather than on the chart,
+   // which owned it first, because the field it guards has always lived here
+   private boolean userPadding = false;
    private VizMark vizMark;
 
    /**
