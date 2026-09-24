@@ -48,9 +48,11 @@ public class DeadlockHealthIndicator implements HealthIndicator {
    public Health health() {
       DeadlockStatus status = service.getStatus();
 
-      boolean down = status.getDeadlockedThreadCount() > 0 || status.isStalled();
-      // the full status zip, not on every poll while DOWN (bug #76967)
-      boolean dump = dumpLimiter.shouldDump(down);
+      boolean deadlocked = status.getDeadlockedThreadCount() > 0;
+      boolean down = deadlocked || status.isStalled();
+      // the full status zip: a JVM deadlock is dumped on every poll as before, a lock stall
+      // alone is not (bug #76967)
+      boolean dump = deadlocked || dumpLimiter.shouldDump(status.isStalled());
 
       if(down) {
          Map<String, Map<String, String>> details = new HashMap<>();

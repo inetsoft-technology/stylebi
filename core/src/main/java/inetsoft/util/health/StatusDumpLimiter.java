@@ -25,7 +25,8 @@ import java.util.function.LongSupplier;
  * of dashboards, queries, users, threads, logs and metrics written to external storage, and a
  * DOWN check (a JVM deadlock or an unreleased lock stall) is polled every minute or so: it is
  * written on the first DOWN poll, then at most once per interval while the check stays DOWN
- * or flaps, instead of on every poll.
+ * or flaps, instead of on every poll. The callers rate-limit only a DOWN caused by an
+ * unreleased lock stall alone; every other DOWN cause is dumped on every poll, as before.
  */
 public final class StatusDumpLimiter {
    /**
@@ -65,6 +66,19 @@ public final class StatusDumpLimiter {
       dumped = true;
       lastDumpNanos = now;
       return true;
+   }
+
+   /**
+    * Record a health poll of {@code status}, and check if the status should be dumped now. Only
+    * a DOWN caused by an unreleased lock stall alone is rate-limited; any other DOWN is dumped
+    * on every poll, as before bug #76967.
+    */
+   public boolean shouldDump(HealthStatus status) {
+      if(!status.isDown()) {
+         return false;
+      }
+
+      return !status.isDownOnlyByLockStall() || shouldDump(true);
    }
 
    public static final long DEFAULT_INTERVAL_MILLIS = 600000L;

@@ -74,6 +74,22 @@ class DeadlockHealthIndicatorTest {
    }
 
    @Test
+   void health_jvmDeadlockOnEveryPoll_dumpsStatusOnEveryPoll() {
+      // as before bug #76967: only a lock stall alone is rate-limited
+      when(service.getStatus()).thenReturn(new DeadlockStatus(
+         2, new DeadlockedThread[] { new DeadlockedThread("t1", "l1", "t2"),
+                                     new DeadlockedThread("t2", "l2", "t1") },
+         "stall not released: X"));
+      DeadlockHealthIndicator indicator = new DeadlockHealthIndicator(service, statusDumpService);
+
+      for(int i = 0; i < 5; i++) {
+         assertEquals(Status.DOWN, indicator.health().getStatus());
+      }
+
+      verify(statusDumpService, times(5)).dumpStatus();
+   }
+
+   @Test
    void health_downOnEveryPollWithTheDefaultLimiter_dumpsStatusOnce() {
       when(service.getStatus())
          .thenReturn(new DeadlockStatus(0, new DeadlockedThread[0], "stall not released: X"));

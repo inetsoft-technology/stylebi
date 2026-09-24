@@ -242,8 +242,8 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    public HealthStatus getHealth() throws RemoteException {
       HealthStatus status = healthService.getStatus();
 
-      // the full status zip, not on every poll while DOWN (bug #76967)
-      if(statusDumpLimiter.shouldDump(status.isDown())) {
+      // the full status zip; a DOWN of a lock stall alone is not dumped on every poll (bug #76967)
+      if(statusDumpLimiter.shouldDump(status)) {
          statusDumpService.dumpStatus();
       }
 
