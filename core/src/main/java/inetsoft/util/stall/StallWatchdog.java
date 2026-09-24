@@ -315,7 +315,8 @@ public final class StallWatchdog {
                         currentDumped.add(finding.key());
                      }
                      else {
-                        path = dumpForScan(finding.message());
+                        // its own window: a signal never delays the dump of a real stall
+                        path = dumpForScan(StallDumper.Kind.PROBE, finding.message());
 
                         if(path != null) {
                            currentDumped.add(finding.key());

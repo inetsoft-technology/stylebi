@@ -558,7 +558,7 @@ public class StallWatchdogTest {
 
    @Test
    public void rateLimitedProbeDumpIsRetriedWhileTheEpisodePersists() {
-      dumper.dump("an earlier stall");
+      dumper.dump(StallDumper.Kind.PROBE, "an earlier signal");
       watchdog.add(() -> List.of(new StallProbe.Finding("k", "signal", true)));
       watchdog.scan();
       assertEquals(1, dumper.getDumpCount(), "rate-limited: no dump yet");
@@ -570,6 +570,34 @@ public class StallWatchdogTest {
       advance(61000);
       watchdog.scan();
       assertEquals(2, dumper.getDumpCount(), "and only once");
+   }
+
+   /**
+    * A probe finding (e.g. an interrupt timeout) has its own dump window: its dump must not
+    * use up the window of a real stall that follows, from the watchdog or from the waiter.
+    */
+   @Test
+   public void stallAfterAProbeDumpGetsItsOwnDump() {
+      watchdog.add(() -> List.of(new StallProbe.Finding("k", "signal", true)));
+      watchdog.scan();
+      assertEquals(1, dumper.getDumpCount(StallDumper.Kind.PROBE));
+      assertEquals(0, dumper.getDumpCount(StallDumper.Kind.WAIT));
+
+      advance(1000);
+      WaitRecord watched = runOnOtherThread(() -> registry.open("watched", () -> 0, NONE));
+      advance(1100);
+      watchdog.scan();
+      assertEquals(1, dumper.getDumpCount(StallDumper.Kind.WAIT),
+                   "the watchdog dumps the stall inside the probe's window");
+      assertNotNull(watched.getDumpPath());
+
+      advance(61000);
+      WaitRecord waiter = registry.open("waiter", () -> 0, NONE);
+      advance(1100);
+      LockStallException stall = assertThrows(LockStallException.class, waiter::checkStall);
+      assertNotNull(stall.getDumpPath(), "a probe dump never takes the waiter's window");
+      waiter.close();
+      watched.close();
    }
 
    @Test

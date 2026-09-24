@@ -35,9 +35,9 @@ import java.util.function.Supplier;
 /**
  * Writes the thread dumps of the lock-stall watchdog (bug #76967), at most one per
  * {@code minIntervalMillis} and {@link Kind}: a lock cycle usually trips several waiters at
- * once, and they all get the path of the same dump. JVM deadlocks and stalled waits are
- * rate-limited separately, so a deadlock that stays around (it never resolves) does not keep
- * a concurrent stall from getting its own dump.
+ * once, and they all get the path of the same dump. JVM deadlocks, stalled waits and probe
+ * findings are rate-limited separately, so a deadlock that stays around (it never resolves)
+ * or a probe signal does not keep a concurrent stall from getting its own dump.
  */
 public final class StallDumper {
    /**
@@ -179,9 +179,14 @@ public final class StallDumper {
        */
       DEADLOCK,
       /**
-       * A stalled registered wait (waiter or watchdog), or a probe finding.
+       * A stalled registered wait (waiter or watchdog).
        */
-      WAIT
+      WAIT,
+      /**
+       * A probe finding, e.g. a script interrupt that timed out. Its own window, so a probe
+       * dump never delays the dump of a real stall that follows.
+       */
+      PROBE
    }
 
    /**
