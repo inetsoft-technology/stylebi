@@ -343,7 +343,11 @@ public class PostProcessor {
          }
 
          if(senv == null) {
-            return super.moreRows(row);
+            // the env was collected: no more pooled batches, so stop the geometric read-ahead
+            synchronized(this) {
+               readAhead = 0;
+               return super.moreRows(row);
+            }
          }
 
          try(ScriptSpan span = senv.openSpan()) {

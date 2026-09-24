@@ -59,11 +59,13 @@ public class PooledBatchPerfTest {
       WorksheetScriptEnv pooled = null;
       long cleans = 0;
 
-      // symmetric (spec §14.14): both envs, and the pooled env's first slot with its first
-      // clean, are built before the timed region; the minimum of 5 runs per shape
+      // symmetric (spec §14.14): both envs are built and warmed with one exec before the
+      // timed region, the pooled env's with its first slot and clean; the minimum of 5 runs
+      // per shape
       for(int run = 0; run < 5; run++) {
          GraalJavaScriptEnv plain = new GraalJavaScriptEnv();
          plain.init();
+         PoolTestSupport.run(plain, "1");
          off = Math.min(off, time(shape, plain, false));
          pooled = PoolTestSupport.env();
          pooled.init();

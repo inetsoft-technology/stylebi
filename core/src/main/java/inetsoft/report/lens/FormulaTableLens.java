@@ -377,7 +377,10 @@ public class FormulaTableLens extends AbstractTableLens
 
          boolean first = true;
          // advance at least 10 to avoid going through this once per row; in pool mode at
-         // least one pooled batch, so one context clean serves a batch (spec §14.8)
+         // least one pooled batch, so one context clean serves a batch (spec §14.8).
+         // Design cost (spec §14.14): in pool mode the lens lock is held for up to
+         // maxBatchRows rows of script evaluation, so a concurrent reader of an already
+         // computed row can wait that long for this batch to finish
          final int advance = Math.max(Math.min(Math.max(r / 100, 10), 100),
                                       nextPoolBatch(span, r, nrows + hrows));
          final int maxr = Math.max(r, nrows + hrows + advance);
