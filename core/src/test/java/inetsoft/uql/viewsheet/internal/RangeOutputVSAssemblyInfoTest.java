@@ -311,6 +311,56 @@ class RangeOutputVSAssemblyInfoTest {
    }
 
    /**
+    * Regression test for the external review finding on bug #76968 (PR #5557,
+    * jshobe-inetsoft): {@code copyViewInfo()} synced {@code rangeCount}/{@code rangeColorCount}
+    * from the incoming info when the backing arrays changed, but not the new
+    * {@code rangeDesignCount}/{@code rangeColorDesignCount} fields -- exactly the merge path
+    * {@code GaugePropertyDialogService} uses to apply a Composer Advanced-tab edit: clone the
+    * live info, call the design-time setters on the clone, then merge the clone back into the
+    * live object via {@code AbstractVSAssembly.setVSAssemblyInfo()} -> {@code copyInfo()} ->
+    * {@code copyViewInfo()}. Without syncing the design-count fields there, every Advanced-tab
+    * edit that changes the range/color count would leave the live object's design-count fields
+    * stale, reintroducing Issue 1 (this test) for the most common real-world editing path.
+    */
+   @Test
+   void copyInfoSyncsDesignCountFieldsFromIncomingInfo() {
+      // the "live" object, as it exists in a running viewsheet before the composer edit
+      GaugeVSAssemblyInfo live = new GaugeVSAssemblyInfo();
+      live.setRangeValues(new Object[] { "10", "20", "30" });
+      live.setRangeColorsValue(new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW });
+
+      // a bound script has shrunk the live object's runtime length before the edit happens
+      live.setRanges(new Object[] { "15" });
+      live.setRangeColors(new Color[] { Color.CYAN });
+
+      // GaugePropertyDialogService clones the live info, then applies the Advanced-tab edit
+      // (a 4th range / 5th color, a different design count than the clone started with) to
+      // the clone only
+      GaugeVSAssemblyInfo clone = new GaugeVSAssemblyInfo();
+      clone.copyInfo(live);
+      clone.setRangeValues(new Object[] { "10", "20", "30", "40" });
+      clone.setRangeColorsValue(
+         new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.MAGENTA });
+
+      // the dialog service merges the clone back into the live object
+      live.copyInfo(clone);
+
+      assertArrayEquals(new String[] { "10", "20", "30", "40" }, live.getRangeValues());
+      assertArrayEquals(
+         new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.MAGENTA },
+         live.getRangeColorsValue());
+
+      // resetRuntimeValues() must restore the NEW design count (4 ranges / 5 colors), not a
+      // stale pre-edit count -- this only holds if copyViewInfo() also synced
+      // rangeDesignCount/rangeColorDesignCount, not just rangeCount/rangeColorCount
+      live.resetRuntimeValues();
+      assertArrayEquals(new double[] { 10.0, 20.0, 30.0, 40.0 }, live.getRanges(), 1e-6);
+      assertArrayEquals(
+         new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.MAGENTA },
+         live.getRangeColors());
+   }
+
+   /**
     * Once the setters independently shrink/grow to the caller's exact incoming length,
     * ranges.length and colors.length can legitimately diverge (e.g. a script writes N ranges
     * but N-1 colors). Cylinder/Thermometer/SlidingScale/BulletGraph must render the agreeing

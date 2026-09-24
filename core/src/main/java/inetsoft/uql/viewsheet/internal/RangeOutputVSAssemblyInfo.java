@@ -945,6 +945,9 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          rangeValues = cinfo.rangeValues;
          // keep the logical length in sync with the array reference it now describes (#76909)
          rangeCount = cinfo.rangeCount;
+         // keep the design-time length in sync too, or a Composer Advanced-tab edit
+         // (clone -> design setter -> merge via copyViewInfo) leaves it stale (#76968)
+         rangeDesignCount = cinfo.rangeDesignCount;
          result = true;
       }
 
@@ -954,6 +957,9 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          rangeColorsValue = cinfo.rangeColorsValue;
          // keep the logical length in sync with the array reference it now describes (#76909)
          rangeColorCount = cinfo.rangeColorCount;
+         // keep the design-time length in sync too, or a Composer Advanced-tab edit
+         // (clone -> design setter -> merge via copyViewInfo) leaves it stale (#76968)
+         rangeColorDesignCount = cinfo.rangeColorDesignCount;
          result = true;
       }
 
