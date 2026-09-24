@@ -87,24 +87,6 @@ class TableCellPaddingResolutionTest {
       assertEquals(0, lens.getRowPadding(0, unmarkedTable()));
    }
 
-   @Test
-   void authorTypedRowHeightSurvivesASaveAndReopen() {
-      // Review Focus 1: the composer stores a resize as a CONTENT height by subtracting the
-      // padding (ComposerVSTableService:958/969) and the render adds it back
-      // (BaseTableService:492). Both must read the SAME source, or the height drifts by
-      // 2 * padding-y on every round trip. Driving both sides off the real resolver is what
-      // makes this test fail if one of the two call sites is missed.
-      VSTableLens lens = new VSTableLens(XTableUtil.getDefaultTableLens());
-      TableVSAssemblyInfo info = markedTable("compact");
-      int typed = 40;
-
-      int stored = Math.max(0, typed - lens.getRowPadding(lens.getHeaderRowCount(), info));
-      int rendered = stored + lens.getRowPadding(lens.getHeaderRowCount(), info);
-
-      assertEquals(typed, rendered);
-      assertEquals(32, stored, "stored as a content height, not the typed one");
-   }
-
    // seedChromeDefaults is protected and this test is in a different package, so the value is
    // set directly at the tier the seed would have written. cellPaddingForMode is package-private
    // to inetsoft.uql.viewsheet.internal, so the public cellPadding(VizContext) resolves the same

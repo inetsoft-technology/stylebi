@@ -341,7 +341,10 @@ public class VSAnnotationService {
       }
 
       int[] cellWidth = tableLens.getColumnWidths();
+      // stored row heights; the cell padding is added at render, so add it here too
       int[] cellHeight = tableLens.getRowHeights();
+      TableDataVSAssemblyInfo tinfo =
+         ((TableDataVSAssembly) parentAssembly).getTableDataVSAssemblyInfo();
       int wdiff = paneWidth - parentEndX + (viewsheetInfo.isBalancePadding() ? balancePaddingX : 0);
       int hdiff = paneHeight - parentEndY + (viewsheetInfo.isBalancePadding() ? balancePaddingY : 0);
       int colWidthSum = 0;
@@ -352,17 +355,20 @@ public class VSAnnotationService {
       }
 
       for(int i = row + 1; i < cellHeight.length; i++) {
-         rowHeightSum += cellHeight[i];
+         rowHeightSum += (int) tableLens.getRowHeightWithPadding(cellHeight[i], i, tinfo);
       }
 
+      int annotatedRowHeight =
+         (int) tableLens.getRowHeightWithPadding(cellHeight[row], row, tinfo);
+
       if(colWidthSum >= psize.width + 85 - cellWidth[col] / 2 &&
-         rowHeightSum >= psize.height - cellHeight[row] / 2)
+         rowHeightSum >= psize.height - annotatedRowHeight / 2)
       {
          return new Point(x, y);
       }
 
       int totalWidth = x + cellWidth[col] / 2 + colWidthSum + wdiff - 70;
-      int totalHeight = y + cellHeight[row] / 2 + rowHeightSum + hdiff;
+      int totalHeight = y + annotatedRowHeight / 2 + rowHeightSum + hdiff;
       int currentWidth = x + psize.width;
       int currentHeight = y + psize.height + 15;
 

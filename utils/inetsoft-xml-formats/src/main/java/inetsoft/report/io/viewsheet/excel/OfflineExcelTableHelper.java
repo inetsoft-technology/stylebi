@@ -336,7 +336,7 @@ public class OfflineExcelTableHelper extends ExcelTableHelper {
 
       VSCompositeFormat cfmt = new VSCompositeFormat();
       cfmt.setUserDefinedFormat(format);
-      Insets padding = lens.getInsets(irow, icol);
+      Insets padding = lens.getCellInsets(irow, icol, info);
 
       writeTableCell(tableRange.x, tableRange.y, span,
                      getPixelBounds(info, irow + lens.getHeaderRowCount(),

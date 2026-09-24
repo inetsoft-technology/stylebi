@@ -23,6 +23,8 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSDensityDefaults;
+import inetsoft.uql.viewsheet.internal.VizContext;
 import inetsoft.util.SparseMatrix;
 
 import java.awt.*;
@@ -206,6 +208,15 @@ public abstract class VSTableHelper extends VSTableDataHelper {
          int tableRowsHeight = size.height - (info.isTitleVisible() ? info.getTitleHeight() : 0)
             - info.getViewsheet().getDisplayRowHeight(true, info.getName());
          int displayRowHeight = info.getViewsheet().getDisplayRowHeight(false, info.getName());
+         VizContext ctx = VizContext.of(info);
+
+         // getDisplayRowHeight returns the raw stored height, so apply the same density
+         // substitution the live model does (BaseTableService:466) before adding the padding -
+         // otherwise the estimate exceeds the real rendered row and match-exact drops rows
+         if(ctx.modern && !info.isUserDataRowHeight() && displayRowHeight == AssetUtil.defh) {
+            displayRowHeight = VSDensityDefaults.rowHeight(ctx);
+         }
+
          displayRowHeight += lens.getRowPadding(lens.getHeaderRowCount(), info);
          infoRows = (int) Math.round((double) tableRowsHeight / displayRowHeight) + 2;
       }
