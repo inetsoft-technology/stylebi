@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import inetsoft.util.stall.StallWatchdog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -143,6 +144,50 @@ public final class PoolMetrics {
    }
 
    /**
+    * Count an exec whose timeout interrupt could not stop it (bug #76967), and start the
+    * lock-stall watchdog so its probe reports it.
+    */
+   static void interruptTimedOut() {
+      NODE_INTERRUPT_TIMEOUTS.incrementAndGet();
+      StallWatchdog.wake();
+   }
+
+   /**
+    * Count a claim left open by its thread and released for it (bug #76967), and start the
+    * lock-stall watchdog so its probe reports it.
+    */
+   static void leakedClaim() {
+      NODE_LEAKED_CLAIMS.incrementAndGet();
+      StallWatchdog.wake();
+   }
+
+   /**
+    * @return the execs of this node whose timeout interrupt could not stop them.
+    */
+   public static long nodeInterruptTimeouts() {
+      return NODE_INTERRUPT_TIMEOUTS.get();
+   }
+
+   /**
+    * @return the claims of this node left open by their thread and released for it.
+    */
+   public static long nodeLeakedClaims() {
+      return NODE_LEAKED_CLAIMS.get();
+   }
+
+   /**
+    * @return the node's warn threshold of pooled contexts, as set by the latest pooled env;
+    *         {@link Integer#MAX_VALUE} before the first.
+    */
+   public static int nodeSlotWarnThreshold() {
+      return nodeSlotWarnThreshold;
+   }
+
+   static void setNodeSlotWarnThreshold(int threshold) {
+      nodeSlotWarnThreshold = threshold;
+   }
+
+   /**
     * @return the node-wide totals as one log line.
     */
    public static String nodeSummary() {
@@ -189,6 +234,10 @@ public final class PoolMetrics {
    private static final AtomicLong NODE_DOOMED_CLOSES = new AtomicLong();
    private static final AtomicLong NODE_CLEANS = new AtomicLong();
    private static final AtomicLong NODE_EXECS = new AtomicLong();
+   private static final AtomicLong NODE_INTERRUPT_TIMEOUTS = new AtomicLong();
+   private static final AtomicLong NODE_LEAKED_CLAIMS = new AtomicLong();
+   // read by the lock-stall probe, which must not read properties (bug #76967)
+   private static volatile int nodeSlotWarnThreshold = Integer.MAX_VALUE;
    private final AtomicInteger size = new AtomicInteger();
    private final AtomicInteger highWater = new AtomicInteger();
    private final AtomicLong creations = new AtomicLong();
