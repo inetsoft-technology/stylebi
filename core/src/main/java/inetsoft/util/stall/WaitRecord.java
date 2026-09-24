@@ -120,15 +120,16 @@ public final class WaitRecord implements AutoCloseable {
          path = dumpPath;
 
          if(path == null) {
-            // only a dump written by this call is this stall's; an older one of the dumper's
-            // window is unrelated, so the path is left for the watchdog to attach later
+            // a dump started during this stall (such as another cycle member's, inside the
+            // dumper's window) shows it, so it is this stall's dump too. One started before the
+            // stall's last progress is unrelated and is never attached: the path stays null.
             StallDumper dumper = registry.getDumper();
-            int before = dumper.getDumpCount();
-            String dumped = dumper.dump(reason);
+            dumper.dump(reason);
+            StallDumper.LastDump last = dumper.getLastDump();
 
-            if(dumper.getDumpCount() > before) {
-               path = dumped;
-               dumpPath = dumped;
+            if(last != null && last.startNanos() - progressNanos >= 0) {
+               path = last.path();
+               dumpPath = path;
             }
          }
 

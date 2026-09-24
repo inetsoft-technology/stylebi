@@ -256,6 +256,7 @@ public class StallWatchdogTest {
    @Test
    public void waiterTrippingInsideTheDumpWindowGetsNoStaleDumpPath() {
       String earlier = dumper.dump("an earlier stall");
+      advance(1);
       WaitRecord record = registry.open("site", () -> 0, NONE);
       advance(1100);
       LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
@@ -452,6 +453,62 @@ public class StallWatchdogTest {
       Thread second = findWatchdogThread().orElse(null);
       assertNotNull(second, "the next wait restarts a watchdog thread that ended");
       assertNotSame(first, second);
+   }
+
+   @Test
+   public void cycleMemberTrippingInsideTheWindowGetsTheCyclesDump() {
+      WaitRecord a = registry.open("A", () -> 0, NONE);
+      WaitRecord b = registry.open("B", () -> 0, NONE);
+      advance(1100);
+      LockStallException exA = assertThrows(LockStallException.class, a::checkStall);
+      assertNotNull(exA.getDumpPath());
+      advance(10);
+
+      // fail mode: B throws and closes its record at once, so the watchdog never sees it
+      LockStallException exB = assertThrows(LockStallException.class, b::checkStall);
+      b.close();
+      a.close();
+
+      assertEquals(exA.getDumpPath(), exB.getDumpPath(),
+                   "a dump taken during B's own stall is B's dump too");
+      assertEquals(1, dumper.getDumpCount());
+   }
+
+   @Test
+   public void rateLimitedProbeDumpIsRetriedWhileTheEpisodePersists() {
+      dumper.dump("an earlier stall");
+      watchdog.add(() -> List.of(new StallProbe.Finding("k", "signal", true)));
+      watchdog.scan();
+      assertEquals(1, dumper.getDumpCount(), "rate-limited: no dump yet");
+
+      advance(61000);
+      watchdog.scan();
+      assertEquals(2, dumper.getDumpCount(), "the episode gets its dump once it can");
+
+      advance(61000);
+      watchdog.scan();
+      assertEquals(2, dumper.getDumpCount(), "and only once");
+   }
+
+   @Test
+   public void throwingProbeKeepsItsEpisode() {
+      AtomicInteger calls = new AtomicInteger();
+      watchdog.add(() -> {
+         if(calls.incrementAndGet() == 2) {
+            throw new IllegalStateException("flapping probe");
+         }
+
+         return List.of(new StallProbe.Finding("k", "signal", true));
+      });
+      watchdog.scan();
+      assertEquals(1, dumper.getDumpCount());
+
+      advance(61000);
+      watchdog.scan();
+      advance(61000);
+      watchdog.scan();
+      assertEquals("signal", watchdog.getProbeFindings());
+      assertEquals(1, dumper.getDumpCount(), "a failed poll does not end the episode");
    }
 
    private static Optional<Thread> findWatchdogThread() {

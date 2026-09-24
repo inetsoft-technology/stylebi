@@ -21,11 +21,13 @@ import java.util.List;
 
 /**
  * A source of stall signals that are not a registered wait (bug #76967), such as the
- * worksheet script context pool's counters. The watchdog polls every probe once per scan, on
- * its own thread. A probe must not block or take any lock a query thread may hold, and should
- * only read counters that are already maintained. A finding never fails a query and never
- * turns the health check DOWN: the watchdog logs it once per episode, and writes a
- * rate-limited thread dump if the finding asks for one.
+ * worksheet script context pool's counters. The watchdog polls every probe once per scan,
+ * called under the watchdog's monitor on its only thread: a probe that blocks stops all stall
+ * detection and freezes the health flag. A probe must therefore not block or take any lock a
+ * query thread may hold (the watchdog's lock order relies on it), and should only read
+ * counters that are already maintained. A finding never fails a query and never turns the
+ * health check DOWN: the watchdog logs it once per episode, and writes a rate-limited thread
+ * dump if the finding asks for one.
  */
 @FunctionalInterface
 public interface StallProbe {

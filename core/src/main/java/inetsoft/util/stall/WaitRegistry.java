@@ -39,6 +39,14 @@ import java.util.function.Supplier;
  * </pre>
  */
 public final class WaitRegistry {
+   /**
+    * @param nanoClock the clock of the waits' progress.
+    * @param policy    the current policy.
+    * @param dumper    the dumper, which must use the same nano clock as {@code nanoClock}: a
+    *                  waiter compares the start of the last dump with its progress time to tell
+    *                  whether that dump shows its stall. In production both are
+    *                  {@code System::nanoTime}.
+    */
    public WaitRegistry(LongSupplier nanoClock, Supplier<StallPolicy> policy, StallDumper dumper) {
       this.nanoClock = nanoClock;
       this.policy = policy;

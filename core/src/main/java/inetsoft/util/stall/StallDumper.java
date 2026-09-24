@@ -84,6 +84,7 @@ public final class StallDumper {
 
          count++;
          lastPath = file.getAbsolutePath();
+         lastDumpStartNanos = now;
          LOG.warn("Lock stall thread dump written to {}: {}", lastPath, reason);
          return lastPath;
       }
@@ -100,6 +101,25 @@ public final class StallDumper {
       return count;
    }
 
+   /**
+    * Get the most recently written dump and when it was started, read together.
+    *
+    * @return the dump, or {@code null} if none has been written.
+    */
+   public synchronized LastDump getLastDump() {
+      return lastPath == null ? null : new LastDump(lastPath, lastDumpStartNanos);
+   }
+
+   /**
+    * A written dump.
+    *
+    * @param path       the dump file.
+    * @param startNanos when writing it began, before the thread snapshot, on the dumper's
+    *                   clock. A failed attempt never moves it.
+    */
+   public record LastDump(String path, long startNanos) {
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(StallDumper.class);
    private static final DateTimeFormatter FORMAT =
       DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
@@ -112,5 +132,6 @@ public final class StallDumper {
    private boolean attempted;
    private long lastAttemptNanos;
    private String lastPath;
+   private long lastDumpStartNanos;
    private int count;
 }

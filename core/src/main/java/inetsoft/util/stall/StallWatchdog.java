@@ -23,8 +23,10 @@ import org.slf4j.LoggerFactory;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadFactory;
@@ -81,6 +83,7 @@ public final class StallWatchdog {
     * Start the server's watchdog thread if it is not running yet. Never throws.
     */
    public static void wake() {
+      // defensive only: ensureStarted() never throws
       try {
          ensureStarted();
       }
@@ -93,8 +96,8 @@ public final class StallWatchdog {
     * Add a probe to this watchdog, once.
     */
    public void add(StallProbe probe) {
-      if(probe != null && !probes.contains(probe)) {
-         probes.add(probe);
+      if(probe != null) {
+         probes.addIfAbsent(probe);
       }
    }
 
@@ -242,46 +245,74 @@ public final class StallWatchdog {
    }
 
    /**
-    * Poll the probes. A finding is logged, and dumped if it asks for it, when its episode
-    * starts, that is when the previous scan did not find its key. Findings never make a stall
-    * unreleased. Each probe is isolated, so a failing one skips only its own findings. Caller
-    * holds this watchdog's monitor.
+    * Poll the probes. A finding is logged when its episode starts, that is when the previous
+    * scan did not find its key for the same probe. A finding that asks for a dump is dumped
+    * once per episode: as soon as the dumper writes one, retried on later scans while it is
+    * rate-limited. Findings never make a stall unreleased. Each probe is isolated: a failing
+    * one only skips its own findings, and keeps its episodes as they were, so a flapping probe
+    * is not logged again.
+    *
+    * <p>Called under this watchdog's monitor, on its only thread: a probe that blocks stops
+    * all stall detection and freezes the health flag.
     */
    private void scanProbes() {
-      Set<String> keys = new HashSet<>();
+      Map<StallProbe, Set<String>> keys = new HashMap<>();
+      Map<StallProbe, Set<String>> dumped = new HashMap<>();
       List<String> messages = new ArrayList<>();
 
       for(StallProbe probe : probes) {
+         Set<String> seen = probeKeys.getOrDefault(probe, Set.of());
+         Set<String> wasDumped = dumpedProbeKeys.getOrDefault(probe, Set.of());
+
          try {
             List<StallProbe.Finding> found = probe.scan();
+            Set<String> current = new HashSet<>();
+            Set<String> currentDumped = new HashSet<>();
 
-            if(found == null) {
-               continue;
+            if(found != null) {
+               for(StallProbe.Finding finding : found) {
+                  if(finding == null || !current.add(finding.key())) {
+                     continue;
+                  }
+
+                  messages.add(finding.message());
+                  String path = null;
+
+                  if(finding.dump()) {
+                     if(wasDumped.contains(finding.key())) {
+                        currentDumped.add(finding.key());
+                     }
+                     else {
+                        path = dumpForScan(finding.message());
+
+                        if(path != null) {
+                           currentDumped.add(finding.key());
+                        }
+                     }
+                  }
+
+                  if(!seen.contains(finding.key())) {
+                     if(finding.dump()) {
+                        LOG.warn("Lock stall signal: {}, thread dump: {}", finding.message(),
+                                 path == null ? "deferred" : path);
+                     }
+                     else {
+                        LOG.warn("Lock stall signal: {}", finding.message());
+                     }
+                  }
+                  else if(path != null) {
+                     LOG.warn("Lock stall signal: {}, thread dump: {}", finding.message(), path);
+                  }
+               }
             }
 
-            for(StallProbe.Finding finding : found) {
-               if(finding == null) {
-                  continue;
-               }
-
-               keys.add(finding.key());
-               messages.add(finding.message());
-
-               if(probeKeys.contains(finding.key())) {
-                  continue;
-               }
-
-               if(finding.dump()) {
-                  String path = dumpForScan(finding.message());
-                  LOG.warn("Lock stall signal: {}, thread dump: {}", finding.message(),
-                           path == null ? "none (rate-limited or failed)" : path);
-               }
-               else {
-                  LOG.warn("Lock stall signal: {}", finding.message());
-               }
-            }
+            keys.put(probe, current);
+            dumped.put(probe, currentDumped);
          }
          catch(Throwable ex) {
+            keys.put(probe, seen);
+            dumped.put(probe, wasDumped);
+
             try {
                LOG.warn("Lock stall probe {} failed", probe, ex);
             }
@@ -292,6 +323,7 @@ public final class StallWatchdog {
       }
 
       probeKeys = keys;
+      dumpedProbeKeys = dumped;
       findings = messages.isEmpty() ? null : String.join("; ", messages);
    }
 
@@ -309,7 +341,8 @@ public final class StallWatchdog {
     * this watchdog, then the record, then the dumper. A waiter may hold engine locks when it
     * takes the record's monitor (and {@code CrossJoinTableLens} checks inside its own monitor),
     * but there is no cycle: the watchdog only ever takes its own monitor, the record's and the
-    * dumper's, never an engine lock or a lens monitor.
+    * dumper's, never an engine lock or a lens monitor. That also relies on the probes keeping
+    * their contract ({@link StallProbe}), as they are polled under this watchdog's monitor.
     */
    private void scanRecord(WaitRecord record, long now, long scanNo, List<String> reasons) {
       synchronized(record) {
@@ -465,7 +498,8 @@ public final class StallWatchdog {
       seenDeadlock = null;
       dumpedDeadlock = null;
       findings = null;
-      probeKeys = new HashSet<>();
+      probeKeys = new HashMap<>();
+      dumpedProbeKeys = new HashMap<>();
    }
 
    private static void runGlobal() {
@@ -515,7 +549,9 @@ public final class StallWatchdog {
    private long[] seenDeadlock;
    private long[] dumpedDeadlock;
    private volatile String unreleased;
-   private final List<StallProbe> probes = new CopyOnWriteArrayList<>();
-   private Set<String> probeKeys = new HashSet<>(); // guarded by this
+   private final CopyOnWriteArrayList<StallProbe> probes = new CopyOnWriteArrayList<>();
+   // guarded by this: each probe's keys of its current episodes, and those already dumped
+   private Map<StallProbe, Set<String>> probeKeys = new HashMap<>();
+   private Map<StallProbe, Set<String>> dumpedProbeKeys = new HashMap<>();
    private volatile String findings;
 }

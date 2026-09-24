@@ -92,6 +92,26 @@ public class StallDumperTest {
       assertEquals(0, dumper.getDumpCount());
    }
 
+   @Test
+   public void failedDumpKeepsTheLastDumpAndItsStartTime() throws Exception {
+      // a regular file where a directory is expected makes the second write fail
+      File notADir = new File(dumpDir, "not-a-dir");
+      Files.createFile(notADir.toPath());
+      AtomicInteger calls = new AtomicInteger();
+      StallDumper dumper = new StallDumper(now::get,
+         () -> calls.incrementAndGet() > 1 ? notADir : dumpDir, 60000);
+      assertNull(dumper.getLastDump());
+
+      long start = now.get();
+      String path = dumper.dump("first");
+      advance(61000);
+      assertEquals(path, dumper.dump("second"), "a failed attempt returns the last dump");
+
+      StallDumper.LastDump last = dumper.getLastDump();
+      assertEquals(path, last.path());
+      assertEquals(start, last.startNanos(), "a failed attempt does not move the start time");
+   }
+
    private void advance(long millis) {
       now.addAndGet(TimeUnit.MILLISECONDS.toNanos(millis));
    }
