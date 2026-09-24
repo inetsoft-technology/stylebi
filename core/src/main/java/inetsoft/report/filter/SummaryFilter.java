@@ -897,6 +897,16 @@ public class SummaryFilter extends AbstractGroupedTable
          stallFailure = ex;
          throw ex;
       }
+      catch(RuntimeException ex) {
+         // a stall may reach the worker wrapped by the base table (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            stallFailure = stall;
+         }
+
+         throw ex;
+      }
       finally {
          synchronized(this) {
             if(sumrows != null) {
@@ -2074,6 +2084,8 @@ public class SummaryFilter extends AbstractGroupedTable
          }
       }
 
+      // the rows so far of a stalled worker are not the whole table (bug #76967)
+      throwStallFailure();
       return getRowCount(sumrows);
    }
 

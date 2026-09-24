@@ -52,6 +52,15 @@ public final class StallTestSupport {
       });
    }
 
+   /**
+    * Stop the server's watchdog and forget the last dump of the server's dumper, so a test
+    * sees neither the watchdog nor the dump back-off window of an earlier test.
+    */
+   public static void resetGlobalStallState() {
+      StallWatchdog.resetForTest();
+      StallDumper.global().resetForTest();
+   }
+
    public static boolean isReader() {
       return READER.get();
    }

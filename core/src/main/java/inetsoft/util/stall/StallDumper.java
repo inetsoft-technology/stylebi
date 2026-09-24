@@ -108,6 +108,17 @@ public final class StallDumper {
    }
 
    /**
+    * Forget the last dump and the back-off window, so a test does not see the dump of an
+    * earlier test. The dump count is kept.
+    */
+   synchronized void resetForTest() {
+      attempted = false;
+      lastAttemptNanos = 0;
+      lastPath = null;
+      lastDumpStartNanos = 0;
+   }
+
+   /**
     * Get the number of dumps written.
     */
    public synchronized int getDumpCount() {

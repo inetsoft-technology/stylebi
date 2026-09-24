@@ -51,4 +51,17 @@ public class LockStallExceptionTest {
       assertEquals(5, copy.getStalledMillis());
       assertNull(copy.getDumpPath());
    }
+
+   @Test
+   public void findWalksTheCauseChain() {
+      LockStallException stall = new LockStallException("site", "t", 5, null);
+      RuntimeException loop = new RuntimeException("loop");
+      loop.initCause(new IllegalStateException("back", loop));
+
+      assertSame(stall, LockStallException.find(stall));
+      assertSame(stall, LockStallException.find(new RuntimeException(new Exception(stall))));
+      assertNull(LockStallException.find(new RuntimeException("no stall")));
+      assertNull(LockStallException.find(loop));
+      assertNull(LockStallException.find(null));
+   }
 }

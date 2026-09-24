@@ -18,6 +18,7 @@
 package inetsoft.util.stall;
 
 import java.io.Serial;
+import java.util.*;
 
 /**
  * Thrown by a wait that made no progress for {@code stall.watchdog.noProgressMillis}, most
@@ -48,6 +49,23 @@ public class LockStallException extends RuntimeException {
       this.threadName = cause.threadName;
       this.stalledMillis = cause.stalledMillis;
       this.dumpPath = cause.dumpPath;
+   }
+
+   /**
+    * Find the stall in the cause chain of {@code failure}, e.g. one a base table wrapped.
+    *
+    * @return the outermost lock stall of the chain, or {@code null} if there is none.
+    */
+   public static LockStallException find(Throwable failure) {
+      Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+
+      for(Throwable t = failure; t != null && seen.add(t); t = t.getCause()) {
+         if(t instanceof LockStallException) {
+            return (LockStallException) t;
+         }
+      }
+
+      return null;
    }
 
    public String getSite() {

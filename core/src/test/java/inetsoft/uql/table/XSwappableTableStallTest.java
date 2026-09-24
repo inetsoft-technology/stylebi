@@ -46,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class XSwappableTableStallTest {
    @BeforeEach
    public void setUp() {
+      resetGlobalStallState();
       StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
       pool = readerPool();
    }
@@ -102,6 +103,18 @@ public class XSwappableTableStallTest {
 
       assertFalse(table.moreRows(5, "test.site", () -> 0, () -> new Thread[0]));
       assertTrue(table.moreRows(0, "test.site", () -> 0, () -> new Thread[0]));
+      assertEquals(before, WaitRegistry.global().getBeginCount());
+   }
+
+   @Test
+   public void rowAlreadyThereRegistersNothing() {
+      XSwappableTable table = new XSwappableTable(2, false);
+      table.addRow(new Object[] { "a", "b" });
+      table.addRow(new Object[] { "c", "d" });
+      long before = WaitRegistry.global().getBeginCount();
+
+      assertTrue(table.moreRows(1, "test.site", () -> 0, () -> new Thread[0]));
+      assertFalse(table.isCompleted());
       assertEquals(before, WaitRegistry.global().getBeginCount());
    }
 

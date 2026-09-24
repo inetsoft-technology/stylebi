@@ -53,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class SummaryFilterStallTest {
    @BeforeEach
    public void setUp() {
+      resetGlobalStallState();
       StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 200, dumpDir));
       pool = readerPool();
    }
@@ -75,15 +76,7 @@ public class SummaryFilterStallTest {
       LockStallException stall = stallIn(failureOf(reader, 15));
       assertEquals("SummaryFilter.waitForRow", stall.getSite());
       assertTrue(stall.getStalledMillis() >= 1000);
-      // the server's dumper writes at most one dump a minute, so an earlier stall of this JVM
-      // (another test) may leave this one without its own dump path
-      StallDumper.LastDump last = WaitRegistry.global().getDumper().getLastDump();
-      assertNotNull(last, "the stall wrote a thread dump");
-
-      if(stall.getDumpPath() == null) {
-         assertTrue(System.nanoTime() - last.startNanos() < TimeUnit.SECONDS.toNanos(60),
-                    "only the dumper's back-off window leaves the dump path off");
-      }
+      assertNotNull(stall.getDumpPath());
    }
 
    @Test
@@ -98,10 +91,58 @@ public class SummaryFilterStallTest {
    public void workerStallIsNotTheEndOfTheTable() throws Exception {
       LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
       TableLens base = new FailingTable(30, 5, original);
-      Future<List<List<Object>>> reader = pool.submit(() -> drain(summary(base)));
+      SummaryFilter summary = summary(base);
+      Future<List<List<Object>>> reader = pool.submit(() -> drain(summary));
 
       LockStallException stall = stallIn(failureOf(reader, 15));
       assertSame(original, stall.getCause(), "the reader rethrows the worker's stall");
+
+      // the rows so far are not the whole table either
+      Future<Integer> count = pool.submit(summary::getRowCount);
+      assertSame(original, stallIn(failureOf(count, 15)).getCause(),
+                 "getRowCount() rethrows the worker's stall");
+   }
+
+   @Test
+   public void wrappedWorkerStallIsNotTheEndOfTheTable() throws Exception {
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      TableLens base = new DefaultTableLens(data(30)) {
+         @Override
+         public boolean moreRows(int row) {
+            if(row >= 5 && !isReader()) {
+               throw new RuntimeException("wrapped", original);
+            }
+
+            return super.moreRows(row);
+         }
+      };
+      SummaryFilter summary = summary(base);
+      Future<List<List<Object>>> reader = pool.submit(() -> drain(summary));
+
+      LockStallException stall = stallIn(failureOf(reader, 15));
+      assertSame(original, stall.getCause(), "the reader rethrows the wrapped stall");
+      assertSame(original, stallIn(failureOf(pool.submit(summary::getRowCount), 15)).getCause());
+   }
+
+   @Test
+   public void rowAlreadyThereWhileWorkerRunsRegistersNothing() throws Exception {
+      // the summary adds its data rows only once it has read the whole base table, so the
+      // header row is the one row there while the worker still runs
+      gated = new GatedTable(30);
+      SummaryFilter summary = summary(gated);
+      assertEquals(-1, (int) pool.submit(summary::getRowCount).get(5, TimeUnit.SECONDS),
+                   "the worker is still running");
+      long before = WaitRegistry.global().getBeginCount();
+
+      Object value = pool.submit(() -> {
+         assertTrue(summary.moreRows(0));
+         return summary.getObject(0, 1);
+      }).get(5, TimeUnit.SECONDS);
+
+      assertEquals("value", value);
+      assertEquals(-1, (int) pool.submit(summary::getRowCount).get(5, TimeUnit.SECONDS),
+                   "the worker is still running");
+      assertEquals(before, WaitRegistry.global().getBeginCount());
    }
 
    @Test
