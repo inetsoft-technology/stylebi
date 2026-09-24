@@ -31,6 +31,9 @@ import inetsoft.util.ThreadPool;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.stall.LockStallException;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.XSwappableObjectList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -480,6 +483,8 @@ public abstract class SetTableLens
 
          completed = false;
          validated = false;
+         stallFailure = null;
+         scannedRows = 0;
          mmap.clear();
       }
 
@@ -563,12 +568,31 @@ public abstract class SetTableLens
     */
    private void merge(MergedTable merged2) {
       try {
-         merged2.accept(getVisitor());
+         MergedTable.Visitor visitor = getVisitor();
+
+         // count the visited rows, the worker's progress for the lock-stall watchdog, it may
+         // add few rows (e.g. intersect) (bug #76967)
+         merged2.accept(visitor == null ? null : row -> {
+            scannedRows++;
+            visitor.visit(row);
+         });
       }
       catch(InterruptedException ex) {
          // ignore it
       }
+      catch(LockStallException ex) {
+         // logged by the wait site; the readers rethrow it rather than take the rows so far
+         // for the whole table (bug #76967)
+         stallFailure = ex;
+      }
       catch(Exception ex) {
+         // a stall may reach the worker wrapped by the base table (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            stallFailure = stall;
+         }
+
          LOG.error("Failed to merge tables", ex);
       }
 
@@ -599,22 +623,35 @@ public abstract class SetTableLens
     */
    @Override
    public boolean moreRows(int row) {
+      WaitRecord record = null;
+
       try {
          while(true) {
+            // no loan and no monitor is held here, so a stall exception leaks neither
+            // (bug #76967)
+            if(record != null) {
+               record.checkStall();
+            }
+
             LendableReentrantLock.Borrower lendTo;
 
             synchronized(this) {
                validate();
 
-               if(rows != null && row < rows.size() || completed) {
-                  return rows != null && row < rows.size();
+               if(rows != null && row < rows.size()) {
+                  return true;
+               }
+
+               if(completed) {
+                  throwStallFailure();
+                  return false;
                }
 
                lendTo = worker;
 
-               if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
+               if(record != null && !JavaScriptEngine.canLendScriptLocks(lendTo)) {
                   try {
-                     wait(50);
+                     wait(record.waitMillis(50));
                   }
                   catch(InterruptedException ex) {
                      // ignore it
@@ -622,6 +659,14 @@ public abstract class SetTableLens
 
                   continue;
                }
+            }
+
+            // the row is not there yet, register the wait (outside of the monitor) and check
+            // again
+            if(record == null) {
+               record = WaitRegistry.begin("SetTableLens.moreRows", this::getWorkerProgress,
+                                           this::getWorkerThreads);
+               continue;
             }
 
             // this thread holds or was lent a script engine lock (e.g. by a condition filter)
@@ -632,7 +677,7 @@ public abstract class SetTableLens
                synchronized(this) {
                   if((rows == null || row >= rows.size()) && !completed) {
                      try {
-                        wait(50);
+                        wait(record.waitMillis(50));
                      }
                      catch(InterruptedException ex) {
                         // ignore it
@@ -642,7 +687,19 @@ public abstract class SetTableLens
             }
          }
       }
+      catch(LockStallException ex) {
+         // a stall fails the query, it is never the end of the table (bug #76967)
+         throw ex;
+      }
       catch(Exception ex) {
+         // a stall may reach this thread wrapped, it is never the end of the table either
+         // (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw new LockStallException(stall);
+         }
+
          synchronized(this) {
             completed = true;
          }
@@ -650,6 +707,38 @@ public abstract class SetTableLens
          LOG.error("Failed to validate rows when checking if row " +
             "is available: " + row, ex);
          return false;
+      }
+      finally {
+         if(record != null) {
+            record.close();
+         }
+      }
+   }
+
+   /**
+    * Progress of the worker for the lock-stall watchdog: rows added plus rows visited.
+    */
+   private synchronized long getWorkerProgress() {
+      return (rows == null ? 0 : rows.size()) + (long) scannedRows;
+   }
+
+   /**
+    * The worker thread, for the lock-stall watchdog.
+    */
+   private Thread[] getWorkerThreads() {
+      LendableReentrantLock.Borrower task = worker;
+      return new Thread[] { task == null ? null : task.getThread() };
+   }
+
+   /**
+    * Rethrow the stall the worker failed with, called when the table is complete. A stall
+    * must never look like the end of the table (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(failure != null) {
+         throw new LockStallException(failure);
       }
    }
 
@@ -664,9 +753,25 @@ public abstract class SetTableLens
       try {
          validate();
 
+         if(completed) {
+            // the rows so far of a stalled worker are not the whole table (bug #76967)
+            throwStallFailure();
+         }
+
          return completed ? rows.size() : -rows.size() - 1;
       }
+      catch(LockStallException ex) {
+         throw ex;
+      }
       catch(Exception ex) {
+         // a stall may reach this thread wrapped, it is never the end of the table either
+         // (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw new LockStallException(stall);
+         }
+
          completed = true;
          LOG.error("Failed to validate table rows when getting " +
             "row count", ex);
@@ -1339,6 +1444,9 @@ public abstract class SetTableLens
    private boolean validated = false;   // validated flag
    // the background task merging the tables, if any
    private transient volatile LendableReentrantLock.Borrower worker;
+   // the merged rows the worker visited, and the stall it failed with (bug #76967)
+   private transient volatile int scannedRows;
+   private transient volatile LockStallException stallFailure;
 
    // optimization
    private transient Row lastRow = null;

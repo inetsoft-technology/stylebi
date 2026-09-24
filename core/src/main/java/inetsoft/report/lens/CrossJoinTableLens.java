@@ -24,6 +24,8 @@ import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -350,17 +352,43 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          return true;
       }
 
-      while(row >= getRowCount0() && !isCompleted() && !disposed && !cancelled) {
-         try {
-            wait(500);
-            validate();
+      WaitRecord record = null;
+
+      try {
+         while(row >= getRowCount0() && !isCompleted() && !disposed && !cancelled) {
+            // this lens lends nothing, and holds its own monitor for the whole method anyway;
+            // a stall of the workers fails the reader (bug #76967)
+            if(record == null) {
+               record = WaitRegistry.begin("CrossJoinTableLens.moreRows",
+                                           () -> (long) lrows + rrows, this::getWorkerThreads);
+            }
+            else {
+               record.checkStall();
+            }
+
+            try {
+               wait(record.waitMillis(500));
+               validate();
+            }
+            catch(InterruptedException ex) {
+               // ignore it
+            }
          }
-         catch(InterruptedException ex) {
-            // ignore it
+      }
+      finally {
+         if(record != null) {
+            record.close();
          }
       }
 
       return row < getRowCount0();
+   }
+
+   /**
+    * The threads reading the base tables, for the lock-stall watchdog.
+    */
+   private Thread[] getWorkerThreads() {
+      return new Thread[] { lthread, rthread };
    }
 
    /**
