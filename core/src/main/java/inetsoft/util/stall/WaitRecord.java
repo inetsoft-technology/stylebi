@@ -233,6 +233,17 @@ public final class WaitRecord implements AutoCloseable {
    }
 
    /**
+    * Check if the watchdog logged the current stall episode.
+    */
+   boolean isWatchdogReported() {
+      return watchdogReported;
+   }
+
+   void setWatchdogReported(boolean watchdogReported) {
+      this.watchdogReported = watchdogReported;
+   }
+
+   /**
     * Record progress. Recent progress ends the stall episode, whether the waiter tripped it or
     * only the watchdog saw (and dumped) it, so the next episode is reported and dumped again.
     * The episode fields are guarded by this record's monitor, which the watchdog also takes to
@@ -242,11 +253,12 @@ public final class WaitRecord implements AutoCloseable {
       progressNanos = nanos;
 
       if(!failed && now - nanos < limitNanos &&
-         (tripped || dumpPath != null || watchdogSeenScan != 0))
+         (tripped || dumpPath != null || watchdogSeenScan != 0 || watchdogReported))
       {
          tripped = false;
          dumpPath = null;
          watchdogSeenScan = 0;
+         watchdogReported = false;
       }
    }
 
@@ -276,4 +288,5 @@ public final class WaitRecord implements AutoCloseable {
    private volatile boolean failed;
    private volatile String dumpPath;
    private volatile long watchdogSeenScan;
+   private volatile boolean watchdogReported;
 }

@@ -17,14 +17,23 @@
  */
 package inetsoft.util.stall;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -42,6 +51,12 @@ public class StallWatchdogTest {
       dumper = new StallDumper(now::get, () -> dumpDir, 60000);
       registry = new WaitRegistry(now::get, () -> policy, dumper);
       watchdog = new StallWatchdog(registry, () -> deadlocked);
+   }
+
+   @AfterEach
+   public void tearDown() {
+      release.countDown();
+      StallWatchdog.resetForTest();
    }
 
    @Test
@@ -138,16 +153,77 @@ public class StallWatchdogTest {
 
    @Test
    public void beginStartsTheGlobalWatchdog() {
+      StallWatchdog.resetForTest();
+      assertTrue(findWatchdogThread().isEmpty(), "reset stops the watchdog thread");
       StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 300000, 30000, dumpDir));
 
       try(WaitRecord ignored = WaitRegistry.begin("site", () -> 0)) {
-         boolean running = Thread.getAllStackTraces().keySet().stream()
-            .anyMatch(t -> "Lock-Stall-Watchdog".equals(t.getName()) && t.isDaemon());
-         assertTrue(running);
+         Thread thread = findWatchdogThread().orElse(null);
+         assertNotNull(thread, "the first wait starts a daemon watchdog");
+         assertSame(StallWatchdog.class.getClassLoader(), thread.getContextClassLoader());
       }
       finally {
          StallPolicy.setOverride(null);
       }
+   }
+
+   @Test
+   public void failingThreadStartNeverReachesTheWaiter() {
+      StallWatchdog.resetForTest();
+      ThreadFactory factory = StallWatchdog.threadFactory;
+      StallWatchdog.threadFactory = r -> {
+         throw new OutOfMemoryError("unable to create native thread");
+      };
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 300000, 30000, dumpDir));
+
+      try {
+         try(WaitRecord record = WaitRegistry.begin("site", () -> 0)) {
+            assertNotSame(WaitRecord.NOOP, record, "the wait is still registered");
+         }
+
+         assertTrue(findWatchdogThread().isEmpty());
+         StallWatchdog.threadFactory = factory;
+         StallWatchdog.ensureStarted();
+         assertTrue(findWatchdogThread().isPresent(), "a later wait retries the start");
+      }
+      finally {
+         StallWatchdog.threadFactory = factory;
+         StallPolicy.setOverride(null);
+      }
+   }
+
+   @Test
+   public void watchdogLoopSurvivesErrors() {
+      AtomicInteger policyCalls = new AtomicInteger();
+      AtomicInteger finderCalls = new AtomicInteger();
+      WaitRegistry failing = new WaitRegistry(now::get, () -> {
+         if(policyCalls.getAndIncrement() == 0) {
+            throw new IllegalStateException("broken policy");
+         }
+
+         return policy;
+      }, dumper);
+      StallWatchdog dog = new StallWatchdog(failing, () -> {
+         if(finderCalls.getAndIncrement() == 0) {
+            throw new LinkageError("broken finder");
+         }
+
+         return new long[] { 1, 2 };
+      });
+      List<Long> sleeps = new ArrayList<>();
+
+      dog.loop(millis -> {
+         if(sleeps.size() == 3) {
+            throw new InterruptedException();
+         }
+
+         sleeps.add(millis);
+      });
+
+      assertEquals(List.of(StallPolicy.DEFAULT_SCAN_MILLIS, 500L, 500L), sleeps,
+                   "a failed policy read falls back to the default scan interval");
+      assertTrue(dog.getUnreleasedStall().contains("JVM deadlock"),
+                 "scans go on after an Error");
    }
 
    @Test
@@ -172,6 +248,161 @@ public class StallWatchdogTest {
       record.close();
    }
 
+   @Test
+   public void scanShorterThanTheSliceWaitsForTheWaitersTimeout() throws Exception {
+      // limit 1000, slice 250, the watchdog scans every 100 ms. The waiter's progress time
+      // comes from its blocker (10 ms), so its own check trips one slice late, at 1250 ms.
+      AtomicLong blockerRows = new AtomicLong();
+      Parked blocker = parked("blocker", blockerRows::get, NONE);
+      WaitRecord waiter = registry.open("waiter", () -> 0, () -> new Thread[] { blocker.thread });
+      assertEquals(TimeUnit.MILLISECONDS.toNanos(250), waiter.getSliceNanos());
+      boolean tripped = false;
+
+      for(int t = 10; t <= 1400; t += 10) {
+         advance(10);
+
+         if(t == 10) {
+            blockerRows.incrementAndGet();
+            blocker.record.checkStall();
+         }
+
+         if(t % 250 == 0) {
+            if(t == 1250) {
+               assertThrows(LockStallException.class, waiter::checkStall);
+               tripped = true;
+            }
+            else {
+               waiter.checkStall();
+            }
+         }
+
+         if(t % 100 == 0) {
+            watchdog.scan();
+
+            if(!tripped) {
+               assertNull(watchdog.getUnreleasedStall(),
+                          "unreleased before the waiter's own timeout fired, at " + t + " ms");
+            }
+         }
+      }
+
+      assertTrue(tripped);
+      assertNotNull(watchdog.getUnreleasedStall(), "tripped at 1250, still registered at 1400");
+      assertTrue(watchdog.getUnreleasedStall().contains("waiter"));
+      assertFalse(watchdog.getUnreleasedStall().contains("blocker"),
+                  "the blocker is not overdue before 1510 ms");
+      waiter.close();
+   }
+
+   @Test
+   public void deadlockSeenInsideTheDumpWindowIsDumpedLater() {
+      dumper.dump("an earlier stall");
+      deadlocked = new long[] { 3, 4 };
+      watchdog.scan();
+      assertEquals(1, dumper.getDumpCount());
+      assertTrue(watchdog.getUnreleasedStall().contains("JVM deadlock"));
+
+      advance(61000);
+      watchdog.scan();
+      assertEquals(2, dumper.getDumpCount(), "the deadlock gets its own dump once it can");
+      advance(61000);
+      watchdog.scan();
+      assertEquals(2, dumper.getDumpCount());
+   }
+
+   @Test
+   public void stallInsideTheDumpWindowGetsItsOwnDump() {
+      WaitRecord record = registry.open("site", () -> 0, NONE);
+      String earlier = dumper.dump("an earlier stall");
+      advance(1100);
+      watchdog.scan();
+      assertNull(record.getDumpPath(), "an unrelated dump is not attached to the stall");
+
+      advance(60000);
+      watchdog.scan();
+      assertNotNull(record.getDumpPath());
+      assertNotEquals(earlier, record.getDumpPath());
+      assertEquals(2, dumper.getDumpCount());
+      record.close();
+   }
+
+   @Test
+   public void failingDeadlockCheckDoesNotFreezeTheFlag() {
+      watchdog = new StallWatchdog(registry, () -> {
+         throw new UnsupportedOperationException("no thread MXBean");
+      });
+      WaitRecord record = registry.open("stuck.site", () -> 0, NONE);
+      advance(1500);
+      watchdog.scan();
+      advance(500);
+      watchdog.scan();
+      assertTrue(watchdog.getUnreleasedStall().contains("stuck.site"));
+
+      record.close();
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall());
+   }
+
+   @Test
+   public void failingDumpDoesNotFreezeTheFlag() {
+      dumper = new StallDumper(now::get, () -> {
+         throw new IllegalStateException("no dump dir");
+      }, 60000);
+      registry = new WaitRegistry(now::get, () -> policy, dumper);
+      watchdog = new StallWatchdog(registry, () -> deadlocked);
+      WaitRecord record = registry.open("stuck.site", () -> 0, NONE);
+      advance(1500);
+      watchdog.scan();
+      advance(500);
+      watchdog.scan();
+      assertTrue(watchdog.getUnreleasedStall().contains("stuck.site"));
+
+      record.close();
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall());
+   }
+
+   @Test
+   public void interruptedWatchdogIsRestarted() throws Exception {
+      StallWatchdog.ensureStarted();
+      Thread first = findWatchdogThread().orElseThrow();
+      first.interrupt();
+      first.join(5000);
+      assertFalse(first.isAlive());
+
+      StallWatchdog.ensureStarted();
+      Thread second = findWatchdogThread().orElse(null);
+      assertNotNull(second, "the next wait restarts a watchdog thread that ended");
+      assertNotSame(first, second);
+   }
+
+   private static Optional<Thread> findWatchdogThread() {
+      return Thread.getAllStackTraces().keySet().stream()
+         .filter(t -> "Lock-Stall-Watchdog".equals(t.getName()) && t.isDaemon() && t.isAlive())
+         .findFirst();
+   }
+
+   private Parked parked(String what, LongSupplier progress, Supplier<Thread[]> blockers)
+      throws Exception
+   {
+      CompletableFuture<WaitRecord> opened = new CompletableFuture<>();
+      Thread thread = new Thread(() -> {
+         opened.complete(registry.open(what, progress, blockers));
+
+         try {
+            release.await(30, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ignore) {
+         }
+      });
+      thread.setDaemon(true);
+      thread.start();
+      return new Parked(thread, opened.get(5, TimeUnit.SECONDS));
+   }
+
+   private record Parked(Thread thread, WaitRecord record) {
+   }
+
    private void advance(long millis) {
       now.addAndGet(TimeUnit.MILLISECONDS.toNanos(millis));
    }
@@ -181,6 +412,7 @@ public class StallWatchdogTest {
    @TempDir
    File dumpDir;
    private final AtomicLong now = new AtomicLong(1_000_000_000L);
+   private final CountDownLatch release = new CountDownLatch(1);
    private volatile StallPolicy policy;
    private volatile long[] deadlocked;
    private StallDumper dumper;
