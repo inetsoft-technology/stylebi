@@ -36,7 +36,8 @@
  *   Group 12 — getObjectTop: non-viewer/non-shrink/maxMode early return; shrink+bottomTabs offset
  *   Group 13 — card vs content rect: unmarked no-op; per-edge inset; borderDivHeight/realWidth/
  *                bottom-tabs offset stay on the card; shrink adds the inset back; scrollWrapper
- *                adds it back too; updateTableHeight subtracts it; each axis stays on its own
+ *                adds it back too; updateTableHeight subtracts it; each axis stays on its own;
+ *                the last-column stretch ignores the scroll wrapper's measured grid width
  */
 
 import { ViewsheetInfo } from "../../data/viewsheet-info";
@@ -668,6 +669,33 @@ describe("VSTable — Pass 3: Display", () => {
          comp.updateDisplayColumnWidth();
 
          expect(comp.displayColWidths[3]).toBe(134);
+      });
+
+      it("should not stretch the last column onto a wider grid measured by the scroll wrapper", () => {
+         // sum(100+100+200)=400 >= 300; a rendered width of 500 fed back as the target would
+         // stretch the last column to 300, so the grid could grow but never shrink
+         const { comp } = createTableComponent({
+            model: { colWidths: [100, 100, 200], colCount: 3 },
+         });
+         comp.scrollWrapper = true;
+         comp.actualTableWidth = 500;
+
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[2]).toBe(200);
+      });
+
+      it("should stretch the last column before the scroll wrapper has measured the grid", () => {
+         // actualTableWidth is unset until ngAfterViewInit; the stretch must not wait for it
+         const { comp } = createTableComponent({
+            model: { colWidths: [30, 30, 90, 40], colCount: 4 },
+         });
+         comp.scrollWrapper = true;
+         comp.actualTableWidth = undefined;
+
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[3]).toBe(150);
       });
    });
 });
