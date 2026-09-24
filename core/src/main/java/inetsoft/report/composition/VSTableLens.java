@@ -2084,6 +2084,77 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    }
 
    /**
+    * The cell's effective content inset: the stylesheet's when a CSSTableStyle defines one,
+    * otherwise the assembly's own seeded or author value. One rule, and the only source the
+    * browser cell model and the three pixel exporters read - so live and export cannot disagree.
+    */
+   public Insets getCellInsets(int r, int c, TableDataVSAssemblyInfo info) {
+      Insets css = getInsets(r, c);
+
+      if(css != null) {
+         return css;
+      }
+
+      return info == null ? null : info.getCellPadding();
+   }
+
+   /**
+    * How much taller a row is for its padding: the max effective inset height across the row,
+    * which is the same rule getCellInsets applies per cell.
+    *
+    * Not max(cssRowPadding, seeded). Where a stylesheet covers every column nothing falls back,
+    * so the row grows by the CSS amount alone - a blunt max would instead grow an existing
+    * format.css customer's rows whenever the seeded value happened to be the larger one.
+    */
+   public int getRowPadding(int row, TableDataVSAssemblyInfo info) {
+      int css = getCSSRowPadding(row);
+
+      if(isCSSRowFullyPadded(row)) {
+         return css;
+      }
+
+      Insets cell = info == null ? null : info.getCellPadding();
+      return cell == null ? css : Math.max(css, cell.top + cell.bottom);
+   }
+
+   /**
+    * Whether a CSSTableStyle defines an inset for every column of this row, so that no cell in it
+    * falls back to the assembly's own padding. Mirrors getCSSRowPadding's traversal and caching.
+    */
+   private boolean isCSSRowFullyPadded(int row) {
+      if(row > getHeaderRowCount()) {
+         row = getHeaderRowCount();
+      }
+
+      CSSTableStyle cssTableStyle = (CSSTableStyle) Util.getNestedTable(this, CSSTableStyle.class);
+
+      if(cssTableStyle == null) {
+         return false;
+      }
+
+      int baseRow = TableTool.getBaseRowIndex(this, cssTableStyle, row);
+
+      if(baseRow < 0) {
+         return false;
+      }
+
+      Boolean cached = fullRowPadding.get(row);
+
+      if(cached != null) {
+         return cached;
+      }
+
+      boolean full = cssTableStyle.getColCount() > 0;
+
+      for(int c = 0; full && c < cssTableStyle.getColCount(); c++) {
+         full = cssTableStyle.getInsets(baseRow, c) != null;
+      }
+
+      fullRowPadding.put(row, full);
+      return full;
+   }
+
+   /**
     * Get the max padding (combined left and right padding) across the specified column
     */
    public int getCSSColumnPadding(int col) {
@@ -2145,12 +2216,12 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    /**
     * Add padding to the height
     */
-   public double getRowHeightWithPadding(double height, int row) {
+   public double getRowHeightWithPadding(double height, int row, TableDataVSAssemblyInfo info) {
       if(Double.isNaN(height) || height <= 0) {
          return height;
       }
 
-      return height + getCSSRowPadding(row);
+      return height + getRowPadding(row, info);
    }
 
    /**
@@ -2242,4 +2313,5 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    private transient Object calcTable;
    private Map<Integer, Integer> maxRowPadding = new HashMap<>();
    private Map<Integer, Integer> maxColPadding = new HashMap<>();
+   private final Map<Integer, Boolean> fullRowPadding = new HashMap<>();
 }

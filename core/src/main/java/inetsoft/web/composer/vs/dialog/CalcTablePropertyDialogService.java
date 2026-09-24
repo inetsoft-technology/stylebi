@@ -203,8 +203,8 @@ public class CalcTablePropertyDialogService {
 
       try {
          if(isWrapped) {
-            tableHeight = BaseTableService.getHeaderRowPositions(lens,
-                                                                    isWrapped, headerRowCount)[headerRowCount];
+            tableHeight = BaseTableService.getHeaderRowPositions(
+               lens, isWrapped, headerRowCount, calcTableAssemblyInfo)[headerRowCount];
          }
          else {
             tableHeight = Arrays.stream(calcTableAssemblyInfo.getHeaderRowHeights()).sum();
@@ -242,15 +242,15 @@ public class CalcTablePropertyDialogService {
       }
 
       if(rowCount < headerRowcount) {
-         return BaseTableService.getHeaderRowPositions(lens, isWrapped,
-                                                          headerRowcount)[rowCount];
+         return BaseTableService.getHeaderRowPositions(
+            lens, isWrapped, headerRowcount, calcTableAssemblyInfo)[rowCount];
       }
 
       int dataRowCount = Math.max(0, rowCount - headerRowcount);
       lens.initTableGrid(calcTableAssemblyInfo);
 
-      return BaseTableService.getDataRowPositions(lens, isWrapped,
-                                                     headerRowcount, dataRowCount)[dataRowCount];
+      return BaseTableService.getDataRowPositions(
+         lens, isWrapped, headerRowcount, dataRowCount, calcTableAssemblyInfo)[dataRowCount];
    }
 
    private double getApproxVisibleRows(VSTableLens lens,

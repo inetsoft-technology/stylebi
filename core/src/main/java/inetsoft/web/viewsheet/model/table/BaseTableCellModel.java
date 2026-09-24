@@ -34,6 +34,7 @@ import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.xmla.MemberObject;
 import inetsoft.util.Tool;
@@ -130,14 +131,16 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       Object data = formatTableLens == null ? obj : formatTableLens.getTable().getObject(row, col);
 
       VSFormat vsFormat = lens.getFormat(row, col, spanRow);
+      TableDataVSAssemblyInfo tinfo = assemblyInfo instanceof TableDataVSAssemblyInfo ?
+         (TableDataVSAssemblyInfo) assemblyInfo : null;
       VSFormatModel vsFormatModel = formatModelCache
          .computeIfAbsent(new FullHashObjWrapper(vsFormat), K -> new VSFormatModel(vsFormat, assemblyInfo));
 
-      if(!Tool.equals(vsFormatModel.getPadding(), lens.getInsets(row, col))) {
+      if(!Tool.equals(vsFormatModel.getPadding(), lens.getCellInsets(row, col, tinfo))) {
          vsFormatModel = new VSFormatModel(vsFormat, assemblyInfo);
       }
 
-      vsFormatModel.setPadding(lens.getInsets(row, col));
+      vsFormatModel.setPadding(lens.getCellInsets(row, col, tinfo));
       String drillOp = lens.getDrillOp(row, col);
 
       // Get any hyperlinks on the cell
@@ -166,7 +169,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
          isImage = true;
       }
 
-      int rowPadding = lens.getCSSRowPadding(row);
+      int rowPadding = lens.getRowPadding(row, tinfo);
       int colPadding = lens.getCSSColumnPadding(col);
       return new BaseTableCellModel(data, label, row, col, vsFormatModel, drillOp, hyperlinks,
                                     path, presenter, isImage, rowPadding, colPadding);
@@ -309,14 +312,16 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       VSCompositeFormat compositeFormat = new VSCompositeFormat();
       compositeFormat.setUserDefinedFormat(vsFormat);
 
+      TableDataVSAssemblyInfo tinfo =
+         info instanceof TableDataVSAssemblyInfo ? (TableDataVSAssemblyInfo) info : null;
       VSFormatModel vsFormatModel = formatModelCache
          .computeIfAbsent(new FullHashObjWrapper(vsFormat), K -> new VSFormatModel(vsFormat, info));
 
-      if(!Tool.equals(vsFormatModel.getPadding(), lens.getInsets(row, col))) {
+      if(!Tool.equals(vsFormatModel.getPadding(), lens.getCellInsets(row, col, tinfo))) {
          vsFormatModel = new VSFormatModel(vsFormat, info);
       }
 
-      vsFormatModel.setPadding(lens.getInsets(row, col));
+      vsFormatModel.setPadding(lens.getCellInsets(row, col, tinfo));
 
       TableDataPath path = lens.getTableDataPath(row, col);
 

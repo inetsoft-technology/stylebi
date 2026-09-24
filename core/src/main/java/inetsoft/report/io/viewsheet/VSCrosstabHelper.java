@@ -267,7 +267,7 @@ public abstract class VSCrosstabHelper extends VSTableDataHelper {
 
       VSCompositeFormat cfmt = new VSCompositeFormat();
       cfmt.setUserDefinedFormat(format);
-      Insets padding = lens.getInsets(irow, icol);
+      Insets padding = lens.getCellInsets(irow, icol, info);
 
       // to be implemented by sub class
       writeTableCell(tableRange.x, tableRange.y, bounds, pixelBounds,

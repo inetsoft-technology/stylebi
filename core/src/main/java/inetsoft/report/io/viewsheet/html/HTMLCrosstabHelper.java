@@ -119,7 +119,7 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
 
       for(int r = 0; r < rowCount; r++) {
          if(lens.getRowHeights() == null || lens.getRowHeights().length == 0) {
-            rowHeights[r] = (int) lens.getRowHeightWithPadding(AssetUtil.defh, r);
+            rowHeights[r] = (int) lens.getRowHeightWithPadding(AssetUtil.defh, r, info);
             totalHeight += rowHeights[r];
             continue;
          }
@@ -130,7 +130,7 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
             h = AssetUtil.defh;
          }
 
-         rowHeights[r] = (int) lens.getRowHeightWithPadding(h, r);
+         rowHeights[r] = (int) lens.getRowHeightWithPadding(h, r, info);
          totalHeight += rowHeights[r];
       }
 
@@ -171,7 +171,7 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
                continue;
             }
 
-            createCellStyles(lens, r, c);
+            createCellStyles(lens, r, c, info);
          }
       }
 
@@ -183,7 +183,9 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
       table.append("</style>\n");
    }
 
-   private void createCellStyles(VSTableLens lens, int r, int c) {
+   private void createCellStyles(VSTableLens lens, int r, int c,
+                                 TableDataVSAssemblyInfo info)
+   {
       VSFormat format = lens.getFormat(r, c);
       VSCompositeFormat cfmt = new VSCompositeFormat();
       cfmt.setUserDefinedFormat(format);
@@ -223,7 +225,7 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
          divStyle += ";word-break:break-word";
       }
 
-      divStyle += ";" + vHelper.getPaddingString(lens.getInsets(r, c));
+      divStyle += ";" + vHelper.getPaddingString(lens.getCellInsets(r, c, info));
 
       if(cellClasses[c] == null) {
          cellClasses[c] = new XSwappableObjectList<>(String[].class);

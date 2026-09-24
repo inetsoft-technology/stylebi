@@ -170,7 +170,7 @@ public abstract class VSTableHelper extends VSTableDataHelper {
 
       VSCompositeFormat cfmt = new VSCompositeFormat();
       cfmt.setUserDefinedFormat(format);
-      Insets padding = lens.getInsets(irow, icol);
+      Insets padding = lens.getCellInsets(irow, icol, info);
       writeTableCell(tableRange.x, tableRange.y, span,
                      getPixelBounds(info, irow, icol, span, lens),
                      irow, columnStarts[icol], cfmt, v, obj,
@@ -206,7 +206,7 @@ public abstract class VSTableHelper extends VSTableDataHelper {
          int tableRowsHeight = size.height - (info.isTitleVisible() ? info.getTitleHeight() : 0)
             - info.getViewsheet().getDisplayRowHeight(true, info.getName());
          int displayRowHeight = info.getViewsheet().getDisplayRowHeight(false, info.getName());
-         displayRowHeight += lens.getCSSRowPadding(lens.getHeaderRowCount());
+         displayRowHeight += lens.getRowPadding(lens.getHeaderRowCount(), info);
          infoRows = (int) Math.round((double) tableRowsHeight / displayRowHeight) + 2;
       }
       else {

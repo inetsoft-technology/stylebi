@@ -60,30 +60,25 @@ class VSDensityDefaultsTest {
    }
 
    @Test
-   void denseModeMatchesLegacyDataRowHeight() {
-      // dense == today's default, so enabling modern at the default mode reflows nothing
-      assertEquals(AssetUtil.defh, VSDensityDefaults.rowHeightForMode("dense"));
-      assertEquals(20, VSDensityDefaults.rowHeightForMode("dense"));
-      assertEquals(22, VSDensityDefaults.headerRowHeightForMode("dense"));
+   void storedDataRowHeightMatrix() {
+      // STORED, not rendered - DensityRowHeightInvariantTest owns the rendered contract
+      assertEquals(16, VSDensityDefaults.rowHeightForMode("comfortable"));
+      assertEquals(16, VSDensityDefaults.rowHeightForMode("compact"));
+      assertEquals(14, VSDensityDefaults.rowHeightForMode("dense"));
    }
 
    @Test
-   void compactMode() {
-      assertEquals(24, VSDensityDefaults.rowHeightForMode("compact"));
-      assertEquals(26, VSDensityDefaults.headerRowHeightForMode("compact"));
-   }
-
-   @Test
-   void comfortableMode() {
-      assertEquals(28, VSDensityDefaults.rowHeightForMode("comfortable"));
-      assertEquals(30, VSDensityDefaults.headerRowHeightForMode("comfortable"));
+   void storedHeaderRowHeightMatrix() {
+      assertEquals(18, VSDensityDefaults.headerRowHeightForMode("comfortable"));
+      assertEquals(18, VSDensityDefaults.headerRowHeightForMode("compact"));
+      assertEquals(16, VSDensityDefaults.headerRowHeightForMode("dense"));
    }
 
    @Test
    void unrecognizedModeFallsBackToDense() {
       // values are case-sensitive lowercase; anything else falls back to dense
-      assertEquals(20, VSDensityDefaults.rowHeightForMode("Comfortable"));
-      assertEquals(22, VSDensityDefaults.headerRowHeightForMode("bogus"));
+      assertEquals(14, VSDensityDefaults.rowHeightForMode("Comfortable"));
+      assertEquals(16, VSDensityDefaults.headerRowHeightForMode("bogus"));
    }
 
    @Test
@@ -224,9 +219,12 @@ class VSDensityDefaultsTest {
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       VizContext ctx = VizContext.of(VizMark.MODERN_LIGHT);
-      assertEquals(28, VSDensityDefaults.rowHeight(ctx));
-      assertEquals(30, VSDensityDefaults.headerRowHeight(ctx));
+      // row/header are the STORED heights; the cell padding is added at render
+      assertEquals(16, VSDensityDefaults.rowHeight(ctx));
+      assertEquals(18, VSDensityDefaults.headerRowHeight(ctx));
       assertEquals(30, VSDensityDefaults.titleHeight(ctx));
+      // the selection family keeps the pre-rebalance matrix
+      assertEquals(28, VSDensityDefaults.cellHeight(ctx));
    }
 
    @Test
