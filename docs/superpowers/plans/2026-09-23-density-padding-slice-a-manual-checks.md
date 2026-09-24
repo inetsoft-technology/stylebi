@@ -65,17 +65,19 @@ the save/reopen: a compounding drift confirms it.
 **Why it matters.** This is the regression most likely to reach a customer, because it only appears
 on a dashboard that has a table stylesheet. It is also the case `isCSSRowFullyPadded` exists for.
 
-### Writing the stylesheet — two traps that make this check silently pass while testing nothing
+### Writing the stylesheet — one trap that makes this check silently pass while testing nothing
 
-Both verified in the parser source. Get either wrong and no inset is set at all, so every
-measurement below reads as if the stylesheet were absent:
+**`region="Table"` carries no padding.** `CSSTableStyle.applyTable()` handles borders, colours and
+fonts, but never reads `isPaddingDefined()` and never calls `setAttributes`, so a padding declared
+there is parsed into the `CSSStyle` and then dropped — it never becomes a table inset. Only the five
+region-scoped blocks transfer it: `HeaderRow`, `HeaderCol`, `TrailerRow`, `TrailerCol`, `Body`.
 
-1. **There is no `padding` shorthand.** `CSSDictionary.parsePadding` reads only `padding-top`,
-   `padding-bottom`, `padding-left` and `padding-right`. `padding: 2px` is valid CSS and sets
-   nothing.
-2. **`region="Table"` carries no padding.** `CSSTableStyle.applyTable()` handles borders, colours
-   and fonts but never calls `setAttributes`, so it never reaches the padding branch. Only the five
-   region-scoped blocks do: `HeaderRow`, `HeaderCol`, `TrailerRow`, `TrailerCol`, `Body`.
+Get that wrong and no inset is set at all, so every measurement below reads as if the stylesheet
+were absent — the check passes having tested nothing, which is worse than failing.
+
+Shorthand is fine, either form works: `CSSDictionary.putProperties` expands a shorthand property
+through `CSSShortHandRegistry` and recurses before `parsePadding` ever runs, so `padding: 2px` and
+the four longhand properties are equivalent. The longhand below is only for explicitness.
 
 Set all five regions, so every column of every row carries an inset whatever shape the table is.
 That total coverage is the point — `isCSSRowFullyPadded` is true only when no cell falls back to the
