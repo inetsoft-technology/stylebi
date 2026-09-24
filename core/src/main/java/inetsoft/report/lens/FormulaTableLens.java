@@ -326,7 +326,11 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       long start = System.currentTimeMillis();
-      lock.lock();
+      // advance at least 10 to avoid going through this once per row
+      final int advance = Math.min(Math.max(r / 100, 10), 100);
+      // the last row processed in this pass, see lockForRow()
+      final int lastRow = Math.max(r, getProcessedRowCount() + hrows + advance);
+      Lock execLock = lockForRow(r, lastRow);
       ScriptSpan span = ScriptSpan.NONE;
 
       try {
@@ -381,9 +385,12 @@ public class FormulaTableLens extends AbstractTableLens
          // Design cost (spec §14.14): in pool mode the lens lock is held for up to
          // maxBatchRows rows of script evaluation, so a concurrent reader of an already
          // computed row can wait that long for this batch to finish
-         final int advance = Math.max(Math.min(Math.max(r / 100, 10), 100),
-                                      nextPoolBatch(span, r, nrows + hrows));
-         final int maxr = Math.max(r, nrows + hrows + advance);
+         final int batch = Math.max(advance, nextPoolBatch(span, r, nrows + hrows));
+         // under the engine lock, stop at the rows whose base was loaded before taking it,
+         // see lockForRow(); a pooled env takes no engine lock, so its batch is not capped
+         final int maxr = execLock != null
+            ? Math.min(Math.max(r, nrows + hrows + advance), lastRow)
+            : Math.max(r, nrows + hrows + batch);
 
          for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null; i++) {
             // optimization, don't call get/put if never in the loop
@@ -458,6 +465,11 @@ public class FormulaTableLens extends AbstractTableLens
             lock.unlock();
          }
 
+         if(execLock != null) {
+            JavaScriptEngine.popHeldScriptLock();
+            execLock.unlock();
+         }
+
          if(!more) {
             if(rows != null) {
                rows.complete();
@@ -477,6 +489,93 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       return more;
+   }
+
+   /**
+    * Acquire this lens's lock for computing up to row {@code r}. If rows remain to be
+    * computed, the script engine's execution lock is acquired first, the same order
+    * as PostProcessor's condition filter, which takes the engine lock before reading
+    * its base tables. Taking this lens's lock first and the engine lock in exec()
+    * deadlocks against a condition filter reading this lens on another thread when
+    * the lens is shared by several table chains (bug #76935). The engine lock is
+    * recorded on the thread so an async base lens runs or is lent the lock while
+    * this thread waits for it (bug #76938). The base rows up to {@code lastRow} are
+    * loaded before the engine lock is acquired, so the base (e.g. an async lens whose
+    * worker needs the engine) is not waited for while holding it (bug #76935).
+    *
+    * @param r the row to compute.
+    * @param lastRow the last row computed in this pass.
+    *
+    * @return the acquired engine lock, which must be released after this lens's lock,
+    *         or {@code null} if none was acquired.
+    */
+   private Lock lockForRow(int r, int lastRow) {
+      ScriptEnv env = getScriptEnv();
+
+      if(env == null || !env.usesExecutionLock()) {
+         // a pooled env never makes a script wait for another thread's script, so there is
+         // no engine lock to order against (bug #76960)
+         lock.lock();
+         return null;
+      }
+
+      Lock execLock = null;
+
+      while(true) {
+         if(execLock == null && r >= getProcessedRowCount()) {
+            table.moreRows(lastRow);
+            execLock = getScriptExecutionLock();
+
+            if(execLock != null) {
+               execLock.lock();
+               JavaScriptEngine.pushHeldScriptLock(execLock);
+            }
+         }
+
+         lock.lock();
+
+         // rows may have been reset by invalidate() after the check above, don't
+         // compute them without the engine lock
+         if(execLock != null || r < getProcessedRowCount() ||
+            getScriptExecutionLock() == null)
+         {
+            return execLock;
+         }
+
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Get the execution lock of the script engine the formulas run on, creating the
+    * engine if needed, since compiling the formulas creates it anyway.
+    */
+   private Lock getScriptExecutionLock() {
+      ScriptEnv env = getScriptEnv();
+
+      if(env == null) {
+         return null;
+      }
+
+      Lock execLock = env.getExecutionLock();
+
+      if(execLock == null) {
+         env.init();
+         execLock = env.getExecutionLock();
+      }
+
+      return execLock;
+   }
+
+   /**
+    * Get the script env the formulas run on, taking it from the report on first use.
+    */
+   private ScriptEnv getScriptEnv() {
+      if(senv == null && report != null) {
+         senv = report.getScriptEnv();
+      }
+
+      return senv;
    }
 
    // get column name. avoid infinite recursing if there is no header row

@@ -73,13 +73,11 @@ public class JoinWorkerCycleTest {
     * {@code CrossJoinTableLens.validate()} starts both {@code WaitingThread}s under the lock.
     * Cycle: holder holds E and waits in {@code CrossJoinTableLens.moreRows}; each
     * {@code WaitingThread} calls {@code moreRows} on its input {@code ConditionFilter2}, which
-    * waits for E.
+    * waits for E. Fixed by bug #76935: the holder loads the inputs itself.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void crossJoinFirstTouch() throws Exception {
-      runHolder(s -> cross(s, false), Start.FIRST_TOUCH, KNOWN_CAP);
+      runHolder(s -> cross(s, false), Start.FIRST_TOUCH, ACTIVE_CAP);
    }
 
    /**

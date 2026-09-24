@@ -205,6 +205,14 @@ public class WorksheetScriptEnv extends GraalJavaScriptEnv {
       return null;
    }
 
+   /**
+    * @return {@code false}: see {@link #getExecutionLock()}.
+    */
+   @Override
+   public boolean usesExecutionLock() {
+      return false;
+   }
+
    @Override
    public void setSQL(boolean sql) {
       this.sql = sql;
