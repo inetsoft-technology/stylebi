@@ -124,15 +124,15 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
     * view selections to produce the final query.
     * @param analysis true if for analysis, false for runtime.
     * @param post true if aggregation is done in post processing.
-    * @param vsSource the pre-fetched data of a vs assembly source, or null.
+    * @param sources the pre-gathered inputs that execute other assemblies, or null.
     * @return the created base plain table assembly.
     */
    private TableAssembly createBaseTableAssembly(boolean analysis, boolean post,
-                                                 AssemblyTableData vsSource)
+                                                 BaseTableSources sources)
       throws Exception
    {
       CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
-      TableAssembly table = createBaseTableAssembly0(analysis, vsSource);
+      TableAssembly table = createBaseTableAssembly0(analysis, sources);
 
       if(table == null) {
          return null;
@@ -386,26 +386,26 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          // another assembly: ViewsheetSandbox.doExecuteData() releases the sandbox lock and
          // competes for the write lock again, so the counterpart can be any writer that
          // subsequently needs this monitor -- not only a second crosstab query.
-         //   - A crosstab bound to another VS assembly (SourceInfo.VS_ASSEMBLY) executed that
-         //     assembly in VSAQuery.createAssemblyTable() -> box.getTableData(). Its data is
-         //     now fetched here, before the monitor, and handed to prepare, which only builds
-         //     the table from it. Do not rely on the data cache instead: a concurrent reset
-         //     can clear it in between. (77030)
-         //   - Still open: for any source type, CubeVSAQuery.createBaseTableAssembly0() calls
-         //     setSharedCondition(box.getBrushingChart(..), ..), which runs
-         //     box.updateAssembly(chart) under this monitor; for a brushed chart carrying
-         //     dynamic values that also takes the script engine lock, and a script can
-         //     re-enter box.getData(). It is pre-existing and out of scope here.
+         // Prepare used to do that in two places, and both are now gathered here, before
+         // the monitor, and handed to prepare, which only builds the table from them (77030):
+         //   - a crosstab bound to another VS assembly (SourceInfo.VS_ASSEMBLY) fetched that
+         //     assembly's data in VSAQuery.createAssemblyTable() -> box.getTableData();
+         //   - for any source type, setSharedCondition(box.getBrushingChart(..), ..) ran
+         //     box.updateAssembly(chart), whose refreshMetaData() can fetch the same source
+         //     on a cache miss, and whose dynamic values take the script engine lock.
+         // Do not rely on the data cache instead: a concurrent reset can clear it in between.
          //
          // Narrowing does widen one race: a concurrent prepare for the same crosstab can now
          // run while this thread's query is in flight, and prepare mutates shared state (the
          // bound table it registers in box.getWorksheet() under a deterministic name, and the
          // VSDimensionRefs it re-ranks). ChartVSAQuery handles the equivalent exposure by
          // querying a private table clone; the crosstab path does not do that yet.
-         AssemblyTableData vsSource = getVSAssemblySourceData();
+         // getTableAssembly() builds nothing for a cube source
+         BaseTableSources sources = source.getType() == SourceInfo.CUBE ?
+            null : prepareBaseTableSources();
 
          synchronized(cinfo) {
-            baseTable = prepareAssetBaseTable(postDrill, vsSource);
+            baseTable = prepareAssetBaseTable(postDrill, sources);
 
             // read after prepare -- getTableAssembly() rewrites these
             aggregates = cinfo.getRuntimeAggregates();
@@ -1143,10 +1143,10 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
     * @param analysis <tt>true</tt> if is for analysis, <tt>false</tt> for
     * @param post true if aggregation is post processed.
     * runtime.
-    * @param vsSource the pre-fetched data of a vs assembly source, or null.
+    * @param sources the pre-gathered inputs that execute other assemblies, or null.
     */
    private TableAssembly getTableAssembly(boolean analysis, boolean post,
-                                          AssemblyTableData vsSource)
+                                          BaseTableSources sources)
          throws Exception
    {
       try {
@@ -1157,7 +1157,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             return null;
          }
 
-         TableAssembly table = createBaseTableAssembly(analysis, post, vsSource);
+         TableAssembly table = createBaseTableAssembly(analysis, post, sources);
          VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
 
          if(table != null) {
@@ -1219,16 +1219,16 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
     * is {@link #executeAssetBaseTable(TableAssembly, VSCrosstabInfo)}. (76549)
     *
     * @param post true if the aggregate is done in post processingj
-    * @param vsSource the data of a vs assembly source, fetched before entering the monitor
-    *                 (77030), or null.
+    * @param sources the inputs that execute other assemblies, gathered before entering the
+    *                monitor (77030), or null.
     * @return the prepared base table assembly, or null if there is nothing to execute.
     */
-   private TableAssembly prepareAssetBaseTable(boolean post, AssemblyTableData vsSource)
+   private TableAssembly prepareAssetBaseTable(boolean post, BaseTableSources sources)
       throws Exception
    {
       CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
       VSCrosstabInfo cinfo = cassembly.getVSCrosstabInfo();
-      TableAssembly table = getTableAssembly(false, post, vsSource);
+      TableAssembly table = getTableAssembly(false, post, sources);
 
       if(table == null || cinfo == null) {
          return null;

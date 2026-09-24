@@ -557,14 +557,22 @@ public abstract class VSAQuery {
     * @param table the specified table.
     */
    protected void setSharedCondition(ChartVSAssembly chart, TableAssembly table, boolean brush) {
-      VSAssembly vsAssembly = getAssembly();
-
-      if(table == null || vsAssembly == null) {
+      if(table == null || getAssembly() == null) {
          return;
       }
 
-      ColumnSelection cols = table.getColumnSelection();
+      updateSharedChart(chart);
+      applySharedCondition(chart, table, brush);
+   }
 
+   /**
+    * Refresh the chart whose brush/zoom selection is shared, the step of
+    * {@link #setSharedCondition(ChartVSAssembly, TableAssembly, boolean)} that executes
+    * assemblies: updating the chart runs its dynamic values (scripts) and refreshes its
+    * meta data, which can fetch the chart's source. A caller that applies the condition
+    * while holding a monitor refreshes the chart first. (77030)
+    */
+   protected final void updateSharedChart(ChartVSAssembly chart) {
       if(chart != null) {
          try {
             box.updateAssembly(chart);
@@ -573,7 +581,23 @@ public abstract class VSAQuery {
             LOG.warn("Failed to update chart assembly: " + chart.getAssemblyEntry(), e);
          }
       }
+   }
 
+   /**
+    * Apply the brush/zoom/drill selection of a chart refreshed by
+    * {@link #updateSharedChart(ChartVSAssembly)} to the specified table. It does not execute
+    * any assembly.
+    */
+   protected final void applySharedCondition(ChartVSAssembly chart, TableAssembly table,
+                                             boolean brush)
+   {
+      VSAssembly vsAssembly = getAssembly();
+
+      if(table == null || vsAssembly == null) {
+         return;
+      }
+
+      ColumnSelection cols = table.getColumnSelection();
       ConditionList conds = chart == null ? null
          : (brush ? chart.getBrushConditionList(cols, true) : null);
 
@@ -1780,7 +1804,7 @@ public abstract class VSAQuery {
     * @param assemblyName source assembly name
     */
    public TableAssembly createAssemblyTable(String assemblyName) throws Exception {
-      return createAssemblyTable(getAssemblyTableData(assemblyName));
+      return buildAssemblyTable(getAssemblyTableData(assemblyName));
    }
 
    /**
@@ -1788,17 +1812,17 @@ public abstract class VSAQuery {
     * {@link #createAssemblyTable(String)} that executes the source assembly, which can
     * release and re-acquire the sandbox lock, so a caller that must build the table while
     * holding a monitor fetches the data first and builds the table with
-    * {@link #createAssemblyTable(AssemblyTableData)}. (77030)
+    * {@link #buildAssemblyTable(AssemblyTableData)}. (77030)
     *
     * @param assemblyName source assembly name
     * @return the source data, or null if the name is null.
     */
-   public AssemblyTableData getAssemblyTableData(String assemblyName) throws Exception {
+   protected AssemblyTableData getAssemblyTableData(String assemblyName) throws Exception {
       if(assemblyName == null) {
          return null;
       }
 
-      String source = assemblyName;
+      String boundName = assemblyName;
       String baseAssembly = getAssembly().getAbsoluteName();
 
       if(assemblyName.startsWith(Assembly.TABLE_VS_BOUND) && baseAssembly.contains(".")) {
@@ -1807,7 +1831,7 @@ public abstract class VSAQuery {
          assemblyName = Assembly.TABLE_VS_BOUND + baseParent + assemblyName.substring(15);
       }
 
-      return new AssemblyTableData(source, assemblyName, box.getTableData(assemblyName));
+      return new AssemblyTableData(boundName, assemblyName, box.getTableData(assemblyName));
    }
 
    /**
@@ -1816,14 +1840,14 @@ public abstract class VSAQuery {
     *
     * @param data the source data.
     */
-   public TableAssembly createAssemblyTable(AssemblyTableData data) throws Exception {
+   protected TableAssembly buildAssemblyTable(AssemblyTableData data) throws Exception {
       Viewsheet vs = getViewsheet();
 
       if(data == null || data.lens() == null) {
          return null;
       }
 
-      String assemblyName = data.name();
+      String assemblyName = data.resolvedName();
       TableLens lens = data.lens();
 
       // meta data doesn't require all rows, which would cause conversion to calc problem
@@ -1900,11 +1924,11 @@ public abstract class VSAQuery {
     * The data of the vs assembly a table is bound to, fetched by
     * {@link #getAssemblyTableData(String)}.
     *
-    * @param source the source assembly name as bound, before resolving it.
-    * @param name   the resolved name the data was fetched with.
-    * @param lens   the data, or null if the assembly has none.
+    * @param boundName    the source assembly name as bound, before resolving it.
+    * @param resolvedName the resolved name the data was fetched with, which names the table.
+    * @param lens         the data, or null if the assembly has none.
     */
-   public record AssemblyTableData(String source, String name, TableLens lens) {
+   protected record AssemblyTableData(String boundName, String resolvedName, TableLens lens) {
    }
 
    public static final ThreadLocal<Boolean> Q_CANCEL = new ThreadLocal<>();

@@ -21,10 +21,12 @@ import inetsoft.report.TableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -39,6 +41,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 /**
  * Regression tests for bug #77030: a crosstab bound to another VS assembly
@@ -133,6 +137,36 @@ class CrosstabVSAssemblySourceLockOrderingTest {
    }
 
    /**
+    * A crosstab inside an embedded viewsheet resolves a VS assembly source against its parent
+    * once, in the fetch step, and the build step names the table by that resolved name rather
+    * than resolving it again.
+    */
+   @Test
+   void embeddedCrosstabSourceIsResolvedOnceAgainstItsParent() throws Exception {
+      CrosstabVSAssembly embedded = spy(crosstab);
+      doReturn("Emb1." + CROSSTAB).when(embedded).getAbsoluteName();
+      CrosstabVSAQuery query = new CrosstabVSAQuery(box, CROSSTAB, false) {
+         @Override
+         protected VSAssembly getAssembly() {
+            return embedded;
+         }
+      };
+
+      VSAQuery.AssemblyTableData data = query.getAssemblyTableData(SOURCE);
+      String resolved = Assembly.TABLE_VS_BOUND + "Emb1.Table1";
+
+      assertEquals(SOURCE, data.boundName());
+      assertEquals(resolved, data.resolvedName());
+      assertEquals(resolved, box.lastFetched, "the source was fetched by another name");
+
+      TableAssembly table = query.buildAssemblyTable(data);
+
+      assertInstanceOf(MirrorTableAssembly.class, table);
+      assertEquals(resolved, ((MirrorTableAssembly) table).getTableAssembly().getName());
+      assertEquals(1, box.fetches.get(), "building the table must not fetch again");
+   }
+
+   /**
     * Mode 2: the writer finds the source cached, so it holds the write lock from its
     * {@code lockWrite()} straight to {@code VSCrosstabInfo.update()}.
     */
@@ -151,11 +185,68 @@ class CrosstabVSAssemblySourceLockOrderingTest {
       runAgainstWriter(true);
    }
 
+   /**
+    * A chart brushed on the same source makes prepare apply its brush condition, which used to
+    * refresh the chart under the monitor: {@code setSharedCondition -> box.updateAssembly(chart)
+    * -> refreshMetaData(chart)} fetches the source again, the same sandbox-lock release as the
+    * crosstab's own fetch. The chart must be refreshed before the monitor as well.
+    */
+   @Test
+   void brushingChartIsRefreshedOutsideTheCrosstabInfoMonitor() throws Exception {
+      addBrushingChart();
+      Future<TableLens> reader = pool.submit(() -> query().getTableLens());
+
+      TableLens result = await(reader, "crosstab query with a brushing chart");
+      // refreshing the chart fetches the source for its meta data (more than once)
+      assertTrue(box.fetches.get() > 1, "the brushing chart never fetched the source");
+      assertEquals(0, box.fetchesUnderMonitor.get(),
+                   "the source assembly was executed while holding the VSCrosstabInfo monitor");
+      assertEquals(0, box.updatesUnderMonitor.get(),
+                   "the brushing chart was refreshed while holding the VSCrosstabInfo monitor");
+      assertNotNull(result, "the crosstab query returned no table");
+   }
+
+   /**
+    * Mode 2 in the release window of the brushing chart's source fetch.
+    */
+   @Test
+   void writerDoesNotDeadlockWithBrushingChartSourceFetch() throws Exception {
+      addBrushingChart();
+      runAgainstWriter(false, 2);
+   }
+
+   private void addBrushingChart() {
+      Viewsheet vs = crosstab.getViewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(vs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.VS_ASSEMBLY, null, SOURCE));
+      VSPoint point = new VSPoint();
+      point.addValue(new VSFieldValue("state", "NJ"));
+      VSSelection selection = new VSSelection();
+      selection.addPoint(point);
+      vs.addAssembly(chart);
+      // after adding it: adding validates the selection against the (empty) chart binding
+      chart.setBrushSelection(selection);
+      assertSame(chart, box.getBrushingChart(CROSSTAB), "brushing chart");
+   }
+
    private void runAgainstWriter(boolean writerMisses) throws Exception {
+      runAgainstWriter(writerMisses, 1);
+   }
+
+   /**
+    * @param windowAt the reader's source fetch, counted from 1, in whose release window the
+    *                 writer runs.
+    */
+   private void runAgainstWriter(boolean writerMisses, int windowAt) throws Exception {
       CountDownLatch inWindow = new CountDownLatch(1);
       Started writer = new Started();
+      AtomicInteger readerFetches = new AtomicInteger();
 
       box.readerWindow = () -> {
+         if(readerFetches.incrementAndGet() != windowAt) {
+            return;
+         }
+
          inWindow.countDown();
          // let the writer take the write lock in the release window and reach
          // VSCrosstabInfo.update() before this thread restores its locks
@@ -286,12 +377,29 @@ class CrosstabVSAssemblySourceLockOrderingTest {
     */
    private final class FetchingBox extends ViewsheetSandbox {
       FetchingBox(Viewsheet vs) {
-         super(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false, null);
+         // an entry, which executing a chart's dynamic values needs
+         super(vs, AbstractSheet.SHEET_RUNTIME_MODE, null, false,
+               new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+                              "test/" + CROSSTAB, null));
+      }
+
+      /**
+       * Refreshing an assembly runs its dynamic values, which take the script engine lock
+       * (bug #77030 refute, A3), and its meta data, which can fetch its source.
+       */
+      @Override
+      void updateAssembly(VSAssembly assembly, boolean out) throws Exception {
+         if(Thread.holdsLock(crosstab.getVSCrosstabInfo())) {
+            updatesUnderMonitor.incrementAndGet();
+         }
+
+         super.updateAssembly(assembly, out);
       }
 
       @Override
       public TableLens getTableData(String name) throws Exception {
          fetches.incrementAndGet();
+         lastFetched = name;
 
          if(Thread.holdsLock(crosstab.getVSCrosstabInfo())) {
             fetchesUnderMonitor.incrementAndGet();
@@ -322,7 +430,9 @@ class CrosstabVSAssemblySourceLockOrderingTest {
 
       final AtomicInteger fetches = new AtomicInteger();
       final AtomicInteger fetchesUnderMonitor = new AtomicInteger();
+      final AtomicInteger updatesUnderMonitor = new AtomicInteger();
       volatile Thread reader;
+      volatile String lastFetched;
       volatile Window readerWindow;
    }
 
