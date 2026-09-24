@@ -65,15 +65,23 @@ class AssetQueryScopeConcurrencyTest {
    void concurrentWritesAndKeyReadsNeverThrow() throws Exception {
       AssetQueryScope scope = newScope();
       int before = scope.getMemberKeys().length;
+      CountDownLatch writersDone = new CountDownLatch(THREADS - 1);
 
       runConcurrently(t -> {
-         for(int i = 0; i < OPS; i++) {
-            if(t == 0) {
+         if(t == 0) {
+            // read the keys for as long as the writers run; a fixed number of reads over a
+            // growing map made this test quadratic and slow enough to time out under load
+            do {
                scope.getMemberKeys();
             }
-            else {
+            while(writersDone.getCount() > 0);
+         }
+         else {
+            for(int i = 0; i < OPS; i++) {
                scope.putMember("m_" + t + "_" + i, i);
             }
+
+            writersDone.countDown();
          }
       });
 
