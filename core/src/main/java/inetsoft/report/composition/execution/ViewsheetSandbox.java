@@ -8020,8 +8020,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
-    * Get the number of sandbox lock acquisitions this thread has skipped so far because it is
-    * running a script and the lock was not available (see lockRead()).
+    * Get the number of sandbox lock acquisitions this thread has skipped so far, because it is
+    * running a script and the lock was not available (see lockRead()), or because a failed
+    * restoreLocks() recorded the locks it could not restore as skipped.
     */
    private long getSkippedLockCount() {
       return AssetDataCache.isProcessorThread() ? 0 : thisLock.getSkippedCount();

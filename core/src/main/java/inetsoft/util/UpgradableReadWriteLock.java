@@ -53,7 +53,7 @@ public class UpgradableReadWriteLock {
    }
 
    /**
-    * @param restoreWriteLockTimeoutMs bound for {@link #lockWriteBounded()}, used only by
+    * @param restoreWriteLockTimeoutMs bound for {@link #lockWriteBounded(List)}, used only by
     *                                   {@link #restoreLocks()}. Package-private so tests can
     *                                   exercise the timeout path without a real 20s wait; all
     *                                   production callers use a public constructor.
@@ -140,9 +140,10 @@ public class UpgradableReadWriteLock {
    }
 
    /**
-    * Get the number of acquisitions the current thread has skipped on this lock in
-    * non-blocking mode so far. A caller compares the value before and after a computation to
-    * find out whether any part of it ran without the lock it asked for.
+    * Get the number of acquisitions the current thread has skipped on this lock so far: in
+    * non-blocking mode, and the entries a failed {@link #restoreLocks()} recorded as skipped. A
+    * caller compares the value before and after a computation to find out whether any part of
+    * it ran without the lock it asked for.
     */
    public long getSkippedCount() {
       long[] count = skippedCount.get();
@@ -239,7 +240,7 @@ public class UpgradableReadWriteLock {
       try {
          for(; i >= 0; i--) {
             switch(olocks.get(i)) {
-            case READ:
+            case READ: {
                int write = getUpgradeWrite(olocks, i);
 
                if(write >= 0) {
@@ -260,6 +261,7 @@ public class UpgradableReadWriteLock {
                }
 
                break;
+            }
             case WRITE:
                lockWriteBounded(Collections.emptyList());
                break;

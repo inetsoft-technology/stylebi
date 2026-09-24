@@ -72,22 +72,30 @@ class UpgradableReadWriteLockRestoreStateTest {
    @Test
    void s2WriterQueuesDuringBoundedWait() throws Exception {
       onA(() -> { lock.lockRead(); lock.lockWrite(); lock.unlockAll(); });
-      CountDownLatch aDone = new CountDownLatch(1);
-      peerHoldRawRead(aDone);
-      Thread at = aThread();
-      Future<Object> f = restoreAsync(aDone);
-      awaitInBoundedWait(at);
-      peerQueueRawWrite(aDone);
-      awaitQueuedWriter();
-      Object r = await(f, at);
-      assertInstanceOf(IllegalStateException.class, r);
-      State s = state();
-      assertEquals(List.of(READ, SK_WRITE), s.stack);
-      assertEquals(1, s.readHolds, "read barged back past the queued writer");
-      assertFalse(s.writeHeld);
-      assertEquals(1, s.skipped);
-      onA(() -> { lock.unlockWrite(); lock.unlockRead(); });
-      assertClean();
+      // released by the test, not when A returns, so the writer queues behind the reader even
+      // if A's bound expires first (the expected state is the same either way)
+      CountDownLatch release = new CountDownLatch(1);
+
+      try {
+         peerHoldRawRead(release);
+         Thread at = aThread();
+         Future<Object> f = restoreAsync(new CountDownLatch(1));
+         awaitInBoundedWait(at);
+         peerQueueRawWrite(release);
+         awaitQueuedWriter();
+         Object r = await(f, at);
+         assertInstanceOf(IllegalStateException.class, r);
+         State s = state();
+         assertEquals(List.of(READ, SK_WRITE), s.stack);
+         assertEquals(1, s.readHolds, "read barged back past the queued writer");
+         assertFalse(s.writeHeld);
+         assertEquals(1, s.skipped);
+         onA(() -> { lock.unlockWrite(); lock.unlockRead(); });
+         assertClean();
+      }
+      finally {
+         release.countDown();
+      }
    }
 
    /** Writer already holds the lock when the [READ, WRITE] restore starts. */
@@ -151,21 +159,27 @@ class UpgradableReadWriteLockRestoreStateTest {
       joinPeers();
       assertLockFree();
 
-      // S2
+      // S2, peers released by the test (see s2WriterQueuesDuringBoundedWait)
       onA(save);
-      CountDownLatch done2 = new CountDownLatch(1);
-      peerHoldRawRead(done2);
-      Thread at = aThread();
-      Future<Object> f = restoreAsync(done2);
-      awaitInBoundedWait(at);
-      peerQueueRawWrite(done2);
-      awaitQueuedWriter();
-      assertInstanceOf(IllegalStateException.class, await(f, at));
-      s = state();
-      assertEquals(List.of(READ, NB_READ, SK_WRITE), s.stack);
-      assertEquals(2, s.readHolds);
-      onA(() -> { lock.unlockWrite(); lock.unlockRead(); lock.unlockRead(); });
-      assertClean();
+      CountDownLatch release = new CountDownLatch(1);
+
+      try {
+         peerHoldRawRead(release);
+         Thread at = aThread();
+         Future<Object> f = restoreAsync(new CountDownLatch(1));
+         awaitInBoundedWait(at);
+         peerQueueRawWrite(release);
+         awaitQueuedWriter();
+         assertInstanceOf(IllegalStateException.class, await(f, at));
+         s = state();
+         assertEquals(List.of(READ, NB_READ, SK_WRITE), s.stack);
+         assertEquals(2, s.readHolds);
+         onA(() -> { lock.unlockWrite(); lock.unlockRead(); lock.unlockRead(); });
+         assertClean();
+      }
+      finally {
+         release.countDown();
+      }
    }
 
    /** Nested [READ, READ, WRITE] happy path, downgrade, then two unlockReads. */
@@ -195,7 +209,10 @@ class UpgradableReadWriteLockRestoreStateTest {
     * Writer grabs the lock around the moment the bounded write fails (the SKIPPED_READ
     * rewrite window). The race is randomized: a reader releases near the bound while a
     * writer barges with untimed tryLock(). Every outcome must keep stack and physical
-    * holds consistent and end with nothing held.
+    * holds consistent and end with nothing held. Which outcomes occur depends on scheduling,
+    * so they are only reported; the SKIPPED_READ rewrite is covered deterministically by
+    * {@link #writerHoldsAtRestoreStart()} and
+    * UpgradableReadWriteLockTest.rewoundReadsAreSkippedWhenWriterTakesLockDuringWait().
     */
    @Test
    void writerBargesAroundBoundExpiry() throws Exception {
@@ -278,8 +295,6 @@ class UpgradableReadWriteLockRestoreStateTest {
       }
 
       System.out.println("bug #76986 barge outcomes: " + outcomes);
-      assertTrue(outcomes.keySet().stream().anyMatch(k -> k.startsWith("failed-skipped")),
-                 "SKIPPED_READ rewrite never exercised: " + outcomes);
    }
 
    // ---------------- helpers ----------------
