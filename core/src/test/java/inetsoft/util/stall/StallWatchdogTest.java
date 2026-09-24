@@ -33,6 +33,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -171,6 +172,8 @@ public class StallWatchdogTest {
    public void failingThreadStartNeverReachesTheWaiter() {
       StallWatchdog.resetForTest();
       ThreadFactory factory = StallWatchdog.threadFactory;
+      LongSupplier clock = StallWatchdog.startClock;
+      StallWatchdog.startClock = now::get;
       StallWatchdog.threadFactory = r -> {
          throw new OutOfMemoryError("unable to create native thread");
       };
@@ -183,13 +186,88 @@ public class StallWatchdogTest {
 
          assertTrue(findWatchdogThread().isEmpty());
          StallWatchdog.threadFactory = factory;
+         advance(StallPolicy.DEFAULT_SCAN_MILLIS);
          StallWatchdog.ensureStarted();
          assertTrue(findWatchdogThread().isPresent(), "a later wait retries the start");
       }
       finally {
          StallWatchdog.threadFactory = factory;
+         StallWatchdog.startClock = clock;
          StallPolicy.setOverride(null);
       }
+   }
+
+   @Test
+   public void failedThreadStartIsRetriedOncePerScanInterval() {
+      StallWatchdog.resetForTest();
+      ThreadFactory factory = StallWatchdog.threadFactory;
+      LongSupplier clock = StallWatchdog.startClock;
+      AtomicInteger attempts = new AtomicInteger();
+      StallWatchdog.startClock = now::get;
+      StallWatchdog.threadFactory = r -> {
+         attempts.incrementAndGet();
+         throw new OutOfMemoryError("unable to create native thread");
+      };
+
+      try {
+         StallWatchdog.ensureStarted();
+         StallWatchdog.ensureStarted();
+         assertEquals(1, attempts.get(), "a failed start is not retried by every wait");
+
+         advance(StallPolicy.DEFAULT_SCAN_MILLIS - 1);
+         StallWatchdog.ensureStarted();
+         assertEquals(1, attempts.get());
+
+         advance(1);
+         StallWatchdog.ensureStarted();
+         StallWatchdog.ensureStarted();
+         assertEquals(2, attempts.get(), "retried once per scan interval");
+
+         StallWatchdog.threadFactory = factory;
+         advance(StallPolicy.DEFAULT_SCAN_MILLIS);
+         StallWatchdog.ensureStarted();
+         assertTrue(findWatchdogThread().isPresent(), "the start succeeds once it can");
+      }
+      finally {
+         StallWatchdog.threadFactory = factory;
+         StallWatchdog.startClock = clock;
+      }
+   }
+
+   @Test
+   public void watchdogThreadInheritsNoThreadLocals() throws Exception {
+      InheritableThreadLocal<String> local = new InheritableThreadLocal<>();
+      local.set("request state");
+      AtomicReference<String> seen = new AtomicReference<>("not run");
+
+      try {
+         Thread thread = StallWatchdog.threadFactory.newThread(() -> seen.set(local.get()));
+         assertEquals("Lock-Stall-Watchdog", thread.getName());
+         assertTrue(thread.isDaemon());
+         thread.start();
+         thread.join(5000);
+         assertNull(seen.get(), "the watchdog does not keep the first waiter's thread locals");
+      }
+      finally {
+         local.remove();
+      }
+   }
+
+   @Test
+   public void waiterTrippingInsideTheDumpWindowGetsNoStaleDumpPath() {
+      String earlier = dumper.dump("an earlier stall");
+      WaitRecord record = registry.open("site", () -> 0, NONE);
+      advance(1100);
+      LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
+      assertNull(ex.getDumpPath(), "an unrelated dump is not the stall's dump");
+      assertNull(record.getDumpPath());
+
+      advance(60000);
+      watchdog.scan();
+      assertNotNull(record.getDumpPath(), "the watchdog attaches a fresh dump later");
+      assertNotEquals(earlier, record.getDumpPath());
+      assertEquals(2, dumper.getDumpCount());
+      record.close();
    }
 
    @Test

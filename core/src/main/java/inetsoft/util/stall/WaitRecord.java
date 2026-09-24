@@ -104,7 +104,9 @@ public final class WaitRecord implements AutoCloseable {
       String path;
 
       // the episode fields are checked and set under this record's monitor, as the watchdog
-      // does (the watchdog's monitor, then the record's; the waiter holds no other lock here)
+      // does. The waiter may hold engine locks here (CrossJoinTableLens even its own monitor),
+      // but there is no cycle: the watchdog only takes its own monitor, this record's and the
+      // dumper's, in that order, never an engine lock or a lens monitor.
       synchronized(this) {
          long stalledNanos = now - progressNanos;
 
@@ -118,8 +120,16 @@ public final class WaitRecord implements AutoCloseable {
          path = dumpPath;
 
          if(path == null) {
-            path = registry.getDumper().dump(reason);
-            dumpPath = path;
+            // only a dump written by this call is this stall's; an older one of the dumper's
+            // window is unrelated, so the path is left for the watchdog to attach later
+            StallDumper dumper = registry.getDumper();
+            int before = dumper.getDumpCount();
+            String dumped = dumper.dump(reason);
+
+            if(dumper.getDumpCount() > before) {
+               path = dumped;
+               dumpPath = dumped;
+            }
          }
 
          if(mode == StallPolicy.Mode.FAIL) {

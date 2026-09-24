@@ -29,6 +29,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -115,36 +116,55 @@ public final class StallWatchdog {
    /**
     * Start the server's watchdog thread, if it is not running yet. Called on the first
     * registered wait, and again whenever the thread ended. Never throws: a failed start is
-    * logged and retried on the next call.
+    * logged and retried by a later call, at most once per {@code DEFAULT_SCAN_MILLIS}, so a
+    * JVM that cannot create threads is not asked to by every wait, nor logs an error for each.
     */
    static void ensureStarted() {
-      if(started) {
+      if(started || isStartBackingOff()) {
          return;
       }
 
       try {
          synchronized(StallWatchdog.class) {
-            if(started) {
+            if(started || isStartBackingOff()) {
                return;
             }
 
-            Thread thread = threadFactory.newThread(StallWatchdog::runGlobal);
-            thread.setDaemon(true);
-            thread.setContextClassLoader(StallWatchdog.class.getClassLoader());
-            thread.start();
-            // the thread's exit takes this monitor too, so it cannot reset before this
-            StallWatchdog.thread = thread;
-            started = true;
+            try {
+               Thread thread = threadFactory.newThread(StallWatchdog::runGlobal);
+               thread.setDaemon(true);
+               thread.setContextClassLoader(StallWatchdog.class.getClassLoader());
+               thread.start();
+               // the thread's exit takes this monitor too, so it cannot reset before this
+               StallWatchdog.thread = thread;
+               started = true;
+               lastStartFailure = null;
+            }
+            catch(Throwable ex) {
+               // set under the monitor, so a concurrent caller does not attempt again
+               lastStartFailure = startClock.getAsLong();
+               throw ex;
+            }
          }
       }
       catch(Throwable ex) {
          try {
-            LOG.error("Failed to start the lock stall watchdog, retrying on the next wait", ex);
+            LOG.error("Failed to start the lock stall watchdog, retrying in {} ms",
+                      StallPolicy.DEFAULT_SCAN_MILLIS, ex);
          }
          catch(Throwable ignore) {
             // never fail the waiter
          }
       }
+   }
+
+   /**
+    * Check if the last start failed less than {@code DEFAULT_SCAN_MILLIS} ago.
+    */
+   private static boolean isStartBackingOff() {
+      Long failed = lastStartFailure;
+      return failed != null && startClock.getAsLong() - failed <
+         TimeUnit.MILLISECONDS.toNanos(StallPolicy.DEFAULT_SCAN_MILLIS);
    }
 
    /**
@@ -172,6 +192,7 @@ public final class StallWatchdog {
       synchronized(StallWatchdog.class) {
          thread = null;
          started = false;
+         lastStartFailure = null;
       }
 
       GLOBAL.clear();
@@ -285,7 +306,10 @@ public final class StallWatchdog {
     * Check one registered wait. The episode fields of the record are checked and set under its
     * monitor, re-reading its progress there, so the waiter's progress (which resets them under
     * the same monitor) is never overwritten with the fields of an ended episode. Lock order:
-    * this watchdog, then the record; the waiter holds no other lock when it takes the record's.
+    * this watchdog, then the record, then the dumper. A waiter may hold engine locks when it
+    * takes the record's monitor (and {@code CrossJoinTableLens} checks inside its own monitor),
+    * but there is no cycle: the watchdog only ever takes its own monitor, the record's and the
+    * dumper's, never an engine lock or a lens monitor.
     */
    private void scanRecord(WaitRecord record, long now, long scanNo, List<String> reasons) {
       synchronized(record) {
@@ -472,8 +496,14 @@ public final class StallWatchdog {
    private static final StallWatchdog GLOBAL = new StallWatchdog(
       WaitRegistry.global(), () -> ManagementFactory.getThreadMXBean().findDeadlockedThreads());
    // replaced by tests only
-   static volatile ThreadFactory threadFactory = r -> new Thread(r, "Lock-Stall-Watchdog");
+   // no inherited thread locals: the first waiter's request state must not outlive it here
+   static volatile ThreadFactory threadFactory = r -> Thread.ofPlatform()
+      .name("Lock-Stall-Watchdog").daemon(true).inheritInheritableThreadLocals(false)
+      .unstarted(r);
+   static volatile LongSupplier startClock = System::nanoTime;
    private static volatile boolean started;
+   // when the last start failed, on startClock, or null if it did not
+   private static volatile Long lastStartFailure;
    private static Thread thread; // guarded by StallWatchdog.class
 
    private final WaitRegistry registry;
