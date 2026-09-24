@@ -28,13 +28,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.w3c.dom.Element;
-import org.xml.sax.InputSource;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.awt.Insets;
 import java.io.ByteArrayInputStream;
 import java.io.PrintWriter;
-import java.io.StringReader;
 import java.io.StringWriter;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -179,7 +177,7 @@ class TableCellPaddingSeedTest {
    }
 
    // round-trips through writeAttributes/parseAttributes, the path a saved or exported asset
-   // actually takes - the nine other tests here never leave memory
+   // actually takes - the ten other tests here never leave memory
    private static TableVSAssemblyInfo roundTrip(TableVSAssemblyInfo source,
                                                  TableVSAssemblyInfo target) throws Exception
    {

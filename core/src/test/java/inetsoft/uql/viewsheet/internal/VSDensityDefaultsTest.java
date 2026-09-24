@@ -215,7 +215,7 @@ class VSDensityDefaultsTest {
 
    @Test
    void aModernContextYieldsItsDensityHeights() {
-      // of(VizMark) also requires the gate: modern = gate && mark != null
+      // of(VizMark) does not consult the gate: modern = mark != null
       SreeEnv.setProperty("viewsheet.modernVisualization", "true");
       SreeEnv.setProperty("viewsheet.density", "comfortable");
       VizContext ctx = VizContext.of(VizMark.MODERN_LIGHT);
@@ -313,13 +313,12 @@ class VSDensityDefaultsTest {
 
    @Test
    void tablePaddingSharesTheChartMatrix() {
-      // one card inset concept, one set of numbers
-      assertEquals(VSDensityDefaults.chartPaddingForMode("comfortable"),
-                   VSDensityDefaults.tablePaddingForMode("comfortable"));
-      assertEquals(VSDensityDefaults.chartPaddingForMode("compact"),
-                   VSDensityDefaults.tablePaddingForMode("compact"));
-      assertEquals(VSDensityDefaults.chartPaddingForMode("dense"),
-                   VSDensityDefaults.tablePaddingForMode("dense"));
+      // one card inset concept, one set of numbers - asserted literally rather than against
+      // chartPaddingForMode, since tablePaddingForMode is just a delegation to it and comparing
+      // the two can never fail
+      assertEquals(new Insets(16, 16, 16, 16), VSDensityDefaults.tablePaddingForMode("comfortable"));
+      assertEquals(new Insets(12, 12, 12, 12), VSDensityDefaults.tablePaddingForMode("compact"));
+      assertEquals(new Insets(8, 8, 8, 8), VSDensityDefaults.tablePaddingForMode("dense"));
    }
 
    @Test

@@ -2095,7 +2095,11 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
          return css;
       }
 
-      return info == null ? null : info.getCellPadding();
+      // defensive copy: this reaches every cached VSFormatModel and every exporter, so callers
+      // must not be able to mutate the assembly's stored padding through it. getRowPadding below
+      // reads the same stored Insets but only extracts its fields, so it does not need a copy.
+      Insets padding = info == null ? null : info.getCellPadding();
+      return padding == null ? null : (Insets) padding.clone();
    }
 
    /**

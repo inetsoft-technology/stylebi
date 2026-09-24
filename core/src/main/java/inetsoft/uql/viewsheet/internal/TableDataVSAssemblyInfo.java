@@ -1313,6 +1313,7 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
             info.colWidths2 = new HashMap<>(colWidths2);
             info.rcolWidths2 = new HashMap<>(rcolWidths2);
             info.sinfo = (SortInfo) sinfo.clone();
+            info.cellPadding = (CompositeValue<Insets>) cellPadding.clone();
          }
 
          if(hyperlinkAttr != null) {

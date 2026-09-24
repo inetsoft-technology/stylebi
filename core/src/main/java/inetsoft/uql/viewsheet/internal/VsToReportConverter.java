@@ -1037,8 +1037,10 @@ public class VsToReportConverter {
       int height = info.isTitleVisible() ? Math.round(info.getTitleHeight() * scalefont) : 0;
       int[] rowHeights = calculateRowHeights(info, lens);
 
-      for(int h : rowHeights) {
-         height += h > 0 ? h : Math.round(AssetUtil.defh * scalefont);
+      for(int i = 0; i < rowHeights.length; i++) {
+         int h = rowHeights[i];
+         height += h > 0 ? h :
+            (int) Math.round(lens.getRowHeightWithPadding(AssetUtil.defh * scalefont, i, info));
       }
 
       return height;
@@ -1049,12 +1051,13 @@ public class VsToReportConverter {
     * {@link #computePrintLayoutTableHeight} so the rendered height equals the
     * predicted height after layoutSize is tightened.
     */
-   private void forceFixedHeightsForShrunkTable(int[] rowHs) {
-      int defaultRowH = Math.round(AssetUtil.defh * scalefont);
-
+   private void forceFixedHeightsForShrunkTable(int[] rowHs, VSTableLens lens,
+                                                 TableDataVSAssemblyInfo info)
+   {
       for(int i = 0; i < rowHs.length; i++) {
          if(rowHs[i] < 0) {
-            rowHs[i] = defaultRowH;
+            rowHs[i] =
+               (int) Math.round(lens.getRowHeightWithPadding(AssetUtil.defh * scalefont, i, info));
          }
       }
    }
@@ -1156,7 +1159,7 @@ public class VsToReportConverter {
       int[] rowHs = calculateRowHeights(info, lens);
 
       if(info.isShrink() && TabVSAssemblyInfo.isInBottomTabs(assembly)) {
-         forceFixedHeightsForShrunkTable(rowHs);
+         forceFixedHeightsForShrunkTable(rowHs, lens, info);
       }
 
       tableelem.setFixedHeights(rowHs);
@@ -3252,16 +3255,26 @@ public class VsToReportConverter {
    static final class CellInsetTableLens extends DefaultTableFilter {
       CellInsetTableLens(VSTableLens lens, TableDataVSAssemblyInfo info) {
          super(lens);
-         this.lens = lens;
          this.info = info;
       }
 
       @Override
       public Insets getInsets(int r, int c) {
-         return lens.getCellInsets(r, c, info);
+         return ((VSTableLens) getTable()).getCellInsets(r, c, info);
       }
 
-      private final VSTableLens lens;
+      // forward to the wrapped lens so TableElementDef.setTable's REPORT_NAME/REPORT_TYPE
+      // stamp lands on the same VSTableLens instance it always did, not on this wrapper
+      @Override
+      public void setProperty(String key, Object value) {
+         getTable().setProperty(key, value);
+      }
+
+      @Override
+      public Object getProperty(String key) {
+         return getTable().getProperty(key);
+      }
+
       private final TableDataVSAssemblyInfo info;
    }
 
