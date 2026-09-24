@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
@@ -102,6 +103,21 @@ public class TableViewPropertyDialogServiceTest {
       TableVSAssemblyInfo applied = captureAppliedInfo();
       assertTrue(applied.isUserCellPadding());
       assertEquals(new Insets(2, 3, 4, 5), applied.getCellPadding());
+   }
+
+   // an unmarked table carrying an author padding, pane set back to 0/0/0/0. The load side shows 0
+   // for "none", so zeros must clear the author value rather than pin a zero inset that overrides
+   // the stylesheet's own cell gutter.
+   @Test
+   public void unmarkedTableSetBackToZeroClearsTheUserTier() throws Exception {
+      tableVSAssemblyInfoSpy.setCellPadding(new Insets(2, 3, 4, 5), CompositeValue.Type.USER);
+
+      TableViewPropertyDialogModel model = modelWithCellPadding(0, 0, 0, 0, null);
+      service.setTablePropertyModel("Viewsheet1", "Table1", model, "", null, commandDispatcher);
+
+      TableVSAssemblyInfo applied = captureAppliedInfo();
+      assertFalse(applied.isUserCellPadding());
+      assertNull(applied.getCellPadding());
    }
 
    // Case 3, the regression this guard protects against, is covered separately in

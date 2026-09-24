@@ -411,14 +411,13 @@ public class CalcTablePropertyDialogService {
          cellPaddingPaneModel.getTop(), cellPaddingPaneModel.getLeft(),
          cellPaddingPaneModel.getBottom(), cellPaddingPaneModel.getRight());
       Boolean cellPaddingFollowsDefault = cellPaddingPaneModel.getFollowsDefault();
-      Insets storedCellPadding = calcTableAssemblyInfo.getCellPadding();
-      Insets storedOrZeroCellPadding = storedCellPadding == null ?
-         new Insets(0, 0, 0, 0) : storedCellPadding;
-
       if(cellPaddingFollowsDefault == null) {
          // no checkbox was shown, so this table is not marked; store only a real edit. the load
-         // side shows 0 for an absent padding, so an untouched pane must compare against that
-         if(!editedCellPadding.equals(storedOrZeroCellPadding)) {
+         // side shows 0 for an absent padding, so all zeros means none rather than a pinned 0
+         if(editedCellPadding.equals(new Insets(0, 0, 0, 0))) {
+            calcTableAssemblyInfo.resetUserCellPadding();
+         }
+         else if(!editedCellPadding.equals(calcTableAssemblyInfo.getCellPadding())) {
             calcTableAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
          }
       }

@@ -463,11 +463,11 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
 
       if(ctx.modern) {
          if(!tinfo.isUserDataRowHeight() && dataRowHeight == AssetUtil.defh) {
-            dataRowHeight = VSDensityDefaults.rowHeight(ctx);
+            dataRowHeight = VSDensityDefaults.rowHeight(ctx, tinfo);
          }
 
          if(!tinfo.isUserHeaderRowHeight()) {
-            int headerHeight = VSDensityDefaults.headerRowHeight(ctx);
+            int headerHeight = VSDensityDefaults.headerRowHeight(ctx, tinfo);
 
             for(int i = 0; i < headerRowHeights.length; i++) {
                if(headerRowHeights[i] == AssetUtil.defh) {
@@ -1169,7 +1169,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          if(ctx.modern && !tinfo.isUserDataRowHeight() &&
             dataRowHeight == AssetUtil.defh)
          {
-            dataRowHeight = VSDensityDefaults.rowHeight(ctx);
+            dataRowHeight = VSDensityDefaults.rowHeight(ctx, tinfo);
          }
 
          // the stored height is a content height; add the padding back so this model agrees

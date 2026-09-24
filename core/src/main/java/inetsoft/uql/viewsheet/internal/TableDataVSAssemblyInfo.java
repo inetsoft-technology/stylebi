@@ -920,6 +920,13 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * The density seed alone, ignoring any author value: what the stored row height is reduced by.
+    */
+   public Insets getDefaultCellPadding() {
+      return cellPadding.get(CompositeValue.Type.DEFAULT);
+   }
+
+   /**
     * Set the cell's content padding at one tier. DEFAULT is the density seed, USER the author.
     */
    public void setCellPadding(Insets cellPadding, CompositeValue.Type type) {

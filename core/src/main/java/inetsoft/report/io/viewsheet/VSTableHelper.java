@@ -214,7 +214,7 @@ public abstract class VSTableHelper extends VSTableDataHelper {
          // substitution the live model does (BaseTableService:466) before adding the padding -
          // otherwise the estimate exceeds the real rendered row and match-exact drops rows
          if(ctx.modern && !info.isUserDataRowHeight() && displayRowHeight == AssetUtil.defh) {
-            displayRowHeight = VSDensityDefaults.rowHeight(ctx);
+            displayRowHeight = VSDensityDefaults.rowHeight(ctx, info);
          }
 
          displayRowHeight += lens.getRowPadding(lens.getHeaderRowCount(), info);

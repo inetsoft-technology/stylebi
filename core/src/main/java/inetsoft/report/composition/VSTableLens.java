@@ -1591,9 +1591,18 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
 
       String text = getText(row, col);
       Font font = super.getFont(row, col);
+      // a defined cell padding replaces the 2px gutter; a CSS inset keeps the legacy estimate
+      Insets padding = gridCellPadding != null && getInsets(row, col) == null ?
+         gridCellPadding : null;
+
+      if(padding != null) {
+         width -= padding.left + padding.right;
+      }
+      else if(flex) {
+         width -= 4; // subtract padding
+      }
 
       if(flex) {
-         width -= 4; // subtract padding
          width -= Optional.ofNullable(getFormat(row, col)) // subtract left-right border widths.
                  .map(VSFormat::getBorders)
                  .map(b -> Common.getLineWidth(b.left) + Common.getLineWidth(b.right))
@@ -1759,6 +1768,7 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
 
       TableDataVSAssemblyInfo tinfo = (TableDataVSAssemblyInfo) info;
       this.userDataRowHeight = tinfo.isUserDataRowHeight();
+      this.gridCellPadding = tinfo.getCellPadding();
       moreRows(10000);
       int rcnt = getRowCount();
       rcnt = rcnt < 0 ? -rcnt - 1 : rcnt;
@@ -1780,11 +1790,11 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
 
       if(ctx.modern) {
          if(cssDataRowHeight <= 0 && !tinfo.isUserDataRowHeight() && dataRowHeight == AssetUtil.defh) {
-            dataRowHeight = VSDensityDefaults.rowHeight(ctx);
+            dataRowHeight = VSDensityDefaults.rowHeight(ctx, tinfo);
          }
 
          if(cssHeaderRowHeight <= 0 && !tinfo.isUserHeaderRowHeight()) {
-            densityHeaderRowHeight = VSDensityDefaults.headerRowHeight(ctx);
+            densityHeaderRowHeight = VSDensityDefaults.headerRowHeight(ctx, tinfo);
          }
       }
 
@@ -2310,6 +2320,8 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    private final Map<String, Boolean> isIncludedInSpan = new HashMap<>();
    public float rscaleFont = 1;
    private boolean userDataRowHeight = false;
+   // cell padding, captured with the rows it was subtracted from
+   private Insets gridCellPadding;
    private transient TableLens spanTable;
    private transient HTMLPresenter html;
    private transient Object formTable;

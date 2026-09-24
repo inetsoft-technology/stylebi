@@ -64,7 +64,7 @@ class TableCellPaddingResolvedHeightTest {
       info.seedChromeDefaults(ctx);
       VSTableLens lens = new VSTableLens(XTableUtil.getDefaultTableLens());
 
-      int rendered = VSDensityDefaults.rowHeight(ctx) + lens.getRowPadding(1, info);
+      int rendered = VSDensityDefaults.rowHeight(ctx, info) + lens.getRowPadding(1, info);
 
       assertEquals(expected, rendered, density);
    }

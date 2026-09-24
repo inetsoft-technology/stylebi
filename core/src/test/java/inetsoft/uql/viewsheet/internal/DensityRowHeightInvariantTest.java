@@ -17,10 +17,15 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.report.composition.VSTableLens;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.test.XTableUtil;
+import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.internal.AssetUtil;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,13 +35,13 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Insets;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The stored row-height matrix absorbs the cell padding so that what a reader sees is unchanged
- * from what shipped: 28/24/20 for data rows and 30/26/22 for headers. The stored numbers are an
- * implementation detail of that sum and are not meaningful on their own - this test is the
- * contract, and VSDensityDefaultsTest's matrix assertions are its arithmetic.
+ * What a reader sees is the density matrix - 28/24/20 for data rows and 30/26/22 for headers -
+ * whatever padding the table carries. A table stores the rendered height less its seeded cell
+ * padding and render adds the padding back, so the sum holds even when the padding was seeded
+ * under a tier other than the one in force: an org density change reseeds nothing.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -44,51 +49,77 @@ import static org.junit.jupiter.api.Assertions.*;
 @SreeHome
 @Tag("core")
 class DensityRowHeightInvariantTest {
-   @Test
-   void renderedDataRowHeightsAreUnchanged() {
-      assertRenderedDataRow("comfortable", 28);
-      assertRenderedDataRow("compact", 24);
-      assertRenderedDataRow("dense", 20);
+   @AfterEach
+   void reset() {
+      SreeEnv.setProperty("viewsheet.density", null);
    }
 
    @Test
-   void renderedHeaderRowHeightsAreUnchanged() {
-      assertRenderedHeaderRow("comfortable", 30);
-      assertRenderedHeaderRow("compact", 26);
-      assertRenderedHeaderRow("dense", 22);
+   void renderedRowHeightsMatchTheMatrixAtEveryTier() {
+      assertRendered("comfortable", "comfortable", 28, 30);
+      assertRendered("compact", "compact", 24, 26);
+      assertRendered("dense", "dense", 20, 22);
    }
 
    @Test
    void denseRenderedRowStillEqualsTheLegacyDefault() {
       // the anchoring promise: at dense, a marked table's row is the height it always was
-      assertRenderedDataRow("dense", AssetUtil.defh);
+      assertRendered("dense", "dense", AssetUtil.defh, 22);
    }
 
    @Test
-   void selectionCellHeightIsNotDraggedDownByTheRebalance() {
-      // the selection family is out of scope and has no additive padding path, so its cell
-      // height keeps the pre-rebalance matrix rather than following rowHeightForMode
-      assertEquals(28, VSDensityDefaults.selectionCellHeightForMode("comfortable"));
-      assertEquals(24, VSDensityDefaults.selectionCellHeightForMode("compact"));
-      assertEquals(20, VSDensityDefaults.selectionCellHeightForMode("dense"));
+   void paddingSeededUnderAnotherTierRendersTheTierInForce() {
+      assertRendered("compact", "dense", 20, 22);
+      assertRendered("compact", "comfortable", 28, 30);
+      assertRendered("dense", "comfortable", 28, 30);
+      assertRendered("comfortable", "dense", 20, 22);
    }
 
    @Test
-   void selectionCellHeightNoLongerTracksTheTableRow() {
-      // if these ever converge again, someone has re-merged the two matrices D4 split
-      assertNotEquals(VSDensityDefaults.rowHeightForMode("comfortable"),
-                      VSDensityDefaults.selectionCellHeightForMode("comfortable"));
+   void aTableWithNoSeededPaddingRendersTheMatrix() {
+      // an asset saved before the field existed carries no padding at all
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.setCellPadding(null, CompositeValue.Type.DEFAULT);
+
+      assertEquals(24, renderedDataRow(info, "compact"));
    }
 
-   private void assertRenderedDataRow(String mode, int expected) {
-      Insets pad = VSDensityDefaults.cellPaddingForMode(mode);
-      assertEquals(expected, VSDensityDefaults.rowHeightForMode(mode) + pad.top + pad.bottom,
-                   mode + " data row");
+   @Test
+   void anAuthorPaddingAddsToTheRenderedHeight() {
+      // additive, as a stylesheet's padding is: 24 - 8 seeded + 20 authored
+      TableVSAssemblyInfo info = seededAt("compact");
+      info.setCellPadding(new Insets(10, 6, 10, 6), CompositeValue.Type.USER);
+
+      assertEquals(36, renderedDataRow(info, "compact"));
    }
 
-   private void assertRenderedHeaderRow(String mode, int expected) {
-      Insets pad = VSDensityDefaults.cellPaddingForMode(mode);
-      assertEquals(expected, VSDensityDefaults.headerRowHeightForMode(mode) + pad.top + pad.bottom,
-                   mode + " header row");
+   private void assertRendered(String seedMode, String renderMode, int data, int header) {
+      TableVSAssemblyInfo info = seededAt(seedMode);
+      VizContext ctx = contextAt(renderMode);
+      VSTableLens lens = new VSTableLens(XTableUtil.getDefaultTableLens());
+      String label = seedMode + " seeded, " + renderMode + " rendered";
+
+      assertEquals(data, VSDensityDefaults.rowHeight(ctx, info) + lens.getRowPadding(1, info),
+                   label + " data row");
+      assertEquals(header,
+                   VSDensityDefaults.headerRowHeight(ctx, info) + lens.getRowPadding(0, info),
+                   label + " header row");
+   }
+
+   private int renderedDataRow(TableVSAssemblyInfo info, String renderMode) {
+      VizContext ctx = contextAt(renderMode);
+      VSTableLens lens = new VSTableLens(XTableUtil.getDefaultTableLens());
+      return VSDensityDefaults.rowHeight(ctx, info) + lens.getRowPadding(1, info);
+   }
+
+   private TableVSAssemblyInfo seededAt(String mode) {
+      TableVSAssemblyInfo info = new TableVSAssemblyInfo();
+      info.seedChromeDefaults(contextAt(mode));
+      return info;
+   }
+
+   private VizContext contextAt(String mode) {
+      SreeEnv.setProperty("viewsheet.density", mode);
+      return VizContext.of(VizMark.MODERN_LIGHT);
    }
 }

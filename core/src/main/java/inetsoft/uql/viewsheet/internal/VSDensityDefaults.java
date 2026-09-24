@@ -29,15 +29,14 @@ import java.awt.Insets;
  * default; user-set heights always win and must be checked by the caller.
  *
  * The height matrix matches the browser-DOM density tokens in _viz-tokens.scss so the live
- * model, export, and non-assembly DOM surfaces agree. Table row and header heights are STORED
- * values that the cell padding is added to at render (VSTableLens.getRowPadding), so it is the
- * sum that matches a token, not the matrix entry - see rowHeightForMode. Dense renders at
- * AssetUtil.defh for row and title height, so enabling modern at the default mode reflows
- * nothing for a data-surface type whose legacy default is AssetUtil.defh. A marked calendar is
- * the exception - its legacy title lane has always been taller, so it shrinks to the dense
- * height. Control height is the one exception to dense parity by design: a standalone form input
- * reads as cramped at the tightest data-row height, so it steps up even at dense (see
- * controlHeight()).
+ * model, export, and non-assembly DOM surfaces agree. The row and header matrices are RENDERED
+ * heights; a table stores them less its seeded cell padding, which is added back at render (see
+ * rowHeight(VizContext, TableDataVSAssemblyInfo)). Dense equals AssetUtil.defh for row and title
+ * height, so enabling modern at the default mode reflows nothing for a data-surface type whose
+ * legacy default is AssetUtil.defh. A marked calendar is the exception - its legacy title lane
+ * has always been taller, so it shrinks to the dense height. Control height is the one exception
+ * to dense parity by design: a standalone form input reads as cramped at the tightest data-row
+ * height, so it steps up even at dense (see controlHeight()).
  */
 public final class VSDensityDefaults {
    private VSDensityDefaults() {
@@ -104,6 +103,7 @@ public final class VSDensityDefaults {
 
    /**
     * Default data-row height for the context's mode, or the legacy default when it is not modern.
+    * The rendered height; a table stores rowHeight(VizContext, TableDataVSAssemblyInfo) instead.
     */
    public static int rowHeight(VizContext ctx) {
       return ctx.modern ? rowHeightForMode(ctx.density) : AssetUtil.defh;
@@ -117,12 +117,32 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * Default selection-list cell height. Selection cells are a data surface, but not a table one:
-    * they have no additive cell padding, so they keep the matrix table rows used before the
-    * padding was introduced rather than following rowHeightForMode down.
+    * The data-row height a table stores: the rendered height less its DEFAULT-tier cell padding,
+    * which render adds back - so a padding seeded under another tier still renders this one.
+    */
+   public static int rowHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
+      return rowHeight(ctx) - defaultCellPaddingHeight(ctx, info);
+   }
+
+   /**
+    * The header-row height a table stores for the context's mode, on the same terms as
+    * rowHeight(VizContext, TableDataVSAssemblyInfo).
+    */
+   public static int headerRowHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
+      return headerRowHeight(ctx) - defaultCellPaddingHeight(ctx, info);
+   }
+
+   private static int defaultCellPaddingHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
+      Insets padding = !ctx.modern || info == null ? null : info.getDefaultCellPadding();
+      return padding == null ? 0 : padding.top + padding.bottom;
+   }
+
+   /**
+    * Default selection-list cell height. Selection cells are a data surface, so they share the
+    * table row-height matrix.
     */
    public static int cellHeight(VizContext ctx) {
-      return ctx.modern ? selectionCellHeightForMode(ctx.density) : AssetUtil.defh;
+      return ctx.modern ? rowHeightForMode(ctx.density) : AssetUtil.defh;
    }
 
    /**
@@ -180,42 +200,9 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * STORED data-row height for a density mode - not the height a reader sees. The cell padding
-    * is added on top (VSTableLens.getRowPadding), so stored + 2 * padding-y is what renders, and
-    * that sum is the contract: 28 / 24 / 20. Unrecognized modes fall back to dense.
+    * Rendered data-row height for a density mode. Unrecognized modes fall back to dense.
     */
    static int rowHeightForMode(String mode) {
-      switch(mode) {
-      case COMFORTABLE:
-         return 16;
-      case COMPACT:
-         return 16;
-      default:
-         return 14;
-      }
-   }
-
-   /**
-    * STORED header-row height for a density mode, on the same terms as rowHeightForMode: the
-    * rendered sum is 30 / 26 / 22.
-    */
-   static int headerRowHeightForMode(String mode) {
-      switch(mode) {
-      case COMFORTABLE:
-         return 18;
-      case COMPACT:
-         return 18;
-      default:
-         return 16;
-      }
-   }
-
-   /**
-    * Selection-list cell height for a density mode. Deliberately a separate matrix from
-    * rowHeightForMode, which it used to share: the two were only ever equal because no padding
-    * sat between a table's stored row height and its rendered one. Do not re-merge them.
-    */
-   static int selectionCellHeightForMode(String mode) {
       switch(mode) {
       case COMFORTABLE:
          return 28;
@@ -223,6 +210,20 @@ public final class VSDensityDefaults {
          return 24;
       default:
          return 20;
+      }
+   }
+
+   /**
+    * Rendered header-row height for a density mode. Unrecognized modes fall back to dense.
+    */
+   static int headerRowHeightForMode(String mode) {
+      switch(mode) {
+      case COMFORTABLE:
+         return 30;
+      case COMPACT:
+         return 26;
+      default:
+         return 22;
       }
    }
 
