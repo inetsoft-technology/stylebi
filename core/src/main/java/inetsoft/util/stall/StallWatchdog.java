@@ -20,6 +20,7 @@ package inetsoft.util.stall;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,6 +34,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
  * Scans the registered waits every {@code stall.watchdog.scanMillis} (bug #76967). It dumps
@@ -68,6 +70,22 @@ public final class StallWatchdog {
     */
    public static String getUnreleasedStallReason() {
       return GLOBAL.getUnreleasedStall();
+   }
+
+   /**
+    * Remove the watchdog's JVM deadlock finding from a reason of {@link #getUnreleasedStall()},
+    * for a caller that reports the deadlocked threads itself.
+    *
+    * @return the rest of the reason, or {@code null} if nothing else is unreleased.
+    */
+   public static String withoutJvmDeadlock(String reason) {
+      if(reason == null) {
+         return null;
+      }
+
+      // the deadlock finding is always the last part (see scan())
+      String rest = JVM_DEADLOCK_REASON.matcher(reason).replaceFirst("");
+      return rest.isEmpty() ? null : rest;
    }
 
    /**
@@ -221,11 +239,19 @@ public final class StallWatchdog {
          long now = registry.nanoTime();
 
          for(WaitRecord record : registry.getActive()) {
+            // an Error too: it must not skip the remaining records, which would leave the flag
+            // of a partial scan (a false UP)
             try {
                scanRecord(record, now, scanNo, reasons);
             }
-            catch(RuntimeException ex) {
-               LOG.warn("Lock stall watchdog failed to check the wait {}", record.getWhat(), ex);
+            catch(Throwable ex) {
+               try {
+                  LOG.warn("Lock stall watchdog failed to check the wait {}", record.getWhat(),
+                           ex);
+               }
+               catch(Throwable ignore) {
+                  // never break the scan
+               }
             }
          }
       }
@@ -360,7 +386,10 @@ public final class StallWatchdog {
             String path = dumpForScan(reason);
 
             // the rule of the waiter: only a dump started strictly after the stall's last
-            // progress shows the stall, so waiter and watchdog attach the same dumps
+            // progress shows the stall, so waiter and watchdog attach the same dumps. The dump
+            // count check of dumpForScan() already implies it: a dump written in this scan was
+            // started after now, and this wait's progress is at least its limit before now.
+            // It is kept to state the rule and in case that ever changes.
             if(path != null && scanDumpStartNanos - record.getProgressNanos() > 0) {
                record.setDumpPath(path);
             }
@@ -386,8 +415,11 @@ public final class StallWatchdog {
             record.setWatchdogSeenScan(scanNo);
          }
          else if(seen < scanNo) {
+            // the health check shows this reason and may be unauthenticated: the dump's file
+            // name only, the log above and the dumper's have its full path
             reasons.add("stall not released: " + reason + ", thread dump: " +
-                           (record.getDumpPath() == null ? "none yet" : record.getDumpPath()));
+                           (record.getDumpPath() == null ? "none yet" :
+                              new File(record.getDumpPath()).getName()));
          }
       }
    }
@@ -417,7 +449,7 @@ public final class StallWatchdog {
 
       long[] ids = found.clone();
       Arrays.sort(ids);
-      deadlockReason = "JVM deadlock of " + ids.length + " threads";
+      deadlockReason = JVM_DEADLOCK + ids.length + " threads";
 
       if(!Arrays.equals(ids, seenDeadlock)) {
          seenDeadlock = ids;
@@ -461,8 +493,14 @@ public final class StallWatchdog {
             return scanDumpPath;
          }
       }
-      catch(RuntimeException ex) {
-         LOG.warn("Lock stall watchdog failed to write a thread dump", ex);
+      catch(Throwable ex) {
+         // an Error too, such as an OutOfMemoryError while dumping the threads: the scan goes on
+         try {
+            LOG.warn("Lock stall watchdog failed to write a thread dump", ex);
+         }
+         catch(Throwable ignore) {
+            // never break the scan
+         }
       }
 
       return null;
@@ -532,6 +570,9 @@ public final class StallWatchdog {
 
    private static final Logger LOG = LoggerFactory.getLogger(StallWatchdog.class);
    private static final long MIN_SCAN_MILLIS = 100L;
+   private static final String JVM_DEADLOCK = "JVM deadlock of ";
+   private static final Pattern JVM_DEADLOCK_REASON =
+      Pattern.compile("(?:^|; )" + JVM_DEADLOCK + "\\d+ threads$");
    private static final StallWatchdog GLOBAL = new StallWatchdog(
       WaitRegistry.global(), () -> ManagementFactory.getThreadMXBean().findDeadlockedThreads());
    // replaced by tests only

@@ -23,6 +23,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.function.Supplier;
 
@@ -30,11 +31,17 @@ import java.util.function.Supplier;
 @Lazy
 public class DeadlockHealthService {
    public DeadlockHealthService() {
-      this(StallWatchdog::getUnreleasedStallReason);
+      this(StallWatchdog::getUnreleasedStallReason, DeadlockHealthService::findDeadlockedThreads);
    }
 
-   DeadlockHealthService(Supplier<String> stallReason) {
+   /**
+    * @param stallReason       why a lock stall is unreleased, or {@code null}.
+    * @param deadlockedThreads the threads of a JVM deadlock, or {@code null} (or none) if there
+    *                          is no deadlock.
+    */
+   DeadlockHealthService(Supplier<String> stallReason, Supplier<ThreadInfo[]> deadlockedThreads) {
       this.stallReason = stallReason;
+      this.deadlockedThreads = deadlockedThreads;
    }
 
    public static DeadlockHealthService getInstance() {
@@ -42,18 +49,25 @@ public class DeadlockHealthService {
    }
 
    public DeadlockStatus getStatus() {
-      ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
-      long[] deadlocks = threadBean.findDeadlockedThreads();
+      ThreadInfo[] deadlocks = deadlockedThreads.get();
       // a lock stall that its timeout did not release (bug #76967)
       String stall = stallReason.get();
 
       if(deadlocks != null && deadlocks.length > 0) {
-         return new DeadlockStatus(threadBean.getThreadInfo(deadlocks), stall);
+         // the watchdog reports this deadlock too, the threads already show it
+         return new DeadlockStatus(deadlocks, StallWatchdog.withoutJvmDeadlock(stall));
       }
 
       return stall != null ?
          new DeadlockStatus(0, new DeadlockedThread[0], stall) : new DeadlockStatus();
    }
 
+   private static ThreadInfo[] findDeadlockedThreads() {
+      ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+      long[] deadlocks = threadBean.findDeadlockedThreads();
+      return deadlocks == null || deadlocks.length == 0 ? null : threadBean.getThreadInfo(deadlocks);
+   }
+
    private final Supplier<String> stallReason;
+   private final Supplier<ThreadInfo[]> deadlockedThreads;
 }

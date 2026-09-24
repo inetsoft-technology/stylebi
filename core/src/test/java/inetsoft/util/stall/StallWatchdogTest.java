@@ -74,6 +74,13 @@ public class StallWatchdogTest {
       assertNotNull(watchdog.getUnreleasedStall());
       assertTrue(watchdog.getUnreleasedStall().contains("stuck.site"));
       assertEquals(1, dumper.getDumpCount());
+      // the reason is shown by the health check, which may be unauthenticated: the dump's
+      // file name only, never its absolute path (the log has that)
+      assertTrue(watchdog.getUnreleasedStall().contains(
+                    "thread dump: " + new File(record.getDumpPath()).getName()),
+                 watchdog.getUnreleasedStall());
+      assertFalse(watchdog.getUnreleasedStall().contains(dumpDir.getAbsolutePath()),
+                  watchdog.getUnreleasedStall());
 
       record.close();
       watchdog.scan();
@@ -545,6 +552,29 @@ public class StallWatchdogTest {
    }
 
    @Test
+   public void errorWhileDumpingDoesNotCutTheScanShort() {
+      // every attempt fails with an Error, such as an OutOfMemoryError from dumping the threads
+      dumper = new StallDumper(now::get, () -> {
+         throw new InternalError("simulated while dumping");
+      }, 0);
+      registry = new WaitRegistry(now::get, () -> policy, dumper);
+      watchdog = new StallWatchdog(registry, () -> deadlocked);
+      WaitRecord first = registry.open("first.site", () -> 0, NONE);
+      WaitRecord second = runOnOtherThread(() -> registry.open("second.site", () -> 0, NONE));
+      advance(1500);
+      assertDoesNotThrow(watchdog::scan);
+      advance(500);
+      assertDoesNotThrow(watchdog::scan);
+
+      String unreleased = watchdog.getUnreleasedStall();
+      assertNotNull(unreleased, "the error must not leave the flag of a partial scan");
+      assertTrue(unreleased.contains("first.site"), unreleased);
+      assertTrue(unreleased.contains("second.site"), unreleased);
+      first.close();
+      second.close();
+   }
+
+   @Test
    public void errorWhileDumpingStillFailsTheWaitWithAStallException() {
       dumper = new StallDumper(now::get, () -> {
          // an Error such as an OutOfMemoryError from Tool.dumpAllThreads (a real OOME would also
@@ -648,6 +678,23 @@ public class StallWatchdogTest {
       boolean running = Thread.getAllStackTraces().keySet().stream()
          .anyMatch(t -> "Lock-Stall-Watchdog".equals(t.getName()) && t.isDaemon());
       assertTrue(running);
+   }
+
+   /**
+    * Open a wait on another thread (the registry keeps one innermost wait per thread). Only
+    * the watchdog reads it, and closing it from here just removes it.
+    */
+   private static WaitRecord runOnOtherThread(Supplier<WaitRecord> open) {
+      try {
+         return CompletableFuture.supplyAsync(open, r -> {
+            Thread thread = new Thread(r);
+            thread.setDaemon(true);
+            thread.start();
+         }).get(5, TimeUnit.SECONDS);
+      }
+      catch(Exception ex) {
+         throw new AssertionError(ex);
+      }
    }
 
    private void advance(long millis) {
