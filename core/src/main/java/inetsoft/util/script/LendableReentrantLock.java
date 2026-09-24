@@ -17,6 +17,7 @@
  */
 package inetsoft.util.script;
 
+import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 
@@ -52,7 +53,9 @@ import java.util.concurrent.locks.Lock;
  * watchdog and waits in slices (bug #76967). If neither the lock (owner, loans) nor the
  * thread it waits for makes progress for {@code stall.watchdog.noProgressMillis}, it throws
  * a {@link inetsoft.util.stall.LockStallException} holding nothing of this lock. Who may
- * acquire is decided by the same check as before on every wake-up.
+ * acquire is decided by the same check as before on every wake-up. A lender closing its loan
+ * registers its wait for the borrower too, as progress only: it is reported while the borrower
+ * is stuck but never failed (see {@link #reclaim}).
  */
 public final class LendableReentrantLock implements Lock {
    @Override
@@ -336,6 +339,18 @@ public final class LendableReentrantLock implements Lock {
       generation++;
    }
 
+   /**
+    * Reclaim a loan: stop the borrower from re-acquiring, wait for it (and any nested loan it
+    * made) to let go, and restore the lender's holds.
+    *
+    * <p>The lender's wait is registered with the lock-stall watchdog and sliced (bug #76967):
+    * while the borrower legitimately works with the lent lock (e.g. a condition filter scanning
+    * a large base), the lender makes progress through it, so neither the lender's wait nor its
+    * outer lens wait is reported as a stall. The wait is never failed: a lender cannot abandon
+    * a loan mid-flight, the borrower still holds the lock and the lender's callers restore
+    * their monitors on the saved holds. A borrower that is truly stuck leaves this wait
+    * without progress, which the watchdog reports (dump, health DOWN) until it lets go.
+    */
    private void reclaim(LoanImpl loan) {
       boolean interrupted = false;
 
@@ -352,28 +367,96 @@ public final class LendableReentrantLock implements Lock {
          // made) to let go
          loan.revoked = true;
 
-         // not bounded by the lock-stall watchdog nor registered with it (bug #76967): only
-         // lock() is, bounding the lender's wait for its borrower is outside that scope
-         while(loans.peek() != loan || owner != null) {
-            try {
-               monitor.wait();
+         if(isReclaimable(loan)) {
+            closeLoan(loan);
+            return;
+         }
+      }
+
+      // the loan is still in use, register the wait (outside of the monitor) and check again
+      WaitRecord record = beginReclaim();
+
+      try {
+         while(true) {
+            synchronized(monitor) {
+               if(isReclaimable(loan)) {
+                  closeLoan(loan);
+                  return;
+               }
+
+               try {
+                  monitor.wait(record == null ? 10000 : record.waitMillis(10000));
+               }
+               catch(InterruptedException ex) {
+                  interrupted = true;
+               }
+
+               if(isReclaimable(loan)) {
+                  closeLoan(loan);
+                  return;
+               }
             }
-            catch(InterruptedException ex) {
-               interrupted = true;
-            }
+
+            sampleReclaim(record);
+         }
+      }
+      finally {
+         if(record != null) {
+            record.close();
          }
 
-         loans.pop();
-         loan.borrower.lentLocks.remove(this);
-         owner = loan.lender;
-         holds = loan.holds;
-         loan.closed = true;
-         generation++;
+         if(interrupted) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   /**
+    * Register a reclaim with the lock-stall watchdog. It never throws, the loan must still be
+    * reclaimed: if the wait cannot be registered, it is waited for unregistered as before.
+    */
+   private WaitRecord beginReclaim() {
+      try {
+         return WaitRegistry.begin("LendableReentrantLock.reclaim", this::getGeneration,
+                                   this::getBlockers);
+      }
+      catch(RuntimeException ex) {
+         return null;
+      }
+   }
+
+   /**
+    * Sample the progress of a reclaim, outside of the monitor. It never throws: in fail mode a
+    * stuck borrower fails the record (dumped and reported as unreleased by the watchdog), but
+    * the lender keeps waiting, since it cannot abandon the loan while the borrower holds it.
+    */
+   private static void sampleReclaim(WaitRecord record) {
+      if(record == null) {
+         return;
       }
 
-      if(interrupted) {
-         Thread.currentThread().interrupt();
+      try {
+         record.checkStall();
       }
+      catch(LockStallException ex) {
+         // keep waiting for the borrower, see reclaim()
+      }
+      catch(RuntimeException ex) {
+         // never fail the reclaim
+      }
+   }
+
+   private boolean isReclaimable(LoanImpl loan) {
+      return loans.peek() == loan && owner == null;
+   }
+
+   private void closeLoan(LoanImpl loan) {
+      loans.pop();
+      loan.borrower.lentLocks.remove(this);
+      owner = loan.lender;
+      holds = loan.holds;
+      loan.closed = true;
+      generation++;
    }
 
    /**
