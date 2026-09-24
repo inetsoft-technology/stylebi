@@ -19,6 +19,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.report.*;
 import inetsoft.report.internal.binding.TopNInfo;
+import inetsoft.report.lens.CalcTableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
@@ -47,13 +48,13 @@ import static org.mockito.Mockito.*;
  * start of the query back onto the live calc assembly when a property edit replaced the
  * assembly's layout while the query was running.
  *
- * <p>Property edits ({@code VSTableLayoutService} -> {@code VSAssemblyInfoHandler.apply()} ->
- * {@code setVSAssemblyInfo()}) copy the edited info into the live assembly in place and take no
- * lock that the query also holds, so such an edit can land between the query's
- * {@code cassembly.clone()} and its write-back. The query below is driven through the real
- * {@code getTableLens()}; only the base-table fetch is replaced, and that fetch applies the edit
- * the way {@code VSTableLayoutService.setCellBinding()} does. The outcome must not depend on
- * whether the query runs on a script thread.
+ * <p>Property edits either copy the edited info into the live assembly
+ * ({@code VSAssemblyInfoHandler.apply()} -> {@code setVSAssemblyInfo()}) or change the live
+ * layout in place (e.g. a column resize). Neither takes a lock that the query also holds, so
+ * such an edit can land between the query's {@code cassembly.clone()} and its write-back. The
+ * query below is driven through the real {@code getTableLens()}; only the base-table fetch is
+ * replaced, and that fetch applies the edit. The outcome must not depend on whether the query
+ * runs on a script thread.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -84,14 +85,33 @@ class CalcTableVSAQueryLayoutWriteBackTest {
                    "the query must not revert an edit applied while it was running");
    }
 
+   @ParameterizedTest(name = "scriptThread={0}")
+   @ValueSource(booleans = { false, true })
+   void inPlaceEditLandingDuringQueryIsNotReverted(boolean scriptThread) throws Exception {
+      Viewsheet vs = new Viewsheet();
+      CalcTableVSAssembly cassembly = new CalcTableVSAssembly(vs, "Calc1");
+      vs.addAssembly(cassembly);
+
+      // what the column resize in VSTableLayoutService does: change the live layout in place
+      CalcTableVSAQuery query =
+         createQuery(vs, () -> cassembly.getTableLayout().setColWidth(0, 123));
+
+      TableLens lens = runQuery(query, scriptThread);
+
+      assertNotNull(lens);
+      assertEquals(123, cassembly.getTableLayout().getColWidth(0),
+                   "the query must not revert an edit applied while it was running");
+   }
+
    /**
-    * Without a concurrent edit, the query keeps putting its snapshot back, so normalizations
-    * that building the calc lens applies to the live layout ({@code LayoutTool.syncCalcTopN})
-    * are not persisted on the assembly, the same as before #76987.
+    * Building the calc lens normalizes top-N/sort settings that refer to a missing summary cell
+    * ({@code LayoutTool.syncCalcTopN}). The lens must still be built from the normalized layout,
+    * but the assembly's own layout is left as it is, the same state the query left it in before
+    * #76987 (when it put its layout snapshot back).
     */
    @ParameterizedTest(name = "scriptThread={0}")
    @ValueSource(booleans = { false, true })
-   void queryWithoutEditDoesNotPersistLayoutNormalization(boolean scriptThread) throws Exception {
+   void queryDoesNotPersistLayoutNormalization(boolean scriptThread) throws Exception {
       Viewsheet vs = new Viewsheet();
       CalcTableVSAssembly cassembly = new CalcTableVSAssembly(vs, "Calc1");
       vs.addAssembly(cassembly);
@@ -107,8 +127,10 @@ class CalcTableVSAQueryLayoutWriteBackTest {
       TableLens lens = runQuery(createQuery(vs, () -> { }), scriptThread);
 
       assertNotNull(lens);
-      assertNotSame(before, cassembly.getTableLayout(),
-                    "without an edit the query puts its snapshot back onto the assembly");
+      assertEquals(0, ((CalcTableLens) cassembly.getBaseTable()).getTopN(0, 0).getTopN(),
+                   "the lens must be built from the normalized layout");
+      assertSame(before, cassembly.getTableLayout(),
+                 "the query must not replace the assembly's layout");
       TableCellBinding binding =
          (TableCellBinding) cassembly.getTableLayout().getCellBinding(0, 0);
       assertEquals(3, binding.getTopN(false).getTopN(),

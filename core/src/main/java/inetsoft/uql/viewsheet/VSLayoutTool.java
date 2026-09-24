@@ -55,7 +55,20 @@ public class VSLayoutTool extends LayoutTool {
                                      TableLens base, VariableTable vars,
                                      boolean crossTabSupported)
    {
-      createCalcLayout(assembly, base, vars, crossTabSupported);
+      createCalcLens(assembly, base, vars, crossTabSupported, true);
+   }
+
+   /**
+    * Create calc table lens.
+    * @param syncTableLayout <tt>false</tt> to leave the top-N/sort/named group settings of
+    *                        the assembly's layout as they are, and only normalize the copy the
+    *                        lens is built from.
+    */
+   public static void createCalcLens(CalcTableVSAssembly assembly,
+                                     TableLens base, VariableTable vars,
+                                     boolean crossTabSupported, boolean syncTableLayout)
+   {
+      createCalcLayout(assembly, base, vars, crossTabSupported, syncTableLayout);
       createDataPathMapping(assembly.getTableLayout(), assembly.getBaseTable());
    }
 
@@ -244,9 +257,9 @@ public class VSLayoutTool extends LayoutTool {
     */
    private static void createCalcLayout(CalcTableVSAssembly assembly, TableLens base,
                                         VariableTable vars,
-                                        boolean crossTabSupported)
+                                        boolean crossTabSupported, boolean syncTableLayout)
    {
-      fillCalcTableLens(assembly, base, vars, crossTabSupported);
+      fillCalcTableLens(assembly, base, vars, crossTabSupported, syncTableLayout);
    }
 
    /**

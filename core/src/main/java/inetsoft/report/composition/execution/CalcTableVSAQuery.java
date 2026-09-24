@@ -84,7 +84,8 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       // the write lock here ("if called from script, the locking should already be in place";
       // 52463), the same as ViewsheetSandbox.doExecuteData()/getData(). That is not true on
       // every path (element scripts run through executeView() hold no sandbox lock), but on a
-      // script thread the lock would only be tried anyway, so it gives no exclusion either.
+      // script thread the lock would only be tried, so it gives no exclusion against a writer
+      // already holding it (or against the unlocked setVSAssemblyInfo()) either.
       boolean inExec = JavaScriptEngine.isScriptThread();
 
       if(!inExec) {
@@ -94,10 +95,6 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       try {
          Viewsheet vs = getViewsheet();
          CalcTableVSAssembly cassembly = (CalcTableVSAssembly) getAssembly();
-         // the live layout the snapshot below is taken from. Read it before cloning: a
-         // property edit replaces the layout object (CalcTableVSAssemblyInfo.copyInfo()), so
-         // if the edit lands in between, the check at the write-back below sees the change.
-         TableLayout snapshotSource = cassembly.getTableLayout();
          //clone it, so we will not modify original assembly
          CalcTableVSAssembly cassemblyCopy = (CalcTableVSAssembly) cassembly.clone();
          CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) cassembly.getInfo();
@@ -303,25 +300,21 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                }
 
                // @by ChrisSpagnoli feature1414607346853 2014-10-27
-               // Combine the fully processed crosstab data back together. May put the
-               // snapshot layout back on the shared cassembly (via getElement(), only if no
-               // edit replaced its layout meanwhile, see below) or read its layout
-               // (mergeCrosstabs -> mergeCalcAttrs), so keep this under the same monitor as
-               // the other cassembly touches above. No GraalJS call happens in either branch.
+               // Combine the fully processed crosstab data back together. May read the
+               // shared cassembly's layout (mergeCrosstabs -> mergeCalcAttrs), so keep this
+               // under the same monitor as the other cassembly touches above. No GraalJS call
+               // happens in either branch.
                synchronized(cassembly) {
                   if(rlensJoined == null) {
                      rlensJoined = rlens;
 
-                     // On the crosstab path the element is this invocation's temp assembly:
-                     // put the original layout into rlensJoined, replacing the layout
-                     // fragment. On the no-crosstab path the element is the shared cassembly,
-                     // whose layout the snapshot was taken from; putting the snapshot back
-                     // there only drops the normalizations createCalcLens() applied to the
-                     // live layout (syncCalcTopN), and must not happen if a property edit
-                     // replaced the layout meanwhile, or the edit would be reverted (#76987).
-                     if(datas.size() > 0 && (cassemblyChild != cassembly ||
-                        cassembly.getTableLayout() == snapshotSource))
-                     {
+                     // If there will be multiple crosstabs combined, put original
+                     // layout into rlensJoined, replacing the layout fragment. On the
+                     // no-crosstab path the element is the shared cassembly, whose layout is
+                     // already the full layout the lens was built from; writing the snapshot
+                     // taken at the start of this query back there would revert any edit
+                     // made to the assembly's layout meanwhile (#76987).
+                     if(datas.size() > 0 && cassemblyChild != cassembly) {
                         rlensJoined.getCalcTableLens().getElement().setTableLayout(layout);
                      }
                   }
@@ -523,7 +516,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
     * (see the note on the main processing loop in {@link #getTableLens()} for why other blocks
     * keep the monitor narrower).
     *
-    * @param monitor the monitor guarding the shared calc assembly.
+    * @param monitor the shared (original) calc assembly, which is also the monitor guarding it.
     */
    static List<TableLens> createCalcLenses(Object monitor, List<CalcTableVSAssembly> cassemblys,
                                            List<TableLens> datas, VariableTable vars,
@@ -534,7 +527,11 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       synchronized(monitor) {
          for(int i = 0; i < datas.size(); i++) {
             CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-            VSLayoutTool.createCalcLens(cassemblyChild, datas.get(i), vars, crossTabSupported);
+            // the shared calc assembly (no-crosstab path) keeps its layout as the user left it:
+            // only the copy the lens is built from gets the top-N/named group normalization,
+            // the same as when getTableLens() put its layout snapshot back afterwards (#76987)
+            VSLayoutTool.createCalcLens(cassemblyChild, datas.get(i), vars, crossTabSupported,
+                                        cassemblyChild != monitor);
             // copy back
             cassemblyChild.setTable(cassemblyChild.getBaseTable());
             clenses.add(cassemblyChild.getBaseTable());
