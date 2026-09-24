@@ -457,7 +457,8 @@ public final class StallWatchdog {
       }
 
       if(!Arrays.equals(ids, dumpedDeadlock)) {
-         String path = dumpForScan("JVM deadlock of threads " + Arrays.toString(ids));
+         String path = dumpForScan(StallDumper.Kind.DEADLOCK,
+                                   "JVM deadlock of threads " + Arrays.toString(ids));
 
          if(path != null) {
             dumpedDeadlock = ids;
@@ -475,6 +476,14 @@ public final class StallWatchdog {
     *         window is unrelated and is never returned.
     */
    private String dumpForScan(String reason) {
+      return dumpForScan(StallDumper.Kind.WAIT, reason);
+   }
+
+   /**
+    * Same as {@link #dumpForScan(String)}, rate-limited in the dumper's window of
+    * {@code kind}. A dump already written in this scan, of any kind, is reused.
+    */
+   private String dumpForScan(StallDumper.Kind kind, String reason) {
       if(scanDumpPath != null) {
          return scanDumpPath;
       }
@@ -482,12 +491,12 @@ public final class StallWatchdog {
       StallDumper dumper = registry.getDumper();
 
       try {
-         int before = dumper.getDumpCount();
-         dumper.dump(reason);
+         int before = dumper.getDumpCount(kind);
+         dumper.dump(kind, reason);
          // the dump and its start time, read together
-         StallDumper.LastDump last = dumper.getLastDump();
+         StallDumper.LastDump last = dumper.getLastDump(kind);
 
-         if(dumper.getDumpCount() > before && last != null) {
+         if(dumper.getDumpCount(kind) > before && last != null) {
             scanDumpPath = last.path();
             scanDumpStartNanos = last.startNanos();
             return scanDumpPath;

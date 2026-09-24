@@ -26,14 +26,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
  * Writes the thread dumps of the lock-stall watchdog (bug #76967), at most one per
- * {@code minIntervalMillis}: a lock cycle usually trips several waiters at once, and they all
- * get the path of the same dump.
+ * {@code minIntervalMillis} and {@link Kind}: a lock cycle usually trips several waiters at
+ * once, and they all get the path of the same dump. JVM deadlocks and stalled waits are
+ * rate-limited separately, so a deadlock that stays around (it never resolves) does not keep
+ * a concurrent stall from getting its own dump.
  */
 public final class StallDumper {
    /**
@@ -59,23 +63,36 @@ public final class StallDumper {
    }
 
    /**
-    * Write a dump of all threads headed by {@code reason}, unless one was attempted less than
-    * the minimum interval ago. A failed attempt (e.g. an unwritable dump directory) also starts
-    * the back-off window and is not retried until the window elapses, so a stall that keeps
-    * tripping waiters does not turn into a stream of failing dump attempts and error logs.
-    *
-    * @return the path of the new or of the most recently written dump, or {@code null} if none
-    *         has been written yet (either because the last attempt failed, or none was made).
+    * Same as {@link #dump(Kind, String)} for a stalled wait ({@link Kind#WAIT}).
     */
-   public synchronized String dump(String reason) {
+   public String dump(String reason) {
+      return dump(Kind.WAIT, reason);
+   }
+
+   /**
+    * Write a dump of all threads headed by {@code reason}, unless one of the same kind was
+    * attempted less than the minimum interval ago. A failed attempt (e.g. an unwritable dump
+    * directory) also starts the back-off window of its kind and is not retried until the
+    * window elapses, so a stall that keeps tripping waiters does not turn into a stream of
+    * failing dump attempts and error logs.
+    *
+    * @param kind   what the dump is for, each kind has its own window and last dump.
+    * @param reason the head of the dump.
+    *
+    * @return the path of the new or of the most recently written dump of the kind, or
+    *         {@code null} if none has been written yet (either because the last attempt
+    *         failed, or none was made).
+    */
+   public synchronized String dump(Kind kind, String reason) {
+      Window window = windows.get(kind);
       long now = nanoClock.getAsLong();
 
-      if(attempted && now - lastAttemptNanos < minIntervalNanos) {
-         return lastPath;
+      if(window.attempted && now - window.lastAttemptNanos < minIntervalNanos) {
+         return window.lastPath;
       }
 
-      attempted = true;
-      lastAttemptNanos = now;
+      window.attempted = true;
+      window.lastAttemptNanos = now;
       File file = null;
 
       // everything that can fail is guarded, the dump directory lookup included: the dumper
@@ -95,43 +112,87 @@ public final class StallDumper {
          }
 
          count++;
-         lastPath = file.getAbsolutePath();
-         lastDumpStartNanos = now;
-         LOG.warn("Lock stall thread dump written to {}: {}", lastPath, reason);
-         return lastPath;
+         window.count++;
+         window.lastPath = file.getAbsolutePath();
+         window.lastDumpStartNanos = now;
+         LOG.warn("Lock stall thread dump written to {}: {}", window.lastPath, reason);
+         return window.lastPath;
       }
       catch(IOException | RuntimeException ex) {
          LOG.error("Failed to write the lock stall thread dump " +
                       (file == null ? "(no dump directory)" : file), ex);
-         return lastPath;
+         return window.lastPath;
       }
    }
 
    /**
-    * Forget the last dump and the back-off window, so a test does not see the dump of an
-    * earlier test. The dump count is kept.
+    * Forget the last dumps and the back-off windows of all kinds, so a test does not see the
+    * dump of an earlier test. The dump counts are kept.
     */
    synchronized void resetForTest() {
-      attempted = false;
-      lastAttemptNanos = 0;
-      lastPath = null;
-      lastDumpStartNanos = 0;
+      for(Window window : windows.values()) {
+         window.attempted = false;
+         window.lastAttemptNanos = 0;
+         window.lastPath = null;
+         window.lastDumpStartNanos = 0;
+      }
    }
 
    /**
-    * Get the number of dumps written.
+    * Get the number of dumps written, of all kinds.
     */
    public synchronized int getDumpCount() {
       return count;
    }
 
    /**
-    * Get the most recently written dump and when it was started, read together.
-    *
-    * @return the dump, or {@code null} if none has been written.
+    * Get the number of dumps of one kind written.
     */
-   public synchronized LastDump getLastDump() {
-      return lastPath == null ? null : new LastDump(lastPath, lastDumpStartNanos);
+   public synchronized int getDumpCount(Kind kind) {
+      return windows.get(kind).count;
+   }
+
+   /**
+    * Same as {@link #getLastDump(Kind)} for a stalled wait ({@link Kind#WAIT}).
+    */
+   public LastDump getLastDump() {
+      return getLastDump(Kind.WAIT);
+   }
+
+   /**
+    * Get the most recently written dump of a kind and when it was started, read together.
+    *
+    * @return the dump, or {@code null} if none of the kind has been written.
+    */
+   public synchronized LastDump getLastDump(Kind kind) {
+      Window window = windows.get(kind);
+      return window.lastPath == null ? null :
+         new LastDump(window.lastPath, window.lastDumpStartNanos);
+   }
+
+   /**
+    * What a dump is for. Each kind has its own rate-limit window and last dump.
+    */
+   public enum Kind {
+      /**
+       * A JVM-level deadlock found by the watchdog.
+       */
+      DEADLOCK,
+      /**
+       * A stalled registered wait (waiter or watchdog), or a probe finding.
+       */
+      WAIT
+   }
+
+   /**
+    * The rate-limit window and the last dump of one kind, guarded by the dumper's monitor.
+    */
+   private static final class Window {
+      private boolean attempted;
+      private long lastAttemptNanos;
+      private String lastPath;
+      private long lastDumpStartNanos;
+      private int count;
    }
 
    /**
@@ -153,9 +214,12 @@ public final class StallDumper {
    private final LongSupplier nanoClock;
    private final Supplier<File> dir;
    private final long minIntervalNanos;
-   private boolean attempted;
-   private long lastAttemptNanos;
-   private String lastPath;
-   private long lastDumpStartNanos;
+   private final Map<Kind, Window> windows = new EnumMap<>(Kind.class);
    private int count;
+
+   {
+      for(Kind kind : Kind.values()) {
+         windows.put(kind, new Window());
+      }
+   }
 }

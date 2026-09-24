@@ -75,12 +75,7 @@ public class LensStallTest {
    @EnumSource(Kind.class)
    public void stalledWorkerFailsTheReader(Kind kind) throws Exception {
       gated = new GatedTable(30);
-      // an empty right table, so the cross join's progress is fixed from the start of the
-      // wait: a dump of an unrelated stall (e.g. a JVM deadlock an earlier test left behind)
-      // taken before the right worker counts its rows would not be attached to this stall
-      Future<List<List<Object>>> reader = pool.submit(() -> drain(
-         kind == Kind.CROSS_JOIN ? new CrossJoinTableLens(gated, new DefaultTableLens(data(0)))
-            : build(kind, gated)));
+      Future<List<List<Object>>> reader = pool.submit(() -> drain(build(kind, gated)));
 
       LockStallException stall = stallIn(failureOf(reader, 15));
       assertEquals(kind.site, stall.getSite());
@@ -149,29 +144,38 @@ public class LensStallTest {
          LockStallException stall = assertThrows(LockStallException.class, () -> drain(lens));
          assertSame(original, stallIn(stall.getCause()),
                     "the lock holder rethrows the wrapped stall");
-
-         // the rows so far are never a complete count: the set lens failed before its merge
-         // (MergedTable.addTable), so it is still incomplete; the others rethrow the stall
-         try {
-            assertTrue(lens.getRowCount() < 0, "an incomplete count, not the whole table");
-         }
-         catch(LockStallException ex) {
-            assertSame(original, stallIn(ex.getCause()));
-         }
+         assertSame(original, stallIn(assertThrows(LockStallException.class, lens::getRowCount)
+                                         .getCause()), "getRowCount() rethrows the stall");
       }
       finally {
          JavaScriptEngine.popHeldScriptLock();
          lock.unlock();
       }
+
+      // another reader fails at once rather than wait for a stall of its own (the set lens
+      // failed in its synchronous MergedTable.addTable, before any data row)
+      int row = kind == Kind.SET ? 1 : 1000;
+      long start = System.nanoTime();
+      Future<Boolean> other = pool.submit(() -> lens.moreRows(row));
+      assertSame(original, stallIn(failureOf(other, 15)).getCause());
+      assertTrue(System.nanoTime() - start < TimeUnit.MILLISECONDS.toNanos(500),
+                 "rethrown at once, not after a stall of the second reader");
    }
 
    @Test
    public void crossJoinWorkerStallFailsTheReader() throws Exception {
       LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
       TableLens base = new FailingTable(30, 1, original);
-      Future<List<List<Object>>> reader = pool.submit(() -> drain(build(Kind.CROSS_JOIN, base)));
+      TableLens lens = pool.submit(() -> build(Kind.CROSS_JOIN, base)).get(15, TimeUnit.SECONDS);
+      long start = System.nanoTime();
+      Future<List<List<Object>>> reader = pool.submit(() -> drain(lens));
 
-      assertEquals("CrossJoinTableLens.moreRows", stallIn(failureOf(reader, 15)).getSite());
+      // the worker's stall is rethrown at once, not after a stall of the reader
+      assertSame(original, stallIn(failureOf(reader, 15)).getCause());
+      assertTrue(System.nanoTime() - start < TimeUnit.MILLISECONDS.toNanos(900),
+                 "rethrown before the reader's own stall limit");
+      assertSame(original, stallIn(failureOf(pool.submit(lens::getRowCount), 15)).getCause(),
+                 "getRowCount() rethrows the worker's stall");
    }
 
    @ParameterizedTest

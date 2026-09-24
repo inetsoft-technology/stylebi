@@ -24,6 +24,7 @@ import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import org.apache.commons.lang3.StringUtils;
@@ -187,6 +188,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
       lcompleted = false;
       rcompleted = false;
+      stallFailure = null;
 
       lrows = 0;
       rrows = 0;
@@ -355,7 +357,9 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
       WaitRecord record = null;
 
       try {
-         while(row >= getRowCount0() && !isCompleted() && !disposed && !cancelled) {
+         while(row >= getRowCount0() && !isCompleted() && !disposed && !cancelled &&
+               stallFailure == null)
+         {
             // this lens lends nothing, and holds its own monitor for the whole method anyway;
             // a stall of the workers fails the reader (bug #76967)
             if(record == null) {
@@ -381,7 +385,23 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          }
       }
 
+      if(row >= getRowCount0()) {
+         throwStallFailure();
+      }
+
       return row < getRowCount0();
+   }
+
+   /**
+    * Rethrow the stall a worker failed with. A stall must never look like the end of the
+    * table (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(failure != null) {
+         throw new LockStallException(failure);
+      }
    }
 
    /**
@@ -400,6 +420,8 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    @Override
    public synchronized int getRowCount() {
       validate();
+      // the rows so far of a stalled worker are not the whole table (bug #76967)
+      throwStallFailure();
 
       int count = getRowCount0();
 
@@ -962,7 +984,25 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
       @Override
       protected void doRun() {
-         loadTable(left, this);
+         try {
+            loadTable(left, this);
+         }
+         catch(RuntimeException ex) {
+            // the readers rethrow it at once rather than wait for a stall of their own
+            // (bug #76967)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall != null) {
+               synchronized(CrossJoinTableLens.this) {
+                  if(!this.disposed) {
+                     stallFailure = stall;
+                     CrossJoinTableLens.this.notifyAll();
+                  }
+               }
+            }
+
+            throw ex;
+         }
       }
 
       private boolean left;
@@ -988,6 +1028,8 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    private boolean disposed;       // disposed flag
    private int maxRows = Integer.MAX_VALUE;
    private transient boolean maxAlerted = false;
+   // the stall a worker failed with (bug #76967)
+   private transient volatile LockStallException stallFailure;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(CrossJoinTableLens.class);

@@ -48,6 +48,29 @@ public class StallDumperTest {
    }
 
    @Test
+   public void kindsAreRateLimitedSeparately() {
+      StallDumper dumper = new StallDumper(now::get, () -> dumpDir, 60000);
+      String deadlock = dumper.dump(StallDumper.Kind.DEADLOCK, "deadlock");
+      advance(1000);
+      String wait = dumper.dump("wait");
+      advance(1000);
+
+      assertNotNull(deadlock);
+      assertNotNull(wait);
+      assertNotEquals(deadlock, wait, "a deadlock dump does not use up the window of waits");
+      assertEquals(deadlock, dumper.dump(StallDumper.Kind.DEADLOCK, "deadlock again"));
+      assertEquals(wait, dumper.dump(StallDumper.Kind.WAIT, "wait again"));
+      assertEquals(deadlock, dumper.getLastDump(StallDumper.Kind.DEADLOCK).path());
+      assertEquals(wait, dumper.getLastDump().path(), "the old accessor is the wait kind");
+      assertEquals(2, dumper.getDumpCount());
+      assertEquals(1, dumper.getDumpCount(StallDumper.Kind.WAIT));
+
+      dumper.resetForTest();
+      assertNull(dumper.getLastDump(StallDumper.Kind.DEADLOCK));
+      assertNull(dumper.getLastDump(StallDumper.Kind.WAIT));
+   }
+
+   @Test
    public void rateLimitedToOnePerInterval() {
       StallDumper dumper = new StallDumper(now::get, () -> dumpDir, 60000);
       String first = dumper.dump("first");

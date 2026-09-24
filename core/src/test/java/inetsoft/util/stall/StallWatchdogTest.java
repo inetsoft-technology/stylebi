@@ -381,7 +381,7 @@ public class StallWatchdogTest {
 
    @Test
    public void deadlockSeenInsideTheDumpWindowIsDumpedLater() {
-      dumper.dump("an earlier stall");
+      dumper.dump(StallDumper.Kind.DEADLOCK, "an earlier deadlock");
       deadlocked = new long[] { 3, 4 };
       watchdog.scan();
       assertEquals(1, dumper.getDumpCount());
@@ -393,6 +393,44 @@ public class StallWatchdogTest {
       advance(61000);
       watchdog.scan();
       assertEquals(2, dumper.getDumpCount());
+   }
+
+   /**
+    * A JVM deadlock never resolves, so its dump must not use up the window of the stalled
+    * waits: a stall that trips inside it still gets its own dump, from the watchdog and from
+    * the waiter.
+    */
+   @Test
+   public void stallAfterADeadlockDumpGetsItsOwnDump() {
+      deadlocked = new long[] { 3, 4 };
+      watchdog.scan();
+      assertEquals(1, dumper.getDumpCount(StallDumper.Kind.DEADLOCK));
+      String deadlockDump = dumper.getLastDump(StallDumper.Kind.DEADLOCK).path();
+
+      WaitRecord record = runOnOtherThread(() -> registry.open("scanned", () -> 0, NONE));
+      advance(1500);
+      watchdog.scan();
+      assertNotNull(record.getDumpPath(), "the watchdog dumps the stall");
+      assertNotEquals(deadlockDump, record.getDumpPath());
+      assertEquals(1, dumper.getDumpCount(StallDumper.Kind.DEADLOCK),
+                   "the deadlock is dumped once");
+      record.close();
+   }
+
+   @Test
+   public void waiterAfterADeadlockDumpGetsItsOwnDump() {
+      deadlocked = new long[] { 3, 4 };
+      watchdog.scan();
+      String deadlockDump = dumper.getLastDump(StallDumper.Kind.DEADLOCK).path();
+
+      WaitRecord waiter = registry.open("waiter", () -> 0, NONE);
+      advance(1500);
+
+      LockStallException stall = assertThrows(LockStallException.class, waiter::checkStall);
+      assertNotNull(stall.getDumpPath(), "the waiter gets a dump of its stall");
+      assertNotEquals(deadlockDump, stall.getDumpPath());
+      assertEquals(1, dumper.getDumpCount(StallDumper.Kind.WAIT));
+      waiter.close();
    }
 
    @Test

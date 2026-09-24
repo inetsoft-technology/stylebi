@@ -528,8 +528,36 @@ public abstract class SetTableLens
       }
 
       // blocked process
-      for(int i = 0; i < tables.size(); i++) {
-         merged.addTable(tables.get(i), i, cols);
+      try {
+         for(int i = 0; i < tables.size(); i++) {
+            merged.addTable(tables.get(i), i, cols);
+         }
+      }
+      catch(Exception ex) {
+         // a stall while reading the bases on this thread fails this lens for every reader,
+         // the rows so far are never the whole table (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            synchronized(this) {
+               stallFailure = stall;
+
+               if(rows != null) {
+                  rows.complete();
+               }
+
+               if(merged != null && !merged.isDisposed()) {
+                  merged.dispose();
+                  merged = null;
+               }
+
+               completed = true;
+               // notify waiting consumers
+               notifyAll();
+            }
+         }
+
+         throw ex;
       }
 
       final MergedTable merged2 = merged;
@@ -716,10 +744,12 @@ public abstract class SetTableLens
    }
 
    /**
-    * Progress of the worker for the lock-stall watchdog: rows added plus rows visited.
+    * Progress of the worker for the lock-stall watchdog: rows added plus rows visited. Read
+    * without this lens's monitor, so a stall check never blocks on it.
     */
-   private synchronized long getWorkerProgress() {
-      return (rows == null ? 0 : rows.size()) + (long) scannedRows;
+   private long getWorkerProgress() {
+      XSwappableObjectList<Row> list = rows;
+      return (list == null ? 0 : list.size()) + (long) scannedRows;
    }
 
    /**
