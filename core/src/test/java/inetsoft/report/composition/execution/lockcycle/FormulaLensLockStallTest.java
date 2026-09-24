@@ -31,11 +31,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -66,11 +68,12 @@ public class FormulaLensLockStallTest {
    }
 
    /**
-    * FTL_R2 without the engine lock: T1 holds the formula lens lock and is BLOCKED on a
-    * monitor that T2 holds while T2 waits for the lens lock.
+    * FTL_R2 without the engine lock, which no longer forms since #5576 (bug #76935): the owner
+    * loads its base rows before it takes any lock, so it blocks on the monitor T2 holds while
+    * holding nothing, and T2 takes the locks and completes. Neither thread stalls.
     */
    @Test
-   public void lensLockWaiterFailsWhenTheOwnerIsBlockedOnItsMonitor() throws Exception {
+   public void monitorHolderAndLensOwnerBothComplete() throws Exception {
       Sandbox s = harness.control();
       List<List<Object>> expected = harness.await(
          harness.submit(() -> drain(s.formula(new DefaultTableLens(rows(40))))),
@@ -99,16 +102,70 @@ public class FormulaLensLockStallTest {
       assertTrue(waiterHasMonitor.await(10, TimeUnit.SECONDS));
       Future<List<List<Object>>> owner = harness.submit(() -> drain(lens));
 
-      Object outcome = harness.await(waiter, ACTIVE_CAP, "lens lock waiter");
-      assertTrue(outcome instanceof LockStallException, "the waiter must fail, got " + outcome);
-      assertEquals("FormulaTableLens.moreRows", ((LockStallException) outcome).getSite());
-      assertEquals(expected, harness.await(owner, ACTIVE_CAP, "lens lock owner"),
-                   "the owner completes with every row once the waiter lets go");
+      assertEquals("completed", harness.await(waiter, ACTIVE_CAP, "monitor holder"));
+      assertEquals(expected, harness.await(owner, ACTIVE_CAP, "lens owner"),
+                   "the owner completes with every row once the monitor holder lets go");
       // only this test's waiter: hung threads of earlier cycle tests may still be registered
       StallTestSupport.awaitTrue(
          () -> WaitRegistry.global().getActive().stream()
             .noneMatch(r -> r.getThread() == waiterThread.get()), 15,
-         "a wait is still registered after the stall");
+         "a wait is still registered after the reads");
+   }
+
+   /**
+    * The lens-lock wait itself is bounded: with the lens lock held by a parked thread, a reader
+    * that took the engine lock first (#5576's order) fails with a stall at the lens lock and
+    * does not leave the engine locked, which would hang every later script of the sandbox.
+    */
+   @Test
+   public void lensLockStallReleasesTheEngineLock() throws Exception {
+      Sandbox s = harness.sandbox();
+      FormulaTableLens lens = harness.track(s.formula(new DefaultTableLens(rows(40))));
+      ReentrantLock lensLock = lensLock(lens);
+      CountDownLatch held = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      Future<Object> owner = harness.submit(() -> {
+         lensLock.lock();
+
+         try {
+            held.countDown();
+            release.await();
+         }
+         finally {
+            lensLock.unlock();
+         }
+
+         return null;
+      });
+      assertTrue(held.await(10, TimeUnit.SECONDS), "the owner never took the lens lock");
+
+      try {
+         Object outcome = harness.await(harness.submit(() -> {
+            try {
+               lens.moreRows(30);
+               return "completed";
+            }
+            catch(LockStallException ex) {
+               return ex;
+            }
+         }), ACTIVE_CAP, "reader");
+
+         assertTrue(outcome instanceof LockStallException, "the reader must fail, got " + outcome);
+         assertEquals("FormulaTableLens.moreRows", ((LockStallException) outcome).getSite());
+         assertFalse(s.lock.isLocked(), "the stalled reader left the engine locked");
+      }
+      finally {
+         release.countDown();
+      }
+
+      harness.await(owner, ACTIVE_CAP, "lens lock owner");
+      assertTrue(lens.moreRows(30), "the lens works again once the lock is free");
+   }
+
+   private static ReentrantLock lensLock(FormulaTableLens lens) throws Exception {
+      Field field = FormulaTableLens.class.getDeclaredField("lock");
+      field.setAccessible(true);
+      return (ReentrantLock) field.get(lens);
    }
 
    /**

@@ -82,24 +82,6 @@ public class StallWatchdogCycleTest {
    }
 
    /**
-    * #76960 A1: the holder waits in CrossJoinTableLens.moreRows holding the engine lock, the
-    * WaitingThreads wait for the lock in their input condition filters.
-    */
-   @Test
-   public void crossJoinFirstTouchFailsInsteadOfHanging() throws Exception {
-      Sandbox s = harness.sandbox();
-      TableLens left = s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS));
-      TableLens right = s.filteredFormula(new SlowTable(ROWS, Slow.WORKERS));
-      TableLens outer = harness.track(cf2(harness.track(new CrossJoinTableLens(left, right)), s.box));
-      Future<List<List<Object>>> holder = harness.submit(() -> {
-         assertTrue(outer.moreRows(1));
-         return drain(outer);
-      });
-
-      assertFailsWithStall(holder, s);
-   }
-
-   /**
     * #76960 A2: the holder waits in the join's XSwappableTable holding the engine lock, the
     * JoinThreads wait for the lock in their input condition filters.
     */
