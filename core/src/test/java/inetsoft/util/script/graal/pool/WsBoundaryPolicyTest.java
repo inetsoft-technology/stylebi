@@ -46,7 +46,14 @@ class WsBoundaryPolicyTest {
                                         "viewsheet object", "Map, Set, RegExp, Promise",
                                         "Object[]", "map copy", "parameter.",
                                         "variable table", "lock", ".maxBatchRows (8192)",
-                                        "double", ".batchRows (256)" })
+                                        "double", ".batchRows (256)",
+                                        // final review I2
+                                        "past the one requested", "script.max.errors",
+                                        "per worksheet script environment", "prototype",
+                                        "crosstab aggregation", "AssetEventUtil",
+                                        "-Dscript.ws.contextpool=true", "lowercase",
+                                        "insertion order", "IndexOutOfBoundsException",
+                                        "3 s longer", "logged at INFO" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }
@@ -57,7 +64,7 @@ class WsBoundaryPolicyTest {
       assertEquals("Worksheet script context pool (script.ws.contextPool, default false " +
                       "in this release)", WsBoundaryPolicy.RELEASE_NOTE.get(0));
       assertTrue(WsBoundaryPolicy.RELEASE_NOTE.get(WsBoundaryPolicy.RELEASE_NOTE.size() - 1)
-                    .endsWith("apply with the pool on or off."));
+                    .endsWith("its interrupt never reaches a later script."));
 
       for(String line : WsBoundaryPolicy.RELEASE_NOTE) {
          assertTrue(line.length() <= 88, "line too long: " + line);
