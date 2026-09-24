@@ -1676,6 +1676,11 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       }
    }
 
+   @Override
+   protected Insets defaultPadding(VizContext ctx) {
+      return VSDensityDefaults.tablePadding(ctx);
+   }
+
    /**
     * Get column count.
     */
