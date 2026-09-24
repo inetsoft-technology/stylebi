@@ -464,11 +464,57 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
    }
 
    /**
-    * Set the data type.
+    * Set the data type. Marks the type as explicitly requested by the caller -- see
+    * {@link #getDataTypeProvenance()}. Use {@link #setInferredDataType(String)} instead
+    * when the type comes from an automatic inference heuristic rather than a caller's
+    * own explicit request.
+    *
     * @param type the specified data type defined in XSchema.
     */
    public void setDataType(String type) {
       this.dtype = XSchema.isPrimitiveType(type) ? type : XSchema.STRING;
+      this.dtypeInferred = Boolean.FALSE;
+   }
+
+   /**
+    * Like {@link #setDataType(String)}, but marks the type as the result of an
+    * automatic type-inference heuristic rather than an explicit caller request. A caller
+    * that re-evaluates its own inference on a later edit (e.g.
+    * {@code WorksheetMutationSupport.editExpression}) can use
+    * {@link #getDataTypeProvenance()} to tell such a type apart from one a user
+    * explicitly chose, and safely overwrite (or {@link #clearInferredDataType() clear})
+    * it without clobbering a deliberate choice.
+    *
+    * @param type the specified data type defined in XSchema.
+    */
+   public void setInferredDataType(String type) {
+      setDataType(type);
+      this.dtypeInferred = Boolean.TRUE;
+   }
+
+   /**
+    * Clears a data type previously set by {@link #setInferredDataType(String)}, e.g.
+    * because the expression it was inferred from no longer looks numeric -- reverting
+    * to the untyped {@link #getDataType()} fallback rather than leaving a stale value in
+    * place. Safe to call even when the current type was never set at all (a no-op).
+    */
+   public void clearInferredDataType() {
+      this.dtype = null;
+      this.dtypeInferred = null;
+   }
+
+   /**
+    * @return {@code Boolean.TRUE} if the current data type was set by an automatic
+    *         inference heuristic ({@link #setInferredDataType(String)}),
+    *         {@code Boolean.FALSE} if it was explicitly requested by a caller
+    *         ({@link #setDataType(String)}), or {@code null} if the provenance is
+    *         unknown -- either the type was never set, or it was persisted by a
+    *         version of the product before this distinction existed (a worksheet saved
+    *         before this field existed simply has no recorded provenance for whatever
+    *         {@code dtype} it already held).
+    */
+   public Boolean getDataTypeProvenance() {
+      return dtypeInferred;
    }
 
    /**
@@ -580,6 +626,12 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
          writer.print("\"");
       }
 
+      if(dtypeInferred != null) {
+         writer.print(" dataTypeInferred=\"");
+         writer.print(dtypeInferred);
+         writer.print("\"");
+      }
+
       writer.print(" sqlType=\"");
       writer.print(sqlType);
       writer.print("\"");
@@ -659,6 +711,16 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
 
       if(val != null) {
          dtype = val;
+      }
+
+      // Absent (e.g. a worksheet persisted by a version of the product before this
+      // attribute existed) intentionally leaves dtypeInferred at its unknown/null
+      // default rather than assuming either "explicit" or "inferred" -- see
+      // getDataTypeProvenance()'s doc comment.
+      val = Tool.getAttribute(tag, "dataTypeInferred");
+
+      if(val != null) {
+         dtypeInferred = Boolean.valueOf(val);
       }
 
       val = Tool.getAttribute(tag, "sqlType");
@@ -867,6 +929,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
       this.valid = from.valid;
       this.sql = from.sql;
       this.dtype = from.dtype;
+      this.dtypeInferred = from.dtypeInferred;
       this.sqlType = from.sqlType;
       this.processed = from.processed;
    }
@@ -962,6 +1025,10 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
    private boolean valid = true;
    private boolean sql = true;
    private String dtype = null;
+   // null = provenance unknown (never set, or persisted before this field existed);
+   // TRUE = set via setInferredDataType(); FALSE = set via setDataType(). See
+   // getDataTypeProvenance().
+   private Boolean dtypeInferred = null;
    private int sqlType = -1;
    private String desc = null;
    private String oldName = null;

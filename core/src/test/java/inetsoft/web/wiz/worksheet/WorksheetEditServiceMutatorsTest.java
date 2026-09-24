@@ -2894,6 +2894,226 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void addExpressionColumnInfersNumericTypeForTernaryWithNonNumericFieldInCondition() throws Exception {
+      // Bug 76901 (layer1-remaining): a ternary whose CONDITION references a
+      // non-numeric field (STATE) -- the condition's own field type is irrelevant, only
+      // the branches (both plain numeric literals here) determine the result type. Must
+      // infer numeric instead of the flat field-numeric gate rejecting the whole
+      // expression the instant it sees STATE.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "STATE");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("STATE")).setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "IS_NY", "field['STATE'] == 'NY' ? 1 : 0", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("IS_NY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForTernaryEmbeddedInArithmetic() throws Exception {
+      // Bug 76901 (layer1-remaining): a ternary embedded as a parenthesized operand of
+      // an outer arithmetic expression (not occupying the whole fragment) must still be
+      // recognized -- not just a ternary that is the entire expression.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "DISCOUNTED_QTY",
+         "field['QUANTITY'] * (field['QUANTITY'] > 5 ? 1 : 0)", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("DISCOUNTED_QTY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForComposedTernaryConditionAndEmbeddedShapes() throws Exception {
+      // Composition of both layer1-remaining shapes in one expression -- a ternary
+      // embedded as an arithmetic operand, whose own condition references a non-numeric
+      // field. Confirms the two fixes work together rather than each only handling its
+      // own isolated repro shape.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY", "STATE");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("STATE")).setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "NY_QTY",
+         "field['QUANTITY'] * (field['STATE'] == 'NY' ? 1 : 0)", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("NY_QTY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForNonNumericFieldInTernaryBranch() throws Exception {
+      // Guard against over-widening: a non-numeric FIELD referenced in a ternary BRANCH
+      // (not just a string literal branch, and not just the condition) must still keep
+      // the expression at the untyped "string" default.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY", "STATE");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("STATE")).setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_OR_STATE",
+         "field['QUANTITY'] > 5 ? field['STATE'] : '0'", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_OR_STATE");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForNonNumericExpressionEmbeddedInArithmetic() throws Exception {
+      // Guard against over-widening: a genuinely non-numeric embedded-in-parens
+      // sub-expression (string concatenation, not a ternary at all) used as an operand
+      // of outer arithmetic must still keep the expression at the "string" default.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY", "NAME");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("NAME")).setDataType(XSchema.STRING);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "BAD", "field['QUANTITY'] * (field['NAME'] + 'x')", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("BAD");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForMathRoundExpression() throws Exception {
+      // Bug #77000/WBS-083, shape 1 (JS mode): a known numeric-returning function-call
+      // wrapper (Math.round) around an otherwise-numeric argument must infer numeric,
+      // not fall through to "string" just because letters/call-parens aren't part of
+      // the plain arithmetic character class.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "HALF_QTY", "Math.round(field['QUANTITY'] / 2)", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("HALF_QTY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForUnrecognizedFunctionCall() throws Exception {
+      // Guard against over-widening: an arbitrary function call NOT on the small,
+      // explicit numeric-function allowlist (Math.round/floor/ceil/abs) must not be
+      // guessed as numeric.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "PARSED", "parseInt(field['QUANTITY'])", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("PARSED");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForSqlCaseWhenExpression() throws Exception {
+      // Bug #77000/WBS-083, shape 2 (SQL mode): a sql:true CASE WHEN expression over a
+      // numeric column, with plain numeric-literal THEN/ELSE branches, must infer
+      // numeric. FIELD_REF_PATTERN (the field['x'] convention) never matches SQL-mode
+      // syntax, so this exercises the separate SQL-mode column-reference detector.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER", "CASE WHEN QUANTITY >= 5 THEN 3 ELSE 1 END", null, true));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForSqlArithmeticOverColumnReference() throws Exception {
+      // Bug #77000/WBS-083, shape 2's own "simple arithmetic over recognized SQL
+      // column references" case -- not just CASE WHEN.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "DOUBLED_QTY", "QUANTITY * 2", null, true));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("DOUBLED_QTY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForSqlCaseWhenWithNonNumericBranch() throws Exception {
+      // Guard against over-widening: a sql:true CASE WHEN with string-literal
+      // THEN/ELSE branches must not be guessed as numeric, mirroring the JS-mode
+      // ternary guard above.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_LABEL", "CASE WHEN QUANTITY >= 5 THEN 'big' ELSE 'small' END", null, true));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_LABEL");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
    void addExpressionColumnHonorsExplicitTypeOverInference() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
@@ -3570,6 +3790,214 @@ class WorksheetEditServiceMutatorsTest {
       RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
       assertNotNull(joined, "a type-compatible join must still succeed");
       assertNotNull(joined.getOperator("L", "R"));
+   }
+
+   // =========================================================================
+   // Bug 76901 (layer 2, round 2): three more join-key-creation paths -- addJoin's N-ary
+   // joinPaths form, addJoin's extend-in-place sub-case, and addTableToJoin -- must each
+   // validate join-key type compatibility per new edge, the same as the brand-new-join
+   // sub-case and editJoin already do. Unlike those two, an operator set built by these three
+   // paths can span more than one table pair (joinPaths' own edges, or the join's own
+   // pre-existing operators seeded ahead of the new one), so each new edge must be checked
+   // against its OWN resolved left/right pair, never the whole operator set against one fixed
+   // pair.
+   // =========================================================================
+
+   @Test
+   void addJoinMultiTableRefusesTypeIncompatibleKeysOnAnEdge() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "B", col("id", XSchema.STRING)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+      List<WorksheetMutationSupport.JoinPathSpec> paths =
+         List.of(new WorksheetMutationSupport.JoinPathSpec("A", "id", "B", "id", "INNER"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addJoin("J", paths)));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      assertNull(ws.getAssembly("J"), "the type-incompatible multi-table join must not have been created");
+   }
+
+   /** Positive control: an all-compatible multi-edge joinPaths call must still succeed. */
+   @Test
+   void addJoinMultiTableAllowsTypeCompatibleKeysOnAllEdges() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "B", col("id", XSchema.INTEGER), col("code", XSchema.STRING)));
+      ws.addAssembly(table(ws, "C", col("code", XSchema.STRING)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+      List<WorksheetMutationSupport.JoinPathSpec> paths = List.of(
+         new WorksheetMutationSupport.JoinPathSpec("A", "id", "B", "id", "INNER"),
+         new WorksheetMutationSupport.JoinPathSpec("B", "code", "C", "code", "INNER"));
+
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", paths));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "an all-compatible multi-edge join must still succeed");
+      assertEquals(3, joined.getTableAssemblies().length);
+   }
+
+   /**
+    * Proves the per-edge scoping directly: the first edge's own validity must not mask a
+    * mismatch on the second edge (a single whole-operator-set check with one fixed table pair
+    * could not even see edge 2's real tables at all).
+    */
+   @Test
+   void addJoinMultiTableRefusesWhenOnlyTheSecondEdgeIsTypeIncompatible() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "B", col("id", XSchema.INTEGER), col("code", XSchema.STRING)));
+      ws.addAssembly(table(ws, "C", col("code", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+      // Edge 1 (A.id/B.id, both integer) is valid; edge 2 (B.code string / C.code integer) is not.
+      List<WorksheetMutationSupport.JoinPathSpec> paths = List.of(
+         new WorksheetMutationSupport.JoinPathSpec("A", "id", "B", "id", "INNER"),
+         new WorksheetMutationSupport.JoinPathSpec("B", "code", "C", "code", "INNER"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addJoin("J", paths)));
+
+      assertTrue(ex.getMessage().contains("code"), ex.getMessage());
+      assertNull(ws.getAssembly("J"),
+         "edge 1's own validity must not mask edge 2's type mismatch");
+   }
+
+   /** Reproduces the refuter's own live-demonstrated scenario for the extend-in-place sub-case. */
+   @Test
+   void addJoinExtendingInPlaceRefusesTypeIncompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      // m_id left untyped -> default "string"; n_key explicitly "integer".
+      ws.addAssembly(table(ws, "N", col("n_key", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin("J", "J", "m_id", "N", "n_key", "INNER", null, null)));
+
+      assertTrue(ex.getMessage().contains("m_id"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("n_key"), ex.getMessage());
+      RelationalJoinTableAssembly unchanged = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertSame(original, unchanged);
+      assertEquals(2, unchanged.getTableAssemblies().length, "no mutation on the refused extend");
+   }
+
+   /** Positive control: a type-compatible extend-in-place must still succeed. */
+   @Test
+   void addJoinExtendingInPlaceAllowsTypeCompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "L", col("l_id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "M", col("m_id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "N", col("n_key", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "J", "m_id", "N", "n_key", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "a type-compatible extend must still succeed");
+      assertEquals(3, joined.getTableAssemblies().length);
+   }
+
+   /**
+    * Regression guard against the naive-but-wrong alternative fix the diagnosis/refutation
+    * warned against: checking the WHOLE seeded operator set against the new edge's anchor
+    * pair, instead of only the new edge's own operator. L/M's pre-existing operator keys on
+    * "shared" would collide, by NAME ONLY, with M's/N's own "shared" columns (mismatched
+    * types) if such a whole-set check were run against the new edge's anchor pair (M, N) --
+    * but the new edge here doesn't use "shared" as its own key at all, so a correct,
+    * per-edge-only check must never even look at it, and the extend must succeed.
+    */
+   @Test
+   void addJoinExtendingInPlaceDoesNotRevalidatePreExistingOperatorsAgainstTheNewEdgesAnchorTables()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "L", col("shared", XSchema.STRING)));
+      ws.addAssembly(table(ws, "M", col("shared", XSchema.STRING), col("new_key", XSchema.STRING)));
+      ws.addAssembly(table(ws, "N", col("new_key", XSchema.STRING), col("shared", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // L-M join key is "shared" (string/string) -- compatible, seeded into noperator on extend.
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "shared", "M", "shared", "INNER", null, null));
+
+      // The NEW edge's own key is "new_key" (string on both M and N) -- unrelated to "shared".
+      // A naive whole-set check against (M, N) would wrongly re-resolve the pre-existing L-M
+      // operator's "shared" attribute against M (string) and N (integer) and throw; the
+      // correct per-edge-only check never touches it.
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "J", "new_key", "N", "new_key", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "the unrelated pre-existing operator must not be re-validated");
+      assertEquals(3, joined.getTableAssemblies().length);
+      assertNotNull(joined.getOperator("L", "M"), "the original L/M operator must survive unchanged");
+      assertNotNull(joined.getOperator("M", "N"), "the new M/N operator must have been added");
+   }
+
+   @Test
+   void addTableToJoinRefusesTypeIncompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      // m_id left untyped -> default "string"; n_key explicitly "integer".
+      ws.addAssembly(table(ws, "N", col("n_key", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+            ed -> ed.addTableToJoin("J", "M", "m_id", "N", "n_key", "INNER", null, null)));
+
+      assertTrue(ex.getMessage().contains("m_id"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("n_key"), ex.getMessage());
+      RelationalJoinTableAssembly unchanged = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertSame(original, unchanged);
+      assertEquals(2, unchanged.getTableAssemblies().length, "no mutation on the refused call");
+   }
+
+   /** Positive control: a type-compatible add_table_to_join must still succeed. */
+   @Test
+   void addTableToJoinAllowsTypeCompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "L", col("l_id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "M", col("m_id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "N", col("n_key", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      svc.apply("TOK", agent,
+         ed -> ed.addTableToJoin("J", "M", "m_id", "N", "n_key", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "a type-compatible add_table_to_join must still succeed");
+      assertEquals(3, joined.getTableAssemblies().length);
+      assertNotNull(joined.getOperator("M", "N"));
    }
 
    // =========================================================================
@@ -4330,6 +4758,162 @@ class WorksheetEditServiceMutatorsTest {
       ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
       assertNotNull(col);
       assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void editExpressionReinfersAfterPriorAutoInferWhenExpressionShapeChanges() throws Exception {
+      // Bug #77000/WBS-082 repro: add_expression_column auto-infers DOUBLE for a
+      // numeric ternary (no explicit type), then a later edit_expression -- also
+      // omitting type -- rewrites the expression to an unambiguously string-producing
+      // shape. The stale isDataTypeSet()-only guard used to stick at the stale DOUBLE
+      // forever; the type must now re-evaluate to STRING.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 3 : 1", null, false));
+
+      ColumnRef afterAdd = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertEquals(XSchema.DOUBLE, afterAdd.getDataType(), "sanity check: auto-infer on add");
+      assertEquals(Boolean.TRUE, afterAdd.getDataTypeProvenance(),
+                   "sanity check: the auto-inferred type is tracked as inferred, not explicit");
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 'High' : 'Low'", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType(),
+                   "the stale DOUBLE from the prior auto-infer must not stick after the " +
+                   "expression shape changes to something non-numeric");
+   }
+
+   @Test
+   void editExpressionReinfersRepeatedlyAcrossMultipleAutoInferredEdits() throws Exception {
+      // A column can flip back and forth between numeric and non-numeric shapes across
+      // several edits, all omitting type -- each one must be re-evaluated on its own,
+      // not just the first transition after the initial add.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER", "field['QUANTITY'] * 2", null, false));
+      assertEquals(XSchema.DOUBLE,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER")).getDataType());
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 'High' : 'Low'", null, false));
+      assertEquals(XSchema.STRING,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER")).getDataType());
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "QTY_TIER", "field['QUANTITY'] + 1", null, false));
+      assertEquals(XSchema.DOUBLE,
+         ((ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER")).getDataType(),
+         "flipping back to a numeric shape on a THIRD edit must also re-infer, not just the first transition");
+   }
+
+   @Test
+   void editExpressionReinfersWhenLegacyProvenanceUnknownAndConsistentWithInference() throws Exception {
+      // Bug #77000/WBS-082 persistence-migration coverage: simulates a worksheet
+      // persisted by a version of the product before ColumnRef#getDataTypeProvenance()
+      // existed -- the column's dtype is DOUBLE (as it would be after an auto-infer),
+      // but its provenance is unknown (null), matching what parsing legacy XML lacking
+      // the new "dataTypeInferred" attribute produces (see
+      // ColumnRefTest#legacyXmlWithoutProvenanceAttributeParsesAsUnknownProvenance).
+      // Since re-running inference against the PRIOR expression still produces the
+      // same DOUBLE the column already holds, the heuristic fallback must treat it as
+      // eligible and re-infer against the new, non-numeric expression.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 3 : 1", null, false));
+
+      ColumnRef afterAdd = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      forgetDataTypeProvenance(afterAdd);
+      assertNull(afterAdd.getDataTypeProvenance(), "sanity check: provenance forgotten");
+
+      svc.apply("TOK", agent, ed -> ed.editExpression(
+         "T", "QTY_TIER", "field['QUANTITY'] >= 5 ? 'High' : 'Low'", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertEquals(XSchema.STRING, col.getDataType(),
+                   "a legacy column whose stored type still matches what re-running " +
+                   "inference on its PRIOR expression would produce must be treated as " +
+                   "plausibly inferred and re-evaluated");
+   }
+
+   @Test
+   void editExpressionPreservesLegacyExplicitTypeWhenProvenanceUnknownAndInconsistentWithInference()
+      throws Exception
+   {
+      // The other half of the persistence-migration heuristic: a legacy column whose
+      // provenance is unknown, but whose stored type does NOT match what re-running
+      // inference on its prior expression would currently produce -- e.g. an explicit
+      // "integer" on a "field['a'] * 1" expression that inference would itself guess as
+      // DOUBLE -- is a strong signal the type was genuinely caller-explicit, and must
+      // stay untouched. This exercises the SAME logical branch as
+      // editExpressionPreservesExplicitPriorTypeWhenTypeOmitted, but via the legacy
+      // heuristic fallback (provenance forgotten) rather than the live provenance flag.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("a")).setDataType(XSchema.INTEGER);
+      ((ColumnRef) cs.getAttribute("b")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.addExpressionColumn("T", "calc", "field['a'] * 1", "integer", false));
+
+      ColumnRef afterAdd = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      forgetDataTypeProvenance(afterAdd);
+      assertNull(afterAdd.getDataTypeProvenance(), "sanity check: provenance forgotten");
+
+      svc.apply("TOK", agent, ed ->
+         ed.editExpression("T", "calc", "field['a'] * field['b']", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("calc");
+      assertNotNull(col);
+      assertEquals(XSchema.INTEGER, col.getDataType(),
+                   "a legacy explicit type that inference would NOT have produced from " +
+                   "the prior expression must stay untouched, even with provenance " +
+                   "forgotten");
+   }
+
+   /**
+    * Simulates a {@link ColumnRef} loaded from a worksheet persisted by a version of
+    * the product before {@link ColumnRef#getDataTypeProvenance()} existed -- its
+    * {@code dtype} is already set, but nothing recorded whether that came from an
+    * explicit caller request or our own inference heuristic. There is no public API to
+    * reach this state directly (every live code path that sets a type also records its
+    * provenance), so this reflects into the private field the same way
+    * {@code ColumnRef#parseAttributes} leaves it when the persisted XML lacks the
+    * {@code dataTypeInferred} attribute -- see
+    * {@code ColumnRefTest#legacyXmlWithoutProvenanceAttributeParsesAsUnknownProvenance}
+    * for the equivalent coverage via a real XML round-trip.
+    */
+   private static void forgetDataTypeProvenance(ColumnRef cr) throws Exception {
+      java.lang.reflect.Field f = ColumnRef.class.getDeclaredField("dtypeInferred");
+      f.setAccessible(true);
+      f.set(cr, null);
    }
 
    @Test
