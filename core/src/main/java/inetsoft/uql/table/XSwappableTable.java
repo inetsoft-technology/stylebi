@@ -1294,7 +1294,9 @@ public class XSwappableTable implements XTable, Externalizable {
    private boolean disposed = false; // table disposed
    private String[] paths;
    private XIdentifierContainer identifiers = null; // identifier container
-   protected int count; // table count
+   // table count. Written only by the producer thread (addRow, outside rlock); volatile so the
+   // lock-stall watchdog's progress read, which holds no lock of this table, sees it (bug #76967)
+   protected volatile int count;
    private int lastRow = -1;
    private boolean exceedLimit = false;
    private boolean textExceedLimit = false;

@@ -30,6 +30,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * TableLens that receives the joined rows from the scanner threads.
@@ -191,14 +193,40 @@ abstract class JoinTable extends PagedTableLens {
     */
    @Override
    public boolean moreRows(int row) {
-      if(delegate.moreRows(row, "JoinTable.moreRows", () -> addedRows + scannedRows,
-                           this::getWorkerThreads))
-      {
+      if(delegate.moreRows(row, "JoinTable.moreRows", getStallProgress(), getStallBlockers())) {
          return true;
       }
 
       throwStallFailure();
       return false;
+   }
+
+   /**
+    * The join's progress for the lock-stall watchdog (bug #76967). Created once, not on each
+    * row read; a race creates an equivalent supplier.
+    */
+   private LongSupplier getStallProgress() {
+      LongSupplier progress = stallProgress;
+
+      if(progress == null) {
+         stallProgress = progress = () -> addedRows + scannedRows;
+      }
+
+      return progress;
+   }
+
+   /**
+    * The join's workers, the blockers of a reader for the lock-stall watchdog (bug #76967).
+    * Created once, not on each row read.
+    */
+   private Supplier<Thread[]> getStallBlockers() {
+      Supplier<Thread[]> blockers = stallBlockers;
+
+      if(blockers == null) {
+         stallBlockers = blockers = this::getWorkerThreads;
+      }
+
+      return blockers;
    }
 
    /**
@@ -600,6 +628,9 @@ abstract class JoinTable extends PagedTableLens {
    // base rows read by the workers, joined or not (bug #76967)
    private transient volatile long scannedRows;
    private transient volatile LockStallException stallFailure;
+   // the watchdog suppliers of moreRows, see getStallProgress()
+   private transient LongSupplier stallProgress;
+   private transient Supplier<Thread[]> stallBlockers;
    private transient Integer joinColCnt;
    private static final Logger LOG = LoggerFactory.getLogger(JoinTable.class);
 }
