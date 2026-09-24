@@ -417,8 +417,10 @@ public final class LendableReentrantLock implements Lock {
     */
    private WaitRecord beginReclaim() {
       try {
-         return WaitRegistry.begin("LendableReentrantLock.reclaim", this::getGeneration,
-                                   this::getBlockers);
+         WaitRecord record = WaitRegistry.begin("LendableReentrantLock.reclaim",
+                                                this::getGeneration, this::getBlockers);
+         record.setReportOnly("Loan reclaim waiting on a stuck borrower");
+         return record;
       }
       catch(RuntimeException ex) {
          return null;

@@ -17,8 +17,13 @@
  */
 package inetsoft.util.stall;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -67,6 +72,37 @@ public class WaitRegistryTest {
       assertTrue(record.isFailed());
       record.close();
       assertTrue(registry.getActive().isEmpty());
+   }
+
+   /**
+    * A report-only wait (the loan reclaim) that stalls is logged as a warning with its own
+    * label, never as a failed query, since the waiter keeps waiting.
+    */
+   @Test
+   public void reportOnlyStallIsAWarningNotAFailedQuery() {
+      Logger logger = (Logger) LoggerFactory.getLogger(WaitRecord.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      try {
+         WaitRecord record = registry.open("LendableReentrantLock.reclaim", () -> 7, NONE);
+         record.setReportOnly("Loan reclaim waiting on a stuck borrower");
+         advance(1001);
+         assertThrows(LockStallException.class, record::checkStall);
+         record.close();
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+
+      assertTrue(appender.list.stream().noneMatch(e -> e.getLevel() == Level.ERROR),
+                 "a report-only stall is not an error: " + appender.list);
+      assertTrue(appender.list.stream().anyMatch(
+         e -> e.getLevel() == Level.WARN &&
+            e.getFormattedMessage().startsWith("Loan reclaim waiting on a stuck borrower: ") &&
+            e.getFormattedMessage().contains("LendableReentrantLock.reclaim")),
+                 "the stall is reported as a warning: " + appender.list);
    }
 
    @Test

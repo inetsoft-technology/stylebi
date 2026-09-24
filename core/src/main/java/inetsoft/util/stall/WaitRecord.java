@@ -180,7 +180,16 @@ public final class WaitRecord implements AutoCloseable {
       }
 
       if(failure != null) {
-         LOG.error(failure.getMessage());
+         String label = reportOnly;
+
+         if(label != null) {
+            // the waiter catches the stall and keeps waiting, nothing fails
+            LOG.warn("{}: {}, thread dump: {}", label, reason, path);
+         }
+         else {
+            LOG.error(failure.getMessage());
+         }
+
          throw failure;
       }
 
@@ -279,6 +288,17 @@ public final class WaitRecord implements AutoCloseable {
    }
 
    /**
+    * Mark a wait whose stall is reported but never fails the waiter, which catches the
+    * exception and keeps waiting (such as a loan reclaim): a stall is logged as a warning
+    * starting with {@code label} instead of as a failed query.
+    */
+   public void setReportOnly(String label) {
+      if(this != NOOP) {
+         reportOnly = label;
+      }
+   }
+
+   /**
     * Get how long one slice of the wait may be, i.e. how late the waiting thread may notice
     * its own stall.
     */
@@ -368,6 +388,7 @@ public final class WaitRecord implements AutoCloseable {
    private final boolean creditOnly;
    private long lastValue;
    private volatile boolean closed;
+   private volatile String reportOnly;
    private volatile LockStallException failure;
    private volatile long progressNanos;
    private volatile boolean tripped;
