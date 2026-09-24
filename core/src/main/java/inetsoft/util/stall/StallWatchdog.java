@@ -359,7 +359,9 @@ public final class StallWatchdog {
          if(record.getDumpPath() == null) {
             String path = dumpForScan(reason);
 
-            if(path != null) {
+            // the rule of the waiter: only a dump started strictly after the stall's last
+            // progress shows the stall, so waiter and watchdog attach the same dumps
+            if(path != null && scanDumpStartNanos - record.getProgressNanos() > 0) {
                record.setDumpPath(path);
             }
          }
@@ -449,11 +451,14 @@ public final class StallWatchdog {
 
       try {
          int before = dumper.getDumpCount();
-         String path = dumper.dump(reason);
+         dumper.dump(reason);
+         // the dump and its start time, read together
+         StallDumper.LastDump last = dumper.getLastDump();
 
-         if(dumper.getDumpCount() > before) {
-            scanDumpPath = path;
-            return path;
+         if(dumper.getDumpCount() > before && last != null) {
+            scanDumpPath = last.path();
+            scanDumpStartNanos = last.startNanos();
+            return scanDumpPath;
          }
       }
       catch(RuntimeException ex) {
@@ -545,6 +550,8 @@ public final class StallWatchdog {
    // guarded by this
    private long scans;
    private String scanDumpPath;
+   // when the dump of this scan was started, on the registry's clock
+   private long scanDumpStartNanos;
    private String deadlockReason;
    private long[] seenDeadlock;
    private long[] dumpedDeadlock;

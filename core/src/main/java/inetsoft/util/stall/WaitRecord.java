@@ -102,6 +102,7 @@ public final class WaitRecord implements AutoCloseable {
 
       String reason;
       String path;
+      Throwable dumpError = null;
 
       // the episode fields are checked and set under this record's monitor, as the watchdog
       // does. The waiter may hold engine locks here (CrossJoinTableLens even its own monitor),
@@ -122,14 +123,22 @@ public final class WaitRecord implements AutoCloseable {
          if(path == null) {
             // a dump started during this stall (such as another cycle member's, inside the
             // dumper's window) shows it, so it is this stall's dump too. One started before the
-            // stall's last progress is unrelated and is never attached: the path stays null.
-            StallDumper dumper = registry.getDumper();
-            dumper.dump(reason);
-            StallDumper.LastDump last = dumper.getLastDump();
+            // stall's last progress, or at the same instant, is unrelated and is never
+            // attached: the path stays null. The dump is guarded against errors too (such as
+            // an OutOfMemoryError while dumping the threads): the episode is already tripped,
+            // so an escaping error would leave a failed wait that later checks let through.
+            try {
+               StallDumper dumper = registry.getDumper();
+               dumper.dump(reason);
+               StallDumper.LastDump last = dumper.getLastDump();
 
-            if(last != null && last.startNanos() - progressNanos >= 0) {
-               path = last.path();
-               dumpPath = path;
+               if(last != null && last.startNanos() - progressNanos > 0) {
+                  path = last.path();
+                  dumpPath = path;
+               }
+            }
+            catch(Throwable ex) {
+               dumpError = ex;
             }
          }
 
@@ -137,6 +146,15 @@ public final class WaitRecord implements AutoCloseable {
             failed = true;
             failure = new LockStallException(what, thread.getName(), stalledMillis, path);
             this.failure = failure;
+         }
+      }
+
+      if(dumpError != null) {
+         try {
+            LOG.error("Failed to write the lock stall thread dump", dumpError);
+         }
+         catch(Throwable ignore) {
+            // the wait still fails (or alerts) below
          }
       }
 

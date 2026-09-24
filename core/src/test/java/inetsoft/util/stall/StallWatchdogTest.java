@@ -256,7 +256,6 @@ public class StallWatchdogTest {
    @Test
    public void waiterTrippingInsideTheDumpWindowGetsNoStaleDumpPath() {
       String earlier = dumper.dump("an earlier stall");
-      advance(1);
       WaitRecord record = registry.open("site", () -> 0, NONE);
       advance(1100);
       LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
@@ -522,6 +521,45 @@ public class StallWatchdogTest {
 
       LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
       assertNull(ex.getDumpPath());
+      record.close();
+   }
+
+   @Test
+   public void onlyADumpStartedStrictlyAfterTheLastProgressIsAttached() {
+      // started at the instant of the last progress: not this stall's dump
+      assertNotNull(dumper.dump("same instant"));
+      WaitRecord same = registry.open("same", () -> 0, NONE);
+      advance(1100);
+      assertNull(assertThrows(LockStallException.class, same::checkStall).getDumpPath());
+      same.close();
+
+      // started one nanosecond after the last progress: this stall's dump
+      advance(60000);
+      WaitRecord after = registry.open("after", () -> 0, NONE);
+      now.incrementAndGet();
+      String dump = dumper.dump("one nanosecond later");
+      assertNotNull(dump);
+      advance(1100);
+      assertEquals(dump, assertThrows(LockStallException.class, after::checkStall).getDumpPath());
+      after.close();
+   }
+
+   @Test
+   public void errorWhileDumpingStillFailsTheWaitWithAStallException() {
+      dumper = new StallDumper(now::get, () -> {
+         // an Error such as an OutOfMemoryError from Tool.dumpAllThreads (a real OOME would also
+         // end the test JVM when it escapes, as JUnit rethrows it)
+         throw new InternalError("simulated while dumping");
+      }, 60000);
+      registry = new WaitRegistry(now::get, () -> policy, dumper);
+      WaitRecord record = registry.open("site", () -> 0, NONE);
+      advance(1100);
+
+      LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
+      assertNull(ex.getDumpPath());
+      assertTrue(record.isFailed());
+      assertSame(ex, assertThrows(LockStallException.class, record::checkStall),
+                 "a later check rethrows the same failure instead of returning");
       record.close();
    }
 

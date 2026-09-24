@@ -36,6 +36,15 @@ import java.util.function.Supplier;
  * get the path of the same dump.
  */
 public final class StallDumper {
+   /**
+    * @param nanoClock         the clock of the dump start times, which must be the nano clock
+    *                          of the {@link WaitRegistry} that uses this dumper: a waiter (and
+    *                          the watchdog) compares the start of the last dump with the
+    *                          stall's progress time to tell whether that dump shows the stall.
+    *                          In production both are {@code System::nanoTime}.
+    * @param dir               the directory to write the dumps to.
+    * @param minIntervalMillis the minimum time between two dump attempts.
+    */
    public StallDumper(LongSupplier nanoClock, Supplier<File> dir, long minIntervalMillis) {
       this.nanoClock = nanoClock;
       this.dir = dir;
