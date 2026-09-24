@@ -202,6 +202,26 @@ class GraalJavaScriptEngineGlobalsTest {
       assertEquals(6.0, eval("SUM([1,2,3])"));
    }
 
+   // Companion edge case for #77008: a global that shadows a CALC builtin but is
+   // removed *without ever being read first* (no unqualified reference in any
+   // script observes it, so isGlobalBinding("AVERAGE") never runs and
+   // globalBindingCache never gains an entry for it). forgetGlobal("AVERAGE") is
+   // therefore called on a name that was never cached -- a HashSet#remove miss,
+   // which must be a harmless no-op -- and the fallback to CALC.average must
+   // still work correctly, exactly as if the global had never existed. This
+   // guards against a narrower fix that assumes an entry is always present (e.g.
+   // one that indexes/asserts on the cache instead of doing a plain remove).
+   @Test
+   void globalNeverReadBeforeRemoveStillFallsThroughToCalc() throws Exception {
+      engine.put("AVERAGE", "blocker");
+
+      // no read here -- unlike the test above, isGlobalBinding("AVERAGE") is
+      // never probed before removal, so it was never cached in the first place
+      engine.remove("AVERAGE");
+
+      assertEquals(2.0, eval("AVERAGE([1,2,3])"));
+   }
+
    // The case-insensitive last-resort must not shadow JS builtins: Calc has a
    // 'date' function, but the global Date constructor is an own property of the
    // global object, so it must still win over the (prototype) Calc.date.
