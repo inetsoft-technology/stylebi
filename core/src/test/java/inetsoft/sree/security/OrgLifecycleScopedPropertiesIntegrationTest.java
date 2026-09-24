@@ -92,6 +92,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.HashSet;
@@ -349,40 +350,19 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
       builder = SecurityTestDataBuilder.create()
          .addOrg(editedOrgName, editedOrgId)
          .addOrg("UserTreeActingOrg", actingOrgId)
+         .addUser("siteadmin", actingOrgId, "password")
+         .addSysAdminRole("SiteAdminRole", actingOrgId)
+         .addUserToRole("siteadmin", "SiteAdminRole", actingOrgId)
          .setup();
 
-      AuthenticationProvider authc = SecurityEngine.getSecurity().getSecurityProvider()
-         .getAuthenticationProvider();
-      FileAuthenticationProvider fileProvider =
-         (FileAuthenticationProvider) ((AuthenticationChain) authc).getProviders().get(0);
-      FSOrganization editedOrg = (FSOrganization) fileProvider.getOrganization(editedOrgId);
-
-      AuthenticationProviderService authenticationProviderService =
-         mock(AuthenticationProviderService.class);
-      when(authenticationProviderService.getProviderByName(anyString())).thenReturn(fileProvider);
-
-      SystemAdminService systemAdminService = mock(SystemAdminService.class);
-      when(systemAdminService.hasSysAdmin(any())).thenReturn(true);
-      when(systemAdminService.hasOrgAdmin(any())).thenReturn(true);
-
-      UserTreeService userTreeService = new UserTreeService(
-         authenticationProviderService, systemAdminService, mock(IdentityService.class),
-         mock(LocalizationSettingsService.class), SecurityEngine.getSecurity(),
-         mock(IdentityThemeService.class), mock(SimpMessagingTemplate.class),
-         favoritesService, mock(DataCycleManager.class), mock(LicenseManager.class),
-         mock(MVManager.class), mock(IndexedStorage.class), mock(CustomThemesManager.class),
-         mock(DashboardRegistryManager.class), mock(XRepository.class),
-         mock(DependencyStorageService.class), mock(RecycleBin.class));
+      UserTreeService userTreeService = createUserTreeService();
 
       // The acting principal's own ambient "current org" is actingOrgId, deliberately different
-      // from the org being edited -- this is the exact divergence the bug depended on. The
-      // principal itself is an unregistered throwaway identity (same shape as actAs()'s helper
-      // principal) so isSiteAdmin()/checkOrgEditedHasSysAdmin() no-op cleanly without needing a
-      // real admin role set up; editedOrg has zero members/groups so the sys-admin-removal check
-      // has nothing to iterate either way.
+      // from the org being edited -- this is the exact divergence the bug depended on. Only a
+      // site admin may edit an org other than their current one (Bug #77049), so the actor is a
+      // site admin; that also skips checkOrgEditedHasSysAdmin().
       actAs(actingOrgId);
-      Principal principal = new SRPrincipal(new IdentityID("tester", actingOrgId),
-         new IdentityID[0], new String[0], actingOrgId, 1L);
+      Principal principal = builder.principalOf("siteadmin", actingOrgId);
 
       EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
          .id(editedOrgId)
@@ -392,13 +372,7 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
          .status(true)
          .build();
 
-      // editOrganization() is package-private on UserTreeService (inetsoft.web.admin.security.user),
-      // not this test's own package -- reflection needed, same rationale as setOrganizationInfo()
-      // above.
-      Method editOrganization = UserTreeService.class.getDeclaredMethod(
-         "editOrganization", EditOrganizationPaneModel.class, String.class, Principal.class);
-      editOrganization.setAccessible(true);
-      editOrganization.invoke(userTreeService, model, "", principal);
+      invokeEditOrganization(userTreeService, model, principal);
 
       assertEquals("MM/dd/yyyy",
                   SreeEnv.getProperty("inetsoft.org." + editedOrgId + ".format.date"),
@@ -407,5 +381,111 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
       assertNull(SreeEnv.getProperty("inetsoft.org." + actingOrgId + ".format.date"),
                 "must NOT leak into the acting principal's own current org -- this was Issue "
                 + "#75769's actual failure mode");
+   }
+
+   // -- Bug #77049: edit-organization's @PermissionPath is the bare org name, which resolves
+   //    against the caller's own org and so passes for ANY org name. editOrganization() must
+   //    confine a non-site admin to their own current org, and restrict the org-scoped
+   //    properties they may write to the ones exposed in the EM UI. --
+
+   @Test
+   void editOrganization_nonSiteAdminEditingAnotherOrg_isRejected() throws Exception {
+      String targetOrgId = "usertree_target_org";
+      String targetOrgName = "UserTreeTargetOrg";
+      String callerOrgId = "usertree_caller_org";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(targetOrgName, targetOrgId)
+         .addOrg("UserTreeCallerOrg", callerOrgId)
+         .setup();
+
+      UserTreeService userTreeService = createUserTreeService();
+      actAs(callerOrgId);
+      Principal principal = new SRPrincipal(new IdentityID("tester", callerOrgId),
+         new IdentityID[0], new String[0], callerOrgId, 1L);
+
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .id(targetOrgId)
+         .name(targetOrgName)
+         .oldName(targetOrgName)
+         .properties(List.of(PropertyModel.builder().name("max.user.count").value("999").build()))
+         .status(false)
+         .build();
+
+      InvocationTargetException thrown = assertThrows(InvocationTargetException.class,
+         () -> invokeEditOrganization(userTreeService, model, principal));
+      assertInstanceOf(java.lang.SecurityException.class, thrown.getCause());
+      assertNull(SreeEnv.getProperty("inetsoft.org." + targetOrgId + ".max.user.count"),
+                 "a rejected cross-org edit must not write the target org's properties");
+   }
+
+   @Test
+   void editOrganization_nonSiteAdminOwnOrg_onlyUiPropertiesAreWritten() throws Exception {
+      String orgId = "usertree_own_org";
+      String orgName = "UserTreeOwnOrg";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(orgName, orgId)
+         .setup();
+
+      UserTreeService userTreeService = createUserTreeService();
+      actAs(orgId);
+      Principal principal = new SRPrincipal(new IdentityID("tester", orgId),
+         new IdentityID[0], new String[0], orgId, 1L);
+
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .id(orgId)
+         .name(orgName)
+         .oldName(orgName)
+         .properties(List.of(
+            PropertyModel.builder().name("max.row.count").value("100").build(),
+            PropertyModel.builder().name("format.date").value("MM/dd/yyyy").build()))
+         .status(true)
+         .build();
+
+      invokeEditOrganization(userTreeService, model, principal);
+
+      assertEquals("100", SreeEnv.getProperty("inetsoft.org." + orgId + ".max.row.count"),
+                   "an org admin may still set the org properties exposed in the EM UI");
+      assertNull(SreeEnv.getProperty("inetsoft.org." + orgId + ".format.date"),
+                 "a non-site admin must not write arbitrary org-scoped properties");
+   }
+
+   private UserTreeService createUserTreeService() {
+      AuthenticationProvider authc = SecurityEngine.getSecurity().getSecurityProvider()
+         .getAuthenticationProvider();
+      FileAuthenticationProvider fileProvider =
+         (FileAuthenticationProvider) ((AuthenticationChain) authc).getProviders().get(0);
+
+      AuthenticationProviderService authenticationProviderService =
+         mock(AuthenticationProviderService.class);
+      when(authenticationProviderService.getProviderByName(anyString())).thenReturn(fileProvider);
+
+      SystemAdminService systemAdminService = mock(SystemAdminService.class);
+      when(systemAdminService.hasSysAdmin(any())).thenReturn(true);
+      when(systemAdminService.hasOrgAdmin(any())).thenReturn(true);
+
+      return new UserTreeService(
+         authenticationProviderService, systemAdminService, mock(IdentityService.class),
+         mock(LocalizationSettingsService.class), SecurityEngine.getSecurity(),
+         mock(IdentityThemeService.class), mock(SimpMessagingTemplate.class),
+         favoritesService, mock(DataCycleManager.class), mock(LicenseManager.class),
+         mock(MVManager.class), mock(IndexedStorage.class), mock(CustomThemesManager.class),
+         mock(DashboardRegistryManager.class), mock(XRepository.class),
+         mock(DependencyStorageService.class), mock(RecycleBin.class));
+   }
+
+   // editOrganization() is package-private on UserTreeService (inetsoft.web.admin.security.user),
+   // not this test's own package -- reflection needed, same rationale as setOrganizationInfo()
+   // above.
+   private static void invokeEditOrganization(UserTreeService userTreeService,
+                                              EditOrganizationPaneModel model,
+                                              Principal principal)
+      throws Exception
+   {
+      Method editOrganization = UserTreeService.class.getDeclaredMethod(
+         "editOrganization", EditOrganizationPaneModel.class, String.class, Principal.class);
+      editOrganization.setAccessible(true);
+      editOrganization.invoke(userTreeService, model, "", principal);
    }
 }
