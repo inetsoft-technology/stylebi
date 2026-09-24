@@ -137,11 +137,16 @@ public class ScriptTimeoutGuard {
          }
 
          try {
-            interruptDone.await(3, TimeUnit.SECONDS);
+            if(!interruptDone.await(3, TimeUnit.SECONDS)) {
+               // the claimed interrupt may still land on a later exec: report the Context
+               // as unknown, so a pooled one is closed instead of reused (spec §6.3, G5)
+               timedOut = true;
+            }
          }
          catch(InterruptedException ex) {
-            // deliberate trade-off: restore the flag and return rather than keep waiting,
-            // so a claimed interrupt could still land on a later exec on this Context
+            // restore the flag and return rather than keep waiting; the claimed interrupt
+            // may still land on a later exec, so report the Context as unknown too
+            timedOut = true;
             Thread.currentThread().interrupt();
          }
       }

@@ -17,11 +17,15 @@
  */
 package inetsoft.util.script.graal.pool;
 
+import inetsoft.util.script.graal.ScriptTimeoutGuardTestHooks;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -223,6 +227,58 @@ class SlotCleanTest {
       slot.removeOwn("p");
       assertReusable(slot.clean());
       assertEquals("undefined", run("typeof p"));
+   }
+
+   /**
+    * Final review M1 / Task 6 minor (bug #76960, spec §6.3): if the clean's own timeout
+    * interrupt could not finish, the Context is unknown, so the clean fails and the slot is
+    * closed instead of reused.
+    */
+   @Test
+   void cleanWhoseInterruptCannotFinishFails() throws Exception {
+      slot = newSlot(Map.of());
+      // 5000 globals keep the clean busy, so its interrupt, due at once, is usually claimed
+      // while the clean still runs; a clean that finished first is simply retried
+      StringBuilder js = new StringBuilder();
+
+      for(int i = 0; i < 5_000; i++) {
+         js.append("var v").append(i).append(" = ").append(i).append(";\n");
+      }
+
+      run(js.append("1").toString());
+      slot.cleanTimeout = Duration.ofNanos(1);
+      CountDownLatch release = new CountDownLatch(1);
+
+      try {
+         for(int attempt = 0; attempt < 20; attempt++) {
+            CountDownLatch claimed = new CountDownLatch(1);
+            // the claimed interrupt is held past close()'s 3 s wait
+            ScriptTimeoutGuardTestHooks.setBeforeInterrupt(() -> {
+               claimed.countDown();
+
+               try {
+                  release.await(10, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException ex) {
+                  Thread.currentThread().interrupt();
+               }
+            });
+
+            CleanHelper.Result result = slot.clean();
+
+            if(claimed.getCount() == 0) {
+               assertTrue(result.failed(), String.valueOf(result));
+               assertFalse(result.reusable(256));
+               return;
+            }
+         }
+
+         fail("the clean's interrupt was never claimed while it ran");
+      }
+      finally {
+         release.countDown();
+         ScriptTimeoutGuardTestHooks.setBeforeInterrupt(null);
+      }
    }
 
    private static Slot newSlot(Map<String, String> library) throws Exception {

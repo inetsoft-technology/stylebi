@@ -24,6 +24,7 @@ import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -150,20 +151,31 @@ final class Slot {
     */
    CleanHelper.Result clean() {
       metrics.cleaned();
+      ScriptTimeoutGuard.Guard guard;
+      CleanHelper.Result result;
 
-      try(ScriptTimeoutGuard.Guard guard = engine.guard(CleanHelper.TIMEOUT)) {
-         CleanHelper.Result result = cleaner.run();
-
-         if(result.removed() > 0) {
-            engine.globalsCleaned();
-         }
-
-         return result;
+      try {
+         guard = engine.guard(cleanTimeout);
       }
       catch(RuntimeException ex) {
          LOG.debug("Failed to clean a worksheet script context", ex);
          return CleanHelper.Result.FAILED;
       }
+
+      try(guard) {
+         result = cleaner.run();
+
+         if(result.removed() > 0) {
+            engine.globalsCleaned();
+         }
+      }
+      catch(RuntimeException ex) {
+         LOG.debug("Failed to clean a worksheet script context", ex);
+         return CleanHelper.Result.FAILED;
+      }
+
+      // an interrupt that could not stop the clean leaves the Context unknown (spec §6.3)
+      return guard.interruptTimedOut() ? CleanHelper.Result.FAILED : result;
    }
 
    /**
@@ -255,6 +267,8 @@ final class Slot {
    private final CleanHelper cleaner;
    private final PoolMetrics metrics;
    private final Map<Object, Object> attachments = new WeakHashMap<>();
+   // the clean's timeout; only tests shorten it
+   Duration cleanTimeout = CleanHelper.TIMEOUT;
    private long version; // owner only
    private volatile boolean doomed;
    private volatile boolean closed;

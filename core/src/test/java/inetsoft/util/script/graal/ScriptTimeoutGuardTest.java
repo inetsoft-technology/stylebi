@@ -105,6 +105,77 @@ class ScriptTimeoutGuardTest {
       }
    }
 
+   /**
+    * Final review M1 (bug #76960, pool off too): if close() gives up waiting for a claimed
+    * interrupt, that interrupt may still land on a later exec on this Context, so the guard
+    * must report interruptTimedOut() and the Context be treated as unknown.
+    */
+   @Test void closeThatGivesUpWaitingForTheInterruptReportsTimeout() throws Exception {
+      try(Context ctx = Context.newBuilder("js").build()) {
+         CountDownLatch release = new CountDownLatch(1);
+         ScriptTimeoutGuard.Guard guard = claimAndHoldInterrupt(ctx, release);
+
+         try {
+            // the held interrupt outlasts close()'s 3 s wait
+            guard.close();
+            assertTrue(guard.interruptTimedOut());
+         }
+         finally {
+            release.countDown();
+            ScriptTimeoutGuard.beforeInterruptHook = null;
+         }
+      }
+   }
+
+   /**
+    * Final review M1: a close() interrupted while it waits restores the flag and also
+    * reports interruptTimedOut(), since the claimed interrupt has not finished.
+    */
+   @Test void closeInterruptedWhileWaitingReportsTimeout() throws Exception {
+      try(Context ctx = Context.newBuilder("js").build()) {
+         CountDownLatch release = new CountDownLatch(1);
+         ScriptTimeoutGuard.Guard guard = claimAndHoldInterrupt(ctx, release);
+
+         try {
+            Thread.currentThread().interrupt();
+            guard.close();
+            assertTrue(Thread.interrupted(), "the interrupt flag must be restored");
+            assertTrue(guard.interruptTimedOut());
+         }
+         finally {
+            Thread.interrupted();
+            release.countDown();
+            ScriptTimeoutGuard.beforeInterruptHook = null;
+         }
+      }
+   }
+
+   /**
+    * Run an exec past its 50 ms timeout while the interrupt task, having claimed the token,
+    * is held until {@code release}; returns the still-open guard.
+    */
+   private static ScriptTimeoutGuard.Guard claimAndHoldInterrupt(Context ctx,
+                                                                 CountDownLatch release)
+      throws InterruptedException
+   {
+      CountDownLatch claimed = new CountDownLatch(1);
+      ScriptTimeoutGuard.beforeInterruptHook = () -> {
+         claimed.countDown();
+
+         try {
+            release.await(10, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ex) {
+            Thread.currentThread().interrupt();
+         }
+      };
+
+      ScriptTimeoutGuard.Guard guard = new ScriptTimeoutGuard().guard(ctx, Duration.ofMillis(50));
+      ctx.eval("js", "var t = Date.now(); while(Date.now() - t < 200) {} 1");
+      assertTrue(claimed.await(5, TimeUnit.SECONDS), "the interrupt was not claimed");
+      return guard;
+   }
+
    @Test void noOpGuardReportsNoInterruptTimeout() {
       ScriptTimeoutGuard.Guard none = new ScriptTimeoutGuard().guard(null, Duration.ZERO);
       assertFalse(none.interruptTimedOut());
