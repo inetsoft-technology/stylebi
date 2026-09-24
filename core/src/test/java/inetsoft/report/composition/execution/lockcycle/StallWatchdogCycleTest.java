@@ -38,10 +38,15 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.File;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -140,12 +145,30 @@ public class StallWatchdogCycleTest {
       Sandbox s = harness.sandbox();
       TableLens lens = harness.track(build(kind, s, gate));
       TableLens outer = harness.track(cf2(lens, s.box));
-      // T1 parks inside the lens monitor without the engine lock; T2 takes the lock and parks
-      // on the monitor (BLOCKED), then T1 goes on and waits for the lock: the cycle
+      // T2 reads the header row first: a cell read goes through the lens monitor without the
+      // engine lock (e.g. UnionTableLens.getObject), so T2 must be past it. T1 then parks
+      // inside the lens monitor without the engine lock; T2 takes the lock for its next row
+      // and blocks on the monitor, then T1 goes on and waits for the lock: the cycle
+      CountDownLatch headerRead = new CountDownLatch(1);
+      CountDownLatch t1Parked = new CountDownLatch(1);
+      Started<List<List<Object>>> t2 = harness.start(() -> {
+         List<List<Object>> rows = new ArrayList<>();
+         assertTrue(outer.moreRows(0));
+         rows.add(row(outer, 0));
+         headerRead.countDown();
+         assertTrue(t1Parked.await(KNOWN_CAP, TimeUnit.SECONDS), "T1 never parked");
+
+         for(int r = 1; outer.moreRows(r); r++) {
+            rows.add(row(outer, r));
+         }
+
+         return rows;
+      });
+      assertTrue(headerRead.await(KNOWN_CAP, TimeUnit.SECONDS), "T2 never read the header");
       Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(lens));
       assertTrue(gate.awaitEntered(KNOWN_CAP), "T1 never read the lens's base");
-      Started<List<List<Object>>> t2 = harness.start(() -> drain(outer));
-      awaitState(t2, Thread.State.BLOCKED, KNOWN_CAP);
+      t1Parked.countDown();
+      awaitBlockedBy(t2, t1, s, KNOWN_CAP);
       gate.release();
 
       Object o1 = outcome(t1.future);
@@ -204,6 +227,16 @@ public class StallWatchdogCycleTest {
       }
    }
 
+   private static List<Object> row(TableLens table, int r) {
+      List<Object> row = new ArrayList<>();
+
+      for(int c = 0; c < table.getColCount(); c++) {
+         row.add(table.getObject(r, c));
+      }
+
+      return row;
+   }
+
    /**
     * A filtered formula base under a {@link GateFilter}: the gate owner parks at its first data
     * read there, before the inner condition filter takes the engine lock.
@@ -213,14 +246,42 @@ public class StallWatchdogCycleTest {
    }
 
    /**
-    * Wait until the thread of {@code started} is in {@code state}.
+    * Wait until the thread of {@code started} holds the engine lock of {@code s} and is
+    * BLOCKED on a monitor that the thread of {@code owner} holds: the lens monitor, reached
+    * through the outer condition filter's moreRows. T2 also blocks on that monitor briefly for
+    * a header read before it takes the lock (e.g. getColCount), which is no cycle yet.
     */
-   private static void awaitState(Started<?> started, Thread.State state, long capSeconds)
+   private static void awaitBlockedBy(Started<?> started, Started<?> owner, Sandbox s,
+                                      long capSeconds)
       throws InterruptedException
    {
-      StallTestSupport.awaitTrue(
-         () -> started.thread != null && started.thread.getState() == state, capSeconds,
-         "the thread never reached " + state);
+      ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+      StallTestSupport.awaitTrue(() -> {
+         Thread thread = started.thread;
+         Thread holder = owner.thread;
+
+         if(thread == null || holder == null || !s.lock.isLocked()) {
+            return false;
+         }
+
+         ThreadInfo info = threads.getThreadInfo(thread.getId(), Integer.MAX_VALUE);
+
+         if(info == null || info.getThreadState() != Thread.State.BLOCKED ||
+            info.getLockOwnerId() != holder.getId())
+         {
+            return false;
+         }
+
+         for(StackTraceElement frame : info.getStackTrace()) {
+            if(frame.getClassName().endsWith("PostProcessor$ConditionFilter2") &&
+               frame.getMethodName().equals("moreRows"))
+            {
+               return true;
+            }
+         }
+
+         return false;
+      }, capSeconds, "T2 never blocked on the lens monitor held by T1, holding the lock");
    }
 
    /**
