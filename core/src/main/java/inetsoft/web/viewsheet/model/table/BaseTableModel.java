@@ -70,6 +70,10 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
          this.highlightedCells = new TableDataPath[0];
       }
 
+      // defensive copy: Insets is mutable, and the assembly's stored instance must not be aliased
+      Insets tinfoPadding = tinfo.getPadding();
+      padding = tinfoPadding == null ? null : (Insets) tinfoPadding.clone();
+
       String[] flyovers = VSUtil.getValidFlyovers(tinfo.getFlyoverViews(), assembly.getViewsheet());
       hasFlyover = flyovers != null && flyovers.length > 0;
       isFlyOnClick = tinfo.isFlyOnClick();
@@ -234,6 +238,14 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
       this.maxModeOriginalWidth = maxModeOriginalWidth;
    }
 
+   public Insets getPadding() {
+      return padding;
+   }
+
+   public void setPadding(Insets padding) {
+      this.padding = padding;
+   }
+
    private String title;
    private VSFormatModel titleFormat;
    private boolean titleVisible;
@@ -247,6 +259,7 @@ public abstract class BaseTableModel<T extends TableDataVSAssembly> extends VSOb
    private TableDataPath[] highlightedCells;
    private boolean maxMode = false;
    private double maxModeOriginalWidth = 0;
+   private Insets padding;
    protected boolean empty = false;
 
    // these properties will be setted when first load table model in
