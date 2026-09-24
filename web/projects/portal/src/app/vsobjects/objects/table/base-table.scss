@@ -98,6 +98,18 @@
   height: 100%;
 }
 
+// The content rect: the card minus the card inset. The title lane, the grid and the scroll
+// wrappers live in here so that the percentages that place them (left: 100% on the vertical
+// scrollbar, top: 100% / right: 0 on the horizontal one, width: 100% on the table wrappers)
+// resolve against the grid instead of the assembly edge. The border, the background and the
+// round-corner clip stay outside it, on the card. z-index is left alone deliberately: with
+// z-index: auto this box does not open a stacking context, so everything inside keeps the
+// painting order it had as a direct child of .z-index-wrapper. An assembly with no inset gets
+// a box that coincides exactly with .z-index-wrapper's own.
+.table-content {
+  position: absolute;
+}
+
 .annotation-hidden-container {
   display: none;
   position: absolute;

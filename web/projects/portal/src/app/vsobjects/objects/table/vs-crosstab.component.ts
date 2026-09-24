@@ -321,8 +321,9 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
    }
 
    protected updateTableHeight(): void {
-      this.tableHeight = this.model.objectFormat.height - this.getHeaderHeight() -
-         this.model.titleFormat.height;
+      const padding = this.getPadding();
+      this.tableHeight = this.model.objectFormat.height - padding.top - padding.bottom -
+         this.getHeaderHeight() - this.model.titleFormat.height;
    }
 
    protected updateLayout(loadOnDemand: boolean): void {
@@ -413,8 +414,8 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
          -this.scrollX - (this.getObjectWidth() - this.rbTableWidth);
    }
 
-   public getObjectHeight(): number {
-      let h  = super.getObjectHeight();
+   public getCardHeight(): number {
+      let h  = super.getCardHeight();
 
       if(this.model.shrink && this.viewer) {
          let titleH = this.model.titleVisible ? 0 : this.model.titleFormat.height;
