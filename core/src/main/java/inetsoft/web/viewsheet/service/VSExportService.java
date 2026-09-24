@@ -179,15 +179,9 @@ public class VSExportService {
       // The tables will be reloaded after the css is updated in AbstractVSExporter.
       Viewsheet vs = rvs.getViewsheet();
 
-      if("CSV".equals(req.type) && vs != null) {
-         boolean foundTable = VSUtil.getTableDataAssemblies(vs, true)
-            .stream()
-            .anyMatch(assembly -> CSVUtil.needExport(assembly));
-
-         if(!foundTable) {
-            throw new MessageException(Catalog.getCatalog().getString(
-               "common.repletAction.exportFailed.cvs"));
-         }
+      if("CSV".equals(req.type) && vs != null && !hasCsvExportableTable(vs)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "common.repletAction.exportFailed.cvs"));
       }
 
       for(Assembly assembly : vs.getAssemblies()) {
@@ -242,6 +236,17 @@ public class VSExportService {
             openViewsheetEvent.getFullScreenId(), execSessionId);
          return result.getId();
       });
+   }
+
+   /**
+    * Whether a CSV export of the viewsheet would contain anything, i.e. it has at least one
+    * table-data assembly CSV export writes. CSV export writes table data only, so without one
+    * it produces an empty archive.
+    */
+   public boolean hasCsvExportableTable(Viewsheet vs) {
+      return VSUtil.getTableDataAssemblies(vs, true)
+         .stream()
+         .anyMatch(CSVUtil::needExport);
    }
 
    public void exportViewsheet(RuntimeViewsheet rvs, int format, boolean match,

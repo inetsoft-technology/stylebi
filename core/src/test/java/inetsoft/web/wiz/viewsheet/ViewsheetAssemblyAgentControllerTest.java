@@ -21,6 +21,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.report.io.viewsheet.excel.CSVUtil;
+import inetsoft.util.Catalog;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -4957,7 +4961,8 @@ class ViewsheetAssemblyAgentControllerTest {
       when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
       Viewsheet viewsheet = mock(Viewsheet.class);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(viewsheet.getAssembly("TableView1")).thenReturn(mock(VSAssembly.class));
+      TableDataVSAssembly table = mock(TableDataVSAssembly.class);
+      when(viewsheet.getAssembly("TableView1")).thenReturn(table);
 
       VSExportService exportService = mock(VSExportService.class);
       stubExportBytes(exportService, new byte[] { 9 });
@@ -4969,8 +4974,11 @@ class ViewsheetAssemblyAgentControllerTest {
          securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
       HttpServletResponse servletResponse = mockServletResponse(new ByteArrayOutputStream());
 
-      controller.export("tok", "CSV", "TableView1", true, null, null, null, null, null,
-         principal(), servletResponse);
+      try(org.mockito.MockedStatic<CSVUtil> csvUtil = mockStatic(CSVUtil.class)) {
+         csvUtil.when(() -> CSVUtil.needExport(table)).thenReturn(true);
+         controller.export("tok", "CSV", "TableView1", true, null, null, null, null, null,
+            principal(), servletResponse);
+      }
 
       ArgumentCaptor<CSVConfig> csvConfigCaptor = ArgumentCaptor.forClass(CSVConfig.class);
       verify(exportService).exportViewsheet(eq(rvs), eq(FileFormatInfo.EXPORT_TYPE_CSV),
@@ -5014,6 +5022,104 @@ class ViewsheetAssemblyAgentControllerTest {
             principal(), mock(HttpServletResponse.class)));
       assertTrue(ex.getMessage().contains("NoSuchTable"));
       verifyNoInteractions(exportService);
+   }
+
+   /**
+    * Bug 76958: a Chart {@code target} is a real assembly, so it passed the nonexistent-target
+    * check above -- but {@code CSVVSExporter} writes table data only ({@code writeChart} is a
+    * no-op), so the export streamed an empty 22-byte zip with a success summary. Refused by name
+    * instead, pointing at the alternatives.
+    */
+   @Test
+   void export_refusesAChartTargetForCsvFormatInsteadOfSilentlyExportingNothing()
+      throws Exception
+   {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly("SizeMix")).thenReturn(mock(ChartVSAssembly.class));
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> controller.export("tok", "CSV", "SizeMix", null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
+      assertTrue(ex.getMessage().contains("\"SizeMix\" is a Chart"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("crosstab"), ex.getMessage());
+      verifyNoInteractions(exportService);
+   }
+
+   /**
+    * Bug 76958: a table-type {@code target} that CSV export itself would skip (hidden, a tooltip
+    * or pop-up component, zero size -- {@code CSVUtil#needExport}) would also produce an empty
+    * zip, so it is refused by name as well.
+    */
+   @Test
+   void export_refusesANonExportableTableTargetForCsvFormat() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      TableDataVSAssembly table = mock(TableDataVSAssembly.class);
+      when(viewsheet.getAssembly("HiddenTable")).thenReturn(table);
+
+      VSExportService exportService = mock(VSExportService.class);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      try(org.mockito.MockedStatic<CSVUtil> csvUtil = mockStatic(CSVUtil.class)) {
+         csvUtil.when(() -> CSVUtil.needExport(table)).thenReturn(false);
+         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+            () -> controller.export("tok", "CSV", "HiddenTable", null, null, null, null, null,
+               null, principal(), mock(HttpServletResponse.class)));
+         assertTrue(ex.getMessage().contains("HiddenTable"), ex.getMessage());
+      }
+
+      verifyNoInteractions(exportService);
+   }
+
+   /**
+    * Bug 76958: a whole-sheet CSV export of a viewsheet with no exportable table produced the same
+    * empty zip. Refused with the Export dialog's own message ({@code VSExportService}'s
+    * "contains no tables" guard, which this endpoint's overload bypasses).
+    */
+   @Test
+   void export_refusesWholeSheetCsvWhenTheViewsheetHasNoExportableTable() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+      Viewsheet viewsheet = mock(Viewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+
+      VSExportService exportService = mock(VSExportService.class);
+      when(exportService.hasCsvExportableTable(viewsheet)).thenReturn(false);
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      ViewsheetAssemblyAgentController controller = controllerForExport(sessions, exportService,
+         securityEngine, mock(inetsoft.web.wiz.script.ScriptImageService.class));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> controller.export("tok", "CSV", null, null, null, null, null, null, null,
+            principal(), mock(HttpServletResponse.class)));
+      assertEquals(Catalog.getCatalog().getString("common.repletAction.exportFailed.cvs"),
+         ex.getMessage());
+      verify(exportService).hasCsvExportableTable(viewsheet);
+      verifyNoMoreInteractions(exportService);
    }
 
    @Test
