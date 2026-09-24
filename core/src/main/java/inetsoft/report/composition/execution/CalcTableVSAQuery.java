@@ -82,7 +82,9 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       // the lock (see ViewsheetSandbox.thisLock) -- so the gate below is no longer what
       // prevents the deadlock. It is kept because a script thread has nothing to gain from
       // the write lock here ("if called from script, the locking should already be in place";
-      // 52463), the same as ViewsheetSandbox.doExecuteData()/getData().
+      // 52463), the same as ViewsheetSandbox.doExecuteData()/getData(). That is not true on
+      // every path (element scripts run through executeView() hold no sandbox lock), but on a
+      // script thread the lock would only be tried anyway, so it gives no exclusion either.
       boolean inExec = JavaScriptEngine.isScriptThread();
 
       if(!inExec) {
@@ -92,6 +94,10 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       try {
          Viewsheet vs = getViewsheet();
          CalcTableVSAssembly cassembly = (CalcTableVSAssembly) getAssembly();
+         // the live layout the snapshot below is taken from. Read it before cloning: a
+         // property edit replaces the layout object (CalcTableVSAssemblyInfo.copyInfo()), so
+         // if the edit lands in between, the check at the write-back below sees the change.
+         TableLayout snapshotSource = cassembly.getTableLayout();
          //clone it, so we will not modify original assembly
          CalcTableVSAssembly cassemblyCopy = (CalcTableVSAssembly) cassembly.clone();
          CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) cassembly.getInfo();
@@ -297,17 +303,25 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                }
 
                // @by ChrisSpagnoli feature1414607346853 2014-10-27
-               // Combine the fully processed crosstab data back together. May mutate the
-               // shared cassembly's table layout (via getElement()) or read its layout
+               // Combine the fully processed crosstab data back together. May put the
+               // snapshot layout back on the shared cassembly (via getElement(), only if no
+               // edit replaced its layout meanwhile, see below) or read its layout
                // (mergeCrosstabs -> mergeCalcAttrs), so keep this under the same monitor as
                // the other cassembly touches above. No GraalJS call happens in either branch.
                synchronized(cassembly) {
                   if(rlensJoined == null) {
                      rlensJoined = rlens;
 
-                     // If there will be multiple crosstabs combined, put original
-                     // layout into rlensJoined, replacing the layout fragment.
-                     if(datas.size() > 0) {
+                     // On the crosstab path the element is this invocation's temp assembly:
+                     // put the original layout into rlensJoined, replacing the layout
+                     // fragment. On the no-crosstab path the element is the shared cassembly,
+                     // whose layout the snapshot was taken from; putting the snapshot back
+                     // there only drops the normalizations createCalcLens() applied to the
+                     // live layout (syncCalcTopN), and must not happen if a property edit
+                     // replaced the layout meanwhile, or the edit would be reverted (#76987).
+                     if(datas.size() > 0 && (cassemblyChild != cassembly ||
+                        cassembly.getTableLayout() == snapshotSource))
+                     {
                         rlensJoined.getCalcTableLens().getElement().setTableLayout(layout);
                      }
                   }
