@@ -138,6 +138,56 @@ public class JoinStallTest {
    }
 
    @Test
+   public void pastEndReadOfAStalledJoinThrows() throws Exception {
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      // built on a reader, the base fails only on the join's worker threads
+      HashJoinTable join = pool.submit(
+         () -> (HashJoinTable) hash(new FailingTable(30, 5, original), new DefaultTableLens(data(30))))
+         .get(15, TimeUnit.SECONDS);
+      failureOf(pool.submit(() -> drain(join)), 15);
+
+      LockStallException ex = assertThrows(LockStallException.class, () -> join.getObject(30, 0));
+      assertSame(original, ex.getCause());
+      // the rows added before the stall stay readable
+      assertEquals(0, join.getObject(0, 0));
+   }
+
+   @Test
+   public void pastEndReadOfACompletedJoinIsNotAStall() throws Exception {
+      HashJoinTable join = pool.submit(
+         () -> (HashJoinTable) hash(new DefaultTableLens(data(8)), new DefaultTableLens(data(8))))
+         .get(15, TimeUnit.SECONDS);
+      drain(join);
+
+      try {
+         join.getObject(30, 0);
+      }
+      catch(LockStallException ex) {
+         fail("a completed join is not stalled: " + ex);
+      }
+      catch(RuntimeException ex) {
+         // past the end of the table, as on main
+      }
+   }
+
+   /**
+    * The left rows are slow and join nothing until the last one: the rows the worker scans
+    * are progress although it adds no row for longer than the 1 s limit.
+    */
+   @Test
+   public void slowHashJoinWithoutMatchesCompletes() throws Exception {
+      Object[][] right = { { "group", "value" }, { "k2", 8 } };
+      List<List<Object>> expected = pool.submit(
+         () -> drain(hash(new DefaultTableLens(data(8)), new DefaultTableLens(right))))
+         .get(15, TimeUnit.SECONDS);
+      Future<List<List<Object>>> reader =
+         pool.submit(() -> drain(hash(new SlowTable(8, 300), new DefaultTableLens(right))));
+
+      assertEquals(expected, reader.get(15, TimeUnit.SECONDS));
+      assertEquals(2, expected.size(), "the header and the one joined row");
+   }
+
+   @Test
    public void slowHashJoinWithBufferedRowsCompletes() throws Exception {
       List<List<Object>> expected = sorted(pool.submit(
          () -> drain(hash(new DefaultTableLens(data(8)), new DefaultTableLens(data(8)))))

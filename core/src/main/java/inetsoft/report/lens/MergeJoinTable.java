@@ -109,6 +109,9 @@ class MergeJoinTable extends JoinTable {
             RoaringBitmap rJoined = new RoaringBitmap();
 
             while(!isCancelled()) {
+               // progress for the lock-stall watchdog, even if the rows join nothing
+               addScannedRow();
+
                if(leftTable.moreRows(l) && rightTable.moreRows(r)) {
                   Object[] lTuple = getTuple(leftTable, l);
                   Object[] rTuple = getTuple(rightTable, r);

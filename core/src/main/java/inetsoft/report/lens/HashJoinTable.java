@@ -318,6 +318,8 @@ class HashJoinTable extends JoinTable {
             for(int row = scanTable.getHeaderRowCount();
                 scanTable.moreRows(row) && !cancelled; row++)
             {
+               // progress for the lock-stall watchdog, even if the row joins nothing
+               joinTable.addScannedRow();
                Object[] columnValues = new Object[joinColumns.length];
 
                for(int i = 0; i < columnValues.length; i++) {

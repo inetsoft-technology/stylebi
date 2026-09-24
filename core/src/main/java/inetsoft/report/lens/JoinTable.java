@@ -191,7 +191,9 @@ abstract class JoinTable extends PagedTableLens {
     */
    @Override
    public boolean moreRows(int row) {
-      if(delegate.moreRows(row, "JoinTable.moreRows", () -> addedRows, this::getWorkerThreads)) {
+      if(delegate.moreRows(row, "JoinTable.moreRows", () -> addedRows + scannedRows,
+                           this::getWorkerThreads))
+      {
          return true;
       }
 
@@ -215,6 +217,30 @@ abstract class JoinTable extends PagedTableLens {
    }
 
    /**
+    * Get the value of a cell. A read past the rows so far of a stalled worker fails, the
+    * rows are not the whole join (bug #76967).
+    */
+   @Override
+   public Object getObject(int r, int c) {
+      if(stallFailure != null) {
+         throwStallFailurePastEnd(r);
+      }
+
+      return super.getObject(r, c);
+   }
+
+   /**
+    * Rethrow the worker's stall if {@code row} is past the rows added so far (bug #76967).
+    */
+   private void throwStallFailurePastEnd(int row) {
+      int count = delegate.getRowCount();
+
+      if(row >= (count < 0 ? -count - 1 : count)) {
+         throwStallFailure();
+      }
+   }
+
+   /**
     * Rethrow the stall a worker thread failed with, if any (bug #76967).
     */
    private void throwStallFailure() {
@@ -235,6 +261,15 @@ abstract class JoinTable extends PagedTableLens {
     */
    void setStallFailure(LockStallException failure) {
       stallFailure = failure;
+   }
+
+   /**
+    * Count a base row read by a worker thread, progress for the lock-stall watchdog even if
+    * the row joins nothing (bug #76967). Two workers may race on the increment; a lost
+    * update still changes the value, which is all the watchdog checks.
+    */
+   void addScannedRow() {
+      scannedRows++;
    }
 
    /**
@@ -274,6 +309,10 @@ abstract class JoinTable extends PagedTableLens {
     * Get the base table to delegate calls.
     */
    public TableRef getTableRef(int row, int col) {
+      if(stallFailure != null) {
+         throwStallFailurePastEnd(row);
+      }
+
       int lcols = leftTable.getColCount();
 
       if(col < lcols) {
@@ -558,6 +597,8 @@ abstract class JoinTable extends PagedTableLens {
    private transient boolean csensitive;
    // joined rows buffered so far, and the stall a worker failed with (bug #76967)
    private transient volatile long addedRows;
+   // base rows read by the workers, joined or not (bug #76967)
+   private transient volatile long scannedRows;
    private transient volatile LockStallException stallFailure;
    private transient Integer joinColCnt;
    private static final Logger LOG = LoggerFactory.getLogger(JoinTable.class);
