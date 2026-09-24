@@ -1652,6 +1652,7 @@ public class IdentityService {
             }
          }
 
+         checkSystemAdminGrant(oldIdentity, model, groupV, principal);
          Identity newIdentity = null;
 
          if(type == Identity.USER) {
@@ -1694,6 +1695,108 @@ public class IdentityService {
             licenseManager.userChanged();
          }
       }
+   }
+
+   /**
+    * Rejects an edit by a caller who is not a site administrator when the edit would grant
+    * system administrator privileges: adding a role or group that carries a system administrator
+    * role, setting the sysAdmin flag on a role, or editing an identity that already grants system
+    * administrator (e.g. adding members to the Administrator role). The endpoint permission check
+    * only proves the caller may edit the identity, not that it may grant site-wide privileges.
+    */
+   private void checkSystemAdminGrant(Identity oldIdentity, EntityModel model,
+                                      List<IdentityID> groupV, Principal principal)
+   {
+      if(!securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+      int type = oldIdentity.getType();
+      Set<IdentityID> oldRoles = new HashSet<>();
+      boolean granted = false;
+
+      if(oldIdentity instanceof User user) {
+         oldRoles.addAll(Arrays.asList(user.getRoles()));
+         IdentityID[] oldGroups = toGroupIDs(user.getGroups(), user.getOrganizationID());
+         Set<IdentityID> oldGroupSet = new HashSet<>(Arrays.asList(oldGroups));
+         // setUserInfo() stores membership by group name in the edited user's organization
+         String newOrgID = model instanceof EditUserPaneModel userModel ?
+            userModel.organization() : user.getOrganizationID();
+         IdentityID[] addedGroups = groupV.stream()
+            .map(g -> new IdentityID(g.name, newOrgID))
+            .filter(g -> !oldGroupSet.contains(g))
+            .toArray(IdentityID[]::new);
+         granted = grantsSystemAdmin(provider, oldRoles.toArray(new IdentityID[0]), oldGroups) ||
+            grantsSystemAdmin(provider, new IdentityID[0], addedGroups);
+      }
+      else if(oldIdentity instanceof Group group) {
+         oldRoles.addAll(Arrays.asList(group.getRoles()));
+         granted = grantsSystemAdmin(
+            provider, group.getRoles(),
+            toGroupIDs(new String[] { group.getName() }, group.getOrganizationID()));
+      }
+      else if(oldIdentity instanceof Role role) {
+         oldRoles.addAll(Arrays.asList(role.getRoles()));
+         granted = grantsSystemAdmin(provider, new IdentityID[] { role.getIdentityID() }, null) ||
+            model instanceof EditRolePaneModel roleModel && roleModel.isSysAdmin();
+      }
+
+      if(!granted && (type == Identity.USER || type == Identity.GROUP || type == Identity.ROLE)) {
+         IdentityID[] addedRoles = model.roles().stream()
+            .filter(r -> r != null && !oldRoles.contains(r))
+            .toArray(IdentityID[]::new);
+         granted = grantsSystemAdmin(provider, addedRoles, null);
+      }
+
+      if(granted) {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to grant system administrator privileges via \"" +
+            oldIdentity.getIdentityID() + "\" by user " + principal);
+      }
+   }
+
+   private static IdentityID[] toGroupIDs(String[] names, String orgID) {
+      return names == null ? new IdentityID[0] :
+         Arrays.stream(names).map(n -> new IdentityID(n, orgID)).toArray(IdentityID[]::new);
+   }
+
+   /**
+    * Determines if the given roles, or the roles held by the given groups and their ancestors,
+    * include or inherit a system administrator role. A non-existent role whose name matches the
+    * global system administrator role is treated as a spoofed grant.
+    */
+   private static boolean grantsSystemAdmin(AuthenticationProvider provider, IdentityID[] roles,
+                                            IdentityID[] groups)
+   {
+      List<IdentityID> allRoles = new ArrayList<>(Arrays.asList(roles));
+
+      if(groups != null) {
+         for(IdentityID groupID : provider.getAllGroups(groups)) {
+            Group group = provider.getGroup(groupID);
+
+            if(group != null && group.getRoles() != null) {
+               allRoles.addAll(Arrays.asList(group.getRoles()));
+            }
+         }
+      }
+
+      for(IdentityID role : provider.getAllRoles(allRoles.toArray(new IdentityID[0]))) {
+         if(role == null) {
+            continue;
+         }
+
+         if(provider.isSystemAdministratorRole(role) ||
+            role.orgID != null && provider.getRole(role) == null &&
+            provider.isSystemAdministratorRole(new IdentityID(role.name, null)))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private IdentityInfoRecord getIdentityInfoRecord(EntityModel model,
