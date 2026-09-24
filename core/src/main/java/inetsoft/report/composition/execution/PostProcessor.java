@@ -28,6 +28,7 @@ import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptSpan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -258,6 +259,9 @@ public class PostProcessor {
          // see needsScriptExecutionLock() below for what actually requires the
          // lock -- not just a FormulaTableLens column read.
          this.needsScriptLock = box != null && needsScriptExecutionLock(table);
+         // fixed per sandbox (bug #76960): a pool-mode sandbox's envs have no execution lock,
+         // and a script population batch runs under one claimed span instead
+         this.poolMode = box != null && box.isScriptPoolMode();
       }
 
       /**
@@ -303,6 +307,11 @@ public class PostProcessor {
       @Override
       public boolean moreRows(int row) {
          ScriptEnv senv = needsScriptLock && this.senv != null ? this.senv.get() : null;
+
+         if(poolMode) {
+            return moreRowsPooled(row, senv);
+         }
+
          Lock execLock = senv == null ? null : senv.getExecutionLock();
 
          if(execLock == null) {
@@ -319,6 +328,60 @@ public class PostProcessor {
             JavaScriptEngine.popHeldScriptLock();
             execLock.unlock();
          }
+      }
+
+      /**
+       * Pool mode (bug #76960, spec §5.3, §6.7, §14.8, §14.14): rows already mapped are
+       * answered without any claim; otherwise one lazy claimed span covers the population
+       * batch, which reads ahead at least batchRows base rows, so the formula lenses below
+       * share one context and one clean. No lock is taken besides this filter's own monitor,
+       * which the population takes anyway, after the span is opened as before.
+       */
+      private boolean moreRowsPooled(int row, ScriptEnv senv) {
+         if(isRowMapped(row)) {
+            return true;
+         }
+
+         if(senv == null) {
+            // no env to batch for: this filter cannot reach a script (needsScriptLock is
+            // false), no env existed when it was built, or the env was collected; so no
+            // read-ahead
+            synchronized(this) {
+               readAhead = 0;
+               return super.moreRows(row);
+            }
+         }
+
+         try(ScriptSpan span = senv.openSpan()) {
+            synchronized(this) {
+               readAhead = nextReadAhead(span, row);
+               return super.moreRows(row);
+            }
+         }
+      }
+
+      /**
+       * The read-ahead of the next pooled population, under this filter's monitor: batches
+       * start at batchRows and double, up to maxBatchRows, while the filter is read
+       * sequentially, that is while each population is asked for the first row not yet
+       * mapped; any other access starts over at batchRows (spec §14.14).
+       */
+      private int nextReadAhead(ScriptSpan span, int row) {
+         int min = span.batchRows();
+
+         if(min <= 0) {
+            return 0;
+         }
+
+         int max = Math.max(min, span.maxBatchRows());
+         int batch = readAhead > 0 && row == getMappedRowCount()
+            ? (readAhead >= max / 2 ? max : readAhead * 2) : min;
+         return Math.min(Math.max(batch, min), max);
+      }
+
+      @Override
+      protected int getMinPopulationRows() {
+         return readAhead;
       }
 
       /**
@@ -418,6 +481,10 @@ public class PostProcessor {
        */
       private final transient WeakReference<ScriptEnv> senv;
       private final boolean needsScriptLock;
+      private final boolean poolMode;
+      // read-ahead of a pooled population batch; 0 until the first pooled batch, and always
+      // 0 off the pool. Written and read under this filter's monitor.
+      private int readAhead;
 
       @Override
       public final int getColBorder(int r, int c) {

@@ -58,22 +58,26 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    /**
     * Invalidate the table filter forcely, and the table filter will perform
     * filtering calculation to validate itself.
+    *
+    * <p>The new row map is built completely before it is published, and the old one is not
+    * disposed here: a reader outside the monitor may still hold it (bug #76972). Its
+    * finalizer frees it once no reader does.
     */
    private void invalidate(boolean fire) {
       completed = false;
-      baseRow = 0;
+      XSwappableIntList map = new XSwappableIntList();
+      int headers = table.getHeaderRowCount();
 
-      if(rowmap != null) {
-         rowmap.dispose();
+      for(int i = 0; i < headers; i++) {
+         map.add(i);
       }
 
-      rowmap = new XSwappableIntList();
-      hcount = table.getHeaderRowCount();
-
-      for(int i = 0; i < hcount; i++) {
-         rowmap.add(i);
-         baseRow++;
-      }
+      hcount = headers;
+      baseRow = headers;
+      // before the new map is published: a fast-path reader that sees the new map sees no
+      // mapped rows until a population publishes its count (bug #76960)
+      mappedCount = 0;
+      rowmap = map;
 
       if(fire) {
          fireChangeEvent();
@@ -123,9 +127,11 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
 
    /**
     * Get the base table row index corresponding to the filtered table.
-    * If the row does not exist in the base table, it returns -1.
     * @param row row index in the filtered table.
     * @return corresponding row index in the base table.
+    * @throws IndexOutOfBoundsException if the row is still not mapped after the bounded
+    *         retries and the final locked-snapshot fallback, meaning the row does not (yet)
+    *         exist in the filter's row map.
     */
    @Override
    public final int getBaseRowIndex(int row) {
@@ -134,9 +140,39 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
       if(row < hcount) {
          return row;
       }
-      else {
-         return rowmap.get(row);
+
+      // invalidate() can publish a new row map after moreRows() returned (bug #76972). Read
+      // one snapshot, and if it does not reach the row yet, populate the current map again by
+      // retrying moreRows() a bounded number of times.
+      XSwappableIntList map = rowmap;
+
+      for(int i = 0; i < 3 && row >= map.size() && !map.isCompleted(); i++) {
+         moreRows(row);
+         map = rowmap;
       }
+
+      if(row < map.size()) {
+         return map.get(row);
+      }
+
+      // The retries above are exhausted and the row still isn't mapped (this also covers a
+      // map that completed short of the row). map.get(row) would read past count and
+      // XIntFragment.getSafely() would silently return 0, which maps to the header row -- a
+      // wrong value handed back with no signal. Instead take one final snapshot under this
+      // filter's own monitor only (no moreRows() call here, so this cannot invert
+      // ConditionFilter2.moreRows's env-lock-then-monitor order) and use it if it now reaches
+      // the row; otherwise fail loudly rather than guess.
+      synchronized(this) {
+         map = rowmap;
+      }
+
+      if(row < map.size()) {
+         return map.get(row);
+      }
+
+      throw new IndexOutOfBoundsException(
+         "Row " + row + " is not mapped in the condition filter's row map (size " +
+         map.size() + ")");
    }
 
    /**
@@ -199,7 +235,15 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
                   rowmap + " in " + this, new Exception("Stack trace"));
             }
 
-            while(row >= rowmap.size() && (more = table.moreRows(baseRow)) && !cancelled) {
+            // a pooled worksheet filter reads ahead, so one claimed span covers a batch of
+            // rows (bug #76960, spec §14.8); without a minimum the floor never holds, which
+            // is the loop as before even if a reentrant invalidate() resets baseRow
+            int min = getMinPopulationRows();
+            int floor = min > 0 ? baseRow + min : Integer.MIN_VALUE;
+
+            while((row >= rowmap.size() || baseRow < floor) &&
+                  (more = table.moreRows(baseRow)) && !cancelled)
+            {
                if(checkCondition(baseRow)) {
                   rowmap.add(baseRow);
                }
@@ -212,9 +256,44 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
                rowmap.complete();
             }
          }
+
+         // publish the mapped rows for isRowMapped(): this volatile write orders every row
+         // map write before it, for a reader that takes no monitor (bug #76960)
+         mappedCount = rowmap.size();
       }
 
       return row < rowmap.size();
+   }
+
+   /**
+    * @return the minimum number of base rows one population in {@link #moreRows} maps, 0 for
+    * no minimum.
+    */
+   protected int getMinPopulationRows() {
+      return 0;
+   }
+
+   /**
+    * @return whether {@code row} is already mapped, read without the monitor (bug #76960,
+    * spec §6.7). A {@code false} answer only means the caller takes the normal path.
+    *
+    * <p>The answer comes from the volatile {@link #mappedCount}, never from the row map's own
+    * (non-volatile) size: a {@code true} answer happens-after the population that mapped the
+    * row, so the caller's later reads of the row map see it. The map is read first; since
+    * {@code invalidate} zeroes the count before it publishes a new map, a reader that sees
+    * the new map never sees the old map's count.
+    */
+   protected final boolean isRowMapped(int row) {
+      XSwappableIntList map = rowmap;
+      return map != null && row < mappedCount;
+   }
+
+   /**
+    * @return the rows, headers included, the last population published for
+    * {@link #isRowMapped(int)}; exact when read under this filter's monitor.
+    */
+   protected final int getMappedRowCount() {
+      return mappedCount;
    }
 
    /**
@@ -574,6 +653,7 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
       table.dispose();
 
       if(rowmap != null) {
+         mappedCount = 0;
          rowmap.dispose();
          rowmap = null;
 
@@ -664,7 +744,11 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    private static final Logger LOG = LoggerFactory.getLogger(AbstractConditionFilter.class);
    private TableLens table;
    private transient TableDataDescriptor hdescriptor;
-   private XSwappableIntList rowmap;
+   // volatile: getBaseRowIndex reads it outside the monitor (bug #76972)
+   private volatile XSwappableIntList rowmap;
+   // the rows of rowmap the last population published, written under the monitor and read
+   // without it by isRowMapped (bug #76960)
+   private volatile int mappedCount;
    private boolean completed = false;
    private transient boolean debug = "true".equals(SreeEnv.getProperty("filter.debug", "false"));
    private int baseRow = 0;

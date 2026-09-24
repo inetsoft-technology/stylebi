@@ -1333,12 +1333,20 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          AssetQuerySandbox.DESIGN_MODE :
          box.getMode() == AbstractSheet.SHEET_RUNTIME_MODE ?
          AbstractSheet.SHEET_RUNTIME_MODE : AssetQuerySandbox.LIVE_MODE;
-      scope.setMode(mdl);
+
+      if(wbox.isScriptPoolMode()) {
+         // this query's own mode (bug #76960)
+         scope = scope.queryView(wbox.getVariableTable(), mdl);
+      }
+      else {
+         scope.setMode(mdl);
+      }
+
       String val = mdl == AssetQuerySandbox.DESIGN_MODE ? "999.99" : "0";
 
       FormulaTableLens lens0 = new FormulaTableLens(
          lens, new String[]{aggs[0].getName()}, new String[]{val},
-         wbox.getScriptEnv(), wbox.getScope());
+         wbox.getScriptEnv(), wbox.isScriptPoolMode() ? scope : wbox.getScope());
       lens0.setColType(lens.getHeaderColCount() - 1, Double.class);
 
       return lens0;

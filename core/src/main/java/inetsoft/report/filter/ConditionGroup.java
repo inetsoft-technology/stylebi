@@ -34,6 +34,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.OrderedMap;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -514,18 +515,29 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
     */
    protected void execExpressionValues(DataRef attr, XCondition xcon, Object box) {
       AssetQuerySandbox queryBox = null;
+      boolean throwaway = false;
 
       if(box instanceof AssetQuerySandbox) {
          queryBox = (AssetQuerySandbox) box;
       }
       else {
          queryBox = new AssetQuerySandbox(new Worksheet());
+         throwaway = true;
       }
 
-      if(xcon instanceof AssetCondition) {
-         AssetCondition acond = (AssetCondition) xcon;
-         acond.reset();
-         execExpressionValues(acond, queryBox, attr, xcon.getType());
+      try {
+         if(xcon instanceof AssetCondition) {
+            AssetCondition acond = (AssetCondition) xcon;
+            acond.reset();
+            execExpressionValues(acond, queryBox, attr, xcon.getType());
+         }
+      }
+      finally {
+         // the throwaway sandbox is never disposed: release its pooled script contexts now
+         // instead of leaving them to the GC (bug #76960); a plain env is left as on main
+         if(throwaway && queryBox.peekScriptEnv() instanceof WorksheetScriptEnv) {
+            ((WorksheetScriptEnv) queryBox.peekScriptEnv()).retire();
+         }
       }
    }
 
@@ -625,7 +637,12 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
             // this recursive execution may cause unpredictable result. create a new scope
             // here to avoid this race condition. (60837)
             scope = box.createAssetQueryScope();
-            senv.put("conditionGroupScope", scope);
+
+            // pool mode drops this unread global: as an env variable every pooled context
+            // would replay it (bug #76960, spec §6.6)
+            if(!box.isScriptPoolMode()) {
+               senv.put("conditionGroupScope", scope);
+            }
 
             val = senv.exec(script, scope, null, vs);
 
@@ -657,7 +674,9 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
          throw new ScriptException(scriptMsg);
       }
       finally {
-         senv.remove("conditionGroupScope");
+         if(!box.isScriptPoolMode()) {
+            senv.remove("conditionGroupScope");
+         }
       }
 
       if(val instanceof Object[]) {

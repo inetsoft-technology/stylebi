@@ -1424,8 +1424,17 @@ public abstract class AssetQuery extends PreAssetQuery {
          String[] sarr = scripts.toArray(new String[0]);
          Boolean[] marr = mergeables.toArray(new Boolean[0]);
          AssetQueryScope scope = box.getScope();
-         scope.setVariableTable(vars);
-         scope.setMode(mode);
+
+         if(box.isScriptPoolMode()) {
+            // this query's own parameters and mode: queries of one sandbox run their scripts
+            // at the same time on pooled contexts (bug #76960)
+            scope = scope.queryView(vars, mode);
+         }
+         else {
+            scope.setVariableTable(vars);
+            scope.setMode(mode);
+         }
+
          TableAssembly table = getTable();
          ScriptEnv env = box.getScriptEnv();
          boolean cube = AssetUtil.isCubeTable(table);
@@ -1460,7 +1469,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
 
          base = PostProcessor.formula(
-            base, harr, sarr, env, box.getScope(), marr,
+            base, harr, sarr, env, box.isScriptPoolMode() ? scope : box.getScope(), marr,
             getTable().getName(), hinfos, types, restricted);
          formulaCols = new HashSet<>(Arrays.asList(harr));
 
@@ -3344,11 +3353,20 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
 
             AssetQueryScope scope = box.getScope();
-            scope.setVariableTable(vars);
-            scope.setMode(mode);
+
+            if(box.isScriptPoolMode()) {
+               // this query's own parameters and mode (bug #76960)
+               scope = scope.queryView(vars, mode);
+            }
+            else {
+               scope.setVariableTable(vars);
+               scope.setMode(mode);
+            }
+
             getTable(); // kept because it could have side effects
             ScriptEnv env = box.getScriptEnv();
-            form = new CalcFieldFormula(expression, names, forms, cols, env, box.getScope());
+            form = new CalcFieldFormula(expression, names, forms, cols, env,
+                                        box.isScriptPoolMode() ? scope : box.getScope());
          }
          else {
             form = Util.createFormula(lens, fstr);
@@ -3959,6 +3977,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          this.glist = glist;
          this.slist = slist;
          this.mode = fixSubQueryMode(mode);
+         this.queryMode = mode;
          List<AssetCondition> sconds = new ArrayList<>();
          this.table = table;
          this.mtable = new XArrayTable();
@@ -4055,7 +4074,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                            ViewsheetSandbox vbox = box.getViewsheetSandbox();
                            Viewsheet vs = vbox == null ? null : vbox.getViewsheet();
                            val = varName != null && vval == null ? attr :
-                              senv.exec(senv.compile(exp), scope = box.getScope(), null, vs);
+                              senv.exec(senv.compile(exp), scope = postConditionScope(box), null, vs);
                         }
                         catch(Exception ex) {
                            String suggestion = senv.getSuggestion(ex, null, scope);
@@ -4172,7 +4191,21 @@ public abstract class AssetQuery extends PreAssetQuery {
          return glist.size() + index;
       }
 
+      /**
+       * The scope a post-condition script runs in. On main it is the shared scope, whose mode
+       * the formula step of this query had just set; in pool mode (bug #76960, spec §6.5)
+       * that scope is never written, so the script gets a view with this query's own mode.
+       */
+      private AssetQueryScope postConditionScope(AssetQuerySandbox box) {
+         if(box.isScriptPoolMode()) {
+            return box.getScope().queryView(box.getVariableTable(), queryMode);
+         }
+
+         return box.getScope();
+      }
+
       private int mode;
+      private final int queryMode; // the query's mode, as the formula step set it on main
       private List glist;
       private List slist;
       private XTable table;

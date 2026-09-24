@@ -17,6 +17,8 @@
  */
 package inetsoft.util.script.graal;
 
+import inetsoft.util.script.graal.pool.ForeignRef;
+import inetsoft.util.script.graal.pool.WsValueCopier;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
 import java.time.Instant;
@@ -61,6 +63,12 @@ public final class ScriptValueConverter {
       // exposes only the raw getX/isX/setX accessor methods. (#75577)
       if(HostBeanProxy.shouldWrap(value)) {
          return HostBeanProxy.wrap(value);
+      }
+
+      // inside a pooled worksheet exec, a value of another context is marked foreign (bug
+      // #76960, spec §14.11); with no pooled exec on this thread it is returned unchanged
+      if(value instanceof Value v) {
+         return WsValueCopier.markForeign(v);
       }
 
       return value;
@@ -118,6 +126,12 @@ public final class ScriptValueConverter {
             return ((HostBeanProxy) proxy).getTarget();
          }
 
+         // a pooled worksheet context's reference to another context's value is that live
+         // value, never a copy (bug #76960, spec §14.11); pool-off never creates one
+         if(proxy instanceof ForeignRef ref) {
+            return WsValueCopier.foreign(ref);
+         }
+
          return proxy;
       }
 
@@ -137,7 +151,26 @@ public final class ScriptValueConverter {
          return arr;
       }
 
-      return v;
+      // a pooled worksheet context's plain object becomes a host copy (bug #76960, spec
+      // §14.12 A1/A3); everywhere else, and for functions/non-plain objects, main's raw Value
+      return WsValueCopier.detach(v);
+   }
+
+   /**
+    * Convert a guest value that host code keeps (a scope, array or chain write). Outside a
+    * pooled worksheet context this is {@link #toHost(Value)}; inside one, a function or
+    * non-plain object, which cannot be kept apart from its context, is rejected with a clear
+    * error (bug #76960, spec §14.12 A2).
+    */
+   public static Object toHostStored(Value v) {
+      return WsValueCopier.checkStorable(toHost(v));
+   }
+
+   /**
+    * Convert an exec result, which lenses and conditions keep (spec §14.12 A4).
+    */
+   public static Object toHostResult(Value v) {
+      return toHostStored(v);
    }
 
    /**

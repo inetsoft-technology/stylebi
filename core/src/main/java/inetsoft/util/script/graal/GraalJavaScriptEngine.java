@@ -20,6 +20,7 @@ package inetsoft.util.script.graal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.pool.WsExecContext;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,8 +143,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          scopeProxy = null; // rebound against the new context on next exec
 
          context = Context.newBuilder("js")
-            .engine(SHARED_ENGINE)
-            .allowHostAccess(ScriptHostAccess.hostAccess())
+            .engine(polyglotEngine())
+            .allowHostAccess(hostAccessPolicy())
             .allowHostClassLookup(classFilter)
             .allowIO(false)
             .allowCreateThread(false)
@@ -153,13 +154,28 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .build();
 
          // FIX B: reset per-Source error counts on (re)init
-         errorCounts.clear();
+         resetErrorCounts();
 
          initScope(vars);
       }
       finally {
          lock.unlock();
       }
+   }
+
+   /**
+    * The polyglot Engine this engine's Contexts share. Pooled worksheet contexts use their own
+    * engine, since every Context of one Engine must use an identical HostAccess (bug #76960).
+    */
+   protected Engine polyglotEngine() {
+      return SHARED_ENGINE;
+   }
+
+   /**
+    * The HostAccess of this engine's Contexts.
+    */
+   protected HostAccess hostAccessPolicy() {
+      return ScriptHostAccess.hostAccess();
    }
 
    /** Install engine globals. Overridden/extended by report + viewsheet layers. */
@@ -423,6 +439,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * being unavailable in minimal/test contexts.
     */
    private void installLibraryFunctions() {
+      Map<String, String> sources = librarySources();
+
+      if(sources != null) {
+         for(Map.Entry<String, String> entry : sources.entrySet()) {
+            installLibraryFunction(entry.getKey(), entry.getValue());
+         }
+
+         return;
+      }
+
       try {
          inetsoft.report.LibManager mgr =
             inetsoft.report.LibManagerProvider.getInstance().getManager();
@@ -430,35 +456,65 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          while(names.hasMoreElements()) {
             String name = (String) names.nextElement();
-            String source = mgr.getScript(name);
-
-            if(source == null || source.isEmpty()) {
-               continue;
-            }
-
-            try {
-               // Strip "use strict" directives — strict mode forbids with statements,
-               // so the wrapper would cause a SyntaxError and the function would be
-               // silently dropped. Bug #76980: rewrite top-level const/let to var
-               // as compile() does, so a library constant is visible to other
-               // scripts (Rhino put it on the scope) instead of being confined to
-               // the with-block.
-               String wrapped = rewriteTopLevelLexicalDeclarations(
-                  stripStrictDirectives(rewriteJavaLengthCalls(source)));
-               context.eval(Source.newBuilder(
-                  "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
-                              .buildLiteral());
-            }
-            catch(PolyglotException ex) {
-               // don't let one bad library function break engine init
-               LOG.warn("Failed to compile library function " + name, ex);
-            }
+            installLibraryFunction(name, mgr.getScript(name));
          }
       }
       catch(Throwable ex) {
          // LibManager/provider unavailable (e.g. minimal/test contexts) — skip
          LOG.debug("Library functions not installed; LibManager unavailable", ex);
       }
+   }
+
+   /**
+    * Install one library function; a malformed one is logged and skipped.
+    */
+   private void installLibraryFunction(String name, String source) {
+      if(source == null || source.isEmpty()) {
+         return;
+      }
+
+      try {
+         // Strip "use strict" directives — strict mode forbids with statements,
+         // so the wrapper would cause a SyntaxError and the function would be
+         // silently dropped. Bug #76980: rewrite top-level const/let to var
+         // as compile() does, so a library constant is visible to other
+         // scripts (Rhino put it on the scope) instead of being confined to
+         // the with-block.
+         String wrapped = rewriteTopLevelLexicalDeclarations(
+            stripStrictDirectives(rewriteJavaLengthCalls(source)));
+         context.eval(Source.newBuilder(
+            "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
+                         .buildLiteral());
+      }
+      catch(PolyglotException ex) {
+         // don't let one bad library function break engine init
+         LOG.warn("Failed to compile library function " + name, ex);
+      }
+   }
+
+   /**
+    * The library script sources to install, by name, in install order. {@code null} (the
+    * default) reads the LibManager at install time. A pooled worksheet engine returns the
+    * snapshot its env took, so every one of its contexts gets the same library (bug #76960).
+    */
+   protected Map<String, String> librarySources() {
+      return null;
+   }
+
+   /**
+    * The per-Source error counts ({@code script.max.errors}). Only accessed while holding
+    * {@code lock}, unless an override returns a thread-safe map. A pooled worksheet engine
+    * returns the map its env owns (spec §6.9).
+    */
+   protected Map<Object, Integer> errorCounts() {
+      return errorCounts;
+   }
+
+   /**
+    * Clear the error counts on (re)init. A pooled worksheet engine keeps its env's counts.
+    */
+   protected void resetErrorCounts() {
+      errorCounts.clear();
    }
 
    /**
@@ -1403,6 +1459,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
    public Object exec(Object script, Object scope, Object rscope) throws Exception {
       lock.lock();
+      // marks which pooled worksheet context, if any, is executing (bug #76960)
+      Object execMark = enterExecContext();
 
       try {
          // FIX A: guard against null context before initialization
@@ -1431,25 +1489,33 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          Duration timeout = currentTimeout();
 
-         try(ScriptTimeoutGuard.Guard ignored = timeoutGuard.guard(context, timeout)) {
-            // FIX B: per-Source error count check (read limit while holding lock)
-            int limit = maxErrors();
+         // created inside the try so a throw from guard(...) still runs the finally cleanup
+         ScriptTimeoutGuard.Guard guard = null;
 
-            if(limit > 0 && errorCounts.getOrDefault(script, 0) >= limit) {
-               return null;
+         try {
+            guard = timeoutGuard.guard(context, timeout);
+
+            // the inner try-with-resources closes the guard before the catch below runs
+            try(ScriptTimeoutGuard.Guard ignored = guard) {
+               // FIX B: per-Source error count check (read limit while holding lock)
+               int limit = maxErrors();
+
+               if(limit > 0 && errorCounts().getOrDefault(script, 0) >= limit) {
+                  return null;
+               }
+
+               Value result = context.eval((Source) script);
+               return ScriptValueConverter.toHostResult(result);
             }
-
-            Value result = context.eval((Source) script);
-            return ScriptValueConverter.toHost(result);
          }
          catch(PolyglotException ex) {
             // FIX B: increment per-Source error count and warn when limit first crossed
             int limit = maxErrors();
 
             if(limit > 0) {
-               int prev = errorCounts.getOrDefault(script, 0);
+               int prev = errorCounts().getOrDefault(script, 0);
                int next = prev + 1;
-               errorCounts.put(script, next);
+               errorCounts().put(script, next);
 
                if(next == limit) {
                   LOG.warn("Script max errors exceeded ({})", limit);
@@ -1483,11 +1549,50 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             scopeProxy.swapGlobal(prevScope);
             scopeProxy.swapImports(prevImports);
             scopeProxy.swapAssigned(prevAssigned);
+
+            // an interrupt that could not stop this exec leaves the Context in an unknown
+            // state (bug #76960, spec §9); the base engine keeps it, a pooled one dooms it
+            if(guard != null && guard.interruptTimedOut()) {
+               try {
+                  onInterruptTimeout();
+               }
+               catch(Exception ex) {
+                  // never let the hook mask the exec's own result or exception
+                  LOG.warn("Failed to handle script interrupt timeout", ex);
+               }
+            }
          }
       }
       finally {
+         exitExecContext(execMark);
          lock.unlock();
       }
+   }
+
+   /**
+    * Called at the start of every exec to mark the pooled worksheet context executing on this
+    * thread (bug #76960). This engine is not pooled, so it suspends any mark set by an outer
+    * pooled exec: a nested exec of this engine must never see the host-boundary conversions of
+    * the outer worksheet context. With the pool off no mark is ever set and this is a no-op.
+    *
+    * @return the token {@link #exitExecContext} restores.
+    */
+   protected Object enterExecContext() {
+      return WsExecContext.suspend();
+   }
+
+   /**
+    * Restore the mark {@link #enterExecContext} replaced.
+    */
+   protected void exitExecContext(Object token) {
+      WsExecContext.resume(token);
+   }
+
+   /**
+    * Called when a timeout interrupt of an exec could not stop it within its bound, so this
+    * engine's Context is in an unknown state. The base engine keeps using it, as before.
+    */
+   protected void onInterruptTimeout() {
    }
 
    /** Lazily create the reusable __scope__ proxy and bind it once. Caller holds lock. */
@@ -1498,6 +1603,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                                            classFilter, context);
          scopeProxy.setBuiltinScope(calcScope);
          context.getBindings("js").putMember("__scope__", scopeProxy);
+      }
+   }
+
+   /**
+    * Forget cached answers about which names are globals, after globals were deleted from
+    * this engine's Context (bug #76960). Caller holds {@code lock}.
+    */
+   protected void invalidateGlobalBindings() {
+      if(scopeProxy != null) {
+         scopeProxy.invalidateGlobalBindingCache();
       }
    }
 

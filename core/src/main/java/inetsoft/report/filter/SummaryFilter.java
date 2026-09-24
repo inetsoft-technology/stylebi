@@ -33,6 +33,7 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.ScriptSpan;
 import inetsoft.util.swap.XSwappableObjectList;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -633,7 +634,9 @@ public class SummaryFilter extends AbstractGroupedTable
     * Generate the crosstab.
     */
    private void process() {
-      try {
+      // one script span over the whole aggregation, so pooled calc fields pay one context
+      // clean instead of one per group (bug #76960, spec §14.3); NONE with the pool off
+      try(ScriptSpan ignored = CalcFieldFormula.openSpan(calcs, grand)) {
          // for Feature #26586, add post processing time record for current report/vs.
 
          ProfileUtils.addExecutionBreakDownRecord(getReportName(),

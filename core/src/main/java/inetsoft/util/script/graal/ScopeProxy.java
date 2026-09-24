@@ -85,7 +85,7 @@ public class ScopeProxy implements ProxyObject {
 
    @Override
    public void putMember(String key, org.graalvm.polyglot.Value value) {
-      scope.putMember(key, ScriptValueConverter.toHost(value));
+      scope.putMember(key, ScriptValueConverter.toHostStored(value));
    }
 
    @Override

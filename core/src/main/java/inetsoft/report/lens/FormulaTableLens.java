@@ -327,6 +327,7 @@ public class FormulaTableLens extends AbstractTableLens
 
       long start = System.currentTimeMillis();
       lock.lock();
+      ScriptSpan span = ScriptSpan.NONE;
 
       try {
          int nrows = getProcessedRowCount();
@@ -339,6 +340,11 @@ public class FormulaTableLens extends AbstractTableLens
          if(senv == null) {
             senv = report.getScriptEnv();
          }
+
+         // pool mode: one claimed span for this whole batch, including the base population
+         // below, so a script global lives for the batch and the context is cleaned once at
+         // its end (bug #76960, spec §5.3); nested batches share the claim
+         span = senv == null ? ScriptSpan.NONE : senv.openSpan();
 
          if(tableRow == null) {
             scripts = new Object[formulas.length];
@@ -370,8 +376,13 @@ public class FormulaTableLens extends AbstractTableLens
          }
 
          boolean first = true;
-         // advance at least 10 to avoid going through this once per row
-         final int advance = Math.min(Math.max(r / 100, 10), 100);
+         // advance at least 10 to avoid going through this once per row; in pool mode at
+         // least one pooled batch, so one context clean serves a batch (spec §14.8).
+         // Design cost (spec §14.14): in pool mode the lens lock is held for up to
+         // maxBatchRows rows of script evaluation, so a concurrent reader of an already
+         // computed row can wait that long for this batch to finish
+         final int advance = Math.max(Math.min(Math.max(r / 100, 10), 100),
+                                      nextPoolBatch(span, r, nrows + hrows));
          final int maxr = Math.max(r, nrows + hrows + advance);
 
          for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null; i++) {
@@ -439,7 +450,13 @@ public class FormulaTableLens extends AbstractTableLens
          }
       }
       finally {
-         lock.unlock();
+         // the lock is released even if closing the span throws
+         try {
+            span.close();
+         }
+         finally {
+            lock.unlock();
+         }
 
          if(!more) {
             if(rows != null) {
@@ -1361,6 +1378,27 @@ public class FormulaTableLens extends AbstractTableLens
       return val;
    }
 
+   /**
+    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}: batches
+    * start at batchRows and double, up to maxBatchRows, while this lens is read sequentially,
+    * that is while each batch starts at the first row not yet computed; any other access
+    * starts over at batchRows. 0 off the pool, where batchRows is 0.
+    *
+    * @param next the first row not yet computed.
+    */
+   private int nextPoolBatch(ScriptSpan span, int r, int next) {
+      int min = span.batchRows();
+
+      if(min <= 0) {
+         return 0;
+      }
+
+      int max = Math.max(min, span.maxBatchRows());
+      int batch = poolBatch > 0 && r <= next ? (poolBatch >= max / 2 ? max : poolBatch * 2) : min;
+      poolBatch = Math.min(Math.max(batch, min), max);
+      return poolBatch;
+   }
+
    // Get the number of rows already processed
    private int getProcessedRowCount() {
       XSwappableTable rows = this.rows;
@@ -1460,6 +1498,8 @@ public class FormulaTableLens extends AbstractTableLens
    private transient TableChangeListener listener = null;
    private transient TableIteratorScriptable iterator = null;
    private transient Lock lock = new ReentrantLock();
+   // the rows of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
+   private transient int poolBatch;
    private transient boolean forceType = Drivers.getInstance().isDataCached();
    private transient String reportName;
 
