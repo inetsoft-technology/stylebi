@@ -403,6 +403,66 @@ public class StallWatchdogTest {
    private record Parked(Thread thread, WaitRecord record) {
    }
 
+   @Test
+   public void probeFindingIsLoggedOncePerEpisodeAndNeverUnreleased() {
+      List<StallProbe.Finding> current = new ArrayList<>();
+      watchdog.add(() -> new ArrayList<>(current));
+      current.add(new StallProbe.Finding("k", "signal k", true));
+
+      watchdog.scan();
+      watchdog.scan();
+      assertEquals("signal k", watchdog.getProbeFindings());
+      assertNull(watchdog.getUnreleasedStall(), "a probe never makes a stall unreleased");
+      assertEquals(1, dumper.getDumpCount(), "one dump per episode");
+
+      current.clear();
+      watchdog.scan();
+      assertNull(watchdog.getProbeFindings());
+
+      advance(61000);
+      current.add(new StallProbe.Finding("k", "signal k", true));
+      watchdog.scan();
+      assertEquals(2, dumper.getDumpCount(), "a new episode dumps again");
+   }
+
+   @Test
+   public void probeWithoutDumpOnlyLogs() {
+      watchdog.add(() -> List.of(new StallProbe.Finding("k", "no dump", false)));
+      watchdog.scan();
+
+      assertEquals("no dump", watchdog.getProbeFindings());
+      assertEquals(0, dumper.getDumpCount());
+   }
+
+   @Test
+   public void failingProbeDoesNotStopTheScan() {
+      watchdog.add(() -> {
+         throw new IllegalStateException("broken probe");
+      });
+      watchdog.add(() -> List.of(new StallProbe.Finding("ok", "still scanned", false)));
+      watchdog.scan();
+
+      assertEquals("still scanned", watchdog.getProbeFindings());
+   }
+
+   @Test
+   public void offModeSkipsProbes() {
+      policy = new StallPolicy(StallPolicy.Mode.OFF, 1000, 500, dumpDir);
+      watchdog.add(() -> List.of(new StallProbe.Finding("k", "signal", true)));
+      watchdog.scan();
+
+      assertNull(watchdog.getProbeFindings());
+      assertEquals(0, dumper.getDumpCount());
+   }
+
+   @Test
+   public void wakeStartsTheGlobalWatchdog() {
+      StallWatchdog.wake();
+      boolean running = Thread.getAllStackTraces().keySet().stream()
+         .anyMatch(t -> "Lock-Stall-Watchdog".equals(t.getName()) && t.isDaemon());
+      assertTrue(running);
+   }
+
    private void advance(long millis) {
       now.addAndGet(TimeUnit.MILLISECONDS.toNanos(millis));
    }

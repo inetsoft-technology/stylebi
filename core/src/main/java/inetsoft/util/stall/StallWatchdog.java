@@ -23,7 +23,10 @@ import org.slf4j.LoggerFactory;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -62,6 +65,51 @@ public final class StallWatchdog {
     */
    public static String getUnreleasedStallReason() {
       return GLOBAL.getUnreleasedStall();
+   }
+
+   /**
+    * Register a probe with the server's watchdog. Registering does not start the watchdog
+    * thread: the probe's owner calls {@link #wake()} when it sees something worth a scan, so
+    * a healthy server never runs it.
+    */
+   public static void addProbe(StallProbe probe) {
+      GLOBAL.add(probe);
+   }
+
+   /**
+    * Start the server's watchdog thread if it is not running yet. Never throws.
+    */
+   public static void wake() {
+      try {
+         ensureStarted();
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to start the lock stall watchdog", ex);
+      }
+   }
+
+   /**
+    * Add a probe to this watchdog, once.
+    */
+   public void add(StallProbe probe) {
+      if(probe != null && !probes.contains(probe)) {
+         probes.add(probe);
+      }
+   }
+
+   /**
+    * Remove a probe from this watchdog.
+    */
+   public void remove(StallProbe probe) {
+      probes.remove(probe);
+   }
+
+   /**
+    * Get the probe findings of the last scan, or {@code null} if there were none. They are
+    * for logs and tests only: the health check never shows them.
+    */
+   public String getProbeFindings() {
+      return findings;
    }
 
    /**
@@ -167,8 +215,63 @@ public final class StallWatchdog {
             }
 
             unreleased = reasons.isEmpty() ? null : String.join("; ", reasons);
+            scanProbes();
          }
       }
+   }
+
+   /**
+    * Poll the probes. A finding is logged, and dumped if it asks for it, when its episode
+    * starts, that is when the previous scan did not find its key. Findings never make a stall
+    * unreleased. Each probe is isolated, so a failing one skips only its own findings. Caller
+    * holds this watchdog's monitor.
+    */
+   private void scanProbes() {
+      Set<String> keys = new HashSet<>();
+      List<String> messages = new ArrayList<>();
+
+      for(StallProbe probe : probes) {
+         try {
+            List<StallProbe.Finding> found = probe.scan();
+
+            if(found == null) {
+               continue;
+            }
+
+            for(StallProbe.Finding finding : found) {
+               if(finding == null) {
+                  continue;
+               }
+
+               keys.add(finding.key());
+               messages.add(finding.message());
+
+               if(probeKeys.contains(finding.key())) {
+                  continue;
+               }
+
+               if(finding.dump()) {
+                  String path = dumpForScan(finding.message());
+                  LOG.warn("Lock stall signal: {}, thread dump: {}", finding.message(),
+                           path == null ? "none (rate-limited or failed)" : path);
+               }
+               else {
+                  LOG.warn("Lock stall signal: {}", finding.message());
+               }
+            }
+         }
+         catch(Throwable ex) {
+            try {
+               LOG.warn("Lock stall probe {} failed", probe, ex);
+            }
+            catch(Throwable ignore) {
+               // never break the scan
+            }
+         }
+      }
+
+      probeKeys = keys;
+      findings = messages.isEmpty() ? null : String.join("; ", messages);
    }
 
    /**
@@ -337,6 +440,8 @@ public final class StallWatchdog {
       deadlockReason = null;
       seenDeadlock = null;
       dumpedDeadlock = null;
+      findings = null;
+      probeKeys = new HashSet<>();
    }
 
    private static void runGlobal() {
@@ -380,4 +485,7 @@ public final class StallWatchdog {
    private long[] seenDeadlock;
    private long[] dumpedDeadlock;
    private volatile String unreleased;
+   private final List<StallProbe> probes = new CopyOnWriteArrayList<>();
+   private Set<String> probeKeys = new HashSet<>(); // guarded by this
+   private volatile String findings;
 }
