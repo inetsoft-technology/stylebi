@@ -551,6 +551,37 @@ public class StallWatchdogTest {
       after.close();
    }
 
+   /**
+    * The health check drops the watchdog's JVM deadlock finding from the real scan output when
+    * it shows the deadlocked threads itself: only that part, the unreleased wait is kept.
+    */
+   @Test
+   public void jvmDeadlockPartOfARealScanIsRemovedAlone() {
+      WaitRecord record = registry.open("stuck.site", () -> 0, NONE);
+      deadlocked = new long[] { 7, 3 };
+      advance(1500);
+      watchdog.scan();
+      advance(500);
+      watchdog.scan();
+
+      String reason = watchdog.getUnreleasedStall();
+      assertNotNull(reason);
+      assertTrue(reason.contains("stuck.site"), reason);
+      assertTrue(reason.endsWith("; JVM deadlock of 2 threads"), reason);
+
+      String rest = StallWatchdog.withoutJvmDeadlock(reason);
+      assertEquals(reason.substring(0, reason.length() - "; JVM deadlock of 2 threads".length()),
+                   rest);
+      assertTrue(rest.startsWith("stall not released: stuck.site"), rest);
+      assertFalse(rest.contains("JVM deadlock"), rest);
+
+      record.close();
+      watchdog.scan();
+      assertEquals("JVM deadlock of 2 threads", watchdog.getUnreleasedStall());
+      assertNull(StallWatchdog.withoutJvmDeadlock(watchdog.getUnreleasedStall()),
+                 "nothing is left once the deadlock is removed");
+   }
+
    @Test
    public void errorWhileDumpingDoesNotCutTheScanShort() {
       // every attempt fails with an Error, such as an OutOfMemoryError from dumping the threads

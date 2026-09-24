@@ -188,6 +188,115 @@ public class LendableReentrantLockStallTest {
       assertFalse(other.isAlive(), "queued thread did not get the lock after the loan");
    }
 
+   /**
+    * A thread shut out while the lock is lent and free waits for the borrower too: a borrower
+    * working outside the lock is progress, although the lender is parked (it waits for the
+    * borrower in an unregistered wait).
+    */
+   @Test
+   public void busyBorrowerIsProgressForThreadsShutOutByTheLoan() throws Exception {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+      CountDownLatch begun = new CountDownLatch(1);
+      CountDownLatch lent = new CountDownLatch(1);
+      Thread worker = startDaemon(() -> {
+         borrower.begin();
+
+         try {
+            begun.countDown();
+            lent.await(5, TimeUnit.SECONDS);
+            long end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(3000);
+
+            while(System.nanoTime() < end) {
+               Thread.onSpinWait();
+            }
+         }
+         catch(InterruptedException ignore) {
+         }
+         finally {
+            borrower.end();
+         }
+      });
+      assertTrue(begun.await(5, TimeUnit.SECONDS));
+      FutureTask<Boolean> shutOut = new FutureTask<>(() -> {
+         lock.lock();
+         lock.unlock();
+         return true;
+      });
+      lock.lock();
+
+      try {
+         try(LendableReentrantLock.Loan ignored = lock.lend(borrower)) {
+            Thread thread = startDaemon(shutOut);
+            awaitBlocked(thread);
+            lent.countDown();
+            // the lender parks while its borrower works, as a lens reader would
+            worker.join(15000);
+            assertFalse(shutOut.isDone(), "a busy borrower is not a stall");
+         }
+      }
+      finally {
+         lock.unlock();
+      }
+
+      assertTrue(shutOut.get(15, TimeUnit.SECONDS));
+   }
+
+   /**
+    * A borrower that is parked makes no progress: a thread shut out by the loan fails holding
+    * nothing, and the loan is left as it was.
+    */
+   @Test
+   public void parkedBorrowerStallsThreadsShutOutByTheLoan() throws Exception {
+      LendableReentrantLock lock = new LendableReentrantLock();
+      LendableReentrantLock.Borrower borrower = new LendableReentrantLock.Borrower();
+      CountDownLatch begun = new CountDownLatch(1);
+      Thread worker = startDaemon(() -> {
+         borrower.begin();
+
+         try {
+            begun.countDown();
+            release.await(30, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ignore) {
+         }
+         finally {
+            borrower.end();
+         }
+      });
+      assertTrue(begun.await(5, TimeUnit.SECONDS));
+      FutureTask<Integer> shutOut = new FutureTask<>(() -> {
+         try {
+            lock.lock();
+            lock.unlock();
+            return -1;
+         }
+         catch(LockStallException ex) {
+            assertEquals("LendableReentrantLock.lock", ex.getSite());
+            return lock.getHoldCount();
+         }
+      });
+      lock.lock();
+
+      try {
+         try(LendableReentrantLock.Loan ignored = lock.lend(borrower)) {
+            startDaemon(shutOut);
+            assertEquals(0, shutOut.get(15, TimeUnit.SECONDS), "must fail holding nothing");
+            assertTrue(lock.isLent(), "the loan is left intact");
+            assertFalse(lock.isLocked());
+            release.countDown();
+            worker.join(5000);
+         }
+
+         assertEquals(1, lock.getHoldCount(), "the lender got its hold back");
+      }
+      finally {
+         lock.unlock();
+      }
+
+      assertFalse(lock.isLocked());
+   }
+
    private Thread holdUntilReleased(LendableReentrantLock lock) throws InterruptedException {
       CountDownLatch locked = new CountDownLatch(1);
       Thread owner = startDaemon(() -> {

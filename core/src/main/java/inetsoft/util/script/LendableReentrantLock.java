@@ -125,7 +125,9 @@ public final class LendableReentrantLock implements Lock {
 
    /**
     * The threads a waiter waits for: the owner, or while the lock is lent and free, the
-    * lender (which waits for its worker).
+    * lender (which waits for its worker) and the innermost loan's borrower, the only thread
+    * canAcquire() would let in. A borrower working outside the lock is progress although the
+    * lender is parked in an unregistered wait.
     */
    private Thread[] getBlockers() {
       synchronized(monitor) {
@@ -134,10 +136,22 @@ public final class LendableReentrantLock implements Lock {
          }
 
          LoanImpl loan = loans.peek();
-         return loan != null ? new Thread[] { loan.lender } : NO_THREADS;
+
+         if(loan == null) {
+            return NO_THREADS;
+         }
+
+         Thread borrower = loan.borrower.getThread();
+         return borrower != null ? new Thread[] { loan.lender, borrower } :
+            new Thread[] { loan.lender };
       }
    }
 
+   /**
+    * Unlike {@link #lock()}, this wait is not bounded by the lock-stall watchdog nor registered
+    * with it (bug #76967): no production code calls it, the engine lock is only taken with
+    * lock() and tryLock().
+    */
    @Override
    public void lockInterruptibly() throws InterruptedException {
       if(Thread.interrupted()) {
@@ -338,6 +352,8 @@ public final class LendableReentrantLock implements Lock {
          // made) to let go
          loan.revoked = true;
 
+         // not bounded by the lock-stall watchdog nor registered with it (bug #76967): only
+         // lock() is, bounding the lender's wait for its borrower is outside that scope
          while(loans.peek() != loan || owner != null) {
             try {
                monitor.wait();
