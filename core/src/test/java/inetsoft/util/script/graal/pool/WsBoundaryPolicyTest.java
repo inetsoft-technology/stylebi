@@ -64,7 +64,7 @@ class WsBoundaryPolicyTest {
       assertEquals("Worksheet script context pool (script.ws.contextPool, default false " +
                       "in this release)", WsBoundaryPolicy.RELEASE_NOTE.get(0));
       assertTrue(WsBoundaryPolicy.RELEASE_NOTE.get(WsBoundaryPolicy.RELEASE_NOTE.size() - 1)
-                    .endsWith("its interrupt never reaches a later script."));
+                    .endsWith("reused."));
 
       for(String line : WsBoundaryPolicy.RELEASE_NOTE) {
          assertTrue(line.length() <= 88, "line too long: " + line);

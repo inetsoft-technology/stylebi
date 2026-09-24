@@ -126,6 +126,9 @@ final class WsBoundaryPolicy {
       "  condition-filtered table raises IndexOutOfBoundsException instead of returning a",
       "  wrong row, and a crosstab condition's last-row span is no longer over-counted.",
       "- Script timeouts use per-exec tokens: after a real timeout an exec can take up to",
-      "  3 s longer to return, and its interrupt never reaches a later script."
+      "  3 s longer to return, and its interrupt no longer reaches a later script, except",
+      "  in the rare case where the interrupt itself cannot finish within its bound: then",
+      "  the Context is flagged unknown, and with the pool on the slot is closed instead of",
+      "  reused."
    );
 }
