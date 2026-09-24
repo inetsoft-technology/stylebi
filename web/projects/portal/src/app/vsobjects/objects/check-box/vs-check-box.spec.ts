@@ -38,6 +38,7 @@ import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
 import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { VSCheckBoxModel } from "../../model/vs-check-box-model";
 import { VSCheckBox } from "./vs-check-box.component";
 
 describe("vs check box component unit case", () => {
@@ -125,5 +126,316 @@ describe("vs check box component unit case", () => {
       expect(checkItem.style["padding-left"]).not.toBeNull();
       expect(check.style["vertical-align"]).toEqual("bottom");
       //expect(checkItem.style["align-items"]).toBe("flex-end");
+   });
+});
+
+const APPLY_URL = "/events/checkBox/applySelection";
+const MODEL_URL = "/events/vsview/object/model";
+
+describe.each([
+   ["portal viewer", {viewer: true, preview: false}],
+   ["composer preview", {viewer: false, preview: true}],
+   ["composer edit mode", {viewer: false, preview: false}]
+])("VSCheckBox pending selection in %s (Bug #76959)", (contextName, contextFlags) => {
+   let fixture: ComponentFixture<VSCheckBox>;
+   let checkBox: VSCheckBox;
+   let socket: any;
+   let formInputService: any;
+   // debounced callbacks that have not been fired yet, keyed like DebounceService
+   let debounced: Map<string, { fn: Function, args: any[] }>;
+   let formCheckResult: "confirm" | "cancel" | "defer";
+   // the confirm callback of a form data check that is still waiting for the user
+   let deferredConfirm: Function;
+
+   function createModel(selected: string[], values: string[] = ["A", "B", "C"]): VSCheckBoxModel {
+      const model = TestUtils.createMockVSCheckBoxModel("CheckBox1");
+      model.objectFormat = TestUtils.createMockVSFormatModel();
+      model.labels = values.slice();
+      model.values = values.slice();
+      model.selectedObjects = selected.slice();
+      model.selectedLabels = selected.slice();
+      model.dataColCount = 1;
+      model.dataRowCount = values.length;
+      return model;
+   }
+
+   /** Simulates a RefreshVSObjectCommand replacing the model. */
+   function pushModel(selected: string[], values?: string[]): VSCheckBoxModel {
+      const model = createModel(selected, values);
+      fixture.componentRef.setInput("model", model);
+      return model;
+   }
+
+   /** Fires the pending debounced send, as DebounceService would after 500ms. */
+   function flushDebounce(): void {
+      const entries = Array.from(debounced.values());
+      debounced.clear();
+      entries.forEach(({fn, args}) => fn(...args));
+   }
+
+   function inputs(): HTMLInputElement[] {
+      return Array.from(fixture.nativeElement.querySelectorAll("input[type=checkbox]"));
+   }
+
+   async function checked(): Promise<boolean[]> {
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return inputs().map((input) => input.checked);
+   }
+
+   async function click(index: number): Promise<void> {
+      inputs()[index].click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+   }
+
+   function sentValues(): any[] {
+      return socket.sendEvent.mock.calls.filter((call) => call[0] === APPLY_URL)
+         .map((call) => JSON.parse(JSON.stringify(call[1].value)));
+   }
+
+   beforeEach(async () => {
+      vi.useFakeTimers({toFake: ["setTimeout", "clearTimeout"]});
+      debounced = new Map();
+      formCheckResult = "confirm";
+      deferredConfirm = null;
+      socket = {sendEvent: vi.fn(), runtimeId: "vs1", commands: new Subject<any>()};
+      const formDataService = {
+         checkFormData: vi.fn((runtimeId, name, selection, confirmed, canceled) => {
+            if(formCheckResult === "confirm") {
+               confirmed();
+            }
+            else if(formCheckResult === "defer") {
+               deferredConfirm = confirmed;
+            }
+            else {
+               canceled();
+            }
+         }),
+         removeObject: vi.fn(),
+         addObject: vi.fn(),
+         replaceObject: vi.fn()
+      };
+      formInputService = {addPendingValue: vi.fn()};
+      const debounceService = {
+         debounce: vi.fn((key: string, fn: Function, delay: number, args: any[]) => {
+            debounced.set(key, {fn, args});
+         }),
+         cancel: vi.fn()
+      };
+
+      TestBed.configureTestingModule({
+         imports: [VSCheckBox],
+         schemas: [NO_ERRORS_SCHEMA],
+         providers: [
+            PopComponentService,
+            {provide: ViewsheetClientService, useValue: socket},
+            {provide: CheckFormDataService, useValue: formDataService},
+            {provide: FormInputService, useValue: formInputService},
+            {provide: DebounceService, useValue: debounceService},
+            {provide: ContextProvider, useValue: Object.assign({}, contextFlags)},
+            {provide: DataTipService, useValue: {isDataTip: vi.fn(), scrolled: new Subject<void>()}},
+            {provide: ModelService, useValue: {getModel: vi.fn(), sendModel: vi.fn()}},
+            {provide: InteractService, useValue: {
+               addInteractable: vi.fn(), notify: vi.fn(), removeInteractable: vi.fn()}}
+         ]
+      });
+      await TestBed.compileComponents();
+
+      fixture = TestBed.createComponent(VSCheckBox);
+      checkBox = fixture.componentInstance;
+      pushModel(["A"]);
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
+   afterEach(() => {
+      fixture.destroy();
+      vi.useRealTimers();
+   });
+
+   it("ignores a stale model of the previous selection while the send is debounced", async () => {
+      await click(1);
+      expect(await checked()).toEqual([true, true, false]);
+      expect(sentValues().length).toBe(0);
+
+      const stale = pushModel(["A"]);
+
+      expect(await checked()).toEqual([true, true, false]);
+      // the incoming model is not modified
+      expect(stale.selectedObjects).toEqual(["A"]);
+
+      flushDebounce();
+      expect(sentValues()).toEqual([["A", "B"]]);
+   });
+
+   it("ignores a stale model of the previous selection after the send, before the ack", async () => {
+      await click(1);
+      flushDebounce();
+      expect(sentValues()).toEqual([["A", "B"]]);
+
+      pushModel(["A"]);
+      pushModel(["A"]);
+
+      expect(await checked()).toEqual([true, true, false]);
+   });
+
+   it("clears the pending selection when the server acknowledges it in any order", async () => {
+      await click(1);
+      flushDebounce();
+      pushModel(["A"]);
+      pushModel(["B", "A"]);
+      expect(await checked()).toEqual([true, true, false]);
+
+      // a later server change is no longer ignored
+      pushModel(["C"]);
+      expect(await checked()).toEqual([false, false, true]);
+   });
+
+   it("does not treat a matching model received before the send as the ack", async () => {
+      await click(1);
+      pushModel(["A", "B"]);
+      flushDebounce();
+      pushModel(["A"]);
+
+      expect(await checked()).toEqual([true, true, false]);
+   });
+
+   it("toggles the displayed selection when clicked again while a stale model is shown", async () => {
+      await click(1);
+      flushDebounce();
+      pushModel(["A"]);
+
+      await click(2);
+      expect(await checked()).toEqual([true, true, true]);
+      flushDebounce();
+      expect(sentValues()).toEqual([["A", "B"], ["A", "B", "C"]]);
+
+      // the ack of the first click is stale for the second one
+      pushModel(["A", "B"]);
+      expect(await checked()).toEqual([true, true, true]);
+
+      pushModel(["C", "B", "A"]);
+      pushModel(["A"]);
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
+   it("unchecks a value from the displayed selection while a stale model is shown", async () => {
+      await click(1);
+      flushDebounce();
+      pushModel(["A"]);
+
+      await click(1);
+      flushDebounce();
+      expect(sentValues()).toEqual([["A", "B"], ["A"]]);
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
+   it("shows a server override once the pending selection times out", async () => {
+      await click(1);
+      flushDebounce();
+      pushModel(["C"]);
+      expect(await checked()).toEqual([true, true, false]);
+
+      vi.advanceTimersByTime(2000);
+
+      expect(await checked()).toEqual([false, false, true]);
+   });
+
+   it("shows a server override back to the previous selection once the pending selection times out", async () => {
+      await click(1);
+      flushDebounce();
+      pushModel(["A"]);
+
+      vi.advanceTimersByTime(1999);
+      expect(await checked()).toEqual([true, true, false]);
+
+      vi.advanceTimersByTime(1);
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
+   it("releases the pending selection even if it is never sent", async () => {
+      await click(1);
+      pushModel(["A"]);
+
+      vi.advanceTimersByTime(2500);
+
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
+   it("shows the latest server model once the absolute limit after the send is reached", async () => {
+      await click(1);
+      flushDebounce();
+
+      for(let t = 0; t < 10000; t += 1000) {
+         pushModel(["A"]);
+         expect(await checked()).toEqual([true, true, false]);
+         vi.advanceTimersByTime(1000);
+      }
+
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
+   it("shows the server selection at once when a pending value is no longer an option", async () => {
+      await click(1);
+      flushDebounce();
+      pushModel(["A"], ["A", "C"]);
+
+      expect(await checked()).toEqual([true, false]);
+   });
+
+   it("keeps the selection while the form data check waits for the user", async () => {
+      formCheckResult = "defer";
+      await click(1);
+      pushModel(["A"]);
+      vi.advanceTimersByTime(5000);
+      expect(await checked()).toEqual([true, true, false]);
+
+      deferredConfirm();
+      flushDebounce();
+      expect(sentValues()).toEqual([["A", "B"]]);
+   });
+
+   it("shows the restored selection after the form data check is cancelled", async () => {
+      formCheckResult = "cancel";
+      await click(1);
+
+      expect(sentValues().length).toBe(0);
+      expect(socket.sendEvent.mock.calls.filter((call) => call[0] === MODEL_URL).length).toBe(1);
+
+      pushModel(["A"]);
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
+   it("clears the pending timeout when the component is destroyed", async () => {
+      await click(1);
+      flushDebounce();
+      const clear = vi.spyOn((<any> checkBox).pendingSelection, "clear");
+
+      fixture.destroy();
+      clear.mockClear();
+      vi.advanceTimersByTime(15000);
+
+      expect(clear).not.toHaveBeenCalled();
+   });
+
+   it("does not guard the ctrl-held selection", async () => {
+      checkBox.onKeyDown(<KeyboardEvent> {keyCode: 17});
+      await click(1);
+      expect(sentValues().length).toBe(0);
+
+      pushModel(["A"]);
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
+   it("does not guard a selection that is only added to the pending form values", async () => {
+      const model = createModel(["A"]);
+      model.refresh = false;
+      fixture.componentRef.setInput("model", model);
+      await click(1);
+      expect(formInputService.addPendingValue).toHaveBeenCalledWith("CheckBox1", ["A", "B"]);
+
+      pushModel(["A"]);
+      expect(await checked()).toEqual([true, false, false]);
    });
 });

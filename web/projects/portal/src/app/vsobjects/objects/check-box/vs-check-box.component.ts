@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, NgZone, OnChanges, OnDestroy } from "@angular/core";
+import { Component, Input, NgZone, OnChanges, OnDestroy } from "@angular/core";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { GetVSObjectModelEvent } from "../../../vsview/event/get-vs-object-model-event";
 import { DebounceService } from "../../../widget/services/debounce.service";
@@ -25,6 +25,7 @@ import { VSInputSelectionEvent } from "../../event/vs-input-selection-event";
 import { VSCheckBoxModel } from "../../model/vs-check-box-model";
 import { CheckFormDataService } from "../../util/check-form-data.service";
 import { FormInputService } from "../../util/form-input.service";
+import { PendingInputSelection } from "./pending-input-selection";
 import { VSCompound } from "./vs-compound";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { VSFormatModel } from "../../model/vs-format-model";
@@ -45,6 +46,12 @@ const CHECKBOX_PADDING = 18;
     imports: [VSDataTipDirective, VSPopComponentDirective, SafeFontDirective, VSTitle, InteractableDirective, TooltipIfDirective]
 })
 export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges, OnDestroy {
+   // The latest selection (selected values) made by the user that has not been acknowledged
+   // by the server yet. While it is pending, it is displayed instead of the selection of the
+   // current model, so a stale model (e.g. the in-flight refresh of the previous apply) does
+   // not revert the checked state (Bug #76959).
+   private readonly pendingSelection: PendingInputSelection<any[]>;
+
    constructor(socket: ViewsheetClientService,
                formDataService: CheckFormDataService,
                private formInputService: FormInputService,
@@ -55,6 +62,26 @@ export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges
                protected modelService: ModelService)
    {
       super(socket, formDataService, debounceService, context, modelService, dataTipService, zone);
+      this.pendingSelection = new PendingInputSelection<any[]>(
+         zone, (values1, values2) => this.sameSelection(values1, values2),
+         () => this.pendingSelection.clear());
+   }
+
+   ngOnDestroy() {
+      super.ngOnDestroy();
+      this.pendingSelection.clear();
+   }
+
+   @Input() set model(m: VSCheckBoxModel) {
+      this._model = m;
+
+      if(!!m && this.pendingSelection.active) {
+         this.checkPendingValue();
+      }
+   }
+
+   get model(): VSCheckBoxModel {
+      return this._model;
    }
 
    isSelected(index: any) {
@@ -66,7 +93,9 @@ export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges
       }
 
       let value = values[index];
-      return this.model.selectedObjects.some(v => v == value);
+      const selectedObjects = this.pendingSelection.active ?
+         this.pendingSelection.value : this.model.selectedObjects;
+      return selectedObjects.some(v => v == value);
    }
 
    onChange(index: any): void {
@@ -77,6 +106,15 @@ export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges
          return;
       }
 
+      // toggle the displayed selection, the current model may be a stale one that is ignored
+      if(this.pendingSelection.active) {
+         const selectedObjects = this.pendingSelection.value.slice();
+         this.model.selectedObjects = selectedObjects;
+         this.model.selectedLabels = selectedObjects.map(v => this.model.labels[this.getIndex(v)]);
+      }
+
+      // the last click wins, a previous pending selection is replaced
+      this.pendingSelection.clear();
       this.unappliedSelection = true;
       let option = values[index];
 
@@ -100,6 +138,9 @@ export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges
             this.pendingChange = true;
          }
          else {
+            // guarded in the viewer, preview and composer edit mode alike, since the same
+            // apply and refresh flow runs in all of them
+            this.pendingSelection.start(this.model.selectedObjects.slice());
             this.applySelection();
          }
       }
@@ -114,14 +155,24 @@ export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges
       this.formDataService.checkFormData(
          this.socket.runtimeId, this.model.absoluteName, null,
          () => {
-            const event = new VSInputSelectionEvent(
-               this.model.absoluteName, this.model.selectedObjects);
+            // a stale model received while the form data check waited for the user must
+            // not replace the protected selection that is sent
+            const value = this.pendingSelection.active ?
+               this.pendingSelection.value : this.model.selectedObjects;
+            const event = new VSInputSelectionEvent(this.model.absoluteName, value);
+            this.pendingSelection.confirmed(event.value);
             this.debounceService.debounce(
                `InputSelectionEvent.${this.model.absoluteName}`,
-               (evt, socket) => socket.sendEvent("/events/checkBox/applySelection", evt),
-               500, [event, this.socket]);
+               (evt, socket) => {
+                  socket.sendEvent("/events/checkBox/applySelection", evt);
+                  this.pendingSelection.markSent(evt.value);
+               },
+               PendingInputSelection.APPLY_DELAY, [event, this.socket]);
          },
          () => {
+            // the server model requested below restores the previous selection, it must
+            // not be ignored as a stale model
+            this.pendingSelection.clear();
             let event: GetVSObjectModelEvent =
                new GetVSObjectModelEvent(this.model.absoluteName);
             this.socket.sendEvent("/events/vsview/object/model", event);
@@ -135,5 +186,28 @@ export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges
     */
    protected onSpace(index: number): void {
       this.onChange(this.model.values[index]);
+   }
+
+   /**
+    * Check an incoming model against the pending selection.
+    */
+   private checkPendingValue(): void {
+      // a pending value is no longer an option, so the server selection must be shown
+      if(this.pendingSelection.value.some(v => this.getIndex(v) < 0)) {
+         this.pendingSelection.clear();
+         return;
+      }
+
+      this.pendingSelection.received(this.model.selectedObjects);
+   }
+
+   /**
+    * Compare two selections regardless of order and duplicates, with the values normalized
+    * the same way as getIndex() does.
+    */
+   private sameSelection(values1: any[], values2: any[]): boolean {
+      const set1 = new Set((values1 || []).map(v => v == null ? null : v + ""));
+      const set2 = new Set((values2 || []).map(v => v == null ? null : v + ""));
+      return set1.size == set2.size && Array.from(set1).every(v => set2.has(v));
    }
 }

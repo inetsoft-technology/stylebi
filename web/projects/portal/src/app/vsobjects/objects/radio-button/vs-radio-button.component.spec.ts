@@ -419,12 +419,66 @@ describe("VSRadioButton pending selection (Bug #76959)", () => {
       expect(await checkedIndex()).toBe(0);
    });
 
-   it("does not guard the selection outside the viewer", async () => {
+   describe("in composer edit mode", () => {
+      beforeEach(() => {
+         // ComposerContextProviderFactory: neither viewer nor preview
+         context.viewer = false;
+         context.preview = false;
+      });
+
+      it("ignores a stale model while the send is debounced and after the send", async () => {
+         await click(1);
+         pushModel("A");
+         expect(await checkedIndex()).toBe(1);
+
+         flushDebounce();
+         expect(sentEvents(APPLY_URL).map((e) => e.value)).toEqual(["B"]);
+
+         pushModel("A");
+         expect(await checkedIndex()).toBe(1);
+         expect(radio.selectIndex).toBe(1);
+      });
+
+      it("clears the pending selection when the server acknowledges it", async () => {
+         await click(1);
+         flushDebounce();
+         pushModel("A");
+         pushModel("B");
+         expect(await checkedIndex()).toBe(1);
+
+         // a later server change (e.g. undo or a property change) is no longer ignored
+         pushModel("A");
+         expect(await checkedIndex()).toBe(0);
+      });
+
+      it("shows a server override once the pending selection times out", async () => {
+         await click(1);
+         flushDebounce();
+         pushModel("C");
+         expect(await checkedIndex()).toBe(1);
+
+         vi.advanceTimersByTime(2000);
+
+         expect(await checkedIndex()).toBe(2);
+      });
+
+      it("shows the server value at once when the pending value is no longer an option", async () => {
+         await click(1);
+         flushDebounce();
+         pushModel("A", ["A", "C"]);
+
+         expect(await checkedIndex()).toBe(0);
+      });
+   });
+
+   it("guards the selection in composer preview", async () => {
       context.viewer = false;
+      context.preview = true;
       await click(1);
+      flushDebounce();
 
       pushModel("A");
-      expect(await checkedIndex()).toBe(0);
+      expect(await checkedIndex()).toBe(1);
    });
 
    it("does not guard a selection that is only added to the pending form values", async () => {
