@@ -120,8 +120,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       // asset. isUserPadding is the author's opinion, and setCSSDefaults installs a CSS padding
       // just before this hook runs, so both are left alone
       if(!isUserPadding() && !isCssPaddingDefined()) {
-         setPadding(ctx.modern ? VSObjectChromeDefaults.modernChartPadding(ctx)
-                       : VSObjectChromeDefaults.legacyChartPadding());
+         setPadding(defaultPadding(ctx));
       }
 
       // the title lane's rule and its text colour. No background write on either branch: this
