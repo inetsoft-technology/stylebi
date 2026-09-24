@@ -239,10 +239,14 @@ public class TableViewPropertyDialogService {
          cellPaddingPaneModel.getTop(), cellPaddingPaneModel.getLeft(),
          cellPaddingPaneModel.getBottom(), cellPaddingPaneModel.getRight());
       Boolean cellPaddingFollowsDefault = cellPaddingPaneModel.getFollowsDefault();
+      Insets storedCellPadding = tableAssemblyInfo.getCellPadding();
+      Insets storedOrZeroCellPadding = storedCellPadding == null ?
+         new Insets(0, 0, 0, 0) : storedCellPadding;
 
       if(cellPaddingFollowsDefault == null) {
-         // no checkbox was shown, so this table is not marked; store only a real edit
-         if(!editedCellPadding.equals(tableAssemblyInfo.getCellPadding())) {
+         // no checkbox was shown, so this table is not marked; store only a real edit. the load
+         // side shows 0 for an absent padding, so an untouched pane must compare against that
+         if(!editedCellPadding.equals(storedOrZeroCellPadding)) {
             tableAssemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
          }
       }

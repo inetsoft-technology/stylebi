@@ -332,10 +332,14 @@ public class CrosstabPropertyDialogService {
          cellPaddingPaneModel.getTop(), cellPaddingPaneModel.getLeft(),
          cellPaddingPaneModel.getBottom(), cellPaddingPaneModel.getRight());
       Boolean cellPaddingFollowsDefault = cellPaddingPaneModel.getFollowsDefault();
+      Insets storedCellPadding = assemblyInfo.getCellPadding();
+      Insets storedOrZeroCellPadding = storedCellPadding == null ?
+         new Insets(0, 0, 0, 0) : storedCellPadding;
 
       if(cellPaddingFollowsDefault == null) {
-         // no checkbox was shown, so this table is not marked; store only a real edit
-         if(!editedCellPadding.equals(assemblyInfo.getCellPadding())) {
+         // no checkbox was shown, so this table is not marked; store only a real edit. the load
+         // side shows 0 for an absent padding, so an untouched pane must compare against that
+         if(!editedCellPadding.equals(storedOrZeroCellPadding)) {
             assemblyInfo.setCellPadding(editedCellPadding, CompositeValue.Type.USER);
          }
       }
