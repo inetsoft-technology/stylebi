@@ -24,6 +24,7 @@ import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,7 +39,7 @@ public class DeadlockHealthIndicator implements HealthIndicator {
    public Health health() {
       DeadlockStatus status = service.getStatus();
 
-      if(status.getDeadlockedThreadCount() > 0) {
+      if(status.getDeadlockedThreadCount() > 0 || status.isStalled()) {
          Map<String, Map<String, String>> details = new HashMap<>();
 
          for(DeadlockedThread thread : status.getDeadlockedThreads()) {
@@ -46,6 +47,12 @@ public class DeadlockHealthIndicator implements HealthIndicator {
             details.put(thread.getThreadName(), threadDetails);
             threadDetails.put("lockName", thread.getLockName());
             threadDetails.put("lockOwnerName", thread.getLockOwnerName());
+         }
+
+         // a lock stall that its timeout did not release, e.g. a thread that cannot unwind
+         // (bug #76967)
+         if(status.isStalled()) {
+            details.put("lockStall", Collections.singletonMap("reason", status.getStallReason()));
          }
 
          LoggerFactory.getLogger(getClass()).error(

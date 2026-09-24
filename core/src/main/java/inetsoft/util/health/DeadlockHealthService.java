@@ -18,15 +18,25 @@
 package inetsoft.util.health;
 
 import inetsoft.util.ConfigurationContext;
+import inetsoft.util.stall.StallWatchdog;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
+import java.util.function.Supplier;
 
 @Service
 @Lazy
 public class DeadlockHealthService {
+   public DeadlockHealthService() {
+      this(StallWatchdog::getUnreleasedStallReason);
+   }
+
+   DeadlockHealthService(Supplier<String> stallReason) {
+      this.stallReason = stallReason;
+   }
+
    public static DeadlockHealthService getInstance() {
       return ConfigurationContext.getContext().getSpringBean(DeadlockHealthService.class);
    }
@@ -34,12 +44,16 @@ public class DeadlockHealthService {
    public DeadlockStatus getStatus() {
       ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
       long[] deadlocks = threadBean.findDeadlockedThreads();
+      // a lock stall that its timeout did not release (bug #76967)
+      String stall = stallReason.get();
 
       if(deadlocks != null && deadlocks.length > 0) {
-         return new DeadlockStatus(threadBean.getThreadInfo(deadlocks));
+         return new DeadlockStatus(threadBean.getThreadInfo(deadlocks), stall);
       }
 
-      return new DeadlockStatus();
+      return stall != null ?
+         new DeadlockStatus(0, new DeadlockedThread[0], stall) : new DeadlockStatus();
    }
 
+   private final Supplier<String> stallReason;
 }

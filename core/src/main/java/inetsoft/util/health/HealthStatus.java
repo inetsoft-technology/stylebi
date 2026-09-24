@@ -41,6 +41,7 @@ public final class HealthStatus implements Serializable {
    public boolean isDown() {
       return cacheSwapStatus.isExcessiveWaiting() ||
          deadlockStatus.getDeadlockedThreadCount() > 0 ||
+         deadlockStatus.isStalled() ||
          outOfMemoryStatus.isOutOfMemory() ||
          reportFailureStatus.isExcessiveFailures() ||
          !schedulerStatus.isHealthy() ||
