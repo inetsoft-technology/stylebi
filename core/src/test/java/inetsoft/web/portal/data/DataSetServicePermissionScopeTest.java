@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.data;
 
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -59,6 +60,15 @@ import static org.mockito.Mockito.*;
  * [Op: purge folder][Private]   private-scope entry + deleteFolder (permanent, in bin) -> removePermission never called
  * [Op: delete worksheet][Global] global-scope entry + deleteWorksheet(force) -> removePermission(path) called
  * [Op: delete worksheet][Private] private-scope entry + deleteWorksheet(force) -> removePermission never called
+ *
+ * Bug #77009 extends the same guard to the recycle-bin capture and to drag-move of worksheets:
+ * [Op: delete folder][Private]   private-scope entry + deleteFolder (move to bin) -> recycle entry records no permission
+ * [Op: delete folder][Global]    global-scope entry + deleteFolder (move to bin)  -> recycle entry records the permission
+ * [Op: trash worksheet][Private] private-scope entry + deleteWorksheet (to bin)   -> recycle entry records no permission
+ * [Op: trash worksheet][Global]  global-scope entry + deleteWorksheet (to bin)    -> recycle entry records the permission
+ * [Op: move worksheet][Private]  private A/ws -> private B + moveDataSet -> setPermission never called (global B/ws untouched)
+ * [Op: move worksheet][Global]   global A/ws -> global B + moveDataSet   -> setPermission(B/ws) called
+ * The restore side is covered by inetsoft.web.RecycleUtilsPermissionScopeTest.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -196,6 +206,115 @@ class DataSetServicePermissionScopeTest {
       service.deleteWorksheet(PATH, AssetRepository.USER_SCOPE, principal, true);
 
       verify(securityProvider, never()).removePermission(any(), anyString());
+   }
+
+   // [Op: delete folder][Private] -- Bug #77009: the global "RT" permission is not captured
+   @Test
+   void deleteFolder_privateScopeEntry_recordsNoPermissionInRecycleBin() throws Exception {
+      IdentityID alice = new IdentityID("alice", "host");
+      AssetEntry privateEntry = new AssetEntry(AssetRepository.USER_SCOPE,
+                                               AssetEntry.Type.FOLDER, PATH, alice);
+      when(assetRepository.getAssetEntry(any())).thenReturn(privateEntry);
+      lenient().when(principal.getName()).thenReturn(alice.convertToKey());
+      lenient().when(securityProvider.getPermission(ResourceType.ASSET, PATH))
+         .thenReturn(new Permission());
+
+      service.deleteFolder(PATH, PATH, AssetRepository.USER_SCOPE, principal);
+
+      verify(recycleBin).addEntry(anyString(), eq(PATH), eq(PATH), isNull(),
+                                  eq(RepositoryEntry.WORKSHEET_FOLDER),
+                                  eq(AssetRepository.USER_SCOPE), eq(alice));
+   }
+
+   // [Op: delete folder][Global] -- Bug #77009 control
+   @Test
+   void deleteFolder_globalScopeEntry_recordsPermissionInRecycleBin() throws Exception {
+      AssetEntry globalEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                              AssetEntry.Type.FOLDER, PATH, null);
+      when(assetRepository.getAssetEntry(any())).thenReturn(globalEntry);
+      Permission permission = new Permission();
+      when(securityProvider.getPermission(ResourceType.ASSET, PATH)).thenReturn(permission);
+
+      service.deleteFolder(PATH, PATH, AssetRepository.GLOBAL_SCOPE, principal);
+
+      verify(recycleBin).addEntry(anyString(), eq(PATH), eq(PATH), same(permission),
+                                  eq(RepositoryEntry.WORKSHEET_FOLDER),
+                                  eq(AssetRepository.GLOBAL_SCOPE), isNull());
+   }
+
+   // [Op: trash worksheet][Private] -- Bug #77009: the global "A/ws" permission is not captured
+   @Test
+   void deleteWorksheet_privateScopeEntry_toBin_recordsNoPermission() throws Exception {
+      IdentityID alice = new IdentityID("alice", "host");
+      AssetEntry privateEntry = new AssetEntry(AssetRepository.USER_SCOPE,
+                                               AssetEntry.Type.WORKSHEET, "A/ws", alice);
+      when(assetRepository.getAssetEntry(any())).thenReturn(privateEntry);
+      lenient().when(principal.getName()).thenReturn(alice.convertToKey());
+      lenient().when(securityProvider.getPermission(ResourceType.ASSET, "A/ws"))
+         .thenReturn(new Permission());
+
+      service.deleteWorksheet("A/ws", AssetRepository.USER_SCOPE, principal, false);
+
+      verify(securityProvider, never()).setPermission(any(), anyString(), any());
+      verify(securityProvider, never()).removePermission(any(), anyString());
+      verify(recycleBin).addEntry(anyString(), eq("A/ws"), eq("ws"), isNull(),
+                                  eq(RepositoryEntry.WORKSHEET),
+                                  eq(AssetRepository.USER_SCOPE), eq(alice));
+   }
+
+   // [Op: trash worksheet][Global] -- Bug #77009 control
+   @Test
+   void deleteWorksheet_globalScopeEntry_toBin_recordsPermission() throws Exception {
+      AssetEntry globalEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                              AssetEntry.Type.WORKSHEET, "A/ws", null);
+      when(assetRepository.getAssetEntry(any())).thenReturn(globalEntry);
+      Permission permission = new Permission();
+      when(securityProvider.getPermission(ResourceType.ASSET, "A/ws")).thenReturn(permission);
+
+      service.deleteWorksheet("A/ws", AssetRepository.GLOBAL_SCOPE, principal, false);
+
+      verify(securityProvider).removePermission(ResourceType.ASSET, "A/ws");
+      verify(recycleBin).addEntry(anyString(), eq("A/ws"), eq("ws"), same(permission),
+                                  eq(RepositoryEntry.WORKSHEET),
+                                  eq(AssetRepository.GLOBAL_SCOPE), isNull());
+   }
+
+   // [Op: move worksheet][Private] -- Bug #77009: global "B/ws" must not be overwritten/cleared
+   @Test
+   void moveDataSet_privateToPrivate_doesNotTouchGlobalPermission() throws Exception {
+      IdentityID alice = new IdentityID("alice", "host");
+      AssetEntry privateEntry = new AssetEntry(AssetRepository.USER_SCOPE,
+                                               AssetEntry.Type.WORKSHEET, "A/ws", alice);
+      when(assetRepository.getAssetEntry(any())).thenReturn(privateEntry);
+      lenient().when(principal.getName()).thenReturn(alice.convertToKey());
+      lenient().when(securityEngine.getPermission(ResourceType.ASSET, "A/ws")).thenReturn(null);
+      MoveCommand command = mock(MoveCommand.class);
+      when(command.getPath()).thenReturn("B");
+
+      service.moveDataSet("A/ws", command, AssetRepository.USER_SCOPE,
+                          AssetRepository.USER_SCOPE, principal, null);
+
+      verify(assetRepository).changeSheet(any(), argThat(e -> "B/ws".equals(e.getPath())),
+                                          any(), anyBoolean());
+      verify(securityEngine, never()).setPermission(any(), anyString(), any());
+      verify(securityEngine, never()).removePermission(any(), anyString());
+   }
+
+   // [Op: move worksheet][Global] -- Bug #77009 control
+   @Test
+   void moveDataSet_globalToGlobal_movesPermission() throws Exception {
+      AssetEntry globalEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                              AssetEntry.Type.WORKSHEET, "A/ws", null);
+      when(assetRepository.getAssetEntry(any())).thenReturn(globalEntry);
+      Permission permission = new Permission();
+      when(securityEngine.getPermission(ResourceType.ASSET, "A/ws")).thenReturn(permission);
+      MoveCommand command = mock(MoveCommand.class);
+      when(command.getPath()).thenReturn("B");
+
+      service.moveDataSet("A/ws", command, AssetRepository.GLOBAL_SCOPE,
+                          AssetRepository.GLOBAL_SCOPE, principal, null);
+
+      verify(securityEngine).setPermission(ResourceType.ASSET, "B/ws", permission);
    }
 
    private static WorksheetBrowserInfo worksheetFolderInfo(String path, int scope) {

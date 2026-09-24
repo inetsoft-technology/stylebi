@@ -1064,8 +1064,11 @@ public class DataSetService {
             securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), oldPermission);
          }
 
+         // A private folder has no path-keyed permission of its own (oldPermission is the
+         // same-named global folder's), so don't record it for a later restore.
          recycleBin.addEntry(newEntry.getPath(), entry.getPath(), entry.getName(),
-                             oldPermission, RepositoryEntry.WORKSHEET_FOLDER, entry.getScope(), entry.getUser());
+                             entry.getScope() == AssetRepository.GLOBAL_SCOPE ? oldPermission : null,
+                             RepositoryEntry.WORKSHEET_FOLDER, entry.getScope(), entry.getUser());
       }
    }
 
@@ -1261,7 +1264,16 @@ public class DataSetService {
          newEntry.toIdentifier(), (RenameInfo.ASSET | RenameInfo.SOURCE));
       renameTransformHandler.addTransformTask(rinfo);
       dependencyHandler.renameDependencies(oldEntry, newEntry);
-      securityEngine.setPermission(ResourceType.ASSET, newPath, oldPermission);
+
+      // Permissions are only keyed by path for global-scope assets. A private worksheet shares
+      // its path namespace with a same-named global worksheet, so writing the permission here
+      // for a private source or target would overwrite (or clear) the global worksheet's
+      // permission. See AbstractAssetEngine.updatePermission().
+      if(oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE &&
+         newEntry.getScope() == AssetRepository.GLOBAL_SCOPE)
+      {
+         securityEngine.setPermission(ResourceType.ASSET, newPath, oldPermission);
+      }
    }
 
    /**
@@ -1355,7 +1367,10 @@ public class DataSetService {
 
       SecurityEngine.touch();
 
-      recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(), permission,
+      // A private worksheet has no path-keyed permission of its own (permission is the
+      // same-named global worksheet's), so don't record it for a later restore.
+      recycleBin.addEntry(newEntry.getPath(), oldEntry.getPath(), oldEntry.getName(),
+                          oldEntry.getScope() == AssetRepository.GLOBAL_SCOPE ? permission : null,
                           RepositoryEntry.WORKSHEET, oldEntry.getScope(), oldEntry.getUser());
    }
 
