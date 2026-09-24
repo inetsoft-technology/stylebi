@@ -229,8 +229,15 @@ public class IgniteSessionRepository
       sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), igniteSession));
 
       // deregister the principal explicitly, using the properly-wrapped IgniteSession we already
-      // hold -- entryRemoved()/entryExpired()'s own reaction to this removal is a no-op (see
-      // logout()'s javadoc), so nothing else would do it (bug #76953, fix round 2)
+      // hold, rather than relying on entryRemoved()/entryExpired()'s own reaction to this same
+      // removal (bug #76953, fix round 2). That reaction is dispatched asynchronously, on a
+      // dedicated single-thread executor separate from this call's thread, so it is not
+      // guaranteed to run after (or become a no-op because of) this call -- it is only that in
+      // the overwhelming majority of executions, since the async dispatch takes many more hops
+      // than this method's own next few synchronous lines. In the rare case both race and both
+      // pass logout()'s isActiveUser() gate, the only consequence is a harmless duplicate audit
+      // SessionRecord for one logical removal -- never an incorrect deregistration or a
+      // reintroduction of the original force-logout-an-active-session bug.
       logout(igniteSession, SessionRecord.LOGOFF_SESSION_TIMEOUT);
    }
 
