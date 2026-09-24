@@ -30,6 +30,8 @@ import inetsoft.uql.util.XIdentifierContainer;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.XSwappableMonitor;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -40,6 +42,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.*;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * XSwappableTable provides the ability to cache table data in file system,
@@ -165,6 +169,60 @@ public class XSwappableTable implements XTable, Externalizable {
       }
 
       return row < count;
+   }
+
+   /**
+    * Same as {@link #moreRows(int)}, but the wait is registered with the lock-stall watchdog
+    * (bug #76967). If neither this table's row count nor {@code producerProgress} changes, and
+    * none of the blockers progresses, for {@code stall.watchdog.noProgressMillis}, this throws
+    * a {@link inetsoft.util.stall.LockStallException} instead of waiting on. A stall is never
+    * reported as the end of the table. For tables filled by a worker that may wait for a lock
+    * of the reader, e.g. the join tables.
+    *
+    * @param row              row number.
+    * @param what             the wait site, for the error message and the thread dump.
+    * @param producerProgress extra progress of the producer, e.g. rows it scanned or buffered
+    *                         without adding them yet.
+    * @param blockers         the threads producing the rows.
+    * @return true if the row exists, or false if no more rows.
+    */
+   public boolean moreRows(int row, String what, LongSupplier producerProgress,
+                           Supplier<Thread[]> blockers)
+   {
+      if(completed || row < count) {
+         return row < count;
+      }
+
+      try(WaitRecord record =
+             WaitRegistry.begin(what, () -> count + producerProgress.getAsLong(), blockers))
+      {
+         while(true) {
+            rlock.lock();
+
+            try {
+               if(row < count || completed) {
+                  return row < count;
+               }
+
+               try {
+                  rlockCond.await(record.waitMillis(10000), TimeUnit.MILLISECONDS);
+               }
+               catch(Exception ex) {
+                  // ignore it
+               }
+
+               if(row < count || completed) {
+                  return row < count;
+               }
+            }
+            finally {
+               rlock.unlock();
+            }
+
+            // holding no lock of this table
+            record.checkStall();
+         }
+      }
    }
 
    /**
