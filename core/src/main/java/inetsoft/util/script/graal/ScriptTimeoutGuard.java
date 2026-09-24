@@ -46,12 +46,19 @@ public class ScriptTimeoutGuard {
    /** Test hook run by the interrupt task right before it interrupts; null in production. */
    static volatile Runnable beforeInterruptHook;
 
-   private static final ScheduledExecutorService SCHED =
-      Executors.newScheduledThreadPool(1, r -> {
+   private static final ScheduledExecutorService SCHED = newScheduler();
+
+   private static ScheduledExecutorService newScheduler() {
+      ScheduledThreadPoolExecutor sched = new ScheduledThreadPoolExecutor(1, r -> {
          Thread t = new Thread(r, "script-timeout-guard");
          t.setDaemon(true);
          return t;
       });
+      // a cancelled watchdog leaves the queue at once; otherwise every exec keeps a task live
+      // for the whole timeout (default 10000 s), which grows the heap by ~72 B per exec
+      sched.setRemoveOnCancelPolicy(true);
+      return sched;
+   }
 
    // Separate cached pool for the blocking ctx.interrupt() calls so that
    // concurrent timeouts never queue behind each other on the scheduler thread.
@@ -61,6 +68,11 @@ public class ScriptTimeoutGuard {
          t.setDaemon(true);
          return t;
       });
+
+   /** Test hook: the number of watchdogs still queued on the scheduler. */
+   static int queuedTasks() {
+      return ((ScheduledThreadPoolExecutor) SCHED).getQueue().size();
+   }
 
    /** Returns a Guard that cancels the watchdog when the eval finishes. */
    public Guard guard(Context ctx, Duration timeout) {

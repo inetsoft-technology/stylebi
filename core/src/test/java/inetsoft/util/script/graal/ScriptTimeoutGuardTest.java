@@ -85,6 +85,26 @@ class ScriptTimeoutGuardTest {
       }
    }
 
+   /**
+    * Bug #77004 (pool off too): a closed guard's cancelled watchdog must leave the scheduler
+    * queue at once, not stay live until its deadline (script.execution.timeout seconds away).
+    */
+   @Test void closedGuardsDoNotStayQueued() {
+      try(Context ctx = Context.newBuilder("js").build()) {
+         ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
+         int before = ScriptTimeoutGuard.queuedTasks();
+
+         for(int i = 0; i < 10_000; i++) {
+            try(var ignored = guard.guard(ctx, Duration.ofHours(1))) {
+               // nothing: the exec finishes long before its timeout
+            }
+         }
+
+         int after = ScriptTimeoutGuard.queuedTasks();
+         assertTrue(after - before < 10, "queued watchdogs grew by " + (after - before));
+      }
+   }
+
    @Test void noOpGuardReportsNoInterruptTimeout() {
       ScriptTimeoutGuard.Guard none = new ScriptTimeoutGuard().guard(null, Duration.ZERO);
       assertFalse(none.interruptTimedOut());
