@@ -38,19 +38,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.security.Principal;
-import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
 @RestController
 public class PropertiesController {
    @Autowired
-   public PropertiesController(AssetRepository assetRepository,
-                               LogManager logManager, SecurityEngine securityEngine)
-   {
+   public PropertiesController(AssetRepository assetRepository) {
       this.assetRepository = assetRepository;
-      this.logManager = logManager;
-      this.securityEngine = securityEngine;
    }
 
    @Audited(
@@ -71,7 +66,6 @@ public class PropertiesController {
                                  String property)
       throws IOException
    {
-      removeLogLevel(property);
       SreeEnv.remove(property);
       SreeEnv.save();
 
@@ -232,44 +226,6 @@ public class PropertiesController {
       return UNUSED_LOG_LEVELS.contains(name);
    }
 
-   private void removeLogLevel(String property) {
-      String value = SreeEnv.getProperty(property);
-
-      if(Tool.isEmptyString(property) || !property.startsWith("log.") ||
-         !property.contains(".level.") || value.equals("off"))
-      {
-         return;
-      }
-
-      String[] propertyParts = property.split("\\.");
-
-      if(propertyParts.length < 4) {
-         return;
-      }
-
-      List<LogLevelSetting> logLevels = logManager.getContextLevels();
-
-      boolean found = logLevels.stream().anyMatch(logLevel -> {
-         String name = logLevel.getName();
-
-         if(logLevel.getOrgName() != null) {
-            String orgId = securityEngine
-               .getSecurityProvider()
-               .getOrgIdFromName(logLevel.getOrgName());
-            name = Tool.buildString(name, "^", orgId);
-         }
-
-         return property.equals("log." + logLevel.getContext().name() + ".level." + name);
-      });
-
-      if(found) {
-         String[] parts = property.split("\\.");
-         LogContext logContext = LogContext.valueOf(parts[1]);
-         String name = parts[parts.length - 1];
-         logManager.setContextLevel(logContext, name, null);
-      }
-   }
-
    private static final String FLUENTD_PREFIX = "log.fluentd.";
    private static final Set<String> UNUSED_LOG_LEVELS = Set.of(
       // Both AWS keys name packages shaded into inetsoft.storage.aws.* by the enterprise AWS
@@ -281,6 +237,4 @@ public class PropertiesController {
       "log.level.inetsoft_audit");
 
    private final AssetRepository assetRepository;
-   private final LogManager logManager;
-   private final SecurityEngine securityEngine;
 }

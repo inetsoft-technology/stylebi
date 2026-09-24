@@ -51,10 +51,8 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.MessageException;
-import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.security.PropertyModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,8 +70,6 @@ import static org.mockito.Mockito.*;
 class PropertiesControllerTest {
 
    @Mock private AssetRepository assetRepository;
-   @Mock private LogManager logManager;
-   @Mock private SecurityEngine securityEngine;
    @Mock private Principal principal;
 
    private PropertiesController controller;
@@ -82,7 +78,7 @@ class PropertiesControllerTest {
 
    @BeforeEach
    void setUp() {
-      controller = new PropertiesController(assetRepository, logManager, securityEngine);
+      controller = new PropertiesController(assetRepository);
 
       sreeEnvStatic = mockStatic(SreeEnv.class, withSettings().lenient());
       licenseManagerStatic = mockStatic(LicenseManager.class, withSettings().lenient());

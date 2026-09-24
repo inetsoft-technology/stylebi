@@ -205,9 +205,11 @@ public class PropertiesEngine {
       name = key;
       changeProperty(key, () -> prop.remove(key));
 
-      // the log and SQL helper properties are deliberately not applied here, to keep the
-      // existing removal behavior
+      // the SQL helper properties are deliberately not applied here, to keep the existing
+      // removal behavior
       applyQueryCacheProperty(name);
+      // reset the running log level, which is not read from the properties (Bug #77006)
+      resetLogProperty(name);
    }
 
    /**
@@ -522,6 +524,13 @@ public class PropertiesEngine {
       }
 
       initLogging();
+
+      if(fromChange) {
+         // initLogging() only applies the log properties that are present, so the running log
+         // levels of the properties removed by the reload must be reset (Bug #77006)
+         resetRemovedLogProperties(oldProperties);
+      }
+
       initFonts();
       LOG.info("InetSoft {} build {} started", Tool.getReportVersion(), Tool.getBuildNumber());
    }
@@ -810,16 +819,7 @@ public class PropertiesEngine {
     * Initializes logging.
     */
    private void initLogging() {
-      logManagerProvider.ifAvailable(lm -> {
-         lm.setLevel("inetsoft.scheduler_test", LogLevel.OFF);
-         lm.setLevel("inetsoft.mv_debug", LogLevel.OFF);
-         lm.setLevel("inetsoft.swap_data", LogLevel.OFF);
-         lm.setLevel(SUtil.MAC_LOG_NAME, LogLevel.OFF);
-         lm.setLevel(LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF);
-         lm.setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
-         lm.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
-         lm.setLevel("org.apache.ignite", LogLevel.WARN);
-      });
+      logManagerProvider.ifAvailable(lm -> DEFAULT_LOG_LEVELS.forEach(lm::setLevel));
 
       reloadLoggingFramework();
 
@@ -832,16 +832,119 @@ public class PropertiesEngine {
       System.out.println("Using built-in log configuration");
    }
 
+   /**
+    * Determines if a property sets a running log level.
+    *
+    * @param prop the property name.
+    *
+    * @return {@code true} if a log level property, {@code false} otherwise.
+    */
+   private static boolean isLogProperty(String prop) {
+      return !Tool.isEmptyString(prop) &&
+         (prop.startsWith("log.level.") || prop.matches("^log\\.[A-Z_]+\\.level\\..+$") ||
+         prop.equals("log.detail.level"));
+   }
+
    private void applyLogProperty(String prop) {
-      if(Tool.isEmptyString(prop) ||
-         !prop.startsWith("log.level.") && !prop.matches("^log\\.[A-Z_]+\\.level\\..+$") &&
-         !prop.equals("log.detail.level"))
-      {
+      if(!isLogProperty(prop)) {
          return;
       }
 
       applyLogProperty(prop, getProperty(prop));
+      reloadLogging();
+   }
 
+   /**
+    * Resets the running log level of a removed log property to the effective value of the
+    * property (e.g. from defaults.properties), else the built-in level set by
+    * {@link #initLogging()}, else no level, so that it is inherited.
+    *
+    * @param prop the name of the removed property.
+    */
+   private void resetLogProperty(String prop) {
+      if(resetLogLevel(prop)) {
+         reloadLogging();
+      }
+   }
+
+   /**
+    * Resets the running log levels of the log properties that a reload removed.
+    *
+    * @param oldProperties the properties before the reload.
+    */
+   private void resetRemovedLogProperties(Properties oldProperties) {
+      Properties props = getInternalProperties();
+
+      if(oldProperties == null || props == null) {
+         return;
+      }
+
+      // enumerate the same properties that initLogging() applies
+      Set<String> names = new HashSet<>();
+
+      for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
+         names.add((String) e.nextElement());
+      }
+
+      boolean reset = false;
+
+      for(Enumeration<?> e = oldProperties.propertyNames(); e.hasMoreElements();) {
+         String prop = (String) e.nextElement();
+
+         if(isLogProperty(prop) && !names.contains(prop) && resetLogLevel(prop)) {
+            reset = true;
+         }
+      }
+
+      if(reset) {
+         reloadLogging();
+      }
+   }
+
+   /**
+    * Resets the running log level of a removed log property, without reloading the logging
+    * framework.
+    *
+    * @param prop the name of the removed property.
+    *
+    * @return {@code true} if the property is a log property, {@code false} otherwise.
+    */
+   private boolean resetLogLevel(String prop) {
+      if(!isLogProperty(prop)) {
+         return false;
+      }
+
+      String val = getProperty(prop);
+
+      if(val != null) {
+         applyLogProperty(prop, val);
+      }
+      else if("log.detail.level".equals(prop)) {
+         logManagerProvider.ifAvailable(lm -> lm.setLevel((LogLevel) null));
+      }
+      else if(prop.startsWith("log.level.")) {
+         String name = prop.substring(10);
+
+         if(!name.isEmpty()) {
+            logManagerProvider.ifAvailable(lm -> lm.setLevel(name, DEFAULT_LOG_LEVELS.get(name)));
+         }
+      }
+      else {
+         try {
+            LogContext context = LogContext.valueOf(prop.substring(4, prop.indexOf('.', 4)));
+            String contextName = prop.substring(prop.indexOf('.', 4) + 7);
+            logManagerProvider.ifAvailable(lm -> lm.setContextLevel(context, contextName, null));
+         }
+         catch(IllegalArgumentException exc) {
+            // not a valid log context, so it was never applied
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   private void reloadLogging() {
       try {
          LogbackUtil.resetLog();
       }
@@ -1275,5 +1378,15 @@ public class PropertiesEngine {
    private static final Set<String> EXCLUDED_ORG_PROPERTIES = Set.of(
       "security.enabled", "sree.security.listeners", "security.cache", "security.cache.interval",
       "inetsoft.sree.security.checkpermissionstrategy");
+   // the built-in logger levels set by initLogging(), which a removed log property resets to
+   private static final Map<String, LogLevel> DEFAULT_LOG_LEVELS = Map.of(
+      "inetsoft.scheduler_test", LogLevel.OFF,
+      "inetsoft.mv_debug", LogLevel.OFF,
+      "inetsoft.swap_data", LogLevel.OFF,
+      SUtil.MAC_LOG_NAME, LogLevel.OFF,
+      LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF,
+      "inetsoft.storage.aws.com.amazonaws", LogLevel.WARN,
+      "inetsoft.storage.aws.org.apache", LogLevel.WARN,
+      "org.apache.ignite", LogLevel.WARN);
    private static final Logger LOG = LoggerFactory.getLogger(PropertiesEngine.class);
 }
