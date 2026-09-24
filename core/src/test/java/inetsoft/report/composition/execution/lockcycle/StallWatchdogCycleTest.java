@@ -21,6 +21,8 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Sandbox;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.Slow;
 import inetsoft.report.composition.execution.lockcycle.LockCycleHarness.SlowTable;
+import inetsoft.report.filter.DefaultTableFilter;
+import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SumFormula;
 import inetsoft.report.filter.SummaryFilter;
 import inetsoft.report.lens.*;
@@ -115,9 +117,14 @@ public class StallWatchdogCycleTest {
 
    /**
     * #76960 B (R2): T1 holds the lens monitor and waits for the engine lock, T2 holds the
-    * lock and is BLOCKED on the monitor. T1 fails with a stall and lets go of the monitor,
-    * T2 then completes with the right rows. SORT and RANKING are left out: SortFilter and
-    * RankingTableLens swallow exceptions (phase-1 limitation, see the plan).
+    * lock and is BLOCKED on the monitor. T1, the only registered wait of the cycle, fails with
+    * a stall and lets go of the monitor, T2 then completes with the right rows. SortFilter
+    * rethrows the stall and sorts again on the next read; RANKING is left out, because
+    * RankingTableLens.validate still logs and swallows any exception.
+    *
+    * <p>The gate parks T1 between the lens and its filtered base: inside the lens monitor but
+    * before the inner condition filter takes the engine lock. T2 then takes the lock and
+    * blocks on the monitor before T1 goes on, so the cycle forms on every run.
     */
    @ParameterizedTest
    @EnumSource(MonitorKind.class)
@@ -133,41 +140,41 @@ public class StallWatchdogCycleTest {
       Sandbox s = harness.sandbox();
       TableLens lens = harness.track(build(kind, s, gate));
       TableLens outer = harness.track(cf2(lens, s.box));
-      // T1 parks at its first base read inside the lens monitor, T2 starts and parks on the
-      // cycle, then T1 goes on: the cycle forms on every run, not only when T1 is slow enough
+      // T1 parks inside the lens monitor without the engine lock; T2 takes the lock and parks
+      // on the monitor (BLOCKED), then T1 goes on and waits for the lock: the cycle
       Started<List<List<Object>>> t1 = harness.startGated(gate, () -> drain(lens));
       assertTrue(gate.awaitEntered(KNOWN_CAP), "T1 never read the lens's base");
       Started<List<List<Object>>> t2 = harness.start(() -> drain(outer));
-      releaseAfter(gate, t2, KNOWN_CAP);
+      awaitState(t2, Thread.State.BLOCKED, KNOWN_CAP);
+      gate.release();
 
       Object o1 = outcome(t1.future);
       Object o2 = outcome(t2.future);
-      assertTrue(o1 instanceof Throwable || o2 instanceof Throwable,
-                 "the cycle must end with a stall of one reader");
-      checkOutcome(o1, expectedLens);
-      checkOutcome(o2, expectedOuter);
+      assertTrue(o1 instanceof Throwable, "T1, the lock waiter, must fail with a stall: " + o1);
+      StallTestSupport.stallIn((Throwable) o1);
+      assertEquals(expectedOuter, o2, "T2, the lock holder, completes with every row");
+      assertEquals(expectedLens, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                               "lens after the stall"),
+                   "the lens kept no partial state after the stall");
       assertLocksFree(s);
    }
 
    /**
-    * No false positive: a worker lent the engine lock reads a base that costs 300 ms a row,
-    * for longer than the 1 s limit, and the holder completes.
+    * No false positive: a worker lent the engine lock reads a base that costs 1 s a row, for
+    * 10 s, longer than the 8 s limit, and the holder completes. The limit is above the up to
+    * 5 s a queued SummaryFilter worker may wait for an idle on-demand pool thread in its
+    * clean-up hold (ThreadPool.cleanUp) plus one row, so no pool state makes this a stall.
     */
    @Test
    public void slowProgressingSummaryUnderLockCompletes() throws Exception {
-      // the control pipeline runs with a long limit: its SummaryFilter worker may sit in the
-      // on-demand pool's queue for up to 5 s while an idle pool thread is in its clean-up
-      // hold (ThreadPool.cleanUp). It also wakes that thread up, so the worker of the slow
-      // pipeline starts at once and the 1 s limit measures the slow pipeline only
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 60000, 500, dumpDir));
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 8000, 500, dumpDir));
       Sandbox control = harness.control();
       List<List<Object>> expected = harness.await(harness.submit(
-         () -> drain(cf2(summary(control, new StallTestSupport.SlowTable(8, 0)), null))),
+         () -> drain(cf2(summary(control, new StallTestSupport.SlowTable(10, 0)), null))),
          ACTIVE_CAP, "control pipeline");
-      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir));
 
       Sandbox s = harness.sandbox();
-      SummaryFilter summary = summary(s, new StallTestSupport.SlowTable(8, 300));
+      SummaryFilter summary = summary(s, new StallTestSupport.SlowTable(10, 1000));
       TableLens outer = harness.track(cf2(summary, s.box));
       // start the worker unlocked (query build time), then drain under the lock
       harness.await(harness.submit(() -> summary.getRowCount()), ACTIVE_CAP, "getRowCount");
@@ -184,18 +191,57 @@ public class StallWatchdogCycleTest {
 
    private TableLens build(MonitorKind kind, Sandbox s, Gate gate) {
       switch(kind) {
+      case SORT:
+         return new SortFilter(gated(s, gate), new int[] { 1 });
       case MAX_ROWS:
-         return new MaxRowsTableLens(
-            s.filteredFormula(new SlowTable(MONITOR_ROWS, Slow.EVERYWHERE, gate)), 100000);
+         return new MaxRowsTableLens(gated(s, gate), 100000);
       case UNION_ALL:
-         UnionTableLens union = new UnionTableLens(
-            s.filteredFormula(new SlowTable(MONITOR_ROWS, Slow.EVERYWHERE, gate)),
-            s.filteredFormula(new SlowTable(MONITOR_ROWS, Slow.EVERYWHERE, gate)));
+         UnionTableLens union = new UnionTableLens(gated(s, gate), gated(s, gate));
          union.setDistinct(false);
          return union;
       default:
          throw new IllegalArgumentException(kind.name());
       }
+   }
+
+   /**
+    * A filtered formula base under a {@link GateFilter}: the gate owner parks at its first data
+    * read there, before the inner condition filter takes the engine lock.
+    */
+   private static TableLens gated(Sandbox s, Gate gate) {
+      return new GateFilter(s.filteredFormula(new SlowTable(ROWS, Slow.NONE)), gate);
+   }
+
+   /**
+    * Wait until the thread of {@code started} is in {@code state}.
+    */
+   private static void awaitState(Started<?> started, Thread.State state, long capSeconds)
+      throws InterruptedException
+   {
+      StallTestSupport.awaitTrue(
+         () -> started.thread != null && started.thread.getState() == state, capSeconds,
+         "the thread never reached " + state);
+   }
+
+   /**
+    * Passes its base through; the owner of the gate parks at its first data row read.
+    */
+   private static final class GateFilter extends DefaultTableFilter {
+      GateFilter(TableLens table, Gate gate) {
+         super(table);
+         this.gate = gate;
+      }
+
+      @Override
+      public boolean moreRows(int row) {
+         if(row >= 1) {
+            gate.onRead();
+         }
+
+         return super.moreRows(row);
+      }
+
+      private final Gate gate;
    }
 
    private void assertFailsWithStall(Future<?> holder, Sandbox s) throws Exception {
@@ -225,23 +271,11 @@ public class StallWatchdogCycleTest {
       }
    }
 
-   private static void checkOutcome(Object outcome, List<List<Object>> expected) {
-      if(outcome instanceof Throwable) {
-         StallTestSupport.stallIn((Throwable) outcome);
-      }
-      else {
-         assertEquals(expected, outcome, "a reader that completes must see every row");
-      }
-   }
-
    public enum MonitorKind {
-      MAX_ROWS, UNION_ALL
+      SORT, MAX_ROWS, UNION_ALL
    }
 
    private static final int ROWS = 120;
-   // as in MonitorFirstLensCycleTest: with fewer rows the union reader may not need the
-   // engine lock again after T2 took it, and no cycle forms
-   private static final int MONITOR_ROWS = 300;
    @TempDir
    File dumpDir;
    private LockCycleHarness harness;
