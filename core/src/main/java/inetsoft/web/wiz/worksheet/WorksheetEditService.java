@@ -1946,6 +1946,38 @@ public class WorksheetEditService {
       public void setColumnVisibility(String table, String col, boolean visible)
          throws PairingException
       {
+         setColumnVisibility(table, col, visible, false);
+      }
+
+      /**
+       * Sets the visibility of a column in the table's public column selection, with an
+       * explicit {@code confirmed} override for the "downstream table's own aggregate or
+       * group-by would be silently emptied" conflict (Bug #77001 / WBS-088).
+       *
+       * <p>Hiding a column removes it from this table's PUBLIC selection. The shared
+       * post-mutation refresh cascade every mutator runs through
+       * ({@code WorksheetEditService#apply} -&gt; {@code refreshAssemblies}) then rebuilds
+       * every dependent's own column selection from that public selection, and
+       * {@link inetsoft.uql.erm.AggregateInfo#validate} legitimately drops any aggregate or
+       * group-by whose backing column no longer appears there -- silently, with no
+       * refusal or warning of its own. Unlike {@code set_group_aggregate}'s equivalent
+       * guard, this mutator has no mutate-before-check ordering hazard to fix: the existing
+       * {@code allowsDeletion} (join-key) check already runs before the mutation, so this
+       * is purely an additional pre-mutation check alongside it, not a re-ordering.</p>
+       *
+       * @param table     the assembly name
+       * @param col       the column attribute name
+       * @param visible   {@code true} to show, {@code false} to hide
+       * @param confirmed {@code true} to proceed anyway despite a downstream table losing
+       *                  an aggregate or group-by that relies on this column as input (not
+       *                  a join key -- that case is always refused via {@code allowsDeletion})
+       * @throws PairingException if the table or column is not found, or if hiding would
+       *                          break a dependent join/composite table that still uses
+       *                          this column
+       */
+      public void setColumnVisibility(String table, String col, boolean visible, boolean confirmed)
+         throws PairingException
+      {
          TableAssembly t = requireTable(table);
          DataRef ref = WorksheetMutationSupport.resolveFieldOrNull(t, col, false);
 
@@ -1953,9 +1985,41 @@ public class WorksheetEditService {
             throw new PairingException("Column not found: " + col);
          }
 
-         if(cr.isVisible() && !visible && !WorksheetControllerService.allowsDeletion(ws, t, cr)) {
-            throw new PairingException(Catalog.getCatalog().getString(
-               "common.columnDependency", col));
+         if(cr.isVisible() && !visible) {
+            if(!WorksheetControllerService.allowsDeletion(ws, t, cr)) {
+               throw new PairingException(Catalog.getCatalog().getString(
+                  "common.columnDependency", col));
+            }
+
+            // Bug #77001 / WBS-088: allowsDeletion only catches a downstream JOIN key
+            // conflict -- a table that merely aggregates or groups by this column is
+            // invisible to it. Reuse the same corrected downstream-loss walker
+            // set_group_aggregate's guard uses (Bug #76891 / WBS-084..087), scoped to
+            // this one column instead of a whole proposed AggregateInfo.
+            List<WorksheetControllerService.AggregateInputLossConflict> inputConflicts =
+               WorksheetControllerService.findAggregateInputLossConflicts(ws, t, cr);
+
+            if(!inputConflicts.isEmpty() && !confirmed) {
+               StringBuilder sb = new StringBuilder();
+
+               for(WorksheetControllerService.AggregateInputLossConflict inputConflict :
+                  inputConflicts)
+               {
+                  if(sb.length() > 0) {
+                     sb.append("; ");
+                  }
+
+                  sb.append("'").append(inputConflict.dependentAssemblyName()).append("' (")
+                     .append(String.join(", ", inputConflict.lostColumns())).append(")");
+               }
+
+               throw new PairingException(
+                  "This change would empty the aggregate or group-by on the following " +
+                  "downstream table(s), which rely on the affected column(s) as their own " +
+                  "aggregate input or group-by key: " + sb + ". Confirm with the user " +
+                  "before retrying with confirmed:true -- this changes what those OTHER " +
+                  "tables show, not just this one.");
+            }
          }
 
          cr.setVisible(visible);

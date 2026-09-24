@@ -3320,7 +3320,8 @@ public class WorksheetAgentController {
             editor.renameTable(req.table(), req.newName());
          case "set_column_visibility" ->
             editor.setColumnVisibility(req.table(), req.column(),
-                                       req.visible() != null && req.visible());
+                                       req.visible() != null && req.visible(),
+                                       Boolean.TRUE.equals(req.confirmed()));
          case "change_column_type" ->
             // Absent confirmed means force, matching what this op did before the flag existed.
             editor.changeColumnType(req.table(), req.column(), req.type(),

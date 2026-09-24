@@ -4703,6 +4703,112 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // set_column_visibility vs. downstream aggregate/group-by INPUT (Bug #77001 / WBS-088)
+   //
+   // allowsDeletion only catches a downstream JOIN key conflict -- a table that merely
+   // aggregates or groups by a column has no guard of its own on this mutator at all.
+   // Hiding the column removes it from the table's public selection; the shared
+   // post-mutation refresh cascade every mutator runs through then rebuilds every
+   // dependent's own column selection from that public selection, and
+   // AggregateInfo#validate legitimately (and silently) drops any aggregate/group-by
+   // whose backing column no longer appears there. This reuses the same corrected
+   // downstream-loss walker set_group_aggregate's guard uses (Bug #76891 / WBS-084..087),
+   // scoped to the one column being hidden.
+   // =========================================================================
+
+   @Test
+   void setColumnVisibilityRefusesHidingAColumnAggregatedByADownstreamMirrorWithoutConfirmation()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "quantity");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP", groups("id"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("quantity", "SUM", null))));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      assertEquals(1, dep.getAggregateInfo().getAggregateCount(),
+         "sanity check: DEP's own aggregate must exist before the L-side edit");
+
+      // "quantity" is not a join key anywhere -- allowsDeletion stays silent -- but DEP's
+      // own AggregateInfo sums it as its input.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setColumnVisibility("L", "quantity", false)));
+
+      assertTrue(ex.getMessage().contains("quantity"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().toLowerCase().contains("confirmed"), ex.getMessage());
+
+      ColumnRef quantityRef =
+         (ColumnRef) left.getColumnSelection(false).getAttribute("quantity");
+      assertTrue(quantityRef.isVisible(),
+         "the refused edit must not have been applied to L");
+      assertEquals(1, dep.getAggregateInfo().getAggregateCount(),
+         "DEP's own aggregate must not have been mutated by the refused L-side edit");
+   }
+
+   @Test
+   void setColumnVisibilityAllowsHidingAColumnAggregatedByADownstreamMirrorWhenConfirmed()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "quantity");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP", groups("id"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("quantity", "SUM", null))));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      assertEquals(1, dep.getAggregateInfo().getAggregateCount(),
+         "sanity check: DEP's own aggregate must exist before the L-side edit");
+
+      // The eventual AggregateInfo#validate wipe of DEP's aggregate is a pre-existing,
+      // working-as-designed consequence of the shared post-mutation refreshAssemblies
+      // cascade (see the diagnosis) -- not something this guard itself performs, and not
+      // reproducible against this fixture's RuntimeWorksheet (no live AssetQuerySandbox
+      // box, so the cascade's own table-data refresh step never runs here). This test only
+      // covers what this fix DOES control: confirmed:true must let the edit through.
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("L", "quantity", false, true));
+
+      ColumnRef quantityRef =
+         (ColumnRef) left.getColumnSelection(false).getAttribute("quantity");
+      assertFalse(quantityRef.isVisible(),
+         "the confirmed edit must actually be applied to L");
+   }
+
+   @Test
+   void setColumnVisibilityStillWorksOnAColumnNotAggregatedByAnyDependent() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left =
+         TestWorksheets.tableWithColumns(ws, "L", "id", "quantity", "note");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP", groups("id"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("quantity", "SUM", null))));
+
+      // "note" is neither a join key nor aggregated/grouped by DEP -- the new check must
+      // not become a blanket refusal for every column of a table with a downstream
+      // aggregate.
+      svc.apply("TOK", agent, ed -> ed.setColumnVisibility("L", "note", false));
+
+      ColumnRef noteRef = (ColumnRef) left.getColumnSelection(false).getAttribute("note");
+      assertFalse(noteRef.isVisible(), "an unrelated column must still be hideable");
+   }
+
+   // =========================================================================
    // Edit-in-place tests
    // =========================================================================
 
