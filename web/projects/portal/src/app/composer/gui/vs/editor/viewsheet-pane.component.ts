@@ -1008,7 +1008,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
     */
    private processSetAgentActiveCommand(command: SetAgentActiveCommand) {
       this.vs.agentConnected = command.active;
-      this.vs.agentOwnerIdentity = command.active ? command.ownerIdentity : undefined;
+      this.vs.agentOwnerLabel = command.active ? command.ownerLabel : undefined;
    }
 
    /**

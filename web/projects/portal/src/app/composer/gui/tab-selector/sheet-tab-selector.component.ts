@@ -155,7 +155,7 @@ export class SheetTabSelectorComponent {
    }
 
    agentIndicatorTooltip(tab: ComposerTabModel): string {
-      const owner = (<Sheet> tab.asset).agentOwnerIdentity;
+      const owner = (<Sheet> tab.asset).agentOwnerLabel;
       return owner ? `_#(js:AI agent connected)  (${owner})` : "_#(js:AI agent connected)";
    }
 }

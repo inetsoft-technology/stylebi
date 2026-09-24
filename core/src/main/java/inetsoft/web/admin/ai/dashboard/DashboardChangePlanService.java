@@ -428,7 +428,7 @@ public class DashboardChangePlanService {
    }
 
    private static String ownerSuffix(IdentityID owner) {
-      return owner == null ? " (global)" : " (owner: " + owner.convertToKey() + ")";
+      return owner == null ? " (global)" : " (owner: " + owner.getLabel() + ")";
    }
 
    static String requireUnitType(String label, String unitType) {

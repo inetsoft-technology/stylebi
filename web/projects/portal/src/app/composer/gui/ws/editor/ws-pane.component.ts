@@ -1214,7 +1214,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
 
    private processSetAgentActiveCommand(command: SetAgentActiveCommand): void {
       this.worksheet.agentConnected = command.active;
-      this.worksheet.agentOwnerIdentity = command.active ? command.ownerIdentity : undefined;
+      this.worksheet.agentOwnerLabel = command.active ? command.ownerLabel : undefined;
    }
 
    private processForceNotCloseWorksheetCommand(command: ForceNotCloseWorksheetCommand): void {

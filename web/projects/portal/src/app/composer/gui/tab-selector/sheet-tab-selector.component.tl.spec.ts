@@ -349,12 +349,12 @@ describe("SheetTabSelectorComponent — isAgentConnected / agentIndicatorTooltip
       expect(comp.agentIndicatorTooltip(tab)).toBe("_#(js:AI agent connected)");
    });
 
-   it("should include the owner identity in the tooltip when present", async () => {
+   it("should include the owner label in the tooltip when present", async () => {
       const { fixture } = await renderComponent();
       const comp = fixture.componentInstance;
       const tab = makeViewsheetTab(false);
       (tab.asset as any).agentConnected = true;
-      (tab.asset as any).agentOwnerIdentity = "alice";
-      expect(comp.agentIndicatorTooltip(tab)).toBe("_#(js:AI agent connected)  (alice)");
+      (tab.asset as any).agentOwnerLabel = "alice(host-org)";
+      expect(comp.agentIndicatorTooltip(tab)).toBe("_#(js:AI agent connected)  (alice(host-org))");
    });
 });

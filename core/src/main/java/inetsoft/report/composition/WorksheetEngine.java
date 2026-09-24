@@ -23,7 +23,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
@@ -445,8 +444,9 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
                // opened by others?
                else if(rs2.isEditable()) {
                   if(!rs2.isRuntime()) {
-                     lockedBy = user2 == null ? null :
-                        ((XPrincipal) user2).getFullName();
+                     // keep the identity key; it is compared with getLockOwner(entry) and
+                     // formatted for display where shown (Bug #76998)
+                     lockedBy = user2 == null ? null : user2.getName();
                   }
 
                   continue;
@@ -465,9 +465,9 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
             List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
 
             if(exs != null) {
-               Catalog catalog = Catalog.getCatalog();
                exs.add(new ConfirmException(
-                          catalog.getString("common.AssetLockBy", lockedBy),
+                          getLockOwnerMessage("common.AssetLockBy", "common.AssetLockBySelf",
+                                              lockedBy, user),
                           ConfirmException.WARNING));
             }
          }
@@ -687,6 +687,27 @@ public abstract class WorksheetEngine extends SheetLibraryEngine implements Work
       }
 
       return list.toArray(new RuntimeSheet[0]);
+   }
+
+   /**
+    * Builds a message naming the lock owner for display. The lock owner is an identity key, so it
+    * is shown by name; when it is the viewer's own identity (the same user in another session),
+    * the self message is used instead, since the name alone would not tell the sessions apart.
+    *
+    * @param key       catalog key of the message, taking the owner name as {0}.
+    * @param selfKey   catalog key of the message used when the owner is the viewer.
+    * @param lockOwner the lock owner's identity key.
+    * @param user      the viewer.
+    */
+   public static String getLockOwnerMessage(String key, String selfKey, String lockOwner,
+                                            Principal user)
+   {
+      IdentityID owner = IdentityID.getIdentityIDFromKey(lockOwner);
+      IdentityID viewer = user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
+      Catalog catalog = Catalog.getCatalog();
+
+      return owner.equals(viewer) ?
+         catalog.getString(selfKey) : catalog.getString(key, owner.getName());
    }
 
    /**

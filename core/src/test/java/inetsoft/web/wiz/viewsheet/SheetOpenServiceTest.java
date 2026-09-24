@@ -27,6 +27,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
 import inetsoft.web.wiz.pairing.JoinSession;
+import inetsoft.web.wiz.pairing.PairingUtil;
 import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetSessionService;
 import inetsoft.web.wiz.pairing.SheetType;
@@ -269,7 +270,7 @@ class SheetOpenServiceTest {
       verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertTrue(sent.agentActive());
-      assertEquals(opened.ownerIdentity(), sent.agentOwnerIdentity());
+      assertEquals(PairingUtil.label(opened.ownerIdentity()), sent.agentOwnerLabel());
    }
 
    /**
@@ -445,7 +446,7 @@ class SheetOpenServiceTest {
       verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertTrue(sent.agentActive());
-      assertEquals(created.ownerIdentity(), sent.agentOwnerIdentity());
+      assertEquals(PairingUtil.label(created.ownerIdentity()), sent.agentOwnerLabel());
    }
 
    @Test
@@ -815,7 +816,7 @@ class SheetOpenServiceTest {
       verify(broadcast).sendToComposer(eq("sock-1"), command.capture());
       OpenComposerAssetCommand sent = (OpenComposerAssetCommand) command.getValue();
       assertTrue(sent.agentActive());
-      assertEquals(created.ownerIdentity(), sent.agentOwnerIdentity());
+      assertEquals(PairingUtil.label(created.ownerIdentity()), sent.agentOwnerLabel());
    }
 
    @Test

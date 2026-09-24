@@ -47,8 +47,8 @@ export abstract class Sheet {
     * until the first such command arrives; never set optimistically client-side.
     */
    public agentConnected: boolean = false;
-   /** Present only when agentConnected -- the joined agent's owner identity, if the server sent one. */
-   public agentOwnerIdentity: string | undefined;
+   /** Present only when agentConnected -- display label of the joined agent's owner, if the server sent one. */
+   public agentOwnerLabel: string | undefined;
    public messageLevels: string[];
    private _loading: boolean;
    public gettingStarted: boolean = false;

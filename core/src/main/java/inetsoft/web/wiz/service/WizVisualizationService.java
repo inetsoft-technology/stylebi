@@ -743,7 +743,7 @@ public class WizVisualizationService {
 
       if(rvs == null) {
          LOG.warn("runtimeId '{}' not accessible for principal '{}', skipping thumbnail",
-                  runtimeId, principal.getName());
+                  runtimeId, IdentityID.getIdentityIDFromKey(principal.getName()).getLabel());
          return null;
       }
 

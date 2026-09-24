@@ -17,5 +17,5 @@
  */
 export interface SetAgentActiveCommand {
    readonly active: boolean;
-   readonly ownerIdentity?: string;
+   readonly ownerLabel?: string;
 }

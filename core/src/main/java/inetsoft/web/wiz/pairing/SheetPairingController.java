@@ -105,7 +105,7 @@ public class SheetPairingController {
 
       requireFeature();
       LOG.warn("REST mint used (socketSessionId not server-verified) — user={}, runtimeId={}",
-               owner != null ? owner.getName() : "null", runtimeId);
+               PairingUtil.label(owner), runtimeId);
       // REST mint is test-only/back-compat and carries no editorContext of its own; the STOMP
       // path below is the production entry point that actually forwards one.
       return MintResponse.ok(pairing.mint(runtimeId, ownerKey(owner), socketSessionId,

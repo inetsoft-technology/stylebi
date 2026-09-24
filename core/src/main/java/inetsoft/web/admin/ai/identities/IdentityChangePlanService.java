@@ -174,7 +174,7 @@ public class IdentityChangePlanService {
       requireCreateIdFree(label, () -> securityService.getUser(id, user), key);
       String proposed = IdentityProjection.projectUserSpec(id, spec);
       return new PlanChange(key, orgId, null, proposed, AdminChangeRecord.RISK_HIGH,
-                            AdminChangeRecord.SCOPE_STORAGE, true, "create user " + id.convertToKey());
+                            AdminChangeRecord.SCOPE_STORAGE, true, "create user " + id.getLabel());
    }
 
    private PlanChange resolveCreateGroup(String label, IdentitySpec spec, Principal user,
@@ -189,7 +189,7 @@ public class IdentityChangePlanService {
       requireCreateIdFree(label, () -> securityService.getGroup(id, user), key);
       String proposed = IdentityProjection.projectGroupSpec(id, spec);
       return new PlanChange(key, orgId, null, proposed, AdminChangeRecord.RISK_HIGH,
-                            AdminChangeRecord.SCOPE_STORAGE, true, "create group " + id.convertToKey());
+                            AdminChangeRecord.SCOPE_STORAGE, true, "create group " + id.getLabel());
    }
 
    private PlanChange resolveCreateRole(String label, IdentitySpec spec, Principal user,
@@ -204,7 +204,7 @@ public class IdentityChangePlanService {
       requireCreateIdFree(label, () -> securityService.getRole(id, user), key);
       String proposed = IdentityProjection.projectRoleSpec(id, spec);
       return new PlanChange(key, orgId, null, proposed, AdminChangeRecord.RISK_HIGH,
-                            AdminChangeRecord.SCOPE_STORAGE, true, "create role " + id.convertToKey());
+                            AdminChangeRecord.SCOPE_STORAGE, true, "create role " + id.getLabel());
    }
 
    private PlanChange resolveCreateOrganization(String label, IdentitySpec spec, Principal user,
@@ -235,7 +235,7 @@ public class IdentityChangePlanService {
          SecurityUser existing = requireGet(label, () -> securityService.getUser(id, user), key);
          String before = IdentityProjection.projectUser(existing);
          return new PlanChange(key, id.getOrgID(), before, null, AdminChangeRecord.RISK_HIGH,
-                               AdminChangeRecord.SCOPE_STORAGE, true, "delete user " + id.convertToKey());
+                               AdminChangeRecord.SCOPE_STORAGE, true, "delete user " + id.getLabel());
       }
       case GROUP: {
          IdentityID id = parseIdentityId(label, rawId, currentOrgId);
@@ -244,7 +244,7 @@ public class IdentityChangePlanService {
          SecurityGroup existing = requireGet(label, () -> securityService.getGroup(id, user), key);
          String before = IdentityProjection.projectGroup(existing, id);
          return new PlanChange(key, id.getOrgID(), before, null, AdminChangeRecord.RISK_HIGH,
-                               AdminChangeRecord.SCOPE_STORAGE, true, "delete group " + id.convertToKey());
+                               AdminChangeRecord.SCOPE_STORAGE, true, "delete group " + id.getLabel());
       }
       case ROLE: {
          IdentityID id = parseIdentityId(label, rawId, currentOrgId);
@@ -253,7 +253,7 @@ public class IdentityChangePlanService {
          SecurityRole existing = requireGet(label, () -> securityService.getRole(id, user), key);
          String before = IdentityProjection.projectRole(existing, id);
          return new PlanChange(key, id.getOrgID(), before, null, AdminChangeRecord.RISK_HIGH,
-                               AdminChangeRecord.SCOPE_STORAGE, true, "delete role " + id.convertToKey());
+                               AdminChangeRecord.SCOPE_STORAGE, true, "delete role " + id.getLabel());
       }
       default: {
          String organizationId = requireNonBlank(label + ".id", rawId);
@@ -308,7 +308,7 @@ public class IdentityChangePlanService {
       SecurityUser merged = IdentityMerge.mergeUser(existing, spec, id);
       String proposed = IdentityProjection.projectUser(merged);
       return new PlanChange(key, id.getOrgID(), before, proposed, AdminChangeRecord.RISK_HIGH,
-                            AdminChangeRecord.SCOPE_STORAGE, true, "update user " + id.convertToKey());
+                            AdminChangeRecord.SCOPE_STORAGE, true, "update user " + id.getLabel());
    }
 
    private PlanChange resolveUpdateGroup(String label, String rawId, IdentitySpec spec,
@@ -323,7 +323,7 @@ public class IdentityChangePlanService {
       SecurityGroup merged = IdentityMerge.mergeGroup(existing, spec, id);
       String proposed = IdentityProjection.projectGroup(merged, merged.getIdentityID());
       return new PlanChange(key, id.getOrgID(), before, proposed, AdminChangeRecord.RISK_HIGH,
-                            AdminChangeRecord.SCOPE_STORAGE, true, "update group " + id.convertToKey());
+                            AdminChangeRecord.SCOPE_STORAGE, true, "update group " + id.getLabel());
    }
 
    private PlanChange resolveUpdateRole(String label, String rawId, IdentitySpec spec,
@@ -338,7 +338,7 @@ public class IdentityChangePlanService {
       SecurityRole merged = IdentityMerge.mergeRole(existing, spec, id);
       String proposed = IdentityProjection.projectRole(merged, merged.getIdentityID());
       return new PlanChange(key, id.getOrgID(), before, proposed, AdminChangeRecord.RISK_HIGH,
-                            AdminChangeRecord.SCOPE_STORAGE, true, "update role " + id.convertToKey());
+                            AdminChangeRecord.SCOPE_STORAGE, true, "update role " + id.getLabel());
    }
 
    private PlanChange resolveUpdateOrganization(String label, String rawId, IdentitySpec spec,

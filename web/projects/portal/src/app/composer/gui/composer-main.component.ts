@@ -3002,7 +3002,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
       if(sheet) {
          sheet.agentConnected = true;
-         sheet.agentOwnerIdentity = command.agentOwnerIdentity;
+         sheet.agentOwnerLabel = command.agentOwnerLabel;
       }
    }
 

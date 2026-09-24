@@ -142,7 +142,7 @@ public class SheetRuntimeAccess {
 
       if(!PairingUtil.sameLogicalUser(owner, agentUser)) {
          LOG.warn("Pairing runtime access: runtime not owned by agent (id={}, agent={})",
-                  runtimeId, agentUser.getName());
+                  runtimeId, PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.USER_MISMATCH,
                                     "Pairing code does not belong to this user");
       }
@@ -201,19 +201,19 @@ public class SheetRuntimeAccess {
 
       if(rs == null) {
          LOG.warn("Pairing runtime access: worksheet runtime not found (id={}, user={})",
-                  runtimeId, agentUser.getName());
+                  runtimeId, PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Worksheet runtime not found or expired: " + runtimeId);
       }
 
       if(!(rs instanceof RuntimeWorksheet rws)) {
          LOG.warn("Pairing runtime access: not a worksheet runtime (id={}, user={})",
-                  runtimeId, agentUser.getName());
+                  runtimeId, PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Worksheet runtime not found or expired: " + runtimeId);
       }
 
       rs.access(true);
       LOG.info("Pairing worksheet runtime access granted (id={}, agent={})",
-               runtimeId, agentUser.getName());
+               runtimeId, PairingUtil.label(agentUser));
       return rws;
    }
 
@@ -224,19 +224,19 @@ public class SheetRuntimeAccess {
 
       if(rs == null) {
          LOG.warn("Pairing runtime access: viewsheet runtime not found (id={}, user={})",
-                  runtimeId, agentUser.getName());
+                  runtimeId, PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Viewsheet runtime not found or expired: " + runtimeId);
       }
 
       if(!(rs instanceof RuntimeViewsheet rvs)) {
          LOG.warn("Pairing runtime access: not a viewsheet runtime (id={}, user={})",
-                  runtimeId, agentUser.getName());
+                  runtimeId, PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Viewsheet runtime not found or expired: " + runtimeId);
       }
 
       rs.access(true);
       LOG.info("Pairing viewsheet runtime access granted (id={}, agent={})",
-               runtimeId, agentUser.getName());
+               runtimeId, PairingUtil.label(agentUser));
       return rvs;
    }
 }

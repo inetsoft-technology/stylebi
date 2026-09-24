@@ -114,6 +114,19 @@ describe("ShareSlackDialog — ngOnInit", () => {
       );
    });
 
+   // Bug #76998: username is the principal's identity key; the "~;~" key form must not be shown.
+   it("should show only the user name when username is an identity key", async () => {
+      const { comp } = await renderComponent({
+         viewsheetId: "1^2^__NULL__^test-dashboard",
+         viewsheetName: "My Dashboard",
+         username: "alice~;~host-org",
+      });
+
+      expect(comp.form.get("message")!.value).toBe(
+         "alice _#(js:em.settings.share.message.dashboard) My Dashboard."
+      );
+   });
+
    it("should leave message undefined when viewsheetId is empty", async () => {
       const { comp } = await renderComponent({ viewsheetId: "" });
 

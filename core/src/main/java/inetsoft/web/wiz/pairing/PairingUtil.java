@@ -63,4 +63,22 @@ public final class PairingUtil {
       IdentityID id = IdentityID.getIdentityIDFromKey(p.getName());
       return id == null ? p.getName() : id.convertToKey();
    }
+
+   /**
+    * The human-readable label ({@link IdentityID#getLabel()}) for an IdentityID key, for text a
+    * person reads (UI, logs). Never use the result for comparisons -- use the key itself.
+    */
+   public static String label(String identityKey) {
+      if(identityKey == null) {
+         return "?";
+      }
+
+      IdentityID id = IdentityID.getIdentityIDFromKey(identityKey);
+      return id == null ? identityKey : id.getLabel();
+   }
+
+   /** The human-readable label for a principal, or "?" if there is none. */
+   public static String label(Principal user) {
+      return user == null ? "?" : label(user.getName());
+   }
 }

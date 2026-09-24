@@ -31,7 +31,7 @@ public abstract class SetAgentActiveCommand implements ViewsheetCommand {
    public abstract boolean active();
 
    @Nullable
-   public abstract String ownerIdentity();
+   public abstract String ownerLabel();
 
    public static Builder builder() {
       return new Builder();

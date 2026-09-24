@@ -271,7 +271,7 @@ public class ViewsheetChangePlanService {
       String proposedProjection = ViewsheetProjection.projectProposedRename(newPath, global, owner);
       String orgId = AssetEntry.createAssetEntry(assetId).getOrgID();
       String description = "rename viewsheet \"" + current.getPath() + "\" to \"" + newPath + "\"" +
-         (global ? " (global)" : " (owner: " + owner.convertToKey() + ")");
+         (global ? " (global)" : " (owner: " + owner.getLabel() + ")");
       return new PlanChange(key, orgId, beforeProjection, proposedProjection,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);
@@ -516,7 +516,7 @@ public class ViewsheetChangePlanService {
          ViewsheetProjection.projectProposedWorksheetRename(newPath, global, owner);
       String orgId = AssetEntry.createAssetEntry(assetId).getOrgID();
       String description = "rename worksheet \"" + current.getPath() + "\" to \"" + newPath + "\"" +
-         (global ? " (global)" : " (owner: " + owner.convertToKey() + ")");
+         (global ? " (global)" : " (owner: " + owner.getLabel() + ")");
       return new PlanChange(key, orgId, beforeProjection, proposedProjection,
                             AdminChangeRecord.RISK_HIGH, AdminChangeRecord.SCOPE_STORAGE, true,
                             description);

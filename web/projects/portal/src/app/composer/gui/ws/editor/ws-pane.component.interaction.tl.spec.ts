@@ -320,26 +320,26 @@ describe("WSPaneComponent — processSetWorksheetInfoCommand", () => {
 describe("WSPaneComponent — processSetAgentActiveCommand", () => {
 
    // 🔁 Regression-sensitive: the tab bar's agent indicator (SheetTabSelectorComponent)
-   //    reads worksheet.agentConnected/agentOwnerIdentity directly off this Sheet instance.
-   it("should set worksheet.agentConnected and agentOwnerIdentity when active", async () => {
+   //    reads worksheet.agentConnected/agentOwnerLabel directly off this Sheet instance.
+   it("should set worksheet.agentConnected and agentOwnerLabel when active", async () => {
       const { comp } = await renderComponent();
       comp.worksheet.agentConnected = false;
 
-      dispatchCommand("SetAgentActiveCommand", { active: true, ownerIdentity: "alice" });
+      dispatchCommand("SetAgentActiveCommand", { active: true, ownerLabel: "alice" });
 
       expect(comp.worksheet.agentConnected).toBe(true);
-      expect(comp.worksheet.agentOwnerIdentity).toBe("alice");
+      expect(comp.worksheet.agentOwnerLabel).toBe("alice");
    });
 
-   it("should clear both fields when inactive, even if an ownerIdentity is present", async () => {
+   it("should clear both fields when inactive, even if an ownerLabel is present", async () => {
       const { comp } = await renderComponent();
       comp.worksheet.agentConnected = true;
-      comp.worksheet.agentOwnerIdentity = "alice";
+      comp.worksheet.agentOwnerLabel = "alice";
 
-      dispatchCommand("SetAgentActiveCommand", { active: false, ownerIdentity: "alice" });
+      dispatchCommand("SetAgentActiveCommand", { active: false, ownerLabel: "alice" });
 
       expect(comp.worksheet.agentConnected).toBe(false);
-      expect(comp.worksheet.agentOwnerIdentity).toBeUndefined();
+      expect(comp.worksheet.agentOwnerLabel).toBeUndefined();
    });
 });
 

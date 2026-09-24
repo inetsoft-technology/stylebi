@@ -251,7 +251,7 @@ public final class RecycleUtils {
 
       if(oldEntry == null) {
          throw new MessageException("Failed to restore sheet, the recycled asset at " +
-            path + " owned by " + user + " could not be found");
+            path + " owned by " + (user == null ? null : user.getLabel()) + " could not be found");
       }
 
       if(SUtil.isMyDashboard(path)) {
@@ -263,7 +263,7 @@ public final class RecycleUtils {
 
       if(oldEntry == null) {
          throw new MessageException("Failed to restore sheet, the recycled asset at " +
-            path + " owned by " + user + " could not be found");
+            path + " owned by " + (user == null ? null : user.getLabel()) + " could not be found");
       }
 
       String originalPath = rEntry.getOriginalPath();
