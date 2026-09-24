@@ -1066,7 +1066,19 @@ public final class WorksheetMutationSupport {
       ColumnSelection pendingSecondaryColumnSelection = null;
 
       if(secondaryAggs.length > 0) {
-         ColumnSelection cs2 = t.getColumnSelection();
+         // Round-1-review finding: t.getColumnSelection() here is the SAME live private
+         // selection object as `cs` above (no setColumnSelection/setPrivateColumnSelection
+         // call runs in between) -- addAttribute below would otherwise mutate the live
+         // table immediately and unconditionally, regardless of when setColumnSelection
+         // is later called, so a refused call still permanently gained the new expression
+         // column. clone(true) (shallow -- the SAME ColumnRef objects for every EXISTING
+         // column, only a new backing list) gives a genuine working copy to add the new
+         // expression column(s) to instead: existing columns stay identity-shared with
+         // whatever ainfo's own group/aggregate refs already point at (needed for the
+         // self-rename invariant #76796/#76900 rely on), but appending a NEW column to
+         // this copy leaves the live table's own selection completely untouched until the
+         // deferred commit below actually runs.
+         ColumnSelection cs2 = t.getColumnSelection().clone(true);
 
          for(AggregateRef sref : secondaryAggs) {
             ColumnRef cref = (ColumnRef) sref.getDataRef();

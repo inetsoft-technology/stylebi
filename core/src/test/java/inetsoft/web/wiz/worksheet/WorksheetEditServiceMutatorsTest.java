@@ -4184,6 +4184,97 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // Round-1 PR review findings on the above fix (both live-verified by the reviewer):
+   //  - the secondary-aggregate path's own new expression column was never actually
+   //    deferred (only the setColumnSelection call was, and cs2 was the same live
+   //    object as cs, so addAttribute mutated the live table immediately regardless);
+   //  - survivesAsPreservedAggregate anchored "preserved identity" on the column's raw
+   //    attribute name instead of its actual pre-call alias, so a column whose stable
+   //    identity is itself an EARLIER, unrelated rename_column alias false-positived.
+   // =========================================================================
+
+   @Test
+   void setGroupAggregateRefusalDoesNotLeakASecondaryAggregateExpressionColumn()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M", List.of(),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+      assertEquals(1, mirror.getAggregateInfo().getAggregateCount(),
+         "sanity check: M's own aggregate must exist before the L-side edit");
+
+      int columnsBefore = left.getColumnSelection(false).getAttributeCount();
+
+      // Round-1 review: TWO aggregate formulas on the SAME column ("amount") -- the
+      // second (Max) triggers the secondary-aggregate expression-column conversion
+      // path. The alias change on the FIRST aggregate ("TOTAL") is what correctly
+      // triggers the refusal (M depends on "amount" unaliased); the refusal must ALSO
+      // leave the secondary aggregate's own brand-new expression column off the live
+      // table, not just leave the alias/AggregateInfo unchanged.
+      PairingException ex = assertThrows(PairingException.class, () ->
+         svc.apply("TOK", agent, ed ->
+            ed.setGroupAggregate("L", List.of(), List.of(
+               new WorksheetMutationSupport.AggregateSpec("amount", "SUM", "TOTAL"),
+               new WorksheetMutationSupport.AggregateSpec("amount", "MAX", "MAXAMT")))));
+
+      assertTrue(ex.getMessage().contains("M"), ex.getMessage());
+      assertEquals(1, mirror.getAggregateInfo().getAggregateCount(),
+         "M's own aggregate must not have been mutated by the refused L-side edit");
+      assertTrue(left.getAggregateInfo().isEmpty(),
+         "the refused edit must not have been applied to L");
+      assertEquals(columnsBefore, left.getColumnSelection(false).getAttributeCount(),
+         "the refused secondary aggregate's own expression column must not survive on L");
+   }
+
+   @Test
+   void setGroupAggregateAllowsANoOpReAggregationOfAColumnWhoseIdentityIsAPreExistingRenameAlias()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("L", groups("id"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("revenue", "SUM", null))));
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("M", List.of(),
+            List.of(new WorksheetMutationSupport.AggregateSpec("revenue", "SUM", null))));
+
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+      assertEquals(1, mirror.getAggregateInfo().getAggregateCount(),
+         "sanity check: M's own aggregate must exist before the L-side no-op re-issue");
+
+      // Round-1 review: "revenue" is a PRE-EXISTING rename_column alias, not one applied
+      // by this mechanism (so clearAggregateAliases never touches it). Re-issuing the
+      // EXACT SAME, unaliased aggregate on "revenue" changes nothing about its identity
+      // and must not be refused, even though that stable identity is an alias rather
+      // than the column's raw attribute name ("amount").
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("L", groups("id"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("revenue", "SUM", null))));
+
+      assertEquals(1, mirror.getAggregateInfo().getAggregateCount(),
+         "M's own aggregate must survive a no-op re-issue of the same aggregate upstream");
+      assertEquals(1, left.getAggregateInfo().getAggregateCount(),
+         "the allowed no-op edit must actually be applied to L");
+   }
+
+   // =========================================================================
    // Edit-in-place tests
    // =========================================================================
 

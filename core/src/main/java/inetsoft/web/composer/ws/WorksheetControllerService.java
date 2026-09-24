@@ -228,7 +228,7 @@ public class WorksheetControllerService {
          // plain row-level column. A column that resolves to neither a group NOR such a
          // preserved-identity aggregate (WBS-086's group-by-only case, or a genuine
          // re-alias/removal) remains "at risk" and is still scanned below.
-         if(survivesAsPreservedAggregate(newInfo, colRef)) {
+         if(survivesAsPreservedAggregate(newInfo, colRef, originalAliases)) {
             continue;
          }
 
@@ -249,22 +249,40 @@ public class WorksheetControllerService {
     * Bug #76891 / WBS-087: true when {@code newInfo} still has an aggregate on {@code col}
     * that keeps it addressable under the identity it already had -- i.e. an aggregate
     * whose own {@link DataRef} matches {@code col} (by attribute/entity, alias-insensitive,
-    * via {@link AggregateInfo#getAggregates(DataRef)}) AND carries no NEW alias different
-    * from {@code col}'s own attribute name. A column that only survives as such an
-    * aggregate is NOT actually put at risk by losing row-level identity -- a downstream
-    * consumer that already addresses it by its own (unaliased) name keeps resolving fine.
+    * via {@link AggregateInfo#getAggregates(DataRef)}) AND carries no NEW display identity
+    * different from {@code col}'s own PRE-CALL identity. A column that only survives as
+    * such an aggregate is NOT actually put at risk by losing row-level identity -- a
+    * downstream consumer that already addresses it by that identity keeps resolving fine.
     * A literal "col's name string is unchanged" check would get this wrong in the other
     * direction too (see WBS-086, {@code ORDER_ID}): a column can be entirely untouched by
     * the call and still be genuinely at risk, because it falls out of {@code newInfo}
     * coverage (neither grouped nor aggregated) entirely -- membership in {@code newInfo},
     * not name stability, is what this must test.
+    *
+    * <p><b>Round-1-review finding</b>: the PRE-CALL identity is {@code
+    * originalAliases}'s snapshot value for {@code col} when one exists -- NOT
+    * unconditionally {@code col.getAttribute()}. A column whose stable identity is
+    * itself an alias from an EARLIER, unrelated {@code rename_column} (never cleared by
+    * {@code clearAggregateAliases}, since that alias was never applied by THIS
+    * mechanism) keeps that alias live and untouched by an unaliased re-aggregation of
+    * it -- comparing against the raw attribute name in that case would wrongly treat
+    * the untouched alias as a NEW, differing identity and refuse a genuine no-op call.
+    * Falls back to {@code col.getAttribute()} only when {@code originalAliases} has no
+    * alias recorded for {@code col} (the ordinary, never-renamed case), matching the
+    * pre-round-1-review behavior exactly for that case.</p>
     */
-   private static boolean survivesAsPreservedAggregate(AggregateInfo newInfo, ColumnRef col) {
+   private static boolean survivesAsPreservedAggregate(
+      AggregateInfo newInfo, ColumnRef col, Map<ColumnRef, String> originalAliases)
+   {
+      String originalAlias = originalAliases == null ? null : originalAliases.get(col);
+      String preCallIdentity = originalAlias != null ? originalAlias : col.getAttribute();
+
       for(AggregateRef agg : newInfo.getAggregates(col)) {
          DataRef aggRef = agg.getDataRef();
          String aggAlias = aggRef instanceof ColumnRef ? ((ColumnRef) aggRef).getAlias() : null;
+         String finalIdentity = aggAlias != null ? aggAlias : col.getAttribute();
 
-         if(aggAlias == null || aggAlias.equals(col.getAttribute())) {
+         if(finalIdentity.equals(preCallIdentity)) {
             return true;
          }
       }
