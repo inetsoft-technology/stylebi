@@ -176,7 +176,10 @@ public class ConditionFilterBoxResetLockTest {
    }
 
    private static boolean waitingOnLock(Thread thread) {
-      if(thread.getState() != Thread.State.WAITING) {
+      Thread.State state = thread.getState();
+
+      // the lock-stall watchdog bounds the lock wait, so the thread parks TIMED_WAITING
+      if(state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
          return false;
       }
 

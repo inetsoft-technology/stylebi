@@ -21,6 +21,7 @@ import inetsoft.report.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.util.Tool;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.XSwappableIntList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -327,6 +328,14 @@ public class RankingTableLens extends AbstractTableLens
          }
       }
       catch(Exception ex) {
+         // a lock stall of the base is not an empty ranking: the rows stay unset, so a later
+         // read ranks the table again (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.error("Failed to sort list", ex);
       }
 

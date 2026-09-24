@@ -39,6 +39,20 @@ public final class HealthStatus implements Serializable {
    }
 
    public boolean isDown() {
+      return deadlockStatus.isStalled() || isDownWithoutLockStall();
+   }
+
+   /**
+    * Check if an unreleased lock stall is the only reason this status is DOWN (bug #76967).
+    */
+   public boolean isDownOnlyByLockStall() {
+      return deadlockStatus.isStalled() && !isDownWithoutLockStall();
+   }
+
+   /**
+    * The DOWN causes other than an unreleased lock stall, as before bug #76967.
+    */
+   private boolean isDownWithoutLockStall() {
       return cacheSwapStatus.isExcessiveWaiting() ||
          deadlockStatus.getDeadlockedThreadCount() > 0 ||
          outOfMemoryStatus.isOutOfMemory() ||

@@ -23,6 +23,7 @@ import inetsoft.report.filter.SortFilter;
 import inetsoft.report.filter.SortedTable;
 import inetsoft.report.internal.ComparatorComparer;
 import inetsoft.util.*;
+import inetsoft.util.stall.LockStallException;
 import org.roaringbitmap.RoaringBitmap;
 import org.slf4j.MDC;
 
@@ -55,6 +56,11 @@ class MergeJoinTable extends JoinTable {
       }
 
       return false;
+   }
+
+   @Override
+   protected Thread[] getWorkerThreads() {
+      return new Thread[] { joinThread };
    }
 
    private JoinThread joinThread;
@@ -103,6 +109,9 @@ class MergeJoinTable extends JoinTable {
             RoaringBitmap rJoined = new RoaringBitmap();
 
             while(!isCancelled()) {
+               // progress for the lock-stall watchdog, even if the rows join nothing
+               addScannedRow();
+
                if(leftTable.moreRows(l) && rightTable.moreRows(r)) {
                   Object[] lTuple = getTuple(leftTable, l);
                   Object[] rTuple = getTuple(rightTable, r);
@@ -256,6 +265,21 @@ class MergeJoinTable extends JoinTable {
                else {
                   break;
                }
+            }
+         }
+         catch(RuntimeException ex) {
+            // a stall is logged by the wait site; the reader rethrows it rather than take the
+            // rows so far for the whole join. it may reach the worker wrapped (bug #76967)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall == null) {
+               throw ex;
+            }
+
+            setStallFailure(stall);
+
+            if(stall != ex) {
+               throw ex;
             }
          }
          finally {

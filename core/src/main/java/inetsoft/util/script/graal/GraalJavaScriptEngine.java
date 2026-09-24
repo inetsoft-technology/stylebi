@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.graal.pool.WsExecContext;
+import inetsoft.util.stall.LockStallException;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1509,6 +1510,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
          }
          catch(PolyglotException ex) {
+            // a lock stall of Java code the script called, e.g. a read of a table, is not a
+            // script error: rethrow it as it is so the reader gets it (bug #76967)
+            if(ex.isHostException()) {
+               LockStallException stall = LockStallException.find(ex.asHostException());
+
+               if(stall != null) {
+                  throw stall;
+               }
+            }
+
             // FIX B: increment per-Source error count and warn when limit first crossed
             int limit = maxErrors();
 

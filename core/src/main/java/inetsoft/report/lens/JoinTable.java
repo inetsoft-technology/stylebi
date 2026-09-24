@@ -24,11 +24,14 @@ import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
 import inetsoft.util.Tool;
+import inetsoft.util.stall.LockStallException;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * TableLens that receives the joined rows from the scanner threads.
@@ -183,6 +186,121 @@ abstract class JoinTable extends PagedTableLens {
    protected abstract boolean cancelJoin();
 
    /**
+    * Check if there are more rows. The rows are added by the join's worker threads, which
+    * may wait for a lock this thread holds, so the wait is bounded by the lock-stall
+    * watchdog. A worker that failed with a stall fails the reader too, the rows added so far
+    * are not the whole join (bug #76967).
+    */
+   @Override
+   public boolean moreRows(int row) {
+      if(delegate.moreRows(row, "JoinTable.moreRows", getStallProgress(), getStallBlockers())) {
+         return true;
+      }
+
+      throwStallFailure();
+      return false;
+   }
+
+   /**
+    * The join's progress for the lock-stall watchdog (bug #76967). Created once, not on each
+    * row read; a race creates an equivalent supplier.
+    */
+   private LongSupplier getStallProgress() {
+      LongSupplier progress = stallProgress;
+
+      if(progress == null) {
+         stallProgress = progress = () -> addedRows + scannedRows;
+      }
+
+      return progress;
+   }
+
+   /**
+    * The join's workers, the blockers of a reader for the lock-stall watchdog (bug #76967).
+    * Created once, not on each row read.
+    */
+   private Supplier<Thread[]> getStallBlockers() {
+      Supplier<Thread[]> blockers = stallBlockers;
+
+      if(blockers == null) {
+         stallBlockers = blockers = this::getWorkerThreads;
+      }
+
+      return blockers;
+   }
+
+   /**
+    * Get the number of rows. The rows so far of a stalled worker are not the whole join
+    * (bug #76967).
+    */
+   @Override
+   public int getRowCount() {
+      int count = super.getRowCount();
+
+      if(count >= 0) {
+         throwStallFailure();
+      }
+
+      return count;
+   }
+
+   /**
+    * Get the value of a cell. A read past the rows so far of a stalled worker fails, the
+    * rows are not the whole join (bug #76967).
+    */
+   @Override
+   public Object getObject(int r, int c) {
+      if(stallFailure != null) {
+         throwStallFailurePastEnd(r);
+      }
+
+      return super.getObject(r, c);
+   }
+
+   /**
+    * Rethrow the worker's stall if {@code row} is past the rows added so far (bug #76967).
+    */
+   private void throwStallFailurePastEnd(int row) {
+      int count = delegate.getRowCount();
+
+      if(row >= (count < 0 ? -count - 1 : count)) {
+         throwStallFailure();
+      }
+   }
+
+   /**
+    * Rethrow the stall a worker thread failed with, if any (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(failure != null) {
+         throw new LockStallException(failure);
+      }
+   }
+
+   /**
+    * Get the worker threads adding the joined rows, for the lock-stall watchdog.
+    */
+   protected abstract Thread[] getWorkerThreads();
+
+   /**
+    * Record the stall a worker thread failed with (bug #76967).
+    */
+   void setStallFailure(LockStallException failure) {
+      stallFailure = failure;
+   }
+
+   /**
+    * Count a base row read by a worker thread, progress for the lock-stall watchdog even if
+    * the row joins nothing (bug #76967). Two workers may race on the increment; a lost
+    * update still changes the value, which is all the watchdog checks.
+    */
+   void addScannedRow() {
+      scannedRows++;
+   }
+
+   /**
     * Adds a row to this table that is a join between the specified rows of
     * the left- and right-hand tables. If -1 is passed for either parameter,
     * the columns for that table will be filled with null. This is used for
@@ -193,6 +311,8 @@ abstract class JoinTable extends PagedTableLens {
     */
    public synchronized void addRow(int leftRow, int rightRow) {
       pendingRows.add(new int[]{ leftRow, rightRow });
+      // progress for the lock-stall watchdog, the rows are buffered before they are added
+      addedRows++;
 
       if(pendingRows.size() == 0x1fff * 20) {
          flushPending();
@@ -217,6 +337,10 @@ abstract class JoinTable extends PagedTableLens {
     * Get the base table to delegate calls.
     */
    public TableRef getTableRef(int row, int col) {
+      if(stallFailure != null) {
+         throwStallFailurePastEnd(row);
+      }
+
       int lcols = leftTable.getColCount();
 
       if(col < lcols) {
@@ -499,6 +623,14 @@ abstract class JoinTable extends PagedTableLens {
    private transient int maxRows = Integer.MAX_VALUE;
    private transient boolean maxAlert = false;
    private transient boolean csensitive;
+   // joined rows buffered so far, and the stall a worker failed with (bug #76967)
+   private transient volatile long addedRows;
+   // base rows read by the workers, joined or not (bug #76967)
+   private transient volatile long scannedRows;
+   private transient volatile LockStallException stallFailure;
+   // the watchdog suppliers of moreRows, see getStallProgress()
+   private transient LongSupplier stallProgress;
+   private transient Supplier<Thread[]> stallBlockers;
    private transient Integer joinColCnt;
    private static final Logger LOG = LoggerFactory.getLogger(JoinTable.class);
 }

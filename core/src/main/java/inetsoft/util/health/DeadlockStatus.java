@@ -27,15 +27,23 @@ public final class DeadlockStatus implements Serializable {
       this(0, new DeadlockedThread[0]);
    }
 
-   DeadlockStatus(ThreadInfo[] threads) {
+   DeadlockStatus(ThreadInfo[] threads, String stallReason) {
       this(
          threads.length,
-         Arrays.stream(threads).map(DeadlockedThread::new).toArray(DeadlockedThread[]::new));
+         Arrays.stream(threads).map(DeadlockedThread::new).toArray(DeadlockedThread[]::new),
+         stallReason);
    }
 
    public DeadlockStatus(int deadlockedThreadCount, DeadlockedThread[] deadlockedThreads) {
+      this(deadlockedThreadCount, deadlockedThreads, null);
+   }
+
+   public DeadlockStatus(int deadlockedThreadCount, DeadlockedThread[] deadlockedThreads,
+                         String stallReason)
+   {
       this.deadlockedThreadCount = deadlockedThreadCount;
       this.deadlockedThreads = deadlockedThreads;
+      this.stallReason = stallReason;
    }
 
    public int getDeadlockedThreadCount() {
@@ -46,16 +54,33 @@ public final class DeadlockStatus implements Serializable {
       return deadlockedThreads;
    }
 
+   /**
+    * Get why a lock stall is considered unreleased, i.e. its timeout did not free the
+    * stalled thread (bug #76967), or {@code null} if there is none.
+    */
+   public String getStallReason() {
+      return stallReason;
+   }
+
+   /**
+    * Check if a lock stall is unreleased.
+    */
+   public boolean isStalled() {
+      return stallReason != null;
+   }
+
    @Override
    public String toString() {
       return "DeadlockStatus{" +
          "deadlockedThreadCount=" + deadlockedThreadCount +
          ", deadlockedThreads=" + Arrays.toString(deadlockedThreads) +
+         ", stallReason='" + stallReason + '\'' +
          '}';
    }
 
    private final int deadlockedThreadCount;
    private final DeadlockedThread[] deadlockedThreads;
+   private final String stallReason;
    @Serial
    private static final long serialVersionUID = 1L;
 }

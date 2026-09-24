@@ -34,6 +34,9 @@ import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
 import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.stall.LockStallException;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.XSwappableObjectList;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -45,6 +48,8 @@ import java.text.MessageFormat;
 import java.text.*;
 import java.util.List;
 import java.util.*;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -511,6 +516,8 @@ public class SummaryFilter extends AbstractGroupedTable
       inited = false;
       hinited = false;
       completed = false;
+      stallFailure = null;
+      processedRows = 0;
       sumrows = new XSwappableTable(getColCount(), false);
       clearCache();
       groupmap = new Hashtable<>();
@@ -650,6 +657,9 @@ public class SummaryFilter extends AbstractGroupedTable
          // Script Exceptions are already logged
          Tool.addUserMessage(scriptException.getMessage());
       }
+      catch(LockStallException ex) {
+         // logged by the wait site, process0() kept it for the readers (bug #76967)
+      }
       catch(Exception ex) {
          LOG.error("Failed to process summary filter", ex);
       }
@@ -704,6 +714,7 @@ public class SummaryFilter extends AbstractGroupedTable
 
          // iterate table
          for(int i = hcount; table.moreRows(i) && !cancelled; i++) {
+            processedRows = i;
             Object[] vals = getGroupValues(i);
             changedIndices.clear();
 
@@ -880,6 +891,22 @@ public class SummaryFilter extends AbstractGroupedTable
       }
       catch(IndexOutOfBoundsException ex) {
          LOG.error("Row index out of bounds: " + ex.getMessage() + " of " + table.getRowCount());
+         throw ex;
+      }
+      catch(LockStallException ex) {
+         // the readers rethrow it rather than take the rows so far for the whole table
+         // (bug #76967)
+         stallFailure = ex;
+         throw ex;
+      }
+      catch(RuntimeException ex) {
+         // a stall may reach the worker wrapped by the base table (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            stallFailure = stall;
+         }
+
          throw ex;
       }
       finally {
@@ -1947,42 +1974,128 @@ public class SummaryFilter extends AbstractGroupedTable
     * Wait until the row is processed or the processing is done.
     */
    private void waitForRow(int row) {
-      while(true) {
-         LendableReentrantLock.Borrower lendTo = worker;
+      WaitRecord record = null;
 
-         synchronized(SummaryFilter.this) {
-            if(completed || cancelled || row < getRowCount(sumrows)) {
-               return;
+      try {
+         while(true) {
+            // no loan and no monitor is held here, so a stall exception leaks neither
+            // (bug #76967)
+            if(record != null) {
+               record.checkStall();
             }
 
-            if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
-               try {
-                  SummaryFilter.this.wait(JavaScriptEngine.getScriptLockWaitMillis(10000));
-               }
-               catch(Exception ex) {
-                  // ignore it
-               }
+            LendableReentrantLock.Borrower lendTo = worker;
 
-               continue;
-            }
-         }
-
-         // this thread holds or was lent a script engine lock (e.g. by a condition filter)
-         // that the worker may need to read the base table, lend it to the worker while
-         // waiting (bug #76938). the loan is closed outside of this filter's monitor,
-         // which the worker needs in order to finish
-         try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
             synchronized(SummaryFilter.this) {
-               if(!completed && !cancelled && row >= getRowCount(sumrows)) {
+               if(cancelled || row < getRowCount(sumrows)) {
+                  return;
+               }
+
+               if(completed) {
+                  throwStallFailure();
+                  return;
+               }
+
+               if(record != null && !JavaScriptEngine.canLendScriptLocks(lendTo)) {
                   try {
-                     SummaryFilter.this.wait(JavaScriptEngine.getScriptLockWaitMillis(10000));
+                     SummaryFilter.this.wait(
+                        record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(10000)));
                   }
                   catch(Exception ex) {
                      // ignore it
                   }
+
+                  continue;
+               }
+            }
+
+            // the row is not there yet, register the wait (outside of the monitor) and check
+            // again
+            if(record == null) {
+               record = WaitRegistry.begin("SummaryFilter.waitForRow", getStallProgress(),
+                                           getStallBlockers());
+               continue;
+            }
+
+            // this thread holds or was lent a script engine lock (e.g. by a condition filter)
+            // that the worker may need to read the base table, lend it to the worker while
+            // waiting (bug #76938). the loan is closed outside of this filter's monitor,
+            // which the worker needs in order to finish
+            try(LendableReentrantLock.Loan ignored = JavaScriptEngine.lendScriptLocks(lendTo)) {
+               synchronized(SummaryFilter.this) {
+                  if(!completed && !cancelled && row >= getRowCount(sumrows)) {
+                     try {
+                        SummaryFilter.this.wait(
+                           record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(10000)));
+                     }
+                     catch(Exception ex) {
+                        // ignore it
+                     }
+                  }
                }
             }
          }
+      }
+      finally {
+         if(record != null) {
+            record.close();
+         }
+      }
+   }
+
+   /**
+    * Progress of the worker for the lock-stall watchdog: base rows read plus rows added.
+    */
+   /**
+    * The worker's progress for the lock-stall watchdog (bug #76967). Created once, not on each
+    * cell read; a race creates an equivalent supplier.
+    */
+   private LongSupplier getStallProgress() {
+      LongSupplier progress = stallProgress;
+
+      if(progress == null) {
+         stallProgress = progress = this::getWorkerProgress;
+      }
+
+      return progress;
+   }
+
+   /**
+    * The worker, the blocker of a reader for the lock-stall watchdog (bug #76967). Created
+    * once, not on each cell read.
+    */
+   private Supplier<Thread[]> getStallBlockers() {
+      Supplier<Thread[]> blockers = stallBlockers;
+
+      if(blockers == null) {
+         stallBlockers = blockers = this::getWorkerThreads;
+      }
+
+      return blockers;
+   }
+
+   private long getWorkerProgress() {
+      XSwappableTable rows = sumrows;
+      return (long) processedRows + (rows == null ? 0 : getRowCount(rows));
+   }
+
+   /**
+    * The worker thread, for the lock-stall watchdog.
+    */
+   private Thread[] getWorkerThreads() {
+      LendableReentrantLock.Borrower task = worker;
+      return new Thread[] { task == null ? null : task.getThread() };
+   }
+
+   /**
+    * Rethrow the stall the worker failed with, if the table is complete because of it. A
+    * stall must never look like the end of the table (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(completed && failure != null) {
+         throw new LockStallException(failure);
       }
    }
 
@@ -2001,6 +2114,8 @@ public class SummaryFilter extends AbstractGroupedTable
          }
       }
 
+      // the rows so far of a stalled worker are not the whole table (bug #76967)
+      throwStallFailure();
       return getRowCount(sumrows);
    }
 
@@ -2121,9 +2236,14 @@ public class SummaryFilter extends AbstractGroupedTable
             waitForRow(r);
          }
 
-         if(sumrows.moreRows(r)) {
+         // bounded, the worker may be stuck waiting for a lock this thread holds (bug #76967)
+         if(sumrows.moreRows(r, "SummaryFilter.getObject", getStallProgress(),
+                             getStallBlockers()))
+         {
             return sumrows.getObject(r, c);
          }
+
+         throwStallFailure();
       }
 
       return null;
@@ -3465,6 +3585,9 @@ public class SummaryFilter extends AbstractGroupedTable
    private int topNAggregateN = 0;
 
    private transient TableDataDescriptor sdescriptor = null;
+   // the watchdog suppliers of getObject and waitForRow, see getStallProgress() (bug #76967)
+   private transient LongSupplier stallProgress;
+   private transient Supplier<Thread[]> stallBlockers;
    private Hashtable<TableDataPath, Object> mmap = new Hashtable<>(); // xmeta info
    // percent by group level, default value 0 means the inner most group
    private int pglvl = 0;
@@ -3489,6 +3612,9 @@ public class SummaryFilter extends AbstractGroupedTable
    private transient volatile boolean cancelled = false;
    // the background task running process(), if any
    private transient volatile LendableReentrantLock.Borrower worker;
+   // the base row the worker has reached, and the stall it failed with (bug #76967)
+   private transient volatile int processedRows;
+   private transient volatile LockStallException stallFailure;
    private final Lock cancelLock = new ReentrantLock();
    private boolean sortOthersLast = true; // whether sort others last
    private List<OrderInfo> orderInfo = new ArrayList<>();
