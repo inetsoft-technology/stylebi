@@ -246,6 +246,33 @@ public class WorksheetControllerService {
    }
 
    /**
+    * Finds every downstream assembly (transitively) whose own {@link AggregateInfo}
+    * relies on {@code ref} as an aggregate input or group-by key. Unlike the
+    * {@code AggregateInfo}-scoped overloads above, {@code ref} is a single column
+    * already known to be at risk -- there is no candidate-filtering step to run, because
+    * hiding a column unconditionally removes it from every downstream consumer's view
+    * (see {@code AbstractTableAssembly#setColumnSelection}'s invisible-column skip,
+    * which the shared post-mutation {@code refreshAssemblies} cascade runs
+    * unconditionally). Used by {@code set_column_visibility} (Bug #77001 / WBS-088),
+    * which has no proposed {@link AggregateInfo} to derive candidates from in the first
+    * place -- it is hiding one already-named column, not replacing a table's grouping.
+    */
+   public static List<AggregateInputLossConflict> findAggregateInputLossConflicts(
+      Worksheet ws, TableAssembly table, ColumnRef ref)
+   {
+      LinkedHashMap<String, List<String>> lostByDependent = new LinkedHashMap<>();
+      findAggregateInputLossConflicts(ws, table, ref, new HashSet<>(), lostByDependent, null);
+
+      List<AggregateInputLossConflict> conflicts = new ArrayList<>();
+
+      for(Map.Entry<String, List<String>> entry : lostByDependent.entrySet()) {
+         conflicts.add(new AggregateInputLossConflict(entry.getKey(), entry.getValue()));
+      }
+
+      return conflicts;
+   }
+
+   /**
     * Bug #76891 / WBS-087: true when {@code newInfo} still has an aggregate on {@code col}
     * that keeps it addressable under the identity it already had -- i.e. an aggregate
     * whose own {@link DataRef} matches {@code col} (by attribute/entity, alias-insensitive,
