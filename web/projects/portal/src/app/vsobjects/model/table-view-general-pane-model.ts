@@ -30,5 +30,6 @@ export interface TableViewGeneralPaneModel {
    titlePropPaneModel: TitlePropPaneModel;
    tableStylePaneModel: TableStylePaneModel;
    sizePositionPaneModel: SizePositionPaneModel;
+   paddingPaneModel: PaddingPaneModel;
    cellPaddingPaneModel: PaddingPaneModel;
 }

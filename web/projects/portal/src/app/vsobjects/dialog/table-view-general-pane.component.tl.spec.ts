@@ -15,7 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { render, screen } from "@testing-library/angular";
+import { render, screen, within } from "@testing-library/angular";
+import userEvent from "@testing-library/user-event";
 import { UntypedFormGroup } from "@angular/forms";
 import { TableViewGeneralPane } from "./table-view-general-pane.component";
 
@@ -62,6 +63,30 @@ describe("TableViewGeneralPane cell padding", () => {
    it("should disable the four steppers while following the default", async () => {
       await renderPane(markedTableModel());     // followsDefault === true
 
-      expect(screen.getByLabelText("_#(Top)")).toBeDisabled();
+      // two padding-pane instances now render a "_#(Top)" stepper; scope to the group whose
+      // legend is "_#(Cell Padding)" so it is unambiguous which pane is under test here
+      const cellPaddingGroup = screen.getByText("_#(Cell Padding)").closest("fieldset") as HTMLElement;
+      expect(within(cellPaddingGroup).getByLabelText("_#(Top)")).toBeDisabled();
+   });
+});
+
+describe("TableViewGeneralPane padding", () => {
+   it("should set the card inset through the Padding group", async () => {
+      const model = markedTableModel();
+      await renderPane(model);
+
+      // "_#(js:Padding)" is padding-pane's default legend, used when no label is supplied (the
+      // new group under test here); it is distinct from the "_#(Cell Padding)" pane already
+      // covered above
+      const paddingGroup = screen.getByText("_#(js:Padding)").closest("fieldset") as HTMLElement;
+
+      await userEvent.click(within(paddingGroup).getByLabelText(/follow.*default/i));
+      await userEvent.clear(within(paddingGroup).getByLabelText("_#(Top)"));
+      await userEvent.type(within(paddingGroup).getByLabelText("_#(Top)"), "20");
+      // number-stepper only commits its value to the model on blur
+      await userEvent.tab();
+
+      expect(model.paddingPaneModel.top).toBe(20);
+      expect(model.paddingPaneModel.followsDefault).toBe(false);
    });
 });

@@ -34,6 +34,8 @@ export class PaddingPane implements OnInit {
    @Input() form: UntypedFormGroup = new UntypedFormGroup({});
    @Input() label: string = "_#(js:Padding)";
    showFollowDefault: boolean;
+   readonly followsDefaultId = `paddingFollowsDefault${PaddingPane.idCounter++}`;
+   private static idCounter = 0;
 
    initForm(): void {
       this.form.addControl("top", new UntypedFormControl(this.model.top,
