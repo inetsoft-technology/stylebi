@@ -35,6 +35,10 @@ import java.util.function.Function;
  * <p>The properties are cached for 10 seconds, like {@code SreeEnv.Value}, so a change takes
  * effect without a restart. Before the server environment is initialized (e.g. in plain unit
  * tests) the defaults are used.
+ *
+ * <p>SREE lowercases property names, so a JVM override of one of these must be written in
+ * lowercase, e.g. {@code -Dstall.watchdog.noprogressmillis=2000}. A value set in
+ * {@code sree.properties} is not affected and accepts any case.
  */
 public final class StallPolicy {
    /**

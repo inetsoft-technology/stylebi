@@ -25,6 +25,7 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -68,6 +69,27 @@ public class StallDumperTest {
 
       assertNotNull(dumper.dump("nested"));
       assertTrue(nested.isDirectory());
+   }
+
+   @Test
+   public void backsOffAfterFailedWriteToo() throws Exception {
+      // a regular file where a directory is expected: createDirectories() always fails on it.
+      File notADir = new File(dumpDir, "not-a-dir");
+      Files.createFile(notADir.toPath());
+      AtomicInteger attempts = new AtomicInteger();
+      StallDumper dumper = new StallDumper(now::get, () -> {
+         attempts.incrementAndGet();
+         return notADir;
+      }, 60000);
+
+      assertNull(dumper.dump("first"));
+      advance(1000);
+      assertNull(dumper.dump("second"));
+      advance(1000);
+      assertNull(dumper.dump("third"));
+
+      assertEquals(1, attempts.get(), "a failed attempt should back off, not retry every call");
+      assertEquals(0, dumper.getDumpCount());
    }
 
    private void advance(long millis) {

@@ -50,19 +50,23 @@ public final class StallDumper {
    }
 
    /**
-    * Write a dump of all threads headed by {@code reason}, unless one was written less than
-    * the minimum interval ago.
+    * Write a dump of all threads headed by {@code reason}, unless one was attempted less than
+    * the minimum interval ago. A failed attempt (e.g. an unwritable dump directory) also starts
+    * the back-off window and is not retried until the window elapses, so a stall that keeps
+    * tripping waiters does not turn into a stream of failing dump attempts and error logs.
     *
-    * @return the path of the new or of the recent dump, or {@code null} if it could not be
-    *         written.
+    * @return the path of the new or of the most recently written dump, or {@code null} if none
+    *         has been written yet (either because the last attempt failed, or none was made).
     */
    public synchronized String dump(String reason) {
       long now = nanoClock.getAsLong();
 
-      if(lastPath != null && now - lastNanos < minIntervalNanos) {
+      if(attempted && now - lastAttemptNanos < minIntervalNanos) {
          return lastPath;
       }
 
+      attempted = true;
+      lastAttemptNanos = now;
       File folder = dir.get();
       File file = new File(folder, "stall-dump-" + LocalDateTime.now().format(FORMAT) + "-" +
          (count + 1) + ".txt");
@@ -79,14 +83,13 @@ public final class StallDumper {
          }
 
          count++;
-         lastNanos = now;
          lastPath = file.getAbsolutePath();
          LOG.warn("Lock stall thread dump written to {}: {}", lastPath, reason);
          return lastPath;
       }
       catch(IOException | RuntimeException ex) {
          LOG.error("Failed to write the lock stall thread dump " + file, ex);
-         return null;
+         return lastPath;
       }
    }
 
@@ -106,7 +109,8 @@ public final class StallDumper {
    private final LongSupplier nanoClock;
    private final Supplier<File> dir;
    private final long minIntervalNanos;
-   private long lastNanos;
+   private boolean attempted;
+   private long lastAttemptNanos;
    private String lastPath;
    private int count;
 }
