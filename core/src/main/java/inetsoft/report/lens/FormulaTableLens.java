@@ -37,6 +37,8 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +47,7 @@ import java.io.*;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -515,7 +518,7 @@ public class FormulaTableLens extends AbstractTableLens
       if(env == null || !env.usesExecutionLock()) {
          // a pooled env never makes a script wait for another thread's script, so there is
          // no engine lock to order against (bug #76960)
-         lock.lock();
+         lockBounded();
          return null;
       }
 
@@ -532,7 +535,18 @@ public class FormulaTableLens extends AbstractTableLens
             }
          }
 
-         lock.lock();
+         try {
+            lockBounded();
+         }
+         catch(RuntimeException ex) {
+            // a stalled lens-lock wait must not leave the engine locked (bug #76967)
+            if(execLock != null) {
+               JavaScriptEngine.popHeldScriptLock();
+               execLock.unlock();
+            }
+
+            throw ex;
+         }
 
          // rows may have been reset by invalidate() after the check above, don't
          // compute them without the engine lock
@@ -1498,6 +1512,53 @@ public class FormulaTableLens extends AbstractTableLens
       return poolBatch;
    }
 
+   /**
+    * Take the lens lock. If another thread holds it, wait in slices registered with the
+    * lock-stall watchdog (bug #76967). The wait stays alive while this lens computes rows or
+    * its owner is running, e.g. a long script batch in pool mode. If there is no progress for
+    * stall.watchdog.noProgressMillis, e.g. because the owner is blocked on a monitor this
+    * thread holds, it throws a LockStallException holding nothing of the lock, as a plain
+    * lock() would have hung.
+    */
+   private void lockBounded() {
+      if(lock.tryLock()) {
+         return;
+      }
+
+      boolean interrupted = false;
+
+      try(WaitRecord record = WaitRegistry.begin("FormulaTableLens.moreRows",
+                                                 this::getProcessedRowCount, this::getLockOwner))
+      {
+         while(true) {
+            try {
+               if(lock.tryLock(record.waitMillis(10000), TimeUnit.MILLISECONDS)) {
+                  return;
+               }
+            }
+            catch(InterruptedException ex) {
+               // lock() ignored interrupts too; the flag is restored below
+               interrupted = true;
+            }
+
+            record.checkStall();
+         }
+      }
+      finally {
+         if(interrupted) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   /**
+    * The thread holding the lens lock, for the watchdog's blocker credit.
+    */
+   private Thread[] getLockOwner() {
+      Thread owner = lock.getOwnerThread();
+      return owner == null ? NO_THREADS : new Thread[] { owner };
+   }
+
    // Get the number of rows already processed
    private int getProcessedRowCount() {
       XSwappableTable rows = this.rows;
@@ -1563,11 +1624,22 @@ public class FormulaTableLens extends AbstractTableLens
       return type != null ? type : table == null ? null : table.getReportType();
    }
 
+   /**
+    * The lens lock, exposing its owner to the lock-stall watchdog (bug #76967).
+    */
+   private static final class OwnedLock extends ReentrantLock {
+      Thread getOwnerThread() {
+         return getOwner();
+      }
+   }
+
+   private static final Thread[] NO_THREADS = new Thread[0];
+
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
       cancelLock = new ReentrantLock();
-      lock = new ReentrantLock();
+      lock = new OwnedLock();
       senv = new GraalJavaScriptEnv();
    }
 
@@ -1596,7 +1668,7 @@ public class FormulaTableLens extends AbstractTableLens
    private transient boolean runtime = true;
    private transient TableChangeListener listener = null;
    private transient TableIteratorScriptable iterator = null;
-   private transient Lock lock = new ReentrantLock();
+   private transient OwnedLock lock = new OwnedLock();
    // the rows of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
    private transient int poolBatch;
    private transient boolean forceType = Drivers.getInstance().isDataCached();
