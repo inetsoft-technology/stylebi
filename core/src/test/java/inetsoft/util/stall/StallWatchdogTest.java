@@ -511,6 +511,20 @@ public class StallWatchdogTest {
       assertEquals(1, dumper.getDumpCount(), "a failed poll does not end the episode");
    }
 
+   @Test
+   public void failingDumpDirectoryStillFailsTheWaitWithAStallException() {
+      dumper = new StallDumper(now::get, () -> {
+         throw new IllegalStateException("no dump dir");
+      }, 60000);
+      registry = new WaitRegistry(now::get, () -> policy, dumper);
+      WaitRecord record = registry.open("site", () -> 0, NONE);
+      advance(1100);
+
+      LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
+      assertNull(ex.getDumpPath());
+      record.close();
+   }
+
    private static Optional<Thread> findWatchdogThread() {
       return Thread.getAllStackTraces().keySet().stream()
          .filter(t -> "Lock-Stall-Watchdog".equals(t.getName()) && t.isDaemon() && t.isAlive())

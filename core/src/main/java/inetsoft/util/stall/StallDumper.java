@@ -67,11 +67,14 @@ public final class StallDumper {
 
       attempted = true;
       lastAttemptNanos = now;
-      File folder = dir.get();
-      File file = new File(folder, "stall-dump-" + LocalDateTime.now().format(FORMAT) + "-" +
-         (count + 1) + ".txt");
+      File file = null;
 
+      // everything that can fail is guarded, the dump directory lookup included: the dumper
+      // never throws into a waiter, which must fail with its LockStallException
       try {
+         File folder = dir.get();
+         file = new File(folder, "stall-dump-" + LocalDateTime.now().format(FORMAT) + "-" +
+            (count + 1) + ".txt");
          Files.createDirectories(folder.toPath());
 
          try(PrintStream out = new PrintStream(new FileOutputStream(file), false,
@@ -89,7 +92,8 @@ public final class StallDumper {
          return lastPath;
       }
       catch(IOException | RuntimeException ex) {
-         LOG.error("Failed to write the lock stall thread dump " + file, ex);
+         LOG.error("Failed to write the lock stall thread dump " +
+                      (file == null ? "(no dump directory)" : file), ex);
          return lastPath;
       }
    }

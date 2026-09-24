@@ -112,6 +112,26 @@ public class StallDumperTest {
       assertEquals(start, last.startNanos(), "a failed attempt does not move the start time");
    }
 
+   @Test
+   public void throwingDumpDirectoryNeverEscapesAndBacksOff() {
+      AtomicInteger attempts = new AtomicInteger();
+      StallDumper dumper = new StallDumper(now::get, () -> {
+         attempts.incrementAndGet();
+         throw new IllegalStateException("no dump dir");
+      }, 60000);
+
+      assertNull(dumper.dump("first"));
+      advance(1000);
+      assertNull(dumper.dump("second"));
+      assertEquals(1, attempts.get(), "one attempt per window");
+      assertNull(dumper.getLastDump());
+
+      advance(60000);
+      assertNull(dumper.dump("third"));
+      assertEquals(2, attempts.get());
+      assertEquals(0, dumper.getDumpCount());
+   }
+
    private void advance(long millis) {
       now.addAndGet(TimeUnit.MILLISECONDS.toNanos(millis));
    }
