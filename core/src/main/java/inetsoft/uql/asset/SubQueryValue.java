@@ -25,6 +25,7 @@ import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.*;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -301,8 +302,14 @@ public class SubQueryValue implements AssetObject {
             values = new Vector<>();
 
             if(stable != null && col > -1) {
-               for(int i = stable.getHeaderRowCount(); stable.moreRows(i); i++) {
-                  values.add(stable.getObject(i, col));
+               try {
+                  for(int i = stable.getHeaderRowCount(); stable.moreRows(i); i++) {
+                     values.add(stable.getObject(i, col));
+                  }
+               }
+               catch(RuntimeException ex) {
+                  forgetValuesOnStall(ex);
+                  throw ex;
                }
             }
          }
@@ -324,30 +331,47 @@ public class SubQueryValue implements AssetObject {
 
          values.clear();
 
-         for(int i = stable.getHeaderRowCount(); stable.moreRows(i); i++) {
-            Object sobj = stable.getObject(i, scol);
-            int result;
+         try {
+            for(int i = stable.getHeaderRowCount(); stable.moreRows(i); i++) {
+               Object sobj = stable.getObject(i, scol);
+               int result;
 
-            try {
-               result = comp.compare(mobj, sobj);
-            }
-            catch(Exception ex) {
-               LOG.debug("Failed to compare values " + mobj + " and " + sobj, ex);
-               continue;
-            }
+               try {
+                  result = comp.compare(mobj, sobj);
+               }
+               catch(Exception ex) {
+                  LOG.debug("Failed to compare values " + mobj + " and " + sobj, ex);
+                  continue;
+               }
 
-            if(result == 0) {
-               values.add(stable.getObject(i, col));
+               if(result == 0) {
+                  values.add(stable.getObject(i, col));
 
-               // for performance reason, at present we do not linger for
-               // more values, but we may support the feature if requried
-               if(op != XCondition.ONE_OF) {
-                  return values;
+                  // for performance reason, at present we do not linger for
+                  // more values, but we may support the feature if requried
+                  if(op != XCondition.ONE_OF) {
+                     return values;
+                  }
                }
             }
          }
+         catch(RuntimeException ex) {
+            forgetValuesOnStall(ex);
+            throw ex;
+         }
 
          return values;
+      }
+   }
+
+   /**
+    * If {@code ex} is a lock stall, forget the values read so far: they are not the values of
+    * the sub-query, and the next evaluation reads the sub table again (bug #76967).
+    */
+   private void forgetValuesOnStall(RuntimeException ex) {
+      if(LockStallException.find(ex) != null) {
+         values = null;
+         lmobj = null;
       }
    }
 
