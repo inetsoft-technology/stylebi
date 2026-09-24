@@ -4456,11 +4456,18 @@ public final class Tool extends CoreTool {
    }
 
    public static void dumpAllThreads() {
+      dumpAllThreads(System.err);
+   }
+
+   /**
+    * Print the stack traces of all threads, e.g. into a lock stall dump (bug #76967).
+    */
+   public static void dumpAllThreads(PrintStream out) {
       ThreadInfo[] threads = ManagementFactory.getThreadMXBean().dumpAllThreads(true, true);
       Arrays.sort(threads, Comparator.comparing(ThreadInfo::getThreadName));
 
       for(ThreadInfo info : threads) {
-         System.err.print(getThreadInfoStr(info));
+         out.print(getThreadInfoStr(info));
       }
    }
 
