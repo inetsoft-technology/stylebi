@@ -666,6 +666,22 @@ class PropertyAliasesTest {
                       "tableViewGeneralPaneModel.sizePositionPaneModel.scaleVertical"));
    }
 
+   @Test
+   void refusesCalctableDeadFields() {
+      // cellHeight (bug #76895), same shape as table/crosstab -- CalcTable has no such concept
+      // either: neither getCalcTablePropertyDialogModel nor setCalcTablePropertyModel ever
+      // touches it.
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("calctable",
+                      "tableViewGeneralPaneModel.sizePositionPaneModel.cellHeight"));
+
+      // scaleVertical (bug #76895), same shape as cellHeight -- CalcTable has no such concept
+      // either.
+      assertThrows(IllegalArgumentException.class,
+                   () -> PropertyAliases.resolveForWrite("calctable",
+                      "tableViewGeneralPaneModel.sizePositionPaneModel.scaleVertical"));
+   }
+
    /**
     * {@code refresh} is real for the input assemblies/submit (aliased through the same shared
     * {@code basicGeneral()} helper) but dead for these four -- their apply methods never read

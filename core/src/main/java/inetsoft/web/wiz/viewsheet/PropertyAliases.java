@@ -109,14 +109,19 @@ public final class PropertyAliases {
     * scaleVertical} (bug #76883 -- same shape as {@code cellHeight}: genuinely live for Text via
     * {@code TextPropertyDialogService}/{@code TextVSAssemblyInfo}, but neither Table's nor
     * Crosstab's apply method ever calls {@code isScaleVertical()}), and the type-specific
-    * capability flags below.
+    * capability flags below. {@code calctable} (bug #76895) shares the same
+    * {@code cellHeight}/{@code scaleVertical} dead-field shape via its own
+    * {@code sizePosition(aliases, "tableViewGeneralPaneModel")} registration in
+    * {@link #calcTable}: {@code CalcTableVSAssemblyInfo} has no such concept to land on either,
+    * and {@code CalcTablePropertyDialogService}'s apply method never reads either field back.
     */
    private static final Map<String, Set<String>> DEAD_FIELDS = Map.of(
       "table", Set.of("shadow", "editable", "container", "shrinkEnabled", "formVisible",
                       "cellHeight", "scaleVertical"),
       "crosstab", Set.of("shadow", "editable", "container", "crosstabInfoNull",
                          "sortOthersLastEnabled", "dateComparisonSupport", "cellHeight",
-                         "scaleVertical"));
+                         "scaleVertical"),
+      "calctable", Set.of("cellHeight", "scaleVertical"));
 
    /**
     * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}
