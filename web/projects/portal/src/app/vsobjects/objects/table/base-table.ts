@@ -717,10 +717,11 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       this.displayColWidths = this.model.colWidths.concat([]);
 
       if(!this.model.maxMode && !this.model.shrink) {
-         this.updateLastDisplayColumnWidth(this.model.objectFormat.width);
+         this.updateLastDisplayColumnWidth(this.getObjectWidth());
       }
       else if(this.model.maxMode) {
-         this.updateLastDisplayColumnWidth(this.model.maxModeOriginalWidth);
+         this.updateLastDisplayColumnWidth(
+            contentWidth(this.model.maxModeOriginalWidth, this.getPadding()));
       }
 
       const border = this.model.objectFormat.border.left;

@@ -645,5 +645,29 @@ describe("VSTable — Pass 3: Display", () => {
 
          expect(cardWidth).not.toHaveBeenCalled();
       });
+
+      it("should widen the last display column onto the content width, not the card width", () => {
+         // card width=300, inset removes 10+6=16 -> content width=284; sum(30+30+90+40)=190
+         // last col should absorb 284-190=94 -> 40+94=134, not the card-space 300-190=110 -> 150
+         const { comp } = createTableComponent({
+            model: { colWidths: [30, 30, 90, 40], colCount: 4, padding: inset } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[3]).toBe(134);
+      });
+
+      it("should widen the last display column onto the content width in max mode too", () => {
+         // maxModeOriginalWidth is a stored card-space width; the same 284 content width applies
+         const { comp } = createTableComponent({
+            model: {
+               colWidths: [30, 30, 90, 40], colCount: 4, padding: inset,
+               maxMode: true, maxModeOriginalWidth: 300,
+            } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[3]).toBe(134);
+      });
    });
 });

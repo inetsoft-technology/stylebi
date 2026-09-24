@@ -614,5 +614,16 @@ describe("VSCalcTable - Pass 1: Interaction", () => {
 
          expect(comp.tableHeight).toBe(unmarked - 12 - 14);
       });
+
+      it("should widen the last display column onto the content width, not the card width", () => {
+         // card width=300, inset removes 10+6=16 -> content width=284; sum(80+90+100)=270
+         // last col should absorb 284-270=14 -> 100+14=114, not the card-space 300-270=30 -> 130
+         const { comp } = createCalcTableComponent({
+            model: { colWidths: [80, 90, 100], padding: inset } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[2]).toBe(114);
+      });
    });
 });
