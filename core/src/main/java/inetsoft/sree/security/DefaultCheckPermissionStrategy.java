@@ -429,10 +429,29 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
                }
 
                if(!roleOutOfOrgAdminScope) {
-                  Permission orgPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION, new IdentityID(organization, organization), orgID);
+                  // the org's self grant is keyed by (org name, org id), the same as
+                  // checkOrgAdminPermission() and the writers in SecurityService
+                  String orgName = provider.getOrgNameFromID(organization);
+                  orgName = orgName == null ? organization : orgName;
+                  Permission orgPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION,
+                     new IdentityID(orgName, organization), orgID);
 
                   if(orgPerm != null && checker.checkPermission(identity, orgPerm, ResourceAction.ADMIN, true)) {
                      return true;
+                  }
+
+                  // orgs created before bug #76866 stored the self grant keyed by (org id, org id).
+                  // Check it even when the (name, id) grant exists, since editing the org writes a
+                  // (name, id) grant that doesn't carry over the legacy grantees.
+                  if(!Tool.equals(orgName, organization)) {
+                     Permission legacyPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION,
+                        new IdentityID(organization, organization), orgID);
+
+                     if(legacyPerm != null &&
+                        checker.checkPermission(identity, legacyPerm, ResourceAction.ADMIN, true))
+                     {
+                        return true;
+                     }
                   }
                }
             }
