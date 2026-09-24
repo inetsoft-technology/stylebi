@@ -717,7 +717,9 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       this.displayColWidths = this.model.colWidths.concat([]);
 
       if(!this.model.maxMode && !this.model.shrink) {
-         this.updateLastDisplayColumnWidth(this.getObjectWidth());
+         // not getObjectWidth(): with a scroll wrapper it measures back the stretch made here
+         this.updateLastDisplayColumnWidth(
+            contentWidth(this.model.objectFormat.width, this.getPadding()));
       }
       else if(this.model.maxMode) {
          this.updateLastDisplayColumnWidth(
