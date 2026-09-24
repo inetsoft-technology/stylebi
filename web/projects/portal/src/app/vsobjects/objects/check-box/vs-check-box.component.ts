@@ -89,7 +89,7 @@ export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges
       let values = this.model?.values;
 
       if(isNaN(index) || index == -1 || !values || index >= values.length) {
-         false;
+         return false;
       }
 
       let value = values[index];
@@ -185,7 +185,7 @@ export class VSCheckBox extends VSCompound<VSCheckBoxModel> implements OnChanges
     * @param {number} index
     */
    protected onSpace(index: number): void {
-      this.onChange(this.model.values[index]);
+      this.onChange(index);
    }
 
    /**

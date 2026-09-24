@@ -38,6 +38,7 @@ import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
 import { TimerService } from "../data-tip/timer.service";
 import { VSPopComponentDirective } from "../data-tip/vs-pop-component.directive";
+import { NavigationKeys } from "../navigation-keys";
 import { VSCheckBoxModel } from "../../model/vs-check-box-model";
 import { VSCheckBox } from "./vs-check-box.component";
 
@@ -480,5 +481,19 @@ describe.each([
 
       pushModel(["A"]);
       expect(await checked()).toEqual([true, false, false]);
+   });
+
+   it("toggles the focused option when space is pressed", async () => {
+      checkBox.selectedCells = [1];
+      checkBox["navigate"](NavigationKeys.SPACE);
+      expect(await checked()).toEqual([true, true, false]);
+
+      flushDebounce();
+      expect(sentValues()).toEqual([["A", "B"]]);
+   });
+
+   it("does not report an option as selected when the model has no values", () => {
+      checkBox.model.values = null;
+      expect(checkBox.isSelected(0)).toBe(false);
    });
 });
