@@ -557,13 +557,29 @@ public class ViewsheetFormatService {
       // the distinct path SET is small regardless of row count (a body path encodes structural
       // nesting, not the cell's actual value), so this cap is never load-bearing for a real
       // Crosstab/Table.
+      // A Crosstab's TableDataDescriptor (CrossFilterDataDescriptor) reuses GROUP_HEADER/
+      // SUMMARY/GRAND_TOTAL for BOTH a header-band label cell (row/col dimension label, a
+      // subtotal's label, the grand-total row/col's "Total" label) and a genuine body-band
+      // value cell -- type alone can't tell them apart (bug 76981). Only cell POSITION,
+      // relative to the crosstab's own header row/col band (getHeaderRowCount()/
+      // getHeaderColCount() -- the same boundary VSTableLens itself already uses to decide
+      // header-vs-body at render time), draws that line correctly. A plain Table's descriptor
+      // (DefaultTableDataDescriptor) never emits those reused types -- only HEADER, DETAIL and
+      // TRAILER -- so the original type-only check is kept for it unchanged.
+      boolean isCrosstab = assembly instanceof CrosstabVSAssembly;
+
       for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
          for(int col = 0; col < colCount; col++) {
             TableDataPath path = desc.getCellDataPath(row, col);
 
-            if(path != null && path.getType() != TableDataPath.HEADER &&
-               (resolvedCol == null || desc.isColDataPath(resolvedCol, path)))
-            {
+            if(path == null || (resolvedCol != null && !desc.isColDataPath(resolvedCol, path))) {
+               continue;
+            }
+
+            boolean isBody = isCrosstab ? isBodyCell(lens, row, col) :
+               path.getType() != TableDataPath.HEADER;
+
+            if(isBody) {
                paths.add(path);
             }
          }
@@ -641,14 +657,25 @@ public class ViewsheetFormatService {
       int colCount = lens.getColCount();
       Integer resolvedCol = hasField ? resolveColumnIndex(lens, field, name) : null;
 
+      // Mirror image of computeDataRegionPaths's own isCrosstab split -- see its comment. Kept
+      // as the exact logical negation (isBodyCell for a Crosstab, isHeaderFamilyType for a
+      // plain Table) so the two methods still exactly partition every rendered cell: body XOR
+      // header, never both, never neither.
+      boolean isCrosstab = assembly instanceof CrosstabVSAssembly;
+
       // Same defensive row cap as computeDataRegionPaths -- see its own comment.
       for(int row = 0; row < MAX_DATA_REGION_ROWS && lens.moreRows(row); row++) {
          for(int col = 0; col < colCount; col++) {
             TableDataPath path = desc.getCellDataPath(row, col);
 
-            if(path != null && isHeaderFamilyType(path.getType()) &&
-               (resolvedCol == null || desc.isColDataPath(resolvedCol, path)))
-            {
+            if(path == null || (resolvedCol != null && !desc.isColDataPath(resolvedCol, path))) {
+               continue;
+            }
+
+            boolean isHeader = isCrosstab ? !isBodyCell(lens, row, col) :
+               isHeaderFamilyType(path.getType());
+
+            if(isHeader) {
                paths.add(path);
             }
          }
@@ -660,6 +687,21 @@ public class ViewsheetFormatService {
    private static boolean isHeaderFamilyType(int type) {
       return type == TableDataPath.HEADER || type == TableDataPath.GROUP_HEADER ||
          type == TableDataPath.SUMMARY_HEADER;
+   }
+
+   /**
+    * Whether {@code (row, col)} sits in a Crosstab's body (data) region rather than its header
+    * row/col band, per the crosstab lens's own authoritative boundary -- the identical
+    * {@code getHeaderRowCount()}/{@code getHeaderColCount()} split {@link VSTableLens} already
+    * uses to decide header-vs-body at render time ({@code VSTableLens.getObject}), and the
+    * identical idiom {@link inetsoft.report.filter.CrossCalcFilter} uses for the same purpose
+    * on its own crosstab-flavored lens. See bug 76981: a Crosstab's {@code TableDataPath} type
+    * alone (e.g. {@code GROUP_HEADER}, or a header-band {@code SUMMARY}/{@code GRAND_TOTAL}
+    * label cell that shares its type with a genuine body-band value cell) can't reliably
+    * distinguish header-band from body-band cells; position can.
+    */
+   private static boolean isBodyCell(VSTableLens lens, int row, int col) {
+      return row >= lens.getHeaderRowCount() && col >= lens.getHeaderColCount();
    }
 
    /**
