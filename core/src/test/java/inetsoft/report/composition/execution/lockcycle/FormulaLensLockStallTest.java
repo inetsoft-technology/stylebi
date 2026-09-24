@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution.lockcycle;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.filter.SortFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.test.*;
@@ -131,6 +132,108 @@ public class FormulaLensLockStallTest {
       assertEquals(expected, harness.await(owner, ACTIVE_CAP, "slow owner"));
    }
 
+   /**
+    * The formula's script waits for an engine lock held by a stuck thread: the lens reader
+    * gets the stall itself, not a formula error, a null cell or the end of the table, and the
+    * half-computed row is not kept, so a read after the holder let go sees every value.
+    */
+   @Test
+   public void formulaScriptStallReachesTheReader() throws Exception {
+      Sandbox s = harness.control();
+      List<List<Object>> expected = harness.await(
+         harness.submit(() -> drain(s.formula(new DefaultTableLens(rows(20))))),
+         ACTIVE_CAP, "control");
+      FormulaTableLens lens = harness.track(s.formula(new DefaultTableLens(rows(20))));
+      CountDownLatch held = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      Future<Boolean> holder = harness.submit(() -> {
+         s.lock.lock();
+
+         try {
+            held.countDown();
+            return release.await(3 * KNOWN_CAP, TimeUnit.SECONDS);
+         }
+         finally {
+            s.lock.unlock();
+         }
+      });
+      assertTrue(held.await(10, TimeUnit.SECONDS), "the holder never took the engine lock");
+
+      Throwable failure =
+         StallTestSupport.failureOf(harness.submit(() -> drain(lens)), ACTIVE_CAP);
+      assertInstanceOf(LockStallException.class, failure, "the reader must get the stall");
+      assertEquals("LendableReentrantLock.lock", ((LockStallException) failure).getSite());
+
+      release.countDown();
+      assertTrue(harness.await(holder, ACTIVE_CAP, "holder"));
+      assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                           "reader after the stall"),
+                   "no half-computed row is kept after the stall");
+   }
+
+   /**
+    * The formula's script calls into Java code whose wait stalled, e.g. a read of another
+    * table: the stall crosses the script engine and reaches the lens reader as it is, not as
+    * a script error.
+    */
+   @Test
+   public void stallInsideTheScriptReachesTheReader() throws Exception {
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      Sandbox s = harness.control();
+      s.env.put("stalledHost", new StalledHost(original));
+      FormulaTableLens lens = harness.track(
+         s.formula(new DefaultTableLens(rows(20)), "f", "stalledHost.value()"));
+
+      Throwable failure =
+         StallTestSupport.failureOf(harness.submit(() -> drain(lens)), ACTIVE_CAP);
+      assertSame(original, failure, "the reader must get the stall thrown inside the script");
+   }
+
+   /**
+    * End to end through a sort: the stall inside the formula's script escapes the SortFilter
+    * over the formula lens instead of leaving its rows unsorted.
+    */
+   @Test
+   public void stallInsideTheScriptEscapesASortOverTheLens() throws Exception {
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      Sandbox s = harness.control();
+      s.env.put("stalledHost", new StalledHost(original));
+      FormulaTableLens lens = harness.track(
+         s.formula(new DefaultTableLens(rows(20)), "f", "stalledHost.value()"));
+      SortFilter sorted = harness.track(new SortFilter(lens, new int[] { 2 }));
+
+      Throwable failure =
+         StallTestSupport.failureOf(harness.submit(() -> drain(sorted)), ACTIVE_CAP);
+      assertSame(original, failure, "the sort must not swallow the stall");
+   }
+
+   /**
+    * The formula's script reads a field of a table whose read stalls: the field read does not
+    * turn the stall into a null value, the lens reader gets it as it is.
+    */
+   @Test
+   public void stalledFieldReadReachesTheReader() throws Exception {
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      Sandbox s = harness.control();
+      java.util.Set<Integer> failed = java.util.concurrent.ConcurrentHashMap.newKeySet();
+      // the first read of row 3's value, the script's, stalls; the reader's reads do not
+      TableLens base = new DefaultTableLens(rows(20)) {
+         @Override
+         public Object getObject(int r, int c) {
+            if(r == 3 && c == 1 && failed.add(r)) {
+               throw original;
+            }
+
+            return super.getObject(r, c);
+         }
+      };
+      FormulaTableLens lens = harness.track(s.formula(base, "f", "field['value'] + 1"));
+
+      Throwable failure =
+         StallTestSupport.failureOf(harness.submit(() -> drain(lens)), ACTIVE_CAP);
+      assertSame(original, failure, "the reader must get the stall of the field read");
+   }
+
    @Test
    public void uncontendedLensRegistersNothing() throws Exception {
       Sandbox s = harness.control();
@@ -194,6 +297,21 @@ public class FormulaLensLockStallTest {
       final CountDownLatch entered = new CountDownLatch(1);
       private final int gate;
       private final long millisPerRow;
+   }
+
+   /**
+    * A host object whose method fails with a lock stall, as a nested table read would.
+    */
+   public static final class StalledHost {
+      StalledHost(LockStallException failure) {
+         this.failure = failure;
+      }
+
+      public Object value() {
+         throw failure;
+      }
+
+      private final LockStallException failure;
    }
 
    @TempDir

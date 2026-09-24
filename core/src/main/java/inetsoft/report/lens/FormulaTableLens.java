@@ -37,6 +37,7 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
 import org.slf4j.Logger;
@@ -416,6 +417,7 @@ public class FormulaTableLens extends AbstractTableLens
 
             int j = 0;
             Object[] row = new Object[formulas.length];
+            boolean stalled = false;
 
             // remove change listener then add change listener, for script might
             // change the table lens(set object), then the process will delegate
@@ -443,14 +445,29 @@ public class FormulaTableLens extends AbstractTableLens
                   tableRow.getResult(j);
                }
             }
+            catch(LockStallException ex) {
+               stalled = true;
+               throw ex;
+            }
             catch(ScriptException ex) {
+               LockStallException stall = LockStallException.find(ex);
+
+               if(stall != null) {
+                  stalled = true;
+                  throw stall;
+               }
+
                String colName = getColName(j + ncols);
                throw new ExpressionFailedException(ncols + j, colName, null, ex);
             }
             finally {
                // add empty row even if script failed since getObject() assumes rows contains
                // the same number of rows as formula table after moreRows is called.
-               rows.addRow(row);
+               // a stalled row is not kept: its cells are not values, and a later read
+               // computes the row again (bug #76967)
+               if(!stalled) {
+                  rows.addRow(row);
+               }
 
                FormulaContext.popTable();
                currExec = null;
@@ -1246,6 +1263,13 @@ public class FormulaTableLens extends AbstractTableLens
                                              formulas[col], runtime, "XXX");
          }
          catch(Exception ex) {
+            // a lock stall is not a script error, the reader must get it (bug #76967)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall != null) {
+               throw stall;
+            }
+
             throw new ScriptException(ex.getMessage());
          }
 
@@ -1470,6 +1494,13 @@ public class FormulaTableLens extends AbstractTableLens
          }
       }
       catch(Exception ex) {
+         // a lock stall is neither a script error nor the default value (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          // if in design mode, ignore the error
          // @by larryl, we must run the formula script since the
          // formula lens may be refreshed as part of saving to archive

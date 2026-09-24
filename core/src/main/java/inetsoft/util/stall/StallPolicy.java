@@ -39,6 +39,11 @@ import java.util.function.Function;
  * <p>SREE lowercases property names, so a JVM override of one of these must be written in
  * lowercase, e.g. {@code -Dstall.watchdog.noprogressmillis=2000}. A value set in
  * {@code sree.properties} is not affected and accepts any case.
+ *
+ * <p>Keep {@code noProgressMillis} well above 5 seconds. A lens worker queued on the
+ * on-demand {@code ThreadPool} may wait up to 5 seconds for an idle pool thread that is
+ * holding in its clean-up ({@code ThreadPool.cleanUp}); the worker has not started, so its
+ * waiter sees no progress and a shorter limit can trip a false stall.
  */
 public final class StallPolicy {
    /**
