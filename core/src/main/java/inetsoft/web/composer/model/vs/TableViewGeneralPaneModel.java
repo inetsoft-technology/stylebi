@@ -73,6 +73,18 @@ public class TableViewGeneralPaneModel  implements Serializable {
       this.sizePositionPaneModel = sizePositionPaneModel;
    }
 
+   public PaddingPaneModel getPaddingPaneModel() {
+      if(paddingPaneModel == null) {
+         paddingPaneModel = new PaddingPaneModel();
+      }
+
+      return paddingPaneModel;
+   }
+
+   public void setPaddingPaneModel(PaddingPaneModel paddingPaneModel) {
+      this.paddingPaneModel = paddingPaneModel;
+   }
+
    public PaddingPaneModel getCellPaddingPaneModel() {
       if(cellPaddingPaneModel == null) {
          cellPaddingPaneModel = new PaddingPaneModel();
@@ -125,5 +137,6 @@ public class TableViewGeneralPaneModel  implements Serializable {
    private TitlePropPaneModel titlePropPaneModel;
    private TableStylePaneModel tableStylePaneModel;
    private SizePositionPaneModel sizePositionPaneModel;
+   private PaddingPaneModel paddingPaneModel;
    private PaddingPaneModel cellPaddingPaneModel;
 }
