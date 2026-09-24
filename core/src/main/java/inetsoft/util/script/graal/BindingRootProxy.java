@@ -229,6 +229,19 @@ public class BindingRootProxy implements ProxyObject {
       return present;
    }
 
+   /**
+    * Evicts {@code name} from the exact-name global-binding cache. Must be called
+    * whenever a real global is removed (e.g. {@code GraalJavaScriptEngine#remove}),
+    * so a subsequent probe recomputes {@link #hasGlobalBinding} fresh instead of
+    * forever treating a removed global as still present -- which would permanently
+    * block the case-insensitive CALC-builtin fallback in {@link #findInChain} for
+    * that name. Only removes a cached 'true' entry; does not cache 'false', so this
+    * does not reintroduce the stale-'false' problem fixed for #75676. (#77008)
+    */
+   void forgetGlobal(String name) {
+      globalBindingCache.remove(name);
+   }
+
    // Per-chain-root cache of "is name provided by the scope chain?" The calc table
    // swaps in a fresh root scope per evaluation, so the cache is keyed on the root
    // identity and dropped when the root changes; within one root the same names

@@ -2002,6 +2002,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          if(context != null) {
             context.getBindings("js").removeMember(name);
          }
+
+         // Evict any cached "is a real global" answer for this name, so a
+         // subsequent lookup re-probes the (now-removed) global instead of
+         // permanently treating it as still present -- which would block the
+         // case-insensitive CALC-builtin fallback in BindingRootProxy. (#77008)
+         if(scopeProxy != null) {
+            scopeProxy.forgetGlobal(name);
+         }
       }
       finally {
          lock.unlock();
