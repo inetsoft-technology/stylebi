@@ -61,23 +61,40 @@ public abstract class CubeVSAQuery extends DataVSAQuery {
    protected final TableAssembly createBaseTableAssembly0(boolean analysis)
       throws Exception
    {
+      return createBaseTableAssembly0(analysis, null);
+   }
+
+   /**
+    * Create the base plain table assembly.
+    * @param analysis true if for analysis, false for runtime.
+    * @param vsSource the data of the source vs assembly, fetched with
+    *                 {@link #getVSAssemblySourceData()}, or null to fetch it here.
+    * @return the created base plain table assembly.
+    */
+   protected final TableAssembly createBaseTableAssembly0(boolean analysis,
+                                                          AssemblyTableData vsSource)
+      throws Exception
+   {
       Worksheet ws = getWorksheet();
 
       if(ws == null) {
          return null;
       }
 
-      String tname = VSUtil.getTableName(getSourceTable());
+      SourceInfo sourceInfo = ((DataVSAssembly) getAssembly()).getSourceInfo();
+      boolean vsAssembly = sourceInfo != null && sourceInfo.getType() == SourceInfo.VS_ASSEMBLY;
+      // build from the table the data was fetched for, as when fetching it here
+      String tname = vsAssembly && vsSource != null ?
+         vsSource.source() : VSUtil.getTableName(getSourceTable());
 
       if(tname == null || tname.length() == 0) {
          return null;
       }
 
-      SourceInfo sourceInfo = ((DataVSAssembly) getAssembly()).getSourceInfo();
       TableAssembly table;
 
-      if(sourceInfo.getType() == SourceInfo.VS_ASSEMBLY) {
-         table = createAssemblyTable(tname);
+      if(vsAssembly) {
+         table = vsSource != null ? createAssemblyTable(vsSource) : createAssemblyTable(tname);
 
          if(table == null) {
             throw new BoundTableNotFoundException(Catalog.getCatalog().getString
@@ -127,6 +144,31 @@ public abstract class CubeVSAQuery extends DataVSAQuery {
       }
 
       return table;
+   }
+
+   /**
+    * Fetch the data of the source vs assembly for
+    * {@link #createBaseTableAssembly0(boolean, AssemblyTableData)}. Fetching executes the
+    * source assembly, which releases and re-acquires the sandbox lock, so a caller that holds
+    * a monitor a sandbox writer also takes must fetch before entering it. (77030)
+    * @return the source data, or null if the source is not a vs assembly.
+    */
+   protected final AssemblyTableData getVSAssemblySourceData() throws Exception {
+      SourceInfo sourceInfo = ((DataVSAssembly) getAssembly()).getSourceInfo();
+
+      if(sourceInfo == null || sourceInfo.getType() != SourceInfo.VS_ASSEMBLY ||
+         getWorksheet() == null)
+      {
+         return null;
+      }
+
+      String tname = VSUtil.getTableName(getSourceTable());
+
+      if(tname == null || tname.length() == 0) {
+         return null;
+      }
+
+      return getAssemblyTableData(tname);
    }
 
    protected boolean isPostSort() {

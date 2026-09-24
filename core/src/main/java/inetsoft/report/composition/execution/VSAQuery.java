@@ -1780,12 +1780,25 @@ public abstract class VSAQuery {
     * @param assemblyName source assembly name
     */
    public TableAssembly createAssemblyTable(String assemblyName) throws Exception {
-      Viewsheet vs = getViewsheet();
+      return createAssemblyTable(getAssemblyTableData(assemblyName));
+   }
 
+   /**
+    * Fetches the data of the vs assembly a table is bound to. This is the step of
+    * {@link #createAssemblyTable(String)} that executes the source assembly, which can
+    * release and re-acquire the sandbox lock, so a caller that must build the table while
+    * holding a monitor fetches the data first and builds the table with
+    * {@link #createAssemblyTable(AssemblyTableData)}. (77030)
+    *
+    * @param assemblyName source assembly name
+    * @return the source data, or null if the name is null.
+    */
+   public AssemblyTableData getAssemblyTableData(String assemblyName) throws Exception {
       if(assemblyName == null) {
          return null;
       }
 
+      String source = assemblyName;
       String baseAssembly = getAssembly().getAbsoluteName();
 
       if(assemblyName.startsWith(Assembly.TABLE_VS_BOUND) && baseAssembly.contains(".")) {
@@ -1794,11 +1807,24 @@ public abstract class VSAQuery {
          assemblyName = Assembly.TABLE_VS_BOUND + baseParent + assemblyName.substring(15);
       }
 
-      TableLens lens = box.getTableData(assemblyName);
+      return new AssemblyTableData(source, assemblyName, box.getTableData(assemblyName));
+   }
 
-      if(lens == null) {
+   /**
+    * Creates a table assembly for a table that is bound to a vs assembly, from data fetched
+    * by {@link #getAssemblyTableData(String)}. It does not execute any assembly.
+    *
+    * @param data the source data.
+    */
+   public TableAssembly createAssemblyTable(AssemblyTableData data) throws Exception {
+      Viewsheet vs = getViewsheet();
+
+      if(data == null || data.lens() == null) {
          return null;
       }
+
+      String assemblyName = data.name();
+      TableLens lens = data.lens();
 
       // meta data doesn't require all rows, which would cause conversion to calc problem
       if(meta) {
@@ -1868,6 +1894,17 @@ public abstract class VSAQuery {
       }
 
       return false;
+   }
+
+   /**
+    * The data of the vs assembly a table is bound to, fetched by
+    * {@link #getAssemblyTableData(String)}.
+    *
+    * @param source the source assembly name as bound, before resolving it.
+    * @param name   the resolved name the data was fetched with.
+    * @param lens   the data, or null if the assembly has none.
+    */
+   public record AssemblyTableData(String source, String name, TableLens lens) {
    }
 
    public static final ThreadLocal<Boolean> Q_CANCEL = new ThreadLocal<>();
