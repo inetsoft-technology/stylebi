@@ -123,9 +123,8 @@ public class StallWatchdogCycleTest {
    /**
     * #76960 B (R2): T1 holds the lens monitor and waits for the engine lock, T2 holds the
     * lock and is BLOCKED on the monitor. T1, the only registered wait of the cycle, fails with
-    * a stall and lets go of the monitor, T2 then completes with the right rows. SortFilter
-    * rethrows the stall and sorts again on the next read; RANKING is left out, because
-    * RankingTableLens.validate still logs and swallows any exception.
+    * a stall and lets go of the monitor, T2 then completes with the right rows. SortFilter and
+    * RankingTableLens rethrow the stall and sort or rank again on the next read.
     *
     * <p>The gate parks T1 between the lens and its filtered base: inside the lens monitor but
     * before the inner condition filter takes the engine lock. T2 then takes the lock and
@@ -222,6 +221,11 @@ public class StallWatchdogCycleTest {
          UnionTableLens union = new UnionTableLens(gated(s, gate), gated(s, gate));
          union.setDistinct(false);
          return union;
+      case RANKING:
+         RankingTableLens ranking = new RankingTableLens(gated(s, gate));
+         ranking.setRankingColumn(1);
+         ranking.setRankingN(10);
+         return ranking;
       default:
          throw new IllegalArgumentException(kind.name());
       }
@@ -333,7 +337,7 @@ public class StallWatchdogCycleTest {
    }
 
    public enum MonitorKind {
-      SORT, MAX_ROWS, UNION_ALL
+      SORT, MAX_ROWS, UNION_ALL, RANKING
    }
 
    private static final int ROWS = 120;
