@@ -1331,6 +1331,7 @@ public class SecurityService {
       EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
       final Role oldRole = securityProvider.getRole(roleId);
       EditRolePaneModel roleModel;
+      String permOrgId;
 
       try {
          if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
@@ -1350,6 +1351,12 @@ public class SecurityService {
          // Use the validated org from the path/query, not the request body, to prevent an org
          // admin from smuggling a different org into the body and writing a role cross-tenant.
          String orgID = roleId.orgID;
+         // A global (org-less) role has no org of its own, so its admin grants are scoped to the
+         // editing org. Pass that explicitly rather than "" -- IdentityService.setIdentityPermissions
+         // refuses an all-empty org (bug #76866), and by then setIdentity() has already committed the
+         // rename/member change. Resolved here so a failure is still a pre-mutation refusal.
+         permOrgId = Tool.isEmptyString(orgID) ?
+            OrganizationManager.getInstance().getCurrentOrgID(principal) : orgID;
          List<String> assignedUsers = request.getAssignedUsers();
          List<String> assignedGroups = request.getAssignedGroups();
          List<IdentityID> userIds = assignedUsers == null ? new ArrayList<>() : assignedUsers.stream()
@@ -1423,7 +1430,7 @@ public class SecurityService {
       themeService.assignTheme(oldRole.getName(), roleModel.name(), roleModel.theme(), CustomTheme::getRoles);
       identityService.setIdentityPermissions(
          oldId, newId, ResourceType.SECURITY_ROLE,
-         principal, roleModel.permittedIdentities(), "");
+         principal, roleModel.permittedIdentities(), permOrgId);
    }
 
    public void deleteRole(IdentityID role, Principal principal) throws Exception {
