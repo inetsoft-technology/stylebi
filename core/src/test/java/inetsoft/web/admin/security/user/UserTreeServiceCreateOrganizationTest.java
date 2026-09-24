@@ -85,6 +85,22 @@ class UserTreeServiceCreateOrganizationTest {
          service.createOrganization("org1", "Primary", "New Org", "HOST-ORG", principal, "Str0ng!Passw0rd"));
 
       assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationID"), thrown.getMessage());
+      // clone request: the source org must not be copied
+      verify(editProvider, never()).copyOrganization(any(), any(), any(), any(), any(), any(), any(),
+                                                     anyBoolean(), any());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void explicitId_mixedCaseStoredIdRequestedWithDifferentCase_rejectedAsDuplicateId() {
+      // stored id is mixed-case, so a check that only lowercases the requested id would miss it
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "Acme" });
+      when(editProvider.getOrganization("ACME")).thenReturn(null);
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "New Org", "ACME", principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationID"), thrown.getMessage());
       verify(editProvider, never()).addOrganization(any());
    }
 
