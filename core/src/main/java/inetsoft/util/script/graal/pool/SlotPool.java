@@ -229,6 +229,10 @@ final class SlotPool {
     */
    private boolean prepare(Slot slot) {
       if(slot.isDoomed() || slot.epoch() < epoch.get()) {
+         if(slot.isDoomed()) {
+            metrics.doomedClosed();
+         }
+
          discard(slot);
          return false;
       }
@@ -284,6 +288,18 @@ final class SlotPool {
    private void startEvictor() {
       if(!evictorStarted.compareAndSet(false, true)) {
          return;
+      }
+
+      if(NODE_LOG_STARTED.compareAndSet(false, true)) {
+         long minutes = PoolMetrics.LOG_PERIOD_MINUTES;
+         EVICTOR.scheduleWithFixedDelay(() -> {
+            try {
+               PoolMetrics.logNodeSummary();
+            }
+            catch(RuntimeException ex) {
+               LOG.debug("Failed to log the worksheet script pool metrics", ex);
+            }
+         }, minutes, minutes, TimeUnit.MINUTES);
       }
 
       WeakReference<SlotPool> ref = new WeakReference<>(this);
@@ -343,6 +359,8 @@ final class SlotPool {
          return thread;
       });
    private static final AtomicBoolean NODE_WARNED = new AtomicBoolean();
+   // the node-wide metrics log (PoolMetrics.logNodeSummary) starts with the first pool
+   private static final AtomicBoolean NODE_LOG_STARTED = new AtomicBoolean();
 
    private final SlotSource source;
    private final PoolConfig config;

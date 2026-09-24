@@ -34,6 +34,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.OrderedMap;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -514,18 +515,29 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
     */
    protected void execExpressionValues(DataRef attr, XCondition xcon, Object box) {
       AssetQuerySandbox queryBox = null;
+      boolean throwaway = false;
 
       if(box instanceof AssetQuerySandbox) {
          queryBox = (AssetQuerySandbox) box;
       }
       else {
          queryBox = new AssetQuerySandbox(new Worksheet());
+         throwaway = true;
       }
 
-      if(xcon instanceof AssetCondition) {
-         AssetCondition acond = (AssetCondition) xcon;
-         acond.reset();
-         execExpressionValues(acond, queryBox, attr, xcon.getType());
+      try {
+         if(xcon instanceof AssetCondition) {
+            AssetCondition acond = (AssetCondition) xcon;
+            acond.reset();
+            execExpressionValues(acond, queryBox, attr, xcon.getType());
+         }
+      }
+      finally {
+         // the throwaway sandbox is never disposed: release its pooled script contexts now
+         // instead of leaving them to the GC (bug #76960); a plain env is left as on main
+         if(throwaway && queryBox.peekScriptEnv() instanceof WorksheetScriptEnv) {
+            ((WorksheetScriptEnv) queryBox.peekScriptEnv()).retire();
+         }
       }
    }
 

@@ -24,6 +24,7 @@ import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.ref.Cleaner;
 import java.time.Duration;
 import java.util.*;
 import java.util.function.Supplier;
@@ -70,7 +71,7 @@ final class Slot {
             throw new IllegalStateException("A new worksheet script context is locked");
          }
 
-         metrics.slotCreated();
+         slot.nodeCount = metrics.slotCreated(slot);
          return slot;
       }
       catch(Throwable ex) {
@@ -249,7 +250,7 @@ final class Slot {
                   "never reused, but its Context may not have been released", ex);
       }
 
-      metrics.slotClosed();
+      metrics.slotClosed(nodeCount);
    }
 
    private static void closeQuietly(WsEngine engine) {
@@ -269,6 +270,7 @@ final class Slot {
    private final Map<Object, Object> attachments = new WeakHashMap<>();
    // the clean's timeout; only tests shorten it
    Duration cleanTimeout = CleanHelper.TIMEOUT;
+   private Cleaner.Cleanable nodeCount; // set at creation, before the slot is shared
    private long version; // owner only
    private volatile boolean doomed;
    private volatile boolean closed;

@@ -27,6 +27,9 @@ import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.sree.SreeEnv;
+import inetsoft.util.script.graal.pool.PoolConfig;
+import inetsoft.util.script.graal.pool.PoolMetrics;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.Tag;
@@ -68,5 +71,38 @@ class ConditionGroupPoolTest {
       new ConditionGroup(table, list, box);
 
       assertEquals(version, env.getStateVersion(), "conditionGroupScope was put into the env");
+   }
+
+   /**
+    * Final review I3: a condition built without a sandbox runs its script on a throwaway
+    * sandbox, which is never disposed; its pooled contexts are released at once, so they do
+    * not count toward the node's slots until they are collected.
+    */
+   @Test
+   void throwawaySandboxOfAConditionReleasesItsContexts() throws Exception {
+      SreeEnv.setProperty(PoolConfig.ENABLED, "true");
+
+      try {
+         AssetCondition condition = new AssetCondition();
+         condition.setOperation(XCondition.EQUAL_TO);
+         condition.setType(XSchema.INTEGER);
+         ExpressionValue value = new ExpressionValue();
+         value.setExpression("1 + 1");
+         value.setType(ExpressionValue.JAVASCRIPT);
+         condition.addValue(value);
+         ConditionList list = new ConditionList();
+         list.append(new ConditionItem(new AttributeRef(null, "value"), condition, 0));
+         DefaultTableLens table = new DefaultTableLens(new Object[][] {{"value"}, {2}, {3}});
+         int before = PoolMetrics.nodeSlots();
+
+         ConditionGroup group = new ConditionGroup(table, list, null);
+
+         assertTrue(group.evaluate(table, 1));
+         assertFalse(group.evaluate(table, 2));
+         assertEquals(before, PoolMetrics.nodeSlots(), "the throwaway sandbox kept a context");
+      }
+      finally {
+         SreeEnv.remove(PoolConfig.ENABLED);
+      }
    }
 }
