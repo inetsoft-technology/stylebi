@@ -1567,7 +1567,7 @@ public final class WorksheetMutationSupport {
          colRef.setDataType(type);
       }
       else {
-         String inferred = inferNumericExpressionType(t, expression);
+         String inferred = inferNumericExpressionType(t, expression, sql);
 
          if(inferred != null) {
             colRef.setInferredDataType(inferred);
@@ -1604,13 +1604,14 @@ public final class WorksheetMutationSupport {
          if(ref instanceof ColumnRef cr && cr.getDataRef() instanceof ExpressionRef er) {
             if(name.equals(er.getName()) || name.equals(er.getAttribute())) {
                String priorExpression = er.getExpression();
+               boolean priorSql = cr.isSQL();
                er.setExpression(expression != null ? expression : "");
                cr.setSQL(sql);
 
                if(type != null) {
                   cr.setDataType(type);
                }
-               else if(isReInferEligible(t, cr, priorExpression)) {
+               else if(isReInferEligible(t, cr, priorExpression, priorSql)) {
                   // Only re-infer when the column's current type is not explicitly
                   // caller-set -- a real, previously-set explicit type (even "string")
                   // must be left alone per the "null = leave unchanged" contract above.
@@ -1620,7 +1621,7 @@ public final class WorksheetMutationSupport {
                   // ColumnRef#getDataTypeProvenance()), so a later shape-changing edit
                   // that flips a numeric expression to a non-numeric one is correctly
                   // re-evaluated instead of sticking at the stale first-guessed type.
-                  String inferred = inferNumericExpressionType(t, expression);
+                  String inferred = inferNumericExpressionType(t, expression, sql);
 
                   if(inferred != null) {
                      cr.setInferredDataType(inferred);
@@ -1667,7 +1668,9 @@ public final class WorksheetMutationSupport {
     * any column mutated under this fixed code going forward, whose provenance is always
     * known (never {@code null}).</p>
     */
-   private static boolean isReInferEligible(TableAssembly t, ColumnRef cr, String priorExpression) {
+   private static boolean isReInferEligible(TableAssembly t, ColumnRef cr, String priorExpression,
+                                            boolean priorSql)
+   {
       if(!cr.isDataTypeSet()) {
          return true;
       }
@@ -1678,7 +1681,7 @@ public final class WorksheetMutationSupport {
          return provenance;
       }
 
-      String reInferred = inferNumericExpressionType(t, priorExpression);
+      String reInferred = inferNumericExpressionType(t, priorExpression, priorSql);
       String expectedIfInferred = reInferred != null ? reInferred : XSchema.STRING;
       return expectedIfInferred.equals(cr.getDataType());
    }
@@ -1789,10 +1792,15 @@ public final class WorksheetMutationSupport {
     * non-numeric fields used outside a condition) is left alone -- returning
     * {@code null} preserves the existing string default rather than guessing.</p>
     *
+    * <p>A {@code sql:true} expression is not JavaScript at all -- it references
+    * columns by their bare/native SQL name rather than {@code field['x']}, and
+    * (bug #77000/WBS-083) is checked by an entirely separate, narrower SQL-shaped
+    * detector, {@link #isNumericSqlFragment}, rather than this JS-mode one.</p>
+    *
     * @return {@link XSchema#DOUBLE}, or {@code null} if the expression's type cannot be
     *         unambiguously inferred as numeric
     */
-   private static String inferNumericExpressionType(TableAssembly t, String expression) {
+   private static String inferNumericExpressionType(TableAssembly t, String expression, boolean sql) {
       if(expression == null || expression.isBlank()) {
          return null;
       }
@@ -1804,7 +1812,8 @@ public final class WorksheetMutationSupport {
       }
 
       int[] fieldCount = { 0 };
-      boolean numeric = isNumericFragment(cs, expression, fieldCount);
+      boolean numeric = sql ? isNumericSqlFragment(cs, expression, fieldCount) :
+         isNumericFragment(cs, expression, fieldCount);
 
       if(fieldCount[0] == 0 || !numeric) {
          return null;
@@ -1850,16 +1859,28 @@ public final class WorksheetMutationSupport {
       }
 
       // Not a whole-fragment ternary -- walk left to right. Every field['x'] reference
-      // must resolve to a numeric column; every top-level parenthesized group is
-      // recursively checked as its own fragment (so a ternary embedded as an operand of
-      // an outer arithmetic expression, e.g. "field['a'] * (cond ? 1 : 0)", is found
-      // rather than falling through to the plain-arithmetic character class below);
+      // must resolve to a numeric column; a known numeric-returning function-call
+      // wrapper (bug #77000/WBS-083, e.g. "Math.round(") is skipped over so its
+      // argument list is checked as an ordinary parenthesized group below; every
+      // top-level parenthesized group (including such an argument list) is
+      // recursively checked as its own fragment (so a ternary embedded as an operand
+      // of an outer arithmetic expression, e.g. "field['a'] * (cond ? 1 : 0)", is
+      // found rather than falling through to the plain-arithmetic character class);
       // everything else left over must be a pure arithmetic character.
       StringBuilder leftover = new StringBuilder();
       int i = 0;
 
       while(i < text.length()) {
          char c = text.charAt(i);
+
+         if(c == 'M') {
+            int fnLen = matchNumericFunctionPrefix(text, i);
+
+            if(fnLen > 0) {
+               i += fnLen;
+               continue;
+            }
+         }
 
          if(c == '(') {
             int groupEnd = findMatchingParen(text, i);
@@ -1900,6 +1921,32 @@ public final class WorksheetMutationSupport {
       return leftover.toString().matches("[\\s+\\-*/().0-9eE]*");
    }
 
+   /**
+    * Function-call wrappers (JS mode) recognized as always returning a number when
+    * their own argument is numeric -- bug #77000/WBS-083. Deliberately a small,
+    * explicit allowlist (matching this file's existing narrow-heuristic style) rather
+    * than a general "any function call is numeric" rule or a full expression parser.
+    */
+   private static final String[] NUMERIC_FUNCTION_PREFIXES = {
+      "Math.round(", "Math.floor(", "Math.ceil(", "Math.abs("
+   };
+
+   /**
+    * @return the length of the recognized function name (not including the trailing
+    *         {@code (}, which is left for the caller's own paren handling) if
+    *         {@code text} starts with one of {@link #NUMERIC_FUNCTION_PREFIXES} at
+    *         {@code i}, or {@code -1} otherwise
+    */
+   private static int matchNumericFunctionPrefix(String text, int i) {
+      for(String prefix : NUMERIC_FUNCTION_PREFIXES) {
+         if(text.startsWith(prefix, i)) {
+            return prefix.length() - 1;
+         }
+      }
+
+      return -1;
+   }
+
    /** Counts every {@code field['x']} reference in {@code text} into {@code fieldCount[0]}. */
    private static void countFieldRefs(String text, int[] fieldCount) {
       java.util.regex.Matcher m = FIELD_REF_PATTERN.matcher(text);
@@ -1933,6 +1980,220 @@ public final class WorksheetMutationSupport {
       }
 
       return -1;
+   }
+
+   // =========================================================================
+   // SQL-mode (sql:true) numeric-expression inference (bug #77000/WBS-083)
+   // =========================================================================
+
+   /** SQL keywords this narrow CASE/WHEN detector recognizes, matched as whole words. */
+   private static final java.util.regex.Pattern SQL_CASE_KEYWORD =
+      java.util.regex.Pattern.compile("(?i)\\b(CASE|WHEN|THEN|ELSE|END)\\b");
+
+   /**
+    * SQL-mode counterpart to {@link #isNumericFragment}: a {@code sql:true} expression
+    * is not JavaScript, so it neither uses the {@code field['x']} reference syntax nor
+    * the JS arithmetic character class -- it references columns by their bare (or
+    * double-quoted) native SQL name, and a {@code CASE WHEN ... END} expression uses
+    * keywords/comparison operators the JS character class would reject outright.
+    *
+    * <p>Deliberately narrow, matching this file's existing style rather than a general
+    * SQL parser: recognizes a {@code CASE WHEN cond THEN branch [WHEN cond THEN
+    * branch]... [ELSE branch] END} expression (delegated to
+    * {@link #isNumericCaseWhen}, condition segments exempt from the numeric
+    * requirement, exactly like a JS ternary's condition -- see
+    * {@link #inferNumericExpressionType}), or simple arithmetic over recognized SQL
+    * column references, numeric literals, and parenthesized sub-fragments (which may
+    * themselves be a nested {@code CASE WHEN} or further arithmetic). An identifier
+    * that does not resolve to a real column in this table (a SQL keyword this
+    * detector does not otherwise recognize, a function name, an alias, ...) is not
+    * guessed at -- the containing fragment is declined as non-numeric rather than
+    * assumed. This intentionally means a SQL-mode function call (e.g.
+    * {@code ROUND(QUANTITY)}) is NOT recognized as numeric -- out of scope for this
+    * fix, which targets the reported CASE/WHEN and simple-arithmetic shapes only.</p>
+    */
+   private static boolean isNumericSqlFragment(ColumnSelection cs, String text, int[] fieldCount) {
+      text = text.trim();
+      text = unwrapOuterParens(text);
+      String upper = text.toUpperCase(java.util.Locale.ROOT);
+
+      if(upper.startsWith("CASE") && upper.endsWith("END")) {
+         return isNumericCaseWhen(cs, text, fieldCount);
+      }
+
+      StringBuilder leftover = new StringBuilder();
+      int i = 0;
+
+      while(i < text.length()) {
+         char c = text.charAt(i);
+
+         if(c == '(') {
+            int groupEnd = findMatchingParen(text, i);
+
+            if(groupEnd < 0) {
+               return false;
+            }
+
+            if(!isNumericSqlFragment(cs, text.substring(i + 1, groupEnd), fieldCount)) {
+               return false;
+            }
+
+            i = groupEnd + 1;
+            continue;
+         }
+
+         if(Character.isLetter(c) || c == '_' || c == '"') {
+            int idEnd = scanSqlIdentifier(text, i);
+
+            if(idEnd > i) {
+               DataRef ref = resolveColumn(cs, unquoteSqlIdentifier(text.substring(i, idEnd)));
+
+               if(ref == null) {
+                  // An identifier that isn't a recognized column -- a keyword this
+                  // detector doesn't otherwise handle, a function name, an alias.
+                  // Decline rather than guess.
+                  return false;
+               }
+
+               fieldCount[0]++;
+
+               if(!XSchema.isNumericType(ref.getDataType())) {
+                  return false;
+               }
+
+               i = idEnd;
+               continue;
+            }
+         }
+
+         leftover.append(c);
+         i++;
+      }
+
+      return leftover.toString().matches("[\\s+\\-*/().0-9eE]*");
+   }
+
+   /**
+    * Handles the {@code CASE WHEN ... END} shape for {@link #isNumericSqlFragment}.
+    * Splits {@code text} on its top-level CASE/WHEN/THEN/ELSE/END keywords (matched
+    * case-insensitively as whole words) and walks the resulting {@code (WHEN cond
+    * THEN branch)+ [ELSE branch]} sequence: every condition's field references are
+    * counted but not type-checked (same exemption as a JS ternary condition), and
+    * every THEN/ELSE branch must independently be numeric. Does not track paren depth
+    * while splitting on keywords -- a CASE WHEN containing a NESTED CASE WHEN in one
+    * of its own branches is not supported (out of scope; this targets the reported
+    * single-level shape).
+    */
+   private static boolean isNumericCaseWhen(ColumnSelection cs, String text, int[] fieldCount) {
+      java.util.regex.Matcher km = SQL_CASE_KEYWORD.matcher(text);
+      java.util.List<String> keywords = new java.util.ArrayList<>();
+      java.util.List<String> segments = new java.util.ArrayList<>();
+      int last = 0;
+
+      while(km.find()) {
+         segments.add(text.substring(last, km.start()));
+         keywords.add(km.group(1).toUpperCase(java.util.Locale.ROOT));
+         last = km.end();
+      }
+
+      segments.add(text.substring(last));
+
+      if(keywords.isEmpty() || !"CASE".equals(keywords.get(0)) ||
+         !"END".equals(keywords.get(keywords.size() - 1)))
+      {
+         return false;
+      }
+
+      int k = 1;
+
+      while(k < keywords.size() && "WHEN".equals(keywords.get(k))) {
+         if(k + 1 >= keywords.size() || !"THEN".equals(keywords.get(k + 1))) {
+            return false;
+         }
+
+         String condition = segments.get(k + 1);
+         String branch = segments.get(k + 2);
+
+         countSqlFieldRefs(cs, condition, fieldCount);
+
+         if(!isNumericSqlFragment(cs, branch, fieldCount)) {
+            return false;
+         }
+
+         k += 2;
+      }
+
+      if(k == 1) {
+         return false; // no WHEN/THEN pair at all -- not a real CASE expression
+      }
+
+      if(k < keywords.size() && "ELSE".equals(keywords.get(k))) {
+         if(!isNumericSqlFragment(cs, segments.get(k + 1), fieldCount)) {
+            return false;
+         }
+
+         k++;
+      }
+
+      return k < keywords.size() && "END".equals(keywords.get(k)) && k == keywords.size() - 1;
+   }
+
+   /**
+    * Counts every identifier in {@code text} that resolves to a real column into
+    * {@code fieldCount[0]}, without any numeric-type requirement -- the SQL-mode
+    * counterpart to {@link #countFieldRefs}, used for a CASE WHEN condition segment.
+    */
+   private static void countSqlFieldRefs(ColumnSelection cs, String text, int[] fieldCount) {
+      int i = 0;
+
+      while(i < text.length()) {
+         char c = text.charAt(i);
+
+         if(Character.isLetter(c) || c == '_' || c == '"') {
+            int idEnd = scanSqlIdentifier(text, i);
+
+            if(idEnd > i) {
+               if(resolveColumn(cs, unquoteSqlIdentifier(text.substring(i, idEnd))) != null) {
+                  fieldCount[0]++;
+               }
+
+               i = idEnd;
+               continue;
+            }
+         }
+
+         i++;
+      }
+   }
+
+   /**
+    * @return the end index (exclusive) of the bare or double-quoted SQL identifier
+    *         starting at {@code i}, or {@code i} itself if there is none there
+    */
+   private static int scanSqlIdentifier(String text, int i) {
+      if(text.charAt(i) == '"') {
+         int end = text.indexOf('"', i + 1);
+         return end < 0 ? i : end + 1;
+      }
+
+      int j = i;
+
+      while(j < text.length() &&
+         (Character.isLetterOrDigit(text.charAt(j)) || text.charAt(j) == '_'))
+      {
+         j++;
+      }
+
+      return j;
+   }
+
+   /** Strips a double-quoted SQL identifier's surrounding quotes, if present. */
+   private static String unquoteSqlIdentifier(String token) {
+      if(token.length() >= 2 && token.charAt(0) == '"' && token.charAt(token.length() - 1) == '"') {
+         return token.substring(1, token.length() - 1);
+      }
+
+      return token;
    }
 
    /**

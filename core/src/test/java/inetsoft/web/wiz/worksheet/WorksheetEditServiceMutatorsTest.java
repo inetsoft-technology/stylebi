@@ -3008,6 +3008,112 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    @Test
+   void addExpressionColumnInfersNumericTypeForMathRoundExpression() throws Exception {
+      // Bug #77000/WBS-083, shape 1 (JS mode): a known numeric-returning function-call
+      // wrapper (Math.round) around an otherwise-numeric argument must infer numeric,
+      // not fall through to "string" just because letters/call-parens aren't part of
+      // the plain arithmetic character class.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "HALF_QTY", "Math.round(field['QUANTITY'] / 2)", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("HALF_QTY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForUnrecognizedFunctionCall() throws Exception {
+      // Guard against over-widening: an arbitrary function call NOT on the small,
+      // explicit numeric-function allowlist (Math.round/floor/ceil/abs) must not be
+      // guessed as numeric.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "PARSED", "parseInt(field['QUANTITY'])", null, false));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("PARSED");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForSqlCaseWhenExpression() throws Exception {
+      // Bug #77000/WBS-083, shape 2 (SQL mode): a sql:true CASE WHEN expression over a
+      // numeric column, with plain numeric-literal THEN/ELSE branches, must infer
+      // numeric. FIELD_REF_PATTERN (the field['x'] convention) never matches SQL-mode
+      // syntax, so this exercises the separate SQL-mode column-reference detector.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_TIER", "CASE WHEN QUANTITY >= 5 THEN 3 ELSE 1 END", null, true));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_TIER");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnInfersNumericTypeForSqlArithmeticOverColumnReference() throws Exception {
+      // Bug #77000/WBS-083, shape 2's own "simple arithmetic over recognized SQL
+      // column references" case -- not just CASE WHEN.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "DOUBLED_QTY", "QUANTITY * 2", null, true));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("DOUBLED_QTY");
+      assertNotNull(col);
+      assertEquals(XSchema.DOUBLE, col.getDataType());
+   }
+
+   @Test
+   void addExpressionColumnLeavesStringDefaultForSqlCaseWhenWithNonNumericBranch() throws Exception {
+      // Guard against over-widening: a sql:true CASE WHEN with string-literal
+      // THEN/ELSE branches must not be guessed as numeric, mirroring the JS-mode
+      // ternary guard above.
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "QUANTITY");
+      ColumnSelection cs = t.getColumnSelection(false);
+      ((ColumnRef) cs.getAttribute("QUANTITY")).setDataType(XSchema.INTEGER);
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "T", "QTY_LABEL", "CASE WHEN QUANTITY >= 5 THEN 'big' ELSE 'small' END", null, true));
+
+      ColumnRef col = (ColumnRef) t.getColumnSelection(false).getAttribute("QTY_LABEL");
+      assertNotNull(col);
+      assertEquals(XSchema.STRING, col.getDataType());
+   }
+
+   @Test
    void addExpressionColumnHonorsExplicitTypeOverInference() throws Exception {
       Worksheet ws = new Worksheet();
       EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "a", "b");
