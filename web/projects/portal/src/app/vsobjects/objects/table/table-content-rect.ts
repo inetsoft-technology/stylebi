@@ -15,11 +15,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-export interface CardRect {
-   width: number;
-   height: number;
-}
-
 export interface TablePadding {
    top: number;
    left: number;
@@ -28,20 +23,25 @@ export interface TablePadding {
 }
 
 /**
- * The rect a table's grid draws into: its card minus the card inset. The card rect itself stays
- * with the border, the background and the round-corner clip, which draw at the assembly edge —
- * the same split the chart has had since its own card inset shipped.
+ * The width a table's grid draws into: its card width minus the horizontal inset. The card rect
+ * itself stays with the border, the background and the round-corner clip, which draw at the
+ * assembly edge — the same split the chart has had since its own card inset shipped.
+ *
+ * Per axis rather than per rect, so that asking for a width never computes a height: the card
+ * height is derived from live layout state, and a query for it at the wrong moment in the layout
+ * pass reads a stale value.
  *
  * Clamped at zero: an assembly can be dragged smaller than its own inset, and a negative width
  * reaches the DOM as an invalid style that silently drops the binding.
  */
-export function contentRect(card: CardRect, padding: TablePadding | null): CardRect {
-   if(!padding) {
-      return { width: card.width, height: card.height };
-   }
+export function contentWidth(cardWidth: number, padding: TablePadding | null): number {
+   return padding ? Math.max(0, cardWidth - padding.left - padding.right) : cardWidth;
+}
 
-   return {
-      width: Math.max(0, card.width - padding.left - padding.right),
-      height: Math.max(0, card.height - padding.top - padding.bottom)
-   };
+/**
+ * The height a table's grid draws into: its card height minus the vertical inset. Per axis and
+ * clamped at zero for the same reasons as the width.
+ */
+export function contentHeight(cardHeight: number, padding: TablePadding | null): number {
+   return padding ? Math.max(0, cardHeight - padding.top - padding.bottom) : cardHeight;
 }

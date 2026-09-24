@@ -106,6 +106,12 @@
 // z-index: auto this box does not open a stacking context, so everything inside keeps the
 // painting order it had as a direct child of .z-index-wrapper. An assembly with no inset gets
 // a box that coincides exactly with .z-index-wrapper's own.
+//
+// That order survives only because .border-div, the one sibling left outside, carries a
+// positive z-index and so still paints above this box's in-flow content. Any positioned child
+// added to .z-index-wrapper without an explicit z-index will paint against .table-content as a
+// whole rather than interleaving with what is inside it — give such a child a z-index from the
+// component's $stacking-order, or put it inside .table-content.
 .table-content {
   position: absolute;
 }

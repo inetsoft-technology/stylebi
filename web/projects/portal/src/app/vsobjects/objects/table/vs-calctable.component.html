@@ -575,8 +575,8 @@
 }
 @if (!printLayout && mobileDevice) {
   <div #resizeLine class="col-resize-line"
-    [style.height.px]="getObjectHeight()"
-    [style.top.px]="getContentTop()">
+    [style.height.px]="contentHeight"
+    [style.top.px]="contentTop">
   </div>
 }
 @if (!printLayout) {

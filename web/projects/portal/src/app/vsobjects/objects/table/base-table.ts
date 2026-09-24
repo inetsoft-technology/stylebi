@@ -78,7 +78,7 @@ import { DataTipService } from "../data-tip/data-tip.service";
 import { SelectableObject } from "../selectable-object";
 import { DetailDndInfo } from "./detail-dnd-info";
 import { SortInfo } from "./sort-info";
-import { contentRect, TablePadding } from "./table-content-rect";
+import { contentHeight, contentWidth, TablePadding } from "./table-content-rect";
 import {
    TableCellResizeDialogComponent,
    TableCellResizeDialogResult
@@ -94,6 +94,9 @@ const TABLE_CHANGE_TITLE_URL: string = "/events/composer/viewsheet/objects/chang
 const TABLE_DETAIL_FORMAT_URI: string = "../api/table/show-details/format-model";
 const TABLE_MAX_MODE_URL: string = "/events/vstable/toggle-max-mode";
 const TABLE_WIZARD_CHANGE_TITLE_URL: string = "/events/vswizard/preview/changeDescription";
+
+/** Shared stand-in for an unmarked table's absent inset; getPadding() is a hot path. */
+const ZERO_PADDING: TablePadding = Object.freeze({ top: 0, left: 0, bottom: 0, right: 0 });
 
 /**
  * Convenient abstract base class for tables types with models that extend BaseTableModel
@@ -1700,7 +1703,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
     * a density change rewrites it and the model is replaced wholesale.
     */
    protected getPadding(): TablePadding {
-      return this.model.padding || { top: 0, left: 0, bottom: 0, right: 0 };
+      return this.model.padding || ZERO_PADDING;
    }
 
    public getContentLeft(): number {
@@ -1712,19 +1715,21 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    }
 
    /**
-    * The grid's width: the card minus the card inset.
+    * The grid's width: the card width minus the horizontal inset. Deliberately does not touch
+    * the card height: getCardHeight() reads this.tableHeight, which updateTableHeight() rewrites
+    * later in the same layout pass, so a width query that computed a height would capture the
+    * previous pass's value and latch it into the deferred model.objectHeight write.
     */
    public getObjectWidth(): number {
-      return contentRect({ width: this.getCardWidth(), height: this.getCardHeight() },
-                         this.getPadding()).width;
+      return contentWidth(this.getCardWidth(), this.getPadding());
    }
 
    /**
-    * The grid's height: the card minus the card inset.
+    * The grid's height: the card height minus the vertical inset. Takes only its own axis, for
+    * the symmetric reason given on getObjectWidth().
     */
    public getObjectHeight(): number {
-      return contentRect({ width: this.getCardWidth(), height: this.getCardHeight() },
-                         this.getPadding()).height;
+      return contentHeight(this.getCardHeight(), this.getPadding());
    }
 
    /**

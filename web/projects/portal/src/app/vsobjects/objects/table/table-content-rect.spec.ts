@@ -15,38 +15,57 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { contentRect } from "./table-content-rect";
+import { contentHeight, contentWidth } from "./table-content-rect";
 
-describe("contentRect", () => {
-   const card = { width: 400, height: 300 };
-   const inset = { top: 12, left: 12, bottom: 12, right: 12 };
-
-   it("should inset the card by the padding on all four edges", () => {
-      expect(contentRect(card, inset)).toEqual({ width: 376, height: 276 });
+describe("contentWidth", () => {
+   // The 99s are decoys: they prove the vertical edges are never read, which a rect-shaped
+   // assertion over four distinct values could only catch as a transposition.
+   it("should take only the horizontal edges", () => {
+      expect(contentWidth(400, { top: 99, left: 2, bottom: 99, right: 8 })).toBe(390);
    });
 
-   it("should take each edge independently", () => {
-      expect(contentRect(card, { top: 1, left: 2, bottom: 4, right: 8 }))
-         .toEqual({ width: 390, height: 295 });
+   it("should return the card width unchanged when there is no padding", () => {
+      expect(contentWidth(400, null)).toBe(400);
    });
 
-   it("should return the card unchanged when there is no padding", () => {
-      expect(contentRect(card, null)).toEqual({ width: 400, height: 300 });
+   // A zero padding is a different path from a null one: the object is truthy, so the
+   // subtraction runs rather than being skipped.
+   it("should return the card width unchanged for a zero padding", () => {
+      expect(contentWidth(400, { top: 0, left: 0, bottom: 0, right: 0 })).toBe(400);
    });
 
-   it("should return the card unchanged for a zero padding", () => {
-      expect(contentRect(card, { top: 0, left: 0, bottom: 0, right: 0 }))
-         .toEqual({ width: 400, height: 300 });
+   it("should clamp at zero", () => {
+      expect(contentWidth(10, { top: 0, left: 12, bottom: 0, right: 12 })).toBe(0);
+   });
+});
+
+describe("contentHeight", () => {
+   it("should take only the vertical edges", () => {
+      expect(contentHeight(300, { top: 1, left: 99, bottom: 4, right: 99 })).toBe(295);
    });
 
-   it("should clamp at zero rather than going negative on a tiny assembly", () => {
-      expect(contentRect({ width: 10, height: 10 }, inset)).toEqual({ width: 0, height: 0 });
+   it("should return the card height unchanged when there is no padding", () => {
+      expect(contentHeight(300, null)).toBe(300);
    });
 
-   it("should not mutate its arguments", () => {
-      contentRect(card, inset);
+   it("should return the card height unchanged for a zero padding", () => {
+      expect(contentHeight(300, { top: 0, left: 0, bottom: 0, right: 0 })).toBe(300);
+   });
 
-      expect(card).toEqual({ width: 400, height: 300 });
-      expect(inset).toEqual({ top: 12, left: 12, bottom: 12, right: 12 });
+   it("should clamp at zero", () => {
+      expect(contentHeight(10, { top: 12, left: 0, bottom: 12, right: 0 })).toBe(0);
+   });
+});
+
+// BaseTable.getPadding() hands every caller one shared frozen ZERO_PADDING, so a function that
+// wrote to its padding argument would corrupt that single object for the whole application.
+describe("padding argument", () => {
+   it("should not be mutated by either accessor", () => {
+      const inset = { top: 12, left: 10, bottom: 14, right: 6 };
+
+      contentWidth(400, inset);
+      contentHeight(300, inset);
+
+      expect(inset).toEqual({ top: 12, left: 10, bottom: 14, right: 6 });
    });
 });

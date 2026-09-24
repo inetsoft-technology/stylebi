@@ -34,6 +34,9 @@
  *                right-click-on-selected no-op
  *   Group 11 — displayColWidths: sum<width expands last col; sum>=width no expand
  *   Group 12 — getObjectTop: non-viewer/non-shrink/maxMode early return; shrink+bottomTabs offset
+ *   Group 13 — card vs content rect: unmarked no-op; per-edge inset; borderDivHeight/realWidth/
+ *                bottom-tabs offset stay on the card; shrink adds the inset back; scrollWrapper
+ *                adds it back too; updateTableHeight subtracts it; each axis stays on its own
  */
 
 import { ViewsheetInfo } from "../../data/viewsheet-info";
@@ -527,6 +530,120 @@ describe("VSTable — Pass 3: Display", () => {
 
          // top + (height - renderedHeight) = 50 + (200 - 120) = 130
          expect(comp.getObjectTop()).toBe(designTop + designHeight - 120);
+      });
+   });
+
+   // ── Group 13 — card vs content rect ───────────────────────────────────────
+   // The fixture is 300x200 with a 20px title and one 20px header row.
+   describe("Group 13 — card vs content rect", () => {
+      const inset = { top: 12, left: 10, bottom: 14, right: 6 };
+
+      it("should leave the content rect on the card for an unmarked table", () => {
+         const { comp } = createTableComponent();
+
+         expect(comp.model.padding).toBeUndefined();
+         expect(comp.getObjectWidth()).toBe(comp.getCardWidth());
+         expect(comp.getObjectHeight()).toBe(comp.getCardHeight());
+         expect(comp.getContentLeft()).toBe(0);
+         expect(comp.getContentTop()).toBe(0);
+      });
+
+      it("should inset the content rect on each edge independently when marked", () => {
+         const { comp } = createTableComponent({ model: { padding: inset } as any });
+
+         expect(comp.getCardWidth()).toBe(300);
+         expect(comp.getCardHeight()).toBe(200);
+         expect(comp.getObjectWidth()).toBe(300 - 10 - 6);
+         expect(comp.getObjectHeight()).toBe(200 - 12 - 14);
+         expect(comp.getContentLeft()).toBe(10);
+         expect(comp.getContentTop()).toBe(12);
+      });
+
+      it("should keep borderDivHeight on the card, not the content rect", () => {
+         const { comp } = createTableComponent({ model: { padding: inset } as any });
+
+         expect(comp.borderDivHeight).toBe(comp.getCardHeight());
+         expect(comp.borderDivHeight).not.toBe(comp.getObjectHeight());
+      });
+
+      it("should record realWidth as the card width, not the content width", () => {
+         const { comp } = createTableComponent({
+            model: { shrink: true, padding: inset } as any,
+         });
+
+         (comp as any).sumColWidths();
+
+         expect(comp.model.realWidth).toBe(comp.getCardWidth());
+         expect(comp.model.realWidth).not.toBe(comp.getObjectWidth());
+      });
+
+      it("should measure the bottom-tabs offset from the card, unaffected by the inset", () => {
+         const { comp } = createTableComponent({
+            model: { shrink: true, containerType: "VSTab", container: "tab1", padding: inset },
+         });
+         comp.vsInfo = new ViewsheetInfo(
+            [{ absoluteName: "tab1", bottomTabs: true }] as any, null, false, "vs1",
+         );
+         vi.spyOn(comp as any, "getCardHeight").mockReturnValue(120);
+
+         expect(comp.getObjectTop()).toBe(50 + 200 - 120);
+      });
+
+      it("should shrink the card onto the columns plus the inset, so the content keeps the columns", () => {
+         const { comp } = createTableComponent({ model: { shrink: true } as any });
+         comp.totalColWidth = 200;
+
+         expect(comp.getCardWidth()).toBe(200);
+
+         comp.model.padding = inset;
+
+         expect(comp.getCardWidth()).toBe(200 + 10 + 6);
+         expect(comp.getObjectWidth()).toBe(200);
+      });
+
+      it("should cap the shrunk card at the design width and inset from there", () => {
+         const { comp } = createTableComponent({ model: { shrink: true, padding: inset } as any });
+         comp.totalColWidth = 295;
+
+         expect(comp.getCardWidth()).toBe(300);
+         expect(comp.getObjectWidth()).toBe(300 - 10 - 6);
+      });
+
+      it("should add the inset back before actualTableWidth competes with the card", () => {
+         const { comp } = createTableComponent({ model: { padding: inset } as any });
+         comp.scrollWrapper = true;
+         comp.actualTableWidth = 400;
+
+         expect(comp.getCardWidth()).toBe(400 + 10 + 6);
+         // the rendered grid survives intact, so the overflow:hidden wrapper cannot clip it
+         expect(comp.getObjectWidth()).toBe(400);
+      });
+
+      it("should subtract the vertical inset in updateTableHeight", () => {
+         const { comp } = createTableComponent();
+
+         (comp as any).updateTableHeight();
+         const unmarked = comp.tableHeight;
+         comp.model.padding = inset;
+
+         (comp as any).updateTableHeight();
+
+         expect(comp.tableHeight).toBe(unmarked - 12 - 14);
+      });
+
+      it("should not consult the other axis, which would read a stale tableHeight", () => {
+         const { comp } = createTableComponent({ model: { padding: inset } as any });
+         const cardHeight = vi.spyOn(comp as any, "getCardHeight");
+         const cardWidth = vi.spyOn(comp as any, "getCardWidth");
+
+         comp.getObjectWidth();
+
+         expect(cardHeight).not.toHaveBeenCalled();
+
+         cardWidth.mockClear();
+         comp.getObjectHeight();
+
+         expect(cardWidth).not.toHaveBeenCalled();
       });
    });
 });
