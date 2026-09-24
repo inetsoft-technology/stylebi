@@ -18,6 +18,7 @@
 package inetsoft.mv;
 
 import inetsoft.mv.MVDef.MVContainer;
+import inetsoft.mv.data.MVColumnInfo;
 import inetsoft.test.*;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DateRangeRef;
@@ -30,6 +31,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -66,15 +69,21 @@ import static org.junit.jupiter.api.Assertions.fail;
  * A single run of this scenario only has a narrow, timing-dependent chance of actually landing
  * inside the old unguarded window, so this test does not attempt to force one specific
  * interleaving deterministically (there is no test hook inside {@code snapshotColumn()} to pause
- * on). Instead, it races {@code MVDef.write()} against the now-synchronized convert path on a
- * *fresh* {@code DateMVColumn} (min0/max0 null, exactly mirroring the real first-conversion
- * exposure window described in the bug's diagnosis) for many iterations, using a
- * {@link CyclicBarrier} so both threads reach their respective critical sections as close to
- * simultaneously as possible each time. This is a stress/regression signal, not a
- * mathematically-guaranteed reproduction: if the {@code synchronized(col)} guarantee the fix
- * relies on were ever broken by a future edit, this test would be expected to catch it with high
- * probability well before it reached a customer build, without being flaky in the failure-free
- * (fixed) case.
+ * on). Instead, it races {@code MVDef.write()} against the mutator path for many iterations,
+ * using a {@link CyclicBarrier} so both threads reach their respective critical sections as
+ * close to simultaneously as possible each time. This is a stress/regression signal, not a
+ * mathematically-guaranteed reproduction: if the {@code synchronized(col)}/{@code
+ * synchronized(mvcol)} guarantees the fix relies on were ever broken by a future edit, this test
+ * would be expected to catch it with high probability well before it reached a customer build,
+ * without being flaky in the failure-free (fixed) case.
+ * <p>
+ * The mutator thread does not hand-reimplement {@code MVCreatorUtil}'s locking pattern; it
+ * invokes the real, private {@code MVCreatorUtil.setDateMVRange(DateMVColumn, String[],
+ * MVColumnInfo, MVColumnInfo[])} overload via reflection (see {@link #SET_DATE_MV_RANGE}). That
+ * way, if a future edit ever silently drops the {@code synchronized(mvcol)} wrapper from
+ * {@code MVCreatorUtil} itself, this test starts failing instead of continuing to pass against a
+ * hand-rolled stand-in that has nothing to do with whether the production code still
+ * synchronizes.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class },
@@ -84,6 +93,38 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag("core")
 class MVDefWriteConvertRaceTest {
    private static final int ITERATIONS = 3000;
+
+   /**
+    * The base column name used by {@link #newYearIntervalColumn()}. {@code
+    * MVCreatorUtil.setDateMVRange(DateMVColumn, ...)}'s private overload resolves the original
+    * (unranged) column via {@code DefaultTableBlock.getOriginalColumn(String[], MVColumn)},
+    * which parses it out of the range column's name -- {@code "Year(dateCol)"} -- so the range
+    * column's name must follow that {@code <Range>(<original>)} convention for the reflective
+    * call below to actually reach the {@code convert()} calls instead of silently no-op'ing on
+    * {@code idx < 0}.
+    */
+   private static final String BASE_COLUMN_NAME = "dateCol";
+
+   /**
+    * {@code MVCreatorUtil}'s private {@code setDateMVRange(DateMVColumn, String[],
+    * MVColumnInfo, MVColumnInfo[])} overload -- the exact method this PR wraps in {@code
+    * synchronized(mvcol)}. Resolved once via reflection so the mutator thread below invokes the
+    * real production code path instead of reimplementing its locking by hand.
+    */
+   private static final Method SET_DATE_MV_RANGE = resolveSetDateMVRange();
+
+   private static Method resolveSetDateMVRange() {
+      try {
+         Method method = MVCreatorUtil.class.getDeclaredMethod(
+            "setDateMVRange", DateMVColumn.class, String[].class,
+            MVColumnInfo.class, MVColumnInfo[].class);
+         method.setAccessible(true);
+         return method;
+      }
+      catch(NoSuchMethodException e) {
+         throw new ExceptionInInitializerError(e);
+      }
+   }
 
    @Test
    void concurrentWriteAndConvertNeverCorruptsTheBuffer() throws Exception {
@@ -121,13 +162,21 @@ class MVDefWriteConvertRaceTest {
                try {
                   barrier.await();
 
-                  // Mirrors the fixed MVCreatorUtil private setDateMVRange(DateMVColumn, ...)
-                  // overload: convert() calls that mutate min0/max0 are synchronized on the
-                  // column itself, matching MVDef.snapshotColumn()'s synchronized(col).
-                  synchronized(col) {
-                     col.convert(new Date(0L));
-                     col.convert(new Date(86_400_000L));
-                  }
+                  // Invoke the real, fixed MVCreatorUtil private setDateMVRange(DateMVColumn,
+                  // String[], MVColumnInfo, MVColumnInfo[]) overload via reflection, rather than
+                  // reimplementing its synchronized(mvcol) { convert(); convert(); } pattern by
+                  // hand -- so this test exercises whether that method itself still
+                  // synchronizes, not just whether the test's own stand-in does.
+                  String[] columnNames = { BASE_COLUMN_NAME };
+                  MVColumnInfo sourceInfo =
+                     new MVColumnInfo(null, new Date(0L), new Date(86_400_000L));
+                  MVColumnInfo[] cinfos = { sourceInfo };
+                  MVColumnInfo targetInfo = new MVColumnInfo();
+
+                  SET_DATE_MV_RANGE.invoke(null, col, columnNames, targetInfo, cinfos);
+               }
+               catch(InvocationTargetException e) {
+                  mutatorError.compareAndSet(null, e.getCause());
                }
                catch(Throwable t) {
                   mutatorError.compareAndSet(null, t);
@@ -176,11 +225,17 @@ class MVDefWriteConvertRaceTest {
    }
 
    private static DateMVColumn newYearIntervalColumn() {
-      ColumnRef baseRef = new ColumnRef(new AttributeRef("test", "dateCol"));
+      ColumnRef baseRef = new ColumnRef(new AttributeRef("test", BASE_COLUMN_NAME));
       baseRef.setDataType(XSchema.TIME_INSTANT);
       MVColumn base = new MVColumn(baseRef, true);
 
-      ColumnRef rangeRef = new ColumnRef(new AttributeRef("test", "dateCol_Year"));
+      // Name follows DateRangeRef.getName()'s "<Range>(<original>)" convention -- e.g.
+      // "Year(dateCol)" -- so that DefaultTableBlock.getOriginalColumn(), called from the real
+      // MVCreatorUtil.setDateMVRange() overload invoked reflectively below, can resolve this
+      // range column back to BASE_COLUMN_NAME.
+      ColumnRef rangeRef = new ColumnRef(
+         new AttributeRef("test", DateRangeRef.getName(BASE_COLUMN_NAME,
+                                                         DateRangeRef.YEAR_INTERVAL)));
       rangeRef.setDataType(XSchema.TIME_INSTANT);
 
       DateMVColumn col = new DateMVColumn(base, rangeRef, DateRangeRef.YEAR_INTERVAL);
