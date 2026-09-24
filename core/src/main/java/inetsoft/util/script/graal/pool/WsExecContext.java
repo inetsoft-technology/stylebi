@@ -30,6 +30,10 @@ public final class WsExecContext {
    }
 
    static Slot enter(Slot slot) {
+      if(!everEntered) {
+         everEntered = true;
+      }
+
       Slot previous = CURRENT.get();
       CURRENT.set(slot);
       return previous;
@@ -51,6 +55,12 @@ public final class WsExecContext {
     * @return the token {@link #resume} restores.
     */
    public static Object suspend() {
+      // pool off: nothing ever entered, so skip even the ThreadLocal.get(), which would
+      // create an entry on every script thread
+      if(!everEntered) {
+         return null;
+      }
+
       Slot previous = CURRENT.get();
 
       if(previous != null) {
@@ -73,6 +83,10 @@ public final class WsExecContext {
     * @return the Context of the pooled context executing on this thread, or {@code null}.
     */
    static Context currentContext() {
+      if(!everEntered) {
+         return null;
+      }
+
       Slot slot = CURRENT.get();
       return slot == null ? null : slot.engine().context();
    }
@@ -84,9 +98,15 @@ public final class WsExecContext {
     * @return the attachment, or {@code null} when no pooled context is executing here.
     */
    public static <T> T currentSlotAttachment(Object key, Supplier<T> factory) {
+      if(!everEntered) {
+         return null;
+      }
+
       Slot slot = CURRENT.get();
       return slot == null ? null : slot.attachment(key, factory);
    }
 
    private static final ThreadLocal<Slot> CURRENT = new ThreadLocal<>();
+   // set on the first pooled exec in this JVM, by its thread before its CURRENT entry
+   private static volatile boolean everEntered;
 }

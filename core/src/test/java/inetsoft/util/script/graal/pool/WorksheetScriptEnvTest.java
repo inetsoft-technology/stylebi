@@ -265,6 +265,20 @@ class WorksheetScriptEnvTest {
    }
 
    /**
+    * Spec §6.9 (ledger T8 follow-up): reset() retires the contexts and clears the counts too,
+    * as main's reset re-init did.
+    */
+   @Test
+   void resetClearsErrorCounts() throws Exception {
+      WorksheetScriptEnv env = env();
+      Object bad = env.compile("undefinedName_76960b + 1");
+      assertThrows(ScriptException.class, () -> env.exec(bad, null, null, null));
+      assertEquals(1, env.errorCounts().get(bad));
+      env.reset();
+      assertTrue(env.errorCounts().isEmpty());
+   }
+
+   /**
     * Spec §5.2: slots are never shared across sandboxes' envs.
     */
    @Test

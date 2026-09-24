@@ -343,7 +343,9 @@ public class PostProcessor {
          }
 
          if(senv == null) {
-            // the env was collected: no more pooled batches, so stop the geometric read-ahead
+            // no env to batch for: this filter cannot reach a script (needsScriptLock is
+            // false), no env existed when it was built, or the env was collected; so no
+            // read-ahead
             synchronized(this) {
                readAhead = 0;
                return super.moreRows(row);

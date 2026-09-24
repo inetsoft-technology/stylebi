@@ -323,14 +323,17 @@ public final class WsValueCopier {
    }
 
    private static boolean isOwnGuest(Value v) {
-      if(v == null || v.isNull() || v.isHostObject() || v.isProxyObject() || v.isString() ||
-         v.isNumber() || v.isBoolean())
+      // the cheap check first: with no pooled exec on this thread (always, pool off) no value
+      // is an own guest
+      Context context = v == null ? null : WsExecContext.currentContext();
+
+      if(context == null || v.isNull() || v.isHostObject() || v.isProxyObject() ||
+         v.isString() || v.isNumber() || v.isBoolean())
       {
          return false;
       }
 
-      Context context = WsExecContext.currentContext();
-      return context != null && isOwn(v, context);
+      return isOwn(v, context);
    }
 
    private static boolean isOwn(Value v, Context context) {
