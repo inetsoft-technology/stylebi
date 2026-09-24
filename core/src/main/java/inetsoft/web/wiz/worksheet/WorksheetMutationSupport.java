@@ -690,6 +690,38 @@ public final class WorksheetMutationSupport {
       groups = groups == null ? List.of() : groups;
       aggregates = aggregates == null ? List.of() : aggregates;
 
+      // Deliberately no early return for groups.isEmpty() && aggregates.isEmpty():
+      // AggregateDialogService#applyAggregateInfo runs its stale-range-column cleanup
+      // sweep and AssetUtil.validateConditions unconditionally, even when the new
+      // AggregateInfo is completely empty (a full clear), so a full clear here must
+      // too - otherwise a DateRangeRef-wrapped column materialized by an earlier
+      // dateLevel grouping (e.g. "Quarter(orderDate)") would be left behind forever,
+      // since the loops below produce the same empty-AggregateInfo end state either way.
+      AggregateInfo ainfo = new AggregateInfo();
+      ColumnSelection cs = t.getColumnSelection(false);
+
+      // Bug #76891 / WBS-085 (Redmine #77001): every column's alias exactly as it stood
+      // before this call touched anything -- before clearAggregateAliases below, and
+      // before the aggregates loop further down sets any new one. Two things below need
+      // this snapshot, not the live (about-to-be-mutated) alias:
+      //  - the downstream-loss guards' own lookup key, so they ask "does anything
+      //    depend on the identity this column HAD," not the identity this very call is
+      //    in the middle of creating or clearing (see getOuterAttributeSnapshotAware);
+      //  - restoreAliases, which puts every alias back exactly where it was if either
+      //    guard below refuses the call, so a refused call is zero-mutation regardless
+      //    of which alias this call would otherwise have changed.
+      Map<ColumnRef, String> originalAliases = new IdentityHashMap<>();
+
+      if(cs != null) {
+         for(int i = 0; i < cs.getAttributeCount(); i++) {
+            DataRef ref0 = cs.getAttribute(i);
+
+            if(ref0 instanceof ColumnRef cr0) {
+               originalAliases.put(cr0, cr0.getAlias());
+            }
+         }
+      }
+
       // Clear aliases left on the column selection by a PRIOR call's aggregate
       // outputs before resolving anything new. Those aliases exist purely to label
       // aggregate results; once the AggregateInfo is being replaced they become
@@ -701,16 +733,6 @@ public final class WorksheetMutationSupport {
       // aggregate over raw rows instead of failing loud or aggregating the prior
       // result — a plausible-looking but numerically wrong answer.
       clearAggregateAliases(t);
-
-      // Deliberately no early return for groups.isEmpty() && aggregates.isEmpty():
-      // AggregateDialogService#applyAggregateInfo runs its stale-range-column cleanup
-      // sweep and AssetUtil.validateConditions unconditionally, even when the new
-      // AggregateInfo is completely empty (a full clear), so a full clear here must
-      // too - otherwise a DateRangeRef-wrapped column materialized by an earlier
-      // dateLevel grouping (e.g. "Quarter(orderDate)") would be left behind forever,
-      // since the loops below produce the same empty-AggregateInfo end state either way.
-      AggregateInfo ainfo = new AggregateInfo();
-      ColumnSelection cs = t.getColumnSelection(false);
 
       // The table's AggregateInfo as it stood before this call, captured before any
       // mutation below — needed by the stale-range-column cleanup at the end, which
@@ -1033,6 +1055,16 @@ public final class WorksheetMutationSupport {
       // on that expression column so the query engine produces a separate output column.
       AggregateRef[] secondaryAggs = ainfo.getSecondaryAggregates();
 
+      // Bug #76891 / WBS-085 (Redmine #77001): set only when a secondary-aggregate
+      // conversion actually runs below; the call itself is deferred until after both
+      // downstream-loss guards clear (see the commit section further down).
+      // AbstractTableAssembly#setColumnSelection(selection, false) does more than store
+      // a reference -- it also regenerates and publishes a brand-new PUBLIC column
+      // selection derived from the mutated private one, and fires a property-change
+      // listener -- so calling it here, before either guard has run, would leak that new
+      // public selection to any other reader even when the call ends up refused.
+      ColumnSelection pendingSecondaryColumnSelection = null;
+
       if(secondaryAggs.length > 0) {
          ColumnSelection cs2 = t.getColumnSelection();
 
@@ -1089,7 +1121,7 @@ public final class WorksheetMutationSupport {
          }
 
          ainfo.removeSecondaryAggregates();
-         t.setColumnSelection(cs2);
+         pendingSecondaryColumnSelection = cs2;
       }
 
       // Guard against the same "aggregate-only retention silently breaks a downstream
@@ -1104,6 +1136,10 @@ public final class WorksheetMutationSupport {
             WorksheetControllerService.findAggregateIdentityLossConflict(mutationWs, t, ainfo);
 
          if(conflict != null) {
+            // Bug #76891 / WBS-085: a refusal must leave the table's columns exactly as
+            // they were before this call -- restore every alias clearAggregateAliases
+            // and/or the aggregates loop above may already have changed.
+            restoreAliases(cs, originalAliases);
             String dependentName = findDependentJoinName(mutationWs, t, conflict);
             throw new inetsoft.web.wiz.pairing.PairingException(
                "Column '" + conflict.getName() + "' cannot be reduced to an aggregate " +
@@ -1116,11 +1152,17 @@ public final class WorksheetMutationSupport {
          // purely as ANOTHER table's own aggregate INPUT (e.g. a mirror several hops
          // downstream that itself sums this column) is not a hard block -- it is a
          // legitimate, opt-in edit -- so this is refused only when the caller hasn't
-         // already confirmed it.
+         // already confirmed it. The lookup key is built from originalAliases (this
+         // column's alias before this call touched anything, Bug #76891 / WBS-084(a)),
+         // not from the live column, which this call's own aggregates loop may have
+         // already re-aliased or cleared by this point.
          List<WorksheetControllerService.AggregateInputLossConflict> inputConflicts =
-            WorksheetControllerService.findAggregateInputLossConflicts(mutationWs, t, ainfo);
+            WorksheetControllerService.findAggregateInputLossConflicts(
+               mutationWs, t, ainfo, originalAliases);
 
          if(!inputConflicts.isEmpty() && !confirmed) {
+            // Bug #76891 / WBS-085: same zero-mutation guarantee as the hard block above.
+            restoreAliases(cs, originalAliases);
             StringBuilder sb = new StringBuilder();
 
             for(WorksheetControllerService.AggregateInputLossConflict inputConflict : inputConflicts) {
@@ -1133,10 +1175,18 @@ public final class WorksheetMutationSupport {
             }
 
             throw new inetsoft.web.wiz.pairing.PairingException(
-               "This change would empty the aggregate on the following downstream " +
-               "table(s), which rely on the affected column(s) as an aggregate input: " +
-               sb + ". Retry with confirmed:true to proceed anyway.");
+               "This change would empty the aggregate or group-by on the following downstream " +
+               "table(s), which rely on the affected column(s) as their own aggregate input or " +
+               "group-by key: " + sb + ". Confirm with the user before retrying with " +
+               "confirmed:true -- this changes what those OTHER tables show, not just this one.");
          }
+      }
+
+      // Bug #76891 / WBS-085: commit the secondary-aggregate conversion's column
+      // selection only now, after both downstream-loss guards above have cleared (or
+      // confirmed:true was given) -- see pendingSecondaryColumnSelection's own comment.
+      if(pendingSecondaryColumnSelection != null) {
+         t.setColumnSelection(pendingSecondaryColumnSelection);
       }
 
       // Always set the property (empty string when no output aliases were applied):
@@ -1409,6 +1459,29 @@ public final class WorksheetMutationSupport {
             String alias = cr.getAlias();
             cr.setAlias(null);
             clearAliasInSelection(cs, cr, alias);
+         }
+      }
+   }
+
+   /**
+    * Restores every column's alias in {@code cs} to what {@code originalAliases}
+    * recorded for it before the current {@code applyAggregateInfo} call began, undoing
+    * both {@link #clearAggregateAliases}'s clearing and the aggregates loop's own
+    * alias-set. Called just before either downstream-loss guard throws (Bug #76891 /
+    * WBS-085), so a refused call leaves the table's column aliases exactly as they were
+    * -- regardless of which guard is the one that refuses it, and regardless of whether
+    * the alias this call would otherwise have changed was newly set, re-set, or cleared.
+    */
+   private static void restoreAliases(ColumnSelection cs, Map<ColumnRef, String> originalAliases) {
+      if(cs == null) {
+         return;
+      }
+
+      for(int i = 0; i < cs.getAttributeCount(); i++) {
+         DataRef ref0 = cs.getAttribute(i);
+
+         if(ref0 instanceof ColumnRef cr0 && originalAliases.containsKey(cr0)) {
+            cr0.setAlias(originalAliases.get(cr0));
          }
       }
    }
