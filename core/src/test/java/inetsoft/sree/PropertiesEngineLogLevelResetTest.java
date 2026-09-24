@@ -22,7 +22,9 @@ import inetsoft.sree.security.SecurityProvider;
 import inetsoft.storage.InMemoryKeyValueStorage;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.log.*;
+import inetsoft.web.admin.properties.PropertiesController;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.ObjectProvider;
@@ -170,6 +172,41 @@ class PropertiesEngineLogLevelResetTest {
       storage.remoteRemove(key, false);
       engine.init(true);
       assertEquals(LogLevel.WARN, logManager.getLevel("org.apache.ignite"));
+   }
+
+   @Test
+   void controllerDeleteOfLoggerLevelResetsIt() throws Exception {
+      // the reported path: DELETE /api/admin/properties/delete -> deleteProperty -> SreeEnv.remove
+      String dotted = logger + ".sub";
+      String orgScoped = logger + "^org77006";
+      initEngine();
+      engine.setLogLevel(LogContext.CATEGORY, logger, LogLevel.DEBUG);
+      engine.setProperty("log.level." + dotted, "debug");
+      engine.setProperty("log.level." + orgScoped, "debug");
+      engine.save();
+      assertTrue(isListed(LogContext.CATEGORY, logger));
+      assertEquals(LogLevel.DEBUG, logManager.getLevel(dotted));
+      assertEquals(LogLevel.DEBUG, logManager.getLevel(orgScoped));
+
+      PropertiesController controller = new PropertiesController(mock(AssetRepository.class));
+      controller.deleteProperty(null, "log.level." + logger);
+      controller.deleteProperty(null, "log.level." + dotted);
+      controller.deleteProperty(null, "log.level." + orgScoped);
+
+      assertNull(engine.getProperty("log.level." + logger));
+      assertNull(logManager.getLevel(logger), "the deleted logger level is still running");
+      assertFalse(isListed(LogContext.CATEGORY, logger));
+      assertNull(logManager.getLevel(dotted), "the deleted dotted logger level is still running");
+      assertNull(logManager.getLevel(orgScoped), "the deleted org logger level is still running");
+
+      // deleting a log level property that does not exist must not fail
+      assertDoesNotThrow(() -> controller.deleteProperty(null, "log.level." + logger + ".none"));
+
+      // the reload caused by the node's own save must not bring the levels back
+      engine.init(true);
+      assertNull(logManager.getLevel(logger));
+      assertNull(logManager.getLevel(dotted));
+      assertNull(logManager.getLevel(orgScoped));
    }
 
    @Test
