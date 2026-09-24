@@ -96,6 +96,7 @@ public class ScriptTimeoutGuard {
       };
    }
 
+   // Test-only hook: number of watchdogs still queued in the scheduler.
    /** Number of watchdogs still queued in the scheduler (for tests). */
    static int pendingWatchdogs() {
       return ((ScheduledThreadPoolExecutor) SCHED).getQueue().size();

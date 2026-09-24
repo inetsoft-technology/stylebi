@@ -53,6 +53,10 @@ class ScriptTimeoutGuardTest {
    @Test void cancelledWatchdogsDoNotAccumulateInQueue() {
       ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
       Duration longTimeout = Duration.ofSeconds(600);
+      // SCHED is a static field shared by the whole test JVM/fork, so measure
+      // growth relative to whatever this fork already had queued rather than
+      // asserting an absolute cap (which would depend on other tests' state).
+      int before = ScriptTimeoutGuard.pendingWatchdogs();
 
       try(Context ctx = Context.newBuilder("js").build()) {
          for(int i = 0; i < 10_000; i++) {
@@ -62,8 +66,9 @@ class ScriptTimeoutGuardTest {
          }
       }
 
-      assertTrue(ScriptTimeoutGuard.pendingWatchdogs() <= 10,
-         "expected cancelled watchdogs to be removed from the scheduler queue, but found " +
-         ScriptTimeoutGuard.pendingWatchdogs());
+      int growth = ScriptTimeoutGuard.pendingWatchdogs() - before;
+      assertTrue(growth <= 10,
+         "expected cancelled watchdogs to be removed from the scheduler queue, but queue grew by " +
+         growth);
    }
 }
