@@ -38,6 +38,7 @@ import static org.mockito.Mockito.*;
  * grant system administrator privileges through the EM identity save path, whether by adding the
  * Administrator role to a user/group, setting the sysAdmin flag or inheriting Administrator on a
  * role, joining a group that holds Administrator, or editing an identity that already grants it.
+ * Nor may it delete a user, group or role that grants system administrator.
  */
 @Tag("core")
 class IdentityServiceSystemAdminGrantTest {
@@ -184,6 +185,61 @@ class IdentityServiceSystemAdminGrantTest {
    void securityDisabled_skipsCheck() {
       when(securityEngine.isSecurityEnabled()).thenReturn(false);
       assertAllowed(user(), userModel(List.of(ADMIN_ROLE)), List.of());
+   }
+
+   @Test
+   void orgAdmin_deletingSiteAdminTargets_isDenied() throws Exception {
+      FSUser direct = new FSUser(new IdentityID("sa-direct", ORG));
+      direct.setRoles(new IdentityID[] { ADMIN_ROLE });
+      FSUser viaGroup = new FSUser(new IdentityID("sa-group", ORG));
+      viaGroup.setGroups(new String[] { ADMIN_GROUP.name });
+      FSUser viaInherit = new FSUser(new IdentityID("sa-inherit", ORG));
+      viaInherit.setRoles(new IdentityID[] { ADMIN_CHILD });
+      stubUsers(direct, viaGroup, viaInherit);
+
+      assertTrue(invokeDeleteCheck(direct.getIdentityID(), Identity.USER));
+      assertTrue(invokeDeleteCheck(viaGroup.getIdentityID(), Identity.USER));
+      assertTrue(invokeDeleteCheck(viaInherit.getIdentityID(), Identity.USER));
+      assertTrue(invokeDeleteCheck(ADMIN_GROUP, Identity.GROUP));
+      assertTrue(invokeDeleteCheck(ADMIN_ROLE, Identity.ROLE));
+      assertTrue(invokeDeleteCheck(ADMIN_CHILD, Identity.ROLE));
+   }
+
+   @Test
+   void orgAdmin_deletingOrdinaryTargets_isAllowed() throws Exception {
+      FSUser plain = user();
+      plain.setGroups(new String[] { PLAIN_GROUP.name });
+      stubUsers(plain);
+
+      assertFalse(invokeDeleteCheck(plain.getIdentityID(), Identity.USER));
+      assertFalse(invokeDeleteCheck(new IdentityID("missing", ORG), Identity.USER));
+      assertFalse(invokeDeleteCheck(PLAIN_GROUP, Identity.GROUP));
+      assertFalse(invokeDeleteCheck(DESIGNER, Identity.ROLE));
+      assertFalse(invokeDeleteCheck(ORG_ADMIN_ROLE, Identity.ROLE));
+   }
+
+   @Test
+   void siteAdmin_deletingSiteAdminTargets_isAllowed() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      FSUser direct = new FSUser(new IdentityID("sa-direct", ORG));
+      direct.setRoles(new IdentityID[] { ADMIN_ROLE });
+      stubUsers(direct);
+
+      assertFalse(invokeDeleteCheck(direct.getIdentityID(), Identity.USER));
+      assertFalse(invokeDeleteCheck(ADMIN_ROLE, Identity.ROLE));
+   }
+
+   private void stubUsers(FSUser... users) {
+      Map<IdentityID, User> map = new HashMap<>();
+      Arrays.stream(users).forEach(u -> map.put(u.getIdentityID(), u));
+      when(authc.getUser(any())).thenAnswer(inv -> map.get(inv.<IdentityID>getArgument(0)));
+   }
+
+   private boolean invokeDeleteCheck(IdentityID id, int type) throws Exception {
+      Method method = IdentityService.class.getDeclaredMethod(
+         "isSystemAdminTargetDenied", IdentityID.class, int.class, Principal.class);
+      method.setAccessible(true);
+      return (Boolean) method.invoke(service, id, type, principal);
    }
 
    private static FSUser user() {
