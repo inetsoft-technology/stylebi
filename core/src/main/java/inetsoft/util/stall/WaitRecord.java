@@ -46,12 +46,15 @@ public final class WaitRecord implements AutoCloseable {
       sliceMillis = Long.MAX_VALUE;
       thread = null;
       startNanos = 0;
+      creditOnly = false;
    }
 
    WaitRecord(WaitRegistry registry, String what, LongSupplier progress,
-              Supplier<Thread[]> blockers, StallPolicy policy, Thread thread, long now)
+              Supplier<Thread[]> blockers, StallPolicy policy, Thread thread, long now,
+              boolean creditOnly)
    {
       this.registry = registry;
+      this.creditOnly = creditOnly;
       this.what = what;
       this.progress = progress;
       this.blockers = blockers;
@@ -61,7 +64,19 @@ public final class WaitRecord implements AutoCloseable {
       this.thread = thread;
       this.startNanos = now;
       this.progressNanos = now;
-      this.lastValue = progress.getAsLong();
+      this.lastValue = creditOnly ? sampleSafely(progress) : progress.getAsLong();
+   }
+
+   /**
+    * Sample the initial progress of a credit-only wait, which never throws into its waiter.
+    */
+   private static long sampleSafely(LongSupplier progress) {
+      try {
+         return progress.getAsLong();
+      }
+      catch(RuntimeException ex) {
+         return 0;
+      }
    }
 
    /**
@@ -80,6 +95,23 @@ public final class WaitRecord implements AutoCloseable {
          return;
       }
 
+      if(creditOnly) {
+         // only moves the progress time the waits blocked by this thread are credited with
+         try {
+            sample(registry.nanoTime());
+         }
+         catch(Throwable ex) {
+            try {
+               LOG.debug("Failed to sample the progress of the wait {}", what, ex);
+            }
+            catch(Throwable ignore) {
+               // a credit-only wait never fails the waiter
+            }
+         }
+
+         return;
+      }
+
       LockStallException failure = this.failure;
 
       if(failure != null) {
@@ -87,19 +119,7 @@ public final class WaitRecord implements AutoCloseable {
       }
 
       long now = registry.nanoTime();
-      long value = progress.getAsLong();
-
-      if(value != lastValue) {
-         lastValue = value;
-         progressed(now, now);
-      }
-      else {
-         OptionalLong credit = registry.getBlockerProgressNanos(blockers.get(), thread, now);
-
-         if(credit.isPresent() && credit.getAsLong() - progressNanos > 0) {
-            progressed(credit.getAsLong(), now);
-         }
-      }
+      sample(now);
 
       String reason;
       String path;
@@ -168,6 +188,25 @@ public final class WaitRecord implements AutoCloseable {
    }
 
    /**
+    * Sample the progress counter, or else the blockers' credit.
+    */
+   private void sample(long now) {
+      long value = progress.getAsLong();
+
+      if(value != lastValue) {
+         lastValue = value;
+         progressed(now, now);
+      }
+      else {
+         OptionalLong credit = registry.getBlockerProgressNanos(blockers.get(), thread, now);
+
+         if(credit.isPresent() && credit.getAsLong() - progressNanos > 0) {
+            progressed(credit.getAsLong(), now);
+         }
+      }
+   }
+
+   /**
     * Get how long one slice of the wait may be, so the stall is checked in time.
     *
     * @param max the timeout the wait site uses without the watchdog.
@@ -225,6 +264,14 @@ public final class WaitRecord implements AutoCloseable {
     */
    public StallPolicy.Mode getMode() {
       return mode;
+   }
+
+   /**
+    * Check if the wait only gives credit to the waits it blocks, and is never failed, dumped
+    * or reported itself (see {@link WaitRegistry#beginCreditOnly}).
+    */
+   public boolean isCreditOnly() {
+      return creditOnly;
    }
 
    public long getLimitNanos() {
@@ -318,6 +365,7 @@ public final class WaitRecord implements AutoCloseable {
    private final long sliceMillis;
    private final Thread thread;
    private final long startNanos;
+   private final boolean creditOnly;
    private long lastValue;
    private volatile boolean closed;
    private volatile LockStallException failure;

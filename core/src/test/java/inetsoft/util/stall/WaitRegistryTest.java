@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class WaitRegistryTest {
    @BeforeEach
    public void setUp() {
+      StallTestSupport.resetGlobalStallState();
       policy = new StallPolicy(StallPolicy.Mode.FAIL, 1000, 500, dumpDir);
       dumper = new StallDumper(now::get, () -> dumpDir, 60000);
       registry = new WaitRegistry(now::get, () -> policy, dumper);
@@ -401,6 +402,124 @@ public class WaitRegistryTest {
       advance(600);
       assertThrows(LockStallException.class, record::checkStall);
       record.close();
+   }
+
+   @Test
+   public void creditOnlyWaitNeverTripsOrDumps() {
+      WaitRecord record = registry.openCreditOnly("credit", () -> 0, NONE);
+      assertTrue(record.isCreditOnly());
+      assertEquals(1, registry.getBeginCount(), "a credit-only wait is a begin too");
+
+      for(int i = 0; i < 5; i++) {
+         advance(1500);
+         record.checkStall();
+      }
+
+      assertFalse(record.isTripped());
+      assertFalse(record.isFailed());
+      assertNull(record.getDumpPath());
+      assertEquals(0, dumper.getDumpCount());
+
+      StallWatchdog watchdog = new StallWatchdog(registry, () -> null);
+      watchdog.scan();
+      advance(1500);
+      watchdog.scan();
+      assertNull(watchdog.getUnreleasedStall(), "a credit-only wait is never unreleased");
+      assertEquals(0, dumper.getDumpCount(), "nor dumped by the watchdog");
+      record.close();
+      assertTrue(registry.getActive().isEmpty());
+   }
+
+   @Test
+   public void creditOnlyWaitNeverThrowsFromItsSamples() {
+      WaitRecord record = registry.openCreditOnly(
+         "credit", () -> { throw new IllegalStateException("progress"); },
+         () -> { throw new IllegalStateException("blockers"); });
+      advance(1500);
+      assertDoesNotThrow(record::checkStall);
+      record.close();
+   }
+
+   @Test
+   public void creditOnlyWaitPassesOnTheCreditOfARunnableProducer() throws Exception {
+      AtomicReference<Boolean> spin = new AtomicReference<>(true);
+      Thread producer = daemon(() -> {
+         while(spin.get()) {
+            Thread.onSpinWait();
+         }
+      });
+      producer.start();
+      CompletableFuture<WaitRecord> opened = new CompletableFuture<>();
+      Thread holder = daemon(() -> {
+         opened.complete(registry.openCreditOnly("holder", () -> 0,
+                                                 () -> new Thread[] { producer }));
+
+         try {
+            release.await(30, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ignore) {
+         }
+      });
+      holder.start();
+      WaitRecord credit = opened.get(5, TimeUnit.SECONDS);
+      awaitWaiting(holder);
+      WaitRecord waiter = registry.open("waiter", () -> 0, () -> new Thread[] { holder });
+
+      try {
+         for(int i = 0; i < 6; i++) {
+            advance(600);
+            credit.checkStall();
+            waiter.checkStall();
+         }
+
+         spin.set(false);
+         producer.join(5000);
+         advance(1100);
+         credit.checkStall();
+         assertThrows(LockStallException.class, waiter::checkStall,
+                      "no credit once the producer stops: the stale time is passed on");
+      }
+      finally {
+         spin.set(false);
+         waiter.close();
+      }
+   }
+
+   @Test
+   public void cycleThroughACreditOnlyWaitTripsTheRegisteredMember() throws Exception {
+      AtomicReference<Thread> threadA = new AtomicReference<>();
+      AtomicReference<Thread> threadB = new AtomicReference<>();
+      CompletableFuture<WaitRecord> opened = new CompletableFuture<>();
+      Thread a = daemon(() -> {
+         opened.complete(registry.openCreditOnly("A", () -> 0,
+                                                 () -> new Thread[] { threadB.get() }));
+
+         try {
+            release.await(30, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException ignore) {
+         }
+      });
+      threadA.set(a);
+      a.start();
+      WaitRecord recordA = opened.get(5, TimeUnit.SECONDS);
+      Parked b = parked("B", () -> 0, () -> new Thread[] { threadA.get() });
+      threadB.set(b.thread);
+      boolean bFailed = false;
+
+      for(int i = 0; i < 10 && !bFailed; i++) {
+         advance(300);
+         recordA.checkStall();
+
+         try {
+            b.record.checkStall();
+         }
+         catch(LockStallException ex) {
+            bFailed = true;
+         }
+      }
+
+      assertTrue(bFailed, "a credit-only wait in a cycle must not keep it alive");
    }
 
    private Parked parked(String what, LongSupplier progress, Supplier<Thread[]> blockers)

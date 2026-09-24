@@ -151,20 +151,30 @@ public class XSwappableTable implements XTable, Externalizable {
    @Override
    public boolean moreRows(int row) {
       if(!completed && row >= count) {
-         try {
-            rlock.lock();
+         // unbounded, but registered as a credit-only wait (bug #76967): it never fails, and a
+         // wait blocked by this thread (e.g. for an engine lock it holds) is credited while
+         // the rows arrive or the producer runs, e.g. in the socket read of a slow first row
+         try(WaitRecord record = WaitRegistry.beginCreditOnly(
+                "XSwappableTable.moreRows", () -> count, this::getProducers))
+         {
+            try {
+               rlock.lock();
 
-            while(row >= count && !completed) {
-               try {
-                  rlockCond.await(10, TimeUnit.SECONDS);
-               }
-               catch(Exception ex) {
-                  // ignore it
+               while(row >= count && !completed) {
+                  try {
+                     rlockCond.await(record.waitMillis(10000), TimeUnit.MILLISECONDS);
+                  }
+                  catch(Exception ex) {
+                     // ignore it
+                  }
+
+                  // never throws, nor blocks
+                  record.checkStall();
                }
             }
-         }
-         finally {
-            rlock.unlock();
+            finally {
+               rlock.unlock();
+            }
          }
       }
 
@@ -748,6 +758,14 @@ public class XSwappableTable implements XTable, Externalizable {
       }
       else {
          if(((count - 1) & MASK) == 0) {
+            // the first data row and every new fragment: the thread adding the rows is the
+            // producer the readers wait for (not the header's, which may be another thread)
+            Thread current = Thread.currentThread();
+
+            if(producer != current) {
+               producer = current;
+            }
+
             if(table != null) {
                table.complete();
                table = null;
@@ -814,11 +832,28 @@ public class XSwappableTable implements XTable, Externalizable {
          }
 
          completed = true;
+         producer = null;
          rlockCond.signalAll();
       }
       finally {
          rlock.unlock();
       }
+   }
+
+   /**
+    * Set the thread that adds the rows of this table, e.g. at the start of a loader that runs
+    * on its own thread (bug #76967). A reader waiting in {@link #moreRows(int)} credits the
+    * waits it blocks with this thread's progress (while it runs, or while its own registered
+    * wait progresses). Cleared by {@link #complete()}, so a pooled thread that later works on
+    * something else never keeps a reader of this table alive.
+    */
+   public final void setProducer(Thread producer) {
+      this.producer = completed ? null : producer;
+   }
+
+   private Thread[] getProducers() {
+      Thread producer = this.producer;
+      return producer == null ? NO_THREADS : new Thread[] { producer };
    }
 
    /**
@@ -1254,6 +1289,7 @@ public class XSwappableTable implements XTable, Externalizable {
    private XTableColumnCreator[] creators; // table column creators
    private Object[] headers; // header row
    private Map<TableDataPath, XMetaInfo> mmap = null; // meta info table
+   private transient volatile Thread producer; // the thread adding the rows, if known
    private boolean completed = false; // data fully loaded
    private boolean disposed = false; // table disposed
    private String[] paths;
@@ -1271,5 +1307,6 @@ public class XSwappableTable implements XTable, Externalizable {
    private transient int STAGE_MASK = 0xff;
    private boolean objectPooled = true;
    private Date ts = new Date();
+   private static final Thread[] NO_THREADS = new Thread[0];
    private static final Logger LOG = LoggerFactory.getLogger(XSwappableTable.class);
 }

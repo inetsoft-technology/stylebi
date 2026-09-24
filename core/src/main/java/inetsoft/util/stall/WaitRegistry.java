@@ -90,9 +90,48 @@ public final class WaitRegistry {
    }
 
    /**
+    * Register an unbounded wait of the current thread with the server's registry, only so that
+    * the waits blocked by this thread get credit for its progress. The wait is never failed,
+    * dumped or reported, and never turns health DOWN: {@link WaitRecord#checkStall()} only
+    * samples its progress and never throws. Like {@link #begin}, it must only be called on the
+    * slow path of the wait, and closed in a finally block.
+    *
+    * <p>The credit rules are those of any registered wait: the threads waiting for this one
+    * get this wait's own progress time, which moves only when its progress counter changes or
+    * one of its blockers progresses, never "now". So a cycle through this wait still trips
+    * the other (registered) members of the cycle.
+    *
+    * @param what     the wait site.
+    * @param progress a counter that changes whenever the wait makes progress.
+    * @param blockers the threads the wait is for, e.g. the thread loading the rows.
+    */
+   public static WaitRecord beginCreditOnly(String what, LongSupplier progress,
+                                            Supplier<Thread[]> blockers)
+   {
+      // the watchdog ignores credit-only waits, it need not be started for one
+      return GLOBAL.openCreditOnly(what, progress, blockers);
+   }
+
+   /**
     * Register a wait of the current thread with this registry.
     */
    public WaitRecord open(String what, LongSupplier progress, Supplier<Thread[]> blockers) {
+      return open(what, progress, blockers, false);
+   }
+
+   /**
+    * Register a credit-only wait of the current thread with this registry, see
+    * {@link #beginCreditOnly}.
+    */
+   public WaitRecord openCreditOnly(String what, LongSupplier progress,
+                                    Supplier<Thread[]> blockers)
+   {
+      return open(what, progress, blockers, true);
+   }
+
+   private WaitRecord open(String what, LongSupplier progress, Supplier<Thread[]> blockers,
+                           boolean creditOnly)
+   {
       StallPolicy policy = this.policy.get();
 
       if(policy.getMode() == StallPolicy.Mode.OFF) {
@@ -100,8 +139,8 @@ public final class WaitRegistry {
       }
 
       Thread thread = Thread.currentThread();
-      WaitRecord record =
-         new WaitRecord(this, what, progress, blockers, policy, thread, nanoTime());
+      WaitRecord record = new WaitRecord(this, what, progress, blockers, policy, thread,
+                                         nanoTime(), creditOnly);
       record.previous = active.put(thread, record);
       begins.increment();
       return record;

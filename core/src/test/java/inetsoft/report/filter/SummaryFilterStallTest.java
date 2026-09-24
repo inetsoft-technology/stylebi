@@ -18,8 +18,10 @@
 package inetsoft.report.filter;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.internal.table.XTableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
+import inetsoft.uql.table.XSwappableTable;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.stall.*;
@@ -203,6 +205,36 @@ public class SummaryFilterStallTest {
       assertFalse(reader.isDone(), "alert mode must not fail the wait");
       gated.open();
       assertTrue(reader.get(15, TimeUnit.SECONDS));
+   }
+
+   /**
+    * The worker waits in the plain {@code moreRows(int)} of a base whose first row takes
+    * longer than the limit while its producer runs (e.g. the socket read of a slow query):
+    * the worker's credit-only wait credits the reader, which must not trip.
+    */
+   @Test
+   public void workerWaitingForASlowRunningProducerIsNotAStall() throws Exception {
+      XSwappableTable rows = new XSwappableTable(2, false);
+      rows.addRow(new Object[] { "group", "value" });
+      Thread producer = new Thread(() -> {
+         long end = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(3500);
+
+         while(System.nanoTime() - end < 0) {
+            Thread.onSpinWait();
+         }
+
+         for(int i = 1; i <= 30; i++) {
+            rows.addRow(new Object[] { "k" + (i % 3), i });
+         }
+
+         rows.complete();
+      });
+      producer.setDaemon(true);
+      rows.setProducer(producer);
+      producer.start();
+      Future<Boolean> reader = pool.submit(() -> summary(new XTableLens(rows)).moreRows(1));
+
+      assertTrue(reader.get(15, TimeUnit.SECONDS), "a slow running producer is not a stall");
    }
 
    private static SummaryFilter summary(TableLens base) {

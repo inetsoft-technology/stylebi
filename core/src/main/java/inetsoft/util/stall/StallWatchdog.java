@@ -377,6 +377,11 @@ public final class StallWatchdog {
     * their contract ({@link StallProbe}), as they are polled under this watchdog's monitor.
     */
    private void scanRecord(WaitRecord record, long now, long scanNo, List<String> reasons) {
+      // only gives credit to the waits it blocks, which are checked themselves
+      if(record.isCreditOnly()) {
+         return;
+      }
+
       synchronized(record) {
          long stalledNanos = now - record.getProgressNanos();
          long limitNanos = record.getLimitNanos();
