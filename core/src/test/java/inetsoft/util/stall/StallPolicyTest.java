@@ -46,6 +46,7 @@ public class StallPolicyTest {
       assertEquals(300000L, policy.getNoProgressMillis());
       assertEquals(30000L, policy.getScanMillis());
       assertEquals(logDir, policy.getDumpDir());
+      assertEquals(20, policy.getMaxDumps());
    }
 
    @Test
@@ -55,12 +56,14 @@ public class StallPolicyTest {
       props.put("stall.watchdog.noProgressMillis", "2000");
       props.put("stall.watchdog.scanMillis", "500");
       props.put("stall.watchdog.dumpDir", " dumps ");
+      props.put("stall.watchdog.maxDumps", "7");
       StallPolicy policy = StallPolicy.fromProperties(props::get, new File("logs"));
 
       assertEquals(StallPolicy.Mode.ALERT, policy.getMode());
       assertEquals(2000L, policy.getNoProgressMillis());
       assertEquals(500L, policy.getScanMillis());
       assertEquals(new File("dumps"), policy.getDumpDir());
+      assertEquals(7, policy.getMaxDumps());
    }
 
    @Test
@@ -69,11 +72,13 @@ public class StallPolicyTest {
       props.put("stall.watchdog.mode", "bogus");
       props.put("stall.watchdog.noProgressMillis", "-5");
       props.put("stall.watchdog.scanMillis", "abc");
+      props.put("stall.watchdog.maxDumps", "0");
       StallPolicy policy = StallPolicy.fromProperties(props::get, new File("logs"));
 
       assertEquals(StallPolicy.Mode.FAIL, policy.getMode());
       assertEquals(300000L, policy.getNoProgressMillis());
       assertEquals(30000L, policy.getScanMillis());
+      assertEquals(20, policy.getMaxDumps());
    }
 
    @Test

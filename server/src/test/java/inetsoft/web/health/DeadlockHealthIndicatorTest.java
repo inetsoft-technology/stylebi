@@ -21,6 +21,7 @@ import inetsoft.util.StatusDumpService;
 import inetsoft.util.health.DeadlockHealthService;
 import inetsoft.util.health.DeadlockStatus;
 import inetsoft.util.health.DeadlockedThread;
+import inetsoft.util.health.StatusDumpLimiter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -29,6 +30,8 @@ import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.Status;
 
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -50,6 +53,37 @@ class DeadlockHealthIndicatorTest {
       assertEquals(Status.DOWN, health.getStatus());
       assertEquals(Map.of("reason", "stall not released: X"), health.getDetails().get("lockStall"));
       verify(statusDumpService).dumpStatus();
+   }
+
+   @Test
+   void health_downOnEveryPoll_dumpsStatusOncePerInterval() {
+      when(service.getStatus())
+         .thenReturn(new DeadlockStatus(0, new DeadlockedThread[0], "stall not released: X"));
+      AtomicLong now = new AtomicLong();
+      DeadlockHealthIndicator indicator = new DeadlockHealthIndicator(
+         service, statusDumpService, new StatusDumpLimiter(now::get, 600000));
+
+      for(int i = 0; i < 10; i++) {
+         assertEquals(Status.DOWN, indicator.health().getStatus());
+         now.addAndGet(TimeUnit.SECONDS.toNanos(60));
+      }
+
+      verify(statusDumpService, times(1)).dumpStatus();
+      assertEquals(Status.DOWN, indicator.health().getStatus());
+      verify(statusDumpService, times(2)).dumpStatus();
+   }
+
+   @Test
+   void health_downOnEveryPollWithTheDefaultLimiter_dumpsStatusOnce() {
+      when(service.getStatus())
+         .thenReturn(new DeadlockStatus(0, new DeadlockedThread[0], "stall not released: X"));
+      DeadlockHealthIndicator indicator = new DeadlockHealthIndicator(service, statusDumpService);
+
+      for(int i = 0; i < 5; i++) {
+         assertEquals(Status.DOWN, indicator.health().getStatus());
+      }
+
+      verify(statusDumpService, times(1)).dumpStatus();
    }
 
    @Test

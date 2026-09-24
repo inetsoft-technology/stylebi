@@ -28,6 +28,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.util.*;
 import inetsoft.util.health.HealthService;
 import inetsoft.util.health.HealthStatus;
+import inetsoft.util.health.StatusDumpLimiter;
 import inetsoft.web.admin.monitoring.StatusMetricsType;
 import inetsoft.web.admin.query.QueryService;
 import inetsoft.web.admin.schedule.ScheduleQueriesStatus;
@@ -241,7 +242,8 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    public HealthStatus getHealth() throws RemoteException {
       HealthStatus status = healthService.getStatus();
 
-      if(status.isDown()) {
+      // the full status zip, not on every poll while DOWN (bug #76967)
+      if(statusDumpLimiter.shouldDump(status.isDown())) {
          statusDumpService.dumpStatus();
       }
 
@@ -353,6 +355,7 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    private final Cluster cluster;
    private final HealthService healthService;
    private final StatusDumpService statusDumpService;
+   private final StatusDumpLimiter statusDumpLimiter = new StatusDumpLimiter();
    private ServerMetricsCalculator metricsCalculator;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleServer.class);
 }

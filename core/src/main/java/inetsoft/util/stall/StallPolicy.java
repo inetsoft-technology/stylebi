@@ -41,9 +41,14 @@ import java.util.function.Function;
  * effect without a restart. Before the server environment is initialized (e.g. in plain unit
  * tests) the defaults are used.
  *
+ * <p>{@code stall.watchdog.maxDumps} (default 20) is how many {@code stall-dump-*.txt} files
+ * are kept in {@code stall.watchdog.dumpDir}: writing a new dump deletes the oldest ones
+ * beyond it.
+ *
  * <p>SREE lowercases property names, so a JVM override of one of these must be written in
- * lowercase, e.g. {@code -Dstall.watchdog.noprogressmillis=2000}. A value set in
- * {@code sree.properties} is not affected and accepts any case.
+ * lowercase, e.g. {@code -Dstall.watchdog.noprogressmillis=2000} or
+ * {@code -Dstall.watchdog.maxdumps=50}. A value set in {@code sree.properties} is not affected
+ * and accepts any case.
  *
  * <p>Keep {@code noProgressMillis} well above 5 seconds. A lens worker queued on the
  * on-demand {@code ThreadPool} may wait up to 5 seconds for an idle pool thread that is
@@ -70,10 +75,21 @@ public final class StallPolicy {
    }
 
    public StallPolicy(Mode mode, long noProgressMillis, long scanMillis, File dumpDir) {
+      this(mode, noProgressMillis, scanMillis, dumpDir, DEFAULT_MAX_DUMPS);
+   }
+
+   /**
+    * @param maxDumps how many {@code stall-dump-*.txt} files to keep in the dump directory,
+    *                 the oldest are deleted when a new one is written.
+    */
+   public StallPolicy(Mode mode, long noProgressMillis, long scanMillis, File dumpDir,
+                      int maxDumps)
+   {
       this.mode = mode;
       this.noProgressMillis = noProgressMillis;
       this.scanMillis = scanMillis;
       this.dumpDir = dumpDir;
+      this.maxDumps = maxDumps;
    }
 
    /**
@@ -121,10 +137,19 @@ public final class StallPolicy {
       return dumpDir;
    }
 
+   /**
+    * Get how many thread dump files to keep in the dump directory
+    * ({@code stall.watchdog.maxDumps}): writing a new one deletes the oldest beyond it.
+    */
+   public int getMaxDumps() {
+      return maxDumps;
+   }
+
    @Override
    public String toString() {
       return "StallPolicy{mode=" + mode + ", noProgressMillis=" + noProgressMillis +
-         ", scanMillis=" + scanMillis + ", dumpDir=" + dumpDir + '}';
+         ", scanMillis=" + scanMillis + ", dumpDir=" + dumpDir + ", maxDumps=" + maxDumps +
+         '}';
    }
 
    static StallPolicy fromProperties(Function<String, String> properties, File defaultDumpDir) {
@@ -134,7 +159,9 @@ public final class StallPolicy {
       long scan = parseMillis(properties.apply(SCAN_PROPERTY), DEFAULT_SCAN_MILLIS);
       String dir = properties.apply(DUMP_DIR_PROPERTY);
       File dumpDir = dir == null || dir.isBlank() ? defaultDumpDir : new File(dir.trim());
-      return new StallPolicy(mode, noProgress, scan, dumpDir);
+      int maxDumps = (int) Math.min(Integer.MAX_VALUE, parseMillis(
+         properties.apply(MAX_DUMPS_PROPERTY), DEFAULT_MAX_DUMPS));
+      return new StallPolicy(mode, noProgress, scan, dumpDir, maxDumps);
    }
 
    static Mode parseMode(String value) {
@@ -209,6 +236,8 @@ public final class StallPolicy {
    public static final String NO_PROGRESS_PROPERTY = "stall.watchdog.noProgressMillis";
    public static final String SCAN_PROPERTY = "stall.watchdog.scanMillis";
    public static final String DUMP_DIR_PROPERTY = "stall.watchdog.dumpDir";
+   public static final String MAX_DUMPS_PROPERTY = "stall.watchdog.maxDumps";
+   public static final int DEFAULT_MAX_DUMPS = 20;
    public static final long DEFAULT_NO_PROGRESS_MILLIS = 300000L;
    public static final long DEFAULT_SCAN_MILLIS = 30000L;
 
@@ -224,4 +253,5 @@ public final class StallPolicy {
    private final long noProgressMillis;
    private final long scanMillis;
    private final File dumpDir;
+   private final int maxDumps;
 }

@@ -20,6 +20,7 @@ package inetsoft.web.health;
 import inetsoft.util.StatusDumpService;
 import inetsoft.util.health.*;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -30,16 +31,28 @@ import java.util.Map;
 
 @Component
 public class DeadlockHealthIndicator implements HealthIndicator {
+   @Autowired
    public DeadlockHealthIndicator(DeadlockHealthService service, StatusDumpService statusDumpService) {
+      this(service, statusDumpService, new StatusDumpLimiter());
+   }
+
+   DeadlockHealthIndicator(DeadlockHealthService service, StatusDumpService statusDumpService,
+                           StatusDumpLimiter dumpLimiter)
+   {
       this.service = service;
       this.statusDumpService = statusDumpService;
+      this.dumpLimiter = dumpLimiter;
    }
 
    @Override
    public Health health() {
       DeadlockStatus status = service.getStatus();
 
-      if(status.getDeadlockedThreadCount() > 0 || status.isStalled()) {
+      boolean down = status.getDeadlockedThreadCount() > 0 || status.isStalled();
+      // the full status zip, not on every poll while DOWN (bug #76967)
+      boolean dump = dumpLimiter.shouldDump(down);
+
+      if(down) {
          Map<String, Map<String, String>> details = new HashMap<>();
 
          for(DeadlockedThread thread : status.getDeadlockedThreads()) {
@@ -57,7 +70,11 @@ public class DeadlockHealthIndicator implements HealthIndicator {
 
          LoggerFactory.getLogger(getClass()).error(
             "DeadlockHealthIndicator DOWN: details={}", details);
-         statusDumpService.dumpStatus();
+
+         if(dump) {
+            statusDumpService.dumpStatus();
+         }
+
          return Health.down().withDetails(details).build();
       }
 
@@ -66,4 +83,5 @@ public class DeadlockHealthIndicator implements HealthIndicator {
 
    private final DeadlockHealthService service;
    private final StatusDumpService statusDumpService;
+   private final StatusDumpLimiter dumpLimiter;
 }

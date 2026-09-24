@@ -155,6 +155,50 @@ public class StallDumperTest {
       assertEquals(0, dumper.getDumpCount());
    }
 
+   @Test
+   public void keepsOnlyTheNewestDumps() throws Exception {
+      File other = new File(dumpDir, "other.txt");
+      Files.writeString(other.toPath(), "not a dump");
+      StallDumper dumper = new StallDumper(now::get, () -> dumpDir, 0, () -> 3);
+      String last = null;
+
+      for(int i = 0; i < 25; i++) {
+         advance(1);
+         last = dumper.dump(i % 2 == 0 ? StallDumper.Kind.WAIT : StallDumper.Kind.DEADLOCK,
+                            "dump " + i);
+         assertNotNull(last);
+      }
+
+      File[] dumps = dumpDir.listFiles((dir, name) -> name.startsWith("stall-dump-"));
+      assertEquals(3, dumps.length, "the oldest dumps are deleted on write");
+      assertTrue(new File(last).exists(), "the newest dump is kept");
+      assertTrue(other.exists(), "other files are never deleted");
+      assertEquals(25, dumper.getDumpCount());
+   }
+
+   @Test
+   public void failingDeleteNeverEscapes() throws Exception {
+      // a non-empty directory named like an old dump cannot be deleted
+      File stuck = new File(dumpDir, "stall-dump-20000101-000000-000-1.txt");
+      assertTrue(new File(stuck, "child").mkdirs());
+      assertTrue(stuck.setLastModified(1000));
+      StallDumper dumper = new StallDumper(now::get, () -> dumpDir, 0, () -> 1);
+
+      for(int i = 0; i < 3; i++) {
+         advance(1);
+         assertNotNull(dumper.dump("dump " + i));
+      }
+
+      assertTrue(stuck.exists());
+      assertEquals(3, dumper.getDumpCount());
+   }
+
+   @Test
+   public void defaultRetentionIsThePolicys() {
+      assertEquals(StallPolicy.DEFAULT_MAX_DUMPS,
+                   new StallPolicy(StallPolicy.Mode.FAIL, 1, 1, dumpDir).getMaxDumps());
+   }
+
    private void advance(long millis) {
       now.addAndGet(TimeUnit.MILLISECONDS.toNanos(millis));
    }

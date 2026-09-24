@@ -26,11 +26,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Writes the thread dumps of the lock-stall watchdog (bug #76967), at most one per
@@ -50,9 +55,20 @@ public final class StallDumper {
     * @param minIntervalMillis the minimum time between two dump attempts.
     */
    public StallDumper(LongSupplier nanoClock, Supplier<File> dir, long minIntervalMillis) {
+      this(nanoClock, dir, minIntervalMillis, () -> StallPolicy.DEFAULT_MAX_DUMPS);
+   }
+
+   /**
+    * @param maxDumps how many {@code stall-dump-*.txt} files to keep in the dump directory:
+    *                 after writing a dump, the oldest beyond it are deleted.
+    */
+   public StallDumper(LongSupplier nanoClock, Supplier<File> dir, long minIntervalMillis,
+                      IntSupplier maxDumps)
+   {
       this.nanoClock = nanoClock;
       this.dir = dir;
       this.minIntervalNanos = TimeUnit.MILLISECONDS.toNanos(minIntervalMillis);
+      this.maxDumps = maxDumps;
    }
 
    /**
@@ -116,12 +132,72 @@ public final class StallDumper {
          window.lastPath = file.getAbsolutePath();
          window.lastDumpStartNanos = now;
          LOG.warn("Lock stall thread dump written to {}: {}", window.lastPath, reason);
+         deleteOldDumps(folder, file);
          return window.lastPath;
       }
       catch(IOException | RuntimeException ex) {
          LOG.error("Failed to write the lock stall thread dump " +
                       (file == null ? "(no dump directory)" : file), ex);
          return window.lastPath;
+      }
+   }
+
+   /**
+    * Keep only the newest {@code maxDumps} dump files of the folder, of all kinds and also
+    * those of earlier runs, so a recurring stall cannot fill the disk. Never throws, and never
+    * deletes the dump just written or any other file.
+    */
+   private void deleteOldDumps(File folder, File written) {
+      try {
+         int max = Math.max(1, maxDumps.getAsInt());
+         File[] files = folder.listFiles((d, name) -> DUMP_NAME.matcher(name).matches());
+
+         if(files == null || files.length <= max) {
+            return;
+         }
+
+         // oldest first: by time, then by the dump number of the same millisecond
+         Arrays.sort(files, Comparator.comparingLong(File::lastModified)
+            .thenComparingLong(StallDumper::getDumpNumber)
+            .thenComparing(File::getName));
+         int remaining = files.length;
+
+         for(File old : files) {
+            if(remaining <= max) {
+               break;
+            }
+
+            if(old.equals(written)) {
+               continue;
+            }
+
+            try {
+               Files.delete(old.toPath());
+               remaining--;
+            }
+            catch(IOException | RuntimeException ex) {
+               LOG.warn("Failed to delete the old lock stall thread dump {}", old, ex);
+            }
+         }
+      }
+      catch(Throwable ex) {
+         try {
+            LOG.warn("Failed to delete the old lock stall thread dumps in {}", folder, ex);
+         }
+         catch(Throwable ignore) {
+            // the dump was written, never fail its caller
+         }
+      }
+   }
+
+   private static long getDumpNumber(File file) {
+      Matcher matcher = DUMP_NAME.matcher(file.getName());
+
+      try {
+         return matcher.matches() ? Long.parseLong(matcher.group(1)) : -1;
+      }
+      catch(NumberFormatException ex) {
+         return -1;
       }
    }
 
@@ -211,14 +287,19 @@ public final class StallDumper {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(StallDumper.class);
+   // stall-dump-<yyyyMMdd-HHmmss-SSS>-<n>.txt
+   private static final Pattern DUMP_NAME =
+      Pattern.compile("stall-dump-\\d{8}-\\d{6}-\\d{3}-(\\d+)\\.txt");
    private static final DateTimeFormatter FORMAT =
       DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
    private static final StallDumper GLOBAL =
-      new StallDumper(System::nanoTime, () -> StallPolicy.get().getDumpDir(), 60000L);
+      new StallDumper(System::nanoTime, () -> StallPolicy.get().getDumpDir(), 60000L,
+                      () -> StallPolicy.get().getMaxDumps());
 
    private final LongSupplier nanoClock;
    private final Supplier<File> dir;
    private final long minIntervalNanos;
+   private final IntSupplier maxDumps;
    private final Map<Kind, Window> windows = new EnumMap<>(Kind.class);
    private int count;
 
