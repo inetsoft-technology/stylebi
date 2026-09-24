@@ -320,6 +320,49 @@ describe.each([
       expect(await checked()).toEqual([true, false, false]);
    });
 
+   it("keeps the displayed selection over quick add B, add C, remove B with stale models between", async () => {
+      await click(1);
+      pushModel(["A"]);
+      expect(await checked()).toEqual([true, true, false]);
+      flushDebounce();
+      pushModel(["A"]);
+
+      await click(2);
+      pushModel(["A", "B"]);
+      pushModel(["A"]);
+      expect(await checked()).toEqual([true, true, true]);
+      flushDebounce();
+      pushModel(["A", "B"]);
+      expect(await checked()).toEqual([true, true, true]);
+
+      await click(1);
+      expect(await checked()).toEqual([true, false, true]);
+      pushModel(["A", "B", "C"]);
+      pushModel(["A", "B"]);
+      expect(await checked()).toEqual([true, false, true]);
+      flushDebounce();
+      expect(sentValues()).toEqual([["A", "B"], ["A", "B", "C"], ["A", "C"]]);
+      pushModel(["A", "B", "C"]);
+      expect(await checked()).toEqual([true, false, true]);
+
+      pushModel(["C", "A"]);
+      expect(await checked()).toEqual([true, false, true]);
+      // released by the ack, a later server change (e.g. by script) is shown
+      pushModel(["B"]);
+      expect(await checked()).toEqual([false, true, false]);
+   });
+
+   it("does not guard the selection applied when ctrl is released", async () => {
+      checkBox.onKeyDown(<KeyboardEvent> {keyCode: 17});
+      await click(1);
+      checkBox.onKeyUp(<KeyboardEvent> {keyCode: 17});
+      flushDebounce();
+      expect(sentValues()).toEqual([["A", "B"]]);
+
+      pushModel(["A"]);
+      expect(await checked()).toEqual([true, false, false]);
+   });
+
    it("unchecks a value from the displayed selection while a stale model is shown", async () => {
       await click(1);
       flushDebounce();

@@ -439,6 +439,40 @@ describe("VSRadioButton pending selection (Bug #76959)", () => {
          expect(radio.selectIndex).toBe(1);
       });
 
+      it("keeps the latest of quick A -> B -> C clicks while stale models are interleaved", async () => {
+         await click(1);
+         pushModel("A");
+         expect(await checkedIndex()).toBe(1);
+         flushDebounce();
+         pushModel("A");
+         expect(await checkedIndex()).toBe(1);
+
+         await click(2);
+         // the ack of B and older models are stale for C
+         pushModel("B");
+         pushModel("A");
+         expect(await checkedIndex()).toBe(2);
+         flushDebounce();
+         expect(sentEvents(APPLY_URL).map((e) => e.value)).toEqual(["B", "C"]);
+         pushModel("B");
+         expect(await checkedIndex()).toBe(2);
+
+         await click(0);
+         pushModel("C");
+         expect(await checkedIndex()).toBe(0);
+         flushDebounce();
+         pushModel("C");
+         pushModel("B");
+         expect(await checkedIndex()).toBe(0);
+         expect(sentEvents(APPLY_URL).map((e) => e.value)).toEqual(["B", "C", "A"]);
+
+         pushModel("A");
+         expect(await checkedIndex()).toBe(0);
+         // released by the ack, a later server change is shown
+         pushModel("C");
+         expect(await checkedIndex()).toBe(2);
+      });
+
       it("clears the pending selection when the server acknowledges it", async () => {
          await click(1);
          flushDebounce();
