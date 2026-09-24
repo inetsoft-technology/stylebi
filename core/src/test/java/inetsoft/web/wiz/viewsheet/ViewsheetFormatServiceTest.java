@@ -529,9 +529,11 @@ class ViewsheetFormatServiceTest {
     * A Crosstab's per-cell rendering discards an OBJECT-level `color` write once a table style
     * applies (essentially always -- see {@code VSFormatTableLens}'s "styled" gate), so `target:
     * "data"` writes directly to each body cell's own {@code TableDataPath} instead -- the same
-    * per-path mechanism `target: "title"` already uses. HEADER-type cells (the header
-    * row/column's own label text) are excluded -- only the body region is "data" -- and a
-    * repeated path is written once, not once per cell.
+    * per-path mechanism `target: "title"` already uses. Every header-band cell -- the header row
+    * (a HEADER-typed corner/label cell) AND the row-dimension's own label column (a
+    * GROUP_HEADER-typed cell that a Crosstab's descriptor reuses regardless of grid row, per bug
+    * 76981) -- is excluded by POSITION (row/col < the lens's own header row/col count); only the
+    * genuine body region is "data" -- and a repeated path is written once, not once per cell.
     */
    @Test
    void targetDataRoutesThroughTheAssemblysComputedBodyCellPaths() throws Exception {
@@ -551,12 +553,17 @@ class ViewsheetFormatServiceTest {
          when(lens.moreRows(0)).thenReturn(true);
          when(lens.moreRows(1)).thenReturn(true);
          when(lens.moreRows(2)).thenReturn(false);
+         // Row 0 is the header row, col 0 is the row-dimension's own header/label column --
+         // the same layout the mocked cells below already assume.
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getHeaderColCount()).thenReturn(1);
 
          TableDataDescriptor desc = lens.getDescriptor();
          // Header row (row 0): excluded from the result.
          when(desc.getCellDataPath(0, 0)).thenReturn(headerPath);
          when(desc.getCellDataPath(0, 1)).thenReturn(headerPath);
-         // Body row (row 1): the row-dimension label cell and the aggregate cell.
+         // Body row (row 1): the row-dimension label cell (still header-band, by COLUMN this
+         // time -- col 0 is the header column) and the aggregate cell (genuine body cell).
          when(desc.getCellDataPath(1, 0)).thenReturn(groupHeaderPath);
          when(desc.getCellDataPath(1, 1)).thenReturn(summaryPath);
       });
@@ -574,10 +581,168 @@ class ViewsheetFormatServiceTest {
       assertNotNull(data, "target:data must populate event.getData()");
       assertEquals(1, data.size());
       List<TableDataPath> paths = Arrays.asList(data.get(0));
-      assertEquals(2, paths.size(), "the HEADER cell must be excluded: " + paths);
-      assertTrue(paths.contains(groupHeaderPath), paths.toString());
+      assertEquals(1, paths.size(), "only the genuine body cell belongs in data: " + paths);
       assertTrue(paths.contains(summaryPath), paths.toString());
       assertFalse(paths.contains(headerPath), paths.toString());
+      assertFalse(paths.contains(groupHeaderPath),
+         "the row-dimension's own GROUP_HEADER label cell must be excluded from data " +
+         "(bug 76981): " + paths);
+   }
+
+   /**
+    * Bug 76981: a Crosstab's descriptor reuses SUMMARY/GRAND_TOTAL for BOTH a header-band
+    * label cell (a subtotal column's own label, or the grand-total column's "Total" label) AND
+    * a genuine body-band value cell of the exact same type -- type alone can't tell them apart,
+    * only cell position (relative to the lens's own header row/col band) can. A header-band
+    * SUMMARY/GRAND_TOTAL cell must be excluded from "data" even though a same-typed body-band
+    * cell is included.
+    */
+   @Test
+   void targetDataExcludesHeaderBandSummaryAndGrandTotalCellsButIncludesBodyBandOnes()
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#D32F2F");
+
+      TableDataPath headerBandSummaryPath = new TableDataPath(-1, TableDataPath.SUMMARY,
+         XSchema.STRING, new String[]{ "state subtotal" });
+      TableDataPath bodyBandSummaryPath = new TableDataPath(-1, TableDataPath.SUMMARY,
+         XSchema.INTEGER, new String[]{ "state", "Sum(sales)" });
+      TableDataPath headerBandGrandTotalPath = new TableDataPath(-1, TableDataPath.GRAND_TOTAL,
+         XSchema.STRING, new String[]{ "Total" });
+      TableDataPath bodyBandGrandTotalPath = new TableDataPath(-1, TableDataPath.GRAND_TOTAL,
+         XSchema.INTEGER, new String[]{ "Total", "Sum(sales)" });
+
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> {
+         when(lens.getColCount()).thenReturn(3);
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(true);
+         when(lens.moreRows(2)).thenReturn(false);
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getHeaderColCount()).thenReturn(1);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         // Row 0 (the header row band): a subtotal column's own label cell and the
+         // grand-total column's own "Total" label cell -- both header-band by position.
+         when(desc.getCellDataPath(0, 1)).thenReturn(headerBandSummaryPath);
+         when(desc.getCellDataPath(0, 2)).thenReturn(headerBandGrandTotalPath);
+         // Row 1 (a body row): the same two TYPES, but now genuine aggregate VALUE cells.
+         when(desc.getCellDataPath(1, 1)).thenReturn(bodyBandSummaryPath);
+         when(desc.getCellDataPath(1, 2)).thenReturn(bodyBandGrandTotalPath);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Crosstab1"), format, false, "data"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      List<TableDataPath> paths = Arrays.asList(captor.getValue().getData().get(0));
+      assertEquals(2, paths.size(), paths.toString());
+      assertTrue(paths.contains(bodyBandSummaryPath), paths.toString());
+      assertTrue(paths.contains(bodyBandGrandTotalPath), paths.toString());
+      assertFalse(paths.contains(headerBandSummaryPath),
+         "a subtotal column's own label cell must be excluded from data: " + paths);
+      assertFalse(paths.contains(headerBandGrandTotalPath),
+         "the grand-total column's own label cell must be excluded from data: " + paths);
+   }
+
+   /** The inverse of the test above: "header" gets exactly the header-band instances. */
+   @Test
+   void targetHeaderIncludesHeaderBandSummaryAndGrandTotalCellsButExcludesBodyBandOnes()
+      throws Exception
+   {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#D32F2F");
+
+      TableDataPath headerBandSummaryPath = new TableDataPath(-1, TableDataPath.SUMMARY,
+         XSchema.STRING, new String[]{ "state subtotal" });
+      TableDataPath bodyBandSummaryPath = new TableDataPath(-1, TableDataPath.SUMMARY,
+         XSchema.INTEGER, new String[]{ "state", "Sum(sales)" });
+      TableDataPath headerBandGrandTotalPath = new TableDataPath(-1, TableDataPath.GRAND_TOTAL,
+         XSchema.STRING, new String[]{ "Total" });
+      TableDataPath bodyBandGrandTotalPath = new TableDataPath(-1, TableDataPath.GRAND_TOTAL,
+         XSchema.INTEGER, new String[]{ "Total", "Sum(sales)" });
+
+      RuntimeViewsheet rvs = crosstabRvs("Crosstab1", lens -> {
+         when(lens.getColCount()).thenReturn(3);
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(true);
+         when(lens.moreRows(2)).thenReturn(false);
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getHeaderColCount()).thenReturn(1);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         when(desc.getCellDataPath(0, 1)).thenReturn(headerBandSummaryPath);
+         when(desc.getCellDataPath(0, 2)).thenReturn(headerBandGrandTotalPath);
+         when(desc.getCellDataPath(1, 1)).thenReturn(bodyBandSummaryPath);
+         when(desc.getCellDataPath(1, 2)).thenReturn(bodyBandGrandTotalPath);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Crosstab1"), format, false, "header"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      List<TableDataPath> paths = Arrays.asList(captor.getValue().getData().get(0));
+      assertEquals(2, paths.size(), paths.toString());
+      assertTrue(paths.contains(headerBandSummaryPath), paths.toString());
+      assertTrue(paths.contains(headerBandGrandTotalPath), paths.toString());
+      assertFalse(paths.contains(bodyBandSummaryPath),
+         "a genuine subtotal VALUE cell must be excluded from header: " + paths);
+      assertFalse(paths.contains(bodyBandGrandTotalPath),
+         "a genuine grand-total VALUE cell must be excluded from header: " + paths);
+   }
+
+   /**
+    * Bug 76981's fix is Crosstab-only: a plain Table's descriptor
+    * ({@code DefaultTableDataDescriptor}) never emits GROUP_HEADER/SUMMARY/GRAND_TOTAL, so
+    * "data" keeps excluding only HEADER-typed cells, unaffected by the position-based check
+    * added for Crosstab. No header row/col count is stubbed here on purpose -- a plain Table's
+    * own type-based filter must not depend on it.
+    */
+   @Test
+   void targetDataOnAPlainTableStillExcludesOnlyHeaderTypedCells() throws Exception {
+      FormatPainterService painter = mock(FormatPainterService.class);
+      VSObjectFormatInfoModel format = new VSObjectFormatInfoModel();
+      format.setColor("#D32F2F");
+
+      TableDataPath headerPath = new TableDataPath(-1, TableDataPath.HEADER, XSchema.STRING,
+         new String[]{ "NAME" });
+      TableDataPath detailPath = new TableDataPath(-1, TableDataPath.DETAIL, XSchema.STRING,
+         new String[]{ "NAME" });
+
+      RuntimeViewsheet rvs = tableRvs("Table1", lens -> {
+         when(lens.getColCount()).thenReturn(1);
+         when(lens.moreRows(0)).thenReturn(true);
+         when(lens.moreRows(1)).thenReturn(true);
+         when(lens.moreRows(2)).thenReturn(false);
+
+         TableDataDescriptor desc = lens.getDescriptor();
+         when(desc.getCellDataPath(0, 0)).thenReturn(headerPath);
+         when(desc.getCellDataPath(1, 0)).thenReturn(detailPath);
+      });
+
+      serviceWith(painter, rvs).setFormat(
+         "tok", principal(),
+         new ViewsheetFormatService.FormatRequest(
+            List.of("Table1"), format, false, "data"), "");
+
+      ArgumentCaptor<FormatVSObjectEvent> captor =
+         ArgumentCaptor.forClass(FormatVSObjectEvent.class);
+      verify(painter).setFormat(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                anyString());
+      TableDataPath[] paths = captor.getValue().getData().get(0);
+      assertArrayEquals(new TableDataPath[]{ detailPath }, paths);
    }
 
    /** A path repeated across several rows/cells is written once, not once per occurrence. */
@@ -906,6 +1071,10 @@ class ViewsheetFormatServiceTest {
          when(lens.getColCount()).thenReturn(3);
          when(lens.moreRows(0)).thenReturn(true);
          when(lens.moreRows(1)).thenReturn(false);
+         // Row 0 is entirely within the header row band, regardless of column -- matches the
+         // three mocked cells below, all at row 0.
+         when(lens.getHeaderRowCount()).thenReturn(1);
+         when(lens.getHeaderColCount()).thenReturn(1);
 
          TableDataDescriptor desc = lens.getDescriptor();
          when(desc.getCellDataPath(0, 0)).thenReturn(headerPath);
