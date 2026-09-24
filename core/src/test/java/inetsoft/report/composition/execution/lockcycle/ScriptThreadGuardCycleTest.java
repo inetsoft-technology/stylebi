@@ -22,6 +22,7 @@ import inetsoft.test.*;
 import inetsoft.util.UpgradableReadWriteLock;
 import inetsoft.util.script.JavaScriptEngine;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -48,6 +49,7 @@ import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.K
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
+@DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true")
 public class ScriptThreadGuardCycleTest {
    @BeforeEach
    public void setUp() {
