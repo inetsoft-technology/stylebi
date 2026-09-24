@@ -21,6 +21,7 @@ import inetsoft.mv.data.BitSet;
 import inetsoft.report.TableLens;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.stall.LockStallException;
 import it.unimi.dsi.fastutil.objects.*;
 import org.roaringbitmap.IntIterator;
 
@@ -141,6 +142,11 @@ class HashJoinTable extends JoinTable {
       }
 
       return cancelled;
+   }
+
+   @Override
+   protected Thread[] getWorkerThreads() {
+      return new Thread[] { leftThread, rightThread };
    }
 
    private JoinMap joinMap;
@@ -350,6 +356,21 @@ class HashJoinTable extends JoinTable {
                      }
                   }
                }
+            }
+         }
+         catch(RuntimeException ex) {
+            // a stall is logged by the wait site; the reader rethrows it rather than take the
+            // rows so far for the whole join. it may reach the worker wrapped (bug #76967)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall == null) {
+               throw ex;
+            }
+
+            joinTable.setStallFailure(stall);
+
+            if(stall != ex) {
+               throw ex;
             }
          }
          finally {

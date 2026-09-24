@@ -24,6 +24,7 @@ import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
 import inetsoft.util.Tool;
+import inetsoft.util.stall.LockStallException;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -183,6 +184,60 @@ abstract class JoinTable extends PagedTableLens {
    protected abstract boolean cancelJoin();
 
    /**
+    * Check if there are more rows. The rows are added by the join's worker threads, which
+    * may wait for a lock this thread holds, so the wait is bounded by the lock-stall
+    * watchdog. A worker that failed with a stall fails the reader too, the rows added so far
+    * are not the whole join (bug #76967).
+    */
+   @Override
+   public boolean moreRows(int row) {
+      if(delegate.moreRows(row, "JoinTable.moreRows", () -> addedRows, this::getWorkerThreads)) {
+         return true;
+      }
+
+      throwStallFailure();
+      return false;
+   }
+
+   /**
+    * Get the number of rows. The rows so far of a stalled worker are not the whole join
+    * (bug #76967).
+    */
+   @Override
+   public int getRowCount() {
+      int count = super.getRowCount();
+
+      if(count >= 0) {
+         throwStallFailure();
+      }
+
+      return count;
+   }
+
+   /**
+    * Rethrow the stall a worker thread failed with, if any (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(failure != null) {
+         throw new LockStallException(failure);
+      }
+   }
+
+   /**
+    * Get the worker threads adding the joined rows, for the lock-stall watchdog.
+    */
+   protected abstract Thread[] getWorkerThreads();
+
+   /**
+    * Record the stall a worker thread failed with (bug #76967).
+    */
+   void setStallFailure(LockStallException failure) {
+      stallFailure = failure;
+   }
+
+   /**
     * Adds a row to this table that is a join between the specified rows of
     * the left- and right-hand tables. If -1 is passed for either parameter,
     * the columns for that table will be filled with null. This is used for
@@ -193,6 +248,8 @@ abstract class JoinTable extends PagedTableLens {
     */
    public synchronized void addRow(int leftRow, int rightRow) {
       pendingRows.add(new int[]{ leftRow, rightRow });
+      // progress for the lock-stall watchdog, the rows are buffered before they are added
+      addedRows++;
 
       if(pendingRows.size() == 0x1fff * 20) {
          flushPending();
@@ -499,6 +556,9 @@ abstract class JoinTable extends PagedTableLens {
    private transient int maxRows = Integer.MAX_VALUE;
    private transient boolean maxAlert = false;
    private transient boolean csensitive;
+   // joined rows buffered so far, and the stall a worker failed with (bug #76967)
+   private transient volatile long addedRows;
+   private transient volatile LockStallException stallFailure;
    private transient Integer joinColCnt;
    private static final Logger LOG = LoggerFactory.getLogger(JoinTable.class);
 }
