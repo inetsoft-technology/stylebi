@@ -82,33 +82,54 @@ public class PoolModeCycleTest {
    }
 
    /**
-    * ScriptThreadGuardCycleTest.filterLockHolderVsSandboxWriter, pooled: H runs a script that
-    * reads S after W took S for writing; W runs a script while holding S. W gets its own
-    * context, so both finish.
+    * ScriptThreadGuardCycleTest.filterLockHolderVsSandboxWriter, pooled (spec §14.3): H holds
+    * a batch claim outside exec, as a filter does across its rows, so it is not a script
+    * thread and really blocks reading S while W holds S for writing; W, holding S, then runs
+    * a script. Pool off, H holds E and W waits for E: the known cycle. Pooled, W's checkout
+    * skips H's busy context and takes another one without waiting, so W finishes and
+    * releases S, and H reads it.
     */
    @Test
    public void scriptHolderVsSandboxWriter() throws Exception {
       UpgradableReadWriteLock s = new UpgradableReadWriteLock(JavaScriptEngine::isScriptThread);
       WorksheetScriptEnv env = PoolTestSupport.env();
-      ReadGate gate = new ReadGate(s);
-      env.put("gate", gate);
+      CountDownLatch holderIn = new CountDownLatch(1);
+      CountDownLatch writerHasS = new CountDownLatch(1);
 
-      Future<Object> holder = harness.submit(() -> PoolTestSupport.run(env, "gate.read(); 1"));
-      Future<Object> writer = harness.submit(() -> {
-         assertTrue(gate.holderIn.await(KNOWN_CAP, TimeUnit.SECONDS));
-         s.lockWrite();
+      try {
+         Future<Void> holder = submit(() -> {
+            try(SlotClaim claim = env.claimSlot()) {
+               // the premise: a claim held outside exec leaves H a non-script thread, so the
+               // S read below takes the blocking path
+               assertFalse(JavaScriptEngine.isScriptThread(), "H must not be a script thread");
+               holderIn.countDown();
+               assertTrue(writerHasS.await(KNOWN_CAP, TimeUnit.SECONDS));
+               s.lockRead();
+               s.unlockRead();
+            }
 
-         try {
-            gate.writerHasS.countDown();
-            return PoolTestSupport.run(env, "1 + 1");
-         }
-         finally {
-            s.unlockWrite();
-         }
-      });
+            return null;
+         });
+         Future<Object> writer = submit(() -> {
+            assertTrue(holderIn.await(KNOWN_CAP, TimeUnit.SECONDS));
+            s.lockWrite();
 
-      assertEquals(2.0, harness.await(writer, ACTIVE_CAP, "W, the S writer"));
-      assertEquals(1.0, harness.await(holder, ACTIVE_CAP, "H, the script reading S"));
+            try {
+               writerHasS.countDown();
+               // needs a context while H holds its claimed one
+               return PoolTestSupport.run(env, "1 + 1");
+            }
+            finally {
+               s.unlockWrite();
+            }
+         });
+
+         assertEquals(2.0, harness.await(writer, ACTIVE_CAP, "W, the S writer running a script"));
+         harness.await(holder, ACTIVE_CAP, "H, the claim holder reading S");
+      }
+      finally {
+         env.retire();
+      }
    }
 
    /**
@@ -120,6 +141,18 @@ public class PoolModeCycleTest {
    @ValueSource(booleans = { false, true })
    public void formulaSubTableUnderPlainBase(boolean distinct) throws Exception {
       WorksheetScriptEnv senv = PoolTestSupport.env();
+
+      try {
+         formulaSubTableUnderPlainBase(distinct, senv);
+      }
+      finally {
+         senv.retire();
+      }
+   }
+
+   private void formulaSubTableUnderPlainBase(boolean distinct, WorksheetScriptEnv senv)
+      throws Exception
+   {
       AssetQuerySandbox box = new AssetQuerySandbox(null);
       setField(box, "senv", senv);
       setField(box, "scriptPoolMode", true);
@@ -146,15 +179,15 @@ public class PoolModeCycleTest {
       group.addCondition(1, condition, 0);
       TableLens filtered = harness.track(PostProcessor.filter(plainBase, group, box));
 
-      Future<Boolean> script = harness.submit(() -> {
+      Future<Boolean> script = submit(() -> {
          try(SlotClaim claim = senv.claimSlot()) {
-            Future<Boolean> populator = harness.submit(() -> filtered.moreRows(1));
-            harness.await(populator, ACTIVE_CAP, "populator");
+            Future<Boolean> populator = submit(() -> filtered.moreRows(1));
+            assertTrue(harness.await(populator, ACTIVE_CAP, "populator"));
             return filtered.moreRows(1);
          }
       });
 
-      harness.await(script, ACTIVE_CAP, "script thread holding a claimed context");
+      assertTrue(harness.await(script, ACTIVE_CAP, "script thread holding a claimed context"));
    }
 
    /**
@@ -194,8 +227,17 @@ public class PoolModeCycleTest {
       case RESET_NEW_ENV:
          box.reset();
          ScriptEnv env2 = box.getScriptEnv();
-         assertTrue(env2 instanceof WorksheetScriptEnv, "G8: the recreated env is pooled too");
-         assertNotSame(env, env2);
+
+         try {
+            assertTrue(env2 instanceof WorksheetScriptEnv, "G8: the recreated env is pooled too");
+            assertNotSame(env, env2);
+         }
+         finally {
+            if(env2 instanceof WorksheetScriptEnv pooled2) {
+               pooled2.retire();
+            }
+         }
+
          break;
       case DISPOSE:
          box.dispose();
@@ -204,9 +246,9 @@ public class PoolModeCycleTest {
          throw new IllegalArgumentException(after.name());
       }
 
-      Future<Boolean> script = harness.submit(() -> {
+      Future<Boolean> script = submit(() -> {
          try(SlotClaim claim = ((WorksheetScriptEnv) env).claimSlot()) {
-            Future<Boolean> populator = harness.submit(() -> filter.moreRows(ROWS));
+            Future<Boolean> populator = submit(() -> filter.moreRows(ROWS));
             assertTrue(harness.await(populator, ACTIVE_CAP, "populator"));
             return filter.moreRows(ROWS);
          }
@@ -224,38 +266,44 @@ public class PoolModeCycleTest {
    @Test
    public void assetQueryScopeUnderConcurrentContexts() throws Exception {
       WorksheetScriptEnv env = PoolTestSupport.env();
-      AssetQuerySandbox box = mock(AssetQuerySandbox.class);
-      doReturn(new Worksheet()).when(box).getWorksheet();
-      AssetQueryScope scope = new AssetQueryScope(box);
-      Field field = AssetQueryScope.class.getDeclaredField("tablemap");
-      field.setAccessible(true);
-      int tables = ((Map<?, ?>) field.get(scope)).size();
-      CountDownLatch go = new CountDownLatch(1);
-      List<Future<Void>> threads = new ArrayList<>();
 
-      for(int t = 0; t < 4; t++) {
-         int id = t;
-         threads.add(harness.submit(() -> {
-            go.await();
+      try {
+         AssetQuerySandbox box = mock(AssetQuerySandbox.class);
+         doReturn(new Worksheet()).when(box).getWorksheet();
+         AssetQueryScope scope = new AssetQueryScope(box);
+         Field field = AssetQueryScope.class.getDeclaredField("tablemap");
+         field.setAccessible(true);
+         int tables = ((Map<?, ?>) field.get(scope)).size();
+         CountDownLatch go = new CountDownLatch(1);
+         List<Future<Void>> threads = new ArrayList<>();
 
-            for(int i = 0; i < 500; i++) {
-               Object script = env.compile("typeof id_" + id + "_" + i + "; m_" + id + "_" + i +
-                                           " = " + i + ";");
-               env.exec(script, scope, null, null);
-            }
+         for(int t = 0; t < 4; t++) {
+            int id = t;
+            threads.add(submit(() -> {
+               go.await();
 
-            return null;
-         }));
+               for(int i = 0; i < 500; i++) {
+                  Object script = env.compile("typeof id_" + id + "_" + i + "; m_" + id + "_" +
+                                              i + " = " + i + ";");
+                  env.exec(script, scope, null, null);
+               }
+
+               return null;
+            }));
+         }
+
+         go.countDown();
+
+         for(Future<Void> thread : threads) {
+            harness.await(thread, ACTIVE_CAP, "script thread");
+         }
+
+         assertEquals(tables + 2 * 4 * 500, ((Map<?, ?>) field.get(scope)).size(),
+                      "lost tablemap entries");
       }
-
-      go.countDown();
-
-      for(Future<Void> thread : threads) {
-         harness.await(thread, ACTIVE_CAP, "script thread");
+      finally {
+         env.retire();
       }
-
-      assertEquals(tables + 2 * 4 * 500, ((Map<?, ?>) field.get(scope)).size(),
-                   "lost tablemap entries");
    }
 
    /**
@@ -281,7 +329,7 @@ public class PoolModeCycleTest {
          TableLens controlSummary = harness.track(summaryOver(cf2(formula(
             new SlowTable(SUMMARY_ROWS, Slow.EVERYWHERE), controlEnv), null)));
          List<List<Object>> expected = harness.await(
-            harness.submit(() -> drain(cf2(controlSummary, null))), ACTIVE_CAP, "control filter");
+            submit(() -> drain(cf2(controlSummary, null))), ACTIVE_CAP, "control filter");
          assertTrue(expected.size() > 2, "control pipeline is empty");
 
          HookTable base = new HookTable(SUMMARY_ROWS);
@@ -291,10 +339,10 @@ public class PoolModeCycleTest {
          TableLens first = shape.ownFirst ? own : other;
          TableLens second = shape.ownFirst ? other : own;
 
-         Started<List<List<Object>>> h = harness.start(() -> drain(first));
+         Started<List<List<Object>>> h = harness.start(noClaimLeft(() -> drain(first)));
          assertTrue(base.entered.await(ACTIVE_CAP, TimeUnit.SECONDS),
                     "the summary never started processing its base");
-         Started<List<List<Object>>> t3 = harness.start(() -> drain(second));
+         Started<List<List<Object>>> t3 = harness.start(noClaimLeft(() -> drain(second)));
          awaitParked(t3, KNOWN_CAP);
          base.release.countDown();
 
@@ -310,6 +358,22 @@ public class PoolModeCycleTest {
          env2.retire();
          controlEnv.retire();
       }
+   }
+
+   /**
+    * Submit {@code task} to the harness, and check on its harness thread that it left no
+    * worksheet script claim open.
+    */
+   private <T> Future<T> submit(Callable<T> task) {
+      return harness.submit(noClaimLeft(task));
+   }
+
+   private static <T> Callable<T> noClaimLeft(Callable<T> task) {
+      return () -> {
+         T result = task.call();
+         assertEquals(0, SlotClaim.openClaims(), "a claim was left open on a harness thread");
+         return result;
+      };
    }
 
    private static AssetQuerySandbox pooledBox(WorksheetScriptEnv env) {
@@ -388,26 +452,6 @@ public class PoolModeCycleTest {
       Field field = AssetQuerySandbox.class.getDeclaredField(name);
       field.setAccessible(true);
       field.set(box, value);
-   }
-
-   /**
-    * H's script calls read(): it lets W in, waits until W holds S for writing, then reads S.
-    */
-   public static final class ReadGate {
-      ReadGate(UpgradableReadWriteLock s) {
-         this.s = s;
-      }
-
-      public void read() throws InterruptedException {
-         holderIn.countDown();
-         writerHasS.await(KNOWN_CAP, TimeUnit.SECONDS);
-         s.lockRead();
-         s.unlockRead();
-      }
-
-      final CountDownLatch holderIn = new CountDownLatch(1);
-      final CountDownLatch writerHasS = new CountDownLatch(1);
-      private final UpgradableReadWriteLock s;
    }
 
    public enum After {

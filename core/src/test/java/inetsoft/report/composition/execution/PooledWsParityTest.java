@@ -65,13 +65,17 @@ public class PooledWsParityTest {
 
    @Test
    public void calcFieldMatches() throws Exception {
-      assertEquals(calcField(false), calcField(true));
-      assertNotNull(calcField(true));
+      Object pooled = calcField(true);
+      assertNotNull(pooled);
+      assertEquals(calcField(false), pooled);
    }
 
    @Test
    public void jsConditionMatches() throws Exception {
-      assertEquals(condition(false), condition(true));
+      // value > parameter.threshold + 1 with threshold 1: only the rows 3 and 4 match
+      List<Boolean> expected = List.of(false, false, true, true);
+      assertEquals(expected, condition(false));
+      assertEquals(expected, condition(true));
    }
 
    @Test
@@ -81,55 +85,76 @@ public class PooledWsParityTest {
 
    private Object calcField(boolean pool) throws Exception {
       AssetQuerySandbox box = sandbox(pool);
-      CalcFieldFormula formula = new CalcFieldFormula(
-         "SUM * 2", new String[] { "SUM" }, new Formula[] { new SumFormula() },
-         new int[] { 0 }, box.getScriptEnv(), box.getScope());
-      formula.addValue(new Object[] { null, 5.0 });
-      formula.addValue(new Object[] { null, 7.0 });
-      return formula.getResult();
+
+      try {
+         CalcFieldFormula formula = new CalcFieldFormula(
+            "SUM * 2", new String[] { "SUM" }, new Formula[] { new SumFormula() },
+            new int[] { 0 }, box.getScriptEnv(), box.getScope());
+         formula.addValue(new Object[] { null, 5.0 });
+         formula.addValue(new Object[] { null, 7.0 });
+         return formula.getResult();
+      }
+      finally {
+         box.dispose();
+      }
    }
 
    private List<Boolean> condition(boolean pool) throws Exception {
       AssetQuerySandbox box = sandbox(pool);
-      AssetCondition condition = new AssetCondition();
-      condition.setOperation(XCondition.GREATER_THAN);
-      condition.setType(XSchema.INTEGER);
-      ExpressionValue value = new ExpressionValue();
-      value.setExpression("1 + 1");
-      value.setType(ExpressionValue.JAVASCRIPT);
-      condition.addValue(value);
-      ConditionList list = new ConditionList();
-      list.append(new ConditionItem(new AttributeRef(null, "value"), condition, 0));
-      DefaultTableLens table = new DefaultTableLens(new Object[][] {{"value"}, {1}, {2}, {3}});
-      ConditionGroup group = new ConditionGroup(table, list, box);
-      List<Boolean> result = new ArrayList<>();
 
-      for(int r = 1; r < table.getRowCount(); r++) {
-         result.add(group.evaluate(table, r));
+      try {
+         box.getVariableTable().put("threshold", 1);
+         AssetCondition condition = new AssetCondition();
+         condition.setOperation(XCondition.GREATER_THAN);
+         condition.setType(XSchema.INTEGER);
+         ExpressionValue value = new ExpressionValue();
+         value.setExpression("parameter.threshold + 1");
+         value.setType(ExpressionValue.JAVASCRIPT);
+         condition.addValue(value);
+         ConditionList list = new ConditionList();
+         list.append(new ConditionItem(new AttributeRef(null, "value"), condition, 0));
+         DefaultTableLens table =
+            new DefaultTableLens(new Object[][] {{"value"}, {1}, {2}, {3}, {4}});
+         ConditionGroup group = new ConditionGroup(table, list, box);
+         List<Boolean> result = new ArrayList<>();
+
+         for(int r = 1; r < table.getRowCount(); r++) {
+            result.add(group.evaluate(table, r));
+         }
+
+         return result;
       }
-
-      return result;
+      finally {
+         box.dispose();
+      }
    }
 
    private List<Object> formula(boolean pool) throws Exception {
       AssetQuerySandbox box = sandbox(pool);
-      Object[][] data = new Object[301][];
-      data[0] = new Object[] {"value"};
 
-      for(int i = 1; i <= 300; i++) {
-         data[i] = new Object[] {i % 30};
+      try {
+         Object[][] data = new Object[301][];
+         data[0] = new Object[] {"value"};
+
+         for(int i = 1; i <= 300; i++) {
+            data[i] = new Object[] {i % 30};
+         }
+
+         FormulaTableLens lens = new FormulaTableLens(new DefaultTableLens(data),
+            new String[] {"f"},
+            new String[] {"field['value'] * 2 + (parameter == null ? 0 : 1)"},
+            box.getScriptEnv(), box.getScope());
+         List<Object> values = new ArrayList<>();
+
+         for(int r = 1; lens.moreRows(r); r++) {
+            values.add(lens.getObject(r, 1));
+         }
+
+         return values;
       }
-
-      FormulaTableLens lens = new FormulaTableLens(new DefaultTableLens(data), new String[] {"f"},
-         new String[] {"field['value'] * 2 + (parameter == null ? 0 : 1)"},
-         box.getScriptEnv(), box.getScope());
-      List<Object> values = new ArrayList<>();
-
-      for(int r = 1; lens.moreRows(r); r++) {
-         values.add(lens.getObject(r, 1));
+      finally {
+         box.dispose();
       }
-
-      return values;
    }
 
    private static AssetQuerySandbox sandbox(boolean pool) {

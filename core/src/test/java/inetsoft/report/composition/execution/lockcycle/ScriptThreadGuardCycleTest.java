@@ -49,7 +49,9 @@ import static inetsoft.report.composition.execution.lockcycle.LockCycleHarness.K
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
-@DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true")
+@DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
+   disabledReason = "pool-off only: H holds the raw engine lock E of a plain GraalJavaScriptEnv " +
+      "outside exec; PoolModeCycleTest.scriptHolderVsSandboxWriter is the pool-on equivalent")
 public class ScriptThreadGuardCycleTest {
    @BeforeEach
    public void setUp() {

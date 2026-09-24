@@ -465,6 +465,11 @@ public final class LockCycleHarness implements AutoCloseable {
    /**
     * A sandbox: a real GraalJS env, its engine and execution lock, and a mocked
     * {@code AssetQuerySandbox} whose condition filters take that lock.
+    *
+    * <p>With {@link #POOL} on, the env is a {@code WorksheetScriptEnv}, and {@code engine} and
+    * {@code lock} are only its primary slot's engine and that engine's lock; other threads
+    * run on other pooled contexts with their own locks. So a case's {@code lock.isLocked()}
+    * assertions and the deadlock dump cover only the primary slot.
     */
    public static final class Sandbox {
       Sandbox(boolean locking) {
