@@ -17,14 +17,22 @@
  */
 package inetsoft.web.wiz.security;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
+import inetsoft.uql.util.XSessionService;
 import inetsoft.util.PasswordEncryption;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletRequest;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,6 +44,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.util.Date;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -64,6 +74,7 @@ class WizServiceAuthenticationFilterTest {
    private SecurityEngine mockEngine;
    private SecurityProvider mockProvider;
    private WizServiceAuthenticationFilter filter;
+   private KeyPair keyPair;
 
    @BeforeEach
    void setUp() {
@@ -97,7 +108,7 @@ class WizServiceAuthenticationFilterTest {
       try {
          KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
          generator.initialize(2048);
-         KeyPair keyPair = generator.generateKeyPair();
+         keyPair = generator.generateKeyPair();
          ReflectionTestUtils.setField(filter, "ssoKeyPair", keyPair);
       }
       catch(Exception e) {
@@ -193,6 +204,41 @@ class WizServiceAuthenticationFilterTest {
 
       verify(chain).doFilter(request, response);
       assertEquals(200, response.getStatus());
+      assertNull(request.getAttribute(WizServiceAuthenticationFilter.VERIFIED_TOKEN_EXPIRATION_ATTR),
+         "A request that fell through to a session must not carry a verified token expiration");
+   }
+
+   // ── valid JWT: the verified expiration is exposed to downstream handlers ──
+
+   @Test
+   void doFilter_validJwt_setsVerifiedTokenExpirationAttribute() throws Exception {
+      Date exp = new Date((System.currentTimeMillis() / 1000L + 3600L) * 1000L);
+      JWTClaimsSet claims = new JWTClaimsSet.Builder()
+         .subject(new IdentityID("alice", "default").convertToKey())
+         .audience(List.of("wiz-service"))
+         .expirationTime(exp)
+         .claim("organizationId", "default")
+         .build();
+      SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), claims);
+      jwt.sign(new RSASSASigner(keyPair.getPrivate()));
+
+      MockHttpServletRequest request = wizPathRequest();
+      request.addHeader("Authorization", "Bearer " + jwt.serialize());
+      MockHttpServletResponse response = new MockHttpServletResponse();
+
+      // SRPrincipal's XPrincipal constructor needs XSessionService, which needs Spring
+      XSessionService sessionService = mock(XSessionService.class);
+      when(sessionService.createSessionID(anyString(), any())).thenReturn("test-session-id");
+
+      try(MockedStatic<XSessionService> xss = mockStatic(XSessionService.class)) {
+         xss.when(XSessionService::getService).thenReturn(sessionService);
+         filter.doFilter(request, response, chain);
+      }
+
+      ArgumentCaptor<ServletRequest> passed = ArgumentCaptor.forClass(ServletRequest.class);
+      verify(chain).doFilter(passed.capture(), any());
+      assertEquals(exp, passed.getValue().getAttribute(
+         WizServiceAuthenticationFilter.VERIFIED_TOKEN_EXPIRATION_ATTR));
    }
 
    @Test

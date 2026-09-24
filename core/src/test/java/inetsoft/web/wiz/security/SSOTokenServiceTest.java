@@ -41,6 +41,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.Principal;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -197,6 +198,43 @@ class SSOTokenServiceTest {
       assertTrue(exp > now, "Token expiration must be in the future");
       assertTrue(exp > now + 7 * 3600 * 1000L, "Expiration must be at least 7 hours away");
       assertTrue(exp < now + 9 * 3600 * 1000L, "Expiration must be at most 9 hours away");
+   }
+
+   @Test
+   void createSSOToken_notAfterBeforeDefault_capsExpiration() throws Exception {
+      SRPrincipal p = principal("user", "org");
+      Date notAfter = new Date(System.currentTimeMillis() + 3600 * 1000L + 500L);
+
+      String token = service.createSSOToken(p, "https://test.example.com", notAfter);
+
+      Date exp = SignedJWT.parse(token).getJWTClaimsSet().getExpirationTime();
+      assertEquals(notAfter.getTime() / 1000L * 1000L, exp.getTime(),
+         "Expiration must be capped at notAfter, rounded down to whole seconds");
+   }
+
+   @Test
+   void createSSOToken_notAfterAfterDefault_keepsDefaultExpiration() throws Exception {
+      SRPrincipal p = principal("user", "org");
+      Date notAfter = new Date(System.currentTimeMillis() + 24 * 3600 * 1000L);
+
+      String token = service.createSSOToken(p, "https://test.example.com", notAfter);
+
+      long now = System.currentTimeMillis();
+      long exp = SignedJWT.parse(token).getJWTClaimsSet().getExpirationTime().getTime();
+      assertTrue(exp > now + 7 * 3600 * 1000L && exp < now + 9 * 3600 * 1000L,
+         "A notAfter later than the default lifetime must not extend the expiration");
+   }
+
+   @Test
+   void createSSOToken_nullNotAfter_keepsDefaultExpiration() throws Exception {
+      SRPrincipal p = principal("user", "org");
+
+      String token = service.createSSOToken(p, "https://test.example.com", null);
+
+      long now = System.currentTimeMillis();
+      long exp = SignedJWT.parse(token).getJWTClaimsSet().getExpirationTime().getTime();
+      assertTrue(exp > now + 7 * 3600 * 1000L && exp < now + 9 * 3600 * 1000L,
+         "A null notAfter must keep the default lifetime");
    }
 
    @Test
