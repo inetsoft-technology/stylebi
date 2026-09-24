@@ -242,6 +242,12 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
 
    @Override
    public void putMember(String id, Object value) {
+      // a null name was never readable (getMember(null) is null), and the concurrent map
+      // rejects a null key where the old HashMap accepted it (bug #76960)
+      if(id == null) {
+         return;
+      }
+
       if(shared != null && !PARAMETER.equals(id)) {
          shared.putMember(id, value);
          return;
@@ -252,6 +258,10 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
 
    @Override
    public boolean removeMember(String id) {
+      if(id == null) {
+         return false;
+      }
+
       if(shared != null && !PARAMETER.equals(id)) {
          return shared.removeMember(id);
       }

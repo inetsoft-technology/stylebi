@@ -100,6 +100,19 @@ class AssetQueryScopeConcurrencyTest {
       assertFalse(scope.hasMember("x"));
    }
 
+   @Test
+   void nullNameIsIgnoredAsOnMain() {
+      AssetQueryScope scope = newScope();
+      int before = scope.getMemberKeys().length;
+
+      // the concurrent map rejects a null key; main's HashMap stored one that no read could see
+      assertDoesNotThrow(() -> scope.putMember(null, 1));
+      assertFalse(scope.hasMember(null));
+      assertNull(scope.getMember(null));
+      assertEquals(before, scope.getMemberKeys().length);
+      assertFalse(assertDoesNotThrow(() -> scope.removeMember(null)));
+   }
+
    private static AssetQueryScope newScope() {
       AssetQuerySandbox box = mock(AssetQuerySandbox.class);
       doReturn(new Worksheet()).when(box).getWorksheet();
