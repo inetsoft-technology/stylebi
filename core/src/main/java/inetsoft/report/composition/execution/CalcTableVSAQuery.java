@@ -37,6 +37,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -337,6 +338,13 @@ public class CalcTableVSAQuery extends DataVSAQuery {
             return returnLens;
          }
          catch(Exception e) {
+            // a lock stall of a base must not look like an empty table (bug #76967)
+            LockStallException stall = LockStallException.find(e);
+
+            if(stall != null) {
+               throw stall;
+            }
+
             LOG.error("Failed to create calc table: " + e, e);
          }
 
