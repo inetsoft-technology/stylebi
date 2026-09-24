@@ -150,6 +150,28 @@ public class StallWatchdogTest {
       }
    }
 
+   @Test
+   public void progressAfterTheWatchdogDumpEndsTheEpisode() {
+      AtomicLong rows = new AtomicLong();
+      WaitRecord record = registry.open("site", rows::get, NONE);
+      advance(1100);
+      watchdog.scan();
+      String first = record.getDumpPath();
+      assertNotNull(first);
+      assertEquals(1, dumper.getDumpCount());
+
+      rows.incrementAndGet();
+      record.checkStall();
+      assertNull(record.getDumpPath(), "progress before the trip ends the episode");
+
+      advance(61000);
+      LockStallException ex = assertThrows(LockStallException.class, record::checkStall);
+      assertEquals(2, dumper.getDumpCount(), "the new episode dumps again");
+      assertNotNull(ex.getDumpPath());
+      assertNotEquals(first, ex.getDumpPath());
+      record.close();
+   }
+
    private void advance(long millis) {
       now.addAndGet(TimeUnit.MILLISECONDS.toNanos(millis));
    }

@@ -181,7 +181,7 @@ public class WaitRegistryTest {
    }
 
    @Test
-   public void blockedUnregisteredBlockerGivesNoCredit() throws Exception {
+   public void timedWaitingUnregisteredBlockerGivesNoCredit() throws Exception {
       Thread parked = daemon(() -> {
          try {
             release.await(30, TimeUnit.SECONDS);
@@ -323,6 +323,84 @@ public class WaitRegistryTest {
       outer.close();
       assertTrue(registry.getActive().isEmpty());
       assertEquals(2, registry.getBeginCount());
+   }
+
+   @Test
+   public void runnableBlockerOfARegisteredBlockerCreditsTransitively() throws Exception {
+      AtomicReference<Boolean> spin = new AtomicReference<>(true);
+      Thread spinner = daemon(() -> {
+         while(spin.get()) {
+            Thread.onSpinWait();
+         }
+      });
+      spinner.start();
+      Parked blocker = parked("B", () -> 0, () -> new Thread[] { spinner });
+      WaitRecord waiter = registry.open("waiter", () -> 0, () -> new Thread[] { blocker.thread });
+
+      try {
+         for(int i = 0; i < 5; i++) {
+            advance(600);
+            blocker.record.checkStall();
+            waiter.checkStall();
+         }
+
+         spin.set(false);
+         spinner.join(5000);
+         advance(1100);
+         assertThrows(LockStallException.class, blocker.record::checkStall);
+         assertThrows(LockStallException.class, waiter::checkStall,
+                      "the credit ends with the running thread at the end of the chain");
+      }
+      finally {
+         spin.set(false);
+         waiter.close();
+      }
+   }
+
+   @Test
+   public void failedWaitRethrowsTheSameException() {
+      AtomicLong rows = new AtomicLong();
+      WaitRecord record = registry.open("site", rows::get, NONE);
+      advance(1500);
+      LockStallException first = assertThrows(LockStallException.class, record::checkStall);
+
+      advance(10);
+      rows.incrementAndGet();
+      LockStallException again = assertThrows(LockStallException.class, record::checkStall,
+                                              "a failed wait must not continue silently");
+      assertSame(first, again);
+      assertEquals(1, dumper.getDumpCount());
+      record.close();
+   }
+
+   @Test
+   public void unboundedWaitIsSliced() {
+      WaitRecord record = registry.open("site", () -> 0, NONE);
+      assertEquals(250, record.waitMillis(0), "0 means forever for wait/await");
+      assertEquals(250, record.waitMillis(-1));
+      record.close();
+      assertEquals(0, WaitRecord.NOOP.waitMillis(0), "an unwatched wait is unchanged");
+   }
+
+   @Test
+   public void outOfOrderCloseDoesNotRestoreAClosedRecord() {
+      WaitRecord outer = registry.open("outer", () -> 0, NONE);
+      WaitRecord inner = registry.open("inner", () -> 0, NONE);
+
+      outer.close();
+      assertSame(inner, registry.getActive().get(0));
+      inner.close();
+      assertTrue(registry.getActive().isEmpty(), "the closed outer wait is not registered again");
+   }
+
+   @Test
+   public void nullBlockersAreNone() {
+      WaitRecord record = registry.open("site", () -> 0, () -> null);
+      advance(500);
+      record.checkStall();
+      advance(600);
+      assertThrows(LockStallException.class, record::checkStall);
+      record.close();
    }
 
    private Parked parked(String what, LongSupplier progress, Supplier<Thread[]> blockers)

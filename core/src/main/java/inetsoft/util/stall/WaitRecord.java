@@ -66,13 +66,23 @@ public final class WaitRecord implements AutoCloseable {
 
    /**
     * Sample the progress and handle a stall: in {@code fail} mode dump the threads and throw,
-    * in {@code alert} mode dump and warn once per stall episode.
+    * in {@code alert} mode dump and warn once per stall episode. Once the wait failed, every
+    * later call rethrows the same exception.
+    *
+    * <p>Only the waiting thread may call this method: the progress sample is not
+    * synchronized. Other threads, such as the watchdog, never call it.
     *
     * @throws LockStallException if the wait made no progress for the limit, in fail mode.
     */
    public void checkStall() {
       if(registry == null) {
          return;
+      }
+
+      LockStallException failure = this.failure;
+
+      if(failure != null) {
+         throw failure;
       }
 
       long now = registry.nanoTime();
@@ -83,34 +93,45 @@ public final class WaitRecord implements AutoCloseable {
          progressed(now, now);
       }
       else {
-         OptionalLong credit = registry.getBlockerProgressNanos(blockers.get(), now);
+         OptionalLong credit = registry.getBlockerProgressNanos(blockers.get(), thread, now);
 
          if(credit.isPresent() && credit.getAsLong() - progressNanos > 0) {
             progressed(credit.getAsLong(), now);
          }
       }
 
-      long stalledNanos = now - progressNanos;
+      String reason;
+      String path;
 
-      if(stalledNanos < limitNanos || tripped) {
-         return;
+      // the episode fields are checked and set under this record's monitor, as the watchdog
+      // does (the watchdog's monitor, then the record's; the waiter holds no other lock here)
+      synchronized(this) {
+         long stalledNanos = now - progressNanos;
+
+         if(stalledNanos < limitNanos || tripped) {
+            return;
+         }
+
+         tripped = true;
+         long stalledMillis = TimeUnit.NANOSECONDS.toMillis(stalledNanos);
+         reason = describe(stalledMillis);
+         path = dumpPath;
+
+         if(path == null) {
+            path = registry.getDumper().dump(reason);
+            dumpPath = path;
+         }
+
+         if(mode == StallPolicy.Mode.FAIL) {
+            failed = true;
+            failure = new LockStallException(what, thread.getName(), stalledMillis, path);
+            this.failure = failure;
+         }
       }
 
-      tripped = true;
-      long stalledMillis = TimeUnit.NANOSECONDS.toMillis(stalledNanos);
-      String reason = describe(stalledMillis);
-      String path = dumpPath;
-
-      if(path == null) {
-         path = registry.getDumper().dump(reason);
-         dumpPath = path;
-      }
-
-      if(mode == StallPolicy.Mode.FAIL) {
-         failed = true;
-         LockStallException ex = new LockStallException(what, thread.getName(), stalledMillis, path);
-         LOG.error(ex.getMessage());
-         throw ex;
+      if(failure != null) {
+         LOG.error(failure.getMessage());
+         throw failure;
       }
 
       LOG.warn("Lock stall, alert only: {}, thread dump: {}", reason, path);
@@ -122,7 +143,12 @@ public final class WaitRecord implements AutoCloseable {
     * @param max the timeout the wait site uses without the watchdog.
     */
    public long waitMillis(long max) {
-      return registry == null ? max : Math.min(max, sliceMillis);
+      if(registry == null) {
+         return max;
+      }
+
+      // 0 (or less) means forever for wait/await, which would never check the stall
+      return max <= 0 ? sliceMillis : Math.min(max, sliceMillis);
    }
 
    /**
@@ -168,6 +194,18 @@ public final class WaitRecord implements AutoCloseable {
    }
 
    /**
+    * Get how long one slice of the wait may be, i.e. how late the waiting thread may notice
+    * its own stall.
+    */
+   long getSliceNanos() {
+      return TimeUnit.MILLISECONDS.toNanos(sliceMillis);
+   }
+
+   boolean isClosed() {
+      return closed;
+   }
+
+   /**
     * Check if the current stall episode was reported (or failed) by the waiting thread.
     */
    public boolean isTripped() {
@@ -194,11 +232,18 @@ public final class WaitRecord implements AutoCloseable {
       this.watchdogSeenScan = scan;
    }
 
-   private void progressed(long nanos, long now) {
+   /**
+    * Record progress. Recent progress ends the stall episode, whether the waiter tripped it or
+    * only the watchdog saw (and dumped) it, so the next episode is reported and dumped again.
+    * The episode fields are guarded by this record's monitor, which the watchdog also takes to
+    * check and set them.
+    */
+   private synchronized void progressed(long nanos, long now) {
       progressNanos = nanos;
 
-      // a new stall episode may be reported again (alert mode)
-      if(tripped && !failed && now - nanos < limitNanos) {
+      if(!failed && now - nanos < limitNanos &&
+         (tripped || dumpPath != null || watchdogSeenScan != 0))
+      {
          tripped = false;
          dumpPath = null;
          watchdogSeenScan = 0;
@@ -224,7 +269,8 @@ public final class WaitRecord implements AutoCloseable {
    private final Thread thread;
    private final long startNanos;
    private long lastValue;
-   private boolean closed;
+   private volatile boolean closed;
+   private volatile LockStallException failure;
    private volatile long progressNanos;
    private volatile boolean tripped;
    private volatile boolean failed;

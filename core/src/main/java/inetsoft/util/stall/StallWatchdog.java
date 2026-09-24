@@ -93,28 +93,32 @@ public final class StallWatchdog {
       List<String> reasons = new ArrayList<>();
 
       for(WaitRecord record : registry.getActive()) {
-         long stalledNanos = now - record.getProgressNanos();
+         // re-read the progress under the record's monitor, so a reset by the waiter's
+         // progress is never overwritten with the fields of the ended episode
+         synchronized(record) {
+            long stalledNanos = now - record.getProgressNanos();
 
-         if(stalledNanos < record.getLimitNanos()) {
-            record.setWatchdogSeenScan(0);
-            continue;
-         }
+            if(stalledNanos < record.getLimitNanos()) {
+               record.setWatchdogSeenScan(0);
+               continue;
+            }
 
-         String reason = record.describe(TimeUnit.NANOSECONDS.toMillis(stalledNanos));
+            String reason = record.describe(TimeUnit.NANOSECONDS.toMillis(stalledNanos));
 
-         if(record.getDumpPath() == null) {
-            record.setDumpPath(registry.getDumper().dump(reason));
-            LOG.warn("Lock stall detected by the watchdog: {}", reason);
-         }
+            if(record.getDumpPath() == null) {
+               record.setDumpPath(registry.getDumper().dump(reason));
+               LOG.warn("Lock stall detected by the watchdog: {}", reason);
+            }
 
-         long seen = record.getWatchdogSeenScan();
+            long seen = record.getWatchdogSeenScan();
 
-         if(seen == 0) {
-            record.setWatchdogSeenScan(scanNo);
-         }
-         else if(seen < scanNo) {
-            reasons.add("stall not released: " + reason + ", thread dump: " +
-                           record.getDumpPath());
+            if(seen == 0) {
+               record.setWatchdogSeenScan(scanNo);
+            }
+            else if(seen < scanNo) {
+               reasons.add("stall not released: " + reason + ", thread dump: " +
+                              record.getDumpPath());
+            }
          }
       }
 

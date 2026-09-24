@@ -127,17 +127,41 @@ public final class WaitRegistry {
 
    void end(WaitRecord record) {
       active.compute(record.getThread(),
-                     (thread, current) -> current == record ? record.previous : current);
+                     (thread, current) -> current == record ? getOpen(record.previous) : current);
+   }
+
+   /**
+    * Get the innermost wait of a chain that is not closed yet, since an outer wait may have
+    * been closed out of order.
+    */
+   private static WaitRecord getOpen(WaitRecord record) {
+      while(record != null && record.isClosed()) {
+         record = record.previous;
+      }
+
+      return record;
    }
 
    /**
     * Get when one of the blockers last made progress: the progress time of a blocker's own
     * registered wait, or now for an unregistered blocker that is running.
     *
+    * <p>The credit is transitive but lags: a registered blocker's progress time only moves
+    * when that blocker samples its own wait, once per wait slice. A chain of k registered
+    * waits in front of the running thread lags by up to about k slices
+    * ({@code noProgressMillis / 4} each), so a chain of 4 or more registered waits may trip
+    * although the thread at its end is running.
+    *
+    * @param blockers the threads waited for; {@code null} means none.
+    * @param self     the thread of the wait being credited, which never credits itself.
+    *
     * @return the most recent time, or empty if none of the blockers is progressing.
     */
-   OptionalLong getBlockerProgressNanos(Thread[] blockers, long now) {
-      Thread self = Thread.currentThread();
+   OptionalLong getBlockerProgressNanos(Thread[] blockers, Thread self, long now) {
+      if(blockers == null) {
+         return OptionalLong.empty();
+      }
+
       boolean found = false;
       long best = 0;
 
