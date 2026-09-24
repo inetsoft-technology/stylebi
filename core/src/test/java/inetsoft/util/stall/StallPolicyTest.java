@@ -42,7 +42,7 @@ public class StallPolicyTest {
       File logDir = new File("logs");
       StallPolicy policy = StallPolicy.fromProperties(new HashMap<String, String>()::get, logDir);
 
-      assertEquals(StallPolicy.Mode.FAIL, policy.getMode());
+      assertEquals(StallPolicy.Mode.ALERT, policy.getMode());
       assertEquals(300000L, policy.getNoProgressMillis());
       assertEquals(30000L, policy.getScanMillis());
       assertEquals(logDir, policy.getDumpDir());
@@ -52,14 +52,14 @@ public class StallPolicyTest {
    @Test
    public void readsEveryProperty() {
       Map<String, String> props = new HashMap<>();
-      props.put("stall.watchdog.mode", "alert");
+      props.put("stall.watchdog.mode", "fail");
       props.put("stall.watchdog.noProgressMillis", "2000");
       props.put("stall.watchdog.scanMillis", "500");
       props.put("stall.watchdog.dumpDir", " dumps ");
       props.put("stall.watchdog.maxDumps", "7");
       StallPolicy policy = StallPolicy.fromProperties(props::get, new File("logs"));
 
-      assertEquals(StallPolicy.Mode.ALERT, policy.getMode());
+      assertEquals(StallPolicy.Mode.FAIL, policy.getMode());
       assertEquals(2000L, policy.getNoProgressMillis());
       assertEquals(500L, policy.getScanMillis());
       assertEquals(new File("dumps"), policy.getDumpDir());
@@ -75,7 +75,7 @@ public class StallPolicyTest {
       props.put("stall.watchdog.maxDumps", "0");
       StallPolicy policy = StallPolicy.fromProperties(props::get, new File("logs"));
 
-      assertEquals(StallPolicy.Mode.FAIL, policy.getMode());
+      assertEquals(StallPolicy.Mode.ALERT, policy.getMode());
       assertEquals(300000L, policy.getNoProgressMillis());
       assertEquals(30000L, policy.getScanMillis());
       assertEquals(20, policy.getMaxDumps());

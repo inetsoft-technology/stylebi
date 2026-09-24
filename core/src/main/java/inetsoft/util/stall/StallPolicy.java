@@ -32,6 +32,9 @@ import java.util.function.Function;
  * {@link LockStallException}, in {@code alert} mode it only dumps the threads and logs a
  * warning, and {@code off} registers no waits at all.
  *
+ * <p>{@code alert} is the default in this release, so field dumps can show whether any healthy
+ * but slow wait trips before {@code fail}, which ends a hung query, becomes the default.
+ *
  * <p>Only a {@code fail}-mode wait that its timeout did not release (its thread could not
  * unwind, or never reached its check) turns the deadlock health check DOWN. {@code alert}
  * never fails a query and never turns health DOWN by itself; a JVM deadlock is DOWN in every
@@ -174,11 +177,11 @@ public final class StallPolicy {
          case "off":
             return Mode.OFF;
          default:
-            LOG.warn("Invalid {} value \"{}\", using fail", MODE_PROPERTY, value);
+            LOG.warn("Invalid {} value \"{}\", using alert", MODE_PROPERTY, value);
          }
       }
 
-      return Mode.FAIL;
+      return Mode.ALERT;
    }
 
    static long parseMillis(String value, long def) {
@@ -245,7 +248,7 @@ public final class StallPolicy {
    private static final long REFRESH_MILLIS = 10000L;
    private static final File TEMP_DIR = new File(System.getProperty("java.io.tmpdir"));
    private static final StallPolicy DEFAULT = new StallPolicy(
-      Mode.FAIL, DEFAULT_NO_PROGRESS_MILLIS, DEFAULT_SCAN_MILLIS, TEMP_DIR);
+      Mode.ALERT, DEFAULT_NO_PROGRESS_MILLIS, DEFAULT_SCAN_MILLIS, TEMP_DIR);
    private static volatile StallPolicy override;
    private static volatile Cached cache;
 
