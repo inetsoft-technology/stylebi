@@ -81,4 +81,5 @@ export interface BaseTableModel extends VSObjectModel {
    maxMode?: boolean;
    resizingCell?: boolean;
    maxModeOriginalWidth?: number;
+   padding?: { top: number, left: number, bottom: number, right: number };
 }

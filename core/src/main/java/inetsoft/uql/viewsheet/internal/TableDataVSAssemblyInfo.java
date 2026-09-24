@@ -1674,6 +1674,13 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       if(!isUserCellPadding()) {
          setCellPadding(VSDensityDefaults.cellPadding(ctx), CompositeValue.Type.DEFAULT);
       }
+
+      // the card inset. Seeded rather than resolved at read time so it travels in an exported
+      // asset. Both branches write: a table has never had an inset, and that zero is what Revert
+      // has to restore
+      if(!isUserPadding() && !isCssPaddingDefined()) {
+         setPadding(VSDensityDefaults.tablePadding(ctx));
+      }
    }
 
    @Override
