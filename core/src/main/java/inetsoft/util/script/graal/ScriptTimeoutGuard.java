@@ -35,12 +35,21 @@ public class ScriptTimeoutGuard {
       @Override void close();
    }
 
-   private static final ScheduledExecutorService SCHED =
-      Executors.newScheduledThreadPool(1, r -> {
+   private static final ScheduledExecutorService SCHED;
+
+   static {
+      ScheduledThreadPoolExecutor sched = new ScheduledThreadPoolExecutor(1, r -> {
          Thread t = new Thread(r, "script-timeout-guard");
          t.setDaemon(true);
          return t;
       });
+      // Without this, a cancelled watchdog (cancel(false), see guard() below) stays
+      // in the delay queue until its original deadline instead of being purged
+      // immediately, so the queue -- and the heap it holds -- grows unbounded for
+      // as long as script.execution.timeout across script execs (bug #77004).
+      sched.setRemoveOnCancelPolicy(true);
+      SCHED = sched;
+   }
 
    // Separate cached pool for the blocking ctx.interrupt() calls so that
    // concurrent timeouts never queue behind each other on the scheduler thread.
@@ -85,5 +94,10 @@ public class ScriptTimeoutGuard {
          active.set(false);
          f.cancel(false);
       };
+   }
+
+   /** Number of watchdogs still queued in the scheduler (for tests). */
+   static int pendingWatchdogs() {
+      return ((ScheduledThreadPoolExecutor) SCHED).getQueue().size();
    }
 }

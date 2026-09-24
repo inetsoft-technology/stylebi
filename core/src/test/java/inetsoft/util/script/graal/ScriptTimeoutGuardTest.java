@@ -44,4 +44,26 @@ class ScriptTimeoutGuardTest {
          }
       }
    }
+
+   // Bug #77004: cancel(false) on a ScheduledThreadPoolExecutor without
+   // remove-on-cancel leaves the cancelled ScheduledFutureTask in the delay
+   // queue until its original deadline, so a long script.execution.timeout
+   // (600s default, 10000s code default) lets the queue -- and the heap it
+   // holds -- grow unbounded across script execs.
+   @Test void cancelledWatchdogsDoNotAccumulateInQueue() {
+      ScriptTimeoutGuard guard = new ScriptTimeoutGuard();
+      Duration longTimeout = Duration.ofSeconds(600);
+
+      try(Context ctx = Context.newBuilder("js").build()) {
+         for(int i = 0; i < 10_000; i++) {
+            try(var ignored = guard.guard(ctx, longTimeout)) {
+               ctx.eval("js", "1+1");
+            }
+         }
+      }
+
+      assertTrue(ScriptTimeoutGuard.pendingWatchdogs() <= 10,
+         "expected cancelled watchdogs to be removed from the scheduler queue, but found " +
+         ScriptTimeoutGuard.pendingWatchdogs());
+   }
 }
