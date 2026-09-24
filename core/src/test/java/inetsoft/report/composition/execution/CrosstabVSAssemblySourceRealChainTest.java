@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 
 /**
@@ -185,6 +185,74 @@ class CrosstabVSAssemblySourceRealChainTest {
       assertEquals(EXPECTED, cells(lens), "crosstab data");
    }
 
+   /**
+    * A chart on the same vs assembly source brushes the crosstab. The crosstab prepare
+    * refreshes that chart ({@code box.updateAssembly(chart)}) and fetches the source; neither
+    * may run while holding the crosstab info monitor. The brush still filters the crosstab,
+    * and leaves the chart itself and a crosstab on another source unfiltered.
+    */
+   @Test
+   void brushingChartIsRefreshedOutsideTheCrosstabInfoMonitor() throws Exception {
+      ViewsheetSandbox box = vsResource.getRuntimeViewsheet().getViewsheetSandbox().orElseThrow();
+      Viewsheet vs = box.getViewsheet();
+      SourceInfo wsSource =
+         (SourceInfo) ((TableVSAssembly) vs.getAssembly(TABLE)).getSourceInfo().clone();
+      CrosstabVSAssembly ctVs = crosstab(vs, "CrosstabVS", vsSource());
+      crosstab(vs, "CrosstabWS", wsSource);
+      ChartVSAssembly chart = chart(vs, "ChartVS", vsSource());
+      assertEquals(EXPECTED, cells(box.getData("ChartVS")), "chart before brushing");
+
+      VSPoint point = new VSPoint();
+      point.addValue(new VSFieldValue("type", "UNNAMED"));
+      VSSelection selection = new VSSelection();
+      selection.addPoint(point);
+      chart.setBrushSelection(selection);
+      assertSame(chart, box.getBrushingChart("CrosstabVS"), "brushing chart");
+      assertNull(box.getBrushingChart("CrosstabWS"), "brushing chart of another source");
+      box.resetDataMap("ChartVS");
+
+      assertEquals(BRUSHED, cells(box.getData("CrosstabVS")), "brushed crosstab");
+      assertEquals(EXPECTED, cells(box.getData("CrosstabWS")), "crosstab on another source");
+      assertEquals(EXPECTED, cells(box.getData("ChartVS")), "brushing chart");
+
+      ViewsheetSandbox spy = Mockito.spy(box);
+      VSCrosstabInfo cinfo = ctVs.getVSCrosstabInfo();
+      AtomicInteger fetches = new AtomicInteger();
+      AtomicInteger updates = new AtomicInteger();
+      AtomicInteger underMonitor = new AtomicInteger();
+
+      doAnswer(inv -> {
+         fetches.incrementAndGet();
+
+         if(Thread.holdsLock(cinfo)) {
+            underMonitor.incrementAndGet();
+         }
+
+         return inv.callRealMethod();
+      }).when(spy).getData(anyString(), anyBoolean(), anyInt());
+      doAnswer(inv -> {
+         if(inv.getArgument(0) == chart) {
+            updates.incrementAndGet();
+         }
+
+         if(Thread.holdsLock(cinfo)) {
+            underMonitor.incrementAndGet();
+         }
+
+         return inv.callRealMethod();
+      }).when(spy).updateAssembly(any(VSAssembly.class), anyBoolean());
+
+      box.resetDataMap(TABLE);
+      box.resetDataMap("ChartVS");
+      TableLens lens = new CrosstabVSAQuery(spy, "CrosstabVS", false).getTableLens();
+
+      assertTrue(fetches.get() > 0, "the source assembly was never fetched");
+      assertTrue(updates.get() > 0, "the brushing chart was never refreshed");
+      assertEquals(0, underMonitor.get(), "the source was fetched or the brushing chart was " +
+                   "refreshed while holding the VSCrosstabInfo monitor");
+      assertEquals(BRUSHED, cells(lens), "brushed crosstab data");
+   }
+
    private static boolean ownsMonitor(Thread thread, Object monitor) {
       ThreadInfo info = ManagementFactory.getThreadMXBean()
          .getThreadInfo(new long[] { thread.getId() }, true, false)[0];
@@ -219,7 +287,7 @@ class CrosstabVSAssemblySourceRealChainTest {
       return crosstab;
    }
 
-   private static void chart(Viewsheet vs, String name, SourceInfo source) {
+   private static ChartVSAssembly chart(Viewsheet vs, String name, SourceInfo source) {
       ChartVSAssembly chart = new ChartVSAssembly(vs, name);
       chart.setSourceInfo(source);
       VSChartInfo info = chart.getVSChartInfo();
@@ -231,6 +299,7 @@ class CrosstabVSAssemblySourceRealChainTest {
       agg.setFormulaValue("Sum");
       info.addYField(agg);
       vs.addAssembly(chart);
+      return chart;
    }
 
    private static String cells(Object data) {
@@ -260,5 +329,6 @@ class CrosstabVSAssemblySourceRealChainTest {
 
    private static final String TABLE = "TableView1";
    private static final String EXPECTED = "type|Sum(wind)\nNAMED|630312.0\nUNNAMED|23420.0\n";
+   private static final String BRUSHED = "type|Sum(wind)\nUNNAMED|23420.0\n";
    private static final long CAP = 10;
 }
