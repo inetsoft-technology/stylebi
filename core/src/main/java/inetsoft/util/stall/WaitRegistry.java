@@ -72,7 +72,13 @@ public final class WaitRegistry {
    public static WaitRecord begin(String what, LongSupplier progress,
                                   Supplier<Thread[]> blockers)
    {
-      return GLOBAL.open(what, progress, blockers);
+      WaitRecord record = GLOBAL.open(what, progress, blockers);
+
+      if(record != WaitRecord.NOOP) {
+         StallWatchdog.ensureStarted();
+      }
+
+      return record;
    }
 
    /**
