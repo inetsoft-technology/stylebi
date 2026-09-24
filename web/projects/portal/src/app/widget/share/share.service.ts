@@ -34,8 +34,6 @@ declare const window: any;
    providedIn: "root"
 })
 export class ShareService {
-   // Snapshotted once for this root-singleton's lifetime; getCurrentOrgInfo() re-fetching per
-   // subscription (#76996) doesn't help this field, since it's only ever subscribed once, below.
    private orgInfo: CommonKVModel<string, string> = null;
 
    constructor(private http: HttpClient, private appInfoService: AppInfoService) {
@@ -124,11 +122,6 @@ export class ShareService {
     * has actually resolved (see getViewsheetLinkAsync()) or from a context that must stay
     * synchronous (e.g. immediately before window.open(), to avoid popup blockers) and can
     * tolerate the rare case where org info hasn't loaded yet.
-    *
-    * Known limitation (#76996): unlike getViewsheetLinkAsync(), this reads `this.orgInfo`, a
-    * value cached once at ShareService construction, so it won't see an org change mid-session.
-    * Accepted since that scenario has no reachable UI path today; a fresh-per-call fetch here
-    * would reintroduce the popup-blocker issue the synchronous design avoids.
     */
    getViewsheetLink(viewsheetId: string): string {
       return this.buildViewsheetLink(viewsheetId, this.orgInfo);

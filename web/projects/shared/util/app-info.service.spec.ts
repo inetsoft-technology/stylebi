@@ -20,18 +20,16 @@ import { Subject, throwError } from "rxjs";
 import { AppInfoService } from "./app-info.service";
 
 /**
- * Regression coverage for Bug #76924: getCurrentOrgInfo() must not hand a subscriber anything
- * before the async "../api/org/info" request resolves, since a consumer reading it synchronously
- * (e.g. a field set from a subscribe() callback) can't tell "not loaded yet" apart from a real,
- * empty value. It must also guarantee the stream eventually emits something even when that
- * request errors (see UNKNOWN_ORG_INFO), or any take(1)-based consumer (e.g.
- * ShareService.getViewsheetLinkAsync()) hangs indefinitely.
+ * Regression coverage for Bug #76924: currentOrgInfo is a BehaviorSubject seeded with null and
+ * only updated once the async "../api/org/info" request resolves. getCurrentOrgInfo() must not
+ * hand that seed null to subscribers, since a consumer reading it synchronously (e.g. a field set
+ * from a subscribe() callback) can't tell "not loaded yet" apart from a real, empty value.
  *
- * Regression coverage for Bug #76996: getCurrentOrgInfo() previously cached the first resolved
- * value for the service's lifetime in a BehaviorSubject, so every subscriber - including ones
- * that subscribe long after an org switch - kept seeing the org info from whenever the service
- * was first constructed. It must instead issue a fresh "../api/org/info" request for every new
- * subscription.
+ * Round-1 review regression coverage: the null-seed filter above means a subscriber that never
+ * receives anything (e.g. because the "../api/org/info" request failed and nothing ever called
+ * next()) would wait forever instead of just seeing the seed. AppInfoService must guarantee the
+ * stream eventually emits something even when that request errors (see UNKNOWN_ORG_INFO), or any
+ * take(1)-based consumer (e.g. ShareService.getViewsheetLinkAsync()) hangs indefinitely.
  */
 describe("AppInfoService", () => {
    function setup() {
@@ -41,7 +39,7 @@ describe("AppInfoService", () => {
       return { service, orgInfoResponse };
    }
 
-   it("should not emit anything before the org info request resolves", () => {
+   it("should not emit the seeded null before the org info request resolves", () => {
       const { service } = setup();
       const received: any[] = [];
       service.getCurrentOrgInfo().subscribe(v => received.push(v));
@@ -59,34 +57,14 @@ describe("AppInfoService", () => {
       expect(received).toEqual([{ key: "host-org", value: "Default" }]);
    });
 
-   it("should issue a fresh org info request for each new subscriber instead of replaying a stale cached value", () => {
-      const orgInfoResponses = [
-         new Subject<{ key: string; value: string }>(),
-         new Subject<{ key: string; value: string }>()
-      ];
-      let orgInfoCalls = 0;
-      // AppInfoService also calls httpClient.get("../api/enterprise") once at construction time
-      // (unrelated to org info), so route by URL rather than assuming org info is the only or
-      // first call.
-      const httpClient = {
-         get: vi.fn((url: string) =>
-            url === "../api/org/info" ? orgInfoResponses[orgInfoCalls++] : new Subject())
-      } as any;
-      const service = new AppInfoService(httpClient);
+   it("should replay the real value to a late subscriber without an intervening null", () => {
+      const { service, orgInfoResponse } = setup();
+      orgInfoResponse.next({ key: "tenant-A", value: "Tenant A" });
 
-      const first: any[] = [];
-      service.getCurrentOrgInfo().subscribe(v => first.push(v));
-      orgInfoResponses[0].next({ key: "tenant-A", value: "Tenant A" });
-      expect(first).toEqual([{ key: "tenant-A", value: "Tenant A" }]);
+      const received: any[] = [];
+      service.getCurrentOrgInfo().subscribe(v => received.push(v));
 
-      // A later subscription (e.g. after the session's org has changed) must see the current
-      // org, not a replay of whatever the first subscription saw.
-      const second: any[] = [];
-      service.getCurrentOrgInfo().subscribe(v => second.push(v));
-      orgInfoResponses[1].next({ key: "tenant-B", value: "Tenant B" });
-
-      expect(second).toEqual([{ key: "tenant-B", value: "Tenant B" }]);
-      expect(orgInfoCalls).toBe(2);
+      expect(received).toEqual([{ key: "tenant-A", value: "Tenant A" }]);
    });
 
    it("should fall back to UNKNOWN_ORG_INFO instead of hanging forever when the org info request errors", () => {
