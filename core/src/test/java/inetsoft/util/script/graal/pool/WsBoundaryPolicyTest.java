@@ -42,9 +42,29 @@ class WsBoundaryPolicyTest {
       String note = String.join("\n", WsBoundaryPolicy.RELEASE_NOTE);
 
       for(String topic : new String[] { "var", "Collections", "identity", "{a=1}",
-                                        "function", "callback", "Date.equals", "out" })
+                                        "function", "callback", "Date.equals", "out",
+                                        "viewsheet object", "Map, Set, RegExp, Promise",
+                                        "Object[]", "map copy", "parameter.",
+                                        "variable table", "lock", ".maxBatchRows (8192)",
+                                        "double", ".batchRows (256)" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }
+   }
+
+   @Test
+   void releaseNoteIsTheWholePrText() {
+      assertEquals("Worksheet script context pool (script.ws.contextPool, default false " +
+                      "in this release)", WsBoundaryPolicy.RELEASE_NOTE.get(0));
+      assertTrue(WsBoundaryPolicy.RELEASE_NOTE.get(WsBoundaryPolicy.RELEASE_NOTE.size() - 1)
+                    .endsWith("apply with the pool on or off."));
+
+      for(String line : WsBoundaryPolicy.RELEASE_NOTE) {
+         assertTrue(line.length() <= 88, "line too long: " + line);
+      }
+
+      String note = String.join("\n", WsBoundaryPolicy.RELEASE_NOTE);
+      assertEquals(note.indexOf("cannot be stored"), note.lastIndexOf("cannot be stored"),
+                   "the store rejection is stated once");
    }
 }

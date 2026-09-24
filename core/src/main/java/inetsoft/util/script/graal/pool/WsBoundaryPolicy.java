@@ -58,31 +58,50 @@ final class WsBoundaryPolicy {
    static final boolean REJECT_ARRAY_FOR_MAP_PARAMETER = true;
 
    /**
-    * The release-note lines for script.ws.contextPool (spec §3.2, §14.5, §14.12 A6).
+    * The release note for script.ws.contextPool (spec §3.2, §14.5, §14.12 A6,
+    * §14.13, §14.14), one entry per line. The PR description's "Release note" is
+    * String.join("\n", RELEASE_NOTE), word for word.
     */
    static final List<String> RELEASE_NOTE = List.of(
-      "Worksheet script globals (a top-level var or an assignment to an undeclared name) are " +
-         "guaranteed only within one claimed span (one formula or filter batch, one condition " +
-         "build, one variable default); they no longer carry over between batches, tables or " +
-         "queries, and a var accumulator can depend on how the table is read.",
-      "A JS array or object passed to a Java method is a copy: host mutation of an out " +
-         "parameter is no longer seen by the script, and java.util.Collections " +
-         "sort/reverse/shuffle on a JS array no longer reorder it.",
-      "Object identity is lost across the Java boundary: a JS object stored in a Java " +
-         "collection comes back as a copy.",
-      "Java toString() of a copied JS object now reads {a=1} instead of {a: 1}.",
-      "A JS function, Map, Set, RegExp, Promise or class instance cannot be stored in a " +
-         "Java object or scope, passed to a Java method parameter, or returned as a " +
-         "worksheet expression result; this raises a clear script error.",
-      "A JS callback (comparator and similar) stored in a Java object is valid only during " +
-         "the worksheet script run that created it; chart and viewsheet callbacks are not " +
-         "affected.",
-      "javaDate.equals(jsDate) can now be true, because a JS Date passed to a Java method " +
-         "arrives as java.util.Date.",
-      "A worksheet script function cannot be stored into a viewsheet object (for example " +
-         "vsObj.f = function(){}); the worksheet context is cleaned and reused, so the " +
-         "function would dangle, and the store raises a clear script error.",
-      "A worksheet array written into a viewsheet object (for example vsObj.list = [1, 2]) " +
-         "arrives there as a Java Object[], not a JS array."
+      "Worksheet script context pool (script.ws.contextPool, default false in this release)",
+      "",
+      "When enabled, worksheet scripts (expression columns, script conditions, calc fields,",
+      "variable defaults, MV and R pre/post scripts) run on pooled script contexts, so a script",
+      "never waits for another thread's script and the worksheet script-lock deadlocks",
+      "(#76960, #76961, #76964, #76965, #76972) cannot occur. Behaviour changes when enabled:",
+      "- Worksheet script globals (a top-level var or an assignment to an undeclared name) are",
+      "  guaranteed only within one claimed span (one formula or filter batch, one condition",
+      "  build, one variable default); they no longer carry over between batches, tables or",
+      "  queries, and a var accumulator can depend on how the table is read.",
+      "- A JS array or object passed to a Java method is a copy: host mutation of an out",
+      "  parameter is no longer seen by the script, and java.util.Collections",
+      "  sort/reverse/shuffle on a JS array no longer reorder it.",
+      "- Object identity is lost across the Java boundary: a JS object stored in a Java",
+      "  collection comes back as a copy.",
+      "- Java toString() of a copied JS object now reads {a=1} instead of {a: 1}.",
+      "- A JS function, Map, Set, RegExp, Promise or class instance cannot be stored in a",
+      "  Java object or scope or in a viewsheet object (for example vsObj.f = function(){}),",
+      "  passed to a Java method parameter, or returned as a worksheet expression result;",
+      "  this raises a clear script error.",
+      "- A worksheet plain object or Date written into a viewsheet object arrives there as a",
+      "  host copy (a Java map copy, a java.util.Date), and a worksheet array as a Java",
+      "  Object[], not a JS array.",
+      "- A JS callback (comparator and similar) stored in a Java object is valid only during",
+      "  the worksheet script run that created it; chart and viewsheet callbacks are not",
+      "  affected.",
+      "- javaDate.equals(jsDate) can now be true, because a JS Date passed to a Java method",
+      "  arrives as java.util.Date.",
+      "- A parameter added to a query's variable table mid-query (by VPM or a worksheet",
+      "  script) is still seen as parameter.x by that query's formula, calc-field and",
+      "  embedded-table scripts; a script that reads it without parameter. (for example a",
+      "  post-condition) sees the sandbox's variable table instead, so the value can differ.",
+      "- A formula table holds its lock for up to .maxBatchRows rows of script evaluation, so",
+      "  a concurrent reader of already computed rows can wait that long.",
+      "Tuning: script.ws.contextPool.idleMillis (60000), .cleanThreshold (256),",
+      ".warnSlotsPerSandbox (16), .warnSlotsPerNode (2000), .batchRows (256),",
+      ".maxBatchRows (8192). Script batches start at .batchRows rows and double while a table",
+      "is read sequentially, up to .maxBatchRows.",
+      "The §6.1–6.3 fixes (concurrent AssetQueryScope maps, the condition-filter row-map",
+      "snapshot for #76972, and per-exec script timeout tokens) apply with the pool on or off."
    );
 }
