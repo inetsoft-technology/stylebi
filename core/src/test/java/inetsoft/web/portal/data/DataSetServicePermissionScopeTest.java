@@ -317,6 +317,52 @@ class DataSetServicePermissionScopeTest {
       verify(securityEngine).setPermission(ResourceType.ASSET, "B/ws", permission);
    }
 
+   // [Op: move worksheet][Private] -- Bug #77009 reporter variant: global "A/ws" has permission X;
+   // moving private "A/ws" to private "B" must not copy X onto global "B/ws"
+   @Test
+   void moveDataSet_privateToPrivate_globalSourceHasPermission_doesNotCopyToGlobalTarget()
+      throws Exception
+   {
+      IdentityID alice = new IdentityID("alice", "host");
+      AssetEntry privateEntry = new AssetEntry(AssetRepository.USER_SCOPE,
+                                               AssetEntry.Type.WORKSHEET, "A/ws", alice);
+      when(assetRepository.getAssetEntry(any())).thenReturn(privateEntry);
+      lenient().when(principal.getName()).thenReturn(alice.convertToKey());
+      lenient().when(securityEngine.getPermission(ResourceType.ASSET, "A/ws"))
+         .thenReturn(new Permission());
+      MoveCommand command = mock(MoveCommand.class);
+      when(command.getPath()).thenReturn("B");
+
+      service.moveDataSet("A/ws", command, AssetRepository.USER_SCOPE,
+                          AssetRepository.USER_SCOPE, principal, null);
+
+      verify(securityEngine, never()).setPermission(any(), eq("B/ws"), any());
+      verify(securityEngine, never()).removePermission(any(), eq("B/ws"));
+   }
+
+   // [Op: move worksheet][Global -> Private] -- Bug #77009: the private target must not write the
+   // permission onto the same-named global "B/ws"
+   @Test
+   void moveDataSet_globalToPrivate_doesNotWriteGlobalTargetPermission() throws Exception {
+      IdentityID alice = new IdentityID("alice", "host");
+      AssetEntry globalEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                              AssetEntry.Type.WORKSHEET, "A/ws", null);
+      when(assetRepository.getAssetEntry(any())).thenReturn(globalEntry);
+      lenient().when(principal.getName()).thenReturn(alice.convertToKey());
+      lenient().when(securityEngine.getPermission(ResourceType.ASSET, "A/ws"))
+         .thenReturn(new Permission());
+      MoveCommand command = mock(MoveCommand.class);
+      when(command.getPath()).thenReturn("B");
+
+      service.moveDataSet("A/ws", command, AssetRepository.GLOBAL_SCOPE,
+                          AssetRepository.USER_SCOPE, principal, null);
+
+      verify(assetRepository).changeSheet(any(), argThat(e -> "B/ws".equals(e.getPath()) &&
+                                             e.getScope() == AssetRepository.USER_SCOPE),
+                                          any(), anyBoolean());
+      verify(securityEngine, never()).setPermission(any(), eq("B/ws"), any());
+   }
+
    private static WorksheetBrowserInfo worksheetFolderInfo(String path, int scope) {
       return WorksheetBrowserInfo.builder()
          .name(path)

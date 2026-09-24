@@ -102,6 +102,24 @@ class RecycleUtilsPermissionScopeTest {
       verify(securityEngine, never()).setPermission(any(), eq("RT"), any());
    }
 
+   // [Op: restore WS folder][Private] -- Bug #77009 Case A: the private "RT" was trashed while the
+   // global "RT" derived its permission (nothing recorded); restoring it must not clear the
+   // permission the admin has since added to the global "RT"
+   @Test
+   void restoreWSFolder_privateScope_nullSavedPermission_doesNotClearGlobalPermission()
+      throws Exception
+   {
+      AssetEntry binEntry = folder(AssetRepository.USER_SCOPE, BIN_PATH, alice);
+      stubFolderLookup(binEntry);
+      RecycleBin.Entry rEntry = recycleEntry(BIN_PATH, "RT", AssetRepository.USER_SCOPE, alice,
+                                             RepositoryEntry.WORKSHEET_FOLDER, null);
+
+      withStatics(false, () -> RecycleUtils.restoreWSFolder(rEntry, false, principal, recycleBin));
+
+      verify(securityEngine, never()).setPermission(any(), eq("RT"), any());
+      verify(securityEngine, never()).removePermission(any(), eq("RT"));
+   }
+
    // [Op: restore WS folder][Global]
    @Test
    void restoreWSFolder_globalScope_writesSavedPermission() throws Exception {
