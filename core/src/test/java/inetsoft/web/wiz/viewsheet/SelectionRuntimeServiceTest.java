@@ -1342,13 +1342,25 @@ class SelectionRuntimeServiceTest {
 
    // ── bug-76544 (P3): select_subtree domain-existence validation ─────────────
    //
-   // selectSubtree() itself is not exercised end-to-end with a non-null domain below, the same
+   // selectSubtree() itself is NOT exercised end-to-end with a non-null domain below -- same
    // constraint documented on aSelectedCompositeWithNoSelectedChildrenStillProducesASelfOnlyPath:
-   // SelectionList cannot be constructed or mocked outside a Spring context, and none of this
-   // class's list(...)/tree(...) fixtures stub getSelectionList() for exactly that reason. These
-   // tests instead exercise findUnmatchedPaths directly -- the same package-visible seam
+   // SelectionList cannot be constructed or mocked in THIS plain-Mockito class, because none of
+   // this class's list(...)/tree(...) fixtures stub getSelectionList() for exactly that reason.
+   // These tests instead exercise findUnmatchedPaths directly -- the same package-visible seam
    // selectSubtree's new check calls -- mirroring how setSelection's own P1 fix
    // (refusesATypoedValueRatherThanSilentlyDroppingIt et al.) is tested above.
+   //
+   // That constraint is confirmed real (not merely assumed): a throwaway probe here reproduced
+   // both `new SelectionList()` and `mock(SelectionList.class)` failing with
+   // ExceptionInInitializerError / "Spring application context is not available" -- SelectionList
+   // extends XSwappable, whose static initialiser eagerly reads a SreeEnv property, and that class
+   // touch happens on `new` just as much as on `mock()`. It is NOT unfixable, though: sibling class
+   // SelectionRuntimeServiceSubtreeDomainTest (this same package) boots the same minimal Spring
+   // context inetsoft.uql.viewsheet.SelectionTreeVSAssemblyTest already uses for exactly this
+   // purpose (@SreeHome + BaseTestConfiguration/SwapperTestConfiguration), which makes a real
+   // SelectionList constructible, and drives selectSubtree(...) itself -- via this class's own
+   // tree(...)/harness(...)/principal() fixtures, now package-visible for that reuse -- against a
+   // real domain, closing the "production call site's idMode/guard placement are unverified" gap.
 
    /**
     * The reported gap: a path whose first segment names nothing in the live tree used to still
@@ -1777,8 +1789,13 @@ class SelectionRuntimeServiceTest {
       return assembly;
    }
 
-   /** See {@link #list}'s note on the default bound column. */
-   private static SelectionTreeVSAssembly tree(int sortType, boolean single) {
+   /**
+    * Package-visible (not {@code private}) so {@link SelectionRuntimeServiceSubtreeDomainTest} --
+    * the Spring-backed sibling that can construct a real {@code SelectionList} -- can reuse this
+    * fixture instead of duplicating it. See that class's own header comment for why it exists as a
+    * separate class rather than extra tests appended here.
+    */
+   static SelectionTreeVSAssembly tree(int sortType, boolean single) {
       SelectionTreeVSAssembly assembly = mock(SelectionTreeVSAssembly.class);
       SelectionTreeVSAssemblyInfo info = mock(SelectionTreeVSAssemblyInfo.class);
       when(info.isSingleSelection()).thenReturn(single);
@@ -1789,10 +1806,12 @@ class SelectionRuntimeServiceTest {
       return assembly;
    }
 
-   private record Harness(SelectionRuntimeService service, ViewsheetSessionService sessions,
-                          VSSelectionService selections) {}
+   /** Package-visible -- see {@link #tree(int, boolean)}'s own note. */
+   record Harness(SelectionRuntimeService service, ViewsheetSessionService sessions,
+                  VSSelectionService selections) {}
 
-   private static Harness harness(VSAssembly assembly) {
+   /** Package-visible -- see {@link #tree(int, boolean)}'s own note. */
+   static Harness harness(VSAssembly assembly) {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
       when(vs.getViewsheetInfo()).thenReturn(mock(ViewsheetInfo.class));
@@ -1818,7 +1837,8 @@ class SelectionRuntimeServiceTest {
       return new Harness(new SelectionRuntimeService(sessions, selections), sessions, selections);
    }
 
-   private static Principal principal() {
+   /** Package-visible -- see {@link #tree(int, boolean)}'s own note. */
+   static Principal principal() {
       return mock(Principal.class);
    }
 }
