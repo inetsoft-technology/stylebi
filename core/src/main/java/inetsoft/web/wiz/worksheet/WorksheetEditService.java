@@ -850,6 +850,10 @@ public class WorksheetEditService {
                   op.setLeftAttribute(new AttributeRef(null, leftKeys.get(i)));
                   op.setRightAttribute(new AttributeRef(null, rightKeys.get(i)));
                   op.setOperation(operation);
+                  // Validate only THIS new edge against its own anchor pair -- noperator was
+                  // seeded above with the join's pre-existing operators, which may span other,
+                  // unrelated member-table pairs; a whole-noperator check would be wrong for them.
+                  requireCompatibleJoinKeyTypes(op, anchorLeft, anchorRight);
                   noperator.addOperator(op);
                }
             }
@@ -865,6 +869,7 @@ public class WorksheetEditService {
                op.setLeftAttribute(new AttributeRef(null, leftKey));
                op.setRightAttribute(new AttributeRef(null, rightKey));
                op.setOperation(operation);
+               requireCompatibleJoinKeyTypes(op, anchorLeft, anchorRight);
                noperator.addOperator(op);
             }
 
@@ -959,12 +964,16 @@ public class WorksheetEditService {
        * @param joinPaths the join edges (at least one); each names its own left/right table and
        *                  key columns, so tables may be introduced across multiple edges
        * @throws PairingException if {@code name}/{@code joinPaths} are empty, a referenced table
-       *                    is not found, an edge specifies {@code joinType == "MERGE"}, or a
+       *                    is not found, an edge specifies {@code joinType == "MERGE"}, a
        *                    {@code "CROSS"} edge is combined with any other edge (a cross join is
        *                    an exclusive operation — {@link TableAssemblyOperator#checkValidity}
        *                    rejects it once the combined operator holds more than one edge — so
        *                    a lone {@code joinPaths} entry may be {@code "CROSS"}, but a 2+-edge
-       *                    call may not mix one in)
+       *                    call may not mix one in), or any non-{@code "CROSS"} edge's key pair
+       *                    is type-incompatible (checked per-edge against that edge's own
+       *                    left/right table, since edges need not share a table pair -- see
+       *                    {@link #requireCompatibleJoinKeyTypes(TableAssemblyOperator.Operator,
+       *                    TableAssembly, TableAssembly)})
        */
       public void addJoin(String name, List<WorksheetMutationSupport.JoinPathSpec> joinPaths)
          throws PairingException, SecurityException
@@ -1016,6 +1025,10 @@ public class WorksheetEditService {
             if(operation != TableAssemblyOperator.CROSS_JOIN) {
                op.setLeftAttribute(new AttributeRef(null, path.leftKey()));
                op.setRightAttribute(new AttributeRef(null, path.rightKey()));
+               // Per-edge check against THIS edge's own left/right -- different edges can
+               // (and typically do) connect different table pairs, so a single whole-`noperator`
+               // check after the loop with one fixed pair would be wrong for edge 2+.
+               requireCompatibleJoinKeyTypes(op, left, right);
             }
 
             op.setOperation(operation);
@@ -2315,7 +2328,11 @@ public class WorksheetEditService {
        * @throws PairingException if name is not a RelationalJoinTableAssembly (incl. a
        *         MergeJoinTableAssembly), if existingTable is not currently one of name's own
        *         sources, if newTable is not found or is already one of name's own sources
-       *         (duplicate add), or if joinType is CROSS/MERGE
+       *         (duplicate add), if joinType is CROSS/MERGE, or if the new edge's key pair is
+       *         type-incompatible (checked only for the new edge against existingTable/newTable,
+       *         never against the join's other, pre-existing member-table pairs -- see
+       *         {@link #requireCompatibleJoinKeyTypes(TableAssemblyOperator.Operator,
+       *         TableAssembly, TableAssembly)})
        */
       public void addTableToJoin(String name, String existingTable, String existingKey,
                                  String newTable, String newKey, String joinType,
@@ -2340,12 +2357,14 @@ public class WorksheetEditService {
                "new table attaches to.");
          }
 
-         requireTable(newTable);
+         TableAssembly newTableAssembly = requireTable(newTable);
 
          if(join.getTableAssembly(newTable) != null) {
             throw new PairingException(
                "\"" + newTable + "\" is already one of \"" + name + "\"'s own source tables.");
          }
+
+         TableAssembly existingTableAssembly = join.getTableAssembly(existingTable);
 
          int operation = parseJoinType(joinType);
 
@@ -2380,6 +2399,10 @@ public class WorksheetEditService {
                op.setLeftAttribute(new AttributeRef(null, existingKeys.get(i)));
                op.setRightAttribute(new AttributeRef(null, newKeys.get(i)));
                op.setOperation(operation);
+               // Validate only THIS new edge against its own anchor pair -- top was seeded above
+               // with the join's pre-existing operators, which may span other, unrelated
+               // member-table pairs; a whole-top check would be wrong for them.
+               requireCompatibleJoinKeyTypes(op, existingTableAssembly, newTableAssembly);
                top.addOperator(op);
             }
          }
@@ -2390,6 +2413,7 @@ public class WorksheetEditService {
             op.setLeftAttribute(new AttributeRef(null, existingKey));
             op.setRightAttribute(new AttributeRef(null, newKey));
             op.setOperation(operation);
+            requireCompatibleJoinKeyTypes(op, existingTableAssembly, newTableAssembly);
             top.addOperator(op);
          }
 
@@ -3922,24 +3946,16 @@ public class WorksheetEditService {
       }
 
       /**
-       * Validates that every key pair already wired into {@code top}'s operators has
-       * type-compatible left/right columns, per {@link AssetUtil#isMergeable} -- the same
-       * check {@link InnerJoinService#isValidOperator}/{@link
-       * InnerJoinService#editExistingJoinTable} apply for the native Composer UI's own join
-       * dialogs and the N-ary {@code joinPaths} form of {@link #addJoin(String, List)}.
+       * Validates that every key pair in {@code top}'s operators has type-compatible left/right
+       * columns against ONE FIXED {@code left}/{@code right} table pair -- delegates to
+       * {@link #requireCompatibleJoinKeyTypes(TableAssemblyOperator.Operator, TableAssembly,
+       * TableAssembly)} per operator.
        *
-       * <p>The low-level {@link TableAssemblyOperator} construction the two-table {@code
-       * addJoin}/{@code editJoin} overloads use builds each operator's {@link AttributeRef}s
-       * bare (no {@code setDataType} call), so {@code operator.getLeftAttribute()
-       * .getDataType()} would only ever report the {@link AttributeRef} default of {@code
-       * XSchema.STRING} -- never the real column type -- which is why this resolves each key
-       * name against {@code left}/{@code right}'s own column selection instead of reading the
-       * operator's attribute type directly.</p>
-       *
-       * <p>A key name that does not resolve to a real column on its table is not this
-       * method's concern (a different, pre-existing gap -- see the TS plugin's own
-       * {@code assertJoinKeyResolvesOnTable} precheck) and is silently skipped here rather
-       * than newly rejected.</p>
+       * <p>This overload only fits a caller whose entire {@code top} shares a single table
+       * pair -- the two-table {@code addJoin}'s brand-new-join sub-case (one edge, possibly
+       * multi-key) and {@link #editJoin} (which only ever edits one existing edge). It does
+       * NOT fit a caller whose operators can span different table pairs within the same
+       * {@code top} -- see the per-operator overload's own doc for those.
        *
        * @throws PairingException naming both columns and their actual data types if any key
        *                          pair is type-incompatible
@@ -3949,33 +3965,70 @@ public class WorksheetEditService {
          throws PairingException
       {
          for(int i = 0; i < top.getOperatorCount(); i++) {
-            TableAssemblyOperator.Operator op = top.getOperator(i);
-            DataRef leftAttr = op.getLeftAttribute();
-            DataRef rightAttr = op.getRightAttribute();
+            requireCompatibleJoinKeyTypes(top.getOperator(i), left, right);
+         }
+      }
 
-            if(leftAttr == null || rightAttr == null) {
-               continue;
-            }
+      /**
+       * Validates that a single join operator's key pair has type-compatible left/right
+       * columns, per {@link AssetUtil#isMergeable}.
+       *
+       * <p>The low-level {@link TableAssemblyOperator} construction every join-creating path
+       * in this file uses builds each operator's {@link AttributeRef}s bare (no {@code
+       * setDataType} call), so {@code operator.getLeftAttribute().getDataType()} would only
+       * ever report the {@link AttributeRef} default of {@code XSchema.STRING} -- never the
+       * real column type -- and {@link InnerJoinService#editExistingJoinTable}'s own internal
+       * type check reads exactly that stored (always-default) type, so it can never reject
+       * anything on its own. This is why every operator built here is instead resolved against
+       * its own table pair's real {@code ColumnSelection} before being handed off.</p>
+       *
+       * <p>Called directly, once per newly-built operator against that operator's own
+       * edge-specific {@code left}/{@code right} pair, by the three paths whose operator set
+       * can span more than one table pair: the N-ary {@code joinPaths} form of
+       * {@link #addJoin(String, List)} (per edge, inside its construction loop -- edges need
+       * not share a table pair), the extend-in-place sub-case of the two-table {@code addJoin}
+       * (whose seeded {@code noperator} carries the join's own pre-existing edges before the
+       * new one is appended), and {@link #addTableToJoin} (same seeding shape). Those three
+       * validate only the operator(s) for their own new edge, never the whole seeded set, since
+       * the seeded pre-existing operators may belong to unrelated member-table pairs.</p>
+       *
+       * <p>A key name that does not resolve to a real column on its table is not this
+       * method's concern (a different, pre-existing gap -- see the TS plugin's own
+       * {@code assertJoinKeyResolvesOnTable} precheck) and is silently skipped here rather
+       * than newly rejected.</p>
+       *
+       * @throws PairingException naming both columns and their actual data types if the key
+       *                          pair is type-incompatible
+       */
+      private void requireCompatibleJoinKeyTypes(
+         TableAssemblyOperator.Operator op, TableAssembly left, TableAssembly right)
+         throws PairingException
+      {
+         DataRef leftAttr = op.getLeftAttribute();
+         DataRef rightAttr = op.getRightAttribute();
 
-            DataRef leftRef =
-               WorksheetMutationSupport.resolveFieldOrNull(left, leftAttr.getName(), false);
-            DataRef rightRef =
-               WorksheetMutationSupport.resolveFieldOrNull(right, rightAttr.getName(), false);
+         if(leftAttr == null || rightAttr == null) {
+            return;
+         }
 
-            if(leftRef == null || rightRef == null) {
-               continue;
-            }
+         DataRef leftRef =
+            WorksheetMutationSupport.resolveFieldOrNull(left, leftAttr.getName(), false);
+         DataRef rightRef =
+            WorksheetMutationSupport.resolveFieldOrNull(right, rightAttr.getName(), false);
 
-            String leftType = leftRef.getDataType();
-            String rightType = rightRef.getDataType();
+         if(leftRef == null || rightRef == null) {
+            return;
+         }
 
-            if(!AssetUtil.isMergeable(leftType, rightType)) {
-               throw new PairingException(
-                  Catalog.getCatalog().getString(
-                     "common.invalidJoinType1", leftAttr.getName(), rightAttr.getName()) +
-                  " (\"" + leftAttr.getName() + "\" is " + leftType + ", \"" +
-                  rightAttr.getName() + "\" is " + rightType + ")");
-            }
+         String leftType = leftRef.getDataType();
+         String rightType = rightRef.getDataType();
+
+         if(!AssetUtil.isMergeable(leftType, rightType)) {
+            throw new PairingException(
+               Catalog.getCatalog().getString(
+                  "common.invalidJoinType1", leftAttr.getName(), rightAttr.getName()) +
+               " (\"" + leftAttr.getName() + "\" is " + leftType + ", \"" +
+               rightAttr.getName() + "\" is " + rightType + ")");
          }
       }
 

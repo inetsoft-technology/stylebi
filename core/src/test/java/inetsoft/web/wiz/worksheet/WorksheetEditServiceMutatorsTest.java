@@ -3793,6 +3793,214 @@ class WorksheetEditServiceMutatorsTest {
    }
 
    // =========================================================================
+   // Bug 76901 (layer 2, round 2): three more join-key-creation paths -- addJoin's N-ary
+   // joinPaths form, addJoin's extend-in-place sub-case, and addTableToJoin -- must each
+   // validate join-key type compatibility per new edge, the same as the brand-new-join
+   // sub-case and editJoin already do. Unlike those two, an operator set built by these three
+   // paths can span more than one table pair (joinPaths' own edges, or the join's own
+   // pre-existing operators seeded ahead of the new one), so each new edge must be checked
+   // against its OWN resolved left/right pair, never the whole operator set against one fixed
+   // pair.
+   // =========================================================================
+
+   @Test
+   void addJoinMultiTableRefusesTypeIncompatibleKeysOnAnEdge() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "B", col("id", XSchema.STRING)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+      List<WorksheetMutationSupport.JoinPathSpec> paths =
+         List.of(new WorksheetMutationSupport.JoinPathSpec("A", "id", "B", "id", "INNER"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addJoin("J", paths)));
+
+      assertTrue(ex.getMessage().contains("id"), ex.getMessage());
+      assertNull(ws.getAssembly("J"), "the type-incompatible multi-table join must not have been created");
+   }
+
+   /** Positive control: an all-compatible multi-edge joinPaths call must still succeed. */
+   @Test
+   void addJoinMultiTableAllowsTypeCompatibleKeysOnAllEdges() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "B", col("id", XSchema.INTEGER), col("code", XSchema.STRING)));
+      ws.addAssembly(table(ws, "C", col("code", XSchema.STRING)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+      List<WorksheetMutationSupport.JoinPathSpec> paths = List.of(
+         new WorksheetMutationSupport.JoinPathSpec("A", "id", "B", "id", "INNER"),
+         new WorksheetMutationSupport.JoinPathSpec("B", "code", "C", "code", "INNER"));
+
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", paths));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "an all-compatible multi-edge join must still succeed");
+      assertEquals(3, joined.getTableAssemblies().length);
+   }
+
+   /**
+    * Proves the per-edge scoping directly: the first edge's own validity must not mask a
+    * mismatch on the second edge (a single whole-operator-set check with one fixed table pair
+    * could not even see edge 2's real tables at all).
+    */
+   @Test
+   void addJoinMultiTableRefusesWhenOnlyTheSecondEdgeIsTypeIncompatible() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "A", col("id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "B", col("id", XSchema.INTEGER), col("code", XSchema.STRING)));
+      ws.addAssembly(table(ws, "C", col("code", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+      // Edge 1 (A.id/B.id, both integer) is valid; edge 2 (B.code string / C.code integer) is not.
+      List<WorksheetMutationSupport.JoinPathSpec> paths = List.of(
+         new WorksheetMutationSupport.JoinPathSpec("A", "id", "B", "id", "INNER"),
+         new WorksheetMutationSupport.JoinPathSpec("B", "code", "C", "code", "INNER"));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.addJoin("J", paths)));
+
+      assertTrue(ex.getMessage().contains("code"), ex.getMessage());
+      assertNull(ws.getAssembly("J"),
+         "edge 1's own validity must not mask edge 2's type mismatch");
+   }
+
+   /** Reproduces the refuter's own live-demonstrated scenario for the extend-in-place sub-case. */
+   @Test
+   void addJoinExtendingInPlaceRefusesTypeIncompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      // m_id left untyped -> default "string"; n_key explicitly "integer".
+      ws.addAssembly(table(ws, "N", col("n_key", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+                         ed -> ed.addJoin("J", "J", "m_id", "N", "n_key", "INNER", null, null)));
+
+      assertTrue(ex.getMessage().contains("m_id"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("n_key"), ex.getMessage());
+      RelationalJoinTableAssembly unchanged = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertSame(original, unchanged);
+      assertEquals(2, unchanged.getTableAssemblies().length, "no mutation on the refused extend");
+   }
+
+   /** Positive control: a type-compatible extend-in-place must still succeed. */
+   @Test
+   void addJoinExtendingInPlaceAllowsTypeCompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "L", col("l_id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "M", col("m_id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "N", col("n_key", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "J", "m_id", "N", "n_key", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "a type-compatible extend must still succeed");
+      assertEquals(3, joined.getTableAssemblies().length);
+   }
+
+   /**
+    * Regression guard against the naive-but-wrong alternative fix the diagnosis/refutation
+    * warned against: checking the WHOLE seeded operator set against the new edge's anchor
+    * pair, instead of only the new edge's own operator. L/M's pre-existing operator keys on
+    * "shared" would collide, by NAME ONLY, with M's/N's own "shared" columns (mismatched
+    * types) if such a whole-set check were run against the new edge's anchor pair (M, N) --
+    * but the new edge here doesn't use "shared" as its own key at all, so a correct,
+    * per-edge-only check must never even look at it, and the extend must succeed.
+    */
+   @Test
+   void addJoinExtendingInPlaceDoesNotRevalidatePreExistingOperatorsAgainstTheNewEdgesAnchorTables()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "L", col("shared", XSchema.STRING)));
+      ws.addAssembly(table(ws, "M", col("shared", XSchema.STRING), col("new_key", XSchema.STRING)));
+      ws.addAssembly(table(ws, "N", col("new_key", XSchema.STRING), col("shared", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // L-M join key is "shared" (string/string) -- compatible, seeded into noperator on extend.
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "shared", "M", "shared", "INNER", null, null));
+
+      // The NEW edge's own key is "new_key" (string on both M and N) -- unrelated to "shared".
+      // A naive whole-set check against (M, N) would wrongly re-resolve the pre-existing L-M
+      // operator's "shared" attribute against M (string) and N (integer) and throw; the
+      // correct per-edge-only check never touches it.
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "J", "new_key", "N", "new_key", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "the unrelated pre-existing operator must not be re-validated");
+      assertEquals(3, joined.getTableAssemblies().length);
+      assertNotNull(joined.getOperator("L", "M"), "the original L/M operator must survive unchanged");
+      assertNotNull(joined.getOperator("M", "N"), "the new M/N operator must have been added");
+   }
+
+   @Test
+   void addTableToJoinRefusesTypeIncompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly l = TestWorksheets.tableWithColumns(ws, "L", "l_id");
+      EmbeddedTableAssembly m = TestWorksheets.tableWithColumns(ws, "M", "m_id");
+      ws.addAssembly(l);
+      ws.addAssembly(m);
+      // m_id left untyped -> default "string"; n_key explicitly "integer".
+      ws.addAssembly(table(ws, "N", col("n_key", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      RelationalJoinTableAssembly original = (RelationalJoinTableAssembly) ws.getAssembly("J");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent,
+            ed -> ed.addTableToJoin("J", "M", "m_id", "N", "n_key", "INNER", null, null)));
+
+      assertTrue(ex.getMessage().contains("m_id"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("n_key"), ex.getMessage());
+      RelationalJoinTableAssembly unchanged = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertSame(original, unchanged);
+      assertEquals(2, unchanged.getTableAssemblies().length, "no mutation on the refused call");
+   }
+
+   /** Positive control: a type-compatible add_table_to_join must still succeed. */
+   @Test
+   void addTableToJoinAllowsTypeCompatibleKeys() throws Exception {
+      Worksheet ws = new Worksheet();
+      ws.addAssembly(table(ws, "L", col("l_id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "M", col("m_id", XSchema.INTEGER)));
+      ws.addAssembly(table(ws, "N", col("n_key", XSchema.INTEGER)));
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = serviceWithRealInnerJoinService(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent,
+         ed -> ed.addJoin("J", "L", "l_id", "M", "m_id", "INNER", null, null));
+      svc.apply("TOK", agent,
+         ed -> ed.addTableToJoin("J", "M", "m_id", "N", "n_key", "INNER", null, null));
+
+      RelationalJoinTableAssembly joined = (RelationalJoinTableAssembly) ws.getAssembly("J");
+      assertNotNull(joined, "a type-compatible add_table_to_join must still succeed");
+      assertEquals(3, joined.getTableAssemblies().length);
+      assertNotNull(joined.getOperator("M", "N"));
+   }
+
+   // =========================================================================
    // Column-dependency guard tests (Redmine #75968)
    //
    // The Composer UI has always refused to hide/remove/rename a column a dependent
