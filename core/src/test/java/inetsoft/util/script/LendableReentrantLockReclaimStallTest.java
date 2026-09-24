@@ -80,18 +80,26 @@ public class LendableReentrantLockReclaimStallTest {
          }
       });
       FutureTask<Integer> lender = lender(lock, borrower, worker, lent, acquired);
-      startDaemon(lender);
+      Thread lenderThread = startDaemon(lender);
 
       long deadline = System.currentTimeMillis() + 15000;
 
       while(!lender.isDone()) {
          assertTrue(System.currentTimeMillis() < deadline, "the reclaim never completed");
-         assertNull(scan(), "a busy borrower is not a stall");
+         String reason = scan(lenderThread);
+         assertNull(reason, "a busy borrower is not a stall");
+
+         for(WaitRecord record : WaitRegistry.global().getActive()) {
+            if(record.getThread() == lenderThread) {
+               assertNull(record.getDumpPath(), "a busy borrower must not be dumped");
+               assertFalse(record.isTripped(), "a busy borrower must not trip the lender");
+            }
+         }
+
          Thread.sleep(100);
       }
 
       assertEquals(1, lender.get(), "the lender got its hold back");
-      assertNull(StallDumper.global().getLastDump(), "a busy borrower must not be dumped");
       assertFalse(lock.isLocked());
       assertFalse(lock.isLent());
    }
@@ -125,12 +133,12 @@ public class LendableReentrantLockReclaimStallTest {
          }
       });
       FutureTask<Integer> lender = lender(lock, borrower, worker, lent, acquired);
-      startDaemon(lender);
+      Thread lenderThread = startDaemon(lender);
 
       long deadline = System.currentTimeMillis() + 10000;
 
       while(true) {
-         String reason = scan();
+         String reason = scan(lenderThread);
 
          if(reason != null) {
             assertTrue(reason.contains("LendableReentrantLock.reclaim"), reason);
@@ -145,7 +153,7 @@ public class LendableReentrantLockReclaimStallTest {
       release.countDown();
       assertEquals(1, lender.get(15, TimeUnit.SECONDS), "the lender got its hold back");
       worker.join(5000);
-      assertNull(scan(), "the reclaim ended");
+      assertNull(scan(lenderThread), "the reclaim ended");
       assertFalse(lock.isLocked());
       assertFalse(lock.isLent());
    }
@@ -199,15 +207,26 @@ public class LendableReentrantLockReclaimStallTest {
 
    /**
     * Scan with the server's watchdog (its thread may scan too, with the same scan count), and
-    * get the unreleased stall of the registered waits.
+    * get the unreleased stalls of the waits of {@code thread}. Other tests of the same JVM may
+    * have left hung threads registered, they are ignored.
     */
-   private static String scan() {
+   private static String scan(Thread thread) {
       StallWatchdog.global().scan();
-      return StallWatchdog.withoutJvmDeadlock(StallWatchdog.getUnreleasedStallReason());
+      String reason = StallWatchdog.getUnreleasedStallReason();
+      String name = "on thread \"" + thread.getName() + "\"";
+
+      if(reason == null) {
+         return null;
+      }
+
+      String mine = java.util.Arrays.stream(reason.split("; "))
+         .filter(part -> part.contains(name))
+         .collect(java.util.stream.Collectors.joining("; "));
+      return mine.isEmpty() ? null : mine;
    }
 
    private static Thread startDaemon(Runnable runnable) {
-      Thread thread = new Thread(runnable);
+      Thread thread = new Thread(runnable, "reclaim-test-" + SEQ.incrementAndGet());
       thread.setDaemon(true);
       thread.start();
       return thread;
@@ -216,4 +235,6 @@ public class LendableReentrantLockReclaimStallTest {
    @TempDir
    File dumpDir;
    private final CountDownLatch release = new CountDownLatch(1);
+   private static final java.util.concurrent.atomic.AtomicInteger SEQ =
+      new java.util.concurrent.atomic.AtomicInteger();
 }
