@@ -314,13 +314,230 @@ class DateComparisonServiceTest {
    @Test
    void threadsTheShareAssemblyThroughToSetDateComparison() throws Exception {
       Harness h = harness(model());
-      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
-         4, "year", "2026-03-31", false, null, null, null, null, "Chart2", null, null);
+      givenAssemblies(h, namedAssembly("Chart2", chartInfoOwnConfig(definedOwnDcInfo(), true)));
 
-      h.service.set("tok", principal(), "Chart1", comparison, "");
+      h.service.set("tok", principal(), "Chart1", shareOnly("Chart2"), "");
 
       verify(h.comparisons).setDateComparison(eq("rt1"), eq("Chart1"), any(), eq("Chart2"),
                                               anyString(), any(Principal.class), any());
+   }
+
+   /**
+    * The check ran on the trimmed name while the raw one was saved, so "Chart2 " passed and was
+    * stored as a share source that resolves to nothing.
+    */
+   @Test
+   void savesTheTrimmedShareSourceItValidated() throws Exception {
+      Harness h = harness(model());
+      givenAssemblies(h, namedAssembly("Chart2", chartInfoOwnConfig(definedOwnDcInfo(), true)));
+
+      h.service.set("tok", principal(), "Chart1", shareOnly("  Chart2 "), "");
+
+      verify(h.comparisons).setDateComparison(eq("rt1"), eq("Chart1"), any(), eq("Chart2"),
+                                              anyString(), any(Principal.class), any());
+   }
+
+   /** A whitespace-only name means "no share", and must be saved as null, not "   ". */
+   @Test
+   void savesABlankShareSourceAsNoShare() throws Exception {
+      Harness h = harness(model());
+
+      h.service.set("tok", principal(), "Chart1", shareOnly("   "), "");
+
+      verify(h.comparisons).setDateComparison(eq("rt1"), eq("Chart1"), any(), isNull(),
+                                              anyString(), any(Principal.class), any());
+   }
+
+   /**
+    * A sharing assembly renders and reads back its source's settings, so own fields sent with
+    * {@code shareAssembly} were stored on the unused own model and reported as success. This is
+    * also the retry the "pass shareAssembly to keep sharing" refusal would otherwise lead to.
+    */
+   @ParameterizedTest
+   @ValueSource(strings = {"comparisonOption", "useFacet", "period", "interval", "customPeriods"})
+   void refusesOwnFieldsSentWithAShareSource(String field) {
+      DateComparisonService.Comparison comparison = switch(field) {
+         case "comparisonOption" -> new DateComparisonService.Comparison(
+            null, null, null, false, null, null, null, "change", "Chart1", null, null);
+         case "useFacet" -> new DateComparisonService.Comparison(
+            null, null, null, false, null, true, null, null, "Chart1", null, null);
+         case "period" -> new DateComparisonService.Comparison(
+            4, "year", "2026-03-31", false, null, null, null, null, "Chart1", null, null);
+         case "interval" -> new DateComparisonService.Comparison(
+            null, null, null, true, "yearToDate", null, null, null, "Chart1", null, null);
+         default -> new DateComparisonService.Comparison(
+            null, null, null, false, null, null, null, null, "Chart1", null, null,
+            java.util.List.of(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")));
+      };
+      Harness h = harness(model());
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart2", comparison, ""));
+
+      String expected = field.equals("period") ? "'periods'" : "'" + field + "'";
+      assertTrue(thrown.getMessage().contains(expected), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("can't be combined"), thrown.getMessage());
+      verifyNoInteractions(h.sessions);
+   }
+
+   /**
+    * {@code setComparisonShareFrom} stores whatever it's given. The Composer dialog only offers
+    * other DateCompareAble assemblies with their own comparison, so anything else is refused
+    * here rather than saved as a share that renders nothing.
+    */
+   @Test
+   void refusesAShareSourceThatDoesNotExist() {
+      Harness h = harness(model());
+      givenAssemblies(h, namedAssembly("Chart2", chartInfoOwnConfig(definedOwnDcInfo(), true)));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", shareOnly("Nope"), ""));
+
+      assertTrue(thrown.getMessage().contains("no assembly named 'Nope'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("Chart2"),
+                 "the refusal should list what can be shared from: " + thrown.getMessage());
+      verifySetDateComparisonNeverCalled(h);
+   }
+
+   @Test
+   void refusesSharingFromItself() {
+      VSAssembly self = namedAssembly("Chart1", chartInfoOwnConfig(definedOwnDcInfo(), true));
+      Harness h = harness(model(), self);
+      givenAssemblies(h, self);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", shareOnly("Chart1"), ""));
+
+      assertTrue(thrown.getMessage().contains("itself"), thrown.getMessage());
+      verifySetDateComparisonNeverCalled(h);
+   }
+
+   @Test
+   void refusesAShareSourceThatIsNotDateCompareAble() {
+      Harness h = harness(model());
+      VSAssembly text = namedAssembly("Text1", mock(VSAssemblyInfo.class));
+      givenAssemblies(h, text);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", shareOnly("Text1"), ""));
+
+      assertTrue(thrown.getMessage().contains("doesn't support date comparison"),
+                 thrown.getMessage());
+      verifySetDateComparisonNeverCalled(h);
+   }
+
+   @Test
+   void refusesAShareSourceWithNoComparisonOfItsOwn() {
+      Harness h = harness(model());
+      givenAssemblies(h, namedAssembly("Chart2", chartInfoOwnConfig(null, false)));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", shareOnly("Chart2"), ""));
+
+      assertTrue(thrown.getMessage().contains("no date comparison of its own"),
+                 thrown.getMessage());
+      verifySetDateComparisonNeverCalled(h);
+   }
+
+   /**
+    * A call on a sharing assembly that leaves out {@code shareAssembly} used to write the
+    * assembly's own default model and save a null share source, which silently dropped the share.
+    */
+   @Test
+   void refusesToSilentlyDropAnExistingShare() {
+      VSAssembly sharing = namedAssembly("Chart2", chartInfoAppliedDateComparison("Chart1", true));
+      Harness h = harness(model(), sharing);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart2", comparisonOptionOnly("change"), ""));
+
+      assertTrue(thrown.getMessage().contains("shareAssembly:'Chart1'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("clear_date_comparison"), thrown.getMessage());
+      verifySetDateComparisonNeverCalled(h);
+   }
+
+   @Test
+   void keepsAnExistingShareWhenTheCallRepeatsIt() throws Exception {
+      VSAssembly sharing = namedAssembly("Chart2", chartInfoAppliedDateComparison("Chart1", true));
+      Harness h = harness(model(), sharing);
+      givenAssemblies(h, sharing,
+                      namedAssembly("Chart1", chartInfoOwnConfig(definedOwnDcInfo(), true)));
+
+      h.service.set("tok", principal(), "Chart2", shareOnly("Chart1"), "");
+
+      verify(h.comparisons).setDateComparison(eq("rt1"), eq("Chart2"), any(), eq("Chart1"),
+                                              anyString(), any(Principal.class), any());
+   }
+
+   // ── chart-only options on a crosstab ─────────────────────────────────────
+
+   /**
+    * {@code useFacet} and {@code onlyShowMostRecentDate} have no crosstab consumer, and the
+    * Composer dialog hides both for a crosstab. {@code true} is refused rather than stored and
+    * reported as success.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "true, , useFacet",
+      ", true, onlyShowMostRecentDate"
+   })
+   void refusesChartOnlyOptionsOnACrosstab(Boolean useFacet, Boolean onlyShowMostRecentDate,
+                                            String named)
+   {
+      Harness h = harness(model(), mock(CrosstabVSAssembly.class));
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, null, useFacet, onlyShowMostRecentDate, null, null, null, null);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Crosstab1", comparison, ""));
+
+      assertTrue(thrown.getMessage().contains("'" + named + "'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("crosstab"), thrown.getMessage());
+      verifySetDateComparisonNeverCalled(h);
+   }
+
+   @Test
+   void allowsFalseChartOnlyOptionsOnACrosstab() throws Exception {
+      Harness h = harness(model(), mock(CrosstabVSAssembly.class));
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, null, null, false, null, false, false, null, null, null, null);
+
+      h.service.set("tok", principal(), "Crosstab1", comparison, "");
+
+      verify(h.comparisons).setDateComparison(eq("rt1"), eq("Crosstab1"), any(), isNull(),
+                                              anyString(), any(Principal.class), any());
+   }
+
+   private static DateComparisonService.Comparison shareOnly(String shareAssembly) {
+      return new DateComparisonService.Comparison(null, null, null, false, null, null, null,
+                                                  null, shareAssembly, null, null);
+   }
+
+   private static VSAssembly namedAssembly(String name, VSAssemblyInfo info) {
+      VSAssembly assembly = mock(VSAssembly.class);
+      when(assembly.getAbsoluteName()).thenReturn(name);
+      when(assembly.getName()).thenReturn(name);
+      when(assembly.getVSAssemblyInfo()).thenReturn(info);
+      return assembly;
+   }
+
+   /** Registers {@code assemblies} both by name and in {@code vs.getAssemblies(true)}. */
+   private static void givenAssemblies(Harness h, VSAssembly... assemblies) {
+      for(VSAssembly assembly : assemblies) {
+         when(h.vs().getAssembly(assembly.getAbsoluteName())).thenReturn(assembly);
+      }
+
+      when(h.vs().getAssemblies(true)).thenReturn(assemblies);
+   }
+
+   private static void verifySetDateComparisonNeverCalled(Harness h) {
+      try {
+         verify(h.comparisons, never()).setDateComparison(any(), any(), any(), any(), any(),
+                                                          any(), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
    }
 
    @Test
@@ -1877,6 +2094,33 @@ class DateComparisonServiceTest {
       Map<String, Object> period = (Map<String, Object>) read.get("period");
       assertNull(period.get("endDate"),
                  "reporting a stale end date beside endToday would read as the range's real end");
+   }
+
+   /**
+    * The interval's granularity is a {@code DateComparisonInfo} bitmask, reported as a word the
+    * same way the interval level is, alongside the interval's own {@code inclusive}.
+    */
+   @ParameterizedTest
+   @CsvSource({
+      "16, year",
+      "8, quarter",
+      "4, month",
+      "2, week",
+      "1, day",
+      "0, all"
+   })
+   void readsTheIntervalGranularityAsAWord(String code, String word) throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getIntervalPaneModel().setGranularity(dynamic());
+      model.getIntervalPaneModel().getGranularity().setValue(code);
+      model.getIntervalPaneModel().setInclusive(true);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Chart1");
+
+      @SuppressWarnings("unchecked")
+      Map<String, Object> interval = (Map<String, Object>) read.get("interval");
+      assertEquals(word, interval.get("granularity"));
+      assertEquals(true, interval.get("inclusive"));
    }
 
    // ── harness ───────────────────────────────────────────────────────────────
