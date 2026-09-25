@@ -23,6 +23,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.GlobalExceptionHandler;
+import inetsoft.web.admin.security.SecurityService;
 import inetsoft.web.security.auth.*;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -176,6 +177,57 @@ public class AdminExceptionHandler {
       String msg = Catalog.getCatalog().getString("http.error.unauthorized");
       return ResponseEntity.status(HttpStatus.FORBIDDEN)
          .body(new GenericError(cause.getClass().getSimpleName(), msg));
+   }
+
+   /**
+    * Error handler for a {@link SecurityService.PreMutationRefusalException}. The update methods
+    * of {@link SecurityService} wrap their precondition failures (permission, existence, and
+    * request-model checks) in this type so that callers can tell nothing was mutated. Map the
+    * wrapped cause back to the status it would have produced unwrapped instead of letting the
+    * generic handler report it as an unexpected server error.
+    */
+   @ExceptionHandler(SecurityService.PreMutationRefusalException.class)
+   @ResponseBody
+   @ApiResponses({
+      @ApiResponse(
+         responseCode = "401",
+         description = "You are not authorized to access the requested resource."),
+      @ApiResponse(
+         responseCode = "404",
+         description = "The requested resource was not found."),
+      @ApiResponse(
+         responseCode = "405",
+         description = "The requested resource was not a valid target for the request."),
+      @ApiResponse(
+         responseCode = "409",
+         description = "The resource already exists."),
+      @ApiResponse(
+         responseCode = "500",
+         description = "An error occurred on the server while processing the request.")
+   })
+   public ResponseEntity<Object> handlePreMutationRefusal(
+      SecurityService.PreMutationRefusalException e)
+   {
+      Throwable cause = e.getCause();
+
+      if(cause instanceof UnauthorizedAccessException unauthorized) {
+         LOG.debug("Unauthorized access to resource", unauthorized);
+         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(new UnauthorizedAccessError(unauthorized));
+      }
+      else if(cause instanceof MissingResourceException missing) {
+         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(handleMissingResource(missing));
+      }
+      else if(cause instanceof InvalidResourceException invalid) {
+         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+            .body(handleInvalidResource(invalid));
+      }
+      else if(cause instanceof ResourceExistsException exists) {
+         return ResponseEntity.status(HttpStatus.CONFLICT).body(handleExistingResource(exists));
+      }
+
+      Exception target = cause instanceof Exception ex ? ex : e;
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(handleException(target));
    }
 
    /**
