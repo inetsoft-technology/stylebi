@@ -343,8 +343,10 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          }
       }
 
-      int infoWidth = CoordinateHelper.getAssemblySize(
-         assembly, CoordinateHelper.getLensSize(lens, true)).width;
+      Insets inset = getCardInset(info);
+      // the title lane spans the grid, inside the card inset
+      int infoWidth = Math.max(0, CoordinateHelper.getAssemblySize(
+         assembly, CoordinateHelper.getLensSize(lens, true)).width - inset.left - inset.right);
       calculateColumnsPosition(info, lens);
       // clip the background fill too, not just the title/data drawn after it - the
       // background is a plain unclipped fillRect (see ExportUtil.drawTextBox) that
@@ -405,12 +407,14 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          format.getDefaultFormat().setFont(VSFontHelper.getDefaultFont());
       }
 
+      Insets inset = getCardInset(info);
       Dimension titleBounds = new Dimension(totalColumnWidth, info.getTitleHeight());
       int viewsheetX =
          (int) (getViewsheetBounds() != null ? getViewsheetBounds().getX() : 0);
       int viewsheetY =
          (int) (getViewsheetBounds() != null ? getViewsheetBounds().getY() : 0);
-      writeTitleCell(position.x - viewsheetX, position.y - viewsheetY, titleBounds,
+      writeTitleCell(position.x + inset.left - viewsheetX, position.y + inset.top - viewsheetY,
+                     titleBounds,
                      null, 0, 0, format, Tool.localize(info.getTitle()), null, null,
                      info.getFormat(), new Rectangle(0, 0, 1, 1));
    }
@@ -515,10 +519,10 @@ public abstract class VSTableDataHelper extends ExporterHelper {
                                         int r, int c, Dimension span,
                                         VSTableLens lens)
    {
-      Point pos = getViewsheet().getPixelPosition(info.getPixelOffset());
+      Rectangle grid = getGridBounds(info);
       int titleHeight = info.isTitleVisible() ? info.getTitleHeight() : 0;
-      int x = pos.x;
-      int y = pos.y + titleHeight;
+      int x = grid.x;
+      int y = grid.y + titleHeight;
       int w = 0;
       int h = 0;
       int ncol = (span != null) ? span.width : 1;
@@ -557,7 +561,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          h += getCellHeight(getViewsheet(), info, row, lens);
       }
 
-      int totalInfoY = pos.y + info.getPixelSize().height;
+      int totalInfoY = grid.y + grid.height;
 
       if(y + h > totalInfoY) {
          h = totalInfoY - y;
@@ -792,6 +796,36 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       }
 
       return null;
+   }
+
+   /**
+    * The table card's inset as this helper's exporter resolves it.
+    */
+   protected Insets getCardInset(TableDataVSAssemblyInfo info) {
+      VSExporter exporter = getExporter();
+      Insets inset = exporter == null ? null : exporter.getTableCardInset(info);
+      return inset == null ? new Insets(0, 0, 0, 0) : inset;
+   }
+
+   /**
+    * The card: the assembly's own rect, in viewsheet pixels.
+    */
+   protected Rectangle getCardBounds(TableDataVSAssemblyInfo info) {
+      Point pos = getViewsheet().getPixelPosition(info.getPixelOffset());
+      Dimension size = getViewsheet().getPixelSize(info);
+      return new Rectangle(pos.x, pos.y, size.width, size.height);
+   }
+
+   /**
+    * The grid: the card less its inset on all four edges.
+    */
+   protected Rectangle getGridBounds(TableDataVSAssemblyInfo info) {
+      Rectangle card = getCardBounds(info);
+      Insets inset = getCardInset(info);
+
+      return new Rectangle(card.x + inset.left, card.y + inset.top,
+                           Math.max(0, card.width - inset.left - inset.right),
+                           Math.max(0, card.height - inset.top - inset.bottom));
    }
 
    /**
