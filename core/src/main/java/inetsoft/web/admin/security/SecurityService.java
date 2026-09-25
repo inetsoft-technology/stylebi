@@ -831,6 +831,10 @@ public class SecurityService {
             throw new ResourceExistsException(request.getName());
          }
 
+         if(provider.getOrgIdFromName(request.getName()) != null) {
+            throw new ResourceExistsException(request.getName());
+         }
+
          // Validated ahead of both branches so an invalid code is rejected consistently whether or
          // not copyFrom was supplied, and before the ActionRecord exists -- this method's finally
          // block stamps ACTION_STATUS_SUCCESS unconditionally, so a throw after that point would
@@ -951,6 +955,14 @@ public class SecurityService {
             throw new InvalidResourceException();
          }
 
+         // org ids are case-insensitive: reject renaming to an id that another org already has,
+         // ignoring case. Only checked when the id actually changes so existing orgs stay editable.
+         if(request.getId() != null && !request.getId().equals(oldOrganization.getId()) &&
+            isOrganizationIdTaken(securityProvider, request.getId(), oldOrganization.getId()))
+         {
+            throw new ResourceExistsException(request.getId());
+         }
+
          List<String> requestGroups = request.getMemberUsers() == null ?
             Collections.emptyList() : request.getMemberGroups();
          List<IdentityID> memberGroupIds = requestGroups.stream()
@@ -1029,6 +1041,25 @@ public class SecurityService {
       identityService.setIdentityPermissions(
          oldId, newId, ResourceType.SECURITY_ORGANIZATION,
          principal, organizationModel.permittedIdentities(), "");
+   }
+
+   /**
+    * Checks whether an organization other than {@code excludeId} already uses {@code orgId},
+    * ignoring case. Org ids are case-insensitive system-wide (storage buckets, org-scoped
+    * properties, org-boundary and ACL identity checks), so two orgs whose ids differ only in
+    * case must never coexist.
+    */
+   private static boolean isOrganizationIdTaken(SecurityProvider securityProvider, String orgId,
+                                                String excludeId)
+   {
+      if(orgId == null) {
+         return false;
+      }
+
+      String[] orgIds = securityProvider.getOrganizationIDs();
+
+      return orgIds != null && Arrays.stream(orgIds)
+         .anyMatch(id -> id != null && !id.equals(excludeId) && id.equalsIgnoreCase(orgId));
    }
 
    public void deleteOrganization(String organizationid, Principal principal) throws Exception {
