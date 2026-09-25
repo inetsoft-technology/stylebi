@@ -27,6 +27,7 @@ import inetsoft.test.*;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.log.*;
 import inetsoft.web.admin.properties.PropertiesController;
+import inetsoft.web.admin.properties.PropertyChangeSideEffects;
 import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,7 +67,7 @@ class PropertiesEngineLogLevelResetTest {
       engine = PropertiesEngine.getInstance();
       engine.clear();
 
-      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      securityEngine = mock(SecurityEngine.class);
       when(securityEngine.getSecurityProvider()).thenReturn(mock(SecurityProvider.class));
       ObjectProvider<SecurityEngine> securityEngineProvider =
          new StaticListableBeanFactory(Map.of("securityEngine", securityEngine))
@@ -206,7 +207,8 @@ class PropertiesEngineLogLevelResetTest {
       assertEquals(LogLevel.DEBUG, logManager.getLevel(dotted));
       assertEquals(LogLevel.DEBUG, logManager.getLevel(orgScoped));
 
-      PropertiesController controller = new PropertiesController(mock(AssetRepository.class));
+      PropertiesController controller = new PropertiesController(
+         new PropertyChangeSideEffects(mock(AssetRepository.class), logManager, securityEngine));
       controller.deleteProperty(null, "log.level." + logger);
       controller.deleteProperty(null, "log.level." + dotted);
       controller.deleteProperty(null, "log.level." + orgScoped);
@@ -391,6 +393,7 @@ class PropertiesEngineLogLevelResetTest {
 
    private PropertiesEngine engine;
    private LogManager logManager;
+   private SecurityEngine securityEngine;
    private ObjectProvider<LogManager> originalLogManagerProvider;
    private KeyValueStorage<String> originalStorage;
    private InMemoryKeyValueStorage<String> storage;
