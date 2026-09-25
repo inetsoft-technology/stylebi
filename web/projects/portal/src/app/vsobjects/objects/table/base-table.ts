@@ -728,7 +728,9 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
 
       const border = this.model.objectFormat.border.left;
 
-      if(border && border.includes("none")) {
+      // the grid renders one border wider than its columns; a right inset leaves no card border
+      // over the clip edge to hide the last column's right border
+      if((border && border.includes("none")) || this.getPadding().right > 0) {
          this.displayColWidths[this.displayColWidths.length - 1] -= 1;
       }
 

@@ -649,13 +649,14 @@ describe("VSTable — Pass 3: Display", () => {
 
       it("should widen the last display column onto the content width, not the card width", () => {
          // card width=300, inset removes 10+6=16 -> content width=284; sum(30+30+90+40)=190
-         // last col should absorb 284-190=94 -> 40+94=134, not the card-space 300-190=110 -> 150
+         // last col should absorb 284-190=94 -> 40+94=134, not the card-space 300-190=110 -> 150,
+         // less 1px so its right border lands inside the content rect
          const { comp } = createTableComponent({
             model: { colWidths: [30, 30, 90, 40], colCount: 4, padding: inset } as any,
          });
          comp.updateDisplayColumnWidth();
 
-         expect(comp.displayColWidths[3]).toBe(134);
+         expect(comp.displayColWidths[3]).toBe(133);
       });
 
       it("should widen the last display column onto the content width in max mode too", () => {
@@ -668,7 +669,18 @@ describe("VSTable — Pass 3: Display", () => {
          });
          comp.updateDisplayColumnWidth();
 
-         expect(comp.displayColWidths[3]).toBe(134);
+         expect(comp.displayColWidths[3]).toBe(133);
+      });
+
+      it("should leave room for the last column's right border inside a right inset", () => {
+         // the grid renders one border wider than its columns, and with an inset no card border
+         // covers the clip edge, so the last column gives up 1px even when it is not stretched
+         const { comp } = createTableComponent({
+            model: { colWidths: [100, 100, 200], colCount: 3, padding: inset } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[2]).toBe(199);
       });
 
       it("should not stretch the last column onto a wider grid measured by the scroll wrapper", () => {
