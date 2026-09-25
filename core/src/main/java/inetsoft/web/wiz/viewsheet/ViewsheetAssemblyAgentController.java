@@ -49,10 +49,14 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.report.io.csv.CSVConfig;
+import inetsoft.report.io.viewsheet.excel.CSVUtil;
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.util.audit.BookmarkRecord;
@@ -892,6 +896,9 @@ public class ViewsheetAssemblyAgentController {
     * ({@code AssemblyImageServiceProxy}'s cluster-aware table/chart export, per
     * {@code ExportController}'s own {@code /export/vs-table}/{@code /export/vs-chart} split) not
     * yet wired here; refused by name rather than silently exporting the whole sheet instead. A CSV
+    * {@code target} must be an exportable {@link TableDataVSAssembly}, and a whole-sheet CSV needs
+    * at least one exportable table (the Export dialog's own "contains no tables" guard) -- either
+    * would otherwise produce an empty zip, so both are refused by name instead. A CSV
     * export forces {@code match=false} regardless of the caller's own {@code match} value --
     * {@code exportAssemblies} scopes CSV to the full table data, and a viewport-clipped export
     * would silently contradict that, mirroring {@code ExportController}/
@@ -950,14 +957,43 @@ public class ViewsheetAssemblyAgentController {
          // formatType == EXPORT_TYPE_CSV: scope to just this one table/crosstab/calc table via
          // CSVConfig#exportAssemblies, the same per-assembly filter StyleBI's own Export dialog's
          // CSV table-select checkbox uses (CSVVSExporter#needExport). Validated up front -- a
-         // target that resolves to no assembly would otherwise match nothing in that filter and
-         // silently stream an empty zip with a 200, rather than failing loud.
-         if(rvs.getViewsheet().getAssembly(target) == null) {
+         // target that resolves to no assembly, is not a table type (CSVVSExporter writes table
+         // data only; its writeChart is a no-op), or is a table CSV export would skip (hidden,
+         // tip/pop component, zero size) would otherwise match nothing in that filter and
+         // silently stream an empty zip with a 200, rather than failing loud (bug 76958).
+         VSAssembly targetAssembly = rvs.getViewsheet().getAssembly(target);
+
+         if(targetAssembly == null) {
             throw new PairingException("No such assembly \"" + target + "\"");
+         }
+
+         if(!(targetAssembly instanceof TableDataVSAssembly)) {
+            throw new IllegalArgumentException(
+               "export_viewsheet: a CSV 'target' must be a Table, Crosstab or Freehand Table, but \"" +
+               target + "\" is a " + assemblyTypeLabel(targetAssembly) + ", which CSV export " +
+               "does not write -- bind the same fields to a crosstab to export its data as CSV, " +
+               "or use format=PNG (or get_viewsheet_image) for this assembly itself.");
+         }
+
+         if(!CSVUtil.needExport(targetAssembly)) {
+            throw new IllegalArgumentException(
+               "export_viewsheet: \"" + target + "\" is not exportable to CSV in the current " +
+               "view (it is hidden, a tooltip/pop-up component, or has no size), so the CSV " +
+               "export would be empty.");
          }
 
          csvConfig = new CSVConfig();
          csvConfig.setExportAssemblies(List.of(target));
+      }
+      else if(formatType == FileFormatInfo.EXPORT_TYPE_CSV) {
+         // Whole-sheet CSV: the same guard VSExportService applies to the human Export dialog --
+         // a viewsheet with no exportable table would otherwise produce an empty zip (bug 76958).
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs != null && !exportService.hasCsvExportableTable(vs)) {
+            throw new IllegalArgumentException(
+               Catalog.getCatalog().getString("common.repletAction.exportFailed.cvs"));
+         }
       }
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -993,6 +1029,16 @@ public class ViewsheetAssemblyAgentController {
       response.setContentLength(bytes.length);
       response.getOutputStream().write(bytes);
       response.getOutputStream().flush();
+   }
+
+   /**
+    * Human-readable assembly type for an error message, e.g. "Chart" for a
+    * {@code ChartVSAssembly}.
+    */
+   private static String assemblyTypeLabel(VSAssembly assembly) {
+      String name = assembly.getClass().getSimpleName();
+      return name.endsWith("VSAssembly") && name.length() > "VSAssembly".length() ?
+         name.substring(0, name.length() - "VSAssembly".length()) : name;
    }
 
    private static int toFormatType(String format) {
