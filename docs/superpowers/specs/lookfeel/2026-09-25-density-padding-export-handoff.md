@@ -12,6 +12,12 @@ touches four frontend files only: `base-table.ts`, `mini-toolbar.service.ts` and
 Java line cited here moved. The two `base-table.ts` sites in §9 moved by six lines and are updated.
 Its content is in §5.
 
+**Re-checked again:** 2026-09-25, at `39a4336a6`, slice B's fix for F1 (§9). It moves two sets of
+Java lines cited here:
+- `VSTableDataHelper`: every line after `:330` is one higher.
+- `BaseTableService.getColWidths`: it is now an overload pair. The §6.1 row and §9 give its new
+  lines.
+
 **Where this file lives:** it began untracked at the enterprise root to keep it off slice B. It
 moved here with the slice C branch's first commit. Fold it into the spec when that is written.
 
@@ -50,7 +56,7 @@ moved here with the slice C branch's first commit. Fold it into the spec when th
   removed so that a bare `git push` cannot land on #5618. Push it with
   `git push -u origin feature-density-padding-export`.
 - Once #5617 and #5618 merge, rebase it onto `epic-74519`. Until then, rebase it onto slice B
-  whenever slice B takes more fixes.
+  whenever slice B takes more fixes. It was first rebased onto slice B's F1 fix, `39a4336a6`.
 - Naming convention is `feature-{redmine#}` (see `CLAUDE.md`). No Redmine issue exists yet, so the
   branch follows slices A and B (`feature-density-padding`, `feature-density-padding-card-inset`).
 
@@ -94,8 +100,8 @@ levers, and every one is wrong. All four were verified in code by two separate s
 - **Shrink-to-fit:** card width = min(Σcolumns + L + R, design width), and card height takes the
   inset too.
 - **Last column** stretches to the **content** width (`base-table.ts` `updateDisplayColumnWidth`,
-  fixed in `d134281c1` / `3dc998b50`). But see F1 in §9: the server may already be filling it to the
-  card width.
+  fixed in `d134281c1` / `3dc998b50`). Since `39a4336a6` the server fills it to the content width
+  too (F1, §9), so the columns a marked table sends add up to its grid, not its card.
 - **Last column's right border:** it gives up 1px when there is a right inset (`25997ad2a`). Since
   `6820f9db2` that pixel is display-only. `lastColBorderAllowance` records it, a column drag adds
   it back, and the stored `model.colWidths` never carries it. A hidden, zero-width last column
@@ -136,7 +142,7 @@ Geometry sites. Every one reads the **card** today:
 | `VSTableDataHelper.getPixelBounds` `:513` (cell origin `:517`, bottom clamp `:559-563`) | `getPixelPosition(info.getPixelOffset())`, `getPixelSize().height` | origin + (L, T); clamp − B |
 | `VSTableDataHelper.writeTitle` `:393` (origin `:398`, width from `:345-346`) | pixel offset, `CoordinateHelper.getAssemblySize` | origin + (L, T); width − (L + R) |
 | `ExcelVSUtil.calculateColumnWidths` `:146` (`totalPixelW` `:151`, last-column fill `:190-219`) | `getPixelSize().width` | content width, **for non-Excel callers only** |
-| `BaseTableService.getColWidths` `:1196` (fill `:1216-1222`), called at `VSTableDataHelper:330` | `layoutSize`, else `pixelSize` width | content width. **Also the browser's column-width source.** See F1. |
+| `BaseTableService.getColWidths(assembly, lens, false)` `:1201` (card width `:1210`, fill `:1235-1240`), called at `VSTableDataHelper:331` | the whole card: `layoutSize`, else `pixelSize` width. The `false` keeps it there. | content width, **for non-Excel callers only**. Pass `true` for PDF, SVG and PPT, or route it through the helper's inset. Excel stays on `false`. The browser already takes the two-argument form, which is `true` (F1). |
 | `VSTableLens.initTableLensColumnWidths` `:1735-1739` | `getPixelSize().width`; cached once and computed before any helper runs | content width |
 | `VSTableHelper.getVisibleRowCount` `:200` (match mode: rows that fit) | `pixelSize.height` − title − header | − (T + B) |
 | `VSCrosstabHelper.writeData` height budget (about `:367-373`) and trim (`:193-207`) | `vs.getPixelSize(info)` | − (T + B) |
@@ -273,20 +279,27 @@ table in §6.1.
 
 ## 9. Findings outside slice C, for slices A and B
 
-- **F1 (slice B), likely a live defect, seen only in code so far:**
-  - The server fills the last column to the **card** width. `BaseTableService.getColWidths`
-    (`:1196`, fill `:1216-1222`) stretches it to the `layoutSize`/`pixelSize` width, and
-    `LoadTableDataCommand` sends that array as `model.colWidths` (`:441-443`, `base-table.ts:1081`).
-  - The browser's stretch (`base-table.ts:750-758`) only ever adds width, so a marked table's columns
-    sum to the card while the grid is clipped to the content rect.
-  - Re-checked at `6820f9db2`: the server fill is unchanged. #5618's round-2 review established that
-    the horizontal scroll extent is `sum(model.colWidths)` (`vs-table.component.html:316`), so the
-    columns summing to the card is exactly what would produce the scrollbar.
-  - **Expected on screen:** a horizontal scrollbar with about 2 × inset of travel (about 32px at
-    comfortable) on a marked table whose columns are narrower than the assembly.
-  - Asked the user to check this on slice B's MT-1 table; not yet answered.
-  - If confirmed, fix it in slice B. The export reads the same method (`VSTableDataHelper:330`), so
-    one fix serves both, and slice C should branch after it.
+- **F1 (slice B): confirmed, and fixed in slice B as `39a4336a6`.**
+  - **The defect.** The server filled the last column to the **card** width: `getColWidths`
+    stretched it until the columns added up to W, never less. The browser's stretch only adds width,
+    and the horizontal scroll measures `sum(model.colWidths)` against the content width C
+    (`vs-table.component.html:304`, `:316`). The crosstab and calc table measure it the same way.
+    So a marked table whose columns would fit scrolled by exactly L + R, however narrow they were.
+    Tables whose columns genuinely overflow the card scrolled correctly.
+  - **Confirmed** by the user's drag test on 2026-09-25: after narrowing the columns well below the
+    table width, the scrollbar stayed.
+  - **The fix**, in three parts:
+    - The two-argument `getColWidths` fills to the content width (`getContentWidth`, `:1270`).
+    - The fallback for a last column with no width set used to take `VSTableLens`'s cached width,
+      which the lens fills to the card. It now takes back what the lens put into the inset.
+    - The composer's column resize (`ComposerVSTableService:1091`) tops a set last column up to the
+      content width. Before, it topped up to the card and saved that width into the file.
+  - **What stayed.** Export calls `getColWidths(assembly, lens, false)` and still fills to the card
+    (§6.1). `VSTableLens.initTableLensColumnWidths` still fills its cached widths to the card too.
+    So the earlier note that "one fix serves both" was wrong: the export call is a slice C site.
+  - **Leftover.** A shrink-to-fit table whose last column was resized in the composer before the
+    fix has a card-filling width saved. It keeps the scrollbar until that column is dragged again.
+  - **Tests:** `BaseTableColWidthsInsetTest` and `ComposerVSTableServiceColumnWidthInsetTest`.
 - **F2 (slice A), HTML cell padding top:** `HTMLCoordinateHelper.getPaddingString`
   (`report/io/viewsheet/html/HTMLCoordinateHelper.java:303-304`) writes `padding-top` from
   `padding.right`. The bug predates this work, but slice A's asymmetric cell padding (y 6 / x 8 at
@@ -307,4 +320,5 @@ The remaining brainstorming path (architectural):
 4. Write the spec. It should supersede §7.2 of the parent design, whose site list is wrong (§4).
 5. Self-review the spec, get user approval, then run `superpowers:writing-plans`.
 
-Before any of that, get an answer on F1: it decides whether slice C branches after a slice B fix.
+F1, which had to be settled first, is fixed on slice B, and this branch sits on that fix (§2, §9).
+Resume at step 1.
