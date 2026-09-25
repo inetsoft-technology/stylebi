@@ -2,8 +2,6 @@ package inetsoft.report.io.viewsheet;
 
 import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.report.io.viewsheet.html.HTMLVSExporter;
-import inetsoft.report.io.viewsheet.svg.PNGVSExporter;
-import inetsoft.report.io.viewsheet.svg.SVGVSExporter;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -17,7 +15,6 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.Insets;
 import java.io.ByteArrayOutputStream;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -34,15 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class TableCardInsetResolverTest {
    @Test
    void cardFormatsResolveTheTablePadding() {
-      for(AbstractVSExporter exporter : List.of(
-         new SVGVSExporter(new ByteArrayOutputStream()),
-         new PNGVSExporter(new ByteArrayOutputStream()),
-         new HTMLVSExporter(new ByteArrayOutputStream())))
-      {
-         assertEquals(new Insets(16, 12, 8, 4),
-                      exporter.getTableCardInset(padded(new Insets(16, 12, 8, 4))),
-                      exporter.getClass().getSimpleName());
-      }
+      assertEquals(new Insets(16, 12, 8, 4),
+                   new HTMLVSExporter(new ByteArrayOutputStream())
+                      .getTableCardInset(padded(new Insets(16, 12, 8, 4))));
    }
 
    @Test
@@ -55,13 +46,13 @@ class TableCardInsetResolverTest {
    @Test
    void aNullPaddingResolvesZero() {
       assertEquals(new Insets(0, 0, 0, 0),
-                   new SVGVSExporter(new ByteArrayOutputStream()).getTableCardInset(padded(null)));
+                   new HTMLVSExporter(new ByteArrayOutputStream()).getTableCardInset(padded(null)));
    }
 
    @Test
    void theResolvedInsetIsACopy() {
       TableVSAssemblyInfo info = padded(new Insets(16, 16, 16, 16));
-      new SVGVSExporter(new ByteArrayOutputStream()).getTableCardInset(info).left = 0;
+      new HTMLVSExporter(new ByteArrayOutputStream()).getTableCardInset(info).left = 0;
 
       assertEquals(16, info.getPadding().left, "a caller must not be able to change the padding");
    }

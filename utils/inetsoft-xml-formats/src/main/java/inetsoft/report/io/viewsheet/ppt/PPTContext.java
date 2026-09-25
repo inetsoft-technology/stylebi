@@ -25,7 +25,7 @@ import org.apache.poi.xslf.usermodel.XMLSlideShow;
  * @version 8.5, 8/7/2006
  * @author InetSoft Technology Corp
  */
-public interface PPTContext {
+interface PPTContext {
    /**
     * Get the powerpoint slide show.
     */
