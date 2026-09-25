@@ -29,14 +29,14 @@ package inetsoft.web.admin.user;
  *     subscribeTop5UsersGrid                           → "monitoring/summary"
  *
  *   REST POST /api/em/monitor/user/logout (logout) — delegates session IDs and resolved
- *   cluster address to userService.logoutSession().
+ *   cluster address and caller principal to userService.logoutSession().
  *
  * Behavioral guarantees covered:
  *
  * [G1] subscribeSessionModel: permission denied → SecurityException; addSubscriber not called.
  * [G2] subscribeFailedLoginGrid: permission denied → SecurityException.
  * [G3] subscribeTop5UsersGrid: permission denied (monitoring/summary) → SecurityException.
- * [G4] logout delegates session IDs and null address (blank server) to userService.
+ * [G4] logout delegates session IDs, null address (blank server) and principal to userService.
  */
 
 import inetsoft.sree.security.*;
@@ -121,8 +121,8 @@ class UserStatusControllerTest {
    void logout_blankServer_passesNullAddressToService() {
       String[] sessionIds = { "s1", "s2" };
 
-      controller.logout(sessionIds, "/");
+      controller.logout(sessionIds, "/", principal);
 
-      verify(userService).logoutSession(isNull(), eq(sessionIds));
+      verify(userService).logoutSession(isNull(), eq(sessionIds), eq(principal));
    }
 }
