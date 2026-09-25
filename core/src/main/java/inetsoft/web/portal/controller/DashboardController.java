@@ -32,6 +32,7 @@ import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -300,7 +301,9 @@ public class DashboardController {
          }
          else {
             entry = AssetEntry.createAssetEntry(identifier);
-            owner = Objects.requireNonNull(entry).getUser();
+            checkViewsheetReadable(AssetUtil.getAssetRepository(false), entry, identifier,
+               principal);
+            owner = entry.getUser();
          }
 
          ViewsheetEntry viewsheet = owner != null ?
@@ -429,7 +432,9 @@ public class DashboardController {
          }
          else {
             entry = AssetEntry.createAssetEntry(identifier);
-            owner = Objects.requireNonNull(entry).getUser();
+            checkViewsheetReadable(viewsheetService.getAssetRepository(), entry, identifier,
+               principal);
+            owner = entry.getUser();
          }
 
          ViewsheetEntry viewsheet = owner != null ?
@@ -466,7 +471,7 @@ public class DashboardController {
             ViewsheetEntry v2 = ((VSDashboard) odashboard).getViewsheet();
 
             if(!Tool.equals(v1, v2)) {
-               removeDashboardViewsheet((VSDashboard) odashboard);
+               removeDashboardViewsheet((VSDashboard) odashboard, principal);
             }
          }
 
@@ -583,7 +588,7 @@ public class DashboardController {
 
          // remove the underlying vs if it's created for this dashboard
          if(dashboard instanceof VSDashboard) {
-            removeDashboardViewsheet((VSDashboard) dashboard);
+            removeDashboardViewsheet((VSDashboard) dashboard, principal);
          }
 
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -648,9 +653,24 @@ public class DashboardController {
    }
 
    /**
-    * Remove the viewsheet of a vs dashboard.
+    * Make sure the caller can read the client-supplied dashboard viewsheet.
     */
-   private void removeDashboardViewsheet(VSDashboard dashboard) {
+   private void checkViewsheetReadable(AssetRepository engine, AssetEntry entry,
+                                       String identifier, Principal principal)
+      throws Exception
+   {
+      if(entry == null) {
+         throw new MessageException(Catalog.getCatalog().getString("common.invalidEntry", identifier));
+      }
+
+      engine.checkAssetPermission(principal, entry, ResourceAction.READ, true);
+   }
+
+   /**
+    * Remove the viewsheet of a vs dashboard. The caller's principal is used so the asset
+    * engine enforces org and owner checks on the removal.
+    */
+   private void removeDashboardViewsheet(VSDashboard dashboard, Principal principal) {
       ViewsheetEntry ve = dashboard.getViewsheet();
       AssetRepository engine = AssetUtil.getAssetRepository(false);
       AssetEntry entry = (ve == null) ? null
@@ -658,12 +678,11 @@ public class DashboardController {
 
       if(entry != null && entry.getScope() == AssetRepository.USER_SCOPE) {
          try {
-            Principal user = new XPrincipal(entry.getUser());
-            Viewsheet vs = (Viewsheet) engine.getSheet(entry, user, false,
+            Viewsheet vs = (Viewsheet) engine.getSheet(entry, principal, false,
                AssetContent.ALL);
 
             if(vs.getViewsheetInfo().isComposedDashboard()) {
-               engine.removeSheet(entry, user, false);
+               engine.removeSheet(entry, principal, false);
             }
          }
          catch(Exception ex) {
