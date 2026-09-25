@@ -22,6 +22,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.CalendarPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.DataOutputService;
 import inetsoft.web.composer.vs.dialog.RangeSliderPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionListPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionTreePropertyDialogService;
@@ -62,7 +63,8 @@ public class SelectionBindingService {
                                   SelectionListPropertyDialogService selectionListService,
                                   SelectionTreePropertyDialogService selectionTreeService,
                                   RangeSliderPropertyDialogService rangeSliderService,
-                                  CalendarPropertyDialogService calendarService)
+                                  CalendarPropertyDialogService calendarService,
+                                  DataOutputService dataOutputService)
    {
       this.sessions = sessions;
       this.fieldsService = fieldsService;
@@ -70,6 +72,7 @@ public class SelectionBindingService {
       this.selectionTreeService = selectionTreeService;
       this.rangeSliderService = rangeSliderService;
       this.calendarService = calendarService;
+      this.dataOutputService = dataOutputService;
    }
 
    /**
@@ -79,10 +82,17 @@ public class SelectionBindingService {
     *                 more (a composite range). Not used — and refused if non-empty — when
     *                 {@code parentIdColumn}/{@code idColumn}/{@code labelColumn} are given instead
     *                 (a selection tree's ID-hierarchy mode).
+    * @param additionalTables  extra tables the selection also filters. Null (omitted) keeps the
+    *                 assembly's existing additional tables; an empty list clears them. A rebind
+    *                 that did not resend them used to silently drop them.
     * @param measure  selection list only — an optional aggregate/bar-chart measure column. Ignored
-    *                 for every other type. Also accepts a StyleBI {@code DynamicValue}
-    *                 {@code "$(ComponentName)"} reference, forwarded untouched: the caller (the
-    *                 plugin) is responsible for validating it resolves to a real,
+    *                 for every other type. A literal column name is checked against the same list
+    *                 the property dialog's measure dropdown offers (columns shared by the table and
+    *                 every additional table) and stored under its canonical name; an unknown one is
+    *                 refused. A {@code "$…"} or {@code "=…"} value (a StyleBI {@code DynamicValue}
+    *                 {@code "$(ComponentName)"} reference, or an expression) is forwarded
+    *                 untouched, as the dialog does: the caller (the plugin) is responsible for
+    *                 validating a {@code "$(ComponentName)"} resolves to a real,
     *                 dynamic-reference-capable assembly before this method ever sees it (#76768).
     * @param parentIdColumn  selection tree only — the column holding each row's parent's
     *                        {@code idColumn} value, for an arbitrary-depth tree built from one
@@ -135,7 +145,9 @@ public class SelectionBindingService {
       }
 
       List<String> columnsOrEmpty = columns == null ? List.of() : columns;
+      // Null means "not sent": keep what the assembly already has rather than clearing it.
       List<String> additional = additionalTables == null ? List.of() : additionalTables;
+      boolean replaceAdditional = additionalTables != null;
       Map<String, Object> result = new LinkedHashMap<>();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
@@ -159,11 +171,19 @@ public class SelectionBindingService {
             SelectionListPaneModel pane = model.getSelectionListPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(resolvedAdditional);
+
+            if(replaceAdditional) {
+               pane.setAdditionalTables(resolvedAdditional);
+            }
+
+            result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
+
             pane.setSelectedColumn(columnRef(resolvedTable, resolvedColumns.get(0)));
 
             if(measure != null && !measure.isBlank()) {
-               pane.getSelectionMeasurePaneModel().setMeasure(measure);
+               pane.getSelectionMeasurePaneModel().setMeasure(resolveMeasure(
+                  runtimeId, user, assemblyName, resolvedTable, pane.getAdditionalTables(),
+                  measure));
             }
 
             selectionListService.setSelectionListPropertyModel(
@@ -176,7 +196,12 @@ public class SelectionBindingService {
             SelectionTreePaneModel pane = model.getSelectionTreePaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(resolvedAdditional);
+
+            if(replaceAdditional) {
+               pane.setAdditionalTables(resolvedAdditional);
+            }
+
+            result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
 
             if(idMode) {
                // #76768: an arbitrary-depth tree from one flat, self-referencing table, distinct
@@ -230,7 +255,13 @@ public class SelectionBindingService {
             RangeSliderDataPaneModel pane = model.getRangeSliderDataPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(resolvedAdditional);
+
+            if(replaceAdditional) {
+               pane.setAdditionalTables(resolvedAdditional);
+            }
+
+            result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
+
             boolean composite = resolvedColumns.size() > 1;
             pane.setComposite(composite);
             pane.setSelectedColumns(columnRefs(resolvedTable, resolvedColumns));
@@ -255,7 +286,13 @@ public class SelectionBindingService {
             CalendarDataPaneModel pane = model.getCalendarDataPaneModel();
             requireRepoint(assemblyName, pane.getSelectedTable(), resolvedTable, force);
             pane.setSelectedTable(resolvedTable);
-            pane.setAdditionalTables(resolvedAdditional);
+
+            if(replaceAdditional) {
+               pane.setAdditionalTables(resolvedAdditional);
+            }
+
+            result.put("additionalTables", additionalOrEmpty(pane.getAdditionalTables()));
+
             pane.setSelectedColumn(columnRef(resolvedTable, resolvedColumns.get(0)));
             calendarService.setCalendarPropertyModel(
                runtimeId, assemblyName, model, linkUri, user, dispatcher);
@@ -438,6 +475,60 @@ public class SelectionBindingService {
          availableNames(tables) + ". See list_bindable_fields.");
    }
 
+   private static List<String> additionalOrEmpty(List<String> additionalTables) {
+      return additionalTables == null ? List.of() : additionalTables;
+   }
+
+   /**
+    * Resolves a selection list's literal {@code measure} against the same list the property
+    * dialog's measure dropdown offers ({@code selection-measure-pane} → {@code DataOutputService.
+    * getOutputSelectionColumns}: the columns the table shares with every additional table), and
+    * returns the canonical name. Raw, it was written straight onto the model, so a typo or a
+    * column of some other table was accepted and left the bars/aggregate silently broken. A
+    * {@code "$…"}/{@code "=…"} value is passed through untouched, exactly as the dialog passes it.
+    */
+   private String resolveMeasure(String runtimeId, Principal user, String assemblyName,
+                                 String table, List<String> additionalTables, String measure)
+      throws Exception
+   {
+      String trimmed = measure.trim();
+
+      // Deliberately not VSUtil.isVariableValue -- see refuseIfDynamic.
+      if(trimmed.startsWith("$") || trimmed.startsWith("=")) {
+         return measure;
+      }
+
+      List<String> measureTables = new ArrayList<>();
+      measureTables.add(table);
+
+      if(additionalTables != null) {
+         measureTables.addAll(additionalTables);
+      }
+
+      OutputColumnRefModel[] candidates =
+         dataOutputService.getOutputSelectionColumns(runtimeId, measureTables, user);
+      List<String> available = new ArrayList<>();
+
+      for(OutputColumnRefModel candidate : candidates == null ? new OutputColumnRefModel[0]
+         : candidates)
+      {
+         // The dialog's leading "None" entry has a null name.
+         if(candidate == null || candidate.getName() == null) {
+            continue;
+         }
+
+         if(candidate.getName().equalsIgnoreCase(trimmed)) {
+            return candidate.getName();
+         }
+
+         available.add(candidate.getName());
+      }
+
+      throw new IllegalArgumentException(
+         "'" + measure + "' is not a measure '" + assemblyName + "' can use from " +
+         measureTables + ". Available: " + String.join(", ", available) + ".");
+   }
+
    private static List<BindableField> resolveColumns(List<BindableTable> tables,
                                                       String assemblyName, String table,
                                                       List<String> columns)
@@ -596,4 +687,5 @@ public class SelectionBindingService {
    private final SelectionTreePropertyDialogService selectionTreeService;
    private final RangeSliderPropertyDialogService rangeSliderService;
    private final CalendarPropertyDialogService calendarService;
+   private final DataOutputService dataOutputService;
 }

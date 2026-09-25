@@ -22,6 +22,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.CalendarPropertyDialogService;
+import inetsoft.web.composer.vs.dialog.DataOutputService;
 import inetsoft.web.composer.vs.dialog.RangeSliderPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionListPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.SelectionTreePropertyDialogService;
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -421,6 +423,136 @@ class SelectionBindingServiceTest {
       assertTrue(thrown.getMessage().contains("ORDERS"));
    }
 
+   /** Omitting additionalTables on a rebind used to clear the shared-filter tables. */
+   @Test
+   void keepsExistingAdditionalTablesWhenTheFieldIsOmitted() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel existing = new SelectionListPropertyDialogModel();
+      existing.getSelectionListPaneModel().setSelectedTable("ORDERS");
+      existing.getSelectionListPaneModel().setAdditionalTables(List.of("CUSTOMERS"));
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(assembly, listService, null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("CITY"), null, null, null,
+                   null, null, false, "");
+
+      ArgumentCaptor<SelectionListPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(SelectionListPropertyDialogModel.class);
+      verify(listService).setSelectionListPropertyModel(
+         eq("rt1"), eq("List1"), captor.capture(), eq(""), any(), any());
+      assertEquals(List.of("CUSTOMERS"),
+                   captor.getValue().getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of("CUSTOMERS"), result.get("additionalTables"));
+   }
+
+   @Test
+   void clearsAdditionalTablesWhenAnEmptyListIsSent() throws Exception {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel existing = new SelectionListPropertyDialogModel();
+      existing.getSelectionListPaneModel().setSelectedTable("ORDERS");
+      existing.getSelectionListPaneModel().setAdditionalTables(List.of("CUSTOMERS"));
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(existing);
+
+      Map<String, Object> result = harness(assembly, listService, null, null, null)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("CITY"), List.of(), null,
+                   null, null, null, false, "");
+
+      assertEquals(List.of(), existing.getSelectionListPaneModel().getAdditionalTables());
+      assertEquals(List.of(), result.get("additionalTables"));
+   }
+
+   @Test
+   void keepsACalendarsAdditionalTablesWhenTheFieldIsOmitted() throws Exception {
+      CalendarVSAssembly assembly = mock(CalendarVSAssembly.class);
+      CalendarPropertyDialogService calendarService = mock(CalendarPropertyDialogService.class);
+      CalendarPropertyDialogModel existing = new CalendarPropertyDialogModel();
+      existing.getCalendarDataPaneModel().setSelectedTable("ORDERS");
+      existing.getCalendarDataPaneModel().setAdditionalTables(List.of("CUSTOMERS"));
+      when(calendarService.getCalendarPropertyModel(eq("rt1"), eq("Cal1"), any()))
+         .thenReturn(existing);
+
+      harness(assembly, null, null, null, calendarService)
+         .setSource("tok", principal(), "Cal1", "ORDERS", List.of("ORDER_DATE"), null, null,
+                   null, null, null, false, "");
+
+      assertEquals(List.of("CUSTOMERS"), existing.getCalendarDataPaneModel().getAdditionalTables());
+   }
+
+   // ── measure resolution ──────────────────────────────────────────────────────
+
+   /** Stubs the property dialog's measure dropdown source, with its leading null-named "None". */
+   private static DataOutputService measures(String... names) throws Exception {
+      List<OutputColumnRefModel> columns = new ArrayList<>();
+      columns.add(new OutputColumnRefModel());
+
+      for(String name : names) {
+         OutputColumnRefModel column = new OutputColumnRefModel();
+         column.setName(name);
+         columns.add(column);
+      }
+
+      DataOutputService dataOutput = mock(DataOutputService.class);
+      when(dataOutput.getOutputSelectionColumns(eq("rt1"), any(), any()))
+         .thenReturn(columns.toArray(new OutputColumnRefModel[0]));
+      return dataOutput;
+   }
+
+   private static String boundMeasure(DataOutputService dataOutput, List<String> additional,
+                                      String measure)
+      throws Exception
+   {
+      SelectionListVSAssembly assembly = mock(SelectionListVSAssembly.class);
+      SelectionListPropertyDialogService listService = mock(SelectionListPropertyDialogService.class);
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      when(listService.getSelectionListPropertyModel(eq("rt1"), eq("List1"), any()))
+         .thenReturn(model);
+
+      harness(assembly, listService, null, null, null, dataOutput)
+         .setSource("tok", principal(), "List1", "ORDERS", List.of("STATE"), additional,
+                   measure, null, null, null, false, "");
+
+      return model.getSelectionListPaneModel().getSelectionMeasurePaneModel().getMeasure();
+   }
+
+   @Test
+   void canonicalizesAMeasureAgainstTheDialogsMeasureList() throws Exception {
+      assertEquals("AMOUNT", boundMeasure(measures("STATE", "AMOUNT"), null, "amount"));
+   }
+
+   @Test
+   void refusesAMeasureTheDialogWouldNotOffer() throws Exception {
+      DataOutputService dataOutput = measures("STATE", "AMOUNT");
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> boundMeasure(dataOutput, null, "NOPE"));
+
+      assertTrue(thrown.getMessage().contains("NOPE"));
+      assertTrue(thrown.getMessage().contains("AMOUNT"));
+   }
+
+   /** The dialog lists the measures the table shares with every additional table. */
+   @Test
+   void looksUpTheMeasureAcrossTheTableAndItsAdditionalTables() throws Exception {
+      DataOutputService dataOutput = measures("NAME");
+
+      assertEquals("NAME", boundMeasure(dataOutput, List.of("customers"), "NAME"));
+      verify(dataOutput).getOutputSelectionColumns(
+         eq("rt1"), eq(List.of("ORDERS", "CUSTOMERS")), any());
+   }
+
+   @Test
+   void passesDynamicAndExpressionMeasuresThroughUnchecked() throws Exception {
+      DataOutputService dataOutput = measures("AMOUNT");
+
+      assertEquals("$(Measure1)", boundMeasure(dataOutput, null, "$(Measure1)"));
+      assertEquals("=field['AMOUNT'] * 2", boundMeasure(dataOutput, null, "=field['AMOUNT'] * 2"));
+      verifyNoInteractions(dataOutput);
+   }
+
    // ── Logical Model column resolution (regression for Bug #76700) ────────────
 
    /**
@@ -449,7 +581,7 @@ class SelectionBindingServiceTest {
       SelectionBindingService service = new SelectionBindingService(
          sessionsFor(assembly), fieldsService, listService,
          mock(SelectionTreePropertyDialogService.class), mock(RangeSliderPropertyDialogService.class),
-         mock(CalendarPropertyDialogService.class));
+         mock(CalendarPropertyDialogService.class), mock(DataOutputService.class));
 
       service.setSource("tok", principal(), "List1", "Order Model", List.of("Customer:Region"),
                         null, null, null, null, null, false, "");
@@ -485,7 +617,7 @@ class SelectionBindingServiceTest {
       SelectionBindingService service = new SelectionBindingService(
          sessionsFor(assembly), fieldsService, mock(SelectionListPropertyDialogService.class),
          treeService, mock(RangeSliderPropertyDialogService.class),
-         mock(CalendarPropertyDialogService.class));
+         mock(CalendarPropertyDialogService.class), mock(DataOutputService.class));
 
       service.setSource("tok", principal(), "Tree1", "Order Model",
                         List.of("Customer:Region", "Customer:City"), null, null, null, null, null,
@@ -513,6 +645,17 @@ class SelectionBindingServiceTest {
                                                    CalendarPropertyDialogService calendarService)
       throws Exception
    {
+      return harness(assembly, listService, treeService, sliderService, calendarService, null);
+   }
+
+   private static SelectionBindingService harness(VSAssembly assembly,
+                                                   SelectionListPropertyDialogService listService,
+                                                   SelectionTreePropertyDialogService treeService,
+                                                   RangeSliderPropertyDialogService sliderService,
+                                                   CalendarPropertyDialogService calendarService,
+                                                   DataOutputService dataOutputService)
+      throws Exception
+   {
       BindableTable orders = new BindableTable("ORDERS", null, List.of(
          new BindableField("STATE", "string", "dimension"),
          new BindableField("CITY", "string", "dimension"),
@@ -530,7 +673,8 @@ class SelectionBindingServiceTest {
          listService == null ? mock(SelectionListPropertyDialogService.class) : listService,
          treeService == null ? mock(SelectionTreePropertyDialogService.class) : treeService,
          sliderService == null ? mock(RangeSliderPropertyDialogService.class) : sliderService,
-         calendarService == null ? mock(CalendarPropertyDialogService.class) : calendarService);
+         calendarService == null ? mock(CalendarPropertyDialogService.class) : calendarService,
+         dataOutputService == null ? mock(DataOutputService.class) : dataOutputService);
    }
 
    private static ViewsheetSessionService sessionsFor(VSAssembly assembly) {
