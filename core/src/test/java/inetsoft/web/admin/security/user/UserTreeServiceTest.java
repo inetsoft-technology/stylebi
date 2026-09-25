@@ -162,7 +162,7 @@ class UserTreeServiceTest {
    void getOrganizationModel_callerInDifferentOrg_stillReadsBackProperties() throws Exception {
       String orgId = "org-b";
       IdentityID orgIdentity = new IdentityID("Org B", orgId);
-      when(currentProvider.getOrganization(orgId)).thenReturn(new FSOrganization(orgId));
+      when(currentProvider.getOrganization(orgId)).thenReturn(new FSOrganization(orgIdentity));
 
       Properties raw = new Properties();
       raw.setProperty("inetsoft.org." + orgId + ".custom.key", "v");

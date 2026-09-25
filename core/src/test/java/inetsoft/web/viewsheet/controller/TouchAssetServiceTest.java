@@ -86,28 +86,28 @@ class TouchAssetServiceTest {
    void plainTouchDoesNotRefresh() throws Exception {
       touch(false, true);
 
-      verify(vsRefreshController, never()).refreshViewsheet(any(), any(), any(), any());
+      verifyNoRefresh();
    }
 
    @Test
    void updateTickDoesNotRefreshWhenServerSideUpdateIsDisabled() throws Exception {
       touch(true, false);
 
-      verify(vsRefreshController, never()).refreshViewsheet(any(), any(), any(), any());
+      verifyNoRefresh();
    }
 
    @Test
    void monitorEnabledUpdateTickDoesNotRefreshWithoutDataChange() throws Exception {
       withAssetMonitorEnabled(() -> touch(true, true, 0L));
 
-      verify(vsRefreshController, never()).refreshViewsheet(any(), any(), any(), any());
+      verifyNoRefresh();
    }
 
    @Test
    void monitorEnabledUpdateTickDoesNotRefreshWhenDataChangeIsOlderThanTouch() throws Exception {
       withAssetMonitorEnabled(() -> touch(true, true, 500L));
 
-      verify(vsRefreshController, never()).refreshViewsheet(any(), any(), any(), any());
+      verifyNoRefresh();
    }
 
    @Test
@@ -120,8 +120,15 @@ class TouchAssetServiceTest {
    private void verifyAutoRefresh() throws Exception {
       ArgumentCaptor<VSRefreshEvent> captor = ArgumentCaptor.forClass(VSRefreshEvent.class);
       verify(vsRefreshController).refreshViewsheet(
-         captor.capture(), eq(principal), eq(dispatcher), eq(""));
+         eq(RUNTIME_ID), captor.capture(), eq(principal), eq(dispatcher), eq(""));
+      verify(vsRefreshController, never()).refreshViewsheet(
+         any(VSRefreshEvent.class), any(), any(), any());
       assertTrue(captor.getValue().autoRefresh());
+   }
+
+   private void verifyNoRefresh() throws Exception {
+      verify(vsRefreshController, never()).refreshViewsheet(any(), any(), any(), any(), any());
+      verify(vsRefreshController, never()).refreshViewsheet(any(), any(), any(), any());
    }
 
    private void withAssetMonitorEnabled(ThrowingRunnable action) throws Exception {
@@ -141,9 +148,7 @@ class TouchAssetServiceTest {
    }
 
    private void touch(boolean update, boolean updateEnabled, long changeTime) throws Exception {
-      String runtimeId = "rt-touch-1";
-      Principal principal = mock(Principal.class);
-      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      String runtimeId = RUNTIME_ID;
 
       TouchAssetEvent event = mock(TouchAssetEvent.class);
       when(event.design()).thenReturn(false);
@@ -185,6 +190,7 @@ class TouchAssetServiceTest {
    }
 
    private static final String ASSET_MONITOR_ENABLED = "assetMonitor.enabled";
+   private static final String RUNTIME_ID = "rt-touch-1";
    private final Principal principal = mock(Principal.class);
    private final CommandDispatcher dispatcher = mock(CommandDispatcher.class);
    private final VSRefreshController vsRefreshController = mock(VSRefreshController.class);
