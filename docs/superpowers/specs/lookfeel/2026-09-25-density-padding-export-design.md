@@ -390,6 +390,22 @@ types reach `VsToReportConverter.addTable` (`:1103`). Its bounds come from
   - **F3:** `VSTableDataHelper:866-867` says print layout renders unpadded row heights. Slice A made
     them padded; the matching comment at `VsToReportConverter:969-973` is already updated.
 
+- **F4, found in the baselines: the modern Excel export drops tables.** It predates slice C: the
+  baselines were exported from code identical to slice B's `39a4336a6`, and the legacy Excel
+  exports are complete. Which slice introduced it is still being traced.
+  - **Match layout.** Each padded row spans two 20px Excel rows, but a shrunk table's title
+    merges four (`B27:J30`), over its own first data row (`B29:C30`). POI throws
+    `IllegalStateException` from `ExcelTableHelper.writeData:277`, and the bad region stays in
+    the sheet. Every table written after it then fails with the same message. In the fixture,
+    that drops six of nine tables.
+  - **Expand.** The expanded tables grow into the crosstab's cells (`A78:B79` against `B78:F79`),
+    so the crosstab and the calc table are dropped (`ExcelCrosstabHelper.writeData:241`).
+  - **For slice C:** Excel is outside it, so after C1 the modern Excel exports must reproduce
+    exactly, missing sheets included. Until F4 is fixed, no export can show a padded shrink
+    table, crosstab or calc table in Excel.
+  - The evidence and the fixture are in `community/.superpowers/baselines/density-padding-export/`
+    (`README.txt`, known issue 1).
+
 ## 11. Branching and PRs
 
 - `feature-density-padding-export` is stacked on slice B (#5618), which is stacked on slice A (#5617).
