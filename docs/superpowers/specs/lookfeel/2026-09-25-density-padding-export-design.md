@@ -96,8 +96,8 @@ VSTableDataHelper                  report/io/viewsheet/
 ### 5.1 The resolver
 
 - `VSExporter` declares `Insets getTableCardInset(TableDataVSAssemblyInfo info)`. The helpers hold
-  a `VSExporter` (`ExporterHelper.getExporter()`). Its only implementers are `AbstractVSExporter`
-  and three of its subclasses.
+  a `VSExporter` (`ExporterHelper.getExporter()`). Every implementer extends `AbstractVSExporter`;
+  `PDFVSExporter`, `PoiExcelVSExporter` and `PPTVSExporter` also name the interface directly.
 - `AbstractVSExporter` implements it: the info's `getPadding()` when `insetsTableCard()` is true,
   otherwise zero. A null padding resolves to zero.
 - `insetsTableCard()` is a protected capability, true by default and false in `ExcelVSExporter` and
@@ -151,10 +151,15 @@ reached only through the lines above, so it needs no change of its own.
 
 ### 5.4 Sites beyond the thirty
 
-- **The chrome bounds.** `getObjectPixelBounds` (`VSTableDataHelper:157`) builds its non-match rect
-  from `getPixelBounds`, which now starts at the grid origin. So it grows the result back out by
-  (L, T, L + R, T + B). Its shrink branch becomes Σcolumns + L + R wide and title + rows + T + B tall.
-  Its match branch already reads the card through `vHelper.getBounds(info)`.
+- **The chrome bounds.** `getObjectPixelBounds` (`VSTableDataHelper:157`) first builds a rect from
+  `getPixelBounds`, whose origin is now the grid's, and replaces its height with title + rows.
+  - That rect moves back by (−L, −T) and grows by (L + R, T + B) before any branch reads it, so it
+    describes the card.
+  - The branch taken in match mode, or when the test at `:188-189` passes, starts from
+    `vHelper.getBounds(info)`, which is already the card. Its non-shrink height compares against
+    the grown rect.
+  - Its shrink width, Σcolumns from `getShrinkTableWidth`, adds L + R, so a shrunk card is
+    Σcolumns + L + R wide and title + rows + T + B tall.
 - **The pixel column widths.** `VSTableDataHelper.calculateColumnWidths` (`:488`) passes a fill width
   to `ExcelVSUtil.calculateColumnWidths` (`:146`, shared by every helper despite its name). The
   parameter replaces `info.getPixelSize().width` at `:151`, so the truncation test, the last-column
@@ -167,9 +172,15 @@ reached only through the lines above, so it needs no change of its own.
     unfilled width (the set width, or `AssetUtil.defw` when none is set), so `last − base` is the
     fill the lens added and is never negative. The site's own fill then tops the column up to the
     grid width.
-  - That is the rule `getColWidths` already applies since `39a4336a6`. One shared helper serves it,
-    `ExcelVSUtil.calculateColumnWidths` and `HTMLCrosstabHelper` (§6). A zero-width, hidden last
-    column keeps its 0.
+  - That is the rule `getColWidths` already applies since `39a4336a6`. One shared helper applies it
+    at every inset path that reads the cached width:
+    - `getColWidths`;
+    - `ExcelVSUtil.calculateColumnWidths` (reads at `:154`);
+    - `getExpandWidth` (`AbstractVSExporter:2868`);
+    - `HTMLCrosstabHelper.initRowColumns` (`:138`, §6);
+    - in C2, `VsToReportConverter.calculateColumnWidths` (`:1260`, §8).
+
+    A zero-width, hidden last column keeps its 0.
 - **`getColWidths`.** The call at `VSTableDataHelper:331` passes `true` when the resolver's inset is
   non-zero, and `false` otherwise. Excel therefore stays on the card.
 - **The border copy.** `applyTableBorders` (`VSTableDataHelper:423`, called at `VSTableHelper:140` and
@@ -180,7 +191,10 @@ reached only through the lines above, so it needs no change of its own.
   - **Expand height:** `getExpandTableHeight` (`:2542`) returns the rows' height. `expandTable`
     (`:2827`, `PDFVSExporter:606`, `SVGVSExporter:329`) sizes the card as that + T + B. The
     precedent is `expandChart` adding the chart's padding (`:2045-2049`).
-  - **Expand width:** `getExpandTableWidth` (`:2683`) and `getExpandWidth` (`:2860`) add L + R.
+  - **Expand width:** `getExpandTableWidth` (`:2683`) adds L + R. `getExpandWidth` (`:2860`) sums
+    the lens's cached widths and keeps the card width when the columns fit it (`:2890`). It takes
+    back the lens's fill first and compares against the grid width, W − L − R. When it expands, the
+    width it returns adds L + R.
   - **Region lens:** `getRegionTableLens` (`:898`, reads at `:938` and `:963`) is sized to the grid.
   - **Bottom tabs:** `:333` passes the inset to `VSTableDataHelper.applyShrunkBottomTabsShift`, whose
     `computeShrunkRenderedHeight` adds T + B. The card's bottom then stays flush with the tab strip.
@@ -283,7 +297,8 @@ types reach `VsToReportConverter.addTable` (`:1103`). Its bounds come from
   share this code, which is why C2 is its own PR.
 - **Converter arithmetic.**
   - `calculateColumnWidths` (`:1246`) fills the last column to W − L − R, and the fit-page decision
-    (`:1144-1149`) compares against that same width.
+    (`:1144-1149`) compares against that same width. It reads the lens's cached widths (`:1260`) for
+    a column with no width set, so it applies §5.4's take-back before it fills.
   - The shrink and bottom-tabs heights (`computePrintLayoutTableHeight`, `:1036`, compared at
     `:1004`) add T + B.
   - A title-hidden table still takes the title height off its bounds (`:1439-1446`). That quirk
@@ -297,8 +312,10 @@ types reach `VsToReportConverter.addTable` (`:1103`). Its bounds come from
    - The fixture holds a marked table, crosstab and calc table, an unmarked table and a marked chart.
    - These files are the reference for the legacy guarantee, and they cannot be recreated once C1
      code lands.
-2. **C1 unit tests.** Each is written first and watched fail. Each runs at a non-zero inset and at
-   zero, and the zero case uses literals derived by hand from today's behaviour.
+2. **C1 unit tests.** Each runs at a non-zero inset and at zero.
+   - The non-zero case is written first and watched fail.
+   - The zero case passes from the start: it guards today's behaviour, with literals derived by
+     hand.
    - **Resolver:**
      - PDF, SVG, PPT and HTML return the padding.
      - The POI and offline Excel exporters and the CSV exporter return zero.
@@ -314,7 +331,9 @@ types reach `VsToReportConverter.addTable` (`:1103`). Its bounds come from
    - **Other fixes:**
      - `applyTableBorders` drops the inset edges.
      - The PDF page cap writes back `height + T + B`.
-     - Expand-mode height and width, the region-lens size and the bottom-tabs shift.
+     - Expand-mode height and width, including `getExpandWidth`'s take-back and its compare
+       against the grid width.
+     - The region-lens size and the bottom-tabs shift.
    - **Excel proof:** a padded table pushed through `ExcelTableHelper` and `ExcelCrosstabHelper`
      gives a grid equal to the card. With the resolver tests, this is the mechanical guarantee that
      Excel output cannot move.
@@ -331,7 +350,7 @@ types reach `VsToReportConverter.addTable` (`:1103`). Its bounds come from
    - **The converter:**
      - the card-top box and the title box inside it;
      - a hidden title gives a card-top box T tall;
-     - the fill width and the fit-page decision use W − L − R;
+     - the fill width, after the take-back, and the fit-page decision use W − L − R;
      - the shrink and bottom-tabs heights add T + B.
 4. **Manual checks**, against the baselines.
    - **What to export:**
