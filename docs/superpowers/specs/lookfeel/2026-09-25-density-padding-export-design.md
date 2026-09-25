@@ -392,14 +392,23 @@ types reach `VsToReportConverter.addTable` (`:1103`). Its bounds come from
 
 - **F4, found in the baselines: the modern Excel export drops tables.** It predates slice C: the
   baselines were exported from code identical to slice B's `39a4336a6`, and the legacy Excel
-  exports are complete. Which slice introduced it is still being traced.
-  - **Match layout.** Each padded row spans two 20px Excel rows, but a shrunk table's title
-    merges four (`B27:J30`), over its own first data row (`B29:C30`). POI throws
+  exports are complete.
+  - **Origin:** not slice A, B or C. The Excel title and expand logic is old code that is also
+    on main. The epic's density heights (`1133d86e2`, #5150) trigger it: 28px data rows, a 30px
+    header and a 30px title each span two 20px Excel rows, so the epic alone reproduces it.
+    Slice A made the expand estimate one row worse, because `94524d20a` missed the two
+    expand-height readers that still round the stored height. The fix belongs in a separate PR
+    against `epic-74519`.
+  - **Match layout.** A shrunk table's title is handed the table's per-row Excel counts
+    (`ExcelTableHelper.writeTitleCell`), so it merges the header plus the first data row, four
+    rows (`B27:J30`), while the body starts two rows down (`B29:C30`). POI throws
     `IllegalStateException` from `ExcelTableHelper.writeData:277`, and the bad region stays in
     the sheet. Every table written after it then fails with the same message. In the fixture,
     that drops six of nine tables.
-  - **Expand.** The expanded tables grow into the crosstab's cells (`A78:B79` against `B78:F79`),
-    so the crosstab and the calc table are dropped (`ExcelCrosstabHelper.writeData:241`).
+  - **Expand.** The space reserved for an expanded table rounds the stored row height, 16px to one
+    row, while the writer draws the padded 28px as two. The tables below are pushed down too
+    little and overlap (`A78:B79` against `B78:F79`), so the crosstab and the calc table are
+    dropped (`ExcelCrosstabHelper.writeData:241`).
   - **For slice C:** Excel is outside it, so after C1 the modern Excel exports must reproduce
     exactly, missing sheets included. Until F4 is fixed, no export can show a padded shrink
     table, crosstab or calc table in Excel.

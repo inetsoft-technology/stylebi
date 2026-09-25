@@ -162,6 +162,8 @@ Record:
 
 ### Task 1: The resolver
 
+**Execution note (2026-09-25):** `SVGVSExporter` and `PNGVSExporter` cannot be built in a `core` test, because their coordinate helper needs Batik's SVG support from `utils/inetsoft-xml-formats`. The core test therefore covers `HTMLVSExporter` and `CSVVSExporter`. The SVG and PNG assertions live in a utils test, and the PowerPoint assertion lives in a test in package `inetsoft.report.io.viewsheet.ppt`, so `PPTContext` stays package-private.
+
 **Files:**
 - Modify: `core/src/main/java/inetsoft/report/io/viewsheet/VSExporter.java`
 - Modify: `core/src/main/java/inetsoft/report/io/viewsheet/AbstractVSExporter.java` (beside `paintsPageBackground()`, `:1834`)
@@ -987,7 +989,7 @@ git commit -m "Start an exported table's grid inside its card inset" -m "Cells a
 package inetsoft.report.io.viewsheet;
 
 import inetsoft.report.composition.VSTableLens;
-import inetsoft.report.io.viewsheet.svg.SVGCoordinateHelper;
+import inetsoft.report.io.viewsheet.html.HTMLCoordinateHelper;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -1045,7 +1047,7 @@ class TableExportChromeBoundsTest {
       VSTableLens lens = lens(table, rows);
       RecordingTableHelper helper = new RecordingTableHelper(table, exporter(inset, false));
       helper.write(table, lens);
-      SVGCoordinateHelper vHelper = new SVGCoordinateHelper();
+      HTMLCoordinateHelper vHelper = new HTMLCoordinateHelper();
       vHelper.setViewsheet(table.getViewsheet());
       return helper.getObjectPixelBounds(info, lens, vHelper);
    }
@@ -1748,13 +1750,13 @@ These run in `AbstractVSExporter` before any helper, so they call `getTableCardI
 
 - [ ] **Step 1: Write the failing test**
 
-These tests use a real `SVGVSExporter`, so the resolver reads the table's padding.
+These tests use a real `HTMLVSExporter`, so the resolver reads the table's padding. `HTMLVSExporter` cannot be built in `core`: its coordinate helper needs Batik's SVG support, which lives in `utils/inetsoft-xml-formats`.
 
 ```java
 package inetsoft.report.io.viewsheet;
 
 import inetsoft.report.composition.VSTableLens;
-import inetsoft.report.io.viewsheet.svg.SVGVSExporter;
+import inetsoft.report.io.viewsheet.html.HTMLVSExporter;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -1823,7 +1825,7 @@ class TableExportExporterSitesTest {
    void theMatchLayoutRegionIsTheGridsRows() {
       TableVSAssembly padded = table(COMFORTABLE, new Dimension(400, 250), 100, 100, 100);
       TableVSAssembly shorter = table(NONE, new Dimension(400, 218), 100, 100, 100);
-      SVGVSExporter exporter = exporter();
+      HTMLVSExporter exporter = exporter();
       exporter.setMatchLayout(true);
 
       assertEquals(exporter.getRegionRowCount(shorter, lens(shorter, 30)),
@@ -1835,8 +1837,8 @@ class TableExportExporterSitesTest {
       assertEquals(shift(NONE) - 32, shift(COMFORTABLE));
    }
 
-   private static SVGVSExporter exporter() {
-      return new SVGVSExporter(new ByteArrayOutputStream());
+   private static HTMLVSExporter exporter() {
+      return new HTMLVSExporter(new ByteArrayOutputStream());
    }
 
    private static int expandedWidth(Insets inset, double... widths) {
@@ -1847,7 +1849,7 @@ class TableExportExporterSitesTest {
 
    private static int regionCols(Insets inset) {
       TableVSAssembly table = table(inset, new Dimension(310, 250), 100, 100, 100);
-      SVGVSExporter exporter = exporter();
+      HTMLVSExporter exporter = exporter();
       exporter.setMatchLayout(true);
       return exporter.getRegionColCount(table, lens(table, 3));
    }
@@ -1873,7 +1875,7 @@ class TableExportExporterSitesTest {
 }
 ```
 
-Note: the exporter `expandTable` in `AbstractVSExporter` is protected, and so are `getExpandTableHeight` and the two region methods. The test sits in the same package, so it can call them. `SVGVSExporter.expandTable` handles only rows itself and hands the width path to `super`.
+Note: the exporter `expandTable` in `AbstractVSExporter` is protected, and so are `getExpandTableHeight` and the two region methods. The test sits in the same package, so it can call them. `HTMLVSExporter` overrides none of them, so the base code runs.
 
 - [ ] **Step 2: Run it and watch it fail**
 
