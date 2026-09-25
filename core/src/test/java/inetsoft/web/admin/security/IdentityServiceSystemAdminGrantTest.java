@@ -38,7 +38,8 @@ import static org.mockito.Mockito.*;
  * grant system administrator privileges through the EM identity save path, whether by adding the
  * Administrator role to a user/group, setting the sysAdmin flag or inheriting Administrator on a
  * role, joining a group that holds Administrator, or editing an identity that already grants it.
- * Nor may it delete a user, group or role that grants system administrator.
+ * Nor may it delete a user, group or role that grants system administrator, or create a user or
+ * group under a parent group that grants it.
  */
 @Tag("core")
 class IdentityServiceSystemAdminGrantTest {
@@ -49,6 +50,7 @@ class IdentityServiceSystemAdminGrantTest {
    private static final IdentityID ADMIN_CHILD = new IdentityID("AdminChild", ORG);
    private static final IdentityID ADMIN_GROUP = new IdentityID("admins", ORG);
    private static final IdentityID PLAIN_GROUP = new IdentityID("plain", ORG);
+   private static final IdentityID ADMIN_SUBGROUP = new IdentityID("subAdmins", ORG);
 
    private IdentityService service;
    private SecurityEngine securityEngine;
@@ -77,6 +79,8 @@ class IdentityServiceSystemAdminGrantTest {
                                           new IdentityID[] { ADMIN_ROLE }));
       groups.put(PLAIN_GROUP, new FSGroup(PLAIN_GROUP, null, new String[0],
                                           new IdentityID[] { DESIGNER }));
+      groups.put(ADMIN_SUBGROUP, new FSGroup(ADMIN_SUBGROUP, null, new String[] { ADMIN_GROUP.name },
+                                             new IdentityID[0]));
 
       authc = mock(AuthenticationProvider.class);
       when(authc.getRole(any())).thenAnswer(inv -> roles.get(inv.<IdentityID>getArgument(0)));
@@ -227,6 +231,27 @@ class IdentityServiceSystemAdminGrantTest {
 
       assertFalse(invokeDeleteCheck(direct.getIdentityID(), Identity.USER));
       assertFalse(invokeDeleteCheck(ADMIN_ROLE, Identity.ROLE));
+   }
+
+   @Test
+   void orgAdmin_creatingUnderAdministratorParentGroup_isRejected() {
+      assertThrows(java.lang.SecurityException.class,
+                   () -> service.checkSystemAdminParentGroup(ADMIN_GROUP.name, ORG, principal));
+      assertThrows(java.lang.SecurityException.class,
+                   () -> service.checkSystemAdminParentGroup(ADMIN_SUBGROUP.name, ORG, principal));
+   }
+
+   @Test
+   void orgAdmin_creatingUnderOrdinaryOrNoParentGroup_isAllowed() {
+      assertDoesNotThrow(() -> service.checkSystemAdminParentGroup(PLAIN_GROUP.name, ORG, principal));
+      assertDoesNotThrow(() -> service.checkSystemAdminParentGroup("missing", ORG, principal));
+      assertDoesNotThrow(() -> service.checkSystemAdminParentGroup(null, ORG, principal));
+   }
+
+   @Test
+   void siteAdmin_creatingUnderAdministratorParentGroup_isAllowed() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      assertDoesNotThrow(() -> service.checkSystemAdminParentGroup(ADMIN_GROUP.name, ORG, principal));
    }
 
    private void stubUsers(FSUser... users) {

@@ -1709,6 +1709,10 @@ public class IdentityService {
     * role, setting the sysAdmin flag on a role, or editing an identity that already grants system
     * administrator (e.g. adding members to the Administrator role). The endpoint permission check
     * only proves the caller may edit the identity, not that it may grant site-wide privileges.
+    * <p>
+    * {@code groupV} is only consulted for user edits. A group's or role's own parent chain can
+    * only change by editing the would-be parent, which is covered by the "already grants system
+    * administrator" check on that parent.
     */
    private void checkSystemAdminGrant(Identity oldIdentity, EntityModel model,
                                       List<IdentityID> groupV, Principal principal)
@@ -1750,6 +1754,9 @@ public class IdentityService {
             model instanceof EditRolePaneModel roleModel && roleModel.isSysAdmin();
       }
 
+      // Organization edits are intentionally not checked: setOrganizationInfo() does not persist
+      // model.roles() and rejects global roles (such as Administrator) as organization members.
+      // Revisit this if organization roles are ever saved through setIdentity().
       if(!granted && (type == Identity.USER || type == Identity.GROUP || type == Identity.ROLE)) {
          IdentityID[] addedRoles = model.roles().stream()
             .filter(r -> r != null && !oldRoles.contains(r))
@@ -1761,6 +1768,29 @@ public class IdentityService {
          throw new java.lang.SecurityException(
             "Unauthorized attempt to grant system administrator privileges via \"" +
             oldIdentity.getIdentityID() + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Rejects creating a user or group under the given parent group by a caller who is not a site
+    * administrator when the parent group, or one of its ancestors, grants system administrator.
+    * Identity creation adds the new identity to the provider directly, bypassing setIdentity().
+    */
+   public void checkSystemAdminParentGroup(String parentGroup, String orgID, Principal principal) {
+      if(parentGroup == null || !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+
+      if(grantsSystemAdmin(provider, new IdentityID[0],
+                           new IdentityID[] { new IdentityID(parentGroup, orgID) }))
+      {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to grant system administrator privileges via parent group \"" +
+            parentGroup + "\" by user " + principal);
       }
    }
 
