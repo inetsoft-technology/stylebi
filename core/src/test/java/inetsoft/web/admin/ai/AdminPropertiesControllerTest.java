@@ -269,13 +269,15 @@ class AdminPropertiesControllerTest {
       //
       // That property is catalogued now, so it reports confirmed and no longer demonstrates the
       // case. permission.andcondition was the second stand-in, and Redmine #5209 catalogued it too
-      // (exactly the fate this comment warned about) - annotations.disabled is the replacement:
-      // real, community (VSAssemblyInfo reads it directly), still uncatalogued, unset by default.
-      // If cataloguing ever reaches it this test will fail, and that failure is a prompt to move
-      // the example on again - not a defect.
-      sreeEnv.when(() -> SreeEnv.getProperty("annotations.disabled", false, false))
+      // (exactly the fate this comment warned about), and annotations.disabled went the same way
+      // when Redmine #76015 promoted the property corpus into the catalog. barcode.bar.width is the
+      // replacement: real, community (AbstractBarcodePresenter reads it directly), unset by
+      // default, and its corpus type is float, which CatalogEntry has no type for - so it stays
+      // uncatalogued until the catalog schema grows one. If cataloguing ever reaches it this test
+      // will fail, and that failure is a prompt to move the example on again - not a defect.
+      sreeEnv.when(() -> SreeEnv.getProperty("barcode.bar.width", false, false))
          .thenReturn(null);
-      PropertyView view = controller.get("annotations.disabled", principal);
+      PropertyView view = controller.get("barcode.bar.width", principal);
       assertFalse(view.recognized());
       assertNull(view.currentValue());
       assertEquals(PropertyView.EXISTS_UNKNOWN, view.exists());
@@ -303,13 +305,13 @@ class AdminPropertiesControllerTest {
    void distinguishesARealUnsetPropertyFromAnInventedOneOnlyByGuidance() {
       // Both are unknown - the server genuinely cannot tell them apart, and the fix is to say so
       // rather than to guess. This pins that the ambiguity is reported, not silently resolved.
-      sreeEnv.when(() -> SreeEnv.getProperty("annotations.disabled", false, false))
+      sreeEnv.when(() -> SreeEnv.getProperty("barcode.bar.width", false, false))
          .thenReturn(null);
-      sreeEnv.when(() -> SreeEnv.getProperty("annotations.notarealproperty", false, false))
+      sreeEnv.when(() -> SreeEnv.getProperty("barcode.notarealproperty", false, false))
          .thenReturn(null);
 
-      PropertyView real = controller.get("annotations.disabled", principal);
-      PropertyView invented = controller.get("annotations.notarealproperty", principal);
+      PropertyView real = controller.get("barcode.bar.width", principal);
+      PropertyView invented = controller.get("barcode.notarealproperty", principal);
 
       assertEquals(PropertyView.EXISTS_UNKNOWN, real.exists());
       assertEquals(PropertyView.EXISTS_UNKNOWN, invented.exists());
