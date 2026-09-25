@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.binding.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +42,23 @@ import java.util.Map;
  * chart's x/y/group shelves only, in the vocabulary {@code DimensionSortRanking.describe}
  * produces. Empty for a table or crosstab, whose own sort/ranking is reported by the richer
  * {@code table/binding} read instead.
+ *
+ * <p>{@code dateComparisonSeries} (Bug #77015, DCG-013 b) lists the series an applied date
+ * comparison adds or rewrites at render time -- the change/%-change measure that
+ * {@code ChartDcProcessor.updateAggregatesCalc} appends to (or sets on) the chart's runtime x/y
+ * fields only, so it never appears on the design-time shelves above even though it renders.
+ * Read-only and deliberately not a shelf: it cannot be bound or written back, only removed by
+ * clearing the comparison. Omitted entirely when no comparison is applied.
  */
 public record AssemblyBinding(String assembly, String objectType, String source,
                               Map<String, List<FieldRef>> shelves,
-                              Map<String, Object> sorts) {}
+                              Map<String, Object> sorts,
+                              @JsonInclude(JsonInclude.Include.NON_NULL)
+                              List<FieldRef> dateComparisonSeries)
+{
+   public AssemblyBinding(String assembly, String objectType, String source,
+                          Map<String, List<FieldRef>> shelves, Map<String, Object> sorts)
+   {
+      this(assembly, objectType, source, shelves, sorts, null);
+   }
+}

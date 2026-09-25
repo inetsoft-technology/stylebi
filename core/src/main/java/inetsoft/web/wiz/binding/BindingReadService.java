@@ -19,13 +19,18 @@ package inetsoft.web.wiz.binding;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
+import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.ChartAestheticModel;
+import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartRefModel;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.model.table.TableBindingModel;
@@ -72,6 +77,7 @@ public class BindingReadService {
       BindingModel model = binding.createModel(assembly);
       Map<String, List<FieldRef>> shelves = new LinkedHashMap<>();
       Map<String, Object> sorts = new LinkedHashMap<>();
+      List<FieldRef> dateComparisonSeries = null;
 
       if(model instanceof ChartBindingModel chart) {
          // Under Multi Style each measure renders with its own type, so x and y carry it per field.
@@ -141,6 +147,10 @@ public class BindingReadService {
                shelves.put(shelf, refs(List.of(ref)));
             }
          }
+
+         if(assembly instanceof ChartVSAssembly chartAssembly) {
+            dateComparisonSeries = dateComparisonSeries(chartAssembly.getVSChartInfo());
+         }
       }
       else if(model instanceof CrosstabBindingModel crosstab) {
          shelves.put("rows", refs(crosstab.getRows()));
@@ -157,7 +167,48 @@ public class BindingReadService {
                                  assembly.getClass().getSimpleName(),
                                  model == null || model.getSource() == null
                                     ? null : model.getSource().getSource(),
-                                 shelves, sorts);
+                                 shelves, sorts, dateComparisonSeries);
+   }
+
+   /**
+    * The series an applied date comparison renders that the design-time shelves never show
+    * (Bug #77015, DCG-013 b). {@code ChartDcProcessor.updateAggregatesCalc} works on the runtime
+    * x/y fields only: it first clears the calculator on every runtime aggregate, then sets the
+    * comparison's own calculator -- on a clone appended to the axis for changeAndValue/
+    * percentChangeAndValue, or on the original runtime ref for change-only. So while a comparison
+    * is applied, a runtime aggregate carrying a calculator is exactly a comparison series, and
+    * nothing else can be.
+    *
+    * <p>Built from a clone because the model constructor ({@code BAggregateRefModel.init}) may
+    * write a calculator back onto the ref it is given; this is a pure read of the live runtime
+    * fields the next render reads too.
+    *
+    * @return the series, or {@code null} when no comparison is applied or it adds none
+    */
+   private static List<FieldRef> dateComparisonSeries(VSChartInfo info) {
+      if(info == null || !info.isAppliedDateComparison()) {
+         return null;
+      }
+
+      List<FieldRef> series = new ArrayList<>();
+      addDateComparisonSeries(series, info, info.getRTXFields());
+      addDateComparisonSeries(series, info, info.getRTYFields());
+      return series.isEmpty() ? null : series;
+   }
+
+   private static void addDateComparisonSeries(List<FieldRef> series, VSChartInfo info,
+                                               ChartRef[] fields)
+   {
+      if(fields == null) {
+         return;
+      }
+
+      for(ChartRef field : fields) {
+         if(field instanceof ChartAggregateRef aggregate && aggregate.getCalculator() != null) {
+            ChartAggregateRef copy = (ChartAggregateRef) aggregate.clone();
+            series.add(FieldRefFactory.from(new ChartAggregateRefModel(copy, info)));
+         }
+      }
    }
 
    private static List<FieldRef> refs(List<? extends DataRefModel> models) {

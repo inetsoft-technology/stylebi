@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 @Tag("core")
@@ -378,6 +379,23 @@ class BindingReadServiceTest {
 
       return new BindingReadService(binding)
          .read(runtimeWith("Chart1", mock(ChartVSAssembly.class)), "Chart1");
+   }
+
+   @Test
+   void omitsDateComparisonSeriesWhenNoComparisonIsApplied() {
+      VSChartInfo info = mock(VSChartInfo.class);
+      when(info.isAppliedDateComparison()).thenReturn(false);
+      ChartVSAssembly chart = mock(ChartVSAssembly.class);
+      when(chart.getVSChartInfo()).thenReturn(info);
+
+      VSBindingService binding = mock(VSBindingService.class);
+      when(binding.createModel(any())).thenReturn(new ChartBindingModel());
+
+      AssemblyBinding result = new BindingReadService(binding)
+         .read(runtimeWith("Chart1", chart), "Chart1");
+
+      assertNull(result.dateComparisonSeries());
+      verify(info, never()).getRTYFields();
    }
 
    private static ChartAggregateRefModel withChartType(ChartAggregateRefModel ref, int type) {
