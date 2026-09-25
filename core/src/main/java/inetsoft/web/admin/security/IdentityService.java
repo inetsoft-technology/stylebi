@@ -2260,10 +2260,11 @@ public class IdentityService {
       String[] oldMembers = oldOrg.getMembers();
 
       if(oldMembers != null) {
+         // members hidden from the editor are never sent back by the client, so keep them
          Arrays.stream(oldMembers)
             .filter(m -> securityProvider.getUser(new IdentityID(m, oldOrg.getId())) != null)
-            .filter(m -> !securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
-                                                           m, ResourceAction.ADMIN))
+            .filter(m -> isOrgMemberHiddenFrom(new IdentityID(m, oldOrg.getId()), principal))
+            .filter(m -> !memberNames.contains(m))
             .forEach(m -> memberNames.add(m));
       }
 
@@ -2335,6 +2336,23 @@ public class IdentityService {
       syncIdentity(eprovider, newOrg, new IdentityID(syncOldName, syncOldOrgID));
 
       return newOrg;
+   }
+
+   /**
+    * Determines if an organization's user member is hidden from the given principal in the
+    * organization member list. A caller that is not a site administrator can't see users it has
+    * no admin permission on, nor site administrator users, whatever fallback grant it may hold.
+    */
+   public boolean isOrgMemberHiddenFrom(IdentityID userID, Principal principal) {
+      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+                                           userID.convertToKey(), ResourceAction.ADMIN))
+      {
+         return true;
+      }
+
+      return OrganizationManager.getInstance().isSiteAdmin(securityProvider, userID) &&
+         !(principal instanceof XPrincipal &&
+            OrganizationManager.getInstance().isSiteAdmin(principal));
    }
 
    private boolean isExistingIdentityOfOtherOrg(IdentityModel member, String orgID,

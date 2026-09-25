@@ -1734,8 +1734,8 @@ public class UserTreeService {
       boolean removedUserAdmin = Arrays.stream(getSecurityProvider().getOrganizationMembers(oldOrg.getId()))
          .map(n -> new IdentityID(n, oldOrg.getId()))
          .filter(n -> getSecurityProvider().getUser(n) != null)
-         .filter(u -> getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER,
-                        u.convertToKey(), ResourceAction.ADMIN))
+         // hidden members aren't sent by the client and are kept on save, so aren't removed
+         .filter(u -> !identityService.isOrgMemberHiddenFrom(u, principal))
          .filter(u -> !newUsersList.contains(u))
          .anyMatch(userID -> OrganizationManager.getInstance().isSiteAdmin(userID));
 
@@ -1891,17 +1891,27 @@ public class UserTreeService {
             return t;
          });
 
+      // the permission check resolves the current organization from the thread context, so the
+      // worker threads must run with the request's principal to agree with the save path
+      Principal contextPrincipal = ThreadContext.getContextPrincipal();
+
       List<CompletableFuture<IdentityModel>> futures = members.stream()
          .map(identityModel -> CompletableFuture.supplyAsync(() -> {
-            if(identityModel.type() != Identity.USER ||
-               getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER,
-                                                     identityModel.identityID().convertToKey(),
-                                                     ResourceAction.ADMIN))
-            {
-               return identityModel;
-            }
+            Principal oldPrincipal = ThreadContext.getContextPrincipal();
+            ThreadContext.setContextPrincipal(contextPrincipal);
 
-            return null;
+            try {
+               if(identityModel.type() != Identity.USER ||
+                  !identityService.isOrgMemberHiddenFrom(identityModel.identityID(), principal))
+               {
+                  return identityModel;
+               }
+
+               return null;
+            }
+            finally {
+               ThreadContext.setContextPrincipal(oldPrincipal);
+            }
          }, executor))
          .toList();
 
