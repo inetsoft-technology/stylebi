@@ -477,6 +477,7 @@ public class UserTreeService {
             throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
          }
 
+         identityService.checkSystemAdminParentGroup(parentGroup, currOrgID, principal);
          FSGroup identity = null;
 
          for(int i = 0; identity == null; i++) {
@@ -722,6 +723,7 @@ public class UserTreeService {
             return null;
          }
 
+         identityService.checkSystemAdminParentGroup(parentGroup, currOrgID, principal);
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
          String prefix = "user";
          FSUser identity;

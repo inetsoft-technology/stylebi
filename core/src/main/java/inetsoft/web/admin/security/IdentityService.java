@@ -207,6 +207,12 @@ public class IdentityService {
                continue;
             }
 
+            // only a site admin may delete an identity that grants system administrator
+            if(isSystemAdminTargetDenied(identityId, type, principal)) {
+               failedIdentities.add(identityModel.identityID());
+               continue;
+            }
+
             String state = IdentityInfoRecord.STATE_NONE;
 
             if(type == Identity.USER) {
@@ -1668,6 +1674,7 @@ public class IdentityService {
             }
          }
 
+         checkSystemAdminGrant(oldIdentity, model, groupV, principal);
          Identity newIdentity = null;
 
          if(type == Identity.USER) {
@@ -1710,6 +1717,173 @@ public class IdentityService {
             licenseManager.userChanged();
          }
       }
+   }
+
+   /**
+    * Rejects an edit by a caller who is not a site administrator when the edit would grant
+    * system administrator privileges: adding a role or group that carries a system administrator
+    * role, setting the sysAdmin flag on a role, or editing an identity that already grants system
+    * administrator (e.g. adding members to the Administrator role). The endpoint permission check
+    * only proves the caller may edit the identity, not that it may grant site-wide privileges.
+    * <p>
+    * {@code groupV} is only consulted for user edits. A group's or role's own parent chain can
+    * only change by editing the would-be parent, which is covered by the "already grants system
+    * administrator" check on that parent.
+    */
+   private void checkSystemAdminGrant(Identity oldIdentity, EntityModel model,
+                                      List<IdentityID> groupV, Principal principal)
+   {
+      if(!securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+      int type = oldIdentity.getType();
+      Set<IdentityID> oldRoles = new HashSet<>();
+      boolean granted = false;
+
+      if(oldIdentity instanceof User user) {
+         addRoles(oldRoles, user.getRoles());
+         IdentityID[] oldGroups = toGroupIDs(user.getGroups(), user.getOrganizationID());
+         Set<IdentityID> oldGroupSet = new HashSet<>(Arrays.asList(oldGroups));
+         // setUserInfo() stores membership by group name in the edited user's organization
+         String newOrgID = model instanceof EditUserPaneModel userModel ?
+            userModel.organization() : user.getOrganizationID();
+         IdentityID[] addedGroups = groupV.stream()
+            .map(g -> new IdentityID(g.name, newOrgID))
+            .filter(g -> !oldGroupSet.contains(g))
+            .toArray(IdentityID[]::new);
+         granted = grantsSystemAdmin(provider, oldRoles.toArray(new IdentityID[0]), oldGroups) ||
+            grantsSystemAdmin(provider, new IdentityID[0], addedGroups);
+      }
+      else if(oldIdentity instanceof Group group) {
+         addRoles(oldRoles, group.getRoles());
+         granted = grantsSystemAdmin(
+            provider, group.getRoles(),
+            toGroupIDs(new String[] { group.getName() }, group.getOrganizationID()));
+      }
+      else if(oldIdentity instanceof Role role) {
+         addRoles(oldRoles, role.getRoles());
+         granted = grantsSystemAdmin(provider, new IdentityID[] { role.getIdentityID() }, null) ||
+            model instanceof EditRolePaneModel roleModel && roleModel.isSysAdmin();
+      }
+
+      // Organization edits are intentionally not checked: setOrganizationInfo() does not persist
+      // model.roles() and rejects global roles (such as Administrator) as organization members.
+      // Revisit this if organization roles are ever saved through setIdentity().
+      if(!granted && (type == Identity.USER || type == Identity.GROUP || type == Identity.ROLE)) {
+         IdentityID[] addedRoles = model.roles().stream()
+            .filter(r -> r != null && !oldRoles.contains(r))
+            .toArray(IdentityID[]::new);
+         granted = grantsSystemAdmin(provider, addedRoles, null);
+      }
+
+      if(granted) {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to grant system administrator privileges via \"" +
+            oldIdentity.getIdentityID() + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Rejects creating a user or group under the given parent group by a caller who is not a site
+    * administrator when the parent group, or one of its ancestors, grants system administrator.
+    * Identity creation adds the new identity to the provider directly, bypassing setIdentity().
+    */
+   public void checkSystemAdminParentGroup(String parentGroup, String orgID, Principal principal) {
+      if(parentGroup == null || !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+
+      if(grantsSystemAdmin(provider, new IdentityID[0],
+                           new IdentityID[] { new IdentityID(parentGroup, orgID) }))
+      {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to grant system administrator privileges via parent group \"" +
+            parentGroup + "\" by user " + principal);
+      }
+   }
+
+   /**
+    * Determines if a caller that is not a site administrator is trying to act on a user, group
+    * or role that grants system administrator, which only a site administrator may do.
+    */
+   private boolean isSystemAdminTargetDenied(IdentityID identityId, int type, Principal principal) {
+      if(identityId == null || !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return false;
+      }
+
+      AuthenticationProvider provider = securityProvider.getAuthenticationProvider();
+
+      if(type == Identity.USER) {
+         User user = provider.getUser(identityId);
+         return user != null && grantsSystemAdmin(
+            provider, user.getRoles(), toGroupIDs(user.getGroups(), user.getOrganizationID()));
+      }
+      else if(type == Identity.GROUP) {
+         return grantsSystemAdmin(provider, new IdentityID[0], new IdentityID[] { identityId });
+      }
+      else if(type == Identity.ROLE) {
+         return grantsSystemAdmin(provider, new IdentityID[] { identityId }, null);
+      }
+
+      return false;
+   }
+
+   private static void addRoles(Set<IdentityID> set, IdentityID[] roles) {
+      if(roles != null) {
+         set.addAll(Arrays.asList(roles));
+      }
+   }
+
+   private static IdentityID[] toGroupIDs(String[] names, String orgID) {
+      return names == null ? new IdentityID[0] :
+         Arrays.stream(names).map(n -> new IdentityID(n, orgID)).toArray(IdentityID[]::new);
+   }
+
+   /**
+    * Determines if the given roles, or the roles held by the given groups and their ancestors,
+    * include or inherit a system administrator role. A non-existent role whose name matches the
+    * global system administrator role is treated as a spoofed grant.
+    */
+   private static boolean grantsSystemAdmin(AuthenticationProvider provider, IdentityID[] roles,
+                                            IdentityID[] groups)
+   {
+      List<IdentityID> allRoles =
+         roles == null ? new ArrayList<>() : new ArrayList<>(Arrays.asList(roles));
+
+      if(groups != null) {
+         for(IdentityID groupID : provider.getAllGroups(groups)) {
+            Group group = provider.getGroup(groupID);
+
+            if(group != null && group.getRoles() != null) {
+               allRoles.addAll(Arrays.asList(group.getRoles()));
+            }
+         }
+      }
+
+      for(IdentityID role : provider.getAllRoles(allRoles.toArray(new IdentityID[0]))) {
+         if(role == null) {
+            continue;
+         }
+
+         if(provider.isSystemAdministratorRole(role) ||
+            role.orgID != null && provider.getRole(role) == null &&
+            provider.isSystemAdministratorRole(new IdentityID(role.name, null)))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private IdentityInfoRecord getIdentityInfoRecord(EntityModel model,
