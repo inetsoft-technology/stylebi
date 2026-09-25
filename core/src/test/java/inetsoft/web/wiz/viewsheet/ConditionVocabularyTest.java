@@ -769,9 +769,111 @@ class ConditionVocabularyTest {
       assertTrue(String.valueOf(ConditionVocabulary.vocabulary().get("note")).contains("NEXT"));
    }
 
+   // ── gaps vs the Composer condition dialog ─────────────────────────────────
+
+   @Test
+   void refusesMoreThanOneValueForASingleValueOperator() {
+      for(String token : List.of("equals", "=", "less_than", ">", "starts_with", "contains",
+                                 "like", "date_in"))
+      {
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> ConditionVocabulary.toConditionList(
+               List.of(clause("Region", token, List.of("East", "West"), null)), FIELDS),
+            "'" + token + "' should refuse two values");
+
+         assertTrue(thrown.getMessage().contains("exactly one value"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void theEqualsArityErrorPointsAtOneOf() {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("Region", "equals", List.of("East", "West"), null)), FIELDS));
+
+      assertTrue(thrown.getMessage().contains("one_of"));
+   }
+
+   @Test
+   void refusesRolesOrGroupsSessionDataUnderEquals() {
+      for(String name : List.of("_ROLES_", "_GROUPS_")) {
+         Exception thrown = assertThrows(IllegalArgumentException.class,
+            () -> ConditionVocabulary.toConditionList(
+               List.of(clause("Region", "equals",
+                              List.of(Map.of("type", "session_data", "name", name)), null)),
+               FIELDS));
+
+         assertTrue(thrown.getMessage().contains("one_of"), thrown.getMessage());
+      }
+   }
+
+   @Test
+   void acceptsRolesSessionDataUnderOneOf() {
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("Region", "one_of",
+                        List.of(Map.of("type", "session_data", "name", "_ROLES_")), null)),
+         FIELDS);
+
+      assertEquals("$(_ROLES_)", ((ConditionModel) list[0]).getValues()[0].getValue());
+   }
+
+   @Test
+   void refusesUserSessionDataUnderAComparisonOperator() {
+      assertThrows(IllegalArgumentException.class, () -> ConditionVocabulary.toConditionList(
+         List.of(clause("Region", "starts_with",
+                        List.of(Map.of("type", "session_data", "name", "_USER_")), null)),
+         FIELDS));
+   }
+
+   @Test
+   void refusesAnUnknownExpressionLanguage() {
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("Revenue", "greater_than",
+                           List.of(Map.of("type", "expression", "expression", "1",
+                                          "language", "sqll")), null)),
+            FIELDS));
+
+      assertTrue(thrown.getMessage().contains("sqll"));
+   }
+
+   @Test
+   void acceptsSqlExpressionLanguageCaseInsensitively() {
+      Object[] list = ConditionVocabulary.toConditionList(
+         List.of(clause("Revenue", "greater_than",
+                        List.of(Map.of("type", "expression", "expression", "1",
+                                       "language", "SQL")), null)),
+         FIELDS);
+
+      ExpressionValueModel expr = assertInstanceOf(ExpressionValueModel.class,
+         ((ConditionModel) list[0]).getValues()[0].getValue());
+      assertEquals(ExpressionValueModel.SQL, expr.getType());
+   }
+
+   @Test
+   void refusesANonBooleanLiteralForABooleanField() {
+      DataRefModel[] fields = { field("Paid", "boolean") };
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> ConditionVocabulary.toConditionList(
+            List.of(clause("Paid", "equals", List.of("yes"), null)), fields));
+
+      assertTrue(thrown.getMessage().contains("yes"));
+   }
+
+   @Test
+   void acceptsTrueOrFalseForABooleanField() {
+      DataRefModel[] fields = { field("Paid", "boolean") };
+
+      for(String literal : List.of("TRUE", "false")) {
+         assertDoesNotThrow(() -> ConditionVocabulary.toConditionList(
+            List.of(clause("Paid", "equals", List.of(literal), null)), fields));
+      }
+   }
+
    private static int operationOf(String operator) {
       Object[] list = ConditionVocabulary.toConditionList(
-         List.of(clause("Region", operator, List.of("x", "y"), null)), FIELDS);
+         List.of(clause("Region", operator, List.of("x"), null)), FIELDS);
       return ((ConditionModel) list[0]).getOperation();
    }
 }
