@@ -1200,12 +1200,16 @@ public class FormulaTableLens extends AbstractTableLens
             return null;
          }
 
+         // restore, not clear: this read may be inside the exec of the same cell, whose
+         // assignment to its own column must still set the result (setObject)
+         Point prev = currExec;
+
          try {
             currExec = new Point(col, row);
             return getResult(col - ncols);
          }
          finally {
-            currExec = null;
+            currExec = prev;
          }
       }
 
