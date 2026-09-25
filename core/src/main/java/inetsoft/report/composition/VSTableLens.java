@@ -339,6 +339,26 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    }
 
    /**
+    * A column's cached width inside a grid insetW narrower than the card. The cache fills the
+    * last column to the card; this takes back what that fill put into the inset, and never
+    * writes the cache.
+    */
+   public int getColumnWidthInGrid(int col, TableDataVSAssemblyInfo info, int insetW) {
+      int width = widths[col];
+
+      if(insetW <= 0 || col != widths.length - 1) {
+         return width;
+      }
+
+      // the width initTableLensColumnWidths starts from before it fills
+      double setW = info.getColumnWidth2(col, this);
+      int base = Double.isNaN(setW) || (int) setW < 0 ? AssetUtil.defw : (int) setW;
+      int fill = Math.max(0, width - base);
+
+      return width - Math.min(fill, insetW);
+   }
+
+   /**
     * Set each column width.
     * @param width the specified column.
     */
