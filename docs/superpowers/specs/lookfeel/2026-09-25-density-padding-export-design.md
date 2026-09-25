@@ -95,9 +95,11 @@ VSTableDataHelper                  report/io/viewsheet/
 
 ### 5.1 The resolver
 
-- `VSExporter` declares `Insets getTableCardInset(TableDataVSAssemblyInfo info)`. The helpers hold
-  a `VSExporter` (`ExporterHelper.getExporter()`). Every implementer extends `AbstractVSExporter`;
-  `PDFVSExporter`, `PoiExcelVSExporter` and `PPTVSExporter` also name the interface directly.
+- `VSExporter` declares `Insets getTableCardInset(TableDataVSAssemblyInfo info)` as a default
+  returning zero, so an implementer outside `AbstractVSExporter` keeps today's output. The
+  helpers hold a `VSExporter` (`ExporterHelper.getExporter()`). Every implementer extends
+  `AbstractVSExporter`; `PDFVSExporter`, `PoiExcelVSExporter` and `PPTVSExporter` also name the
+  interface directly.
 - `AbstractVSExporter` implements it: the info's `getPadding()` when `insetsTableCard()` is true,
   otherwise zero. A null padding resolves to zero.
 - `insetsTableCard()` is a protected capability, true by default and false in `ExcelVSExporter` and
@@ -216,8 +218,9 @@ export helpers draws them, so export has nothing to place. The manual check conf
 ## 6. C1: HTML
 
 HTML has its own hierarchy: `HTMLTableHelper` for table and embedded table, `HTMLCrosstabHelper` for
-crosstab and calc table. It reads the same resolver; `HTMLVSExporter` keeps the capability's
-default, true, so the resolver returns the table's padding.
+crosstab and calc table. The HTML helpers hold no exporter, so `HTMLVSExporter` hands each one
+the resolver's value (`setCardInset`). It keeps the capability's default, true, so that value is
+the table's padding.
 
 - **One inner wrapper.** When the inset is non-zero, `HTMLTableHelper.write` (`:70`) and
   `HTMLCrosstabHelper.write` emit a `position:absolute` div at (L, T), sized W − L − R by H − T − B.
@@ -308,7 +311,7 @@ types reach `VsToReportConverter.addTable` (`:1103`). Its bounds come from
 ## 9. Testing
 
 1. **Baselines first.** Before any slice C code, on this branch as it stands, export one fixture
-   viewsheet in PDF, PNG, SVG, HTML, PPT, Excel and print layout.
+   viewsheet in PDF, PNG, HTML, PPT, Excel and print layout, the formats the Export dialog offers.
    - The fixture holds a marked table, crosstab and calc table, an unmarked table and a marked chart.
    - These files are the reference for the legacy guarantee, and they cannot be recreated once C1
      code lands.
@@ -355,14 +358,15 @@ types reach `VsToReportConverter.addTable` (`:1103`). Its bounds come from
 4. **Manual checks**, against the baselines.
    - **What to export:**
      - a marked table, crosstab and calc table at each density, beside a marked chart;
-     - PDF, PNG, SVG, HTML and PPT for C1, and print layout for C2;
+     - PDF, PNG (which covers SVG), HTML and PPT for C1, and print layout for C2;
      - match layout and expand mode, shrink-to-fit, bottom tabs and rounded corners.
    - **What to confirm:**
      - the inset matches the chart's;
      - the border and background sit at the card edge;
      - no row or column is clipped;
-     - the unmarked table's SVG and HTML diff empty against the baseline, and its PDF, PNG and PPT
-       look identical;
+     - the unmarked table's HTML diffs empty against the baseline and its PNG compares identical,
+       and its PDF and PPT look identical (SVG is not an export format of its own; it is PNG's
+       renderer, and PDF and PPT containers carry timestamps);
      - a padded table's Excel output has the same cell layout as its baseline;
      - HTML: where the scrollbar gutter lands (§6);
      - crosstab: no tip icons in any format.
