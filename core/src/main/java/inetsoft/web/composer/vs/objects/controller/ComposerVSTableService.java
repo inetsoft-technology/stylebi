@@ -1087,6 +1087,8 @@ public class ComposerVSTableService {
                !Double.isNaN(info.getColumnWidthValue(lens.getColCount() - 1)))
             {
                Dimension size = vs.getPixelSize(info);
+               // the grid inside the card inset, which the last column fills
+               double tableW = BaseTableService.getContentWidth(size.width, info.getPadding());
                double total = Arrays.stream(colWidths).sum();
                boolean isHidden = false;
 
@@ -1094,9 +1096,9 @@ public class ComposerVSTableService {
                   isHidden = true;
                }
 
-               if(total < size.width && !isHidden) {
+               if(total < tableW && !isHidden) {
                   info.setColumnWidthValue(lens.getColCount() - 1,
-                                           colWidths[colWidths.length - 1] + size.width - total);
+                                           colWidths[colWidths.length - 1] + tableW - total);
                }
             }
 

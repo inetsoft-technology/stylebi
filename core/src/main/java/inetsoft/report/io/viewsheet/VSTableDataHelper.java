@@ -327,7 +327,8 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       // information pre-populated, we can not return the rendered number of
       // lines per cell.
       if(lens != null) {
-         double[] colWidths = BaseTableService.getColWidths(assembly, lens);
+         // export still lays the grid across the whole card
+         double[] colWidths = BaseTableService.getColWidths(assembly, lens, false);
          lens.initTableGrid(info);
          lens.setColWidths(colWidths);
 
