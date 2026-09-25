@@ -34,6 +34,8 @@ import inetsoft.uql.viewsheet.FileFormatInfo;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.audit.AuditRecordUtils;
+import inetsoft.util.audit.BookmarkRecord;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
@@ -50,6 +52,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.mockito.MockedStatic;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayOutputStream;
@@ -3698,6 +3701,68 @@ class ViewsheetAssemblyAgentControllerTest {
    // this owner and running the conflict checks after that would always compare a just-refreshed
    // baseline against itself.
    // ---------------------------------------------------------------------------
+
+   /** Bug #76950 -- agent create_bookmark writes the same CREATE audit record the native UI does. */
+   @Test
+   void createBookmark_writesCreateAuditRecord() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSBookmarkInfo info = new VSBookmarkInfo();
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), any(IdentityID.class))).thenReturn(info);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class))).thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      try(MockedStatic<AuditRecordUtils> audit = mockStatic(AuditRecordUtils.class)) {
+         controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", true),
+            principal());
+
+         audit.verify(() -> AuditRecordUtils.executeBookmarkRecord(
+            vs, info, BookmarkRecord.ACTION_TYPE_CREATE, null));
+      }
+   }
+
+   /** Bug #76950 -- agent update_bookmark writes the same MODIFY audit record the native UI does. */
+   @Test
+   void updateBookmark_writesModifyAuditRecord() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      Viewsheet vs = mock(Viewsheet.class);
+      VSBookmarkInfo info = new VSBookmarkInfo();
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.bookmarkUpdated(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.checkBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(true);
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), any(IdentityID.class))).thenReturn(info);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"), anyInt(),
+         anyBoolean(), eq(true), any(Principal.class), any(Principal.class))).thenReturn(ok);
+
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      try(MockedStatic<AuditRecordUtils> audit = mockStatic(AuditRecordUtils.class)) {
+         controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, null),
+            principal());
+
+         audit.verify(() -> AuditRecordUtils.executeBookmarkRecord(
+            vs, info, BookmarkRecord.ACTION_TYPE_MODIFY, null));
+      }
+   }
 
    @Test
    void updateBookmark_succeedsNormallyWhenNoConflict() throws Exception {

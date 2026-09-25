@@ -54,6 +54,8 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.util.MessageException;
+import inetsoft.util.audit.AuditRecordUtils;
+import inetsoft.util.audit.BookmarkRecord;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.ws.dialog.WorksheetPropertyDialogService;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
@@ -441,6 +443,9 @@ public class ViewsheetAssemblyAgentController {
 
          requireOk(vsBookmarkService.addBookmarkToViewSheet(rvs, name, type, readOnly, true, user),
                    "create_bookmark");
+         // same audit trail as the native addBookmark handler (bug #76950)
+         AuditRecordUtils.executeBookmarkRecord(rvs.getViewsheet(),
+            rvs.getBookmarkInfo(name, ownerOf(user)), BookmarkRecord.ACTION_TYPE_CREATE, null);
       });
    }
 
@@ -511,6 +516,9 @@ public class ViewsheetAssemblyAgentController {
          requireOk(vsBookmarkService.addBookmarkToViewSheet(
                       rvs, name, type, readOnly, true, principalOf(targetOwner), user),
                    "update_bookmark");
+         // same audit trail as the native saveBookmark handler (bug #76950)
+         AuditRecordUtils.executeBookmarkRecord(rvs.getViewsheet(),
+            rvs.getBookmarkInfo(name, targetOwner), BookmarkRecord.ACTION_TYPE_MODIFY, null);
       });
    }
 
