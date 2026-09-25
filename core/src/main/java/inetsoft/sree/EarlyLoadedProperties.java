@@ -56,6 +56,14 @@ public class EarlyLoadedProperties {
       ConfigurationContext.getContext().remove(EarlyLoadedProperties.class.getName());
    }
 
+   /**
+    * Puts back an instance that was discarded by {@link #reset()}, used by
+    * {@link PropertiesEngine} to keep the previous properties when a reload fails.
+    */
+   static void restore(EarlyLoadedProperties instance) {
+      ConfigurationContext.getContext().put(EarlyLoadedProperties.class.getName(), instance);
+   }
+
    public String getProperty(String name) {
       return properties.getProperty(name);
    }

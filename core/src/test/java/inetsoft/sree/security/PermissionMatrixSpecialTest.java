@@ -556,14 +556,14 @@ class PermissionMatrixSpecialTest {
    }
 
    @Test
-   @Disabled("Bug #76979: flaky in CI, a background PropertiesEngine reload can drop the " +
-      "cached security.users.multiTenant value this test relies on")
    void isMultiTenant_storageReadFailure_fallsBackToCachedValue() throws Exception {
       // Defensive-path complement to the test above: a direct-storage-read failure must fall back
       // to the cached SreeEnv.getProperty() value rather than let the exception escape
       // isMultiTenant(), which gates every isDefaultVSGloballyVisible() call plus many other
-      // security/org-layer call sites. Relies on SecurityTestDataBuilder.setup() having already
-      // persisted "security.users.multiTenant" = "true" as the cached fallback value.
+      // security/org-layer call sites. The cached reads are stubbed too, instead of relying on
+      // the values SecurityTestDataBuilder.setup() persisted: this class's own save() calls
+      // trigger background PropertiesEngine reloads that replace the cached properties while
+      // the tests run (Bug #76979).
       try(MockedStatic<LicenseManager> license =
              Mockito.mockStatic(LicenseManager.class, Mockito.CALLS_REAL_METHODS))
       {
@@ -574,11 +574,15 @@ class PermissionMatrixSpecialTest {
          {
             mockedEnv.when(() -> SreeEnv.getPropertyFromStorage(Mockito.anyString()))
                .thenThrow(new RuntimeException("storage temporarily unreachable"));
+            mockedEnv.when(() -> SreeEnv.getProperty("security.enabled")).thenReturn("true");
+            mockedEnv.when(() -> SreeEnv.getProperty("security.users.multiTenant", "false"))
+               .thenReturn("true");
 
             assertTrue(
                SUtil.isMultiTenant(),
                "a direct-storage-read failure must fall back to the cached property value, " +
                "not propagate an exception out of isMultiTenant()");
+            mockedEnv.verify(() -> SreeEnv.getProperty("security.users.multiTenant", "false"));
          }
       }
    }
