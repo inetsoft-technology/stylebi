@@ -834,6 +834,12 @@ public class IdentityService {
       }
 
       for(int i = 0; i < newUsers.length; i ++) {
+         // never replace an existing user with a blank one
+         if(eprovider.getUser(newUsers[i]) != null) {
+            LOG.warn("Skipping organization member, user already exists: {}", newUsers[i]);
+            continue;
+         }
+
          FSUser user = new FSUser(newUsers[i]);
          eprovider.setUser(user.getIdentityID(), user);
       }
@@ -859,6 +865,11 @@ public class IdentityService {
       }
 
       for(int i = 0; i < newGroups.length; i ++) {
+         if(eprovider.getGroup(newGroups[i]) != null) {
+            LOG.warn("Skipping organization member, group already exists: {}", newGroups[i]);
+            continue;
+         }
+
          FSGroup group = new FSGroup(newGroups[i]);
          eprovider.setGroup(group.getIdentityID(), group);
       }
@@ -881,6 +892,11 @@ public class IdentityService {
       }
 
       for(int i = 0; i < newRoles.length; i ++) {
+         if(eprovider.getRole(newRoles[i]) != null) {
+            LOG.warn("Skipping organization member, role already exists: {}", newRoles[i]);
+            continue;
+         }
+
          FSRole role = new FSRole(newRoles[i]);
          eprovider.setRole(role.getIdentityID(), role);
       }
@@ -2086,6 +2102,13 @@ public class IdentityService {
                throw new MessageException(Catalog.getCatalog().getString("em.security.GlobalRoleMemberError"));
             }
          }
+
+         // an existing identity of another organization must never be taken over as a member,
+         // updateOrganizationMembers() would overwrite it with a blank identity
+         if(isExistingIdentityOfOtherOrg(member, oldOrg.getId(), eprovider)) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "em.security.orgMemberFromOtherOrg", member.identityID().getName()));
+         }
       }
 
       newOrg.setMembers(memberNames.toArray(new String[0]));
@@ -2138,6 +2161,25 @@ public class IdentityService {
       syncIdentity(eprovider, newOrg, new IdentityID(syncOldName, syncOldOrgID));
 
       return newOrg;
+   }
+
+   private boolean isExistingIdentityOfOtherOrg(IdentityModel member, String orgID,
+                                                EditableAuthenticationProvider eprovider)
+   {
+      IdentityID identityID = member.identityID();
+
+      if(identityID == null || identityID.getOrgID() == null ||
+         Tool.equals(identityID.getOrgID(), orgID))
+      {
+         return false;
+      }
+
+      return switch(member.type()) {
+         case Identity.USER -> eprovider.getUser(identityID) != null;
+         case Identity.GROUP -> eprovider.getGroup(identityID) != null;
+         case Identity.ROLE -> eprovider.getRole(identityID) != null;
+         default -> false;
+      };
    }
 
    private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
