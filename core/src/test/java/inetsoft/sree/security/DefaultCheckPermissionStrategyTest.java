@@ -413,6 +413,92 @@ class DefaultCheckPermissionStrategyTest {
       );
    }
 
+   // Bug #76866 follow-up: SecurityService writes an org's SECURITY_ORGANIZATION self grant keyed
+   // by (org name, org id). The inherited SECURITY_USER/GROUP/ROLE org-admin fallback must read
+   // that same key when the org name differs from its id, and still read the (org id, org id)
+   // key written for orgs created before bug #76866. A role grantee is used and the 2-arg
+   // lookups (line ~59 and checkOrgAdminPermission) are left unstubbed to isolate the fallback.
+   @ParameterizedTest
+   @MethodSource("orgSelfGrantKeyCases")
+   void orgSelfGrantFallbackMatchesStoredKey(String orgName, IdentityID storedKey, boolean expected) {
+      String resource = new IdentityID("someUser", TEST_ORG).convertToKey();
+      Permission orgAdminPermission = roleGrantedPermission(TEST_ROLE, TEST_ORG, ResourceAction.ADMIN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(orgName);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getOrgNameFromID(eq(TEST_ORG))).thenReturn(orgName);
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION), eq(storedKey), eq(TEST_ORG)))
+            .thenReturn(orgAdminPermission);
+
+         assertEquals(expected,
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_USER, resource,
+                                         ResourceAction.ADMIN),
+            "org self grant stored at " + storedKey + " for org name " + orgName);
+      }
+   }
+
+   // Editing a legacy org writes a (name, id) grant without the grantees still stored under the
+   // (id, id) key; the legacy grant must still be honored.
+   @Test
+   void legacyOrgSelfGrantHonoredWhenNewKeyGrantIsEmpty() {
+      String orgName = "Test Org";
+      String resource = new IdentityID("someUser", TEST_ORG).convertToKey();
+      Permission legacyPermission = roleGrantedPermission(TEST_ROLE, TEST_ORG, ResourceAction.ADMIN, false);
+
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(false);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(orgName);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(false);
+
+         when(mockProvider.getOrgNameFromID(eq(TEST_ORG))).thenReturn(orgName);
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION),
+                                         eq(new IdentityID(orgName, TEST_ORG)), eq(TEST_ORG)))
+            .thenReturn(new Permission());
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION),
+                                         eq(new IdentityID(TEST_ORG, TEST_ORG)), eq(TEST_ORG)))
+            .thenReturn(legacyPermission);
+
+         assertTrue(
+            mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_USER, resource,
+                                         ResourceAction.ADMIN),
+            "legacy (id, id) org self grant must still apply when the (name, id) grant is empty");
+      }
+   }
+
+   static Stream<Arguments> orgSelfGrantKeyCases() {
+      return Stream.of(
+         // org created after bug #76866 (or edited), name != id
+         Arguments.of("Test Org", new IdentityID("Test Org", TEST_ORG), true),
+         // legacy org created before bug #76866, name != id
+         Arguments.of("Test Org", new IdentityID(TEST_ORG, TEST_ORG), true),
+         // name == id: both keys are the same
+         Arguments.of(TEST_ORG, new IdentityID(TEST_ORG, TEST_ORG), true),
+         // grant belongs to some other org
+         Arguments.of("Test Org", new IdentityID("Other Org", "otherOrg"), false)
+      );
+   }
+
    // Bug #75574: an org administrator (SECURITY_ORGANIZATION ADMIN on their own org) must not
    // be granted SECURITY_ROLE ADMIN on the global system administrator role via the org-admin
    // fallback (line ~382). That fallback previously granted access to ANY role once the caller
