@@ -78,6 +78,15 @@ import static org.mockito.Mockito.when;
  *                   count including the new joiner
  * [neverRefuses]    a same-runtime double-join always succeeds -- the count is advisory only,
  *                   never a refusal ground
+ * [peekDescribes]   peek reports a valid code's runtimeId + sheetType to its own owner
+ * [peekKeepsCode]   peek does NOT consume: a join with the same code still succeeds afterwards
+ *                   (VSS-001 -- the whole reason peek is exposed)
+ * [peekUnknown]     peek with an unknown/expired code -> SESSION_EXPIRED
+ * [peekForeign]     peek at another user's code -> the SAME SESSION_EXPIRED, never a
+ *                   distinguishable answer
+ * [peekFeatureOff]  feature off -> PairingException; code still not consumed
+ * [peekThrottled]   peek shares join's lockout in both directions, so it can be neither an
+ *                   unthrottled guessing oracle nor a way to keep guessing after lockout
  */
 @Tag("core")
 @ExtendWith(MockitoExtension.class)
@@ -666,5 +675,100 @@ class SheetJoinServiceTest {
       // refuse the join itself.
       SheetJoinService.JoinOutcome secondOutcome = svc.join(secondCode, alice);
       assertNotNull(secondOutcome.session());
+   }
+
+   // ---------------------------------------------------------------------------
+   // peek -- non-consuming code lookup (VSS-001 / Redmine #76955)
+   // ---------------------------------------------------------------------------
+   @Test
+   void peekDescribesTheCodeToItsOwner() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String code = pairing.mint("Viewsheet/peek-1", ALICE_KEY, "sock-1", null,
+                                 SheetType.VIEWSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      SheetJoinService.PeekOutcome outcome = svc.peek(code, alice);
+
+      assertEquals("Viewsheet/peek-1", outcome.runtimeId());
+      assertEquals(SheetType.VIEWSHEET, outcome.sheetType());
+   }
+
+   @Test
+   void peekDoesNotConsumeTheCode() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String code = pairing.mint("Worksheet/peek-2", ALICE_KEY, "sock-1", null,
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      // Peeking repeatedly must leave the grant intact -- this is the entire point of the
+      // endpoint. If this ever regresses, the plugin is back to burning the code to find out
+      // what it points at, which is VSS-001.
+      svc.peek(code, alice);
+      svc.peek(code, alice);
+
+      JoinSession session = svc.join(code, alice).session();
+      assertEquals("Worksheet/peek-2", session.runtimeId());
+   }
+
+   @Test
+   void peekWithAnUnknownCodeIsRejected() {
+      when(feature.isEnabled()).thenReturn(true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.peek("NOPE", alice));
+      assertEquals(PairingException.Kind.SESSION_EXPIRED, ex.getKind());
+   }
+
+   @Test
+   void peekAtAnotherUsersCodeIsIndistinguishableFromNoSuchCode() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      String code = pairing.mint("Worksheet/peek-3", BOB_KEY, "sock-1", null,
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      PairingException foreign = assertThrows(PairingException.class, () -> svc.peek(code, alice));
+      PairingException unknown = assertThrows(PairingException.class, () -> svc.peek("NOPE", alice));
+
+      // Same kind AND same message: a caller must not be able to use this endpoint to learn that
+      // someone else has a live pairing code outstanding.
+      assertEquals(unknown.getKind(), foreign.getKind());
+      assertEquals(unknown.getMessage(), foreign.getMessage());
+
+      // ...and the foreign code is still there for its real owner.
+      assertNotNull(pairing.peek(code));
+   }
+
+   @Test
+   void peekIsRefusedWhenTheFeatureIsOffAndLeavesTheCodeIntact() throws PairingException {
+      String code = pairing.mint("Worksheet/peek-4", ALICE_KEY, "sock-1", null,
+                                 SheetType.WORKSHEET, null);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+      when(feature.isEnabled()).thenReturn(false);
+
+      PairingException ex = assertThrows(PairingException.class, () -> svc.peek(code, alice));
+      assertEquals(PairingException.Kind.FEATURE_DISABLED, ex.getKind());
+      assertNotNull(pairing.peek(code));
+   }
+
+   @Test
+   void peekSharesJoinsLockoutInBothDirections() throws PairingException {
+      when(feature.isEnabled()).thenReturn(true);
+      Principal alice = TestPrincipals.user("alice", "host-org");
+
+      // Guessing via peek trips the SAME lockout join has -- otherwise peek would be a cheaper,
+      // unthrottled oracle for the exact guessing the join throttle exists to blunt.
+      for(int i = 0; i < 8; i++) {
+         final String guess = "NOPE" + i;
+         assertThrows(PairingException.class, () -> svc.peek(guess, alice));
+      }
+
+      String code = pairing.mint("Worksheet/peek-5", ALICE_KEY, "sock-1", null,
+                                 SheetType.WORKSHEET, null);
+
+      PairingException viaJoin = assertThrows(PairingException.class, () -> svc.join(code, alice));
+      assertEquals(PairingException.Kind.RATE_LIMITED, viaJoin.getKind());
+
+      PairingException viaPeek = assertThrows(PairingException.class, () -> svc.peek(code, alice));
+      assertEquals(PairingException.Kind.RATE_LIMITED, viaPeek.getKind());
    }
 }

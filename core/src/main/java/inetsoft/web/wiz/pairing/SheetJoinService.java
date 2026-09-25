@@ -230,6 +230,73 @@ public class SheetJoinService {
    }
 
    /**
+    * What a pairing code points at, read WITHOUT redeeming it.
+    *
+    * @param runtimeId the runtime the code was minted against
+    * @param sheetType that runtime's own type
+    */
+   public record PeekOutcome(String runtimeId, SheetType sheetType) {}
+
+   /**
+    * Non-consuming lookup of a pairing code, for its own owner.
+    *
+    * <p>Exists because the agent plugin has a decision to make that only the code's
+    * {@code runtimeId} can settle — "is this code for the sheet I am already holding, or a
+    * different one?" — and {@link #join} is the only way it could previously ask. That forced the
+    * plugin to spend the single-use code before it could refuse the connect, so the retry its own
+    * refusal advised ("pass {@code additive: true}") then failed with "Invalid or expired pairing
+    * code", and the session the burned join had already opened was abandoned to its 2 h TTL, where
+    * it kept the asset open long enough to collide with a re-create. See VSS-001 / Redmine #76955.
+    *
+    * <p>Deliberately narrower than {@link #join}: it reports only {@code runtimeId} and
+    * {@code sheetType}, never {@code editorContext} or a sheet label (the label does not exist
+    * until a runtime is resolved at join time anyway), and it performs no runtime-ownership
+    * lookup — nothing here touches a runtime, so there is nothing to bind a grant to yet. Step 3b
+    * of {@link #join} remains the one place that check happens, on the path that actually opens a
+    * session.
+    *
+    * <p>Shares {@link #join}'s throttle deliberately, and by the same key. Without that, this
+    * endpoint would be an unthrottled oracle for guessing codes that sidesteps the very lockout
+    * {@code join} has — cheaper to abuse than {@code join}, since a peek costs the attacker
+    * nothing. A success does NOT clear the attempt window (only an actual join does): holding one
+    * valid code should not wipe the record of guessing at others.
+    *
+    * <p>An unknown, expired or foreign-owned code all raise the same
+    * {@link PairingException.Kind#SESSION_EXPIRED} with the same message, so a caller can never
+    * use this to tell "someone else has a live code" from "no such code".
+    *
+    * @param code      the pairing code to describe; it is NOT consumed
+    * @param agentUser the agent's authenticated principal
+    * @throws PairingException if the caller is locked out, the flag is off, or the code is
+    *                          invalid/expired/not theirs
+    */
+   public PeekOutcome peek(String code, Principal agentUser) throws PairingException {
+      String throttleKey = throttleKey(agentUser);
+      long now = System.currentTimeMillis();
+      assertNotLockedOut(throttleKey, now);
+
+      if(!feature.isEnabled()) {
+         LOG.warn("Sheet agent pairing peek rejected: feature disabled (agent={})",
+                  agentUser == null ? "?" : agentUser.getName());
+         throw new PairingException(PairingException.Kind.FEATURE_DISABLED,
+                                    "Sheet agent pairing is disabled");
+      }
+
+      PairingGrant grant = pairing.peek(code);
+
+      // One branch for "no such code" and "not yours" on purpose -- see the class comment above.
+      if(grant == null || !PairingUtil.sameLogicalUser(grant.ownerIdentity(), agentUser)) {
+         recordFailedAttempt(throttleKey, now);
+         LOG.warn("Sheet agent pairing peek rejected: invalid/expired/foreign code (agent={})",
+                  agentUser == null ? "?" : agentUser.getName());
+         throw new PairingException(PairingException.Kind.SESSION_EXPIRED,
+                                    "Invalid or expired pairing code");
+      }
+
+      return new PeekOutcome(grant.runtimeId(), grant.sheetType());
+   }
+
+   /**
     * Best-effort resolution of a human-readable label for the joined sheet, sourced from
     * {@code AssetEntry.toView()}. Never throws: a label failure must never turn a successful join
     * into a failed one, mirroring {@link #join}'s treatment of {@code sendPairingJoined}.

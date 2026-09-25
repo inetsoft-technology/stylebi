@@ -54,10 +54,12 @@ public class SheetPairingController {
    public SheetPairingController(SheetPairingService pairing, SheetSessionService sessions,
                                  SheetAgentFeature feature,
                                  SheetAgentBroadcastService broadcast,
+                                 SheetJoinService joinService,
                                  @Value("${wiz.agent.rest-mint.enabled:false}") boolean restMintEnabled)
    {
       this.pairing = pairing;
       this.sessions = sessions;
+      this.joinService = joinService;
       this.feature = feature;
       this.broadcast = broadcast;
       this.restMintEnabled = restMintEnabled;
@@ -81,6 +83,33 @@ public class SheetPairingController {
    @GetMapping("/api/wiz/pairing/feature")
    public java.util.Map<String, Boolean> featureStatus() {
       return java.util.Map.of("enabled", feature.isEnabled());
+   }
+
+   /**
+    * What a pairing code points at, without redeeming it. {@code sheetType} is the runtime's own
+    * type, serialized lowercase exactly as each agent controller's {@code JoinResponse} does.
+    */
+   public record PeekResponse(String runtimeId, String sheetType) {}
+
+   /**
+    * Non-consuming description of a pairing code, for its own owner.
+    *
+    * <p>The one endpoint an agent can ask "what is this code for?" without spending it. Before it
+    * existed, a plugin holding a live session had no way to find out whether an incoming code was
+    * for that same sheet or a different one except by joining — so it redeemed the single-use code
+    * and only then discovered it had to refuse, leaving the caller advised to retry with a code
+    * that no longer existed. See {@link SheetJoinService#peek} for the full contract (shared
+    * throttle, feature gate, and why an unknown code and a foreign one answer identically).
+    *
+    * <p>Lives on {@code /api/wiz/v1/agent/**} rather than beside the other
+    * {@code /api/wiz/pairing/**} entry points because it is the agent plugin that calls it, over
+    * the same HTTP surface every other agent call already uses; the {@code /api/wiz/pairing/**}
+    * paths above are the browser's.
+    */
+   @GetMapping("/api/wiz/v1/agent/pairing/peek")
+   public PeekResponse peek(@RequestParam String code, Principal user) throws PairingException {
+      SheetJoinService.PeekOutcome outcome = joinService.peek(code, user);
+      return new PeekResponse(outcome.runtimeId(), outcome.sheetType().name().toLowerCase());
    }
 
    /**
@@ -315,6 +344,7 @@ public class SheetPairingController {
    }
 
    private final SheetPairingService pairing;
+   private final SheetJoinService joinService;
    private final SheetSessionService sessions;
    private final SheetAgentFeature feature;
    private final SheetAgentBroadcastService broadcast;
