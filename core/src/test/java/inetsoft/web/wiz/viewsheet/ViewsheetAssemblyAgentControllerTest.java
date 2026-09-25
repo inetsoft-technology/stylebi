@@ -4529,7 +4529,7 @@ class ViewsheetAssemblyAgentControllerTest {
    }
 
    @Test
-   void deleteBookmark_nonOwnerAllshareReadOnlyFalse_succeedsAndTargetsOriginalOwner() throws Exception {
+   void deleteBookmark_nonOwnerAllshareReadOnlyFalse_refused() throws Exception {
       ViewsheetSessionService sessions = realMutatingSessions();
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
@@ -4542,17 +4542,18 @@ class ViewsheetAssemblyAgentControllerTest {
          new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin, false,
                             System.currentTimeMillis())));
       ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
-      controller.deleteBookmark("tok",
-         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", () -> "user0");
 
-      ArgumentCaptor<VSEditBookmarkEvent> captor = ArgumentCaptor.forClass(VSEditBookmarkEvent.class);
-      verify(vsBookmarkService).deleteBookmark(eq("runtime-1"), captor.capture(),
-         any(Principal.class), any(), eq(""));
-      assertEquals(admin, captor.getValue().vsBookmarkInfoModel().owner());
+      // readOnly:false only lets others overwrite, never delete (the Viewer's Remove button is
+      // owner-only) -- the delete must not reach VSBookmarkService at all.
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.deleteBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", () -> "user0"));
+      assertTrue(thrown.getMessage().contains("only its owner can delete it"));
+      verify(vsBookmarkService, never()).deleteBookmark(any(), any(), any(), any(), any());
    }
 
    @Test
-   void deleteBookmark_nonOwnerGroupshareReadOnlyFalse_succeedsAndTargetsOriginalOwner() throws Exception {
+   void deleteBookmark_nonOwnerGroupshareReadOnlyFalse_refused() throws Exception {
       ViewsheetSessionService sessions = realMutatingSessions();
       RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
       when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
@@ -4565,13 +4566,14 @@ class ViewsheetAssemblyAgentControllerTest {
          new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.GROUPSHARE, admin, false,
                             System.currentTimeMillis())));
       ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
-      controller.deleteBookmark("tok",
-         new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", () -> "user0");
 
-      ArgumentCaptor<VSEditBookmarkEvent> captor = ArgumentCaptor.forClass(VSEditBookmarkEvent.class);
-      verify(vsBookmarkService).deleteBookmark(eq("runtime-1"), captor.capture(),
-         any(Principal.class), any(), eq(""));
-      assertEquals(admin, captor.getValue().vsBookmarkInfoModel().owner());
+      // readOnly:false only lets others overwrite, never delete (the Viewer's Remove button is
+      // owner-only) -- the delete must not reach VSBookmarkService at all.
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.deleteBookmark("tok",
+            new ViewsheetAssemblyAgentController.BookmarkNameRequest("Q1 Report"), "", () -> "user0"));
+      assertTrue(thrown.getMessage().contains("only its owner can delete it"));
+      verify(vsBookmarkService, never()).deleteBookmark(any(), any(), any(), any(), any());
    }
 
    /** Negative regression guard, same shape as {@code updateBookmark}'s own above. */
@@ -4655,6 +4657,374 @@ class ViewsheetAssemblyAgentControllerTest {
       assertEquals(admin, captor.getValue().getOwner());
    }
 
+   // ---------------------------------------------------------------------------
+   // bookmarkTools parity with the Viewer's bookmark UI: owner-only visibility edits and
+   // deletes, Share Bookmark / Share to All enforcement, the dialog's name rules, and "(Home)"
+   // reported the way the native bookmark panel reports it.
+   // ---------------------------------------------------------------------------
+
+   @Test
+   void updateBookmark_nonOwnerChangingType_refused() throws Exception {
+      VSBookmarkService vsBookmarkService = nonOwnerWritableAllshare();
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(nonOwnerSessions(), vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "private", null),
+            () -> "user0"));
+      assertTrue(thrown.getMessage().contains("only its owner can change its type/readOnly"));
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());
+   }
+
+   @Test
+   void updateBookmark_nonOwnerChangingReadOnly_refused() throws Exception {
+      VSBookmarkService vsBookmarkService = nonOwnerWritableAllshare();
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(nonOwnerSessions(), vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, true),
+            () -> "user0"));
+      assertTrue(thrown.getMessage().contains("only its owner can change its type/readOnly"));
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());
+   }
+
+   @Test
+   void updateBookmark_nonOwnerRepeatingExistingValues_writesThemUnchanged() throws Exception {
+      VSBookmarkService vsBookmarkService = nonOwnerWritableAllshare();
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(any(), anyString(), anyInt(), anyBoolean(),
+         anyBoolean(), any(Principal.class), any(Principal.class))).thenReturn(ok);
+      ViewsheetAssemblyAgentController controller =
+         controllerForBookmarks(nonOwnerSessions(), vsBookmarkService);
+
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", false),
+         () -> "user0");
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(any(), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(false), eq(true), any(Principal.class), any(Principal.class));
+   }
+
+   @Test
+   void createBookmark_sharedWithoutShareBookmarkPermission_refused() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      wireMutate(sessions, mock(RuntimeViewsheet.class));
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+         sessions, vsBookmarkService, permissionDenied("ShareBookmark"));
+
+      for(String type : List.of("shared", "group")) {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> controller.createBookmark("tok",
+               new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", type, null),
+               principal()));
+         assertTrue(thrown.getMessage().contains("Share Bookmark permission"));
+      }
+
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+   }
+
+   @Test
+   void createBookmark_withoutShareToAll_refusesSharedButAllowsGroup() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      wireMutate(sessions, rvs);
+      VSBookmarkService vsBookmarkService = okAddBookmarkService();
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+         sessions, vsBookmarkService, permissionDenied("ShareToAll"));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("Share to All permission"));
+
+      controller.createBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "group", null),
+         principal());
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.GROUPSHARE), eq(true), eq(true), any(Principal.class));
+   }
+
+   @Test
+   void createBookmark_sharedOnMyDashboardsViewsheet_refused() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      AssetEntry entry = mock(AssetEntry.class);
+      when(entry.getScope()).thenReturn(AssetRepository.USER_SCOPE);
+      when(rvs.getEntry()).thenReturn(entry);
+      wireMutate(sessions, rvs);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.createBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "group", null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("My Dashboards"));
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+   }
+
+   /** The dialog keeps an existing shared type when its Shared section is hidden, so an owner
+    *  who lost Share Bookmark can still refresh (not re-share) their own shared bookmark. */
+   @Test
+   void updateBookmark_ownerKeepingExistingSharedTypeWithoutSharePermission_succeeds() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.containsBookmark(eq("Q1 Report"), eq(admin))).thenReturn(true);
+      when(rvs.checkBookmark(eq("Q1 Report"), eq(admin))).thenReturn(true);
+      wireMutate(sessions, rvs);
+
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE, admin, true,
+                            System.currentTimeMillis())));
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(any(), anyString(), anyInt(), anyBoolean(),
+         anyBoolean(), any(Principal.class), any(Principal.class))).thenReturn(ok);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+         sessions, vsBookmarkService, permissionDenied("ShareBookmark", "ShareToAll"));
+
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", "shared", null),
+         principal());
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(true), eq(true), any(Principal.class), any(Principal.class));
+   }
+
+   /** The readOnly checkbox sits in the dialog's Shared section, hidden without Share Bookmark. */
+   @Test
+   void updateBookmark_ownerChangingReadOnlyOfSharedBookmarkWithoutShareBookmark_refused() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = ownerOfSharedBookmark(sessions);
+      VSBookmarkService vsBookmarkService = visibleAdminBookmark(VSBookmarkInfo.GROUPSHARE, true);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+         sessions, vsBookmarkService, permissionDenied("ShareBookmark"));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.updateBookmark("tok",
+            new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, false),
+            principal()));
+      assertTrue(thrown.getMessage().contains("Share Bookmark permission"));
+      verify(vsBookmarkService, never()).addBookmarkToViewSheet(
+         any(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any(), any());
+   }
+
+   /** "All Users" gates only the type choice, not the readOnly checkbox. */
+   @Test
+   void updateBookmark_ownerChangingReadOnlyOfAllshareBookmarkWithoutShareToAll_succeeds() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = ownerOfSharedBookmark(sessions);
+      VSBookmarkService vsBookmarkService = visibleAdminBookmark(VSBookmarkInfo.ALLSHARE, true);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(any(), anyString(), anyInt(), anyBoolean(),
+         anyBoolean(), any(Principal.class), any(Principal.class))).thenReturn(ok);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+         sessions, vsBookmarkService, permissionDenied("ShareToAll"));
+
+      controller.updateBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("Q1 Report", null, false),
+         principal());
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.ALLSHARE), eq(false), eq(true), any(Principal.class), any(Principal.class));
+   }
+
+   @Test
+   void renameBookmark_sameNameReadOnlyChangeOfSharedBookmarkWithoutShareBookmark_refused() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = ownerOfSharedBookmark(sessions);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.getBookmarkInfo(eq("Q1 Report"), eq(admin))).thenReturn(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.GROUPSHARE, admin, true,
+                            System.currentTimeMillis()));
+      VSBookmarkService vsBookmarkService = visibleAdminBookmark(VSBookmarkInfo.GROUPSHARE, true);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(
+         sessions, vsBookmarkService, permissionDenied("ShareBookmark"));
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Q1 Report", "Q1 Report", null, false, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("Share Bookmark permission"));
+      verify(vsBookmarkService, never()).renameBookmarkInViewSheet(
+         any(), anyString(), anyString(), anyInt(), anyBoolean(), anyBoolean(), any());
+   }
+
+   /** A runtime where the caller ("admin") owns "Q1 Report" and it is in sync. */
+   private static RuntimeViewsheet ownerOfSharedBookmark(ViewsheetSessionService sessions)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      IdentityID admin = IdentityID.getIdentityIDFromKey("admin");
+      when(rvs.containsBookmark(eq("Q1 Report"), eq(admin))).thenReturn(true);
+      when(rvs.checkBookmark(eq("Q1 Report"), eq(admin))).thenReturn(true);
+      wireMutate(sessions, rvs);
+      return rvs;
+   }
+
+   private static VSBookmarkService visibleAdminBookmark(int type, boolean readOnly) {
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", type, IdentityID.getIdentityIDFromKey("admin"),
+                            readOnly, System.currentTimeMillis())));
+      return vsBookmarkService;
+   }
+
+   @Test
+   void createBookmark_refusesNamesTheBookmarkDialogRejects() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      wireMutate(sessions, mock(RuntimeViewsheet.class));
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      for(String name : List.of("a,b", "x/y", "Q1 (final)")) {
+         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+            () -> controller.createBookmark("tok",
+               new ViewsheetAssemblyAgentController.SaveBookmarkRequest(name, "private", null),
+               principal()), name);
+         assertTrue(thrown.getMessage().contains("may only contain"), name);
+      }
+
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   @Test
+   void createBookmark_trimsTheNameAndAcceptsDateTimeNames() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      wireMutate(sessions, rvs);
+      VSBookmarkService vsBookmarkService = okAddBookmarkService();
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      controller.createBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("  Q1 Report  ", "private", null),
+         principal());
+      controller.createBookmark("tok",
+         new ViewsheetAssemblyAgentController.SaveBookmarkRequest("2026-01-31 08:00:00", "private", null),
+         principal());
+
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("Q1 Report"),
+         eq(VSBookmarkInfo.PRIVATE), eq(true), eq(true), any(Principal.class));
+      verify(vsBookmarkService).addBookmarkToViewSheet(eq(rvs), eq("2026-01-31 08:00:00"),
+         eq(VSBookmarkInfo.PRIVATE), eq(true), eq(true), any(Principal.class));
+   }
+
+   @Test
+   void renameBookmark_refusesAnInvalidNewNameWithoutCallingTheService() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      wireMutate(sessions, mock(RuntimeViewsheet.class));
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
+         () -> controller.renameBookmark("tok",
+            new ViewsheetAssemblyAgentController.RenameBookmarkRequest(
+               "Q1 Report", "Q1,Q2", null, null, null),
+            principal()));
+      assertTrue(thrown.getMessage().contains("'newName' may only contain"));
+      verifyNoInteractions(vsBookmarkService);
+   }
+
+   /** Lookup names are not held to the creation rules -- a bookmark saved under older, looser
+    *  rules must stay deletable. */
+   @Test
+   void deleteBookmark_stillReachesALegacyNameTheCreationRulesWouldReject() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("a,b"), any(IdentityID.class))).thenReturn(true);
+      wireMutate(sessions, rvs);
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      controller.deleteBookmark("tok",
+         new ViewsheetAssemblyAgentController.BookmarkNameRequest("a,b"), "", principal());
+
+      verify(vsBookmarkService).deleteBookmark(eq("runtime-1"), any(), any(Principal.class),
+         any(), eq(""));
+   }
+
+   @Test
+   void listBookmarks_reportsHomeAsSharedAndCurrentOnAFreshOpen() throws Exception {
+      ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(sessions.resolve(eq("tok"), any(Principal.class))).thenReturn(rvs);
+      when(rvs.getOpenedBookmark()).thenReturn(null);
+
+      IdentityID admin = new IdentityID("admin", "host-org");
+      VSBookmarkInfo home = new VSBookmarkInfo(VSBookmark.HOME_BOOKMARK, VSBookmarkInfo.PRIVATE,
+                                               admin, true, System.currentTimeMillis());
+      VSBookmarkInfo mine = new VSBookmarkInfo("My View", VSBookmarkInfo.PRIVATE, admin,
+                                               false, System.currentTimeMillis());
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(home, mine));
+      ViewsheetAssemblyAgentController controller = controllerForBookmarks(sessions, vsBookmarkService);
+
+      assertEquals(List.of(
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            VSBookmark.HOME_BOOKMARK, "shared", "admin", true, false, true),
+         new ViewsheetAssemblyAgentController.BookmarkInfo(
+            "My View", "private", "admin", false, false, false)
+      ), controller.listBookmarks("tok", principal()));
+   }
+
+   /** Sessions wired to a runtime where "Q1 Report" is admin's ALLSHARE readOnly:false
+    *  bookmark, which the caller ("user0") may override but does not own. */
+   private static ViewsheetSessionService nonOwnerSessions() throws Exception {
+      ViewsheetSessionService sessions = realMutatingSessions();
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.containsBookmark(eq("Q1 Report"), any(IdentityID.class))).thenReturn(false);
+      when(rvs.bookmarkWritable(eq("Q1 Report"), eq(IdentityID.getIdentityIDFromKey("admin"))))
+         .thenReturn(true);
+      wireMutate(sessions, rvs);
+      return sessions;
+   }
+
+   private static VSBookmarkService nonOwnerWritableAllshare() {
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      when(vsBookmarkService.getVisibleBookmarks(any(), any())).thenReturn(List.of(
+         new VSBookmarkInfo("Q1 Report", VSBookmarkInfo.ALLSHARE,
+                            IdentityID.getIdentityIDFromKey("admin"), false,
+                            System.currentTimeMillis())));
+      return vsBookmarkService;
+   }
+
+   private static VSBookmarkService okAddBookmarkService() throws Exception {
+      VSBookmarkService vsBookmarkService = mock(VSBookmarkService.class);
+      MessageCommand ok = new MessageCommand();
+      ok.setType(MessageCommand.Type.OK);
+      when(vsBookmarkService.addBookmarkToViewSheet(any(), anyString(), anyInt(), anyBoolean(),
+         anyBoolean(), any(Principal.class))).thenReturn(ok);
+      return vsBookmarkService;
+   }
+
+   /** Every action permission granted except the named VIEWSHEET_ACTION resources. */
+   private static SecurityEngine permissionDenied(String... resources) throws Exception {
+      SecurityEngine securityEngine = mock(SecurityEngine.class);
+      when(securityEngine.checkPermission(any(), any(), nullable(String.class), any()))
+         .thenReturn(true);
+
+      for(String resource : resources) {
+         when(securityEngine.checkPermission(any(), eq(ResourceType.VIEWSHEET_ACTION),
+            eq(resource), any())).thenReturn(false);
+      }
+
+      return securityEngine;
+   }
+
    private static void stubSavedAsset(RuntimeViewsheet rvs) {
       Viewsheet vs = mock(Viewsheet.class);
       AssetEntry entry = mock(AssetEntry.class);
@@ -4683,6 +5053,19 @@ class ViewsheetAssemblyAgentControllerTest {
     *  endpoint tests. */
    private static ViewsheetAssemblyAgentController controllerForBookmarks(
       ViewsheetSessionService sessions, VSBookmarkService vsBookmarkService)
+   {
+      // every action permission granted, so share-type checks pass unless a test says otherwise
+      try {
+         return controllerForBookmarks(sessions, vsBookmarkService, permissionDenied());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
+   private static ViewsheetAssemblyAgentController controllerForBookmarks(
+      ViewsheetSessionService sessions, VSBookmarkService vsBookmarkService,
+      SecurityEngine securityEngine)
    {
       return new ViewsheetAssemblyAgentController(featureOn(), mock(SheetJoinService.class),
                                           mock(SheetSessionService.class),
@@ -4718,7 +5101,7 @@ class ViewsheetAssemblyAgentControllerTest {
                                           mock(PrintDeviceLayoutPropertyService.class),
                                           mock(LayoutMutationService.class),
                                           mock(LayoutUndoService.class), vsBookmarkService,
-                                          mock(VSExportService.class), mock(SecurityEngine.class),
+                                          mock(VSExportService.class), securityEngine,
                                           mock(inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService.class));
    }
 
