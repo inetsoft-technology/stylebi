@@ -493,6 +493,81 @@ class TableBindingMutatorTest {
                  "valid entry");
    }
 
+   /**
+    * Bug #77036: the plugin defaulted the key's number to 0 for any dimension not bound twice,
+    * so suppressing one that is not first on the shelf was pruned right after and reported ok.
+    * With no position, the key now resolves to where the column is actually bound. The column
+    * name contains a colon, as a real entity-qualified one does.
+    */
+   @Test
+   void aSuppressionKeyWithNoPositionResolvesToTheBoundPosition() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Product:Category"),
+                                                         dim("Customer:Region"),
+                                                         dim("Product:Name")));
+
+      TableBindingMutator.setOptions(model,
+         Map.of("suppressGroupTotal", Map.of("customer:region:rows", true)));
+
+      assertEquals(Map.of("Customer:Region:rows1", Boolean.TRUE), model.getSuppressGroupTotal(),
+                   "stored under the bound spelling and position pruneOrphanedSuppression keeps");
+   }
+
+   @Test
+   void aSuppressionKeyAtAPositionTheColumnIsNotBoundAtIsRefused() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Category"), dim("Region")));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(model,
+            Map.of("suppressGroupTotal", Map.of("Region:rows0", true))));
+
+      assertTrue(thrown.getMessage().contains("rows[1]"), thrown.getMessage());
+      assertTrue(model.getSuppressGroupTotal().isEmpty());
+   }
+
+   @Test
+   void aSuppressionKeyForAnUnboundColumnIsRefused() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(model,
+            Map.of("suppressGroupTotal", Map.of("Regoin:rows", true))));
+
+      assertTrue(thrown.getMessage().contains("not bound"), thrown.getMessage());
+   }
+
+   @Test
+   void aSuppressionKeyForATwiceBoundColumnNeedsItsPosition() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Order Date"), dim("Order Date")));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(model,
+            Map.of("suppressGroupTotal", Map.of("Order Date:rows", true))));
+
+      assertTrue(thrown.getMessage().contains("[0, 1]"), thrown.getMessage());
+
+      TableBindingMutator.setOptions(model,
+         Map.of("suppressGroupTotal", Map.of("Order Date:rows1", true)));
+
+      assertEquals(Map.of("Order Date:rows1", Boolean.TRUE), model.getSuppressGroupTotal());
+   }
+
+   @Test
+   void aMalformedSuppressionKeyIsRefused() {
+      CrosstabBindingModel model = new CrosstabBindingModel();
+      TableBindingMutator.setShelf(model, "rows", List.of(dim("Region")));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(model,
+            Map.of("suppressGroupTotal", Map.of("Region", true))));
+      assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setOptions(model,
+            Map.of("suppressGroupTotal", Map.of("Region:aggregates0", true))));
+   }
+
    // ── sorting and ranking (2d Phase 2) ──────────────────────────────────────
 
    @Test
@@ -1177,6 +1252,99 @@ class TableBindingMutatorTest {
 
       ColumnRefModel column = (ColumnRefModel) model.getDetails().get(0);
       assertNull(column.getAlias());
+   }
+
+   /**
+    * Bug #77036: a Table keys its columns by display name, so a label equal to another
+    * column's made that column vanish from the render and the export. The Composer refuses it
+    * (vs.table.duplicateAlias); so does this.
+    */
+   @Test
+   void refusesATableLabelThatIsAnotherColumnsLabel() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details",
+                                   List.of(dim("Customer:Region"), dim("Customer:State")));
+      TableBindingMutator.setColumnLabels(model, Map.of("Customer:Region", "Area"));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setColumnLabels(model, Map.of("Customer:State", "Area")));
+
+      assertTrue(thrown.getMessage().contains("label of two columns"), thrown.getMessage());
+      assertNull(((ColumnRefModel) model.getDetails().get(1)).getAlias());
+   }
+
+   /** The Composer's common.conflictingColumnAttribute case. */
+   @Test
+   void refusesATableLabelThatIsAnotherColumnsName() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details",
+                                   List.of(dim("Customer:Region"), dim("Customer:State")));
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setColumnLabels(model,
+            Map.of("Customer:State", "Customer:Region")));
+
+      assertTrue(thrown.getMessage().contains("name of another column"), thrown.getMessage());
+   }
+
+   @Test
+   void refusesTwoTableLabelsInOneCallThatCollide() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details", List.of(dim("Region"), dim("State")));
+
+      assertThrows(IllegalArgumentException.class,
+         () -> TableBindingMutator.setColumnLabels(model,
+            Map.of("Region", "Area", "State", "Area")));
+   }
+
+   /**
+    * Judged by the labels the columns end up with, not the order the map is visited in:
+    * Region takes State's name only because State is relabeled in the same call.
+    */
+   @Test
+   void aRenameChainInOneCallIsAllowedWhateverTheOrder() {
+      for(boolean regionFirst : new boolean[]{ true, false }) {
+         TableBindingModel model = new TableBindingModel();
+         TableBindingMutator.setShelf(model, "details", List.of(dim("Region"), dim("State")));
+         Map<String, String> labels = new java.util.LinkedHashMap<>();
+
+         if(regionFirst) {
+            labels.put("Region", "State");
+            labels.put("State", "Area");
+         }
+         else {
+            labels.put("State", "Area");
+            labels.put("Region", "State");
+         }
+
+         TableBindingMutator.setColumnLabels(model, labels);
+
+         assertEquals("State", ((ColumnRefModel) model.getDetails().get(0)).getAlias());
+         assertEquals("Area", ((ColumnRefModel) model.getDetails().get(1)).getAlias());
+      }
+   }
+
+   @Test
+   void swappingTwoTableLabelsInOneCallIsAllowed() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details", List.of(dim("Region"), dim("State")));
+      TableBindingMutator.setColumnLabels(model, Map.of("Region", "A", "State", "B"));
+
+      TableBindingMutator.setColumnLabels(model, Map.of("Region", "B", "State", "A"));
+
+      assertEquals("B", ((ColumnRefModel) model.getDetails().get(0)).getAlias());
+      assertEquals("A", ((ColumnRefModel) model.getDetails().get(1)).getAlias());
+   }
+
+   @Test
+   void relabelingATableColumnToItsOwnLabelIsAllowed() {
+      TableBindingModel model = new TableBindingModel();
+      TableBindingMutator.setShelf(model, "details", List.of(dim("Region"), dim("State")));
+      TableBindingMutator.setColumnLabels(model, Map.of("Region", "Area"));
+
+      assertDoesNotThrow(() -> TableBindingMutator.setColumnLabels(model,
+                                                                  Map.of("Region", "Area")));
+      assertEquals("Area", ((ColumnRefModel) model.getDetails().get(0)).getAlias());
    }
 
    /**

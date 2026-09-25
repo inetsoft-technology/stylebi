@@ -102,13 +102,15 @@ public final class DimensionSortRanking {
       requireName(sort.sortByField(), "sortByField");
       dimension.setOrder(order);
 
-      if(!blank(sort.sortByField())) {
-         dimension.setSortByCol(sort.sortByField());
-      }
-
-      if(sort.manualOrder() != null && !sort.manualOrder().isEmpty()) {
-         dimension.setManualOrder(new ArrayList<>(sort.manualOrder()));
-      }
+      // Cleared, not just left alone, when the new direction does not use them -- the same as
+      // the Composer's sort-option.component changeOrderType(). A leftover manualOrder is not
+      // inert: the UI's getCurrentOrder() forces the sort back to Manual whenever it is
+      // non-empty, so opening the dimension popup and clicking Apply reverted this write. Both
+      // values are non-empty whenever their direction is chosen (checked above).
+      boolean byValue = order == XConstants.SORT_VALUE_ASC || order == XConstants.SORT_VALUE_DESC;
+      dimension.setSortByCol(byValue ? sort.sortByField() : null);
+      dimension.setManualOrder(order == XConstants.SORT_SPECIFIC
+                                  ? new ArrayList<>(sort.manualOrder()) : null);
    }
 
    public static void applyRanking(BDimensionRefModel dimension, Ranking ranking) {

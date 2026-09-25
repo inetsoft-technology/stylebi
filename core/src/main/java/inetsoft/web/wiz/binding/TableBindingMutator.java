@@ -34,6 +34,8 @@ import inetsoft.web.wiz.binding.model.ColumnLabelEntry;
 import inetsoft.web.wiz.binding.model.FieldRef;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Read-modify-write over a crosstab's or table's shelves.
@@ -1006,8 +1008,7 @@ public final class TableBindingMutator {
             "pass it with an empty string.");
       }
 
-      List<Rename> renames = new ArrayList<>();
-      List<CrosstabTarget> crosstabTargets = new ArrayList<>();
+      List<PendingLabel> pending = new ArrayList<>();
 
       if(hasLabels) {
          for(Map.Entry<String, String> label : labels.entrySet()) {
@@ -1017,7 +1018,7 @@ public final class TableBindingMutator {
             }
 
             ShelfIndex target = resolveColumnLabelTarget(model, null, label.getKey(), null);
-            applyColumnLabel(model, target, label.getValue(), renames, crosstabTargets);
+            pending.add(new PendingLabel(target, label.getValue()));
          }
       }
 
@@ -1035,8 +1036,19 @@ public final class TableBindingMutator {
 
             ShelfIndex target =
                resolveColumnLabelTarget(model, entry.shelf(), entry.column(), entry.index());
-            applyColumnLabel(model, target, entry.label(), renames, crosstabTargets);
+            pending.add(new PendingLabel(target, entry.label()));
          }
+      }
+
+      if(model instanceof TableBindingModel table) {
+         requireUniqueTableLabels(table, pending);
+      }
+
+      List<Rename> renames = new ArrayList<>();
+      List<CrosstabTarget> crosstabTargets = new ArrayList<>();
+
+      for(PendingLabel label : pending) {
+         applyColumnLabel(model, label.target(), label.label(), renames, crosstabTargets);
       }
 
       return new ColumnLabelWrite(renames, crosstabTargets);
@@ -1171,6 +1183,76 @@ public final class TableBindingMutator {
       }
    }
 
+   /** A resolved label, validated as a whole before any of them is written. */
+   private record PendingLabel(ShelfIndex target, String label) {}
+
+   /**
+    * The Composer's own header rename ({@code ComposerVSTableService.changeColumnTitle}) refuses
+    * a title that is another column's alias ({@code vs.table.duplicateAlias}) or, for a column
+    * with no alias, its name ({@code common.conflictingColumnAttribute}). Bug #77036: this layer
+    * did not, and a Table keys its columns by display name -- a duplicate label made the other
+    * column vanish from the render and the export, and the format/width/highlight rekey in
+    * {@code TableBindingService} collided.
+    *
+    * <p>Checked against the aliases every column will have once the whole call is applied, not
+    * one label at a time, so a rename chain or swap in one call ({@code Region -> State, State ->
+    * Area}) is judged by its result rather than the order its entries happen to be visited in,
+    * while two labels that end up equal are still refused. Unlike the Composer, a column is never
+    * compared with itself, so relabeling a column to its own current label is not refused.
+    */
+   private static void requireUniqueTableLabels(TableBindingModel table,
+                                                List<PendingLabel> pending)
+   {
+      List<DataRefModel> details = table.getDetails();
+      Map<Integer, String> aliases = new HashMap<>();
+      Set<Integer> touched = new LinkedHashSet<>();
+
+      for(int i = 0; i < details.size(); i++) {
+         if(details.get(i) instanceof ColumnRefModel column) {
+            aliases.put(i, column.getAlias());
+         }
+      }
+
+      for(PendingLabel label : pending) {
+         int index = label.target().index();
+         ColumnRefModel column = (ColumnRefModel) details.get(index);
+         String alias = label.label().isEmpty() || label.label().equals(column.getAttribute())
+            ? null : label.label();
+         aliases.put(index, alias);
+         touched.add(index);
+      }
+
+      for(int i : touched) {
+         ColumnRefModel column = (ColumnRefModel) details.get(i);
+         String alias = aliases.get(i);
+         String display = alias != null ? alias : column.getAttribute();
+
+         for(Map.Entry<Integer, String> other : aliases.entrySet()) {
+            if(other.getKey() == i) {
+               continue;
+            }
+
+            ColumnRefModel otherColumn = (ColumnRefModel) details.get(other.getKey());
+
+            if(display.equals(other.getValue())) {
+               throw new IllegalArgumentException(
+                  "'" + display + "' would be the label of two columns, so they could no " +
+                  "longer be told apart. Choose a different label.");
+            }
+
+            // Only a label is checked against another column's own name: two unaliased
+            // columns sharing a name is the binding's state, not something this call made.
+            if(alias != null && other.getValue() == null &&
+               (alias.equals(otherColumn.getName()) || alias.equals(otherColumn.getAttribute())))
+            {
+               throw new IllegalArgumentException(
+                  "'" + alias + "' is the name of another column on this table, so the two " +
+                  "could no longer be told apart. Choose a different label.");
+            }
+         }
+      }
+   }
+
    // ── options (2d Phase 3) ──────────────────────────────────────────────────
 
    /**
@@ -1262,12 +1344,63 @@ public final class TableBindingMutator {
       if(options.get("suppressGroupTotal") instanceof Map<?, ?> suppression) {
          for(Map.Entry<?, ?> entry : suppression.entrySet()) {
             model.getSuppressGroupTotal().put(
-               String.valueOf(entry.getKey()),
+               suppressionKey(model, String.valueOf(entry.getKey())),
                Boolean.parseBoolean(stringBoolean(entry.getValue(), "suppressGroupTotal", false)));
          }
 
          pruneOrphanedSuppression(model);
       }
+   }
+
+   private static final Pattern SUPPRESSION_SHELF = Pattern.compile("(rows|cols)(\\d*)");
+
+   /**
+    * Resolves a {@code suppressGroupTotal} key to the canonical {@code "<column>:rows<i>"}/{@code
+    * "<column>:cols<i>"} form {@link #pruneOrphanedSuppression} keeps, where {@code i} is the
+    * dimension's position on the shelf. The position may be omitted ({@code "Region:rows"}) when
+    * the column is bound once on that shelf.
+    *
+    * <p>Bug #77036: the key used to be stored verbatim, so one naming the wrong position -- the
+    * plugin defaulted it to 0 for any dimension not bound twice -- or a misspelled column was
+    * silently pruned right after, and the call reported success with nothing suppressed. Split
+    * at the last colon, since a column name itself can contain one ({@code Customer:Region}).
+    */
+   private static String suppressionKey(CrosstabBindingModel model, String key) {
+      int colon = key.lastIndexOf(':');
+      Matcher matcher = colon <= 0 ? null : SUPPRESSION_SHELF.matcher(key.substring(colon + 1));
+
+      if(matcher == null || !matcher.matches()) {
+         throw new IllegalArgumentException(
+            "suppressGroupTotal key '" + key + "' is not of the form \"<column>:rows<position>\" " +
+            "or \"<column>:cols<position>\".");
+      }
+
+      String shelf = matcher.group(1);
+      String column = key.substring(0, colon);
+      Integer index = matcher.group(2).isEmpty() ? null : Integer.valueOf(matcher.group(2));
+      List<FieldRef> fields = read(model, shelf);
+
+      if(index == null) {
+         List<Integer> positions = new ArrayList<>();
+
+         for(int i = 0; i < fields.size(); i++) {
+            if(column.equalsIgnoreCase(fields.get(i).column())) {
+               positions.add(i);
+            }
+         }
+
+         if(positions.size() > 1) {
+            throw new IllegalArgumentException(
+               "'" + column + "' is bound " + positions.size() + " times on the " + shelf +
+               " shelf, so suppressGroupTotal is ambiguous. Pass 'index' -- its position on " +
+               "the shelf -- to say which: " + positions + ".");
+         }
+      }
+
+      ShelfIndex target = resolveShelfTarget(model, shelf, column, index,
+                                             "it has no group total to suppress");
+      // The bound spelling, not the caller's: pruneOrphanedSuppression compares exactly.
+      return fields.get(target.index()).column() + ":" + shelf + target.index();
    }
 
    /**
