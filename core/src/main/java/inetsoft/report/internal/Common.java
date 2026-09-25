@@ -1170,7 +1170,13 @@ public class Common extends Util {
       // adjust line offset
       for(int i = 0; i < lineoff.size(); i++) {
          w = lineoff.elementAt(i);
-         lineoff.setElementAt(nbound.width - w, i);
+         // bug #76948: alignCell() leaves nbound.width == bound.width for H_CURRENCY, so when
+         // the text is wider than the cell (w > nbound.width) this would go negative,
+         // positioning the string's start to the left of the clip rect paintText() sets to
+         // nbound -- silently discarding the leading, most-significant digits. Clamp to 0 so
+         // an overflowing string is clipped only on the right, matching the H_RIGHT/H_CENTER
+         // fixes in processText() (bug #76574 / #76880).
+         lineoff.setElementAt(Math.max(0f, nbound.width - w), i);
       }
 
       return lines;
