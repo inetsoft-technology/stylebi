@@ -29,6 +29,7 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -1250,5 +1251,208 @@ class AssemblyHyperlinkServiceTest {
          link("linkType", "web", "webLink", "https://example.com"), ""));
 
       verify(h.rvs(), never()).getViewsheetSandbox();
+   }
+
+   // ── bug #77031 ─────────────────────────────────────────────────────────────
+
+   private static VSTableLens headedTableLens(String... headers) {
+      VSTableLens lens = tableLens(headers);
+      when(lens.getHeaderRowCount()).thenReturn(1);
+      return lens;
+   }
+
+   /** A colName-only table call used to land on column 0 while the read echoed the name. */
+   @Test
+   void aTableColNameResolvesToItsColumn() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", mock(TableVSAssembly.class));
+      VSTableLens lens = headedTableLens("Region", "State", "Population");
+      when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
+
+      h.service.set("tok", principal(), "Table1",
+                    new AssemblyHyperlinkService.Region(1, null, "Population", false, false,
+                                                        false, false),
+                    link("linkType", "web", "webLink", "https://example.com"), "");
+
+      verify(h.links).getHyperlinkDialogModel(eq("rt1"), eq("Table1"), eq(1), eq(2),
+                                              eq("Population"), eq(false), eq(false), eq(false),
+                                              eq(false), any(Principal.class));
+   }
+
+   @Test
+   void aTableColNameAlsoResolvesOnRead() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", mock(TableVSAssembly.class));
+      VSTableLens lens = headedTableLens("Region", "State", "Population");
+      when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
+
+      h.service.read("tok", principal(), "Table1",
+                     new AssemblyHyperlinkService.Region(1, null, "State", false, false, false,
+                                                         false));
+
+      verify(h.links).getHyperlinkDialogModel(eq("rt1"), eq("Table1"), eq(1), eq(1),
+                                              eq("State"), eq(false), eq(false), eq(false),
+                                              eq(false), any(Principal.class));
+   }
+
+   @Test
+   void aTableColNameThatMatchesNoColumnIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", mock(TableVSAssembly.class));
+      VSTableLens lens = headedTableLens("Region", "State");
+      when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.read("tok", principal(), "Table1",
+                              new AssemblyHyperlinkService.Region(1, null, "Nope", false, false,
+                                                                  false, false)));
+
+      assertTrue(thrown.getMessage().contains("Nope"));
+      verifyNoInteractions(h.links);
+   }
+
+   @Test
+   void aTableColNameThatDisagreesWithColIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      ViewsheetSandbox sandbox = wireRuntimeData(h, "Table1", mock(TableVSAssembly.class));
+      VSTableLens lens = headedTableLens("Region", "State", "Population");
+      when(sandbox.getVSTableLens("Table1", false)).thenReturn(lens);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.read("tok", principal(), "Table1",
+                                        new AssemblyHyperlinkService.Region(
+                                           1, 0, "Population", false, false, false, false)));
+      verifyNoInteractions(h.links);
+   }
+
+   /** A crosstab has no one column per name, so colName is refused rather than ignored. */
+   @Test
+   void aCrosstabColNameIsRefused() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      wireRuntimeData(h, "Crosstab1", mock(CrosstabVSAssembly.class));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.read("tok", principal(), "Crosstab1",
+                              new AssemblyHyperlinkService.Region(
+                                 1, null, "Sum(Sales)", false, false, false, false)));
+
+      assertTrue(thrown.getMessage().contains("'row' and 'col'"));
+      verifyNoInteractions(h.links);
+   }
+
+   /** A read of a SELF link comes back as targetFrame "" + self=true; "" means a new tab. */
+   @Test
+   void aPartialUpdateOfASelfLinkKeepsSelf() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.WEB_LINK);
+      model.setWebLink("https://example.com");
+      model.setTargetFrame("");
+      model.setSelf(true);
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com", "tooltip", "tip"),
+                    "");
+
+      assertEquals("SELF", capture(h.links).getTargetFrame());
+   }
+
+   @Test
+   void anExplicitTargetFrameStillWinsOverAReadSelf() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setSelf(true);
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "targetFrame", "_blank"), "");
+
+      assertEquals("_blank", capture(h.links).getTargetFrame());
+   }
+
+   @Test
+   void selfFalseStillOptsOutOfAReadSelf() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setSelf(true);
+      model.setTargetFrame("");
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "web", "webLink", "https://example.com", "self", false), "");
+
+      assertNotEquals("SELF", capture(h.links).getTargetFrame());
+   }
+
+   /** A row-linked table's data cell reads the row link; a plain cell set must not rewrite it. */
+   @Test
+   void aCellSetOnARowLinkedTableWithoutApplyToRowIsRefused() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.WEB_LINK);
+      model.setApplyToRow(true);
+      model.setShowRow(true);
+      Harness h = harness(model);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Table1", null,
+                             link("linkType", "web", "webLink", "https://example.com"), ""));
+
+      assertTrue(thrown.getMessage().contains("applyToRow"));
+      verify(h.links, never()).setHyperlinkDialogModel(anyString(), anyString(), any(),
+                                                       anyString(), any(Principal.class), any());
+   }
+
+   @Test
+   void applyToRowIsPassedThroughWhenExplicit() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setApplyToRow(true);
+      model.setShowRow(true);
+      Harness h = harness(model);
+
+      h.service.set("tok", principal(), "Table1", null,
+                    link("linkType", "web", "webLink", "https://example.com",
+                         "applyToRow", false), "");
+
+      assertFalse(capture(h.links).isApplyToRow());
+   }
+
+   @Test
+   void applyToRowTrueIsRefusedWhereTheDialogDoesNotOfferIt() {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setShowRow(false);
+      Harness h = harness(model);
+
+      assertThrows(IllegalArgumentException.class,
+                   () -> h.service.set("tok", principal(), "Crosstab1", null,
+                                       link("linkType", "web", "webLink", "https://example.com",
+                                            "applyToRow", true), ""));
+   }
+
+   @Test
+   void readBackIncludesApplyToRow() throws Exception {
+      HyperlinkDialogModel model = new HyperlinkDialogModel();
+      model.setLinkType(Hyperlink.WEB_LINK);
+      model.setApplyToRow(true);
+
+      Map<String, Object> read = harness(model).service.read("tok", principal(), "Table1", null);
+
+      assertEquals(true, read.get("applyToRow"));
+   }
+
+   /** get_hyperlink reads the caller's own sheet back as "My Dashboards/<path>". */
+   @Test
+   void aMyDashboardsPathResolvesInTheCallersOwnScope() throws Exception {
+      Harness h = harness(new HyperlinkDialogModel());
+      when(h.repository.containsEntry(any())).thenReturn(false);
+      AssetEntry mine = vsEntry(AssetRepository.USER_SCOPE, "Detail",
+                                IdentityID.getIdentityIDFromKey("admin"));
+      when(h.repository.containsEntry(mine)).thenReturn(true);
+
+      h.service.set("tok", principal(), "Chart1", null,
+                    link("linkType", "viewsheet", "assetLinkPath", "My Dashboards/Detail"), "");
+
+      assertEquals(mine.toIdentifier(), capture(h.links).getAssetLinkId());
    }
 }

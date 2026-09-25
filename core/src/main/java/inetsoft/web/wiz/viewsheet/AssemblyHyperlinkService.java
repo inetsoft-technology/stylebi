@@ -33,10 +33,12 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HyperlinkDialogModel;
 import inetsoft.web.composer.model.vs.InputParameterDialogModel;
@@ -101,7 +103,7 @@ public class AssemblyHyperlinkService {
    public record Region(Integer row, Integer col, String colName, boolean axis, boolean text,
                         boolean titleLink, boolean emptyPlotLink) {
       /**
-       * Normalizes a null row/col to <b>0</b> — on every construction path.
+       * Normalizes a null row to <b>0</b> — on every construction path.
        *
        * <p>{@code HyperlinkDialogService.getHyperlinkDialogModel} dereferences row as an int
        * (through {@code getFields}), so nulls threw
@@ -113,10 +115,14 @@ public class AssemblyHyperlinkService {
        * <p>This lives in the compact constructor rather than in {@link #whole()} because the
        * agent controller builds a Region straight from its nullable {@code @RequestParam}s and
        * never calls the factory — normalizing only there fixed nothing on the live path.
+       *
+       * <p>{@code col} is deliberately left nullable: a table cell addressed by {@code colName}
+       * alone must be told apart from one addressed by an explicit {@code col: 0}, and collapsing
+       * null to 0 here is what silently landed every colName-only table link on column 0 (bug
+       * #77031). {@code resolveCol} supplies the 0 default the dialog service needs.
        */
       public Region {
          row = row == null ? 0 : row;
-         col = col == null ? 0 : col;
       }
 
       public static Region whole() {
@@ -128,10 +134,11 @@ public class AssemblyHyperlinkService {
                                    Region region) throws Exception
    {
       Region target = region == null ? Region.whole() : region;
+      RuntimeViewsheet rvs = sessions.resolve(sessionToken, user);
+      int col = resolveCol(rvs, assemblyName, target);
       HyperlinkDialogModel model = hyperlinkService.getHyperlinkDialogModel(
-         sessions.resolve(sessionToken, user).getID(), assemblyName, target.row(), target.col(),
-         target.colName(), target.axis(), target.text(), target.titleLink(),
-         target.emptyPlotLink(), user);
+         rvs.getID(), assemblyName, target.row(), col, target.colName(), target.axis(),
+         target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
       return describe(assemblyName, model, target);
    }
@@ -160,14 +167,137 @@ public class AssemblyHyperlinkService {
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          Region target = region == null ? Region.whole() : region;
+         int col = resolveCol(rvs, assemblyName, target);
          HyperlinkDialogModel model = hyperlinkService.getHyperlinkDialogModel(
-            runtimeId, assemblyName, target.row(), target.col(), target.colName(),
+            runtimeId, assemblyName, target.row(), col, target.colName(),
             target.axis(), target.text(), target.titleLink(), target.emptyPlotLink(), user);
 
+         applyRowScope(assemblyName, model, link);
          apply(rvs, assemblyName, model, type, link, assetId);
          hyperlinkService.setHyperlinkDialogModel(runtimeId, assemblyName, model, linkUri, user,
                                                  dispatcher);
       });
+   }
+
+   /**
+    * The column a table/crosstab region addresses. {@code HyperlinkDialogService}'s table branch
+    * locates a cell by row/col only and never reads colName, so a colName-only call used to land
+    * on column 0 while the read-back echoed the requested name (bug #77031).
+    *
+    * <p>On a plain Table, colName is resolved to its rendered column by header text (or column
+    * identifier), and must agree with an explicit col when both are given. A Crosstab/Freehand
+    * Table has no one column per name -- a measure's cells can sit in any column, stacked by
+    * row -- so colName is refused there rather than ignored. Every other assembly type (charts
+    * read colName themselves) keeps the old pass-through, with a null col defaulting to 0.
+    */
+   static int resolveCol(RuntimeViewsheet rvs, String assemblyName, Region region)
+      throws Exception
+   {
+      Integer col = region.col();
+      String colName = region.colName() == null || region.colName().isBlank()
+         ? null : region.colName();
+      Viewsheet vs = colName == null || rvs == null ? null : rvs.getViewsheet();
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof TableDataVSAssembly)) {
+         return col == null ? 0 : col;
+      }
+
+      if(!(assembly instanceof TableVSAssembly)) {
+         throw new IllegalArgumentException(
+            "'colName' does not address a cell on '" + assemblyName + "': a crosstab or " +
+            "freehand table has no single column per name, so the link would land on whatever " +
+            "cell 'row'/'col' default to. Address the cell by 'row' and 'col' instead.");
+      }
+
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSTableLens lens = box == null || box.isEmpty()
+         ? null : box.get().getVSTableLens(assemblyName, false);
+
+      if(lens == null) {
+         throw new IllegalArgumentException(
+            "'" + colName + "' can't be resolved to a column on '" + assemblyName + "' -- the " +
+            "table has no rendered data yet. Address the cell by 'row' and 'col' instead.");
+      }
+
+      List<Integer> matches = new ArrayList<>();
+
+      for(int c = 0; c < lens.getColCount(); c++) {
+         boolean match = colName.equals(lens.getColumnIdentifier(c));
+
+         for(int r = 0; !match && r < lens.getHeaderRowCount(); r++) {
+            Object header = lens.getObject(r, c);
+            match = header != null && colName.equals(header.toString());
+         }
+
+         if(match) {
+            matches.add(c);
+         }
+      }
+
+      if(matches.size() != 1) {
+         throw new IllegalArgumentException(
+            "'" + colName + "' " + (matches.isEmpty() ? "is not a visible column" :
+            "matches " + matches.size() + " columns " + matches) + " on '" + assemblyName +
+            "'. Address the cell by 'row' and 'col' instead.");
+      }
+
+      int resolved = matches.get(0);
+
+      if(col != null && col != resolved) {
+         throw new IllegalArgumentException(
+            "'colName' " + colName + " is column " + resolved + " on '" + assemblyName +
+            "', but 'col' says " + col + ". Pass one of them, or make them agree.");
+      }
+
+      return resolved;
+   }
+
+   /**
+    * A table holds either one row hyperlink (Apply to Row -- every data cell of every row fires
+    * it) or per-cell links, never both: {@code HyperlinkDialogService.setHyperlinkDialogModel}
+    * clears the cell links when it writes a row link and clears the row link when it writes a
+    * cell one. A data-cell read on a row-linked table returns the row link with
+    * {@code applyToRow=true}, so a plain cell set used to inherit that flag and silently rewrite
+    * the whole row's link (bug #77031).
+    *
+    * <p>{@code link.applyToRow} makes the intent explicit. Omitted on a row-linked table it is
+    * refused, because either answer destroys something the caller may not know exists; omitted
+    * anywhere else it means a cell link, as before. {@code true} is refused where the Composer's
+    * own dialog does not offer the checkbox ({@code showRow}: a plain, non-embedded Table's
+    * data cells only).
+    */
+   private static void applyRowScope(String assemblyName, HyperlinkDialogModel model,
+                                     Map<String, Object> link)
+   {
+      Object raw = link == null ? null : link.get("applyToRow");
+
+      if(raw != null && !(raw instanceof Boolean)) {
+         throw new IllegalArgumentException(
+            "'applyToRow' must be true or false, got '" + raw + "'.");
+      }
+
+      if(raw == null) {
+         if(model.isApplyToRow()) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' has a row hyperlink, which every data cell of the " +
+               "table fires, and this cell reads it. Pass link.applyToRow:true to change that " +
+               "row link, or link.applyToRow:false to put a link on this cell only -- which " +
+               "removes the row link, since a table holds one or the other.");
+         }
+
+         return;
+      }
+
+      boolean applyToRow = (Boolean) raw;
+
+      if(applyToRow && !model.isShowRow()) {
+         throw new IllegalArgumentException(
+            "'applyToRow' only applies to a data cell of a plain (non-embedded) Table -- the " +
+            "same cells the Composer's hyperlink dialog offers 'Apply to Row' on.");
+      }
+
+      model.setApplyToRow(applyToRow);
    }
 
    public Map<String, Object> linkTypes() {
@@ -325,6 +455,24 @@ public class AssemblyHyperlinkService {
 
       String path = str(link, "assetLinkPath");
       AssetRepository repository = sessions.resolve(sessionToken, user).getAssetRepository();
+      IdentityID owner = IdentityID.getIdentityIDFromKey(user.getName());
+
+      // get_hyperlink reads a link to the caller's own sheet back as "My Dashboards/<path>"
+      // (HyperlinkDialogService.getHyperlinkDialogModel), so that form has to be accepted here
+      // or the read-back value cannot be passed straight back (bug #77031). The prefix names the
+      // user scope explicitly, so it is tried there first, before the literal-path lookup below.
+      String myPrefix = Tool.MY_DASHBOARD + "/";
+
+      if(path.startsWith(myPrefix)) {
+         AssetEntry mine = new AssetEntry(
+            AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET,
+            path.substring(myPrefix.length()), owner);
+
+         if(repository.containsEntry(mine)) {
+            return mine.toIdentifier();
+         }
+      }
+
       AssetEntry global = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET, path, null);
 
@@ -332,7 +480,6 @@ public class AssemblyHyperlinkService {
          return global.toIdentifier();
       }
 
-      IdentityID owner = IdentityID.getIdentityIDFromKey(user.getName());
       AssetEntry personal = new AssetEntry(
          AssetRepository.USER_SCOPE, AssetEntry.Type.VIEWSHEET, path, owner);
 
@@ -482,7 +629,17 @@ public class AssemblyHyperlinkService {
       // other field, is what makes self:true behave the way the checkbox does -- including
       // overriding an explicit targetFrame in the same call, exactly like the checkbox overrides
       // the dialog's own free-text field.
-      if(Boolean.TRUE.equals(link.get("self"))) {
+      //
+      // A call that names neither self nor targetFrame keeps what the read found (bug #77031).
+      // getHyperlinkDialogModel reports a SELF link as targetFrame "" + self=true, and "" is
+      // _blank at click time (hyperlink-model.ts), so passing the read model straight through
+      // turned every partial update of a SELF link into a new-tab link. self=true is also the
+      // read's default for a cell with no link yet, which is the dialog's own default for a new
+      // link (its Self checkbox starts checked), so a new link opens in place here too.
+      if(Boolean.TRUE.equals(link.get("self")) ||
+         (!(link.get("self") instanceof Boolean) && !link.containsKey("targetFrame") &&
+          model.isSelf()))
+      {
          model.setTargetFrame("SELF");
       }
    }
@@ -762,6 +919,9 @@ public class AssemblyHyperlinkService {
       out.put("sendViewsheetParameters", model.isSendViewsheetParameters());
       out.put("sendSelectionsAsParameters", model.isSendSelectionsAsParameters());
       out.put("paramList", describeParamList(model.getParamList()));
+      // A table's row hyperlink is read back from every data cell, so without this a caller
+      // could not tell a cell's own link from the row link it would rewrite (bug #77031).
+      out.put("applyToRow", model.isApplyToRow());
       out.put("row", model.getRow());
       out.put("col", model.getCol());
       // The dialog service does not echo colName back into the model, so reporting only the model's
