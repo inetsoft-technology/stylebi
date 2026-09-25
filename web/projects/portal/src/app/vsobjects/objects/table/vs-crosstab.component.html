@@ -16,8 +16,12 @@
 ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 @if (model) {
-  @let objectWidth = getObjectWidth();
-  @let objectHeight = getObjectHeight();
+  @let cardWidth = getCardWidth();
+  @let cardHeight = getCardHeight();
+  @let contentWidth = getObjectWidth();
+  @let contentHeight = getObjectHeight();
+  @let contentLeft = getContentLeft();
+  @let contentTop = getContentTop();
   @let objectTop = getObjectTop();
   <div
     #tableContainer
@@ -37,8 +41,8 @@
      objectTop : null"
     [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
     [style.position]="viewer || embeddedVS || isBinding ? 'absolute' : 'relative'"
-    [style.width.px]="objectWidth"
-    [style.height.px]="objectHeight"
+    [style.width.px]="cardWidth"
+    [style.height.px]="cardHeight"
     (onClick)="showPagingControl()">
     @if (model.drillTip) {
       <i [wTooltip]="model.drillTip" class="drill-filter-icon drill-tip"
@@ -58,15 +62,23 @@
       [style.overflow]="model.objectFormat.roundCorner != 0 ? 'hidden' : ''"
       [style.border-radius.px]="model.objectFormat.roundCorner"
       [style.z-index]="zIndex">
-      @if (!model.shrink || (!viewer || totalColWidth > 0)) {
+      @let chromeVisible = !model.shrink || (!viewer || totalColWidth > 0);
+      @if (chromeVisible) {
         <div class="border-div"
-          [style.width.px]="objectWidth"
+          [style.width.px]="cardWidth"
           [style.height.px]="borderDivHeight"
           [style.border-top]="model.objectFormat.border.top"
           [style.border-left]="model.objectFormat.border.left"
           [style.border-bottom]="model.objectFormat.border.bottom"
           [style.border-right]="model.objectFormat.border.right"
         [style.border-radius.px]="model.objectFormat.roundCorner"></div>
+      }
+      <div class="table-content"
+        [style.left.px]="contentLeft"
+        [style.top.px]="contentTop"
+        [style.width.px]="contentWidth"
+        [style.height.px]="contentHeight">
+      @if (chromeVisible) {
         @if ((!isBinding || vsWizardPreview) && (!viewer || model.titleVisible)) {
           <vs-title
             class="table-title"
@@ -76,7 +88,7 @@
             [formatPainterMode]="vsInfo?.formatPainterMode"
             [titleSelected]="model.titleSelected"
             [titleVisible]="model.titleVisible"
-            [titleWidth]="objectWidth"
+            [titleWidth]="contentWidth"
             (selectTitle)="selectTitle($event)"
             (changeTitle)="changeTableTitle($event)"
             (titleResizeMove)="titleResizeMove($event)"
@@ -105,7 +117,7 @@
       <div class="table-wrapper"
         #tableWrapper
         [style.top.px]="tableWrapperTop"
-        [style.width.px]="objectWidth"
+        [style.width.px]="contentWidth"
         [style.height.px]="tableWrapperHeight"
         selectionBox
         [selectionBoxBannedSelector]="'input, .highlightable'"
@@ -310,8 +322,8 @@
           [touchScrollEnabled]="selected"
           [style.top.px]="rtTableHeight"
           [style.left.px]="isFullHorizontalWrapper ? -scrollX : null"
-           [style.height.px]="isBinding ? objectHeight - rtTableHeight :
-                              objectHeight - rtTableHeight - (model.titleVisible ? model.titleFormat.height : 0) + 1"
+           [style.height.px]="isBinding ? contentHeight - rtTableHeight :
+                              contentHeight - rtTableHeight - (model.titleVisible ? model.titleFormat.height : 0) + 1"
           [style.width.px]="lbTableWidth">
           <table #leftBottomTable>
             <tbody>
@@ -532,6 +544,7 @@
           </div>
         </div>
       </div>
+      </div>
     </div>
     <div #loadingMessage class="loading-message">_#(Loading data)...</div>
     @if (enableAnnotation) {
@@ -659,8 +672,8 @@
     }
     @if (mobileDevice) {
       <div #resizeLine class="col-resize-line"
-        [style.height.px]="objectHeight"
-        [style.top.px]="0">
+        [style.height.px]="contentHeight"
+        [style.top.px]="contentTop">
       </div>
     }
     <div #colResize class="col-resize-handle">

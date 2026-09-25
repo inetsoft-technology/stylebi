@@ -28,6 +28,8 @@
  *   Group 5 — sortEnable / sortDimensionEnable: field / sortColumnVisible / period / hasCalc guards
  *   Group 6 — isFullHorizontalWrapper: rbTableWidth vs objectWidth/2 threshold
  *   Group 7 — getObjectHeight: shrink + viewer adjusts height; no-shrink returns model height
+ *   Group 8 — card vs content rect: unmarked no-op; per-edge inset; the title adjustment and
+ *               borderDivHeight stay on the card; updateTableHeight subtracts the inset
  */
 
 import { XConstants } from "../../../common/util/xconstants";
@@ -378,6 +380,64 @@ describe("VSCrosstab — Pass 3: Display", () => {
          comp.model.scrollHeight = 200;
 
          expect(comp.getObjectHeight()).toBe(200);
+      });
+   });
+
+   // ── Group 8 — card vs content rect ────────────────────────────────────────
+   // The fixture is 300x200 with a 20px title and one 20px header row.
+   describe("Group 8 — card vs content rect", () => {
+      const inset = { top: 12, left: 10, bottom: 14, right: 6 };
+
+      it("should leave the content rect on the card for an unmarked crosstab", () => {
+         const { comp } = createCrosstabComponent();
+
+         expect(comp.model.padding).toBeUndefined();
+         expect(comp.getObjectWidth()).toBe(comp.getCardWidth());
+         expect(comp.getObjectHeight()).toBe(comp.getCardHeight());
+      });
+
+      it("should inset the content rect on each edge independently when marked", () => {
+         const { comp } = createCrosstabComponent();
+         comp.model.padding = inset;
+
+         expect(comp.getCardWidth()).toBe(300);
+         expect(comp.getCardHeight()).toBe(200);
+         expect(comp.getObjectWidth()).toBe(300 - 10 - 6);
+         expect(comp.getObjectHeight()).toBe(200 - 12 - 14);
+      });
+
+      it("should apply the title adjustment on the card, so the inset comes off after it", () => {
+         const { comp } = createCrosstabComponent();
+         comp.model.objectFormat.height = 200;
+         comp.model.titleFormat.height = 20;
+         comp.model.shrink = true;
+         comp.model.titleVisible = false;
+         comp.model.scrollHeight = 200;
+         comp.model.padding = inset;
+
+         // the override still subtracts the title from the card, and only then the inset
+         expect(comp.getCardHeight()).toBe(180);
+         expect(comp.getObjectHeight()).toBe(180 - 12 - 14);
+      });
+
+      it("should keep borderDivHeight on the card, not the content rect", () => {
+         const { comp } = createCrosstabComponent();
+         comp.model.padding = inset;
+
+         expect(comp.borderDivHeight).toBe(comp.getCardHeight());
+         expect(comp.borderDivHeight).not.toBe(comp.getObjectHeight());
+      });
+
+      it("should subtract the vertical inset in updateTableHeight", () => {
+         const { comp } = createCrosstabComponent();
+
+         (comp as any).updateTableHeight();
+         const unmarked = comp.tableHeight;
+         comp.model.padding = inset;
+
+         (comp as any).updateTableHeight();
+
+         expect(comp.tableHeight).toBe(unmarked - 12 - 14);
       });
    });
 });

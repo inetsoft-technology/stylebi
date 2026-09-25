@@ -1190,16 +1190,31 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
    }
 
    /**
-    * Return column widths of the target table.
+    * Return column widths of the target table, the last column filling the grid inside the
+    * table's card inset.
     */
    public static double[] getColWidths(TableDataVSAssembly assembly, VSTableLens lens) {
+      return getColWidths(assembly, lens, true);
+   }
+
+   /**
+    * Return column widths of the target table.
+    *
+    * @param inset <tt>true</tt> to fill the last column to the grid inside the card inset,
+    *              <tt>false</tt> to fill it to the whole card.
+    */
+   public static double[] getColWidths(TableDataVSAssembly assembly, VSTableLens lens,
+                                       boolean inset)
+   {
       TableDataVSAssemblyInfo tinfo = (TableDataVSAssemblyInfo) assembly.getInfo();
       Viewsheet vs = assembly.getViewsheet();
       Viewsheet topvs = VSUtil.getTopViewsheet(vs);
       float rscaleFont = topvs.getRScaleFont();
       int colCount = lens.getColCount();
       double[] colWidths = new double[colCount];
-      double totalW = tinfo.getLayoutSize() != null ? tinfo.getLayoutSize().width :  tinfo.getPixelSize().width;
+      double cardW = tinfo.getLayoutSize() != null ? tinfo.getLayoutSize().width :  tinfo.getPixelSize().width;
+      double totalW = inset ? getContentWidth(cardW, tinfo.getPadding()) : cardW;
+      double insetW = cardW - totalW;
 
       for(int i = 0; i < colCount; i++) {
          colWidths[i] = getLayoutWidth(tinfo, tinfo.getColumnWidth2(i, lens), i, lens);
@@ -1233,7 +1248,14 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
             if(noWidth && i == colCount - 1 && i < lens.getColumnWidths().length &&
                lens.getColumnWidths()[i] > 0 && !Double.isNaN(lens.getColumnWidths()[i]))
             {
-               width = lens.getColumnWidthWithPadding(lens.getColumnWidths()[i], i);
+               double lensW = lens.getColumnWidths()[i];
+
+               // the lens fills its last column to the card; take back what it put in the inset
+               if(insetW > 0) {
+                  lensW = Math.max(AssetUtil.defw, lensW - insetW);
+               }
+
+               width = lens.getColumnWidthWithPadding(lensW, i);
             }
             else {
                width = lens.getColumnWidthWithPadding(AssetUtil.defw, i);
@@ -1245,6 +1267,14 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       }
 
       return colWidths;
+   }
+
+   /**
+    * The width of a table's grid: its card width less the card inset's left and right.
+    */
+   public static double getContentWidth(double cardWidth, Insets padding) {
+      return padding == null ? cardWidth :
+         Math.max(0, cardWidth - padding.left - padding.right);
    }
 
    protected final CoreLifecycleService coreLifecycleService;

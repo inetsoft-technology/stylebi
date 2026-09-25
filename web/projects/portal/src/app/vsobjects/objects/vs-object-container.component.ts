@@ -527,15 +527,31 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
             Tool.equalsIgnoreCase(object.objectType, "VSSelectionTree"));
    }
 
+   /**
+    * The card inset the title lane sits inside. A table carries it as one padding object, the
+    * chart as flat fields; an assembly with neither has none.
+    */
+   private static getLaneInset(object: VSObjectModel): { top: number, left: number, right: number } {
+      const padding = (<BaseTableModel> object).padding;
+
+      if(padding) {
+         return padding;
+      }
+
+      const chart = <VSChartModel> object;
+      return { top: chart.paddingTop || 0, left: chart.paddingLeft || 0,
+               right: chart.paddingRight || 0 };
+   }
+
    public getToolbarTop(object: VSObjectModel, i: number): number {
       if(this.isToolbarAnchored(object)) {
-         // Inside the assembly, at the lane's top inset. The inset is the assembly's own paddingTop —
-         // what vs-title already positions against — not the card spec's 12px, which belongs to the
-         // card-geometry work. Centre the fixed-height strip in whatever lane it has.
+         // Inside the assembly, at the lane's top inset. The inset is the assembly's own card
+         // inset — what vs-title already positions against. Centre the fixed-height strip in
+         // whatever lane it has.
          const slack = anchoredLaneHeight(object) - GuiTool.MINI_TOOLBAR_HEIGHT_MODERN;
          const centring = Math.floor(Math.max(0, slack) / 2);
 
-         return object.objectFormat.top + ((<VSChartModel> object).paddingTop || 0) + centring;
+         return object.objectFormat.top + VSObjectContainer.getLaneInset(object).top + centring;
       }
 
       let actionHeight = 28;
@@ -571,7 +587,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
          // never renders, and disagree with the cached markup after a band-crossing resize.
          // No viewport clamping: an anchored strip is inside the assembly, so there are no
          // viewport bounds to clamp against.
-         return left + ((<VSChartModel> object).paddingLeft || 0);
+         return left + VSObjectContainer.getLaneInset(object).left;
       }
 
       // .mini-toolbar-container is width: fit-content !important, so its true rendered width is not
@@ -594,10 +610,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
     * host's inline width, giving the pill (width: fit-content) the free space its margin-left:
     * auto absorbs to right-align. The host is pointer-events: none and .mini-toolbar-bottom is
     * transparent and pointer-events: none too, so a lane-wide box adds no hit target over the plot.
+    * A shrunk table's card is narrower than its design width; realWidth carries it.
     */
    public getAnchoredToolbarWidth(object: VSObjectModel): number {
-      const chart = <VSChartModel> object;
-      return object.objectFormat.width - (chart.paddingLeft || 0) - (chart.paddingRight || 0);
+      const inset = VSObjectContainer.getLaneInset(object);
+      return (object.realWidth || object.objectFormat.width) - inset.left - inset.right;
    }
 
    public getToolbarWidth(object: VSObjectModel): number {

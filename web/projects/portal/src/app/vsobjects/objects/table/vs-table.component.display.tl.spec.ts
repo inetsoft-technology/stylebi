@@ -34,6 +34,12 @@
  *                right-click-on-selected no-op
  *   Group 11 — displayColWidths: sum<width expands last col; sum>=width no expand
  *   Group 12 — getObjectTop: non-viewer/non-shrink/maxMode early return; shrink+bottomTabs offset
+ *   Group 13 — card vs content rect: unmarked no-op; per-edge inset; borderDivHeight/realWidth/
+ *                bottom-tabs offset stay on the card; shrink adds the inset back; scrollWrapper
+ *                adds it back too; updateTableHeight subtracts it; each axis stays on its own;
+ *                the last-column stretch ignores the scroll wrapper's measured grid width;
+ *                a last-column drag keeps the border allowance out of the stored width; a
+ *                hidden last column keeps its zero
  */
 
 import { ViewsheetInfo } from "../../data/viewsheet-info";
@@ -521,11 +527,247 @@ describe("VSTable — Pass 3: Display", () => {
          comp.vsInfo = new ViewsheetInfo(
             [{ absoluteName: "tab1", bottomTabs: true }] as any, null, false, "vs1",
          );
-         // getObjectHeight() implementation reads tableHeight+scrollHeight — mock to control the offset.
-         vi.spyOn(comp as any, "getObjectHeight").mockReturnValue(120);
+         // The offset is a card-edge measurement: getCardHeight() reads tableHeight+scrollHeight,
+         // so mock it rather than the content height to control the offset.
+         vi.spyOn(comp as any, "getCardHeight").mockReturnValue(120);
 
          // top + (height - renderedHeight) = 50 + (200 - 120) = 130
          expect(comp.getObjectTop()).toBe(designTop + designHeight - 120);
+      });
+   });
+
+   // ── Group 13 — card vs content rect ───────────────────────────────────────
+   // The fixture is 300x200 with a 20px title and one 20px header row.
+   describe("Group 13 — card vs content rect", () => {
+      const inset = { top: 12, left: 10, bottom: 14, right: 6 };
+
+      it("should leave the content rect on the card for an unmarked table", () => {
+         const { comp } = createTableComponent();
+
+         expect(comp.model.padding).toBeUndefined();
+         expect(comp.getObjectWidth()).toBe(comp.getCardWidth());
+         expect(comp.getObjectHeight()).toBe(comp.getCardHeight());
+         expect(comp.getContentLeft()).toBe(0);
+         expect(comp.getContentTop()).toBe(0);
+      });
+
+      it("should inset the content rect on each edge independently when marked", () => {
+         const { comp } = createTableComponent({ model: { padding: inset } as any });
+
+         expect(comp.getCardWidth()).toBe(300);
+         expect(comp.getCardHeight()).toBe(200);
+         expect(comp.getObjectWidth()).toBe(300 - 10 - 6);
+         expect(comp.getObjectHeight()).toBe(200 - 12 - 14);
+         expect(comp.getContentLeft()).toBe(10);
+         expect(comp.getContentTop()).toBe(12);
+      });
+
+      it("should keep borderDivHeight on the card, not the content rect", () => {
+         const { comp } = createTableComponent({ model: { padding: inset } as any });
+
+         expect(comp.borderDivHeight).toBe(comp.getCardHeight());
+         expect(comp.borderDivHeight).not.toBe(comp.getObjectHeight());
+      });
+
+      it("should record realWidth as the card width, not the content width", () => {
+         const { comp } = createTableComponent({
+            model: { shrink: true, padding: inset } as any,
+         });
+
+         (comp as any).sumColWidths();
+
+         expect(comp.model.realWidth).toBe(comp.getCardWidth());
+         expect(comp.model.realWidth).not.toBe(comp.getObjectWidth());
+      });
+
+      it("should measure the bottom-tabs offset from the card, unaffected by the inset", () => {
+         const { comp } = createTableComponent({
+            model: { shrink: true, containerType: "VSTab", container: "tab1", padding: inset },
+         });
+         comp.vsInfo = new ViewsheetInfo(
+            [{ absoluteName: "tab1", bottomTabs: true }] as any, null, false, "vs1",
+         );
+         vi.spyOn(comp as any, "getCardHeight").mockReturnValue(120);
+
+         expect(comp.getObjectTop()).toBe(50 + 200 - 120);
+      });
+
+      it("should shrink the card onto the columns plus the inset, so the content keeps the columns", () => {
+         const { comp } = createTableComponent({ model: { shrink: true } as any });
+         comp.totalColWidth = 200;
+
+         expect(comp.getCardWidth()).toBe(200);
+
+         comp.model.padding = inset;
+
+         expect(comp.getCardWidth()).toBe(200 + 10 + 6);
+         expect(comp.getObjectWidth()).toBe(200);
+      });
+
+      it("should cap the shrunk card at the design width and inset from there", () => {
+         const { comp } = createTableComponent({ model: { shrink: true, padding: inset } as any });
+         comp.totalColWidth = 295;
+
+         expect(comp.getCardWidth()).toBe(300);
+         expect(comp.getObjectWidth()).toBe(300 - 10 - 6);
+      });
+
+      it("should add the inset back before actualTableWidth competes with the card", () => {
+         const { comp } = createTableComponent({ model: { padding: inset } as any });
+         comp.scrollWrapper = true;
+         comp.actualTableWidth = 400;
+
+         expect(comp.getCardWidth()).toBe(400 + 10 + 6);
+         // the rendered grid survives intact, so the overflow:hidden wrapper cannot clip it
+         expect(comp.getObjectWidth()).toBe(400);
+      });
+
+      it("should subtract the vertical inset in updateTableHeight", () => {
+         const { comp } = createTableComponent();
+
+         (comp as any).updateTableHeight();
+         const unmarked = comp.tableHeight;
+         comp.model.padding = inset;
+
+         (comp as any).updateTableHeight();
+
+         expect(comp.tableHeight).toBe(unmarked - 12 - 14);
+      });
+
+      it("should not consult the other axis, which would read a stale tableHeight", () => {
+         const { comp } = createTableComponent({ model: { padding: inset } as any });
+         const cardHeight = vi.spyOn(comp as any, "getCardHeight");
+         const cardWidth = vi.spyOn(comp as any, "getCardWidth");
+
+         comp.getObjectWidth();
+
+         expect(cardHeight).not.toHaveBeenCalled();
+
+         cardWidth.mockClear();
+         comp.getObjectHeight();
+
+         expect(cardWidth).not.toHaveBeenCalled();
+      });
+
+      it("should widen the last display column onto the content width, not the card width", () => {
+         // card width=300, inset removes 10+6=16 -> content width=284; sum(30+30+90+40)=190
+         // last col should absorb 284-190=94 -> 40+94=134, not the card-space 300-190=110 -> 150,
+         // less 1px so its right border lands inside the content rect
+         const { comp } = createTableComponent({
+            model: { colWidths: [30, 30, 90, 40], colCount: 4, padding: inset } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[3]).toBe(133);
+      });
+
+      it("should widen the last display column onto the content width in max mode too", () => {
+         // maxModeOriginalWidth is a stored card-space width; the same 284 content width applies
+         const { comp } = createTableComponent({
+            model: {
+               colWidths: [30, 30, 90, 40], colCount: 4, padding: inset,
+               maxMode: true, maxModeOriginalWidth: 300,
+            } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[3]).toBe(133);
+      });
+
+      it("should leave room for the last column's right border inside a right inset", () => {
+         // the grid renders one border wider than its columns, and with an inset no card border
+         // covers the clip edge, so the last column gives up 1px even when it is not stretched
+         const { comp } = createTableComponent({
+            model: { colWidths: [100, 100, 200], colCount: 3, padding: inset } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[2]).toBe(199);
+      });
+
+      it("should not stretch the last column onto a wider grid measured by the scroll wrapper", () => {
+         // sum(100+100+200)=400 >= 300; a rendered width of 500 fed back as the target would
+         // stretch the last column to 300, so the grid could grow but never shrink
+         const { comp } = createTableComponent({
+            model: { colWidths: [100, 100, 200], colCount: 3 },
+         });
+         comp.scrollWrapper = true;
+         comp.actualTableWidth = 500;
+
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[2]).toBe(200);
+      });
+
+      it("should stretch the last column before the scroll wrapper has measured the grid", () => {
+         // actualTableWidth is unset until ngAfterViewInit; the stretch must not wait for it
+         const { comp } = createTableComponent({
+            model: { colWidths: [30, 30, 90, 40], colCount: 4 },
+         });
+         comp.scrollWrapper = true;
+         comp.actualTableWidth = undefined;
+
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[3]).toBe(150);
+      });
+
+      // drives a real drag: changeColumnWidth, then the mousemove handler it registers
+      function dragColumn(ctx: any, col: number, delta: number): void {
+         const comp: any = ctx.comp;
+         comp.tableContainer = { nativeElement: document.createElement("div") };
+         comp.colResize0 = { nativeElement: document.createElement("div") };
+         ctx.renderer.listen.mockClear();
+         comp.changeColumnWidth(500, makeTableCell({ col, colSpan: 1 }));
+         const move = ctx.renderer.listen.mock.calls.find((c: any[]) => c[1] === "mousemove")[2];
+         move({ pageX: 500 + delta, pageY: 0 });
+      }
+
+      it("should store a dragged last column at its full width, not the width it displays at", () => {
+         // displayed at 199 under the inset; seeding the drag from that would store 209
+         const ctx = createTableComponent({
+            model: { colWidths: [100, 100, 200], colCount: 3, padding: inset } as any,
+         });
+         ctx.comp.updateDisplayColumnWidth();
+
+         dragColumn(ctx, 2, 10);
+
+         expect(ctx.comp.model.colWidths[2]).toBe(210);
+         expect(ctx.comp.displayColWidths[2]).toBe(209);
+      });
+
+      it("should store a stretched last column at the width it showed plus the drag", () => {
+         // stretched to 134 and displayed at 133; +10 is 144, not 143
+         const ctx = createTableComponent({
+            model: { colWidths: [30, 30, 90, 40], colCount: 4, padding: inset } as any,
+         });
+         ctx.comp.updateDisplayColumnWidth();
+
+         dragColumn(ctx, 3, 10);
+
+         expect(ctx.comp.model.colWidths[3]).toBe(144);
+      });
+
+      it("should leave the allowance off a drag of any column but the last", () => {
+         const ctx = createTableComponent({
+            model: { colWidths: [100, 100, 200], colCount: 3, padding: inset } as any,
+         });
+         ctx.comp.updateDisplayColumnWidth();
+
+         dragColumn(ctx, 0, 10);
+
+         expect(ctx.comp.model.colWidths[0]).toBe(110);
+         expect(ctx.comp.displayColWidths[0]).toBe(110);
+      });
+
+      it("should keep a hidden last column at zero under a right inset", () => {
+         // a crosstab hides a column by giving it width 0, and reads exactly 0 as hidden
+         const { comp } = createTableComponent({
+            model: { colWidths: [100, 100, 0], colCount: 3, padding: inset } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[2]).toBe(0);
       });
    });
 });

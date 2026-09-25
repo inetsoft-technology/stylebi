@@ -100,13 +100,13 @@ class ChartCardInsetDensityTest {
    }
 
    @Test
-   void resetCardInsetFollowsTheCurrentDensity() {
+   void resetPaddingFollowsTheCurrentDensity() {
       // the padding pane's follow-the-default checkbox calls this and nothing else
       SreeEnv.setProperty("viewsheet.density", "dense");
       ChartVSAssemblyInfo info = new ChartVSAssemblyInfo();
       info.setPadding(new Insets(4, 4, 4, 4));
 
-      info.resetCardInset(VizContext.of(VizMark.MODERN_LIGHT));
+      info.resetPadding(VizContext.of(VizMark.MODERN_LIGHT));
 
       assertEquals(new Insets(8, 8, 8, 8), info.getPadding());
    }

@@ -61,11 +61,11 @@
         <div class="row shell-form-row--field">
           <div class="col">
             <div class="form-check">
-              <input type="checkbox" class="form-check-input" id="paddingFollowsDefault"
+              <input type="checkbox" class="form-check-input" [id]="followsDefaultId"
                      [ngModel]="model.followsDefault"
                      (ngModelChange)="followDefaultChanged($event)"
                      [ngModelOptions]="{standalone: true}">
-              <label class="form-check-label" for="paddingFollowsDefault">
+              <label class="form-check-label" [attr.for]="followsDefaultId">
                 _#(composer.vs.followDefaultDensity)
               </label>
             </div>

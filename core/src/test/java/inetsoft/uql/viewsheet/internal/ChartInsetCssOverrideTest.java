@@ -78,9 +78,9 @@ class ChartInsetCssOverrideTest {
    }
 
    @Test
-   void resetCardInsetReadsTheCssPaddingLiveRatherThanTrustingTheStaleField() throws Exception {
+   void resetPaddingReadsTheCssPaddingLiveRatherThanTrustingTheStaleField() throws Exception {
       // the padding pane's "follows default" checkbox clears userPadding and calls
-      // resetCardInset; with a CSS padding still in force that must re-read the live CSS value,
+      // resetPadding; with a CSS padding still in force that must re-read the live CSS value,
       // not leave whatever stale author edit the field was holding
       writeFormatCss("Chart { padding: 5px; }");
       CSSDictionary.resetDictionaryCache();
@@ -94,7 +94,7 @@ class ChartInsetCssOverrideTest {
       info.setPadding(new Insets(20, 20, 20, 20));
 
       info.setUserPadding(false);
-      info.resetCardInset(VizContext.of(info));
+      info.resetPadding(VizContext.of(info));
 
       assertEquals(new Insets(5, 5, 5, 5), info.getPadding(),
                    "the CSS padding wins over both the stale author edit and the modern seed");

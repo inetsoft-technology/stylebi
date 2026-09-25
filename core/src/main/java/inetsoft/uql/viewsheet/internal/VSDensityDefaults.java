@@ -268,8 +268,7 @@ public final class VSDensityDefaults {
     * A table's card inset for the context's mode. Legacy is zero on all four edges - a table has
     * never drawn a card inset, so that is the value Revert has to restore.
     *
-    * Only tests call this today; the table card inset is the next slice of this work and will
-    * seed from here once it lands.
+    * The seed and the padding reset both read this, so the two cannot drift apart.
     */
    public static Insets tablePadding(VizContext ctx) {
       return ctx.modern ? tablePaddingForMode(ctx.density) : new Insets(0, 0, 0, 0);
@@ -310,8 +309,6 @@ public final class VSDensityDefaults {
     * A table's card inset for a density mode. Deliberately the chart's matrix rather than a
     * second one: a table card and a chart card beside it are the same object with different
     * contents, and two matrices would drift.
-    *
-    * Only tests call this today; the table card inset arrives in the next slice of this work.
     */
    static Insets tablePaddingForMode(String mode) {
       return chartPaddingForMode(mode);

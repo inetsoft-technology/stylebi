@@ -128,6 +128,17 @@ public class CrosstabPropertyDialogService {
             !crosstabAssemblyInfo.isUserTitleHeight());
       sizePositionPaneModel.setContainer(crosstabAssembly.getContainer() != null);
 
+      PaddingPaneModel paddingPaneModel = tableViewGeneralPaneModel.getPaddingPaneModel();
+      Insets padding = crosstabAssemblyInfo.getPadding();
+      paddingPaneModel.setTop(padding.top);
+      paddingPaneModel.setLeft(padding.left);
+      paddingPaneModel.setBottom(padding.bottom);
+      paddingPaneModel.setRight(padding.right);
+      // null hides the checkbox: an unmarked table has no default to follow, and the pane then
+      // behaves exactly as it did before the checkbox existed
+      paddingPaneModel.setFollowsDefault(
+         crosstabAssemblyInfo.getVizMark() == null ? null : !crosstabAssemblyInfo.isUserPadding());
+
       PaddingPaneModel cellPaddingPaneModel = tableViewGeneralPaneModel.getCellPaddingPaneModel();
       Insets cellPadding = crosstabAssemblyInfo.getCellPadding();
       cellPaddingPaneModel.setTop(cellPadding == null ? 0 : cellPadding.top);
@@ -325,6 +336,30 @@ public class CrosstabPropertyDialogService {
       else {
          assemblyInfo.setUserTitleHeight(true);
          assemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
+
+      PaddingPaneModel paddingPaneModel = tableViewGeneralPaneModel.getPaddingPaneModel();
+      Insets editedPadding = new Insets(
+         paddingPaneModel.getTop(), paddingPaneModel.getLeft(),
+         paddingPaneModel.getBottom(), paddingPaneModel.getRight());
+      Boolean paddingFollowsDefault = paddingPaneModel.getFollowsDefault();
+
+      if(paddingFollowsDefault == null) {
+         // no checkbox was shown, so this table is not marked; store only a real edit
+         if(!editedPadding.equals(assemblyInfo.getPadding())) {
+            assemblyInfo.setUserPadding(true);
+            assemblyInfo.setPadding(editedPadding);
+         }
+      }
+      else if(paddingFollowsDefault) {
+         // clear the opinion and let the default decide, the same shape Revert uses. Storing the
+         // legacy inset here would pin the tier now that the value is seeded rather than resolved
+         assemblyInfo.setUserPadding(false);
+         assemblyInfo.resetPadding(VizContext.of(assemblyInfo));
+      }
+      else {
+         assemblyInfo.setUserPadding(true);
+         assemblyInfo.setPadding(editedPadding);
       }
 
       PaddingPaneModel cellPaddingPaneModel = tableViewGeneralPaneModel.getCellPaddingPaneModel();

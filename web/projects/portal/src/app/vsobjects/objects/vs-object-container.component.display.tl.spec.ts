@@ -517,11 +517,10 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(args[args.length - 1]).toBe(true);
    });
 
-   // The table family declares no paddingTop/Left/Right — those fields are on vs-chart-model only —
-   // so the || 0 fallbacks resolve a table to a strip flush left inside the content box, spanning
-   // the full width. Top still gets the same centring term as every other anchored type, so it is
-   // not flush against the lane's own top.
-   it("anchors a table flush left and full width, since no table model carries paddings", () => {
+   // An unmarked table carries no card inset, so its strip sits flush left inside the content box,
+   // spanning the full width. Top still gets the same centring term as every other anchored type,
+   // so it is not flush against the lane's own top.
+   it("anchors an unmarked table flush left and full width, since it carries no inset", () => {
       const { comp } = makeComponent({
          vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
       });
@@ -540,6 +539,52 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.getToolbarLeft(obj, 0)).toBe(250);
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
       expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600);
+   });
+
+   // A table keeps its inset in one padding object rather than the chart's flat fields; the strip
+   // must still land in the title lane, which the inset moves inward.
+   it("anchors a marked table's strip inside its card inset, in the title lane", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSTable",
+         vizModern: true,
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.padding = { top: 12, left: 10, bottom: 12, right: 6 };
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getToolbarTop(obj, 0)).toBe(40 + 12 + 3);   // top + inset top + centring
+      expect(comp.getToolbarLeft(obj, 0)).toBe(250 + 10);
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(600 - 10 - 6);
+      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 600 - 6);
+   });
+
+   // Shrink to fit narrows the card below the design width; the table publishes that card width
+   // as realWidth, and the lane must end at its right inset rather than out over empty space.
+   it("spans a shrunk table's card, not its design width", () => {
+      const { comp } = makeComponent({
+         vsObjectActions: [{ showingActions: [], toolbarActions: [] } as any],
+      });
+      comp.containerRef = scrollless;
+      const obj: any = makeVSObject({
+         objectType: "VSTable",
+         vizModern: true,
+         objectFormat: makeObjectFormat({ top: 40, left: 250, width: 600, height: 300 }),
+      });
+      obj.shrink = true;
+      obj.realWidth = 400;
+      obj.padding = { top: 12, left: 10, bottom: 12, right: 6 };
+      obj.titleVisible = true;
+      obj.titleFormat = { height: 30 };
+      comp.vsInfo = makeVsInfo([obj]);
+
+      expect(comp.getAnchoredToolbarWidth(obj)).toBe(400 - 10 - 6);
+      expect(comp.getToolbarLeft(obj, 0) + comp.getAnchoredToolbarWidth(obj)).toBe(250 + 400 - 6);
    });
 
    // A maximised table carries no padding-constant override the way selection does — its
@@ -633,9 +678,9 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
    });
 
-   // Selection carries no paddingTop/Left/Right either (those fields are on vs-chart-model only), so
-   // the same || 0 fallbacks that give a table a flush-left, full-width lane give a selection list
-   // one too: flush left, full width, right edge landing exactly on the assembly's own right edge.
+   // Selection carries neither a padding object (tables) nor paddingTop/Left/Right (charts), so the
+   // || 0 fallbacks give it the lane an unmarked table gets: flush left, full width, right edge
+   // landing exactly on the assembly's own right edge.
    // Top is centred in the lane like every other anchored type, not flush against it.
    it("anchors a non-max-mode selection list", () => {
       const { comp } = makeComponent({

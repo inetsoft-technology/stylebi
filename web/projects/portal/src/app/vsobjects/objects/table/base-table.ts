@@ -78,6 +78,7 @@ import { DataTipService } from "../data-tip/data-tip.service";
 import { SelectableObject } from "../selectable-object";
 import { DetailDndInfo } from "./detail-dnd-info";
 import { SortInfo } from "./sort-info";
+import { contentHeight, contentWidth, TablePadding } from "./table-content-rect";
 import {
    TableCellResizeDialogComponent,
    TableCellResizeDialogResult
@@ -93,6 +94,9 @@ const TABLE_CHANGE_TITLE_URL: string = "/events/composer/viewsheet/objects/chang
 const TABLE_DETAIL_FORMAT_URI: string = "../api/table/show-details/format-model";
 const TABLE_MAX_MODE_URL: string = "/events/vstable/toggle-max-mode";
 const TABLE_WIZARD_CHANGE_TITLE_URL: string = "/events/vswizard/preview/changeDescription";
+
+/** Shared stand-in for an unmarked table's absent inset; getPadding() is a hot path. */
+const ZERO_PADDING: TablePadding = Object.freeze({ top: 0, left: 0, bottom: 0, right: 0 });
 
 /**
  * Convenient abstract base class for tables types with models that extend BaseTableModel
@@ -183,8 +187,9 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    // flag that indicate whether the table is in binding mode
    isBinding: boolean = false;
 
+   // the border draws at the assembly edge, so it takes the card rather than the content rect
    get borderDivHeight(): number {
-      return this.getObjectHeight();
+      return this.getCardHeight();
    }
 
    abstract get colResize(): ElementRef;
@@ -251,6 +256,8 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    protected initialCellDim: number = -1;
    protected resizeCol: number = -1;
    protected resizeRow: number = -1;
+   // the pixel updateDisplayColumnWidth took off the last column, kept out of a dragged width
+   private lastColBorderAllowance: number = 0;
    protected resizeListener: () => void;
    protected resizeEndListener: () => void;
    protected scale: number;
@@ -712,16 +719,25 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       this.displayColWidths = this.model.colWidths.concat([]);
 
       if(!this.model.maxMode && !this.model.shrink) {
-         this.updateLastDisplayColumnWidth(this.model.objectFormat.width);
+         // not getObjectWidth(): with a scroll wrapper it measures back the stretch made here
+         this.updateLastDisplayColumnWidth(
+            contentWidth(this.model.objectFormat.width, this.getPadding()));
       }
       else if(this.model.maxMode) {
-         this.updateLastDisplayColumnWidth(this.model.maxModeOriginalWidth);
+         this.updateLastDisplayColumnWidth(
+            contentWidth(this.model.maxModeOriginalWidth, this.getPadding()));
       }
 
       const border = this.model.objectFormat.border.left;
+      const lastCol = this.displayColWidths.length - 1;
 
-      if(border && border.includes("none")) {
-         this.displayColWidths[this.displayColWidths.length - 1] -= 1;
+      // the grid renders one border wider than its columns; a right inset leaves no card border
+      // over the clip edge to hide the last column's right border. A hidden column stays at 0
+      this.lastColBorderAllowance = this.displayColWidths[lastCol] > 0 &&
+         ((border && border.includes("none")) || this.getPadding().right > 0) ? 1 : 0;
+
+      if(this.lastColBorderAllowance > 0) {
+         this.displayColWidths[lastCol] -= this.lastColBorderAllowance;
       }
 
       this.sumColWidths();
@@ -1280,7 +1296,9 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       }
 
       this.initialMousePos = xPos;
-      this.initialCellDim = this.getSpanWidth(this.displayColWidths, cell);
+      // the stored width: the displayed last column is short by its border allowance
+      this.initialCellDim = this.getSpanWidth(this.displayColWidths, cell) +
+         this.getBorderAllowance(cell);
       this.resizeRow = cell.row;
       this.resizeCol = cell.col;
       this.scaleContainer = GuiTool.closest(this.tableContainer.nativeElement, ".scale-container");
@@ -1288,7 +1306,9 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       if(this.mobileDevice) {
          //init resize line position
          let initPos = this.initResizeLinePosition(xPos, cell);
-         this.renderer.setStyle(this.resizeLine.nativeElement, "left", initPos + "px");
+         // a column offset, so it is measured from the grid's left edge, not the card's
+         this.renderer.setStyle(this.resizeLine.nativeElement, "left",
+                                (initPos + this.getContentLeft()) + "px");
          this.renderer.setStyle(this.resizeLine.nativeElement, "visibility", "visible");
          this.colTouchListener(cell);
       }
@@ -1348,7 +1368,8 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
 
       if(this.mobileDevice) {
          let linePos: number = this.getLinePosition(this.model.colWidths, cell);
-         this.renderer.setStyle(this.resizeLine.nativeElement, "left", linePos + "px");
+         this.renderer.setStyle(this.resizeLine.nativeElement, "left",
+                                (linePos + this.getContentLeft()) + "px");
          this.renderer.setStyle(this.resizeLine.nativeElement, "visibility", "visible");
       }
 
@@ -1408,7 +1429,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       if(colSpan > 1) {
          const currentColWidth = this.initialCellDim;
          const newColWidth = Math.max(currentColWidth + delta, BaseTable.MIN_COL_WIDTH * colSpan);
-         this.displayColWidths[this.resizeCol] = newColWidth;
+         this.displayColWidths[this.resizeCol] = newColWidth - this.getBorderAllowance(cell);
 
          for(let i = col; i < col + colSpan; i++) {
             this.model.colWidths[i] = newColWidth / colSpan;
@@ -1416,9 +1437,20 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       }
       else {
          const width = Math.max(this.initialCellDim + delta, BaseTable.MIN_COL_WIDTH);
-         this.model.colWidths[this.resizeCol] = this.displayColWidths[this.resizeCol] = width;
-         this.resizeHeaderCellWidth(width);
+         const displayWidth = width - this.getBorderAllowance(cell);
+         this.model.colWidths[this.resizeCol] = width;
+         this.displayColWidths[this.resizeCol] = displayWidth;
+         this.resizeHeaderCellWidth(displayWidth);
       }
+   }
+
+   /**
+    * The border allowance a drag of this cell carries: the last column's, when its span ends
+    * there, and none otherwise.
+    */
+   private getBorderAllowance(cell: BaseTableCellModel): number {
+      return cell.col + cell.colSpan >= this.displayColWidths.length ?
+         this.lastColBorderAllowance : 0;
    }
 
    protected resizeHeaderCellWidth(width: number) {
@@ -1636,9 +1668,10 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    }
 
    /**
-    * Calculates the object height with the shrink to fit option in mind
+    * Calculates the card height with the shrink to fit option in mind. The card is the assembly
+    * rect the border, the background and the round-corner clip draw at.
     */
-   public getObjectHeight(): number {
+   public getCardHeight(): number {
       if(this.model.shrink && this.viewer && this.model.scrollHeight < this.tableHeight) {
          // object height subtract table height is the title height + header height
          let height = this.model.objectFormat.height - this.tableHeight +
@@ -1673,16 +1706,54 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    }
 
    /**
-    * Calculates the object width with the shrink to fit option in mind
+    * Calculates the card width with the shrink to fit option in mind. totalColWidth is a content
+    * measurement, so the inset is added back before the card shrinks onto it — otherwise the
+    * content rect would come out narrower than the columns and the grid would clip.
     */
-   public getObjectWidth(): number {
+   public getCardWidth(): number {
       if(this.viewer && this.model.shrink && !this.model.maxMode) {
-         const width = Math.min(this.totalColWidth, this.model.objectFormat.width);
+         const padding = this.getPadding();
+         const width = Math.min(this.totalColWidth + padding.left + padding.right,
+                                this.model.objectFormat.width);
          return Math.floor(width);
       }
       else {
          return this.model.objectFormat.width;
       }
+   }
+
+   /**
+    * The card's inset, or zero when this assembly carries none. Read per call rather than cached:
+    * a density change rewrites it and the model is replaced wholesale.
+    */
+   protected getPadding(): TablePadding {
+      return this.model.padding || ZERO_PADDING;
+   }
+
+   public getContentLeft(): number {
+      return this.getPadding().left;
+   }
+
+   public getContentTop(): number {
+      return this.getPadding().top;
+   }
+
+   /**
+    * The grid's width: the card width minus the horizontal inset. Deliberately does not touch
+    * the card height: getCardHeight() reads this.tableHeight, which updateTableHeight() rewrites
+    * later in the same layout pass, so a width query that computed a height would capture the
+    * previous pass's value and latch it into the deferred model.objectHeight write.
+    */
+   public getObjectWidth(): number {
+      return contentWidth(this.getCardWidth(), this.getPadding());
+   }
+
+   /**
+    * The grid's height: the card height minus the vertical inset. Takes only its own axis, for
+    * the symmetric reason given on getObjectWidth().
+    */
+   public getObjectHeight(): number {
+      return contentHeight(this.getCardHeight(), this.getPadding());
    }
 
    /**
@@ -1701,7 +1772,8 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
             .find(o => o.absoluteName === this.model.container) as VSTabModel;
 
          if(parent && parent.bottomTabs) {
-            return top + this.model.objectFormat.height - this.getObjectHeight();
+            // a card-edge measurement: the assembly's own bottom is what stays flush with the strip
+            return top + this.model.objectFormat.height - this.getCardHeight();
          }
       }
 
@@ -1714,7 +1786,8 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    protected sumColWidths(): void {
       this.totalColWidth = this.model.colWidths
          .reduce(((total: number, num: number) => total + num), 0);
-      this.model.realWidth = this.getObjectWidth();
+      // realWidth is read as the object's own width, so it is the card
+      this.model.realWidth = this.getCardWidth();
    }
 
    /**
