@@ -21,6 +21,7 @@ package inetsoft.web.viewsheet.controller;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -124,8 +125,15 @@ public class TouchAssetService {
 
             if(rs.isRuntime()) {
                long changeTime = worksheetService.getDataChangedTime(rvs.getEntry());
+               boolean monitorEnabled = "true".equalsIgnoreCase(
+                  SreeEnv.getProperty("assetMonitor.enabled"));
 
-               if(update && vinfo.isUpdateEnabled() && (changeTime != 0 && changeTime > rvs.getTouchTimestamp())) {
+               // With the asset monitor disabled (the default), every update tick refreshes.
+               // With it enabled, refresh only when a data change was recorded since the
+               // last touch.
+               if(update && vinfo.isUpdateEnabled() && (!monitorEnabled ||
+                  (changeTime != 0 && changeTime > rvs.getTouchTimestamp())))
+               {
                   // refresh content
                   processRefreshEvent(principal, commandDispatcher, linkUri, width, height);
                }
