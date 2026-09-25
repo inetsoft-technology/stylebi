@@ -1067,7 +1067,9 @@ public class TableBindingService {
     * arm: rows {@code [0, headerRowCount)} across every column; left arm: rows {@code
     * [headerRowCount, rowCount)} within the header columns), since a non-side-by-side crosstab's
     * per-row aggregate labels render in column 0 at rows past the header row rectangle, never in
-    * row 0 alone. This is not a shelf/index lookup the way a {@code ColumnLabelEntry} resolves a
+    * row 0 alone. The left arm accepts only those aggregate label cells: the rest of that
+    * region is row-dimension values, and matching one by text (bug #77036, {@code "USA East"})
+    * widened the whole header column instead of refusing a name that is not a column. This is not a shelf/index lookup the way a {@code ColumnLabelEntry} resolves a
     * Crosstab target, because a width is a rendering-only property with no shelf position of its
     * own. A name matching zero or more than one rendered column is refused rather than guessed
     * at: this call has no shelf-index fallback the way {@code set_column_labels}'s {@code
@@ -1125,14 +1127,16 @@ public class TableBindingService {
          int headerCols = lens.getHeaderColCount();
          int colCount = lens.getColCount();
          int rowCount = lens.getRowCount();
+         Set<String> aggregateHeaders = aggregateFullNames(assembly);
 
          for(Map.Entry<String, Double> entry : widths.entrySet()) {
             String column = entry.getKey();
             Double width = entry.getValue();
             List<Integer> matches = new ArrayList<>();
 
-            scanForColumnMatch(lens, column, 0, headerRows, 0, colCount, matches);
-            scanForColumnMatch(lens, column, headerRows, rowCount, 0, headerCols, matches);
+            scanForColumnMatch(lens, column, 0, headerRows, 0, colCount, null, matches);
+            scanForColumnMatch(lens, column, headerRows, rowCount, 0, headerCols,
+                               aggregateHeaders, matches);
 
             if(matches.isEmpty()) {
                throw new IllegalArgumentException(
@@ -1186,22 +1190,63 @@ public class TableBindingService {
     * {@code [rowStart, rowEnd)} equals {@code column} to {@code matches}, skipping a column
     * already recorded (guards against the top/left scan arms in {@link #setColumnWidths}
     * double-counting a cell that falls in both).
+    *
+    * @param headerPaths when non-null, a cell counts only if its {@code TableDataPath}'s last
+    *                    segment is one of these -- how the left arm tells a mirrored aggregate
+    *                    label apart from a row-dimension value in the same header column.
     */
    private static void scanForColumnMatch(VSTableLens lens, String column, int rowStart,
                                           int rowEnd, int colStart, int colEnd,
-                                          List<Integer> matches)
+                                          Set<String> headerPaths, List<Integer> matches)
    {
       for(int row = rowStart; row < rowEnd; row++) {
          for(int col = colStart; col < colEnd; col++) {
             Object val = lens.getObject(row, col);
 
             if(Objects.equals(column, val == null ? null : val.toString()) &&
-               !matches.contains(col))
+               !matches.contains(col) &&
+               (headerPaths == null || headerPaths.contains(lastPathSegment(lens, row, col))))
             {
                matches.add(col);
             }
          }
       }
+   }
+
+   private static String lastPathSegment(VSTableLens lens, int row, int col) {
+      TableDataPath path = lens.getTableDataPath(row, col);
+      String[] segments = path == null ? null : path.getPath();
+      return segments == null || segments.length == 0 ? null : segments[segments.length - 1];
+   }
+
+   /**
+    * The full names ({@code "Sum(Sales)"}) of a crosstab's aggregates -- the last {@code
+    * TableDataPath} segment of each aggregate's header cell, the same test {@code
+    * ClearTableHeaderAliasHandler.matchAgg} applies. Empty for a Table, which renders no
+    * aggregate labels down its header columns. The runtime aggregates are included because the
+    * lens builds its paths from them -- a {@code $(var)} measure or a date-comparison
+    * aggregate has a rendered full name that only the runtime list carries.
+    */
+   private static Set<String> aggregateFullNames(VSAssembly assembly) {
+      Set<String> names = new HashSet<>();
+
+      if(assembly instanceof CrosstabVSAssembly crosstab &&
+         crosstab.getVSCrosstabInfo() != null)
+      {
+         VSCrosstabInfo info = crosstab.getVSCrosstabInfo();
+
+         for(DataRef[] aggregates : new DataRef[][]{ info.getRuntimeAggregates(),
+                                                     info.getAggregates() })
+         {
+            for(DataRef agg : aggregates == null ? new DataRef[0] : aggregates) {
+               if(agg instanceof VSAggregateRef aggregate) {
+                  names.add(aggregate.getFullName());
+               }
+            }
+         }
+      }
+
+      return names;
    }
 
    public void setOptions(String sessionToken, Principal user, String assemblyName,
