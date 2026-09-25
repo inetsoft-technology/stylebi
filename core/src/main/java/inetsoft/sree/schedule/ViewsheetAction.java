@@ -810,7 +810,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          }).toArray(VSBookmarkInfo[]::new);
 
          if(bookmarks.length == 0) {
-            throw new Exception(catalog.getString("schedule.task.viewsheet.none.bookmark", principal.getName(), vname));
+            throw new Exception(catalog.getString("schedule.task.viewsheet.none.bookmark",
+               IdentityID.getIdentityIDFromKey(principal.getName()).getName(), vname));
          }
 
          List<String> alertTriggeredBookmarks = checkAlerts(bookmarks, principal, vsService);

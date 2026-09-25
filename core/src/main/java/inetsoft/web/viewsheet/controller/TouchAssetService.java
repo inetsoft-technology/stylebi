@@ -75,8 +75,8 @@ public class TouchAssetService {
             !Tool.equals(newOwner, lowner))
          {
             MessageCommand command = new MessageCommand();
-            command.setMessage(Catalog.getCatalog().getString(
-               "common.AssetUnLockBy", lowner));
+            command.setMessage(WorksheetEngine.getLockOwnerMessage(
+               "common.AssetUnLockBy", "common.AssetUnLockBySelf", lowner, principal));
             command.setType(MessageCommand.Type.INFO);
             commandDispatcher.sendCommand(command);
             rs.setLockProcessed();

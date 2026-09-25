@@ -50,7 +50,7 @@
  *                         (closeOnServer=false); no runtimeId → new runtime (closeOnServer=true)
  *                         (open_base_worksheet Task 4)
  *   Group 18 [Risk 3]  — editAsset: agentActive on OpenComposerAssetCommand sets the new sheet's
- *                         agentConnected/agentOwnerIdentity directly, instead of racing a separate
+ *                         agentConnected/agentOwnerLabel directly, instead of racing a separate
  *                         SetAgentActiveCommand push against the tab's own subscription (Bug #76737)
  *
  * Confirmed bugs (it.fails): none in this pass
@@ -804,13 +804,13 @@ describe("ComposerMainComponent — editAsset: agentActive (Bug #76737)", () => 
 
       editAsset.next({
          assetId: "vs-new-1", folderId: null, viewsheet: true, wsWizard: false,
-         runtimeId: "vs-rt-1", agentActive: true, agentOwnerIdentity: "alice~;~host-org",
+         runtimeId: "vs-rt-1", agentActive: true, agentOwnerLabel: "alice(host-org)",
       } as OpenComposerAssetCommand);
 
       const vs = comp.sheets.find(s => s.runtimeId === "vs-rt-1");
       expect(vs).toBeTruthy();
       expect(vs.agentConnected).toBe(true);
-      expect(vs.agentOwnerIdentity).toBe("alice~;~host-org");
+      expect(vs.agentOwnerLabel).toBe("alice(host-org)");
    });
 
    it("should set agentConnected on a newly-opened worksheet when the command carries agentActive", async () => {
@@ -821,13 +821,13 @@ describe("ComposerMainComponent — editAsset: agentActive (Bug #76737)", () => 
 
       editAsset.next({
          assetId: null, folderId: null, viewsheet: false, wsWizard: false,
-         runtimeId: "ws-rt-1", agentActive: true, agentOwnerIdentity: "alice~;~host-org",
+         runtimeId: "ws-rt-1", agentActive: true, agentOwnerLabel: "alice(host-org)",
       } as OpenComposerAssetCommand);
 
       const ws = comp.sheets.find(s => s.runtimeId === "ws-rt-1");
       expect(ws).toBeTruthy();
       expect(ws.agentConnected).toBe(true);
-      expect(ws.agentOwnerIdentity).toBe("alice~;~host-org");
+      expect(ws.agentOwnerLabel).toBe("alice(host-org)");
    });
 
    // 🔁 Regression-sensitive: the ordinary human-driven open (no agent involved) must not light

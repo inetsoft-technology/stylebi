@@ -112,7 +112,7 @@ public class SheetJoinService {
       // 1. Gate FIRST: do NOT consume the code when the capability is disabled.
       if(!feature.isEnabled()) {
          LOG.warn("Sheet agent pairing join rejected: feature disabled (agent={})",
-                  agentUser == null ? "?" : agentUser.getName());
+                  PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.FEATURE_DISABLED, "Sheet agent pairing is disabled");
       }
 
@@ -121,7 +121,7 @@ public class SheetJoinService {
       if(grant == null) {
          recordFailedAttempt(throttleKey, now);
          LOG.warn("Sheet agent pairing join rejected: invalid/expired code (agent={})",
-                  agentUser == null ? "?" : agentUser.getName());
+                  PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.SESSION_EXPIRED, "Invalid or expired pairing code");
       }
 
@@ -129,7 +129,7 @@ public class SheetJoinService {
       if(!PairingUtil.sameLogicalUser(grant.ownerIdentity(), agentUser)) {
          recordFailedAttempt(throttleKey, now);
          LOG.warn("Sheet agent pairing join rejected: user mismatch (owner={}, agent={})",
-                  grant.ownerIdentity(), agentUser == null ? "?" : agentUser.getName());
+                  PairingUtil.label(grant.ownerIdentity()), PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.USER_MISMATCH, "Pairing code does not belong to this user");
       }
 
@@ -155,7 +155,7 @@ public class SheetJoinService {
          recordFailedAttempt(throttleKey, now);
          LOG.warn("Sheet agent pairing join rejected: runtime not owned by agent " +
                   "(runtimeId={}, agent={})",
-                  grant.runtimeId(), agentUser == null ? "?" : agentUser.getName());
+                  grant.runtimeId(), PairingUtil.label(agentUser));
          throw new PairingException(PairingException.Kind.USER_MISMATCH,
                                     "Pairing code does not belong to this user");
       }
@@ -225,7 +225,7 @@ public class SheetJoinService {
       int concurrentSessionCount = sessions.findAllOnRuntime(session.runtimeId()).size();
 
       LOG.info("Sheet agent pairing join granted (runtimeId={}, sheetType={}, agent={})",
-               grant.runtimeId(), grant.sheetType(), agentUser.getName());
+               grant.runtimeId(), grant.sheetType(), PairingUtil.label(agentUser));
       return new JoinOutcome(session, sheetLabel, concurrentSessionCount);
    }
 

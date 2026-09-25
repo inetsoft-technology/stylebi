@@ -418,7 +418,7 @@ public class SheetAgentBroadcastService {
 
       SetAgentActiveCommand command = SetAgentActiveCommand.builder()
          .active(true)
-         .ownerIdentity(session.ownerIdentity())
+         .ownerLabel(PairingUtil.label(session.ownerIdentity()))
          .build();
 
       sendToBrowser(session.socketUserName(), sessionId, session.runtimeId(), command);

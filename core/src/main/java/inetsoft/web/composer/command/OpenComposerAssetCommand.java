@@ -78,9 +78,9 @@ public abstract class OpenComposerAssetCommand {
       return false;
    }
 
-   /** The agent's identity, when {@link #agentActive()} is true; unused otherwise. */
+   /** Display label of the agent's owner, when {@link #agentActive()} is true; unused otherwise. */
    @Nullable
-   public abstract String agentOwnerIdentity();
+   public abstract String agentOwnerLabel();
 
    public static Builder builder() {
       return new Builder();

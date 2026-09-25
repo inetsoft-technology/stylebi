@@ -34,6 +34,6 @@ export interface OpenComposerAssetCommand {
     * SetAgentActiveCommand push against this command establishing the tab's own subscription.
     */
    agentActive?: boolean;
-   /** The agent's identity, when agentActive is true. */
-   agentOwnerIdentity?: string;
+   /** Display label of the agent's owner, when agentActive is true. */
+   agentOwnerLabel?: string;
 }

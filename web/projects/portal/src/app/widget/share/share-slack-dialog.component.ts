@@ -22,6 +22,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
 import { ComponentTool } from "../../common/util/component-tool";
+import { convertKeyToID } from "../../../../../em/src/app/settings/security/users/identity-id";
 import { ShareService } from "./share.service";
 import { EnterSubmitDirective } from "../directive/enter-submit.directive";
 import { ModalHeaderComponent } from "../modal-header/modal-header.component";
@@ -55,7 +56,9 @@ export class ShareSlackDialog implements OnInit {
       let message: string;
 
       if(this.viewsheetId) {
-         message = `${this.username} _#(js:em.settings.share.message.dashboard) ${this.viewsheetName}.`;
+         // username is the principal's identity key ("name~;~org"); show only the name.
+         const userName = this.username ? convertKeyToID(this.username).name : this.username;
+         message = `${userName} _#(js:em.settings.share.message.dashboard) ${this.viewsheetName}.`;
       }
 
       this.form.get("message").setValue(message, {emitEvents: false});

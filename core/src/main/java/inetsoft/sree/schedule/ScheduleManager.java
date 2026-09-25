@@ -802,7 +802,7 @@ public class ScheduleManager {
             principal != null && !Tool.equals(principal.getName(), task.getOwner()) &&
             isDeleteOnlyByOwner(task, principal) && !adminPermission)
          {
-            throw new IOException(principal.getName() +
+            throw new IOException(IdentityID.getIdentityIDFromKey(principal.getName()).getName() +
                                   " doesn't have delete permission for: " +
                                   taskName);
          }

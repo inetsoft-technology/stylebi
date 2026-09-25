@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
 import inetsoft.web.wiz.pairing.JoinSession;
 import inetsoft.web.wiz.pairing.PairingException;
+import inetsoft.web.wiz.pairing.PairingUtil;
 import inetsoft.web.wiz.pairing.SheetAgentBroadcastService;
 import inetsoft.web.wiz.pairing.SheetRuntimeAccess;
 import inetsoft.web.wiz.pairing.SheetSessionService;
@@ -196,7 +197,7 @@ public class SheetOpenService {
          .viewsheet(false)
          .runtimeId(runtimeId)
          .agentActive(true)
-         .agentOwnerIdentity(wsSession.ownerIdentity())
+         .agentOwnerLabel(PairingUtil.label(wsSession.ownerIdentity()))
          .build();
 
       // The Composer's own channel, not the paired sheet's: this command is handled by
@@ -333,7 +334,7 @@ public class SheetOpenService {
          .viewsheet(true)
          .runtimeId(runtimeId)
          .agentActive(true)
-         .agentOwnerIdentity(vsSession.ownerIdentity())
+         .agentOwnerLabel(PairingUtil.label(vsSession.ownerIdentity()))
          .build();
 
       broadcast.sendToComposer(actingSession.socketSessionId(), command);
@@ -466,7 +467,7 @@ public class SheetOpenService {
          .viewsheet(false)
          .runtimeId(runtimeId)
          .agentActive(true)
-         .agentOwnerIdentity(wsSession.ownerIdentity())
+         .agentOwnerLabel(PairingUtil.label(wsSession.ownerIdentity()))
          .build();
 
       broadcast.sendToComposer(actingSession.socketSessionId(), command);

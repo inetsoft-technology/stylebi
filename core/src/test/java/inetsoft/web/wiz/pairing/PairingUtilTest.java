@@ -17,6 +17,7 @@
  */
 package inetsoft.web.wiz.pairing;
 
+import inetsoft.sree.security.IdentityID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * [NoMatch: user]  different user name -> false
  * [NoMatch: org]   different org -> false
  * [NoMatch: null]  non-XPrincipal principal -> false
+ * [Label]          label() is IdentityID.getLabel(), never the "~;~" key form (Bug #76998)
  */
 @Tag("core")
 class PairingUtilTest {
@@ -58,5 +60,24 @@ class PairingUtilTest {
    void nonXPrincipalReturnsFalse() {
       Principal p = () -> "alice~;~defaultOrg";
       assertFalse(PairingUtil.sameLogicalUser("alice~;~defaultOrg", p));
+   }
+
+   @Test
+   void labelFormatsKeyWithoutDelimiter() {
+      String label = PairingUtil.label("alice~;~defaultOrg");
+      assertEquals(new IdentityID("alice", "defaultOrg").getLabel(), label);
+      assertFalse(label.contains("~;~"));
+   }
+
+   @Test
+   void labelOfPrincipalUsesItsKey() {
+      Principal p = TestPrincipals.user("alice", "defaultOrg");
+      assertEquals(PairingUtil.label("alice~;~defaultOrg"), PairingUtil.label(p));
+   }
+
+   @Test
+   void labelOfNullIsPlaceholder() {
+      assertEquals("?", PairingUtil.label((String) null));
+      assertEquals("?", PairingUtil.label((Principal) null));
    }
 }
