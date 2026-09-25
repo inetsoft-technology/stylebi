@@ -21,10 +21,12 @@ import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
 import inetsoft.test.SwapperTestConfiguration;
+import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.CompositeSelectionValue;
 import inetsoft.uql.viewsheet.SelectionList;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.SelectionValue;
+import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,13 +36,19 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -175,5 +183,49 @@ class SelectionRuntimeServiceSubtreeDomainTest {
 
       verify(h.selections()).selectSubtree(anyString(), anyString(), any(), any(Principal.class),
                                            any(), anyString());
+   }
+
+   // ── clear_selection on a calendar ──────────────────────────────────────────
+   //
+   // Here rather than in SelectionRuntimeServiceTest: CalendarVSAssemblyInfo can only be built
+   // inside this class's Spring context.
+
+   private static CalendarVSAssembly calendar(String... dates) {
+      CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
+      info.setDates(dates);
+      CalendarVSAssembly assembly = mock(CalendarVSAssembly.class);
+      doReturn(info).when(assembly).getInfo();
+      doReturn(info).when(assembly).getVSAssemblyInfo();
+      return assembly;
+   }
+
+   /**
+    * A calendar keeps its selection as dates, not a SelectionList, so clear_selection's generic
+    * branch always reported "nothing selected" and left the dates in place. It now clears the
+    * way clear_calendar does.
+    */
+   @Test
+   void clearSelectionClearsACalendarsDatesThroughClearCalendar() throws Exception {
+      SelectionRuntimeServiceTest.Harness h =
+         SelectionRuntimeServiceTest.harness(calendar("d2024-0-1", "d2024-0-2"));
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Calendar1", "");
+
+      assertEquals(2, result.get("clearedCount"));
+      verify(h.calendars()).clearCalendar(eq("rt1"), eq("Calendar1"), any(), any(), eq(""));
+      verifyNoInteractions(h.selections());
+   }
+
+   @Test
+   void clearSelectionDoesNotClearACalendarWithNoDates() throws Exception {
+      SelectionRuntimeServiceTest.Harness h = SelectionRuntimeServiceTest.harness(calendar());
+
+      Map<String, Object> result = h.service().clearSelection(
+         "tok", SelectionRuntimeServiceTest.principal(), "Calendar1", "");
+
+      assertEquals(0, result.get("clearedCount"));
+      verifyNoInteractions(h.calendars());
+      verifyNoInteractions(h.selections());
    }
 }
