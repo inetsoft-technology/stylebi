@@ -94,6 +94,15 @@ import java.util.stream.Collectors;
 @RestController
 public class ViewsheetAssemblyAgentController {
    private static final Logger LOG = LoggerFactory.getLogger(ViewsheetAssemblyAgentController.class);
+   // ported from FormValidators.bookmarkSpecialCharacters (shared/util/form-validators.ts)
+   private static final java.util.regex.Pattern BOOKMARK_NAME =
+      java.util.regex.Pattern.compile("^[a-zA-Z0-9\\u4e00-\\u9fa5@$& _+\\-]*$");
+   private static final java.util.regex.Pattern BOOKMARK_DATE_TIME_NAME =
+      java.util.regex.Pattern.compile("^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\w*$");
+   private static final java.util.regex.Pattern BOOKMARK_DATE_NAME =
+      java.util.regex.Pattern.compile("^\\d{4}-\\d{2}-\\d{2}\\w*$");
+   private static final java.util.regex.Pattern BOOKMARK_TIME_NAME =
+      java.util.regex.Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\w*$");
 
    @Autowired
    public ViewsheetAssemblyAgentController(SheetAgentFeature feature,
@@ -410,14 +419,22 @@ public class ViewsheetAssemblyAgentController {
       VSBookmark.DefaultBookmark defaultBookmark = rvs.getDefaultBookmark();
       VSBookmarkInfo opened = rvs.getOpenedBookmark();
 
+      // "(Home)" is reported the way VSBookmarkService.getBookmarks reports it to the native
+      // bookmark panel: always shared, and current whenever no other bookmark is opened (a
+      // fresh open), not only when the opened bookmark literally is "(Home)".
       return visibleBookmarks(rvs, user).stream()
-         .map(info -> new BookmarkInfo(
-            info.getName(), toTypeString(info.getType()),
-            info.getOwner() == null ? null : info.getOwner().getName(), info.isReadOnly(),
-            defaultBookmark != null && info.getName().equals(defaultBookmark.getName()) &&
-               java.util.Objects.equals(info.getOwner(), defaultBookmark.getOwner()),
-            opened != null && info.getName().equals(opened.getName()) &&
-               java.util.Objects.equals(info.getOwner(), opened.getOwner())))
+         .map(info -> {
+            boolean home = VSBookmark.HOME_BOOKMARK.equals(info.getName());
+            boolean openedMatch = opened != null && info.getName().equals(opened.getName()) &&
+               java.util.Objects.equals(info.getOwner(), opened.getOwner());
+
+            return new BookmarkInfo(
+               info.getName(), home ? "shared" : toTypeString(info.getType()),
+               info.getOwner() == null ? null : info.getOwner().getName(), info.isReadOnly(),
+               defaultBookmark != null && info.getName().equals(defaultBookmark.getName()) &&
+                  java.util.Objects.equals(info.getOwner(), defaultBookmark.getOwner()),
+               home ? opened == null || openedMatch : openedMatch);
+         })
          .collect(Collectors.toList());
    }
 
@@ -434,11 +451,13 @@ public class ViewsheetAssemblyAgentController {
       throws Exception
    {
       requireEnabled();
-      String name = requireBookmarkName(request.name(), "create_bookmark");
+      String name = requireValidNewBookmarkName(request.name(), "create_bookmark", "name");
       int type = toTypeInt(request.type());
       boolean readOnly = request.readOnly() == null || request.readOnly();
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         requireSharePermission(rvs, type, VSBookmarkInfo.PRIVATE, false, user, "create_bookmark");
+
          if(rvs.containsBookmark(name, ownerOf(user))) {
             throw new IllegalArgumentException(
                "create_bookmark: a bookmark named '" + name + "' already exists. Use " +
@@ -506,10 +525,23 @@ public class ViewsheetAssemblyAgentController {
          VSBookmarkInfo existing = visibleBookmarks(rvs, user).stream()
             .filter(b -> b.getName().equals(name) && java.util.Objects.equals(b.getOwner(), targetOwner))
             .findFirst().orElse(null);
-         int type = request.type() != null ? toTypeInt(request.type())
-            : existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
-         boolean readOnly = request.readOnly() != null ? request.readOnly()
-            : existing != null ? existing.isReadOnly() : true;
+         int existingType = existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
+         boolean existingReadOnly = existing == null || existing.isReadOnly();
+         int type = request.type() != null ? toTypeInt(request.type()) : existingType;
+         boolean readOnly = request.readOnly() != null ? request.readOnly() : existingReadOnly;
+
+         // Overriding someone else's writable bookmark only refreshes its captured state -- the
+         // native Viewer's own "Save Current" resends the bookmark's own type/readOnly, and its
+         // Edit dialog (the only place visibility changes) is disabled for non-owners.
+         if(!targetOwner.equals(owner) && (type != existingType || readOnly != existingReadOnly)) {
+            throw new IllegalArgumentException(
+               "update_bookmark: bookmark '" + name + "' is owned by someone else -- only its " +
+               "owner can change its type/readOnly. Omit 'type'/'readOnly' to just refresh its " +
+               "saved state.");
+         }
+
+         requireSharePermission(rvs, type, existingType, readOnly != existingReadOnly, user,
+                                "update_bookmark");
 
          // Write under the resolved target owner (mirroring VSBookmarkService.saveBookmark's own
          // "Override" branch, minus the heavier SRPrincipal construction that branch uses --
@@ -548,6 +580,14 @@ public class ViewsheetAssemblyAgentController {
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          IdentityID targetOwner = requireOwnBookmark(rvs, name, user, "delete_bookmark",
             "no bookmark named '" + name + "'. list_bookmarks reports what exists.");
+
+         // readOnly:false only lets others OVERWRITE a shared bookmark, never remove it -- the
+         // native Viewer's Remove button is disabled for every bookmark the caller doesn't own.
+         if(!targetOwner.equals(ownerOf(user))) {
+            throw new IllegalArgumentException(
+               "delete_bookmark: bookmark '" + name + "' exists but is owned by someone else -- " +
+               "only its owner can delete it, even when it is shared as writable.");
+         }
 
          VSEditBookmarkEvent event = ImmutableVSEditBookmarkEvent.builder()
             .vsBookmarkInfoModel(VSBookmarkInfoModel.builder().name(name).owner(targetOwner).build())
@@ -622,8 +662,8 @@ public class ViewsheetAssemblyAgentController {
     * to {@link VSBookmarkService#renameBookmarkInViewSheet}, which moves the bookmark's own saved
     * payload via {@link RuntimeViewsheet#editBookmark} rather than re-capturing it (bug #76827).
     * <p>
-    * Restricted to bookmarks the caller owns outright -- unlike {@link #updateBookmark}/
-    * {@link #deleteBookmark}, which also accept a shared bookmark someone else owns but marked
+    * Restricted to bookmarks the caller owns outright -- unlike {@link #updateBookmark}, which
+    * also accepts a shared bookmark someone else owns but marked
     * writable via {@link #requireOwnBookmark}'s broader match. {@link RuntimeViewsheet#editBookmark}
     * has no owner parameter of its own; it always operates on this runtime viewsheet's own owning
     * principal's bookmark set, so reusing it on a bookmark actually owned by someone else would
@@ -640,7 +680,7 @@ public class ViewsheetAssemblyAgentController {
    {
       requireEnabled();
       String name = requireBookmarkName(request.name(), "rename_bookmark");
-      String newName = requireBookmarkName(request.newName(), "rename_bookmark", "newName");
+      String newName = requireValidNewBookmarkName(request.newName(), "rename_bookmark", "newName");
       boolean confirmed = request.confirmed() != null && request.confirmed();
 
       if(VSBookmark.HOME_BOOKMARK.equals(name) || VSBookmark.HOME_BOOKMARK.equals(newName)) {
@@ -663,10 +703,13 @@ public class ViewsheetAssemblyAgentController {
          // 'type'/'readOnly' omitted means "leave the existing visibility alone", same
          // omit-means-unchanged convention update_bookmark already uses.
          VSBookmarkInfo existing = rvs.getBookmarkInfo(name, owner);
-         int type = request.type() != null ? toTypeInt(request.type())
-            : existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
+         int existingType = existing != null ? existing.getType() : VSBookmarkInfo.PRIVATE;
+         int type = request.type() != null ? toTypeInt(request.type()) : existingType;
          boolean readOnly = request.readOnly() != null ? request.readOnly()
             : existing != null ? existing.isReadOnly() : true;
+
+         requireSharePermission(rvs, type, existingType,
+            existing != null && readOnly != existing.isReadOnly(), user, "rename_bookmark");
 
          requireOk(vsBookmarkService.renameBookmarkInViewSheet(
                       rvs, newName, name, type, readOnly, confirmed, user),
@@ -685,6 +728,76 @@ public class ViewsheetAssemblyAgentController {
       }
 
       return name;
+   }
+
+   /**
+    * Validates a name a bookmark is about to be CREATED under (create_bookmark's name,
+    * rename_bookmark's newName) the way the native bookmark dialog does: trimmed (its name input
+    * carries the {@code trim} directive), then {@code FormValidators.bookmarkSpecialCharacters}.
+    * Lookup names (update/delete/goto/set-default, rename's old name) deliberately stay
+    * non-blank-only so bookmarks saved under older, looser rules remain reachable.
+    *
+    * @return the trimmed name.
+    */
+   private static String requireValidNewBookmarkName(String name, String tool, String field) {
+      String trimmed = requireBookmarkName(name, tool, field).trim();
+      boolean dateLike = BOOKMARK_DATE_TIME_NAME.matcher(trimmed).matches() ||
+         BOOKMARK_DATE_NAME.matcher(trimmed).matches() ||
+         BOOKMARK_TIME_NAME.matcher(trimmed).matches();
+
+      if(!dateLike && !BOOKMARK_NAME.matcher(trimmed).matches()) {
+         throw new IllegalArgumentException(
+            tool + ": '" + field + "' may only contain letters, digits, Chinese characters, " +
+            "spaces and @ $ & _ + - (or be a date/time such as 2026-01-31 or 2026-01-31 " +
+            "08:00:00), got '" + trimmed + "'.");
+      }
+
+      return trimmed;
+   }
+
+   /**
+    * Share Bookmark / Share to All enforcement, mirroring what the native bookmark dialog lets a
+    * user pick: the Shared section is hidden without the {@code ShareBookmark} action permission
+    * or on a user-scope (My Dashboards) viewsheet, and "All Users" is hidden without
+    * {@code ShareToAll}. Only checked when a shared/group bookmark's type or readOnly actually
+    * changes, since the dialog leaves both untouched when that section is hidden. The readOnly
+    * checkbox lives in the Shared section too, so changing it needs Share Bookmark; it does not
+    * depend on "All Users", so Share to All is only needed when switching the type to shared.
+    */
+   private void requireSharePermission(RuntimeViewsheet rvs, int type, int existingType,
+                                       boolean readOnlyChanged, Principal user, String tool)
+      throws SecurityException
+   {
+      boolean typeChanged = type != existingType;
+
+      if(type == VSBookmarkInfo.PRIVATE || !typeChanged && !readOnlyChanged) {
+         return;
+      }
+
+      AssetEntry entry = rvs.getEntry();
+
+      if(entry != null && entry.getScope() == AssetRepository.USER_SCOPE) {
+         throw new IllegalArgumentException(
+            tool + ": bookmarks on a viewsheet in My Dashboards cannot be shared -- use " +
+            "type 'private'.");
+      }
+
+      if(!securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareBookmark",
+                                         ResourceAction.READ))
+      {
+         throw new IllegalArgumentException(
+            tool + ": you do not have the Share Bookmark permission -- use type 'private', or " +
+            "leave an existing shared bookmark's 'type'/'readOnly' unchanged.");
+      }
+
+      if(typeChanged && type == VSBookmarkInfo.ALLSHARE &&
+         !securityEngine.checkPermission(user, ResourceType.VIEWSHEET_ACTION, "ShareToAll",
+                                         ResourceAction.READ))
+      {
+         throw new IllegalArgumentException(
+            tool + ": you do not have the Share to All permission -- use type 'group' or " +
+            "'private'.");
+      }
    }
 
    private static IdentityID ownerOf(Principal user) {
@@ -726,6 +839,9 @@ public class ViewsheetAssemblyAgentController {
     * this, an agent that sees such a bookmark via list_bookmarks and then tries to act on it gets
     * a plain "no bookmark named X" -- indistinguishable from "that name is free" -- and is liable
     * to retry via create_bookmark instead of realizing it simply doesn't own the one it saw.
+    * Only update_bookmark actually honors that writable override; delete_bookmark and
+    * rename_bookmark additionally refuse any resolved owner other than the caller, as the native
+    * Viewer's Remove/Edit buttons do.
     *
     * @return the RESOLVED TARGET OWNER to use for the write/delete that follows -- the caller's
     *         own identity when they already own a same-named bookmark, otherwise the matched
