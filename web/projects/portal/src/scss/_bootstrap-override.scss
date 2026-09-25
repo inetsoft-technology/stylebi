@@ -345,6 +345,10 @@ fieldset.float-title {
   }
 }
 .modal-header {
+  // bootstrap >= 5.3.3 dropped space-between from .modal-header and relies on the
+  // close button's margin-left: auto instead, which the 0.4rem minimum gap below overrides
+  justify-content: space-between;
+
   .btn-close {
     padding: 0.05rem;
     margin-left: 0.4rem;

@@ -42,6 +42,8 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.SelectionVSAssembly;
 import inetsoft.util.*;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.pool.PoolConfig;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import org.apache.commons.lang3.StringUtils;
@@ -398,11 +400,14 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    public void reset() {
       resetTableLens();
       resetDefaultColumnSelection();
+      ScriptEnv old;
 
       synchronized(lock) {
+         old = senv;
          senv = null;
       }
 
+      retire(old);
       scope = null;
    }
 
@@ -1171,12 +1176,37 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             senv = this.senv;
 
             if(senv == null) {
-               senv = this.senv = ScriptEnvRepository.getScriptEnv();
+               senv = this.senv = createScriptEnv();
             }
          }
       }
 
       return senv;
+   }
+
+   /**
+    * Every env of this sandbox has the same type: the pool mode is fixed when the sandbox is
+    * built, so a condition filter that captured one env never meets another kind (bug #76960).
+    */
+   private ScriptEnv createScriptEnv() {
+      return scriptPoolMode ? new WorksheetScriptEnv(PoolConfig.read())
+         : ScriptEnvRepository.getScriptEnv();
+   }
+
+   /**
+    * @return whether this sandbox runs its worksheet scripts on pooled contexts.
+    */
+   public boolean isScriptPoolMode() {
+      return scriptPoolMode;
+   }
+
+   /**
+    * Release a dropped env's pooled contexts. A no-op for a plain env.
+    */
+   private static void retire(ScriptEnv env) {
+      if(env instanceof WorksheetScriptEnv) {
+         ((WorksheetScriptEnv) env).retire();
+      }
    }
 
    /**
@@ -1568,9 +1598,14 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
          vprovider2 = null;
       }
 
+      ScriptEnv old;
+
       synchronized(lock) {
+         old = senv;
          senv = null;
       }
+
+      retire(old);
    }
 
    /**
@@ -1942,6 +1977,8 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private ViewsheetSandbox vsbox;
    private AssetQueryScope scope; // scope for executing formulas
    private volatile ScriptEnv senv; // scripting env for executing scripts
+   // read once: every env this sandbox creates, also after reset(), has the same type (#76960)
+   private final boolean scriptPoolMode = PoolConfig.isEnabled();
    private final MVSession mvsession;
    private final Set<String> nolimit; // tables to ignore time limit
    private QueryManager queryMgr; // track pending queries

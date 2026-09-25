@@ -140,6 +140,14 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
       eventEnabled = true;
    }
 
+   /**
+    * Put the formula back in place of the cached value, so it is evaluated again.
+    */
+   @Override
+   protected void uncacheValue(int r, int c, Formula expr) {
+      setCachedValue(r, c, expr);
+   }
+
    @Override
    public void setXMetaInfo(int row, int col, XMetaInfo minfo) {
       mmap.put(getDescriptor().getCellDataPath(row, col), minfo);

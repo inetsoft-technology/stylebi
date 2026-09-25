@@ -258,7 +258,11 @@ public abstract class AbstractSecurityFilter
          Stream.concat(Arrays.stream(defRoles), Arrays.stream(currentRoles)).toArray(IdentityID[]::new);
       principal.setRoles(newRoles);
       final ClientInfo info = createClientInfo(principal.getIdentityID(), request);
-      principal = new SRPrincipal(principal, info);
+      // Wrap in DestinationUserNameProviderPrincipal (as SSOPrincipalFilter already does for its
+      // own SSO flow) so that mutable per-session state like isProfiling()/setProfiling() is
+      // backed by the live, distributed session attribute map instead of a plain in-memory field
+      // that would otherwise silently diverge from the version other requests/connections see.
+      principal = new DestinationUserNameProviderPrincipal(principal, info);
       createSession(request, principal);
       authenticationService.authenticate(info, principal);
       SUtil.loginRecord(request, pId, true, null);

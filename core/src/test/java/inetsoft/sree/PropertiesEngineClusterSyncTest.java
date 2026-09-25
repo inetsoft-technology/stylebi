@@ -18,6 +18,7 @@
 package inetsoft.sree;
 
 import inetsoft.storage.InMemoryKeyValueStorage;
+import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
 import org.junit.jupiter.api.*;
@@ -37,6 +38,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -254,6 +256,28 @@ class PropertiesEngineClusterSyncTest {
       assertEquals("SreeBundle", engine.getProperty("sree.bundle"));
       assertNotNull(engine.getProperty("sree.home"));
       assertNull(engine.getProperty(name, true), "early-loaded properties kept a removed key");
+   }
+
+   @Test
+   void failedReloadKeepsThePreviousProperties() throws Exception {
+      // Bug #76979: a failed reload published the default properties only, which dropped every
+      // stored property until the next reload succeeded
+      String name = prefix + "key";
+      storage.remotePut(name, "value", false);
+      initEngine();
+
+      setStorage(new InMemoryKeyValueStorage<>() {
+         @Override
+         public Stream<KeyValuePair<String>> stream() {
+            throw new IllegalStateException("storage temporarily unreachable");
+         }
+      });
+      engine.init(true);
+
+      assertEquals("value", engine.getProperty(name), "a failed reload dropped a stored property");
+      assertEquals("value", engine.getProperty(name, true),
+                   "a failed reload dropped a stored property from the early-loaded properties");
+      assertNotNull(engine.getProperty("sree.home"));
    }
 
    @Test

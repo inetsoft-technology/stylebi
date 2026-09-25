@@ -27,6 +27,9 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.LendableReentrantLock;
+import inetsoft.util.stall.LockStallException;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.XSwappableIntList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.slf4j.Logger;
@@ -234,6 +237,8 @@ public class DistinctTableLens extends AbstractTableLens
 
       completed = false;
       validated = false;
+      stallFailure = null;
+      scannedRows = 0;
       fireChangeEvent();
    }
 
@@ -307,6 +312,7 @@ public class DistinctTableLens extends AbstractTableLens
 
          for(int r = table.getHeaderRowCount(), max = getMaxRowCount();
              table.moreRows(r) && r < max; r++) {
+            scannedRows = r;
             Object val = getKey(table, r);
 
             if(map.contains(val)) {
@@ -327,6 +333,22 @@ public class DistinctTableLens extends AbstractTableLens
                }
             }
          }
+      }
+      catch(LockStallException ex) {
+         // the readers rethrow it rather than take the rows so far for the whole table
+         // (bug #76967)
+         stallFailure = ex;
+         throw ex;
+      }
+      catch(RuntimeException ex) {
+         // a stall may reach the worker wrapped by the base table (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            stallFailure = stall;
+         }
+
+         throw ex;
       }
       finally {
          synchronized(DistinctTableLens.this) {
@@ -363,6 +385,9 @@ public class DistinctTableLens extends AbstractTableLens
 
          //sortDistinct0();
       }
+      catch(LockStallException ex) {
+         // logged by the wait site, sortDistinct0() kept it for the readers (bug #76967)
+      }
       catch(Exception ex) {
          LOG.error("Failed to process sort distinct", ex);
       }
@@ -378,6 +403,7 @@ public class DistinctTableLens extends AbstractTableLens
          boolean distinct = sorted instanceof SortFilter && ((SortFilter) sorted).isDistinct();
 
          for(int r = sorted.getHeaderRowCount(); sorted.moreRows(r); r++) {
+            scannedRows = r;
             boolean eq = !distinct;
 
             if(row == null) {
@@ -415,6 +441,22 @@ public class DistinctTableLens extends AbstractTableLens
                }
             }
          }
+      }
+      catch(LockStallException ex) {
+         // the readers rethrow it rather than take the rows so far for the whole table
+         // (bug #76967)
+         stallFailure = ex;
+         throw ex;
+      }
+      catch(RuntimeException ex) {
+         // a stall may reach the worker wrapped by the base table (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            stallFailure = stall;
+         }
+
+         throw ex;
       }
       finally {
          synchronized(DistinctTableLens.this) {
@@ -489,13 +531,26 @@ public class DistinctTableLens extends AbstractTableLens
     */
    @Override
    public boolean moreRows(int row) {
+      WaitRecord record = null;
+
       try {
          while(true) {
+            // no loan and no monitor is held here, so a stall exception leaks neither
+            // (bug #76967)
+            if(record != null) {
+               record.checkStall();
+            }
+
             LendableReentrantLock.Borrower lendTo;
 
             synchronized(this) {
-               if(rows != null && row < rows.size() || completed) {
-                  return rows != null && row < rows.size();
+               if(rows != null && row < rows.size()) {
+                  return true;
+               }
+
+               if(completed) {
+                  throwStallFailure();
+                  return false;
                }
 
                validate();
@@ -507,9 +562,9 @@ public class DistinctTableLens extends AbstractTableLens
 
                lendTo = worker;
 
-               if(!JavaScriptEngine.canLendScriptLocks(lendTo)) {
+               if(record != null && !JavaScriptEngine.canLendScriptLocks(lendTo)) {
                   try {
-                     wait(JavaScriptEngine.getScriptLockWaitMillis(500));
+                     wait(record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(500)));
                   }
                   catch(InterruptedException ex) {
                      // ignore it
@@ -517,6 +572,14 @@ public class DistinctTableLens extends AbstractTableLens
 
                   continue;
                }
+            }
+
+            // the row is not there yet, register the wait (outside of the monitor) and check
+            // again
+            if(record == null) {
+               record = WaitRegistry.begin("DistinctTableLens.moreRows", () -> scannedRows,
+                                           this::getWorkerThreads);
+               continue;
             }
 
             // this thread holds or was lent a script engine lock (e.g. by a condition filter)
@@ -527,7 +590,7 @@ public class DistinctTableLens extends AbstractTableLens
                synchronized(this) {
                   if((rows == null || row >= rows.size()) && !completed) {
                      try {
-                        wait(JavaScriptEngine.getScriptLockWaitMillis(500));
+                        wait(record.waitMillis(JavaScriptEngine.getScriptLockWaitMillis(500)));
                      }
                      catch(InterruptedException ex) {
                         // ignore it
@@ -537,7 +600,19 @@ public class DistinctTableLens extends AbstractTableLens
             }
          }
       }
+      catch(LockStallException ex) {
+         // a stall fails the query, it is never the end of the table (bug #76967)
+         throw ex;
+      }
       catch(Exception ex) {
+         // a stall may reach this thread wrapped, it is never the end of the table either
+         // (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw new LockStallException(stall);
+         }
+
          synchronized(this) {
             completed = true;
          }
@@ -545,6 +620,31 @@ public class DistinctTableLens extends AbstractTableLens
          LOG.error("Failed to validate table rows when checking " +
             "if row is available: " + row, ex);
          return false;
+      }
+      finally {
+         if(record != null) {
+            record.close();
+         }
+      }
+   }
+
+   /**
+    * The worker thread, for the lock-stall watchdog.
+    */
+   private Thread[] getWorkerThreads() {
+      LendableReentrantLock.Borrower task = worker;
+      return new Thread[] { task == null ? null : task.getThread() };
+   }
+
+   /**
+    * Rethrow the stall the worker failed with, called when the table is complete. A stall
+    * must never look like the end of the table (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(failure != null) {
+         throw new LockStallException(failure);
       }
    }
 
@@ -559,9 +659,25 @@ public class DistinctTableLens extends AbstractTableLens
       try {
          validate();
 
+         if(completed) {
+            // the rows so far of a stalled worker are not the whole table (bug #76967)
+            throwStallFailure();
+         }
+
          return completed ? rows.size() : - rows.size() - 1;
       }
+      catch(LockStallException ex) {
+         throw ex;
+      }
       catch(Exception ex) {
+         // a stall may reach this thread wrapped, it is never the end of the table either
+         // (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw new LockStallException(stall);
+         }
+
          completed = true;
          LOG.error("Failed to validate table rows when getting row count", ex);
          return -1;
@@ -1099,6 +1215,9 @@ public class DistinctTableLens extends AbstractTableLens
    private boolean validated;       // check if validated
    // the background task finding distinct rows, if any
    private transient volatile LendableReentrantLock.Borrower worker;
+   // the base row the worker has reached, and the stall it failed with (bug #76967)
+   private transient volatile int scannedRows;
+   private transient volatile LockStallException stallFailure;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(DistinctTableLens.class);

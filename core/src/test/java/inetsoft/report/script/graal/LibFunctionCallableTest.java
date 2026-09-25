@@ -137,4 +137,26 @@ public class LibFunctionCallableTest {
          engine.close();
       }
    }
+
+   @Test
+   void libTopLevelConstIsVisibleToOtherScripts() throws Exception {
+      // Bug #76980: a top-level const/let in a library source must be visible to
+      // other scripts (Rhino put a const on the scope), not confined to the
+      // with-block the source is installed in.
+      LibManager mgr = LibManagerProvider.getInstance().getManager();
+      mgr.setScript("libRate",
+                    "const LIB_RATE = 3;\nlet LIB_BASE = 4;\nfunction libRate(x) { return x * LIB_RATE; }");
+
+      GraalJavaScriptEngine engine = new GraalJavaScriptEngine();
+
+      try {
+         engine.init(new HashMap<>());
+         assertEquals(6.0, engine.exec(engine.compile("libRate(2)"), null, null));
+         assertEquals(3.0, engine.exec(engine.compile("LIB_RATE"), null, null));
+         assertEquals(7.0, engine.exec(engine.compile("LIB_BASE + LIB_RATE"), null, null));
+      }
+      finally {
+         engine.close();
+      }
+   }
 }

@@ -33,6 +33,9 @@ import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.pool.PoolConfig;
+import inetsoft.util.script.graal.pool.SlotClaim;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -69,6 +72,12 @@ public final class LockCycleHarness implements AutoCloseable {
     * Per-future cap for known-deadlock cases, which are expected to time out on main.
     */
    public static final long KNOWN_CAP = 10;
+
+   /**
+    * Run every sandbox of the suite on pooled worksheet script contexts (bug #76960):
+    * {@code -Dlockcycle.pool=true}.
+    */
+   public static final boolean POOL = Boolean.getBoolean("lockcycle.pool");
 
    public LockCycleHarness() {
       HARNESS_THREAD.set(true);
@@ -118,6 +127,7 @@ public final class LockCycleHarness implements AutoCloseable {
     */
    static void stubScriptLock(AssetQuerySandbox box, ScriptEnv env) {
       when(box.peekScriptEnv()).thenReturn(env);
+      when(box.isScriptPoolMode()).thenReturn(env instanceof WorksheetScriptEnv);
    }
 
    /**
@@ -161,7 +171,9 @@ public final class LockCycleHarness implements AutoCloseable {
       long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(capSeconds);
 
       while(System.currentTimeMillis() < deadline) {
-         if(thread != null && thread.getState() == Thread.State.WAITING) {
+         if(thread != null && (thread.getState() == Thread.State.WAITING ||
+            thread.getState() == Thread.State.TIMED_WAITING))
+         {
             for(StackTraceElement element : thread.getStackTrace()) {
                if(element.getClassName().equals(LendableReentrantLock.class.getName()) &&
                   element.getMethodName().equals("lock"))
@@ -350,9 +362,13 @@ public final class LockCycleHarness implements AutoCloseable {
          }
       }
 
-      // closing takes the lock, which a deadlocked case leaves held forever
+      // closing takes the lock, which a deadlocked case leaves held forever; a pooled env
+      // retires without waiting
       for(Sandbox sandbox : sandboxes) {
-         if(sandbox.lock.tryLock()) {
+         if(sandbox.env instanceof WorksheetScriptEnv pooled) {
+            pooled.retire();
+         }
+         else if(sandbox.lock.tryLock()) {
             try {
                sandbox.engine.close();
             }
@@ -451,13 +467,27 @@ public final class LockCycleHarness implements AutoCloseable {
    /**
     * A sandbox: a real GraalJS env, its engine and execution lock, and a mocked
     * {@code AssetQuerySandbox} whose condition filters take that lock.
+    *
+    * <p>With {@link #POOL} on, the env is a {@code WorksheetScriptEnv}, and {@code engine} and
+    * {@code lock} are only its primary slot's engine and that engine's lock; other threads
+    * run on other pooled contexts with their own locks. So a case's {@code lock.isLocked()}
+    * assertions and the deadlock dump cover only the primary slot.
     */
    public static final class Sandbox {
       Sandbox(boolean locking) {
-         CapturingEnv env = new CapturingEnv();
-         env.init();
-         this.env = env;
-         engine = env.created;
+         if(POOL) {
+            WorksheetScriptEnv pooled = new WorksheetScriptEnv(PoolConfig.defaults());
+            pooled.init();
+            this.env = pooled;
+            engine = pooled.primaryEngine();
+         }
+         else {
+            CapturingEnv env = new CapturingEnv();
+            env.init();
+            this.env = env;
+            engine = env.created;
+         }
+
          lock = engine.getExecutionLock();
 
          if(locking) {
@@ -469,7 +499,7 @@ public final class LockCycleHarness implements AutoCloseable {
          }
 
          try {
-            script = engine.compile("1 + 1");
+            script = env.compile("1 + 1");
          }
          catch(Exception ex) {
             throw new IllegalStateException(ex);
@@ -498,16 +528,31 @@ public final class LockCycleHarness implements AutoCloseable {
        * inside {@code exec}, as a worksheet or viewsheet script reading a table does.
        */
       public <T> T asGuest(Callable<T> task) throws Exception {
-         lock.lock();
-         JavaScriptEngine.pushExecScriptable(guestScope);
-
-         try {
+         try(AutoCloseable held = holdScript()) {
             return task.call();
          }
-         finally {
+      }
+
+      /**
+       * Hold what a thread inside {@code exec} holds: the engine lock, or with the pool on a
+       * claimed context. Close it on the same thread.
+       */
+      public AutoCloseable holdScript() {
+         if(env instanceof WorksheetScriptEnv pooled) {
+            SlotClaim claim = pooled.claimSlot();
+            JavaScriptEngine.pushExecScriptable(guestScope);
+            return () -> {
+               JavaScriptEngine.popExecScriptable();
+               claim.close();
+            };
+         }
+
+         lock.lock();
+         JavaScriptEngine.pushExecScriptable(guestScope);
+         return () -> {
             JavaScriptEngine.popExecScriptable();
             lock.unlock();
-         }
+         };
       }
 
       /**
@@ -523,7 +568,7 @@ public final class LockCycleHarness implements AutoCloseable {
        * engine, like a calc field or a script join key.
        */
       public TableLens execTable(int rows, Slow slow) {
-         return new ExecTable(rows, slow, engine, script);
+         return new ExecTable(rows, slow, env, engine, script);
       }
 
       public final GraalJavaScriptEnv env;
@@ -618,8 +663,9 @@ public final class LockCycleHarness implements AutoCloseable {
     * returns 2 and leaves the value unchanged.
     */
    private static final class ExecTable extends SlowTable {
-      ExecTable(int rows, Slow slow, GraalJavaScriptEngine engine, Object script) {
+      ExecTable(int rows, Slow slow, ScriptEnv env, GraalJavaScriptEngine engine, Object script) {
          super(rows, slow);
+         this.env = env;
          this.engine = engine;
          this.script = script;
       }
@@ -630,7 +676,10 @@ public final class LockCycleHarness implements AutoCloseable {
 
          if(r > 0 && c == 1) {
             try {
-               int two = ((Number) engine.exec(script, null, null)).intValue();
+               // pooled: through the env, so each thread claims its own context
+               Object result = env instanceof WorksheetScriptEnv
+                  ? env.exec(script, null, null, null) : engine.exec(script, null, null);
+               int two = ((Number) result).intValue();
                return (Integer) value + two - 2;
             }
             catch(Exception ex) {
@@ -641,6 +690,7 @@ public final class LockCycleHarness implements AutoCloseable {
          return value;
       }
 
+      private final ScriptEnv env;
       private final GraalJavaScriptEngine engine;
       private final Object script;
    }

@@ -211,7 +211,163 @@ class RangeOutputVSAssemblyInfoTest {
       // reloaded DynamicValue has not executed yet -- only the array length is guaranteed
       // here; the value-preservation assertions are already covered by the shrink/grow tests.
       assertEquals(3, reloaded.getRanges().length);
-      assertEquals(3, reloaded.getRangeColors().length);
+      // 4, not 3: this info's design-time color count was never set via
+      // setRangeColorsValue(), so it stays at its virgin default of 4 (rangeColorsValue's
+      // built-in pad-to-4-slots length, per bug #76968's fix) even though setRangeColors()
+      // (the runtime/script setter) only ever wrote 3 colors. Before the #76968 fix,
+      // writeContents() incorrectly bounded the persisted design array by the runtime count
+      // too, so this coincidentally came out as 3 here (with no design colors ever actually
+      // configured, all 4 slots are null placeholders either way).
+      assertEquals(4, reloaded.getRangeColors().length);
+   }
+
+   /**
+    * Regression test for bug #76968 (Issue 1), a regression from the #76909 fix above: once a
+    * script shrinks the logical length via {@code setRanges()}, removing the script (simulated
+    * by {@code resetRuntimeValues()}, which reverts every entry's runtime value back to its
+    * design default) must also restore the logical length back to the design-time count, or
+    * {@code getRanges()}/{@code getRangeColors()} keep truncating to the script's stale,
+    * shorter length even though the underlying design values are all still present.
+    */
+   @Test
+   void resetRuntimeValuesRestoresDesignTimeLengthAfterScriptShrink() {
+      GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
+      info.setRangeValues(new Object[] { "500", "1000", "1500" });
+      // exactly 4 design colors -- setRangeColorsValue() pads its backing array to a minimum
+      // of 4 slots regardless of input length, so using fewer here would conflate this test
+      // with that unrelated padding behavior (already covered elsewhere in this file).
+      info.setRangeColorsValue(new Color[] { Color.RED, Color.YELLOW, Color.GREEN, Color.BLUE });
+
+      info.setRanges(new Object[] { "520" });
+      info.setRangeColors(new Color[] { Color.CYAN });
+
+      info.resetRuntimeValues();
+
+      assertArrayEquals(new double[] { 500.0, 1000.0, 1500.0 }, info.getRanges(), 1e-6);
+      assertArrayEquals(
+         new Color[] { Color.RED, Color.YELLOW, Color.GREEN, Color.BLUE }, info.getRangeColors());
+   }
+
+   /**
+    * Regression test for bug #76968: a naive fix that restores the logical length to
+    * {@code rangeValues.length} (the physical array length) instead of a genuine, separately
+    * tracked design-time count would resurrect fabricated placeholder ranges/colors here --
+    * {@code setRanges()}/{@code setRangeColors()}'s grow branch pads new slots with a real
+    * {@code "0"} value (respectively a {@code null} color), so growing past the design count
+    * within the same session must not leave those placeholders behind once the script is
+    * removed.
+    */
+   @Test
+   void resetRuntimeValuesAfterScriptGrowthRestoresOnlyTheOriginalDesignCount() {
+      GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
+      info.setRangeValues(new Object[] { "500", "1000", "1500" });
+      info.setRangeColorsValue(new Color[] { Color.RED, Color.YELLOW, Color.GREEN, Color.BLUE });
+
+      info.setRanges(new Object[] { "10", "20", "30", "40", "50" });
+      info.setRangeColors(new Color[] {
+         Color.CYAN, Color.MAGENTA, Color.PINK, Color.ORANGE, Color.BLACK });
+
+      info.resetRuntimeValues();
+
+      assertArrayEquals(new double[] { 500.0, 1000.0, 1500.0 }, info.getRanges(), 1e-6);
+      assertArrayEquals(
+         new Color[] { Color.RED, Color.YELLOW, Color.GREEN, Color.BLUE }, info.getRangeColors());
+   }
+
+   /**
+    * Regression test for bug #76968 (Issue 2), a regression from the #76909 fix above: saving
+    * a viewsheet while a script has shrunk the logical length must not permanently drop the
+    * design-time values beyond that length from the persisted XML -- {@code writeContents()}
+    * used to bound the {@code <rangeValues>}/{@code <rangeColorsValue>} (design) blocks by the
+    * same, possibly script-shrunk {@code rangeCount}/{@code rangeColorCount} used for the
+    * {@code <ranges>}/{@code <rangeColors>} (runtime) blocks. Unlike
+    * {@code saveReloadRoundTripProducesCorrectlySizedArrays} above, this test configures the
+    * design values via {@code setRangeValues()}/{@code setRangeColorsValue()} *before* the
+    * script shrink, which is the precondition Issue 2 actually requires.
+    */
+   @Test
+   void saveWhileScriptHasShrunkLengthStillPersistsFullDesignTimeArrays() throws Exception {
+      GaugeVSAssemblyInfo info = new GaugeVSAssemblyInfo();
+      info.setName("Gauge1");
+      info.setRangeValues(new Object[] { "500", "1000", "1500" });
+      info.setRangeColorsValue(new Color[] { Color.RED, Color.YELLOW, Color.GREEN, Color.BLUE });
+
+      // a script shrinks the logical length to 1 before the save happens
+      info.setRanges(new Object[] { "520" });
+      info.setRangeColors(new Color[] { Color.CYAN });
+
+      StringWriter sw = new StringWriter();
+      info.writeXML(new PrintWriter(sw));
+
+      Document doc = Tool.parseXML(
+         new ByteArrayInputStream(sw.toString().getBytes(StandardCharsets.UTF_8)), "UTF-8");
+      Element elem = Tool.getFirstElement(doc);
+
+      GaugeVSAssemblyInfo reloaded = new GaugeVSAssemblyInfo();
+      reloaded.parseXML(elem);
+
+      // the design values ("1000"/"1500" and the trailing colors) must have survived the
+      // save/reload round trip even though the script had shrunk the logical length to 1
+      assertArrayEquals(
+         new String[] { "500", "1000", "1500" }, reloaded.getRangeValues());
+      assertArrayEquals(
+         new Color[] { Color.RED, Color.YELLOW, Color.GREEN, Color.BLUE },
+         reloaded.getRangeColorsValue());
+
+      // removing the script (resetRuntimeValues()) on the reloaded object must restore all 3
+      // design ranges, not just the 1 the script had shrunk it to at save time
+      reloaded.resetRuntimeValues();
+      assertArrayEquals(new double[] { 500.0, 1000.0, 1500.0 }, reloaded.getRanges(), 1e-6);
+   }
+
+   /**
+    * Regression test for the external review finding on bug #76968 (PR #5557,
+    * jshobe-inetsoft): {@code copyViewInfo()} synced {@code rangeCount}/{@code rangeColorCount}
+    * from the incoming info when the backing arrays changed, but not the new
+    * {@code rangeDesignCount}/{@code rangeColorDesignCount} fields -- exactly the merge path
+    * {@code GaugePropertyDialogService} uses to apply a Composer Advanced-tab edit: clone the
+    * live info, call the design-time setters on the clone, then merge the clone back into the
+    * live object via {@code AbstractVSAssembly.setVSAssemblyInfo()} -> {@code copyInfo()} ->
+    * {@code copyViewInfo()}. Without syncing the design-count fields there, every Advanced-tab
+    * edit that changes the range/color count would leave the live object's design-count fields
+    * stale, reintroducing Issue 1 (this test) for the most common real-world editing path.
+    */
+   @Test
+   void copyInfoSyncsDesignCountFieldsFromIncomingInfo() {
+      // the "live" object, as it exists in a running viewsheet before the composer edit
+      GaugeVSAssemblyInfo live = new GaugeVSAssemblyInfo();
+      live.setRangeValues(new Object[] { "10", "20", "30" });
+      live.setRangeColorsValue(new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW });
+
+      // a bound script has shrunk the live object's runtime length before the edit happens
+      live.setRanges(new Object[] { "15" });
+      live.setRangeColors(new Color[] { Color.CYAN });
+
+      // GaugePropertyDialogService clones the live info, then applies the Advanced-tab edit
+      // (a 4th range / 5th color, a different design count than the clone started with) to
+      // the clone only
+      GaugeVSAssemblyInfo clone = new GaugeVSAssemblyInfo();
+      clone.copyInfo(live);
+      clone.setRangeValues(new Object[] { "10", "20", "30", "40" });
+      clone.setRangeColorsValue(
+         new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.MAGENTA });
+
+      // the dialog service merges the clone back into the live object
+      live.copyInfo(clone);
+
+      assertArrayEquals(new String[] { "10", "20", "30", "40" }, live.getRangeValues());
+      assertArrayEquals(
+         new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.MAGENTA },
+         live.getRangeColorsValue());
+
+      // resetRuntimeValues() must restore the NEW design count (4 ranges / 5 colors), not a
+      // stale pre-edit count -- this only holds if copyViewInfo() also synced
+      // rangeDesignCount/rangeColorDesignCount, not just rangeCount/rangeColorCount
+      live.resetRuntimeValues();
+      assertArrayEquals(new double[] { 10.0, 20.0, 30.0, 40.0 }, live.getRanges(), 1e-6);
+      assertArrayEquals(
+         new Color[] { Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW, Color.MAGENTA },
+         live.getRangeColors());
    }
 
    /**

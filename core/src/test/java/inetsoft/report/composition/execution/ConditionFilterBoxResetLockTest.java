@@ -106,6 +106,12 @@ public class ConditionFilterBoxResetLockTest {
       field.setAccessible(true);
       field.set(setup.box, new Object());
 
+      // pinned to pool off (bug #76960, spec §14.9): this case asserts the filter takes the
+      // captured env's lock; PoolModeCycleTest.boxResetPooled is its pool-on equivalent.
+      // The assertion documents intent: the mock skips field initializers, so the box's
+      // pool mode is always off here and it cannot fail.
+      assertFalse(setup.box.isScriptPoolMode());
+
       // AssetQuery builds the formula lens with box.getScriptEnv() before the filter
       setup.env = setup.box.getScriptEnv();
       setup.env.compile("1");
@@ -170,7 +176,10 @@ public class ConditionFilterBoxResetLockTest {
    }
 
    private static boolean waitingOnLock(Thread thread) {
-      if(thread.getState() != Thread.State.WAITING) {
+      Thread.State state = thread.getState();
+
+      // the lock-stall watchdog bounds the lock wait, so the thread parks TIMED_WAITING
+      if(state != Thread.State.WAITING && state != Thread.State.TIMED_WAITING) {
          return false;
       }
 

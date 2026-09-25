@@ -30,6 +30,8 @@ import inetsoft.uql.util.XIdentifierContainer;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import inetsoft.util.swap.XSwappableMonitor;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
@@ -40,6 +42,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.*;
+import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * XSwappableTable provides the ability to cache table data in file system,
@@ -147,24 +151,88 @@ public class XSwappableTable implements XTable, Externalizable {
    @Override
    public boolean moreRows(int row) {
       if(!completed && row >= count) {
-         try {
-            rlock.lock();
+         // unbounded, but registered as a credit-only wait (bug #76967): it never fails, and a
+         // wait blocked by this thread (e.g. for an engine lock it holds) is credited while
+         // the rows arrive or the producer runs, e.g. in the socket read of a slow first row
+         try(WaitRecord record = WaitRegistry.beginCreditOnly(
+                "XSwappableTable.moreRows", () -> count, this::getProducers))
+         {
+            try {
+               rlock.lock();
 
-            while(row >= count && !completed) {
-               try {
-                  rlockCond.await(10, TimeUnit.SECONDS);
-               }
-               catch(Exception ex) {
-                  // ignore it
+               while(row >= count && !completed) {
+                  try {
+                     rlockCond.await(record.waitMillis(10000), TimeUnit.MILLISECONDS);
+                  }
+                  catch(Exception ex) {
+                     // ignore it
+                  }
+
+                  // never throws, nor blocks
+                  record.checkStall();
                }
             }
-         }
-         finally {
-            rlock.unlock();
+            finally {
+               rlock.unlock();
+            }
          }
       }
 
       return row < count;
+   }
+
+   /**
+    * Same as {@link #moreRows(int)}, but the wait is registered with the lock-stall watchdog
+    * (bug #76967). If neither this table's row count nor {@code producerProgress} changes, and
+    * none of the blockers progresses, for {@code stall.watchdog.noProgressMillis}, this throws
+    * a {@link inetsoft.util.stall.LockStallException} instead of waiting on. A stall is never
+    * reported as the end of the table. For tables filled by a worker that may wait for a lock
+    * of the reader, e.g. the join tables.
+    *
+    * @param row              row number.
+    * @param what             the wait site, for the error message and the thread dump.
+    * @param producerProgress extra progress of the producer, e.g. rows it scanned or buffered
+    *                         without adding them yet.
+    * @param blockers         the threads producing the rows.
+    * @return true if the row exists, or false if no more rows.
+    */
+   public boolean moreRows(int row, String what, LongSupplier producerProgress,
+                           Supplier<Thread[]> blockers)
+   {
+      if(completed || row < count) {
+         return row < count;
+      }
+
+      try(WaitRecord record =
+             WaitRegistry.begin(what, () -> count + producerProgress.getAsLong(), blockers))
+      {
+         while(true) {
+            rlock.lock();
+
+            try {
+               if(row < count || completed) {
+                  return row < count;
+               }
+
+               try {
+                  rlockCond.await(record.waitMillis(10000), TimeUnit.MILLISECONDS);
+               }
+               catch(Exception ex) {
+                  // ignore it
+               }
+
+               if(row < count || completed) {
+                  return row < count;
+               }
+            }
+            finally {
+               rlock.unlock();
+            }
+
+            // holding no lock of this table
+            record.checkStall();
+         }
+      }
    }
 
    /**
@@ -690,6 +758,14 @@ public class XSwappableTable implements XTable, Externalizable {
       }
       else {
          if(((count - 1) & MASK) == 0) {
+            // the first data row and every new fragment: the thread adding the rows is the
+            // producer the readers wait for (not the header's, which may be another thread)
+            Thread current = Thread.currentThread();
+
+            if(producer != current) {
+               producer = current;
+            }
+
             if(table != null) {
                table.complete();
                table = null;
@@ -756,11 +832,28 @@ public class XSwappableTable implements XTable, Externalizable {
          }
 
          completed = true;
+         producer = null;
          rlockCond.signalAll();
       }
       finally {
          rlock.unlock();
       }
+   }
+
+   /**
+    * Set the thread that adds the rows of this table, e.g. at the start of a loader that runs
+    * on its own thread (bug #76967). A reader waiting in {@link #moreRows(int)} credits the
+    * waits it blocks with this thread's progress (while it runs, or while its own registered
+    * wait progresses). Cleared by {@link #complete()}, so a pooled thread that later works on
+    * something else never keeps a reader of this table alive.
+    */
+   public final void setProducer(Thread producer) {
+      this.producer = completed ? null : producer;
+   }
+
+   private Thread[] getProducers() {
+      Thread producer = this.producer;
+      return producer == null ? NO_THREADS : new Thread[] { producer };
    }
 
    /**
@@ -1196,11 +1289,14 @@ public class XSwappableTable implements XTable, Externalizable {
    private XTableColumnCreator[] creators; // table column creators
    private Object[] headers; // header row
    private Map<TableDataPath, XMetaInfo> mmap = null; // meta info table
+   private transient volatile Thread producer; // the thread adding the rows, if known
    private boolean completed = false; // data fully loaded
    private boolean disposed = false; // table disposed
    private String[] paths;
    private XIdentifierContainer identifiers = null; // identifier container
-   protected int count; // table count
+   // table count. Written only by the producer thread (addRow, outside rlock); volatile so the
+   // lock-stall watchdog's progress read, which holds no lock of this table, sees it (bug #76967)
+   protected volatile int count;
    private int lastRow = -1;
    private boolean exceedLimit = false;
    private boolean textExceedLimit = false;
@@ -1213,5 +1309,6 @@ public class XSwappableTable implements XTable, Externalizable {
    private transient int STAGE_MASK = 0xff;
    private boolean objectPooled = true;
    private Date ts = new Date();
+   private static final Thread[] NO_THREADS = new Thread[0];
    private static final Logger LOG = LoggerFactory.getLogger(XSwappableTable.class);
 }

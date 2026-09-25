@@ -37,6 +37,9 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.stall.LockStallException;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +48,7 @@ import java.io.*;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -326,7 +330,12 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       long start = System.currentTimeMillis();
-      lock.lock();
+      // advance at least 10 to avoid going through this once per row
+      final int advance = Math.min(Math.max(r / 100, 10), 100);
+      // the last row processed in this pass, see lockForRow()
+      final int lastRow = Math.max(r, getProcessedRowCount() + hrows + advance);
+      Lock execLock = lockForRow(r, lastRow);
+      ScriptSpan span = ScriptSpan.NONE;
 
       try {
          int nrows = getProcessedRowCount();
@@ -339,6 +348,11 @@ public class FormulaTableLens extends AbstractTableLens
          if(senv == null) {
             senv = report.getScriptEnv();
          }
+
+         // pool mode: one claimed span for this whole batch, including the base population
+         // below, so a script global lives for the batch and the context is cleaned once at
+         // its end (bug #76960, spec §5.3); nested batches share the claim
+         span = senv == null ? ScriptSpan.NONE : senv.openSpan();
 
          if(tableRow == null) {
             scripts = new Object[formulas.length];
@@ -370,9 +384,17 @@ public class FormulaTableLens extends AbstractTableLens
          }
 
          boolean first = true;
-         // advance at least 10 to avoid going through this once per row
-         final int advance = Math.min(Math.max(r / 100, 10), 100);
-         final int maxr = Math.max(r, nrows + hrows + advance);
+         // advance at least 10 to avoid going through this once per row; in pool mode at
+         // least one pooled batch, so one context clean serves a batch (spec §14.8).
+         // Design cost (spec §14.14): in pool mode the lens lock is held for up to
+         // maxBatchRows rows of script evaluation, so a concurrent reader of an already
+         // computed row can wait that long for this batch to finish
+         final int batch = Math.max(advance, nextPoolBatch(span, r, nrows + hrows));
+         // under the engine lock, stop at the rows whose base was loaded before taking it,
+         // see lockForRow(); a pooled env takes no engine lock, so its batch is not capped
+         final int maxr = execLock != null
+            ? Math.min(Math.max(r, nrows + hrows + advance), lastRow)
+            : Math.max(r, nrows + hrows + batch);
 
          for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null; i++) {
             // optimization, don't call get/put if never in the loop
@@ -395,6 +417,7 @@ public class FormulaTableLens extends AbstractTableLens
 
             int j = 0;
             Object[] row = new Object[formulas.length];
+            boolean stalled = false;
 
             // remove change listener then add change listener, for script might
             // change the table lens(set object), then the process will delegate
@@ -422,14 +445,29 @@ public class FormulaTableLens extends AbstractTableLens
                   tableRow.getResult(j);
                }
             }
+            catch(LockStallException ex) {
+               stalled = true;
+               throw ex;
+            }
             catch(ScriptException ex) {
+               LockStallException stall = LockStallException.find(ex);
+
+               if(stall != null) {
+                  stalled = true;
+                  throw stall;
+               }
+
                String colName = getColName(j + ncols);
                throw new ExpressionFailedException(ncols + j, colName, null, ex);
             }
             finally {
                // add empty row even if script failed since getObject() assumes rows contains
                // the same number of rows as formula table after moreRows is called.
-               rows.addRow(row);
+               // a stalled row is not kept: its cells are not values, and a later read
+               // computes the row again (bug #76967)
+               if(!stalled) {
+                  rows.addRow(row);
+               }
 
                FormulaContext.popTable();
                currExec = null;
@@ -439,7 +477,18 @@ public class FormulaTableLens extends AbstractTableLens
          }
       }
       finally {
-         lock.unlock();
+         // the lock is released even if closing the span throws
+         try {
+            span.close();
+         }
+         finally {
+            lock.unlock();
+         }
+
+         if(execLock != null) {
+            JavaScriptEngine.popHeldScriptLock();
+            execLock.unlock();
+         }
 
          if(!more) {
             if(rows != null) {
@@ -460,6 +509,104 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       return more;
+   }
+
+   /**
+    * Acquire this lens's lock for computing up to row {@code r}. If rows remain to be
+    * computed, the script engine's execution lock is acquired first, the same order
+    * as PostProcessor's condition filter, which takes the engine lock before reading
+    * its base tables. Taking this lens's lock first and the engine lock in exec()
+    * deadlocks against a condition filter reading this lens on another thread when
+    * the lens is shared by several table chains (bug #76935). The engine lock is
+    * recorded on the thread so an async base lens runs or is lent the lock while
+    * this thread waits for it (bug #76938). The base rows up to {@code lastRow} are
+    * loaded before the engine lock is acquired, so the base (e.g. an async lens whose
+    * worker needs the engine) is not waited for while holding it (bug #76935).
+    *
+    * @param r the row to compute.
+    * @param lastRow the last row computed in this pass.
+    *
+    * @return the acquired engine lock, which must be released after this lens's lock,
+    *         or {@code null} if none was acquired.
+    */
+   private Lock lockForRow(int r, int lastRow) {
+      ScriptEnv env = getScriptEnv();
+
+      if(env == null || !env.usesExecutionLock()) {
+         // a pooled env never makes a script wait for another thread's script, so there is
+         // no engine lock to order against (bug #76960)
+         lockBounded();
+         return null;
+      }
+
+      Lock execLock = null;
+
+      while(true) {
+         if(execLock == null && r >= getProcessedRowCount()) {
+            table.moreRows(lastRow);
+            execLock = getScriptExecutionLock();
+
+            if(execLock != null) {
+               execLock.lock();
+               JavaScriptEngine.pushHeldScriptLock(execLock);
+            }
+         }
+
+         try {
+            lockBounded();
+         }
+         catch(RuntimeException ex) {
+            // a stalled lens-lock wait must not leave the engine locked (bug #76967)
+            if(execLock != null) {
+               JavaScriptEngine.popHeldScriptLock();
+               execLock.unlock();
+            }
+
+            throw ex;
+         }
+
+         // rows may have been reset by invalidate() after the check above, don't
+         // compute them without the engine lock
+         if(execLock != null || r < getProcessedRowCount() ||
+            getScriptExecutionLock() == null)
+         {
+            return execLock;
+         }
+
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Get the execution lock of the script engine the formulas run on, creating the
+    * engine if needed, since compiling the formulas creates it anyway.
+    */
+   private Lock getScriptExecutionLock() {
+      ScriptEnv env = getScriptEnv();
+
+      if(env == null) {
+         return null;
+      }
+
+      Lock execLock = env.getExecutionLock();
+
+      if(execLock == null) {
+         env.init();
+         execLock = env.getExecutionLock();
+      }
+
+      return execLock;
+   }
+
+   /**
+    * Get the script env the formulas run on, taking it from the report on first use.
+    */
+   private ScriptEnv getScriptEnv() {
+      if(senv == null && report != null) {
+         senv = report.getScriptEnv();
+      }
+
+      return senv;
    }
 
    // get column name. avoid infinite recursing if there is no header row
@@ -1116,6 +1263,13 @@ public class FormulaTableLens extends AbstractTableLens
                                              formulas[col], runtime, "XXX");
          }
          catch(Exception ex) {
+            // a lock stall is not a script error, the reader must get it (bug #76967)
+            LockStallException stall = LockStallException.find(ex);
+
+            if(stall != null) {
+               throw stall;
+            }
+
             throw new ScriptException(ex.getMessage());
          }
 
@@ -1340,6 +1494,13 @@ public class FormulaTableLens extends AbstractTableLens
          }
       }
       catch(Exception ex) {
+         // a lock stall is neither a script error nor the default value (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          // if in design mode, ignore the error
          // @by larryl, we must run the formula script since the
          // formula lens may be refreshed as part of saving to archive
@@ -1359,6 +1520,74 @@ public class FormulaTableLens extends AbstractTableLens
       }
 
       return val;
+   }
+
+   /**
+    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}: batches
+    * start at batchRows and double, up to maxBatchRows, while this lens is read sequentially,
+    * that is while each batch starts at the first row not yet computed; any other access
+    * starts over at batchRows. 0 off the pool, where batchRows is 0.
+    *
+    * @param next the first row not yet computed.
+    */
+   private int nextPoolBatch(ScriptSpan span, int r, int next) {
+      int min = span.batchRows();
+
+      if(min <= 0) {
+         return 0;
+      }
+
+      int max = Math.max(min, span.maxBatchRows());
+      int batch = poolBatch > 0 && r <= next ? (poolBatch >= max / 2 ? max : poolBatch * 2) : min;
+      poolBatch = Math.min(Math.max(batch, min), max);
+      return poolBatch;
+   }
+
+   /**
+    * Take the lens lock. If another thread holds it, wait in slices registered with the
+    * lock-stall watchdog (bug #76967). The wait stays alive while this lens computes rows or
+    * its owner is running, e.g. a long script batch in pool mode. If there is no progress for
+    * stall.watchdog.noProgressMillis, e.g. because the owner is blocked on a monitor this
+    * thread holds, it throws a LockStallException holding nothing of the lock, as a plain
+    * lock() would have hung.
+    */
+   private void lockBounded() {
+      if(lock.tryLock()) {
+         return;
+      }
+
+      boolean interrupted = false;
+
+      try(WaitRecord record = WaitRegistry.begin("FormulaTableLens.moreRows",
+                                                 this::getProcessedRowCount, this::getLockOwner))
+      {
+         while(true) {
+            try {
+               if(lock.tryLock(record.waitMillis(10000), TimeUnit.MILLISECONDS)) {
+                  return;
+               }
+            }
+            catch(InterruptedException ex) {
+               // lock() ignored interrupts too; the flag is restored below
+               interrupted = true;
+            }
+
+            record.checkStall();
+         }
+      }
+      finally {
+         if(interrupted) {
+            Thread.currentThread().interrupt();
+         }
+      }
+   }
+
+   /**
+    * The thread holding the lens lock, for the watchdog's blocker credit.
+    */
+   private Thread[] getLockOwner() {
+      Thread owner = lock.getOwnerThread();
+      return owner == null ? NO_THREADS : new Thread[] { owner };
    }
 
    // Get the number of rows already processed
@@ -1426,11 +1655,22 @@ public class FormulaTableLens extends AbstractTableLens
       return type != null ? type : table == null ? null : table.getReportType();
    }
 
+   /**
+    * The lens lock, exposing its owner to the lock-stall watchdog (bug #76967).
+    */
+   private static final class OwnedLock extends ReentrantLock {
+      Thread getOwnerThread() {
+         return getOwner();
+      }
+   }
+
+   private static final Thread[] NO_THREADS = new Thread[0];
+
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
       cancelLock = new ReentrantLock();
-      lock = new ReentrantLock();
+      lock = new OwnedLock();
       senv = new GraalJavaScriptEnv();
    }
 
@@ -1459,7 +1699,9 @@ public class FormulaTableLens extends AbstractTableLens
    private transient boolean runtime = true;
    private transient TableChangeListener listener = null;
    private transient TableIteratorScriptable iterator = null;
-   private transient Lock lock = new ReentrantLock();
+   private transient OwnedLock lock = new OwnedLock();
+   // the rows of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
+   private transient int poolBatch;
    private transient boolean forceType = Drivers.getInstance().isDataCached();
    private transient String reportName;
 

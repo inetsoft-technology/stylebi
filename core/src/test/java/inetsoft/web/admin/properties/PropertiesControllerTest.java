@@ -60,10 +60,8 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.MessageException;
-import inetsoft.util.log.LogManager;
 import inetsoft.web.admin.security.PropertyModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;

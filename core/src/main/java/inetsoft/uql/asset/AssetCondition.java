@@ -21,6 +21,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
 import inetsoft.util.Tool;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -566,7 +567,18 @@ public class AssetCondition extends Condition implements AssetObject {
          clearCache();
       }
 
-      lresult = super.evaluate(value);
+      try {
+         lresult = super.evaluate(value);
+      }
+      catch(RuntimeException ex) {
+         // a stalled sub-query has no result, the next evaluation of this value must not
+         // take the last one (bug #76967)
+         if(LockStallException.find(ex) != null) {
+            lvalue = Tool.NULL;
+         }
+
+         throw ex;
+      }
 
       return lresult;
    }

@@ -1442,11 +1442,10 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
-    * Get length.
+    * Get the combined length of the fixed header fields (everything in the
+    * binary layout except the column/removed-column sections).
     */
-   public int getLength() {
-      String lmStr = getLMTableStr();
-
+   private int getHeaderLength(String lmStr) {
       int len = 8; // last update time
       String[] strs = new String[]{ mvname, vsId, tname, otname, sub + "",
                                     directLM + "", lmStr, shareable + "" };
@@ -1454,6 +1453,16 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       for(String str : strs) {
          len += (4 + (str == null ? 0 : str.length() * 2));
       }
+
+      return len;
+   }
+
+   /**
+    * Get length.
+    */
+   public int getLength() {
+      String lmStr = getLMTableStr();
+      int len = getHeaderLength(lmStr);
 
       len += 4;
       List<MVColumn> columns = getColumns();
@@ -1473,6 +1482,64 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    }
 
    /**
+    * Serialize one column's class name and binary payload atomically with
+    * respect to any concurrent mutation of that column's own mutable range
+    * state. Parallel MV builds run one {@code MVCompositeDispatcher} per CPU
+    * core, all sharing the exact same {@code MVDef} (and therefore the exact
+    * same {@code MVColumn}/{@code DateMVColumn} instances, see
+    * {@code MVDispatcher.processDispatch()}). While one dispatcher thread is
+    * serializing this {@code MVDef}, another may still be calling
+    * {@code DateMVColumn.convert()} (now synchronized on the column, see
+    * {@code MVCreatorUtil.setDateMVRange()}) on the very same column
+    * instance, flipping its {@code min0}/{@code max0} fields from
+    * {@code null} to non-null.
+    * <p>
+    * Computing the class-name length + {@link MVColumn#getDataLength()} and
+    * writing the corresponding bytes within a single {@code synchronized(col)}
+    * block guarantees the byte count used to size the destination buffer
+    * always matches the bytes {@link MVColumn#write(ByteBuffer)} actually
+    * emits for that column - closing the two-read TOCTOU between
+    * {@code getLength()}/{@code getDataLength()} and {@code write()} that
+    * could otherwise undersize the buffer and throw
+    * {@code BufferOverflowException} (Bug #76971).
+    */
+   private byte[] snapshotColumn(MVColumn col) {
+      synchronized(col) {
+         int len = getStringLength(col.getClassName()) + col.getDataLength();
+         ByteBuffer buf = ByteBuffer.allocate(len);
+         writeString(buf, col.getClassName());
+         col.write(buf);
+         return buf.array();
+      }
+   }
+
+   /**
+    * Snapshot every column in the list, see {@link #snapshotColumn(MVColumn)}.
+    */
+   private byte[][] snapshotColumns(List<MVColumn> cols) {
+      byte[][] result = new byte[cols.size()][];
+
+      for(int i = 0; i < cols.size(); i++) {
+         result[i] = snapshotColumn(cols.get(i));
+      }
+
+      return result;
+   }
+
+   /**
+    * Sum the lengths of a set of already-serialized column snapshots.
+    */
+   private int sumLength(byte[][] colBytes) {
+      int len = 0;
+
+      for(byte[] cb : colBytes) {
+         len += cb.length;
+      }
+
+      return len;
+   }
+
+   /**
     * Save to binary storage.
     */
    public void write(WritableByteChannel channel) throws IOException {
@@ -1483,7 +1550,15 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       List<MVColumn> columns = getColumns();
       List<MVColumn> rcolumns = getRemovedColumns();
 
-      int len = getLength();
+      // Snapshot each column's bytes up front, atomically per column (see
+      // snapshotColumn()), so that the length used to allocate the buffer
+      // below and the bytes actually written are guaranteed to agree even
+      // under concurrent mutation from a sibling MVCompositeDispatcher
+      // thread. Bug #76971.
+      byte[][] colBytes = snapshotColumns(columns);
+      byte[][] rcolBytes = snapshotColumns(rcolumns);
+
+      int len = getHeaderLength(lmStr) + 4 + sumLength(colBytes) + 4 + sumLength(rcolBytes);
       ByteBuffer buf = ByteBuffer.allocate(len + 4);
       buf.putInt(len);
 
@@ -1491,22 +1566,23 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          writeString(buf, strs[i]);
       }
 
-      buf.putInt(columns.size());
+      // use the snapshot array lengths (not columns.size()/rcolumns.size()) so the
+      // count field always agrees with the number of column entries actually
+      // written, even if the shared column list is concurrently mutated.
+      buf.putInt(colBytes.length);
 
-      for(MVColumn col : columns) {
-         writeString(buf, col.getClassName());
-         col.write(buf);
+      for(byte[] cb : colBytes) {
+         buf.put(cb);
       }
 
       // read and write directLM in the end to avoid bc problem
       writeString(buf, directLM + "");
       writeString(buf, lmStr);
 
-      buf.putInt(rcolumns.size());
+      buf.putInt(rcolBytes.length);
 
-      for(MVColumn col : rcolumns) {
-         writeString(buf, col.getClassName());
-         col.write(buf);
+      for(byte[] cb : rcolBytes) {
+         buf.put(cb);
       }
 
       buf.putLong(lastUpdateTime);

@@ -361,6 +361,31 @@ public class CalcFieldFormula implements PercentageFormula, Formula2 {
    }
 
    /**
+    * Open one script span over an aggregation that computes the results of {@code formulas}
+    * (bug #76960, spec §14.3). A summary or crosstab runs one exec per group for each calc
+    * field; with pooled worksheet contexts the span keeps one context for the whole
+    * aggregation, so it pays one context clean instead of one per group. The span is lazy, so
+    * an aggregation that runs no script takes no context. Without a calc field, or with an
+    * env that has no pooled contexts (the pool off), this is {@link ScriptSpan#NONE}.
+    */
+   public static ScriptSpan openSpan(Formula[]... formulas) {
+      for(Formula[] list : formulas) {
+         if(list == null) {
+            continue;
+         }
+
+         for(Formula formula : list) {
+            if(formula instanceof CalcFieldFormula && ((CalcFieldFormula) formula).senv != null) {
+               // all calc fields of one aggregation belong to one sandbox, so share one env
+               return ((CalcFieldFormula) formula).senv.openSpan();
+            }
+         }
+      }
+
+      return ScriptSpan.NONE;
+   }
+
+   /**
     * Get percentage type.
     */
    @Override

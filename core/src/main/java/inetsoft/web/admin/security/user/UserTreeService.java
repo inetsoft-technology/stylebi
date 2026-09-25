@@ -918,8 +918,11 @@ public class UserTreeService {
                }
             }
          }
-         else if(editProvider.getOrganization(orgID) != null) {
-            //provided org id already exists, return error
+         else if(editProvider.getOrganization(orgID) != null ||
+            Arrays.stream(securityProvider.getOrganizationIDs())
+               .anyMatch(o -> o != null && o.equalsIgnoreCase(orgID)))
+         {
+            // provided org id already exists (org ids are case-insensitive), return error
             throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationID"));
          }
          else if(editProvider.getOrgIdFromName(orgName) != null) {
@@ -1038,7 +1041,15 @@ public class UserTreeService {
          return getRootOrganizationModel(principal, currentProvider);
       }
 
-      Organization organization = currentProvider.getOrganization(orgID.orgID);
+      Organization organization = orgID.orgID == null ? null :
+         currentProvider.getOrganization(orgID.orgID);
+
+      // a key without a matching org id (e.g. name only) must not resolve to another organization
+      if(organization == null || !Tool.equals(organization.getName(), orgID.name)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.organization.not.exist", orgID.name));
+      }
+
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       String orgPrefix = "inetsoft.org." + orgID.getOrgID().toLowerCase() + ".";
@@ -1232,8 +1243,23 @@ public class UserTreeService {
       final Organization oldOrg = provider.getOrganization(provider.getOrganizationId(model.oldName()));
       IdentityID oldID = new IdentityID( model.oldName(), provider.getOrganizationId(model.oldName())) ;
       IdentityID newID = new IdentityID( model.name(), model.id());
+      final boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
 
-      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+      if(oldOrg == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString(
+            "em.security.invalidOrganizationPassed"));
+      }
+
+      // the @PermissionPath on the bare org name resolves against the caller's own org, so a
+      // non-site admin must be confined to editing their own current organization here
+      if(!siteAdmin && !oldOrg.getId().equalsIgnoreCase(
+         OrganizationManager.getInstance().getCurrentOrgID(principal)))
+      {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to organization: " + model.oldName());
+      }
+
+      if(!siteAdmin) {
          checkOrgEditedHasSysAdmin(oldOrg, model, principal);
       }
 
@@ -1268,6 +1294,11 @@ public class UserTreeService {
          boolean saveProperties = false;
 
          for(PropertyModel property: model.properties()) {
+            // non-site admins may only write the org properties exposed in the EM UI
+            if(!siteAdmin && !propertyNames.contains(property.name())) {
+               continue;
+            }
+
             SreeEnv.setProperty(property.name(), property.value(), true);
             saveProperties = true;
          }

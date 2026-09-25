@@ -36,6 +36,8 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.util.swap.XIntList;
 
 import java.awt.*;
@@ -2242,7 +2244,9 @@ public class CrossTabFilter extends AbstractTableLens
     * Generate the crosstab.
     */
    private void process() {
-      try {
+      // one script span over the whole aggregation, so pooled calc fields pay one context
+      // clean instead of one per group (bug #76960, spec §14.3); NONE with the pool off
+      try(ScriptSpan ignored = CalcFieldFormula.openSpan(sum)) {
          // for Feature #26586, add post processing time record for current report/vs.
          ProfileUtils.addExecutionBreakDownRecord(getReportName(),
             ExecutionBreakDownRecord.POST_PROCESSING_CYCLE, args -> {
@@ -2252,6 +2256,14 @@ public class CrossTabFilter extends AbstractTableLens
          //process0();
       }
       catch(Exception ex) {
+         // a lock stall of the base must not look like partial or empty data, the crosstab is
+         // left ungenerated and the reader gets the stall (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.error("Failed to process crosstab filter", ex);
       }
    }

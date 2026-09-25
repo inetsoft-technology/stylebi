@@ -18,6 +18,7 @@
 package inetsoft.util.script.graal;
 
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.*;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
@@ -63,6 +64,40 @@ class GraalJavaScriptEngineErrorTest {
 
       // the real script error is preserved in the message
       assertNotNull(ex.getMessage());
+   }
+
+   /**
+    * Bug #76967: a lock stall thrown by host code the script calls, e.g. a read of a stalled
+    * table, reaches the caller of exec as the same LockStallException, not as a
+    * ScriptException, and is not counted as a script error.
+    */
+   @Test void hostStallReachesTheCallerAsItIs() throws Exception {
+      LockStallException stall = new LockStallException("nested.site", "worker", 1234, null);
+      engine.put("stalledHost", new StalledHost(stall));
+      Object src = engine.compile("stalledHost.value()");
+
+      assertSame(stall, assertThrows(LockStallException.class,
+         () -> engine.exec(src, null, null)));
+
+      Field errorCountsField = GraalJavaScriptEngine.class.getDeclaredField("errorCounts");
+      errorCountsField.setAccessible(true);
+      assertFalse(((Map<?, ?>) errorCountsField.get(engine)).containsKey(src),
+                  "a stall is not a script error");
+   }
+
+   /**
+    * A host object whose method fails with a lock stall.
+    */
+   public static final class StalledHost {
+      StalledHost(LockStallException failure) {
+         this.failure = failure;
+      }
+
+      public Object value() {
+         throw failure;
+      }
+
+      private final LockStallException failure;
    }
 
    /**

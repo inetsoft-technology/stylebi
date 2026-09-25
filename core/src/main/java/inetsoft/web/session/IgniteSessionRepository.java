@@ -227,6 +227,18 @@ public class IgniteSessionRepository
       IgniteSession igniteSession = new IgniteSession(session, false);
       withRetry(() -> this.sessions.remove(id));
       sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), igniteSession));
+
+      // deregister the principal explicitly, using the properly-wrapped IgniteSession we already
+      // hold, rather than relying on entryRemoved()/entryExpired()'s own reaction to this same
+      // removal (bug #76953, fix round 2). That reaction is dispatched asynchronously, on a
+      // dedicated single-thread executor separate from this call's thread, so it is not
+      // guaranteed to run after (or become a no-op because of) this call -- it is only that in
+      // the overwhelming majority of executions, since the async dispatch takes many more hops
+      // than this method's own next few synchronous lines. In the rare case both race and both
+      // pass logout()'s isActiveUser() gate, the only consequence is a harmless duplicate audit
+      // SessionRecord for one logical removal -- never an incorrect deregistration or a
+      // reintroduction of the original force-logout-an-active-session bug.
+      logout(igniteSession, SessionRecord.LOGOFF_SESSION_TIMEOUT);
    }
 
    @Override
@@ -301,12 +313,45 @@ public class IgniteSessionRepository
 
    @Override
    public void entryExpired(EntryEvent<String, MapSession> event) {
-      LOG.debug("Session expired with ID: {}", event.getOldValue().getId());
-      logout(event.getOldValue(), SessionRecord.LOGOFF_SESSION_TIMEOUT);
-      sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), event.getOldValue()));
-      destroySessionAttributeMap(event.getOldValue().getId());
+      MapSession session = event.getOldValue();
+      LOG.debug("Session expired with ID: {}", session.getId());
+
+      // Wrap the raw MapSession before the per-session attribute map is torn down below, so
+      // logout() can actually resolve the principal -- passing the bare MapSession (as before fix
+      // round 2) always resolves null (see logout()'s javadoc), silently skipping deregistration
+      // for every genuine session expiry (bug #76953, fix round 2). This is safe here (unlike
+      // "fixing" entryRemoved()'s "not expired" branch would be): by the time entryExpired() runs,
+      // the session is already gone/expiring from the cache regardless of what logout() does, so
+      // resolving the principal here only keeps SecurityEngine.users consistent with a removal
+      // that has already happened -- it cannot itself force-remove an otherwise-active session.
+      logout(new IgniteSession(session, false), SessionRecord.LOGOFF_SESSION_TIMEOUT);
+      sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
+      destroySessionAttributeMap(session.getId());
    }
 
+   /**
+    * Deregisters {@code session}'s principal, if still active. Only works when {@code session}
+    * resolves attributes via the per-session DistributedMap (an {@link IgniteSession}) -- passing
+    * the bare {@link MapSession} from a cache event (as {@link #entryRemoved}'s "not expired"
+    * branch deliberately still does, below) is a no-op, because attribute reads/writes go only
+    * through the per-session DistributedMap and never back to the cached MapSession itself.
+    *
+    * <p>{@link #invalidateSession}, {@link #deleteById}, and {@link #entryExpired} all now pass a
+    * freshly-wrapped {@link IgniteSession} instead, so this correctly resolves the principal for
+    * those three callers (fix round 2, bug #76953). This is safe for all three: by the time any of
+    * them runs, the session is already being (or about to be) removed from the cache regardless of
+    * what this method does, so deregistering the principal here only keeps
+    * {@code SecurityEngine.users} consistent with a removal that is happening anyway -- it cannot
+    * itself cause a still-active session to be force-removed.
+    *
+    * <p>Do NOT do the same for {@link #entryRemoved}'s "not expired" branch: that branch's own
+    * {@code isExpired()} re-check is a per-node, possibly-stale/racy re-derivation of expiry against
+    * a session that -- from that node's own disagreement -- may still be genuinely active elsewhere.
+    * Making that branch's {@code logout()} call resolve a real principal would let one node's stale
+    * view unilaterally force a cluster-wide logout of a still-active session -- the original
+    * mechanism this bug is about. Leave it passing the bare {@code MapSession} (inert by
+    * construction) unless that branch's classification logic is fixed first.
+    */
    private void logout(Session session, String logoffReason) {
       Principal principal = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
@@ -421,6 +466,11 @@ public class IgniteSessionRepository
       if(session != null) {
          withRetry(() -> this.sessions.remove(id));
          sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
+
+         // deregister the principal explicitly -- this removal doesn't publish a
+         // SessionLoggedOutEvent, and entryRemoved()'s own reaction to the cache removal is a
+         // no-op here (see logout()'s javadoc), so nothing else would do it (bug #76953)
+         logout(session, "");
       }
    }
 

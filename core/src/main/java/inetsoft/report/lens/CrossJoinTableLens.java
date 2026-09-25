@@ -23,6 +23,10 @@ import inetsoft.report.filter.DefaultTableChangeListener;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.stall.LockStallException;
+import inetsoft.util.stall.WaitRecord;
+import inetsoft.util.stall.WaitRegistry;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -184,6 +188,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
       lcompleted = false;
       rcompleted = false;
+      stallFailure = null;
 
       lrows = 0;
       rrows = 0;
@@ -201,6 +206,15 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
     */
    private synchronized void validate() {
       if(lthread != null || isCompleted()) {
+         return;
+      }
+
+      // if this is called from JavaScriptEngine.exec() or a condition filter, the script
+      // engine is already locked. loading the tables in separate threads would deadlock
+      // if they need the engine, e.g. for a condition filter or formula (bug #76935).
+      if(JavaScriptEngine.holdsScriptLock()) {
+         loadTable(true, null);
+         loadTable(false, null);
          return;
       }
 
@@ -340,17 +354,61 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
          return true;
       }
 
-      while(row >= getRowCount0() && !isCompleted() && !disposed && !cancelled) {
-         try {
-            wait(500);
-            validate();
+      WaitRecord record = null;
+
+      try {
+         while(row >= getRowCount0() && !isCompleted() && !disposed && !cancelled &&
+               stallFailure == null)
+         {
+            // this lens lends nothing, and holds its own monitor for the whole method anyway;
+            // a stall of the workers fails the reader (bug #76967)
+            if(record == null) {
+               record = WaitRegistry.begin("CrossJoinTableLens.moreRows",
+                                           () -> (long) lrows + rrows, this::getWorkerThreads);
+            }
+            else {
+               record.checkStall();
+            }
+
+            try {
+               wait(record.waitMillis(500));
+               validate();
+            }
+            catch(InterruptedException ex) {
+               // ignore it
+            }
          }
-         catch(InterruptedException ex) {
-            // ignore it
+      }
+      finally {
+         if(record != null) {
+            record.close();
          }
       }
 
+      if(row >= getRowCount0()) {
+         throwStallFailure();
+      }
+
       return row < getRowCount0();
+   }
+
+   /**
+    * Rethrow the stall a worker failed with. A stall must never look like the end of the
+    * table (bug #76967).
+    */
+   private void throwStallFailure() {
+      LockStallException failure = stallFailure;
+
+      if(failure != null) {
+         throw new LockStallException(failure);
+      }
+   }
+
+   /**
+    * The threads reading the base tables, for the lock-stall watchdog.
+    */
+   private Thread[] getWorkerThreads() {
+      return new Thread[] { lthread, rthread };
    }
 
    /**
@@ -362,6 +420,8 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    @Override
    public synchronized int getRowCount() {
       validate();
+      // the rows so far of a stalled worker are not the whole table (bug #76967)
+      throwStallFailure();
 
       int count = getRowCount0();
 
@@ -882,6 +942,32 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    }
 
    /**
+    * Load a table and update its row count.
+    * @param left <tt>true</tt> left table, <tt>false</tt> right table.
+    * @param thread the waiting thread loading the table, or <tt>null</tt> if it is
+    * loaded on the calling thread.
+    */
+   private void loadTable(boolean left, WaitingThread thread) {
+      TableLens table = left ? ltable : rtable;
+      int hrows = left? lhrows : rhrows;
+
+      for(int i = hrows; table.moreRows(i); i += 100) {
+         if(thread != null && thread.disposed || disposed || cancelled) {
+            break;
+         }
+
+         updateRowCount(left, i - hrows + 1, false);
+      }
+
+      if((thread == null || !thread.disposed) && !disposed && !cancelled) {
+         int count = table.getRowCount() - hrows;
+         count = count < 0 ? 0 : count;
+
+         updateRowCount(left, count, true);
+      }
+   }
+
+   /**
     * Waiting thread.
     */
    private class WaitingThread extends GroupedThread {
@@ -898,22 +984,24 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
 
       @Override
       protected void doRun() {
-         TableLens table = left ? ltable : rtable;
-         int hrows = left? lhrows : rhrows;
+         try {
+            loadTable(left, this);
+         }
+         catch(RuntimeException ex) {
+            // the readers rethrow it at once rather than wait for a stall of their own
+            // (bug #76967)
+            LockStallException stall = LockStallException.find(ex);
 
-         for(int i = hrows; table.moreRows(i); i += 100) {
-            if(this.disposed || CrossJoinTableLens.this.disposed || cancelled) {
-               break;
+            if(stall != null) {
+               synchronized(CrossJoinTableLens.this) {
+                  if(!this.disposed) {
+                     stallFailure = stall;
+                     CrossJoinTableLens.this.notifyAll();
+                  }
+               }
             }
 
-            updateRowCount(left, i - hrows + 1, false);
-         }
-
-         if(!this.disposed && !CrossJoinTableLens.this.disposed && !cancelled) {
-            int count = table.getRowCount() - hrows;
-            count = count < 0 ? 0 : count;
-
-            updateRowCount(left, count, true);
+            throw ex;
          }
       }
 
@@ -940,6 +1028,8 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    private boolean disposed;       // disposed flag
    private int maxRows = Integer.MAX_VALUE;
    private transient boolean maxAlerted = false;
+   // the stall a worker failed with (bug #76967)
+   private transient volatile LockStallException stallFailure;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(CrossJoinTableLens.class);

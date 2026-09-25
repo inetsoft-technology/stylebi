@@ -173,6 +173,55 @@ class GraalJavaScriptEngineGlobalsTest {
       assertEquals("function", eval("typeof First"));
    }
 
+   // Bug #77008: BindingRootProxy.globalBindingCache permanently caches a 'true'
+   // isGlobalBinding(name) answer (by design, see #75676) and previously had no
+   // eviction path when the real global was later removed via
+   // GraalJavaScriptEngine.remove(). A name that once shadowed a CALC builtin
+   // (e.g. a real global "SUM" installed via engine.put/ConditionGroup-style
+   // usage) would then be treated as a real global forever, permanently blocking
+   // the case-insensitive CALC fallback (#75685) for that name -- even after the
+   // real global was removed -- and throwing ReferenceError instead of falling
+   // through to CALC.sum. GraalJavaScriptEngine.remove() must evict the name from
+   // BindingRootProxy's cache (BindingRootProxy.forgetGlobal) so the next lookup
+   // re-probes and correctly falls through.
+   @Test
+   void globalBindingCacheInvalidatedOnRemoveFallsThroughToCalc() throws Exception {
+      // install a real global "SUM" that shadows the CALC builtin, and read it
+      // once so isGlobalBinding("SUM") observes and permanently caches 'true'
+      engine.put("SUM", "blocker");
+      assertEquals("blocker", eval("typeof SUM === 'string' ? SUM : null"));
+
+      // remove the real global; without cache eviction, globalBindingCache still
+      // contains "SUM" and findInChain keeps reporting it as a real (now-absent)
+      // global, so GraalJS's own lookup throws ReferenceError instead of ever
+      // reaching the CALC fallback
+      engine.remove("SUM");
+
+      // must now fall through to CALC.sum (case-insensitive PascalCase name),
+      // exactly as if "SUM" had never been installed as a real global
+      assertEquals(6.0, eval("SUM([1,2,3])"));
+   }
+
+   // Companion edge case for #77008: a global that shadows a CALC builtin but is
+   // removed *without ever being read first* (no unqualified reference in any
+   // script observes it, so isGlobalBinding("AVERAGE") never runs and
+   // globalBindingCache never gains an entry for it). forgetGlobal("AVERAGE") is
+   // therefore called on a name that was never cached -- a HashSet#remove miss,
+   // which must be a harmless no-op -- and the fallback to CALC.average must
+   // still work correctly, exactly as if the global had never existed. This
+   // guards against a narrower fix that assumes an entry is always present (e.g.
+   // one that indexes/asserts on the cache instead of doing a plain remove).
+   @Test
+   void globalNeverReadBeforeRemoveStillFallsThroughToCalc() throws Exception {
+      engine.put("AVERAGE", "blocker");
+
+      // no read here -- unlike the test above, isGlobalBinding("AVERAGE") is
+      // never probed before removal, so it was never cached in the first place
+      engine.remove("AVERAGE");
+
+      assertEquals(2.0, eval("AVERAGE([1,2,3])"));
+   }
+
    // The case-insensitive last-resort must not shadow JS builtins: Calc has a
    // 'date' function, but the global Date constructor is an own property of the
    // global object, so it must still win over the (prototype) Calc.date.

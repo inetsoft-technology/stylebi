@@ -31,6 +31,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -64,6 +65,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome
 @Tag("core")
+@DisabledIfSystemProperty(named = "lockcycle.pool", matches = "true",
+   disabledReason = "pool-off only: the script thread holds the raw engine lock E of a plain " +
+      "GraalJavaScriptEnv outside exec; PoolModeCycleTest.formulaSubTableUnderPlainBase " +
+      "is the pool-on equivalent")
 public class SubQueryConditionCycleTest {
    @BeforeEach
    public void setUp() {

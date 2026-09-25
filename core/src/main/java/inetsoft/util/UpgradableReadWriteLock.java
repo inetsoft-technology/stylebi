@@ -53,7 +53,7 @@ public class UpgradableReadWriteLock {
    }
 
    /**
-    * @param restoreWriteLockTimeoutMs bound for {@link #lockWriteBounded()}, used only by
+    * @param restoreWriteLockTimeoutMs bound for {@link #lockWriteBounded(List)}, used only by
     *                                   {@link #restoreLocks()}. Package-private so tests can
     *                                   exercise the timeout path without a real 20s wait; all
     *                                   production callers use a public constructor.
@@ -140,9 +140,10 @@ public class UpgradableReadWriteLock {
    }
 
    /**
-    * Get the number of acquisitions the current thread has skipped on this lock in
-    * non-blocking mode so far. A caller compares the value before and after a computation to
-    * find out whether any part of it ran without the lock it asked for.
+    * Get the number of acquisitions the current thread has skipped on this lock so far: in
+    * non-blocking mode, and the entries a failed {@link #restoreLocks()} recorded as skipped. A
+    * caller compares the value before and after a computation to find out whether any part of
+    * it ran without the lock it asked for.
     */
    public long getSkippedCount() {
       long[] count = skippedCount.get();
@@ -211,7 +212,17 @@ public class UpgradableReadWriteLock {
     * it are recorded as skipped before the exception is thrown, so each enclosing frame's
     * {@code finally unlock*()} pops its own entry without touching the real lock, and the
     * IllegalStateException reaches the caller instead of an EmptyStackException from an
-    * unlock that finds the stack short (bug #76905).</p>
+    * unlock that finds the stack short (bug #76905). They are counted in
+    * {@link #getSkippedCount()} like any other skipped acquisition.</p>
+    *
+    * <p>A read level saved below a write level (an upgrade, e.g. {@code [READ, WRITE]}) is not
+    * re-locked before the write: a plain read acquire, holding nothing, waits behind any
+    * writer that holds or is merely queued for the lock, which would park this thread before
+    * the bounded write is ever attempted (bug #76986). The bounded write is taken first,
+    * holding nothing, and the read levels below it are recorded without a physical read,
+    * which is the state {@link #lockWrite()} leaves after rewinding them; the downgrade in
+    * {@link #unlockWrite()} re-locks them. A read level with no write above it is still
+    * restored with an unconditional wait.</p>
     *
     * <p>Entries taken in non-blocking mode are restored in non-blocking mode.</p>
     */
@@ -229,12 +240,30 @@ public class UpgradableReadWriteLock {
       try {
          for(; i >= 0; i--) {
             switch(olocks.get(i)) {
-            case READ:
-               thisLock.readLock().lock();
-               getStack().push(READ);
+            case READ: {
+               int write = getUpgradeWrite(olocks, i);
+
+               if(write >= 0) {
+                  List<Integer> reads = new ArrayList<>();
+
+                  for(int j = i; j > write; j--) {
+                     reads.add(olocks.get(j));
+                  }
+
+                  // the reads are recorded by lockWriteBounded(), so a failure is reported
+                  // from the write level up
+                  i = write;
+                  lockWriteBounded(reads);
+               }
+               else {
+                  thisLock.readLock().lock();
+                  getStack().push(READ);
+               }
+
                break;
+            }
             case WRITE:
-               lockWriteBounded();
+               lockWriteBounded(Collections.emptyList());
                break;
             case NB_READ:
             case SKIPPED_READ:
@@ -247,10 +276,8 @@ public class UpgradableReadWriteLock {
          }
       }
       catch(RuntimeException ex) {
-         Stack<Integer> stack = getStack();
-
          for(; i >= 0; i--) {
-            stack.push(isWrite(olocks.get(i)) ? SKIPPED_WRITE : SKIPPED_READ);
+            skip(isWrite(olocks.get(i)) ? SKIPPED_WRITE : SKIPPED_READ);
          }
 
          throw ex;
@@ -298,13 +325,42 @@ public class UpgradableReadWriteLock {
 
    private void skip(int op) {
       getStack().push(op);
+      addSkipped(1);
+   }
+
+   private void addSkipped(int n) {
       long[] count = skippedCount.get();
 
       if(count == null) {
          skippedCount.set(count = new long[1]);
       }
 
-      count[0]++;
+      count[0] += n;
+   }
+
+   /**
+    * Get the index of the write level that the read level at {@code i} of {@code olocks} was
+    * upgraded to: the first entry above it, when every entry in between is a real read and this
+    * thread holds no write lock. Returns -1 if there is none.
+    */
+   private int getUpgradeWrite(List<Integer> olocks, int i) {
+      if(hasWrite(getStack())) {
+         return -1;
+      }
+
+      for(int j = i - 1; j >= 0; j--) {
+         int op = olocks.get(j);
+
+         if(op == WRITE) {
+            return j;
+         }
+
+         if(op != READ && op != NB_READ) {
+            return -1;
+         }
+      }
+
+      return -1;
    }
 
    /**
@@ -315,28 +371,37 @@ public class UpgradableReadWriteLock {
     * {@link #lockWrite()} behavior; ordinary contention there is expected to clear on its
     * own and is not a sign of a lock-order inversion.</p>
     *
-    * <p>On failure (timeout or interrupt), any read locks rewound below are re-locked
-    * before the exception is thrown, so this thread's lock-state stack ({@link #getStack()})
-    * and the real {@code ReentrantReadWriteLock} state never diverge -- see review round 1 on
-    * bug #76907: without this, a nested read-then-write restore (stack {@code [0, 1]}, e.g.
-    * from a reentrant {@link #lockWrite()} called while a read lock from an enclosing
-    * {@link #lockRead()} was already held) left {@code getStack()} still claiming a read lock
-    * this thread no longer physically held after a timeout here, so a later, unrelated
-    * {@link #unlockRead()} or {@link #lockWrite()} call on the same pooled thread threw
-    * {@code IllegalMonitorStateException} against the real lock.</p>
+    * <p>On failure (timeout or interrupt), this thread's lock-state stack ({@link #getStack()})
+    * and the real {@code ReentrantReadWriteLock} state must not diverge -- see review round 1
+    * on bug #76907: a read entry left on the stack without the physical read made a later,
+    * unrelated {@link #unlockRead()} or {@link #lockWrite()} call on the same pooled thread
+    * throw {@code IllegalMonitorStateException} against the real lock. The rewound reads (and
+    * {@code unheldReads}) are therefore taken back before the exception is thrown, but only
+    * with a non-timed {@code tryLock()}, which barges ahead of queued writers: a plain
+    * {@code lock()} here, holding nothing, would wait behind a writer that is queued or holds
+    * the lock and defeat the bound (bug #76986). If the read is not available (another thread
+    * holds the write lock) every rewound read entry is recorded as skipped instead, so this
+    * thread holds nothing on this lock and each enclosing frame's unlock does nothing.</p>
+    *
+    * @param unheldReads read levels (READ/NB_READ) to record below the write without a
+    *                    physical read, as if rewound by the upgrade; only passed while this
+    *                    thread holds no write lock.
     *
     * @throws IllegalStateException if the write lock could not be acquired within the bound,
     *                                or if the wait was interrupted.
     */
-   private void lockWriteBounded() {
+   private void lockWriteBounded(List<Integer> unheldReads) {
       Stack<Integer> stack = getStack();
       boolean rewoundReads = !hasWrite(stack);
-      int rewoundCount = rewoundReads ? countReads(stack) : 0;
+      int heldCount = rewoundReads ? countReads(stack) : 0;
 
       // rewind all read lock and try to lock write lock
-      for(int i = 0; i < rewoundCount; i++) {
+      for(int i = 0; i < heldCount; i++) {
          thisLock.readLock().unlock();
       }
+
+      stack.addAll(unheldReads);
+      int rewoundCount = heldCount + unheldReads.size();
 
       boolean acquired;
       InterruptedException interrupted = null;
@@ -353,10 +418,10 @@ public class UpgradableReadWriteLock {
 
       if(!acquired) {
          // getStack() still reports the reads rewound above (they were never popped, only
-         // physically unlocked), so restore the physical state to match before throwing --
-         // mirrors unlockWrite()'s own re-lock-on-downgrade logic.
-         for(int i = 0; i < rewoundCount; i++) {
-            thisLock.readLock().lock();
+         // physically unlocked), so restore the physical state to match before throwing, or
+         // record them as skipped if they cannot be taken back without blocking
+         if(!tryLockReads(rewoundCount)) {
+            skipReads(stack);
          }
 
          if(interrupted != null) {
@@ -374,6 +439,43 @@ public class UpgradableReadWriteLock {
       // attempt above does not leave this thread's lock-state stack out of sync with the
       // real ReentrantReadWriteLock state
       stack.push(WRITE);
+   }
+
+   /**
+    * Take {@code count} read locks without blocking. The first non-timed {@code tryLock()}
+    * barges ahead of queued writers and the rest are reentrant, so this fails only while
+    * another thread holds the write lock, in which case nothing is left held.
+    */
+   private boolean tryLockReads(int count) {
+      for(int i = 0; i < count; i++) {
+         if(!thisLock.readLock().tryLock()) {
+            for(int j = 0; j < i; j++) {
+               thisLock.readLock().unlock();
+            }
+
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   /**
+    * Record every real read entry in the stack as skipped.
+    */
+   private void skipReads(Stack<Integer> stack) {
+      int cnt = 0;
+
+      for(int i = 0; i < stack.size(); i++) {
+         int op = stack.get(i);
+
+         if(op == READ || op == NB_READ) {
+            stack.set(i, SKIPPED_READ);
+            cnt++;
+         }
+      }
+
+      addSkipped(cnt);
    }
 
    private int pop() {

@@ -229,6 +229,27 @@ public class BindingRootProxy implements ProxyObject {
       return present;
    }
 
+   /**
+    * Evicts {@code name} from the exact-name global-binding cache. Must be called
+    * whenever a real global is removed (e.g. {@code GraalJavaScriptEngine#remove}),
+    * so a subsequent probe recomputes {@link #hasGlobalBinding} fresh instead of
+    * forever treating a removed global as still present -- which would permanently
+    * block the case-insensitive CALC-builtin fallback in {@link #findInChain} for
+    * that name. Only removes a cached 'true' entry; does not cache 'false', so this
+    * does not reintroduce the stale-'false' problem fixed for #75676. (#77008)
+    */
+   void forgetGlobal(String name) {
+      globalBindingCache.remove(name);
+   }
+
+   /**
+    * Drop the cached "is a global" answers. A pooled worksheet context deletes foreign
+    * globals when it is cleaned (bug #76960), which the cache otherwise assumes never happens.
+    */
+   public void invalidateGlobalBindingCache() {
+      globalBindingCache.clear();
+   }
+
    // Per-chain-root cache of "is name provided by the scope chain?" The calc table
    // swaps in a fresh root scope per evaluation, so the cache is keyed on the root
    // identity and dropped when the root changes; within one root the same names
@@ -315,7 +336,6 @@ public class BindingRootProxy implements ProxyObject {
       // a write can create a new name on a chain scope, so the "is name in chain?"
       // answer for the current root may change; drop the cache. (#75676)
       invalidateChainCache();
-      Object host = ScriptValueConverter.toHost(value);
 
       // Rhino scope-chain write semantics: an unqualified assignment to a name
       // that already exists in the chain writes to the scope that OWNS it
@@ -323,9 +343,10 @@ public class BindingRootProxy implements ProxyObject {
       // exists nowhere is created on the root scope. Writing unconditionally to
       // `global` would shadow a parent/exec-scope variable, so a read from the
       // owning scope (Java side or another script) would see a stale value.
+      // Each write converts with toHostStored: the owning scope keeps the value (#76960).
       for(ScriptScope s = global; s != null; s = s.getParentScope()) {
          if(s.hasMember(key)) {
-            s.putMember(key, host);
+            s.putMember(key, ScriptValueConverter.toHostStored(value));
             return;
          }
       }
@@ -333,7 +354,7 @@ public class BindingRootProxy implements ProxyObject {
       ScriptScope exec = execScopeSupplier.get();
 
       if(exec != null && exec.hasMember(key)) {
-         exec.putMember(key, host);
+         exec.putMember(key, ScriptValueConverter.toHostStored(value));
          return;
       }
 
@@ -369,6 +390,6 @@ public class BindingRootProxy implements ProxyObject {
          return;
       }
 
-      global.putMember(key, host);
+      global.putMember(key, ScriptValueConverter.toHostStored(value));
    }
 }

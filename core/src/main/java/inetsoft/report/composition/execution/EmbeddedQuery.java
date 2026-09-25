@@ -270,13 +270,22 @@ public class EmbeddedQuery extends AssetQuery {
          XTableLens lens = new XSnapshotLens(stable);
          ScriptEnv env = box.getScriptEnv();
          AssetQueryScope scope = box.getScope();
-         scope.setVariableTable(vars);
-         scope.setMode(mode);
+
+         if(box.isScriptPoolMode()) {
+            // this query's own parameters and mode (bug #76960)
+            scope = scope.queryView(vars, mode);
+         }
+         else {
+            scope.setVariableTable(vars);
+            scope.setMode(mode);
+         }
+
          String[] headers = new String[headerList.size()];
          String[] formulas = new String[formulaList.size()];
          headerList.toArray(headers);
          formulaList.toArray(formulas);
-         FormulaTableLens flens = new FormulaTableLens(lens, headers, formulas, env, box.getScope());
+         FormulaTableLens flens = new FormulaTableLens(
+            lens, headers, formulas, env, box.isScriptPoolMode() ? scope : box.getScope());
 
          for(int i = 0; i < dtypeList.size(); i++) {
             flens.setColType(i, dtypeList.get(i).getClass());

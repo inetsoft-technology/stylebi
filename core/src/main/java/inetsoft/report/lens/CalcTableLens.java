@@ -41,6 +41,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.stall.LockStallException;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntStack;
 import org.slf4j.Logger;
@@ -236,6 +237,14 @@ public class CalcTableLens extends DefaultTableLens {
          return result == null ? null : (RuntimeCalcTableLens) result;
       }
       catch(Exception ex) {
+         // a lock stall of the base must not look like an empty table, the reader gets the
+         // stall (bug #76967)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.error("Failed to process calctablelens", ex);
          return null;
       }
@@ -469,6 +478,15 @@ public class CalcTableLens extends DefaultTableLens {
             obj = evaluate(r, c, expr);
          }
          catch(ScriptException se) {
+            // a formula that read a stalled lens is not a formula error (bug #76967)
+            LockStallException stall = LockStallException.find(se);
+
+            if(stall != null) {
+               // not cached, a later read evaluates the formula again
+               uncacheValue(r, c, expr);
+               throw stall;
+            }
+
             obj = "ERROR: " + se.getMessage();
          }
          finally {
@@ -542,6 +560,13 @@ public class CalcTableLens extends DefaultTableLens {
       }
 
       formulaCache.set(r, c, obj);
+   }
+
+   /**
+    * Forget the cached value of a formula cell, so it is evaluated again.
+    */
+   protected void uncacheValue(int r, int c, Formula expr) {
+      setCachedValue(r, c, SparseMatrix.NULL);
    }
 
    /**

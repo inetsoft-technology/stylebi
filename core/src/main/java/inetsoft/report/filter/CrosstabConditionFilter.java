@@ -67,7 +67,11 @@ public class CrosstabConditionFilter extends ConditionFilter implements Crosstab
       int nextSpanStart = getBaseRowIndex(r) + dim.height;
       int rowCount = getRowCount();
 
-      while(r < rowCount && getBaseRowIndex(++r) < nextSpanStart) {
+      // r + 1 (not rowCount) bounds the probe: getBaseRowIndex(r + 1) must stay within the
+      // last valid row, or it throws (bug #76972). The previous `r < rowCount` guard let the
+      // probe reach row `rowCount`, which is past the end of the table.
+      while(r + 1 < rowCount && getBaseRowIndex(r + 1) < nextSpanStart) {
+         r++;
          verticalSpan++;
       }
 

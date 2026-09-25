@@ -20,6 +20,8 @@ package inetsoft.util.script.graal;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.script.LendableReentrantLock;
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.script.graal.pool.WsExecContext;
+import inetsoft.util.stall.LockStallException;
 import org.graalvm.polyglot.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,8 +144,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          scopeProxy = null; // rebound against the new context on next exec
 
          context = Context.newBuilder("js")
-            .engine(SHARED_ENGINE)
-            .allowHostAccess(ScriptHostAccess.hostAccess())
+            .engine(polyglotEngine())
+            .allowHostAccess(hostAccessPolicy())
             .allowHostClassLookup(classFilter)
             .allowIO(false)
             .allowCreateThread(false)
@@ -153,13 +155,28 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             .build();
 
          // FIX B: reset per-Source error counts on (re)init
-         errorCounts.clear();
+         resetErrorCounts();
 
          initScope(vars);
       }
       finally {
          lock.unlock();
       }
+   }
+
+   /**
+    * The polyglot Engine this engine's Contexts share. Pooled worksheet contexts use their own
+    * engine, since every Context of one Engine must use an identical HostAccess (bug #76960).
+    */
+   protected Engine polyglotEngine() {
+      return SHARED_ENGINE;
+   }
+
+   /**
+    * The HostAccess of this engine's Contexts.
+    */
+   protected HostAccess hostAccessPolicy() {
+      return ScriptHostAccess.hostAccess();
    }
 
    /** Install engine globals. Overridden/extended by report + viewsheet layers. */
@@ -423,6 +440,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * being unavailable in minimal/test contexts.
     */
    private void installLibraryFunctions() {
+      Map<String, String> sources = librarySources();
+
+      if(sources != null) {
+         for(Map.Entry<String, String> entry : sources.entrySet()) {
+            installLibraryFunction(entry.getKey(), entry.getValue());
+         }
+
+         return;
+      }
+
       try {
          inetsoft.report.LibManager mgr =
             inetsoft.report.LibManagerProvider.getInstance().getManager();
@@ -430,31 +457,65 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          while(names.hasMoreElements()) {
             String name = (String) names.nextElement();
-            String source = mgr.getScript(name);
-
-            if(source == null || source.isEmpty()) {
-               continue;
-            }
-
-            try {
-               // Strip "use strict" directives — strict mode forbids with statements,
-               // so the wrapper would cause a SyntaxError and the function would be
-               // silently dropped.
-               String wrapped = stripStrictDirectives(rewriteJavaLengthCalls(source));
-               context.eval(Source.newBuilder(
-                  "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
-                              .buildLiteral());
-            }
-            catch(PolyglotException ex) {
-               // don't let one bad library function break engine init
-               LOG.warn("Failed to compile library function " + name, ex);
-            }
+            installLibraryFunction(name, mgr.getScript(name));
          }
       }
       catch(Throwable ex) {
          // LibManager/provider unavailable (e.g. minimal/test contexts) — skip
          LOG.debug("Library functions not installed; LibManager unavailable", ex);
       }
+   }
+
+   /**
+    * Install one library function; a malformed one is logged and skipped.
+    */
+   private void installLibraryFunction(String name, String source) {
+      if(source == null || source.isEmpty()) {
+         return;
+      }
+
+      try {
+         // Strip "use strict" directives — strict mode forbids with statements,
+         // so the wrapper would cause a SyntaxError and the function would be
+         // silently dropped. Bug #76980: rewrite top-level const/let to var
+         // as compile() does, so a library constant is visible to other
+         // scripts (Rhino put it on the scope) instead of being confined to
+         // the with-block.
+         String wrapped = rewriteTopLevelLexicalDeclarations(
+            stripStrictDirectives(rewriteJavaLengthCalls(source)));
+         context.eval(Source.newBuilder(
+            "js", "with(__scope__){\n" + wrapped + "\n}", "<lib:" + name + ">")
+                         .buildLiteral());
+      }
+      catch(PolyglotException ex) {
+         // don't let one bad library function break engine init
+         LOG.warn("Failed to compile library function " + name, ex);
+      }
+   }
+
+   /**
+    * The library script sources to install, by name, in install order. {@code null} (the
+    * default) reads the LibManager at install time. A pooled worksheet engine returns the
+    * snapshot its env took, so every one of its contexts gets the same library (bug #76960).
+    */
+   protected Map<String, String> librarySources() {
+      return null;
+   }
+
+   /**
+    * The per-Source error counts ({@code script.max.errors}). Only accessed while holding
+    * {@code lock}, unless an override returns a thread-safe map. A pooled worksheet engine
+    * returns the map its env owns (spec §6.9).
+    */
+   protected Map<Object, Integer> errorCounts() {
+      return errorCounts;
+   }
+
+   /**
+    * Clear the error counts on (re)init. A pooled worksheet engine keeps its env's counts.
+    */
+   protected void resetErrorCounts() {
+      errorCounts.clear();
    }
 
    /**
@@ -656,6 +717,17 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // it to preserve the prior behavior.
       String body = stripStrictDirectives(rewriteJavaLengthCalls(cmd));
 
+      // Bug #76980: Rhino (language version 0) scoped a top-level `const` like
+      // `var` — a property of the executing scope, visible to the rest of the
+      // script and to later scripts (e.g. an onInit `const` read by an assembly
+      // script). GraalJS gives it ES6 block scoping, which the per-piece evals of
+      // the #75688 split below confine to one piece (a ReferenceError, or a
+      // silently wrong value inside try/catch), and which neither the plain-with
+      // path nor the #75596 hoist carries across scripts. Rewrite top-level
+      // `const`/`let` to `var` before the split and the hoist scan so every path
+      // below sees a `var`.
+      body = rewriteTopLevelLexicalDeclarations(body);
+
       // Bug #75688: Rhino preserved the "last non-empty" statement-list
       // completion value — an `if(false)` with no `else`, or a loop that never
       // entered its body, produced an *empty* completion, so a value-producing
@@ -746,9 +818,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * across scripts via {@link #buildDeclarationHoist} (#75596), and — because
     * each piece is a direct, non-strict {@code eval} in the same function — such
     * declarations remain visible to later pieces just as they were in a single
-    * evaluation. (Top-level {@code let}/{@code const}/{@code class} are confined
-    * to their own piece; this is immaterial for the legacy {@code var}-based
-    * binding scripts this restores.)
+    * evaluation. (Top-level {@code let}/{@code const} have already been rewritten
+    * to {@code var} by {@link #rewriteTopLevelLexicalDeclarations} (#76980); a
+    * top-level {@code class} is still confined to its own piece.)
     */
    private Object buildCompletionPreservingSource(String body, List<String> statements) {
       StringBuilder sb = new StringBuilder();
@@ -789,6 +861,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       "return", "throw", "typeof", "void", "delete", "new", "yield", "await",
       "async", "else", "do", "in", "of", "instanceof", "case");
 
+   // Keywords whose parenthesized head is followed by a statement, so the head's
+   // closing `)` puts the top-level lexer in regex (not division) context.
+   private static final Set<String> CONTROL_HEAD_KEYWORDS = Set.of(
+      "if", "while", "for", "with");
+
    // prevSig sentinel: a string/regex/template literal just ended (a value-ender
    // for both regex-vs-division disambiguation and statement-boundary decisions).
    private static final char LITERAL_END = '\u0001';
@@ -828,12 +905,160 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    private static List<String> splitTopLevelStatements(String body) {
       List<String> out = new ArrayList<>();
+      scanTopLevel(body, out, null);
+      return out;
+   }
+
+   /**
+    * Bug #76980: rewrite each top-level (depth-0) {@code let}/{@code const}
+    * declaration keyword in {@code body} to {@code var}, so the declaration is
+    * visible to later statement pieces of the #75688 completion wrapper (each
+    * piece is its own direct eval, which confines lexical declarations but not
+    * {@code var}) and persists to later scripts via the plain-with path or the
+    * #75596 hoist — restoring the Rhino (language version 0) scoping, where a
+    * top-level {@code const} was a property of the executing scope.
+    *
+    * <p>Uses the same lexer as {@link #splitTopLevelStatements}, so strings,
+    * template literals, regex literals and comments are never touched, and
+    * anything nested in parens/brackets/braces (a {@code for(let ...)} head, a
+    * block, a function body) keeps its block scoping. The replacement keeps
+    * character offsets so error positions do not move. Applied to every
+    * {@link #compile} body and to library sources in
+    * {@link #installLibraryFunctions}.
+    *
+    * <p>Deliberate side effects — the rewritten declaration is a plain
+    * {@code var}, and Rhino's own const quirks are not emulated:
+    * <ul>
+    *   <li>reassigning a rewritten {@code const} takes the new value (Rhino
+    *       silently ignored the assignment, unrewritten GraalJS throws
+    *       {@code TypeError}); a redeclaration is accepted (Rhino threw
+    *       {@code TypeError: redeclaration of const});</li>
+    *   <li>under {@code with(__scope__)}, when the scope already has a member of
+    *       the same name, the initializer writes to that scope member, as a
+    *       {@code var} always has and as Rhino did (e.g. {@code const data = ...}
+    *       in an element script now sets the element's {@code data} member when
+    *       it has one);</li>
+    *   <li>top-level {@code let}/{@code const} names become globals that persist
+    *       across scripts on the engine (like the #75596 {@code var} hoist), and
+    *       lose TDZ and immutability;</li>
+    *   <li>{@code class} is left unchanged: it was a SyntaxError in Rhino, and
+    *       {@code var K = class K {}} would change how a following line that
+    *       begins with {@code (} or {@code [} parses.</li>
+    * </ul>
+    */
+   private static String rewriteTopLevelLexicalDeclarations(String body) {
+      List<Integer> decls = new ArrayList<>();
+      scanTopLevel(body, null, decls);
+
+      if(decls.isEmpty()) {
+         return body;
+      }
+
+      StringBuilder sb = new StringBuilder(body);
+
+      for(int pos : decls) {
+         // "let" -> "var"; "const" -> "var  " (padded to keep offsets)
+         int len = body.startsWith("const", pos) ? 5 : 3;
+         sb.replace(pos, pos + len, len == 5 ? "var  " : "var");
+      }
+
+      return sb.toString();
+   }
+
+   /**
+    * Whether the {@code let}/{@code const} keyword {@code word}, ending at
+    * {@code end} at depth 0 (not after a member {@code .}), begins a lexical
+    * declaration: it must be at statement position (not after an operator or
+    * {@code return}/{@code typeof}/...) and be followed by a binding name,
+    * {@code [} or {@code {}. {@code let} is also an identifier in sloppy code
+    * (e.g. {@code x = let}, {@code let in o}, {@code let.x}). The same shape is
+    * required for {@code const} as defense in depth: should the lexer ever read
+    * a regex literal as code, a {@code const} inside it (e.g. {@code /const/})
+    * is not followed or preceded by a declaration shape. After a {@code )}
+    * (ambiguous with a control-flow header, where {@code if(c) let\ny = 1} is
+    * an expression) a {@code let} binding must follow on the same line; a
+    * reserved {@code const} cannot be an expression, so no such rule is needed
+    * for it. A {@code const} after a line break, and a {@code let} after a
+    * postfix {@code ++}/{@code --}, are at statement position by ASI
+    * ({@code i++\nconst d = 1}).
+    */
+   private static boolean isTopLevelLexicalDeclaration(String body, String word, int end,
+                                                       char prevSig, String prevWord,
+                                                       boolean afterPostfix,
+                                                       boolean lineBreak)
+   {
+      boolean isConst = word.equals("const");
+
+      if(!isConst && !word.equals("let")) {
+         return false;
+      }
+
+      // a line break ends the previous statement by ASI when the next token
+      // cannot continue it: always for the reserved `const`, and after a postfix
+      // `++`/`--` for `let` (`i++\nlet d = 1`); elsewhere `let` may still be an
+      // operand (`x =\nlet[0]`), so it keeps the stricter check
+      boolean statementStart = prevSig == 0 || prevSig == ')' || boundaryAllowedBefore(prevSig) ||
+         afterPostfix || isConst && lineBreak;
+
+      if(!statementStart || prevWord != null && SUPPRESS_BOUNDARY_AFTER.contains(prevWord)) {
+         return false;
+      }
+
+      int j = skipWhitespaceAndComments(body, end);
+
+      if(j >= body.length()) {
+         return false;
+      }
+
+      if(!isConst && prevSig == ')' &&
+         body.substring(end, j).chars().anyMatch(ch -> isLineBreak((char) ch)))
+      {
+         return false;
+      }
+
+      char c = body.charAt(j);
+
+      if(c == '[' || c == '{') {
+         return true;
+      }
+
+      if(!isIdentStart(c)) {
+         return false;
+      }
+
+      int k = j + 1;
+
+      while(k < body.length() && isIdentPart(body.charAt(k))) {
+         k++;
+      }
+
+      String next = body.substring(j, k);
+      return !next.equals("in") && !next.equals("instanceof");
+   }
+
+   /**
+    * The top-level lexer shared by {@link #splitTopLevelStatements} (which
+    * collects the statement pieces into {@code statements}) and
+    * {@link #rewriteTopLevelLexicalDeclarations} (which collects the offsets of
+    * depth-0 {@code let}/{@code const} declaration keywords into
+    * {@code lexicalDecls}). Either list may be {@code null}.
+    */
+   private static void scanTopLevel(String body, List<String> statements,
+                                    List<Integer> lexicalDecls)
+   {
+      List<String> out = statements != null ? statements : new ArrayList<>();
       int n = body.length();
       int depth = 0;
       int start = 0;
       int openDo = 0;          // depth-0 `do`s awaiting their trailing `while`
       char prevSig = 0;        // previous significant char (LITERAL_END for a literal)
       String prevWord = null;  // previous identifier/keyword token, else null
+      // one entry per open bracket: whether it is the `(` of an if/while/for/with
+      // head, whose `)` is followed by a statement (so a `/` there is a regex)
+      java.util.Deque<Boolean> brackets = new java.util.ArrayDeque<>();
+      boolean afterHead = false;   // the previous token closed a control-flow head
+      boolean afterPostfix = false; // the previous token was a postfix `++`/`--`
+      boolean lineBreak = false;   // a line break since the previous token
       int i = 0;
 
       while(i < n) {
@@ -855,6 +1080,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             i += 2;
 
             while(i + 1 < n && !(body.charAt(i) == '*' && body.charAt(i + 1) == '/')) {
+               lineBreak |= isLineBreak(body.charAt(i));
                i++;
             }
 
@@ -862,14 +1088,20 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             continue;
          }
 
-         // regex literal (only where a `/` cannot be division)
-         if(c == '/' && regexAllowed(body, i, prevSig == LITERAL_END ? ')' : prevSig)) {
+         // regex literal (only where a `/` cannot be division). The `)` closing a
+         // control-flow head (`if(x) /re/.test(s)`) is followed by a statement,
+         // so a `/` there starts a regex; any other `)` (a call or grouping)
+         // ends an expression, so a `/` after it is division.
+         if(c == '/' &&
+            (afterHead || regexAllowed(body, i, prevSig == LITERAL_END ? ')' : prevSig)))
+         {
             int end = scanRegexEnd(body, i);
 
             if(end > 0) {
                i = end;
                prevSig = LITERAL_END;
                prevWord = null;
+               afterHead = afterPostfix = lineBreak = false;
                continue;
             }
          }
@@ -879,6 +1111,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             i = skipStringLiteral(body, i + 1, c);
             prevSig = LITERAL_END;
             prevWord = null;
+            afterHead = afterPostfix = lineBreak = false;
             continue;
          }
 
@@ -887,10 +1120,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             i = skipTemplateLiteral(body, i + 1);
             prevSig = LITERAL_END;
             prevWord = null;
+            afterHead = afterPostfix = lineBreak = false;
             continue;
          }
 
          if(Character.isWhitespace(c)) {
+            lineBreak |= isLineBreak(c);
             i++;
             continue;
          }
@@ -908,6 +1143,13 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             boolean afterDot = prevSig == '.';
 
             if(depth == 0 && !afterDot) {
+               if(lexicalDecls != null &&
+                  isTopLevelLexicalDeclaration(body, word, i, prevSig, prevWord,
+                                               afterPostfix, lineBreak))
+               {
+                  lexicalDecls.add(s);
+               }
+
                boolean whileTail = word.equals("while") && openDo > 0;
                // A label (`name:` at statement position, e.g. `outer: for(...)`)
                // begins a statement whose completion can be empty, but the label
@@ -936,28 +1178,40 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
             prevSig = body.charAt(i - 1);
             prevWord = afterDot ? null : word;   // a property name isn't a keyword
+            afterHead = afterPostfix = lineBreak = false;
             continue;
          }
 
+         boolean closedHead = false;
+
          if(c == '(' || c == '[' || c == '{') {
             depth++;
+            brackets.push(c == '(' && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
          }
          else if(c == ')' || c == ']' || c == '}') {
             if(depth > 0) {
                depth--;
             }
+
+            if(!brackets.isEmpty()) {
+               closedHead = brackets.pop() && c == ')';
+            }
          }
 
          prevSig = c;
          prevWord = null;
+         afterHead = closedHead;
+         // `x++`/`a[0]--`/`f()++`: the second char of a postfix operator
+         afterPostfix = (c == '+' || c == '-') && i >= 2 && body.charAt(i - 1) == c &&
+            (isIdentPart(body.charAt(i - 2)) || body.charAt(i - 2) == ')' ||
+             body.charAt(i - 2) == ']');
+         lineBreak = false;
          i++;
       }
 
       if(start < n) {
          addStatement(out, body.substring(start));
       }
-
-      return out;
    }
 
    /** Add {@code stmt} to {@code out} unless it is blank (whitespace only). */
@@ -1206,6 +1460,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
    public Object exec(Object script, Object scope, Object rscope) throws Exception {
       lock.lock();
+      // marks which pooled worksheet context, if any, is executing (bug #76960)
+      Object execMark = enterExecContext();
 
       try {
          // FIX A: guard against null context before initialization
@@ -1234,25 +1490,43 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          Duration timeout = currentTimeout();
 
-         try(ScriptTimeoutGuard.Guard ignored = timeoutGuard.guard(context, timeout)) {
-            // FIX B: per-Source error count check (read limit while holding lock)
-            int limit = maxErrors();
+         // created inside the try so a throw from guard(...) still runs the finally cleanup
+         ScriptTimeoutGuard.Guard guard = null;
 
-            if(limit > 0 && errorCounts.getOrDefault(script, 0) >= limit) {
-               return null;
+         try {
+            guard = timeoutGuard.guard(context, timeout);
+
+            // the inner try-with-resources closes the guard before the catch below runs
+            try(ScriptTimeoutGuard.Guard ignored = guard) {
+               // FIX B: per-Source error count check (read limit while holding lock)
+               int limit = maxErrors();
+
+               if(limit > 0 && errorCounts().getOrDefault(script, 0) >= limit) {
+                  return null;
+               }
+
+               Value result = context.eval((Source) script);
+               return ScriptValueConverter.toHostResult(result);
             }
-
-            Value result = context.eval((Source) script);
-            return ScriptValueConverter.toHost(result);
          }
          catch(PolyglotException ex) {
+            // a lock stall of Java code the script called, e.g. a read of a table, is not a
+            // script error: rethrow it as it is so the reader gets it (bug #76967)
+            if(ex.isHostException()) {
+               LockStallException stall = LockStallException.find(ex.asHostException());
+
+               if(stall != null) {
+                  throw stall;
+               }
+            }
+
             // FIX B: increment per-Source error count and warn when limit first crossed
             int limit = maxErrors();
 
             if(limit > 0) {
-               int prev = errorCounts.getOrDefault(script, 0);
+               int prev = errorCounts().getOrDefault(script, 0);
                int next = prev + 1;
-               errorCounts.put(script, next);
+               errorCounts().put(script, next);
 
                if(next == limit) {
                   LOG.warn("Script max errors exceeded ({})", limit);
@@ -1286,11 +1560,50 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             scopeProxy.swapGlobal(prevScope);
             scopeProxy.swapImports(prevImports);
             scopeProxy.swapAssigned(prevAssigned);
+
+            // an interrupt that could not stop this exec leaves the Context in an unknown
+            // state (bug #76960, spec §9); the base engine keeps it, a pooled one dooms it
+            if(guard != null && guard.interruptTimedOut()) {
+               try {
+                  onInterruptTimeout();
+               }
+               catch(Exception ex) {
+                  // never let the hook mask the exec's own result or exception
+                  LOG.warn("Failed to handle script interrupt timeout", ex);
+               }
+            }
          }
       }
       finally {
+         exitExecContext(execMark);
          lock.unlock();
       }
+   }
+
+   /**
+    * Called at the start of every exec to mark the pooled worksheet context executing on this
+    * thread (bug #76960). This engine is not pooled, so it suspends any mark set by an outer
+    * pooled exec: a nested exec of this engine must never see the host-boundary conversions of
+    * the outer worksheet context. With the pool off no mark is ever set and this is a no-op.
+    *
+    * @return the token {@link #exitExecContext} restores.
+    */
+   protected Object enterExecContext() {
+      return WsExecContext.suspend();
+   }
+
+   /**
+    * Restore the mark {@link #enterExecContext} replaced.
+    */
+   protected void exitExecContext(Object token) {
+      WsExecContext.resume(token);
+   }
+
+   /**
+    * Called when a timeout interrupt of an exec could not stop it within its bound, so this
+    * engine's Context is in an unknown state. The base engine keeps using it, as before.
+    */
+   protected void onInterruptTimeout() {
    }
 
    /** Lazily create the reusable __scope__ proxy and bind it once. Caller holds lock. */
@@ -1301,6 +1614,16 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                                            classFilter, context);
          scopeProxy.setBuiltinScope(calcScope);
          context.getBindings("js").putMember("__scope__", scopeProxy);
+      }
+   }
+
+   /**
+    * Forget cached answers about which names are globals, after globals were deleted from
+    * this engine's Context (bug #76960). Caller holds {@code lock}.
+    */
+   protected void invalidateGlobalBindings() {
+      if(scopeProxy != null) {
+         scopeProxy.invalidateGlobalBindingCache();
       }
    }
 
@@ -1465,8 +1788,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * (e.g. names declared inside a nested function) — those are harmless because
     * the emitted copy is {@code typeof}-guarded — and it does not attempt to
     * handle destructuring patterns. Only {@code var}/{@code function} are
-    * considered, because {@code let}/{@code const} at an eval's top level are
-    * confined to the eval and never persist anyway.
+    * considered: top-level {@code let}/{@code const} are rewritten to
+    * {@code var} before this scan (#76980), and nested ones are block-scoped
+    * and never persist anyway.
     */
    private static Set<String> collectTopLevelDeclarations(String body) {
       String src = stripStringsAndComments(body);
@@ -2001,6 +2325,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       try {
          if(context != null) {
             context.getBindings("js").removeMember(name);
+         }
+
+         // Evict any cached "is a real global" answer for this name, so a
+         // subsequent lookup re-probes the (now-removed) global instead of
+         // permanently treating it as still present -- which would block the
+         // case-insensitive CALC-builtin fallback in BindingRootProxy. (#77008)
+         if(scopeProxy != null) {
+            scopeProxy.forgetGlobal(name);
          }
       }
       finally {
