@@ -659,9 +659,20 @@ public class UserTreeService {
          return;
       }
 
+      // the endpoint authorized the group in the path, the body must not retarget another group/org
+      if(!Tool.equals(model.organization(), group.orgID) || !Tool.equals(model.oldName(), group.name)) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.orgAdmin.identityPermissionDenied"));
+      }
+
       final AuthenticationProvider provider =
          authenticationProviderService.getProviderByName(providerName);
       final Group oldGroup = provider.getGroup(group);
+
+      if(oldGroup == null) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.groupNotFound", group.getName()));
+      }
 
       if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
          checkGroupEditedHasSysAdmin(oldGroup, model, principal);
