@@ -346,6 +346,26 @@
         </configuration>
       </plugin>
       <plugin>
+        <groupId>io.github.git-commit-id</groupId>
+        <artifactId>git-commit-id-maven-plugin</artifactId>
+        <version>9.2.0</version>
+        <executions>
+          <execution>
+            <id>get-git-revision</id>
+            <goals>
+              <goal>revision</goal>
+            </goals>
+            <phase>initialize</phase>
+          </execution>
+        </executions>
+        <configuration>
+          <abbrevLength>7</abbrevLength>
+          <includeOnlyProperties>
+            <includeOnlyProperty>^git.commit.id.abbrev$</includeOnlyProperty>
+          </includeOnlyProperties>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>com.google.cloud.tools</groupId>
         <artifactId>jib-maven-plugin</artifactId>
         <version>3.4.6</version>
@@ -374,6 +394,14 @@
             <environment>
               <INETSOFT_SERVER_MAIN>inetsoft.web.InetsoftApplication</INETSOFT_SERVER_MAIN>
             </environment>
+            <labels>
+              <org.opencontainers.image.title>StyleBI</org.opencontainers.image.title>
+              <org.opencontainers.image.version>1.2.${docker.build.version}</org.opencontainers.image.version>
+              <org.opencontainers.image.source>https://github.com/inetsoft-technology/stylebi</org.opencontainers.image.source>
+              <org.opencontainers.image.revision>${git.commit.id.abbrev}</org.opencontainers.image.revision>
+              <org.opencontainers.image.url>https://www.inetsoft.com/</org.opencontainers.image.url>
+              <org.opencontainers.image.authors>info@inetsoft.com</org.opencontainers.image.authors>
+            </labels>
           </container>
           <extraDirectories>
             <paths>
