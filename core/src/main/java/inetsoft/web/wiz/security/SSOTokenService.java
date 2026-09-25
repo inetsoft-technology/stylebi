@@ -69,12 +69,35 @@ public class SSOTokenService {
     * @return the serialized JWT token string
     */
    public String createSSOToken(Principal principal, String issuerUrl) {
+      return createSSOToken(principal, issuerUrl, null);
+   }
+
+   /**
+    * Creates an RS256-signed SSO JWT token for the given principal, whose expiration is never
+    * later than {@code notAfter}.
+    *
+    * @param principal the authenticated user principal
+    * @param issuerUrl the StyleBI server URL to use as the JWT issuer
+    * @param notAfter  the latest expiration the token may carry, or {@code null} to use only the
+    *                  default {@link #SSO_TOKEN_EXPIRATION_HOURS} lifetime. Used when reissuing a
+    *                  token whose authority can't be re-verified, so the reissue can't outlive the
+    *                  token it replaces.
+    * @return the serialized JWT token string
+    */
+   public String createSSOToken(Principal principal, String issuerUrl, Date notAfter) {
       SRPrincipal srPrincipal = convertPrincipal(principal);
 
       try {
          long expirationSeconds = ZonedDateTime.now(ZoneOffset.UTC)
             .plusHours(SSO_TOKEN_EXPIRATION_HOURS)
             .toEpochSecond();
+
+         if(notAfter != null) {
+            // JWT "exp" has second precision; round down so the cap is never exceeded
+            expirationSeconds = Math.min(expirationSeconds,
+               Math.floorDiv(notAfter.getTime(), 1000L));
+         }
+
          Date expirationTime = new Date(expirationSeconds * 1000L);
          Date issueTime = new Date();
 

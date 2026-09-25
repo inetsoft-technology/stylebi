@@ -379,6 +379,11 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
          principal.setProperty("locale", clientLocale.toString());
       }
 
+      // Only reached once the signature, expiration and audience have all been verified, so
+      // this is the one trustworthy source of the presented token's expiration downstream. A
+      // request that fell through to an existing session never gets it.
+      request.setAttribute(VERIFIED_TOKEN_EXPIRATION_ATTR, expirationTime);
+
       return principal;
    }
 
@@ -449,6 +454,14 @@ public class WizServiceAuthenticationFilter extends AbstractSecurityFilter {
       String escaped = message.replace("\\", "\\\\").replace("\"", "\\\"");
       response.getWriter().write("{\"error\":\"" + escaped + "\"}");
    }
+
+   /**
+    * Request attribute holding the {@link Date} expiration of the bearer token this filter
+    * verified for the current request. Absent when the request was not authenticated by a
+    * verified token (including when an invalid token fell through to an existing session).
+    */
+   public static final String VERIFIED_TOKEN_EXPIRATION_ATTR =
+      WizServiceAuthenticationFilter.class.getName() + ".verifiedTokenExpiration";
 
    private volatile KeyPair ssoKeyPair;
 
