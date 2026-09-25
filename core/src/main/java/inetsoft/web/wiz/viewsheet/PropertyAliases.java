@@ -185,7 +185,12 @@ public final class PropertyAliases {
       // srinter.properties may still rebrand what its own Composer UI renders (this deployment's
       // rebrands it to "Visible in External Dashboards"), but the underlying English key is the
       // best static source of truth this class can offer.
-      "primary", "Visible in External Viewsheets");
+      "primary", "Visible in External Viewsheets",
+      // TextPaneModel.url / TextVSAssemblyInfo.isUrl()/setUrl() (bug #76929). Its own name has no
+      // lexical connection to the Composer's own caption for the checkbox --
+      // text-pane.component.html's `_#(Embed content from URL)` -- the same category of gap
+      // "primary" fixed above.
+      "embedUrl", "Embed content from URL");
 
    /**
     * {@code basicGeneralPaneModel.enabled} is aliased through the shared {@link #basicGeneral}
@@ -593,9 +598,9 @@ public final class PropertyAliases {
       register(registry, "calctable", CalcTablePropertyDialogModel.class, calcTable());
       register(registry, "groupcontainer", GroupContainerPropertyDialogModel.class,
                groupContainer());
-      register(registry, "line", LinePropertyDialogModel.class, shape());
-      register(registry, "oval", OvalPropertyDialogModel.class, shape());
-      register(registry, "rectangle", RectanglePropertyDialogModel.class, shape());
+      register(registry, "line", LinePropertyDialogModel.class, line());
+      register(registry, "oval", OvalPropertyDialogModel.class, oval());
+      register(registry, "rectangle", RectanglePropertyDialogModel.class, rectangle());
       register(registry, "selectioncontainer", SelectionContainerPropertyDialogModel.class,
                selectionContainer());
       register(registry, "submit", SubmitPropertyDialogModel.class, submit());
@@ -775,6 +780,27 @@ public final class PropertyAliases {
       aliases.put("alpha", "textGeneralPaneModel.alpha");
       aliases.put("popComponent", "textGeneralPaneModel.popComponent");
       aliases.put("text", "textGeneralPaneModel.textPaneModel.text");
+      // Bug #76929: autoSize/embedUrl ("Embed content from URL", see LABELS) were only reachable
+      // via get_assembly_properties(raw:true) -- both are genuinely applied by
+      // TextPropertyDialogService (textAssemblyInfo.getAutoSizeValue()/getUrlValue() on read,
+      // setAutoSizeValue()/setUrlValue() on write).
+      aliases.put("autoSize", "textGeneralPaneModel.textPaneModel.autoSize");
+      aliases.put("embedUrl", "textGeneralPaneModel.textPaneModel.url");
+      // Bug #76929: scaleVertical is the one Text case DEAD_FIELDS's own comment already
+      // documents as genuinely live (unlike table/crosstab's dead copy of the same field) --
+      // TextPropertyDialogService reads/writes textAssemblyInfo.isScaleVerticalValue() /
+      // setScaleVerticalValue() -- but it had no alias of its own here yet.
+      aliases.put("scaleVertical", "textGeneralPaneModel.sizePositionPaneModel.scaleVertical");
+      // Bug #76929: the "Pop Location" dropdown next to popComponent/alpha above, applied by
+      // TextPropertyDialogService via textAssemblyInfo.getPopLocationValue()/setPopLocationValue().
+      aliases.put("popLocation", "textGeneralPaneModel.popLocation");
+      // Bug #76929: the Padding pane, applied by TextPropertyDialogService via
+      // textAssemblyInfo.getPadding().{top,left,bottom,right}.
+      String padding = "textGeneralPaneModel.paddingPaneModel";
+      aliases.put("paddingTop", padding + ".top");
+      aliases.put("paddingLeft", padding + ".left");
+      aliases.put("paddingBottom", padding + ".bottom");
+      aliases.put("paddingRight", padding + ".right");
       // Same shape as gauge()/image() (see gauge()'s comment) -- "tipOption" here predates this
       // ticket and stays as-is for compatibility; "tooltip"/"tooltipMode" are the missing half of
       // the same feature, added now.
@@ -1216,12 +1242,77 @@ public final class PropertyAliases {
       return aliases;
    }
 
-   /** Line, oval and rectangle share {@code ShapeGeneralPaneModel}. */
-   private static Map<String, String> shape() {
+   /**
+    * Line, oval and rectangle share {@code ShapeGeneralPaneModel} (name/visible/primary,
+    * size/position) but otherwise have three genuinely different dialogs -- a single shared
+    * alias set here (the previous {@code shape()}) left every one of those type-specific panes
+    * reachable only through {@code get_assembly_properties(raw:true)} (bug #76929). Confirmed
+    * field-by-field against {@code LinePropertyDialogService}/{@code OvalPropertyDialogService}/
+    * {@code RectanglePropertyDialogService}'s get/set methods -- every alias below is genuinely
+    * read and written back by its own type's service.
+    */
+   private static Map<String, String> line() {
       Map<String, String> aliases = new LinkedHashMap<>();
       shapeGeneral(aliases, "shapeGeneralPaneModel");
       sizePosition(aliases, "shapeGeneralPaneModel");
+      // Genuinely applied only for Line -- LinePropertyDialogService reads/writes
+      // basicGeneralPaneModel.isShadow()/setShadow() directly, a plain on/off toggle. This is a
+      // different, simpler mechanism from Oval/Rectangle's own shadowPropPaneModel below (color/
+      // alpha/direction/distance/blur) -- their dialog services never read this field back at
+      // all, so it stays out of shapeGeneral(), which the three types still share.
+      aliases.put("shadow", "shapeGeneralPaneModel.basicGeneralPaneModel.shadow");
+      String linePane = "linePropertyPaneModel";
+      aliases.put("lineColor", linePane + ".linePropPaneModel.color");
+      aliases.put("lineColorValue", linePane + ".linePropPaneModel.colorValue");
+      aliases.put("lineStyle", linePane + ".linePropPaneModel.style");
+      // The arrowhead dropdowns at each end of the line (line-property-pane.component.html's
+      // "Begin"/"End").
+      aliases.put("beginArrow", linePane + ".begin");
+      aliases.put("endArrow", linePane + ".end");
       return aliases;
+   }
+
+   private static Map<String, String> oval() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      shapeGeneral(aliases, "shapeGeneralPaneModel");
+      sizePosition(aliases, "shapeGeneralPaneModel");
+      shapeFillLineShadow(aliases, "ovalPropertyPaneModel");
+      return aliases;
+   }
+
+   private static Map<String, String> rectangle() {
+      Map<String, String> aliases = new LinkedHashMap<>();
+      shapeGeneral(aliases, "shapeGeneralPaneModel");
+      sizePosition(aliases, "shapeGeneralPaneModel");
+      shapeFillLineShadow(aliases, "rectanglePropertyPaneModel");
+      // Rectangle-only -- neither Line's nor Oval's dialog model has a "Round Corner" concept.
+      aliases.put("radius", "rectanglePropertyPaneModel.radius");
+      return aliases;
+   }
+
+   /**
+    * Oval and Rectangle's shared Line/Fill/Shadow tabs — identical shape and identical
+    * apply-method behavior on both, confirmed against both services (bug #76929).
+    *
+    * <p>{@code gradientColor} (the Fill tab's gradient checkbox+stops) is deliberately not
+    * aliased here: it is a whole nested {@code GradientColor} object, not a scalar leaf, so it is
+    * reached through the raw dotted path instead (e.g.
+    * {@code ovalPropertyPaneModel.fillPropPaneModel.gradientColor}) -- {@link PropertyPath} now
+    * builds that bean directly from a JSON object.
+    */
+   private static void shapeFillLineShadow(Map<String, String> aliases, String prefix) {
+      aliases.put("lineColor", prefix + ".linePropPaneModel.color");
+      aliases.put("lineColorValue", prefix + ".linePropPaneModel.colorValue");
+      aliases.put("lineStyle", prefix + ".linePropPaneModel.style");
+      aliases.put("fillColor", prefix + ".fillPropPaneModel.color");
+      aliases.put("fillColorValue", prefix + ".fillPropPaneModel.colorValue");
+      aliases.put("fillAlpha", prefix + ".fillPropPaneModel.alpha");
+      aliases.put("shadowApply", prefix + ".shadowPropPaneModel.apply");
+      aliases.put("shadowColor", prefix + ".shadowPropPaneModel.color");
+      aliases.put("shadowAlpha", prefix + ".shadowPropPaneModel.alpha");
+      aliases.put("shadowDirection", prefix + ".shadowPropPaneModel.direction");
+      aliases.put("shadowDistance", prefix + ".shadowPropPaneModel.distance");
+      aliases.put("shadowBlur", prefix + ".shadowPropPaneModel.blur");
    }
 
    private static Map<String, String> selectionContainer() {

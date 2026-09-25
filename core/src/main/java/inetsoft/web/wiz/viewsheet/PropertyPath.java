@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.uql.viewsheet.GradientColor;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -327,6 +329,23 @@ public final class PropertyPath {
          return array;
       }
 
+      // GradientColor (Oval/Rectangle's Fill tab gradient, bug #76929/VCG-011) is a named
+      // exception to the String-constructor gate below, not a loosening of it: it is a plain,
+      // non-relational value object -- apply/direction/angle plus a flat ColorStop[] -- with
+      // nothing to resolve against a pane's own catalog the way VSDimensionModel's members do.
+      // Unlike that gate, this check is scoped to these two exact classes by identity, so it
+      // creates no path for a JSON object to reach an arbitrary bean the way a relaxed
+      // "any no-arg-constructor class" rule would (see
+      // PropertyPathTest.aJsonObjectForABeanWithNoStringConstructorIsStillRefused, which must
+      // keep failing for every OTHER such class).
+      if(target == GradientColor.class) {
+         return coerceGradientColor(value, path);
+      }
+
+      if(target == GradientColor.ColorStop.class) {
+         return coerceColorStop(value, path);
+      }
+
       // Two bean-building cases for a target coerce() cannot otherwise reach: a plain
       // multi-field model with a String-driven constructor (e.g. DynamicValueModel's
       // value/type/dataType, auto-detected from one string), and a JSON object supplying the
@@ -450,6 +469,79 @@ public final class PropertyPath {
       }
 
       return instance;
+   }
+
+   /**
+    * Builds a {@link GradientColor} from a JSON object -- {@code apply}/{@code direction}/
+    * {@code angle} plus a {@code colors} array, each element built by {@link #coerceColorStop}
+    * through the ordinary array-coercion path since {@code GradientColor.colors} is a plain
+    * {@code ColorStop[]}. Every key is resolved against a real setter or refused by name, same as
+    * {@link #coerceMap}; unlike that method there is no bare-string shorthand to check for, since
+    * GradientColor has no single-field "value" shape.
+    */
+   private static GradientColor coerceGradientColor(Object value, String path) {
+      if(!(value instanceof Map<?, ?> map)) {
+         throw new IllegalArgumentException(
+            "'" + path + "' expects a JSON object (apply/direction/angle/colors) describing a " +
+            "GradientColor; '" + value + "' is not an object.");
+      }
+
+      GradientColor gradientColor = new GradientColor();
+
+      for(Map.Entry<?, ?> entry : map.entrySet()) {
+         String key = String.valueOf(entry.getKey());
+         Method setter = setterForIgnoreCase(GradientColor.class, key);
+
+         if(setter == null) {
+            throw new IllegalArgumentException(
+               "Cannot set '" + path + "': '" + key + "' is not a writable property of " +
+               "GradientColor. " + available(GradientColor.class));
+         }
+
+         try {
+            setter.invoke(gradientColor,
+               coerce(entry.getValue(), setter.getParameterTypes()[0], path + "." + key));
+         }
+         catch(IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalArgumentException(
+               "Setting '" + path + "." + key + "' failed: " + rootMessage(e), e);
+         }
+      }
+
+      return gradientColor;
+   }
+
+   /** Builds one {@code GradientColor.ColorStop} -- a plain {@code color}/{@code offset} pair. */
+   private static GradientColor.ColorStop coerceColorStop(Object value, String path) {
+      if(!(value instanceof Map<?, ?> map)) {
+         throw new IllegalArgumentException(
+            "'" + path + "' expects a JSON object (color/offset) describing a " +
+            "GradientColor.ColorStop; '" + value + "' is not an object.");
+      }
+
+      GradientColor.ColorStop stop = new GradientColor.ColorStop();
+
+      for(Map.Entry<?, ?> entry : map.entrySet()) {
+         String key = String.valueOf(entry.getKey());
+         Method setter = setterForIgnoreCase(GradientColor.ColorStop.class, key);
+
+         if(setter == null) {
+            throw new IllegalArgumentException(
+               "Cannot set '" + path + "': '" + key + "' is not a writable property of " +
+               "GradientColor.ColorStop. " + available(GradientColor.ColorStop.class));
+         }
+
+         try {
+            setter.invoke(stop,
+               coerce(entry.getValue(), setter.getParameterTypes()[0], path + "." + key));
+         }
+         catch(IllegalAccessException | InvocationTargetException e) {
+            throw new IllegalArgumentException(
+               "Setting '" + path + "." + key + "' failed: " + rootMessage(e), e);
+         }
+      }
+
+      return stop;
    }
 
    private static Object valueForKeyIgnoreCase(Map<?, ?> map, String key) {
