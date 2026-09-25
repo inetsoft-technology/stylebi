@@ -1234,8 +1234,23 @@ public class UserTreeService {
       final Organization oldOrg = provider.getOrganization(provider.getOrganizationId(model.oldName()));
       IdentityID oldID = new IdentityID( model.oldName(), provider.getOrganizationId(model.oldName())) ;
       IdentityID newID = new IdentityID( model.name(), model.id());
+      final boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
 
-      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+      if(oldOrg == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString(
+            "em.security.invalidOrganizationPassed"));
+      }
+
+      // the @PermissionPath on the bare org name resolves against the caller's own org, so a
+      // non-site admin must be confined to editing their own current organization here
+      if(!siteAdmin && !oldOrg.getId().equalsIgnoreCase(
+         OrganizationManager.getInstance().getCurrentOrgID(principal)))
+      {
+         throw new java.lang.SecurityException(
+            "Unauthorized access to organization: " + model.oldName());
+      }
+
+      if(!siteAdmin) {
          checkOrgEditedHasSysAdmin(oldOrg, model, principal);
       }
 
@@ -1270,6 +1285,11 @@ public class UserTreeService {
          boolean saveProperties = false;
 
          for(PropertyModel property: model.properties()) {
+            // non-site admins may only write the org properties exposed in the EM UI
+            if(!siteAdmin && !propertyNames.contains(property.name())) {
+               continue;
+            }
+
             SreeEnv.setProperty(property.name(), property.value(), true);
             saveProperties = true;
          }
