@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.Calculator;
@@ -84,7 +85,11 @@ public class DateComparisonService {
     * @param comparisonOption what the numbers mean — value, change, percentChange,
     *                        changeAndValue, or percentChangeAndValue
     * @param shareAssembly   another DateCompareAble assembly to share this assembly's
-    *                        date-comparison config from, instead of setting its own
+    *                        date-comparison config from, instead of setting its own. It must
+    *                        name another assembly with its own comparison, an assembly that
+    *                        already shares must repeat it (see
+    *                        {@link #requireValidShareTarget}), and it can't be combined with
+    *                        any own-setting field (see {@link #requireNoOwnFieldsWithShare})
     * @param toDate    whether the period's range runs only up to the same point-in-time as
     *                  today, within its level (e.g. Jan 1 - Mar 15 for a quarter, not the whole
     *                  quarter) — the standard period pane's own "to date" checkbox
@@ -253,6 +258,10 @@ public class DateComparisonService {
     * (see {@link #describeUseFacetInapplicable}). For a standard period where the caller left
     * {@code toDate} unspecified, reports the {@code toDate} value actually in effect and
     * {@code toDateDefaulted:true} (see {@link #describeToDateDefaulted}).
+    *
+    * <p>Refuses, before changing anything, an invalid or dropped share source (see
+    * {@link #requireValidShareTarget}) and chart-only options on a crosstab (see
+    * {@link #requireChartOnlyOptionsOnChart}).
     */
    public Map<String, Object> set(String sessionToken, Principal user, String assemblyName,
                                   Comparison comparison, String linkUri) throws Exception
@@ -270,12 +279,15 @@ public class DateComparisonService {
                "dimension in its binding.");
          }
 
+         requireValidShareTarget(rvs.getViewsheet(), assemblyName, comparison);
+         requireChartOnlyOptionsOnChart(rvs.getViewsheet(), assemblyName, comparison);
+
          int beforeChartType = chartRTChartType(rvs, assemblyName);
 
          apply(model, comparison);
          comparisonService.setDateComparison(runtimeId, assemblyName,
                                             model.toDateComparisonInfo(),
-                                            comparison.shareAssembly(), linkUri, user,
+                                            shareAssembly(comparison), linkUri, user,
                                             dispatcher);
          result.putAll(describeRetargetedDimension(rvs, assemblyName));
          result.putAll(describeChartTypeOverride(rvs, assemblyName, beforeChartType));
@@ -286,6 +298,195 @@ public class DateComparisonService {
       });
 
       return result;
+   }
+
+   /**
+    * {@code setDateComparison} stores {@code shareAssembly} as-is, so every rule the Composer
+    * dialog enforces has to be checked here instead.
+    *
+    * <p>An assembly that already shares keeps sharing only if the call names the source again.
+    * {@code set()} otherwise writes the assembly's own (default) model and saves a null share
+    * source, which silently drops the share. The dialog disables the whole pane while sharing, so
+    * there is no UI path that edits a sharing assembly's own settings.
+    *
+    * <p>A named source must be one the dialog would offer: another DateCompareAble assembly with
+    * its own (not shared) comparison — see {@code DateComparisonDialogService.getShare()}. A
+    * nonexistent or comparison-less source saves fine but renders no comparison at all.
+    */
+   private static void requireValidShareTarget(Viewsheet vs, String assemblyName,
+                                                Comparison comparison)
+   {
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+      String shareAssembly = shareAssembly(comparison);
+
+      if(shareAssembly == null) {
+         String currentShare = assembly != null &&
+            assembly.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo ?
+            ((DateCompareAbleAssemblyInfo) assembly.getVSAssemblyInfo()).getComparisonShareFrom() :
+            null;
+
+         if(currentShare != null && !currentShare.isBlank()) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' shares its date comparison from '" + currentShare +
+               "', so its own settings can't be edited (the Composer dialog disables them while " +
+               "sharing). Pass only shareAssembly:'" + currentShare + "' to keep sharing (and " +
+               "change '" + currentShare + "' itself to change what is shared), or call " +
+               "clear_date_comparison first to give '" + assemblyName + "' its own comparison.");
+         }
+
+         return;
+      }
+
+      List<String> candidates = shareCandidates(vs, assembly);
+
+      if(candidates.contains(shareAssembly)) {
+         return;
+      }
+
+      VSAssembly source = vs == null ? null : vs.getAssembly(shareAssembly);
+      String reason;
+
+      if(source == null) {
+         reason = "no assembly named '" + shareAssembly + "' exists";
+      }
+      else if(source == assembly || shareAssembly.equals(assemblyName)) {
+         reason = "an assembly can't share its date comparison from itself";
+      }
+      else if(!(source.getVSAssemblyInfo() instanceof DateCompareAbleAssemblyInfo)) {
+         reason = "'" + shareAssembly + "' doesn't support date comparison (only charts and " +
+            "crosstabs do)";
+      }
+      else {
+         reason = "'" + shareAssembly + "' has no date comparison of its own to share (it has " +
+            "none, or it shares one from another assembly)";
+      }
+
+      throw new IllegalArgumentException(
+         "'shareAssembly' can't be '" + shareAssembly + "': " + reason + ". " +
+         (candidates.isEmpty() ?
+            "No other assembly in this viewsheet has a date comparison to share." :
+            "Assemblies that can be shared from: " + String.join(", ", candidates) + "."));
+   }
+
+   /**
+    * The share source the call asks for, trimmed, or {@code null} when absent or blank. Both the
+    * validation and the save use this one value: validating the trimmed name but saving the raw
+    * one stored "Chart1 " (which resolves to nothing), and stored "   " as a share.
+    */
+   private static String shareAssembly(Comparison comparison) {
+      String share = comparison.shareAssembly();
+      return share == null || share.isBlank() ? null : share.trim();
+   }
+
+   /**
+    * A sharing assembly renders, and reads back, its source's config, never its own. Own fields
+    * sent alongside {@code shareAssembly} would be written to the unused own model and reported as
+    * success with no visible effect. The Composer dialog disables every one of them while sharing.
+    */
+   private static void requireNoOwnFieldsWithShare(Comparison comparison) {
+      String share = shareAssembly(comparison);
+
+      if(share == null) {
+         return;
+      }
+
+      Map<String, Boolean> fields = new LinkedHashMap<>();
+      fields.put("periods", comparison.periods() != null);
+      fields.put("level", comparison.level() != null);
+      fields.put("endDate", comparison.endDate() != null && !comparison.endDate().isBlank());
+      fields.put("endToday", comparison.endToday());
+      fields.put("interval", comparison.interval() != null);
+      fields.put("intervalEndDate",
+                 comparison.intervalEndDate() != null && !comparison.intervalEndDate().isBlank());
+      fields.put("intervalEndToday", comparison.intervalEndToday() != null);
+      fields.put("useFacet", comparison.useFacet() != null);
+      fields.put("onlyShowMostRecentDate", comparison.onlyShowMostRecentDate() != null);
+      fields.put("comparisonOption", comparison.comparisonOption() != null);
+      fields.put("toDate", comparison.toDate() != null);
+      fields.put("inclusive", comparison.inclusive() != null);
+      fields.put("customPeriods", hasCustomPeriods(comparison));
+
+      List<String> own = new ArrayList<>();
+
+      for(Map.Entry<String, Boolean> field : fields.entrySet()) {
+         if(field.getValue()) {
+            own.add("'" + field.getKey() + "'");
+         }
+      }
+
+      if(!own.isEmpty()) {
+         throw new IllegalArgumentException(
+            "'shareAssembly' can't be combined with " + String.join(", ", own) +
+            ". A sharing assembly uses '" + share + "''s settings, so these would be stored " +
+            "and have no effect. Pass only shareAssembly to share, change '" + share +
+            "' itself to change what is shared, or drop shareAssembly to set this assembly's " +
+            "own comparison.");
+      }
+   }
+
+   /**
+    * The assemblies {@code DateComparisonDialogService.getShare()} lists as share sources for
+    * {@code current}: every other DateCompareAble assembly with its own comparison defined.
+    */
+   private static List<String> shareCandidates(Viewsheet vs, VSAssembly current) {
+      List<String> names = new ArrayList<>();
+      Assembly[] assemblies = vs == null ? null : vs.getAssemblies(true);
+
+      if(assemblies == null) {
+         return names;
+      }
+
+      for(Assembly assembly : assemblies) {
+         if(!(assembly instanceof VSAssembly) || assembly == current) {
+            continue;
+         }
+
+         VSAssemblyInfo vinfo = ((VSAssembly) assembly).getVSAssemblyInfo();
+
+         if(vinfo instanceof DateCompareAbleAssemblyInfo &&
+            DateComparisonUtil.isDateComparisonDefined(vinfo, false))
+         {
+            names.add(assembly.getAbsoluteName());
+         }
+      }
+
+      return names;
+   }
+
+   /**
+    * {@code useFacet} and {@code onlyShowMostRecentDate} only have chart consumers
+    * ({@code ChartDcProcessor}, and {@code DateComparisonInfo}'s {@code VSChartDimensionRef}
+    * gate / {@code GraphGenerator}), and the Composer dialog shows them only for a chart. On a
+    * crosstab a {@code true} would be stored and reported as success with no effect. {@code false}
+    * is the crosstab's default and changes nothing, so it's allowed.
+    */
+   private static void requireChartOnlyOptionsOnChart(Viewsheet vs, String assemblyName,
+                                                      Comparison comparison)
+   {
+      VSAssembly assembly = vs == null ? null : vs.getAssembly(assemblyName);
+
+      if(!(assembly instanceof CrosstabVSAssembly)) {
+         return;
+      }
+
+      List<String> chartOnly = new ArrayList<>();
+
+      if(Boolean.TRUE.equals(comparison.useFacet())) {
+         chartOnly.add("'useFacet'");
+      }
+
+      if(Boolean.TRUE.equals(comparison.onlyShowMostRecentDate())) {
+         chartOnly.add("'onlyShowMostRecentDate'");
+      }
+
+      if(!chartOnly.isEmpty()) {
+         throw new IllegalArgumentException(
+            String.join(" and ", chartOnly) + (chartOnly.size() > 1 ? " only apply" : " only applies") +
+            " to charts. '" + assemblyName + "' is a crosstab, where the Composer dialog doesn't " +
+            "offer " + (chartOnly.size() > 1 ? "them" : "it") + " and " +
+            (chartOnly.size() > 1 ? "they have" : "it has") + " no effect. Drop " +
+            String.join(" and ", chartOnly) + ".");
+      }
    }
 
    /**
@@ -677,6 +878,9 @@ public class DateComparisonService {
       if(comparison == null) {
          throw new IllegalArgumentException("set_date_comparison needs a comparison.");
       }
+
+      // First, so share + own fields gets this reason rather than an end-anchor error.
+      requireNoOwnFieldsWithShare(comparison);
 
       if(hasCustomPeriods(comparison)) {
          requireNoStandardPeriodFields(comparison);
@@ -1088,6 +1292,24 @@ public class DateComparisonService {
       return INTERVAL_NAMES.getOrDefault(interval, String.valueOf(interval));
    }
 
+   /**
+    * The interval's granularity is a {@code DateComparisonInfo} bitmask (DAY=0x1 … YEAR=0x10),
+    * not an {@code XConstants} group code, so it can't reuse {@link #levelWord(int)}. A custom
+    * period can also use "All" (0), as the dialog's {@code custom_granularities} list does.
+    */
+   private static final Map<Integer, String> GRANULARITY_NAMES = Map.of(
+      DateComparisonInfo.ALL, "all",
+      DateComparisonInfo.YEAR, "year",
+      DateComparisonInfo.QUARTER, "quarter",
+      DateComparisonInfo.MONTH, "month",
+      DateComparisonInfo.WEEK, "week",
+      DateComparisonInfo.DAY, "day"
+   );
+
+   private static String granularityWord(int granularity) {
+      return GRANULARITY_NAMES.getOrDefault(granularity, String.valueOf(granularity));
+   }
+
    // ── read normalization ────────────────────────────────────────────────────
 
    private static Map<String, Object> describePeriod(PeriodPaneModel periods) {
@@ -1152,7 +1374,8 @@ public class DateComparisonService {
       }
 
       out.put("level", describeCode(interval.getLevel(), DateComparisonService::intervalWord));
-      out.put("granularity", value(interval.getGranularity()));
+      out.put("granularity",
+              describeCode(interval.getGranularity(), DateComparisonService::granularityWord));
       out.put("endDayAsToDate", interval.isEndDayAsToDate());
       out.put("intervalEndDate",
               interval.isEndDayAsToDate() ? null : value(interval.getIntervalEndDate()));
