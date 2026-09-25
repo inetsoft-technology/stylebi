@@ -633,8 +633,32 @@ public class LayoutTool {
                                            VariableTable vars,
                                            boolean crossTabSupported)
    {
-      syncCalcTopN(table);
-      TableLayout layout = table.getTableLayout();
+      fillCalcTableLens(table, base, vars, crossTabSupported, true);
+   }
+
+   /**
+    * Fill the calc table lens of a formula table.
+    * @param syncTableLayout <tt>true</tt> to normalize the top-N/sort/named group settings
+    *                        of the table's own layout before the lens is built from a copy of
+    *                        it, <tt>false</tt> to apply the same normalization to a private copy
+    *                        only and leave the table's layout unchanged.
+    */
+   protected static void fillCalcTableLens(FormulaTable table, TableLens base,
+                                           VariableTable vars,
+                                           boolean crossTabSupported,
+                                           boolean syncTableLayout)
+   {
+      TableLayout layout;
+
+      if(syncTableLayout) {
+         syncCalcTopN(table);
+         layout = table.getTableLayout();
+      }
+      else {
+         layout = (TableLayout) table.getTableLayout().clone();
+         syncCalcTopN(layout);
+      }
+
       layout = (TableLayout) layout.clone();
       layout.replaceVariables(vars);
       int col = layout.getColCount();
@@ -3318,7 +3342,20 @@ public class LayoutTool {
          getTableCellBindings(table, TableCellBinding.GROUP);
       List<TableCellBinding> aggCells =
          getTableCellBindings(table, TableCellBinding.SUMMARY);
+      syncCalcTopN(groupCells, aggCells);
+   }
 
+   /**
+    * Sync topn in the calc table layout.
+    */
+   private static void syncCalcTopN(TableLayout layout) {
+      syncCalcTopN(getTableCellBindings(layout, TableCellBinding.GROUP),
+                   getTableCellBindings(layout, TableCellBinding.SUMMARY));
+   }
+
+   private static void syncCalcTopN(List<TableCellBinding> groupCells,
+                                    List<TableCellBinding> aggCells)
+   {
       for(TableCellBinding binding : groupCells) {
          OrderInfo order = binding.getOrderInfo(false);
          syncCalcTopN(binding, order, aggCells);

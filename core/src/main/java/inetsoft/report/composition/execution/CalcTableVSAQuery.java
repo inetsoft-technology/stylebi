@@ -83,7 +83,10 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       // the lock (see ViewsheetSandbox.thisLock) -- so the gate below is no longer what
       // prevents the deadlock. It is kept because a script thread has nothing to gain from
       // the write lock here ("if called from script, the locking should already be in place";
-      // 52463), the same as ViewsheetSandbox.doExecuteData()/getData().
+      // 52463), the same as ViewsheetSandbox.doExecuteData()/getData(). That is not true on
+      // every path (element scripts run through executeView() hold no sandbox lock), but on a
+      // script thread the lock would only be tried, so it gives no exclusion against a writer
+      // already holding it (or against the unlocked setVSAssemblyInfo()) either.
       boolean inExec = JavaScriptEngine.isScriptThread();
 
       if(!inExec) {
@@ -298,17 +301,21 @@ public class CalcTableVSAQuery extends DataVSAQuery {
                }
 
                // @by ChrisSpagnoli feature1414607346853 2014-10-27
-               // Combine the fully processed crosstab data back together. May mutate the
-               // shared cassembly's table layout (via getElement()) or read its layout
-               // (mergeCrosstabs -> mergeCalcAttrs), so keep this under the same monitor as
-               // the other cassembly touches above. No GraalJS call happens in either branch.
+               // Combine the fully processed crosstab data back together. May read the
+               // shared cassembly's layout (mergeCrosstabs -> mergeCalcAttrs), so keep this
+               // under the same monitor as the other cassembly touches above. No GraalJS call
+               // happens in either branch.
                synchronized(cassembly) {
                   if(rlensJoined == null) {
                      rlensJoined = rlens;
 
                      // If there will be multiple crosstabs combined, put original
-                     // layout into rlensJoined, replacing the layout fragment.
-                     if(datas.size() > 0) {
+                     // layout into rlensJoined, replacing the layout fragment. On the
+                     // no-crosstab path the element is the shared cassembly, whose layout is
+                     // already the full layout the lens was built from; writing the snapshot
+                     // taken at the start of this query back there would revert any edit
+                     // made to the assembly's layout meanwhile (#76987).
+                     if(datas.size() > 0 && cassemblyChild != cassembly) {
                         rlensJoined.getCalcTableLens().getElement().setTableLayout(layout);
                      }
                   }
@@ -517,7 +524,7 @@ public class CalcTableVSAQuery extends DataVSAQuery {
     * (see the note on the main processing loop in {@link #getTableLens()} for why other blocks
     * keep the monitor narrower).
     *
-    * @param monitor the monitor guarding the shared calc assembly.
+    * @param monitor the shared (original) calc assembly, which is also the monitor guarding it.
     */
    static List<TableLens> createCalcLenses(Object monitor, List<CalcTableVSAssembly> cassemblys,
                                            List<TableLens> datas, VariableTable vars,
@@ -528,7 +535,11 @@ public class CalcTableVSAQuery extends DataVSAQuery {
       synchronized(monitor) {
          for(int i = 0; i < datas.size(); i++) {
             CalcTableVSAssembly cassemblyChild = cassemblys.get(i);
-            VSLayoutTool.createCalcLens(cassemblyChild, datas.get(i), vars, crossTabSupported);
+            // the shared calc assembly (no-crosstab path) keeps its layout as the user left it:
+            // only the copy the lens is built from gets the top-N/named group normalization,
+            // the same as when getTableLens() put its layout snapshot back afterwards (#76987)
+            VSLayoutTool.createCalcLens(cassemblyChild, datas.get(i), vars, crossTabSupported,
+                                        cassemblyChild != monitor);
             // copy back
             cassemblyChild.setTable(cassemblyChild.getBaseTable());
             clenses.add(cassemblyChild.getBaseTable());
