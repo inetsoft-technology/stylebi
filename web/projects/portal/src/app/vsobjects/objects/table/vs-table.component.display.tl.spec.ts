@@ -37,7 +37,9 @@
  *   Group 13 — card vs content rect: unmarked no-op; per-edge inset; borderDivHeight/realWidth/
  *                bottom-tabs offset stay on the card; shrink adds the inset back; scrollWrapper
  *                adds it back too; updateTableHeight subtracts it; each axis stays on its own;
- *                the last-column stretch ignores the scroll wrapper's measured grid width
+ *                the last-column stretch ignores the scroll wrapper's measured grid width;
+ *                a last-column drag keeps the border allowance out of the stored width; a
+ *                hidden last column keeps its zero
  */
 
 import { ViewsheetInfo } from "../../data/viewsheet-info";
@@ -708,6 +710,64 @@ describe("VSTable — Pass 3: Display", () => {
          comp.updateDisplayColumnWidth();
 
          expect(comp.displayColWidths[3]).toBe(150);
+      });
+
+      // drives a real drag: changeColumnWidth, then the mousemove handler it registers
+      function dragColumn(ctx: any, col: number, delta: number): void {
+         const comp: any = ctx.comp;
+         comp.tableContainer = { nativeElement: document.createElement("div") };
+         comp.colResize0 = { nativeElement: document.createElement("div") };
+         ctx.renderer.listen.mockClear();
+         comp.changeColumnWidth(500, makeTableCell({ col, colSpan: 1 }));
+         const move = ctx.renderer.listen.mock.calls.find((c: any[]) => c[1] === "mousemove")[2];
+         move({ pageX: 500 + delta, pageY: 0 });
+      }
+
+      it("should store a dragged last column at its full width, not the width it displays at", () => {
+         // displayed at 199 under the inset; seeding the drag from that would store 209
+         const ctx = createTableComponent({
+            model: { colWidths: [100, 100, 200], colCount: 3, padding: inset } as any,
+         });
+         ctx.comp.updateDisplayColumnWidth();
+
+         dragColumn(ctx, 2, 10);
+
+         expect(ctx.comp.model.colWidths[2]).toBe(210);
+         expect(ctx.comp.displayColWidths[2]).toBe(209);
+      });
+
+      it("should store a stretched last column at the width it showed plus the drag", () => {
+         // stretched to 134 and displayed at 133; +10 is 144, not 143
+         const ctx = createTableComponent({
+            model: { colWidths: [30, 30, 90, 40], colCount: 4, padding: inset } as any,
+         });
+         ctx.comp.updateDisplayColumnWidth();
+
+         dragColumn(ctx, 3, 10);
+
+         expect(ctx.comp.model.colWidths[3]).toBe(144);
+      });
+
+      it("should leave the allowance off a drag of any column but the last", () => {
+         const ctx = createTableComponent({
+            model: { colWidths: [100, 100, 200], colCount: 3, padding: inset } as any,
+         });
+         ctx.comp.updateDisplayColumnWidth();
+
+         dragColumn(ctx, 0, 10);
+
+         expect(ctx.comp.model.colWidths[0]).toBe(110);
+         expect(ctx.comp.displayColWidths[0]).toBe(110);
+      });
+
+      it("should keep a hidden last column at zero under a right inset", () => {
+         // a crosstab hides a column by giving it width 0, and reads exactly 0 as hidden
+         const { comp } = createTableComponent({
+            model: { colWidths: [100, 100, 0], colCount: 3, padding: inset } as any,
+         });
+         comp.updateDisplayColumnWidth();
+
+         expect(comp.displayColWidths[2]).toBe(0);
       });
    });
 });

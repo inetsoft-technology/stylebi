@@ -43,7 +43,7 @@ const ANCHORED_ASSEMBLY_TYPES: ReadonlySet<string> = new Set<string>([
    "vschart",
    // Slice 2, the table family. Table and calc table already emitted their stable actions first;
    // crosstab was reordered to match. All three inherit the chart's treatment unchanged, and take
-   // the flush full-width lane the container's padding fallbacks resolve them to.
+   // the lane inside their card inset — flush and full width when they carry none.
    "vstable",
    "vscrosstab",
    "vscalctable",
