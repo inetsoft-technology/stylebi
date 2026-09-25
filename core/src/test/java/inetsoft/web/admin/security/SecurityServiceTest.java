@@ -531,6 +531,54 @@ class SecurityServiceTest {
       assertTrue(captor.getValue().roles().isEmpty());
    }
 
+   // ── updateRole permission-write org (bug #76866 regression) ─────────────
+   //
+   // IdentityService.setIdentityPermissions now refuses an all-empty org id (bug #76866). A global
+   // (org-less) role has no org of its own, so updateRole used to pass "" and the call threw after
+   // setIdentity() had already committed the rename/member change. updateRole must pass the
+   // editing org explicitly for a global role, and the role's own org otherwise.
+
+   @Test
+   void updateRole_globalRole_passesCallerCurrentOrgToSetIdentityPermissions() throws Exception {
+      IdentityID roleId = new IdentityID("grole", null);
+      FSRole oldRole = new FSRole(roleId);
+      when(securityProvider.getRole(roleId)).thenReturn(oldRole);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            roleId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getRole(roleId)).thenReturn(oldRole);
+      when(orgManager.getCurrentOrgID(principal)).thenReturn("org1");
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(new IdentityID("grole2", null));
+
+      service.updateRole(roleId, request, principal);
+
+      verify(identityService).setIdentityPermissions(
+         eq(new IdentityID("grole", null)), eq(new IdentityID("grole2", null)),
+         eq(ResourceType.SECURITY_ROLE), eq(principal), any(), eq("org1"));
+   }
+
+   @Test
+   void updateRole_orgScopedRole_passesRoleOwnOrgToSetIdentityPermissions() throws Exception {
+      IdentityID roleId = new IdentityID("orgrole1", "org2");
+      FSRole oldRole = new FSRole(roleId);
+      when(securityProvider.getRole(roleId)).thenReturn(oldRole);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+                                            roleId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getRole(roleId)).thenReturn(oldRole);
+      when(orgManager.getCurrentOrgID(principal)).thenReturn("org1");
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(roleId);
+
+      service.updateRole(roleId, request, principal);
+
+      verify(identityService).setIdentityPermissions(
+         eq(roleId), eq(roleId), eq(ResourceType.SECURITY_ROLE), eq(principal), any(), eq("org2"));
+   }
+
    // ── createUser / createGroup / createRole ───────────────────────────────
    //
    // Bug #75671-class gap found while writing the update* regression tests above: createUser's
