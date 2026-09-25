@@ -363,6 +363,9 @@ and there is no `ExcelVSExporter` implementation in this repository. CSV is text
 
 ### 7.2 Card inset
 
+**Superseded** by `2026-09-25-density-padding-export-design.md`. The site list below is wrong at
+every entry; that spec's §4 says why. Kept only as a record.
+
 One shared `contentBounds(info)` = assembly bounds − `info.getPadding()`, applied wherever the table
 *region* origin and size are computed, with `drawObjectFormat` deliberately left on the full bounds
 so border and background stay at the card edge. `VsToReportConverter:1493-1496` already does exactly
