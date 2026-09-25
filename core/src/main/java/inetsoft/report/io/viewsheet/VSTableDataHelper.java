@@ -182,7 +182,13 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          }
       }
 
-      bounds.height = (int) (height * getPixelToPointRatio());
+      Insets inset = getCardInset(info);
+      double ratio = getPixelToPointRatio();
+      // getPixelBounds starts at the grid; the chrome is the card around it
+      bounds.x -= (int) Math.round(inset.left * ratio);
+      bounds.y -= (int) Math.round(inset.top * ratio);
+      bounds.width += (int) Math.round((inset.left + inset.right) * ratio);
+      bounds.height = (int) ((height + inset.top + inset.bottom) * ratio);
 
       if(match ||
          tableRange.height < info.getPixelSize().height ||
@@ -191,7 +197,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          Rectangle2D rec = vHelper.getBounds(info);
 
          if(info.isShrink()) {
-            Dimension d = new Dimension(getShrinkTableWidth(lens), 0);
+            Dimension d = new Dimension(getShrinkTableWidth(lens) + inset.left + inset.right, 0);
             d = vHelper.getOutputSize(d);
 
             if(!getExporter().isMatchLayout()) {
