@@ -455,8 +455,10 @@ public class BindingAgentController {
     *                 {@code CalcFieldAgentService.modify}); empty when nothing warned. Distinct
     *                 from {@code handleCommandError}'s 409 body, which is for a write that did
     *                 NOT commit.
+    * @param rewrittenDependents on a rename, the other calc fields whose expression referenced
+    *                 the old name and was rewritten to the new one; empty otherwise.
     */
-   public record CalcFieldResponse(List<String> warnings) {}
+   public record CalcFieldResponse(List<String> warnings, List<String> rewrittenDependents) {}
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/calc-field")
    public CalcFieldResponse modifyCalcField(@PathVariable String sessionToken,
@@ -466,8 +468,9 @@ public class BindingAgentController {
       throws Exception
    {
       requireEnabled();
-      List<String> warnings = calcFieldService.modify(sessionToken, user, request, linkUri);
-      return new CalcFieldResponse(warnings);
+      CalcFieldAgentService.CalcFieldResult result =
+         calcFieldService.modify(sessionToken, user, request, linkUri);
+      return new CalcFieldResponse(result.warnings(), result.rewrittenDependents());
    }
 
    @PostMapping("/api/wiz/v1/agent/binding/{sessionToken}/table/source")

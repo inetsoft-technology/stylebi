@@ -23,8 +23,11 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
+import inetsoft.uql.asset.AggregateFormula;
+import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
@@ -133,6 +136,91 @@ class ModifyCalculateFieldServiceTest {
       verify(vsBindingTreeService).getBinding(
          eq(id), any(RefreshBindingTreeEvent.class), eq(principal), eq(dispatcher));
       verify(vs).addCalcField(eq("Orders"), eq(cref));
+   }
+
+   private static CalculateRef calc(String name, String expression, boolean baseOnDetail) {
+      ExpressionRef exprRef = new ExpressionRef();
+      exprRef.setName(name);
+      exprRef.setExpression(expression);
+      CalculateRef cref = new CalculateRef(baseOnDetail);
+      cref.setDataRef(exprRef);
+      cref.setSQL(false);
+      return cref;
+   }
+
+   private static String expression(Viewsheet vs, String table, String calc) {
+      return ((ExpressionRef) vs.getCalcField(table, calc).getDataRef()).getExpression();
+   }
+
+   /**
+    * Bug #76951 (VCF-002): renaming a detail calc field ('Net Sales' -> 'Net Revenue') left an
+    * aggregate calc field that references it ('Discount Share' = ... field['Sum(Net Sales)'] ...)
+    * and the Sum(Net Sales) aggregate field auto-created for it pointing at the old name. The
+    * dependent then evaluated Sum(Net Sales) as null -- Discount Share = 1 in every crosstab cell,
+    * with no error anywhere. The rename must carry both over to the new name.
+    */
+   @Test
+   void renameRewritesDependentCalcFieldsAndTheirAggregateFields() throws Exception {
+      String id = "rt-calcfield-rename";
+      String table = "Orders";
+      Principal principal = mock(Principal.class);
+
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField(table, calc("Net Sales", "field['Total'] * (1 - field['Discount'])", true));
+      vs.addCalcField(table, calc("Discount Share",
+         "(field['Sum(Total)'] - field['Sum(Net Sales)']) / field['Sum(Total)']", false));
+      vs.addCalcField(table, calc("Tax", "field['Total'] * 0.08", true));
+      AttributeRef netSalesAttr = new AttributeRef(null, "Net Sales");
+      netSalesAttr.setDataType("double");
+      vs.addAggrField(table, new AggregateRef(netSalesAttr, AggregateFormula.SUM));
+
+      CalculateRef renamed = calc("Net Revenue", "field['Total'] * (1 - field['Discount'])", true);
+      CalculateRefModel calcModel = mock(CalculateRefModel.class);
+      when(calcModel.createDataRef()).thenReturn(renamed);
+
+      ModifyCalculateFieldEvent event = mock(ModifyCalculateFieldEvent.class);
+      when(event.calculateRef()).thenReturn(calcModel);
+      when(event.tableName()).thenReturn(table);
+      when(event.refName()).thenReturn("Net Sales");
+      when(event.create()).thenReturn(false);
+      when(event.remove()).thenReturn(false);
+      when(event.wizard()).thenReturn(false);
+
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(mock(ViewsheetSandbox.class)));
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      when(viewsheetService.getViewsheet(eq(id), eq(principal))).thenReturn(rvs);
+
+      ModifyCalculateFieldService service = new ModifyCalculateFieldService(
+         mock(VSBindingService.class), mock(VSBindingTreeControllerServiceProxy.class),
+         mock(VSChartHandler.class), mock(XRepository.class), mock(VSWizardBindingHandler.class),
+         mock(VSRefreshController.class), viewsheetService, mock(VSAssemblyInfoHandler.class),
+         mock(DataSourceRegistry.class));
+
+      service.modifyCalculateField(id, event, principal, mock(CommandDispatcher.class), "");
+
+      assertNull(vs.getCalcField(table, "Net Sales"));
+      assertNotNull(vs.getCalcField(table, "Net Revenue"));
+      assertEquals("(field['Sum(Total)'] - field['Sum(Net Revenue)']) / field['Sum(Total)']",
+         expression(vs, table, "Discount Share"));
+      assertEquals("field['Total'] * 0.08", expression(vs, table, "Tax"));
+
+      AggregateRef[] aggrs = vs.getAggrFields(table);
+      assertEquals(1, aggrs.length);
+      assertEquals("Net Revenue", aggrs[0].getDataRef().getAttribute());
+      assertEquals("double", aggrs[0].getDataRef().getDataType());
+   }
+
+   /** A formula-only edit renames nothing, so it must leave the dependents exactly as they are. */
+   @Test
+   void editWithoutRenameLeavesDependentCalcFieldsUntouched() throws Exception {
+      Viewsheet vs = new Viewsheet();
+      vs.addCalcField("Orders", calc("Discount Share", "field['Sum(Net Sales)']", false));
+
+      ModifyCalculateFieldService.renameCalcFieldDependents(vs, "Orders", "Other", "Other2");
+
+      assertEquals("field['Sum(Net Sales)']", expression(vs, "Orders", "Discount Share"));
    }
 
    /**

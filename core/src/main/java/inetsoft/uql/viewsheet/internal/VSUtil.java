@@ -4257,6 +4257,110 @@ public final class VSUtil {
    }
 
    /**
+    * Rewrite the references to a renamed calc field inside another calc field's expression, so
+    * a dependent calc field keeps resolving after the rename. Only {@code field['...']} (or
+    * {@code field["..."]}) accessors are touched, never other string text. An accessor is
+    * rewritten when its content is the old name itself (a per-row reference) or an aggregate of
+    * it in any of the spellings {@link #addUsedAggregateRef} recognizes, e.g. {@code Sum(X)},
+    * {@code sum([X])}, {@code Correlation(A, X)}, {@code Correlation([A], [X])} or
+    * {@code NthLargest(X, 2)}.
+    *
+    * @param expression the dependent calc field's expression.
+    * @param oname      the renamed calc field's old name (matched exactly, case-sensitive).
+    * @param nname      the renamed calc field's new name.
+    *
+    * @return the rewritten expression, or {@code expression} itself when nothing referenced
+    *         {@code oname}.
+    */
+   public static String renameCalcFieldReference(String expression, String oname, String nname) {
+      if(expression == null || oname == null || oname.isEmpty() || nname == null ||
+         oname.equals(nname) || !expression.contains(oname))
+      {
+         return expression;
+      }
+
+      Matcher matcher = FIELD_ACCESSOR_PATTERN.matcher(expression);
+      StringBuilder sb = new StringBuilder();
+      int last = 0;
+
+      while(matcher.find()) {
+         String content = matcher.group(2);
+         String ncontent = renameFieldAccessorContent(content, oname, nname);
+
+         if(!ncontent.equals(content)) {
+            sb.append(expression, last, matcher.start(2)).append(ncontent);
+            last = matcher.end(2);
+         }
+      }
+
+      if(last == 0) {
+         return expression;
+      }
+
+      sb.append(expression.substring(last));
+      return sb.toString();
+   }
+
+   private static String renameFieldAccessorContent(String content, String oname, String nname) {
+      if(content.equals(oname)) {
+         return nname;
+      }
+
+      int open = content.indexOf('(');
+
+      if(open <= 0 || !content.endsWith(")")) {
+         return content;
+      }
+
+      AggregateFormula formula = AggregateFormula.getFormula(content.substring(0, open).trim());
+
+      if(formula == null || formula == AggregateFormula.NONE) {
+         return content;
+      }
+
+      String prefix = content.substring(0, open + 1);
+      String args = content.substring(open + 1, content.length() - 1);
+      String nargs = renameFormulaArg(args, oname, nname);
+
+      // a whole-argument match first, so an old name that itself contains a comma still works
+      if(nargs == null) {
+         String[] parts = args.split(",", -1);
+         boolean changed = false;
+
+         for(int i = 0; i < parts.length; i++) {
+            String npart = renameFormulaArg(parts[i], oname, nname);
+
+            if(npart != null) {
+               parts[i] = npart;
+               changed = true;
+            }
+         }
+
+         nargs = changed ? String.join(",", parts) : null;
+      }
+
+      return nargs == null ? content : prefix + nargs + ")";
+   }
+
+   /**
+    * @return the argument with {@code oname} replaced, keeping its brackets and surrounding
+    *         whitespace, or {@code null} when the argument isn't {@code oname}.
+    */
+   private static String renameFormulaArg(String arg, String oname, String nname) {
+      String trimmed = arg.trim();
+      boolean bracket = trimmed.length() >= 2 && trimmed.startsWith("[") && trimmed.endsWith("]");
+      String name = bracket ? trimmed.substring(1, trimmed.length() - 1) : trimmed;
+
+      if(!name.equals(oname)) {
+         return null;
+      }
+
+      int start = arg.indexOf(trimmed);
+      return arg.substring(0, start) + (bracket ? "[" + nname + "]" : nname) +
+         arg.substring(start + trimmed.length());
+   }
+
+   /**
     * Check the string represent the aggregate ref's alias or not.
     */
    private static boolean isAggregateAlias(String name) {
@@ -8857,6 +8961,9 @@ public final class VSUtil {
    // cached dependency
    private static DataCache<String, Set<AssemblyRef>> scriptDeps = new DataCache<>(1000, 5000);
    private static final Pattern CONTAINS_VARIABLE_PATTERN = Pattern.compile("([\\s\\S]+)(\\$\\([\\s\\S]*?\\))([\\s\\S]*)");
+   // field['...'] / field["..."] accessor in a calc field expression; group 2 is the content
+   private static final Pattern FIELD_ACCESSOR_PATTERN =
+      Pattern.compile("\\bfield\\s*\\[\\s*(['\"])(.*?)\\1\\s*\\]");
    public static final ThreadLocal<Boolean> OPEN_VIEWSHEET = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final String DEBOUNCER_KEY = "VSUtil.debouncer";
 }

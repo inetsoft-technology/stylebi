@@ -179,6 +179,7 @@ public class ModifyCalculateFieldService {
                oldCalc = vs.getCalcField(tname, refname);
                vs.removeCalcField(tname, refname);
                vs.addCalcField(tname, cref);
+               renameCalcFieldDependents(vs, tname, refname, cref.getName());
                syncAssemblies(tname, refname, vs, rename, changeCalcType, cref, dispatcher, rvs, linkUri);
                Assembly assembly = vs.getAssembly(event.name());
 
@@ -725,6 +726,85 @@ public class ModifyCalculateFieldService {
             vs.addAggrField(tname, aref);
          }
       }
+   }
+
+   /**
+    * Point everything that referenced a renamed calc field by name at its new name: the other
+    * calc fields on the same table whose expression references it (e.g.
+    * {@code field['Sum(Net Sales)']}), and the aggregate fields {@link #convertUsedAggregateRef}
+    * auto-created for them. Left alone, a dependent calc field silently evaluates the old
+    * reference as null, and its orphaned aggregate field no longer matches any bound column.
+    */
+   static void renameCalcFieldDependents(Viewsheet vs, String tname, String oname,
+                                         String nname)
+   {
+      CalculateRef[] calcs = vs.getCalcFields(tname);
+
+      if(calcs != null) {
+         for(CalculateRef calc : calcs) {
+            if(Tool.equals(calc.getName(), nname) ||
+               !(calc.getDataRef() instanceof ExpressionRef))
+            {
+               continue;
+            }
+
+            ExpressionRef eref = (ExpressionRef) calc.getDataRef();
+            String exp = eref.getExpression();
+            String nexp = VSUtil.renameCalcFieldReference(exp, oname, nname);
+
+            if(!Objects.equals(exp, nexp)) {
+               eref.setExpression(nexp);
+            }
+         }
+      }
+
+      renameAggregateRefs(vs.getAggrFields(tname), oname, nname);
+   }
+
+   private static void renameAggregateRefs(AggregateRef[] arefs, String oname, String nname) {
+      if(arefs == null) {
+         return;
+      }
+
+      for(AggregateRef aref : arefs) {
+         DataRef ref = renamedAttribute(aref.getDataRef(), oname, nname);
+
+         if(ref != null) {
+            aref.setDataRef(ref);
+         }
+
+         DataRef ref2 = renamedAttribute(aref.getSecondaryColumn(), oname, nname);
+
+         if(ref2 != null) {
+            aref.setSecondaryColumn(ref2);
+         }
+      }
+   }
+
+   /**
+    * @return a plain attribute ref named {@code nname} when {@code ref} is the stored reference
+    *         to the old calc field name, or {@code null} to leave {@code ref} unchanged.
+    */
+   private static DataRef renamedAttribute(DataRef ref, String oname, String nname) {
+      if(ref instanceof ColumnRef && ((ColumnRef) ref).getDataRef() instanceof AttributeRef) {
+         DataRef nbase = renamedAttribute(((ColumnRef) ref).getDataRef(), oname, nname);
+
+         if(nbase == null) {
+            return null;
+         }
+
+         ColumnRef ncol = (ColumnRef) ref.clone();
+         ncol.setDataRef(nbase);
+         return ncol;
+      }
+
+      if(!(ref instanceof AttributeRef) || !Tool.equals(ref.getAttribute(), oname)) {
+         return null;
+      }
+
+      AttributeRef nref = new AttributeRef(null, nname);
+      nref.setDataType(ref.getDataType());
+      return nref;
    }
 
    // rename column bound to cells

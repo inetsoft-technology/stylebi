@@ -21,7 +21,10 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityException;
+import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.controller.ModifyCalculateFieldServiceProxy;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.event.ImmutableModifyCalculateFieldEvent;
@@ -32,7 +35,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -93,13 +98,21 @@ public class CalcFieldAgentService {
                                   Boolean baseOnDetail, boolean remove, boolean create) {}
 
    /**
-    * @return the messages of any warnings the write's post-write shelf-metadata refresh steps
-    *         caught rather than propagated (see {@code ModifyCalculateFieldService}'s guarded
-    *         refresh steps) -- empty when nothing warned. The write itself has already committed
-    *         either way; these are advisory, not an error.
+    * @param warnings            the messages of any warnings the write's post-write
+    *                            shelf-metadata refresh steps caught rather than propagated (see
+    *                            {@code ModifyCalculateFieldService}'s guarded refresh steps) --
+    *                            empty when nothing warned. The write itself has already committed
+    *                            either way; these are advisory, not an error.
+    * @param rewrittenDependents on a rename, the other calc fields on the same table whose
+    *                            expression referenced the old name and was rewritten to the new
+    *                            one (see {@code ModifyCalculateFieldService
+    *                            .renameCalcFieldDependents}) -- empty otherwise. The caller has no
+    *                            other way to learn a dependent's formula changed.
     */
-   public List<String> modify(String sessionToken, Principal agent, CalcFieldRequest req,
-                              String linkUri)
+   public record CalcFieldResult(List<String> warnings, List<String> rewrittenDependents) {}
+
+   public CalcFieldResult modify(String sessionToken, Principal agent, CalcFieldRequest req,
+                                 String linkUri)
       throws Exception
    {
       // ModifyCalculateFieldService.modifyCalculateField itself performs no permission check --
@@ -131,8 +144,9 @@ public class CalcFieldAgentService {
 
       String newName = req.newName() != null && !req.newName().isBlank()
          ? req.newName() : req.name();
+      List<String> rewrittenDependents = new ArrayList<>();
 
-      return sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
+      List<String> warnings = sessions.mutate(sessionToken, agent, (rvs, runtimeId, dispatcher) -> {
          String tableName = requireBindableTable(runtimeId, req.table(), agent);
 
          CalculateRefModel model = null;
@@ -162,6 +176,11 @@ public class CalcFieldAgentService {
             model.setBaseOnDetail(baseOnDetail);
             model.setSql(sql);
             model.setDataType(dataType);
+
+            if(existing != null && !newName.equals(req.name())) {
+               rewrittenDependents.addAll(
+                  findDependents(rvs.getViewsheet(), tableName, req.name(), newName));
+            }
          }
 
          ImmutableModifyCalculateFieldEvent event = ImmutableModifyCalculateFieldEvent.builder()
@@ -179,6 +198,38 @@ public class CalcFieldAgentService {
          modifyCalculateFieldService.modifyCalculateField(
             runtimeId, event, agent, dispatcher, linkUri);
       });
+
+      return new CalcFieldResult(warnings, rewrittenDependents);
+   }
+
+   /**
+    * The other calc fields on {@code table} whose expression references {@code oname} -- the
+    * same ones {@code ModifyCalculateFieldService.renameCalcFieldDependents} rewrites, found with
+    * the same {@link VSUtil#renameCalcFieldReference} matcher so the two can't disagree.
+    */
+   private static List<String> findDependents(Viewsheet vs, String table, String oname,
+                                              String nname)
+   {
+      CalculateRef[] calcs = vs.getCalcFields(table);
+      List<String> dependents = new ArrayList<>();
+
+      if(calcs == null) {
+         return dependents;
+      }
+
+      for(CalculateRef calc : calcs) {
+         if(oname.equals(calc.getName()) || !(calc.getDataRef() instanceof ExpressionRef)) {
+            continue;
+         }
+
+         String exp = ((ExpressionRef) calc.getDataRef()).getExpression();
+
+         if(!Objects.equals(exp, VSUtil.renameCalcFieldReference(exp, oname, nname))) {
+            dependents.add(calc.getName());
+         }
+      }
+
+      return dependents;
    }
 
    /**
