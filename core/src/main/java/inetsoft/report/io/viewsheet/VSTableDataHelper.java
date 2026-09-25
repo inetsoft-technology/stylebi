@@ -333,8 +333,10 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       // information pre-populated, we can not return the rendered number of
       // lines per cell.
       if(lens != null) {
-         // export still lays the grid across the whole card
-         double[] colWidths = BaseTableService.getColWidths(assembly, lens, false);
+         Insets gridInset = getCardInset(info);
+         // the wrapped-line widths fill the grid inside the card inset
+         double[] colWidths = BaseTableService.getColWidths(
+            assembly, lens, gridInset.left + gridInset.right > 0);
          lens.initTableGrid(info);
          lens.setColWidths(colWidths);
 
@@ -498,9 +500,11 @@ public abstract class VSTableDataHelper extends ExporterHelper {
    protected int[] calculateColumnWidths(TableDataVSAssemblyInfo info,
                                          VSTableLens lens)
    {
+      Insets inset = getCardInset(info);
+
       return ExcelVSUtil.calculateColumnWidths(
          getViewsheet(), info, lens, isFillColumns(info), getExporter().isMatchLayout(),
-         needDistributeWidth());
+         needDistributeWidth(), inset.left + inset.right);
    }
 
    /**
