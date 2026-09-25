@@ -18,6 +18,7 @@
 package inetsoft.util.script.graal.pool;
 
 import inetsoft.util.script.ScriptException;
+import inetsoft.util.stall.StallWatchdog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +38,8 @@ final class SlotPool {
       this.source = source;
       this.config = config;
       this.metrics = metrics;
+      PoolMetrics.setNodeSlotWarnThreshold(config.warnSlotsPerNode());
+      WsPoolStallProbe.register();
    }
 
    PoolConfig config() {
@@ -282,6 +285,11 @@ final class SlotPool {
       }
 
       int node = PoolMetrics.nodeSlots();
+
+      if(node > config.warnSlotsPerNode()) {
+         // the watchdog's probe reports the node above the threshold (bug #76967)
+         StallWatchdog.wake();
+      }
 
       if(node > config.warnSlotsPerNode() && NODE_WARNED.compareAndSet(false, true)) {
          LOG.warn("This node has {} pooled worksheet script contexts (warn threshold {}); " +

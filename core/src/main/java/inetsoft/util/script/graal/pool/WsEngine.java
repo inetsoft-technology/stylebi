@@ -73,6 +73,7 @@ final class WsEngine extends GraalJavaScriptEngine {
 
    @Override
    protected void onInterruptTimeout() {
+      PoolMetrics.interruptTimedOut();
       Slot owner = slot;
 
       if(owner != null) {

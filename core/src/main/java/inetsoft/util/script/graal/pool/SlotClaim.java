@@ -181,6 +181,7 @@ public final class SlotClaim implements ScriptSpan {
       for(SlotClaim claim : new ArrayList<>(claims.values())) {
          LOG.warn("A worksheet script claim was left open at the end of {} (depth {}); " +
                   "releasing it", where, claim.depth);
+         PoolMetrics.leakedClaim();
          claim.depth = 0;
          Slot held = claim.slot;
          claim.slot = null;
