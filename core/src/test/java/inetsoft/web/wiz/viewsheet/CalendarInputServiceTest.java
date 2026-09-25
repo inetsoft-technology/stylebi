@@ -19,6 +19,7 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.viewsheet.controller.VSCalendarService;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.junit.jupiter.api.Tag;
@@ -272,6 +273,174 @@ class CalendarInputServiceTest {
       assertTrue(e.getMessage().contains("Cal1"), e.getMessage());
    }
 
+   // ── range-comparison reshaping and range checks (Bug #77033) ──────────────
+
+   /** The Composer keeps the first period's first date and the second period's last. */
+   @Test
+   void reshapesPeriodDatesIntoTheRangeTheyCover() {
+      assertArrayEquals(new String[]{ "d2025-10-1", "d2025-11-10" },
+         CalendarDisplayService.reshapeForRangeToggle(
+            new String[]{ "d2025-10-1", "d2025-10-10", "d2025-11-1", "d2025-11-10" }, false));
+   }
+
+   @Test
+   void keepsTwoDatesAcrossTheRangeComparisonToggle() {
+      String[] two = { "d2025-10-1", "d2025-11-10" };
+
+      assertArrayEquals(two, CalendarDisplayService.reshapeForRangeToggle(two, false));
+      assertArrayEquals(two, CalendarDisplayService.reshapeForRangeToggle(two, true));
+   }
+
+   /** A lone range date cannot be split into two periods, which getConditionList would reject. */
+   @Test
+   void clearsALoneDateWhenTurningOnRangeComparison() {
+      assertEquals(0, CalendarDisplayService.reshapeForRangeToggle(
+         new String[]{ "d2025-10-1" }, true).length);
+   }
+
+   @Test
+   void reshapesNoDatesToNoDates() {
+      assertEquals(0, CalendarDisplayService.reshapeForRangeToggle(null, true).length);
+      assertEquals(0, CalendarDisplayService.reshapeForRangeToggle(new String[0], false).length);
+   }
+
+   /** checkDates returns an in-range entry unchanged, so any changed entry was outside. */
+   @Test
+   void refusesDatesTheCalendarWouldMoveIntoRange() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> CalendarDisplayService.validateInRange(
+            new String[]{ "d2025-11-1", "d2030-0-1" }, new String[]{ "d2025-11-1", "d2025-11-30" },
+            new String[]{ "2022-2-13", "2025-11-30" }, "Cal1"));
+
+      assertTrue(e.getMessage().contains("select 2030-01-01:"), e.getMessage());
+      assertFalse(e.getMessage().contains("2025-12-01"), e.getMessage());
+      assertTrue(e.getMessage().contains("2022-03-13 to 2025-12-30"), e.getMessage());
+   }
+
+   @Test
+   void describesDayAndMonthTokensAsIsoDates() {
+      assertEquals("2025-11-01", CalendarDisplayService.describeDate("d2025-10-1"));
+      assertEquals("2025-11", CalendarDisplayService.describeDate("m2025-10"));
+      assertEquals("y2025", CalendarDisplayService.describeDate("y2025"));
+      assertEquals("w2025-10-2", CalendarDisplayService.describeDate("w2025-10-2"));
+   }
+
+   @Test
+   void acceptsDatesInsideTheSelectableRange() {
+      String[] dates = { "d2025-11-1", "d2025-11-10" };
+
+      assertDoesNotThrow(() -> CalendarDisplayService.validateInRange(
+         dates, dates.clone(), new String[]{ "2022-2-13", "2025-11-30" }, "Cal1"));
+   }
+
+   // ── input value checks (Bug #77033) ───────────────────────────────────────
+
+   @Test
+   void refusesAnOutOfRangeSliderValueInsteadOfClamping() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> InputValueService.checkValue(slider(0, 100), "double", List.of(500), false,
+                                            "Slider1", "a slider"));
+
+      assertTrue(e.getMessage().contains("0 to 100"), e.getMessage());
+      assertTrue(e.getMessage().contains("500"), e.getMessage());
+   }
+
+   @Test
+   void refusesANonNumericSpinnerValueInsteadOfIgnoringIt() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> InputValueService.checkValue(slider(0, 100), "double", List.of("abc"), false,
+                                            "Spinner1", "a spinner"));
+
+      assertTrue(e.getMessage().contains("only holds numbers"), e.getMessage());
+   }
+
+   @Test
+   void refusesClearingASliderWhichAlwaysHoldsANumber() {
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> InputValueService.checkValue(slider(0, 100), "double", List.of(), false, "Slider1",
+                                            "a slider"));
+
+      assertTrue(e.getMessage().contains("cannot be cleared"), e.getMessage());
+   }
+
+   @Test
+   void acceptsANumericStringInsideASlidersRange() {
+      assertDoesNotThrow(() -> InputValueService.checkValue(
+         slider(0, 100), "double", List.of("40"), false, "Slider1", "a slider"));
+   }
+
+   /** setSelectedObject does not clamp to a dynamic max, so a value above it is not refused. */
+   @Test
+   void acceptsAValueAboveADynamicMax() {
+      assertDoesNotThrow(() -> InputValueService.checkValue(
+         slider(0, 100), "double", List.of(500), true, "Slider1", "a slider"));
+   }
+
+   @Test
+   void refusesACheckBoxValueNotInItsList() {
+      CheckBoxVSAssemblyInfo info = mock(CheckBoxVSAssemblyInfo.class);
+      when(info.getValues()).thenReturn(new Object[]{ 1, 2, 3, 4 });
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> InputValueService.checkValue(info, "integer", List.of("1", "99"), false, "Check1",
+                                            "a check box"));
+
+      assertTrue(e.getMessage().contains("\"99\" is not in its list"), e.getMessage());
+      assertTrue(e.getMessage().contains("dropped"), e.getMessage());
+      assertDoesNotThrow(() -> InputValueService.checkValue(info, "integer", List.of(), false,
+                                                            "Check1", "a check box"));
+   }
+
+   @Test
+   void refusesARadioButtonValueNotInItsListAndClearingIt() {
+      RadioButtonVSAssemblyInfo info = mock(RadioButtonVSAssemblyInfo.class);
+      when(info.getValues()).thenReturn(new Object[]{ "East", "West" });
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> InputValueService.checkValue(info, "string", List.of("North"), false, "Radio1",
+                                            "a radio button"));
+      assertTrue(e.getMessage().contains("replaced by one of its listed values"), e.getMessage());
+
+      e = assertThrows(IllegalArgumentException.class,
+         () -> InputValueService.checkValue(info, "string", List.of(), false, "Radio1",
+                                            "a radio button"));
+      assertTrue(e.getMessage().contains("cannot be left empty"), e.getMessage());
+
+      assertDoesNotThrow(() -> InputValueService.checkValue(info, "string", List.of("West"), false,
+                                                            "Radio1", "a radio button"));
+   }
+
+   /** An editable combo box takes values outside its list, so nothing is refused. */
+   @Test
+   void acceptsAnyValueOnAnEditableComboBox() {
+      ComboBoxVSAssemblyInfo info = mock(ComboBoxVSAssemblyInfo.class);
+      when(info.getValues()).thenReturn(new Object[]{ "East", "West" });
+      when(info.isTextEditable()).thenReturn(true);
+
+      assertDoesNotThrow(() -> InputValueService.checkValue(info, "string", List.of("North"), false,
+                                                            "Combo1", "a combo box"));
+   }
+
+   @Test
+   void refusesAValueNotInANonEditableComboBoxsList() {
+      ComboBoxVSAssemblyInfo info = mock(ComboBoxVSAssemblyInfo.class);
+      when(info.getValues()).thenReturn(new Object[]{ "East", "West" });
+
+      assertThrows(IllegalArgumentException.class,
+         () -> InputValueService.checkValue(info, "string", List.of("North"), false, "Combo1",
+                                            "a combo box"));
+   }
+
+   /** A list not computed yet gives nothing to check against, so the value passes through. */
+   @Test
+   void passesThroughWhenTheListHasNoValuesYet() {
+      RadioButtonVSAssemblyInfo info = mock(RadioButtonVSAssemblyInfo.class);
+      when(info.getValues()).thenReturn(new Object[0]);
+
+      assertDoesNotThrow(() -> InputValueService.checkValue(info, "string", List.of("North"), false,
+                                                            "Radio1", "a radio button"));
+   }
+
    // ── inputs ────────────────────────────────────────────────────────────────
 
    /** A check box's several values travel as an Object[] in the scalar parameter. */
@@ -409,6 +578,13 @@ class CalendarInputServiceTest {
       }
 
       return sessions;
+   }
+
+   private static SliderVSAssemblyInfo slider(double min, double max) {
+      SliderVSAssemblyInfo info = mock(SliderVSAssemblyInfo.class);
+      when(info.getMin()).thenReturn(min);
+      when(info.getMax()).thenReturn(max);
+      return info;
    }
 
    private static Principal principal() {

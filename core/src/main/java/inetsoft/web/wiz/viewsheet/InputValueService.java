@@ -19,6 +19,8 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.springframework.stereotype.Service;
 
@@ -49,6 +51,14 @@ import java.util.*;
  * {@code RadioButtonVSAssembly} and {@code TextInputVSAssembly} all implement
  * {@code writeStateContent} the same way the selection assemblies do, and it is called on the save
  * path — so an input's value becomes what every future viewer opens with.
+ *
+ * <p><b>The assemblies' own setters adjust a value they cannot hold, without saying so.</b> A slider
+ * or spinner ignores a non-number and clamps to its min/max
+ * ({@code NumericRangeVSAssemblyInfo.setSelectedObject}); a check box drops values not in its list,
+ * a radio button falls back to its first value and a non-editable combo box auto-selects its first
+ * entry ({@code validate()} on each). The Composer UI only offers values those setters accept, so
+ * this class refuses the rest up front ({@link #checkValue}) and reports back what was actually
+ * stored, in {@code values}.
  */
 @Service
 public class InputValueService {
@@ -90,6 +100,13 @@ public class InputValueService {
                values.size() + " were given. Only a check box accepts several.");
          }
 
+         VSAssemblyInfo info0 = assembly.getVSAssemblyInfo();
+         // setSelectedObject does not clamp to a dynamic max, so neither does the check
+         boolean dynamicMax = info0 instanceof NumericRangeVSAssemblyInfo range &&
+            VSUtil.isDynamicValue(range.getMaxValue());
+         checkValue(info0, assembly.getDataType(), values, dynamicMax, assemblyName,
+                    describe(assembly));
+
          result.put("assembly", assemblyName);
          result.put("type", describe(assembly));
          result.put("valueCount", values.size());
@@ -101,10 +118,127 @@ public class InputValueService {
             : (values.isEmpty() ? null : values.get(0));
 
          inputs.singleApplySelection(runtimeId, assemblyName, selected, user, dispatcher, linkUri);
+
+         // Read back what the assembly actually holds -- a slider can still snap to its increment.
+         VSAssembly applied = rvs.getViewsheet().getAssembly(assemblyName);
+
+         if(applied != null && applied.getVSAssemblyInfo() instanceof InputVSAssemblyInfo info) {
+            Object[] stored = info.getSelectedObjects();
+            result.put("values", stored == null ? List.of() :
+               Arrays.stream(stored).filter(Objects::nonNull).toList());
+         }
       });
 
       result.put("persistsOnSave", true);
       return result;
+   }
+
+   /**
+    * Refuses a value the assembly's own setter would silently ignore, clamp, drop or replace. Only
+    * checks what the assembly's info makes unambiguous: a list input whose list has not been
+    * computed yet (no values) is passed through, as is an editable or calendar combo box, which
+    * accept values outside their list.
+    */
+   static void checkValue(VSAssemblyInfo info, String dataType, List<Object> values,
+                          boolean dynamicMax, String assemblyName, String what)
+   {
+      if(info instanceof NumericRangeVSAssemblyInfo range) {
+         if(values.isEmpty()) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " + what + ", which always holds a number and cannot " +
+               "be cleared. Pass the value to set instead.");
+         }
+
+         Object value = values.get(0);
+         Object number = value == null ? null : Tool.getData(dataType, value);
+
+         if(!(number instanceof Number num)) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " + what + ", which only holds numbers — got " +
+               quote(value) + ".");
+         }
+
+         double min = range.getMin();
+         double max = range.getMax();
+
+         if(num.doubleValue() < min || !dynamicMax && num.doubleValue() > max) {
+            throw new IllegalArgumentException(
+               "'" + assemblyName + "' is " + what + " with a range of " + format(min) + " to " +
+               format(max) + ", and " + format(num.doubleValue()) + " is outside it. It would " +
+               "be clamped to the nearest end rather than stored as given.");
+         }
+
+         return;
+      }
+
+      if(!(info instanceof ListInputVSAssemblyInfo list)) {
+         return;
+      }
+
+      if(list instanceof ComboBoxVSAssemblyInfo combo &&
+         (combo.isTextEditable() || combo.isCalendar()))
+      {
+         return;
+      }
+
+      Object[] choices = list.getValues();
+
+      if(choices == null || choices.length == 0) {
+         return;
+      }
+
+      boolean checkBox = list instanceof CheckBoxVSAssemblyInfo;
+
+      if(values.isEmpty() && !checkBox) {
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is " + what + ", which cannot be left empty — clearing it " +
+            "would select one of its listed values instead. Pass the value to select.");
+      }
+
+      List<String> missing = new ArrayList<>();
+
+      for(Object value : values) {
+         Object converted = value == null ? null : Tool.getData(dataType, value);
+
+         if(Arrays.stream(choices).noneMatch(c -> sameValue(converted, c))) {
+            missing.add(quote(value));
+         }
+      }
+
+      if(!missing.isEmpty()) {
+         List<String> listed = new ArrayList<>();
+
+         for(int i = 0; i < choices.length && i < MAX_LISTED; i++) {
+            listed.add(quote(choices[i]));
+         }
+
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' is " + what + " and " + String.join(", ", missing) +
+            (missing.size() == 1 ? " is" : " are") + " not in its list, so " +
+            (checkBox ? (missing.size() == 1 ? "it" : "they") + " would be dropped"
+               : "it would be replaced by one of its listed values") +
+            ". Its values are: " + String.join(", ", listed) +
+            (choices.length > MAX_LISTED ? ", … (" + choices.length + " in all)" : "") + ".");
+      }
+   }
+
+   /** The same comparison {@code ListInputVSAssemblyInfo.isSelectedObjectEqual} makes. */
+   private static boolean sameValue(Object value, Object choice) {
+      if(Tool.equals(value, choice)) {
+         return true;
+      }
+
+      return value != null && choice != null &&
+         Tool.equals(Tool.toString(value), Tool.toString(choice));
+   }
+
+   private static String quote(Object value) {
+      return value instanceof String ? "\"" + value + "\"" : String.valueOf(value);
+   }
+
+   private static String format(double value) {
+      return value == Math.rint(value) && !Double.isInfinite(value)
+         ? String.valueOf((long) value) : String.valueOf(value);
    }
 
    private static InputVSAssembly requireInput(RuntimeViewsheet rvs, String assemblyName) {
@@ -143,9 +277,14 @@ public class InputValueService {
       else if(assembly instanceof SpinnerVSAssembly) {
          return "a spinner";
       }
+      else if(assembly instanceof SliderVSAssembly) {
+         return "a slider";
+      }
 
       return "a " + assembly.getClass().getSimpleName();
    }
+
+   private static final int MAX_LISTED = 20;
 
    private final ViewsheetSessionService sessions;
    private final VSInputService inputs;
