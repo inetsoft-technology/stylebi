@@ -122,7 +122,7 @@ public final class ChartAestheticMutator {
       VisualFrameModel carriedFrame = info.getFrame() != null
          ? info.getFrame() : frameOf(model, name, perMeasureFrameChannels);
       info.setFullName(field.column());
-      info.setDataInfo(FieldRefFactory.toChartRef(field, rvs, source, refModelService));
+      info.setDataInfo(FieldRefFactory.toChartRef(field, model, rvs, source, refModelService));
       info.setFrame(carriedFrame);
       assign(model, name, info);
    }

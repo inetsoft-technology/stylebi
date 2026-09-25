@@ -405,6 +405,10 @@ public class VSCrosstabBindingFactory
     * tracked ref type whenever the wrapped ref isn't a plain column ref (including
     * when it is {@code null}), so it -- not the wrapped ref's type -- is what must be
     * checked first.
+    *
+    * <p>Bug #76949: that check only fires for a caller that stamped {@code refType}. A
+    * null wrapped ref with an unstamped one falls through it, so this never throws --
+    * see the fallback below.
     */
    private String getDefaultFormula(VSAggregateRef aggr) {
       // aggr's own ref type: authoritative only for deciding whether this is an
@@ -431,10 +435,19 @@ public class VSCrosstabBindingFactory
          return SummaryAttr.NONE_FORMULA;
       }
 
-      DataRef ref = Objects.requireNonNull(aggr.getDataRef(), () ->
-         "Cannot determine a default aggregate formula for '" + aggr.getName() +
-         "': it has no underlying column ref and its ref type " + aggrRefType +
-         " is not an aggregate calc field or expression");
+      DataRef ref = aggr.getDataRef();
+
+      // Bug #76949: a client that builds an aggregate from scratch -- as the wiz binding agent
+      // does -- can leave both the wrapped ref null and refType unstamped, which lands here.
+      // There is then no column metadata to base a formula on, so fall back to "None" rather
+      // than throwing: it is a valid, renderable formula on this shelf, and an unchecked throw
+      // out of a binding write surfaces to the caller as an opaque 500 with the shelf left
+      // unchanged. The agent path stamps refType itself now (see
+      // FieldRefFactory#applyAggregateDefaults), so in practice a plain measure still gets its
+      // Sum/Count default there; this exists so no future client can resurrect the 500.
+      if(ref == null) {
+         return SummaryAttr.NONE_FORMULA;
+      }
 
       // The wrapped ref exists past this point, so the branches below read its own
       // type -- as they did before bug #76650's fix -- rather than aggrRefType.

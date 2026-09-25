@@ -33,11 +33,15 @@ import inetsoft.uql.asset.AbstractTableAssembly;
 import inetsoft.uql.asset.Worksheet;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.util.XNamedGroupInfo;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.model.BAggregateRefModel;
 import inetsoft.web.binding.model.BDimensionRefModel;
+import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 import inetsoft.web.binding.model.graph.ChartAggregateRefModel;
 import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
@@ -48,6 +52,8 @@ import inetsoft.web.wiz.binding.model.FieldRef;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -570,7 +576,7 @@ class FieldRefFactoryTest {
 
       FieldRef field = new FieldRef("REGION", "dimension", null, null, "Coastal");
       ChartRefModel ref = FieldRefFactory.toChartRef(
-         field, rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
+         field, null, rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService());
 
       assertInstanceOf(ChartDimensionRefModel.class, ref);
       assertEquals(XConstants.SORT_SPECIFIC, ((ChartDimensionRefModel) ref).getOrder());
@@ -588,7 +594,7 @@ class FieldRefFactoryTest {
 
          Exception thrown = assertThrows(IllegalArgumentException.class,
             () -> FieldRefFactory.toChartRef(
-               field, rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService()));
+               field, null, rvsWithWorksheet(ws), QUERY1_SOURCE, refModelService()));
 
          assertTrue(thrown.getMessage().contains("NoSuchGroup"));
       }
@@ -629,5 +635,66 @@ class FieldRefFactoryTest {
    @Test
    void stillAcceptsARefThatCarriesNoChartType() {
       FieldRefFactory.requireType(new FieldRef("PAID", "measure", "Sum", null, null));
+   }
+
+   // ── default aggregate when 'aggregate' is omitted (bug #76949) ─────────────
+
+   /**
+    * Bug #76949: the chart shelf had the byte-for-byte identical gap the crosstab shelf did --
+    * {@code toChartRef} set neither a formula nor a refType for a measure that arrived with no
+    * {@code aggregate}, leaving a {@code VSAggregateRef} whose formula value is null for the
+    * render path to trip over.
+    */
+   @Test
+   void toChartRefDefaultsANumericMeasureWithNoAggregateToSum() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Total", "double")));
+      FieldRef field = new FieldRef("Total", "measure", null, null, null);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field, model, null, null, null);
+
+      assertEquals("Sum", ((ChartAggregateRefModel) ref).getFormula());
+   }
+
+   @Test
+   void toChartRefDefaultsAnAggregateCalcFieldWithNoAggregateToNoneAndStampsAggCalc()
+      throws Exception
+   {
+      ChartBindingModel model = new ChartBindingModel();
+      CalculateRef calc = new CalculateRef(false);
+      calc.setDataRef(new AttributeRef("Discount Share"));
+      Viewsheet vs = mock(Viewsheet.class);
+      when(vs.getCalcField("Orders", "Discount Share")).thenReturn(calc);
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      FieldRef field = new FieldRef("Discount Share", "measure", null, null, null);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(
+         field, model, rvs, new SourceInfo(SourceInfo.ASSET, null, "Orders"), null);
+
+      ChartAggregateRefModel aggregate = (ChartAggregateRefModel) ref;
+      assertEquals("None", aggregate.getFormula());
+      assertEquals(DataRef.AGG_CALC, aggregate.getRefType() & DataRef.AGG_CALC);
+   }
+
+   /** An explicit aggregate is never overwritten by the default. */
+   @Test
+   void toChartRefLeavesAnExplicitAggregateAlone() throws Exception {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setTables(List.of(sourceTable("Orders", "Total", "double")));
+      FieldRef field = new FieldRef("Total", "measure", "Max", null, null);
+
+      ChartRefModel ref = FieldRefFactory.toChartRef(field, model, null, null, null);
+
+      assertEquals("Max", ((ChartAggregateRefModel) ref).getFormula());
+   }
+
+   private static BindingModel.SourceTable sourceTable(String name, String column,
+                                                       String dataType)
+   {
+      BindingModel.SourceTable table = new BindingModel.SourceTable();
+      table.setName(name);
+      table.setColumns(List.of(new BindingModel.SourceTableColumn(column, dataType)));
+      return table;
    }
 }
