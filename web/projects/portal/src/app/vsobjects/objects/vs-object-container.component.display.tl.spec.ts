@@ -678,9 +678,9 @@ describe("Group 12 — anchored toolbar geometry: chart and table anchored in ma
       expect(comp.getAnchoredToolbarWidth(obj)).toBe(600);
    });
 
-   // Selection carries no paddingTop/Left/Right either (those fields are on vs-chart-model only), so
-   // the same || 0 fallbacks that give a table a flush-left, full-width lane give a selection list
-   // one too: flush left, full width, right edge landing exactly on the assembly's own right edge.
+   // Selection carries neither a padding object (tables) nor paddingTop/Left/Right (charts), so the
+   // || 0 fallbacks give it the lane an unmarked table gets: flush left, full width, right edge
+   // landing exactly on the assembly's own right edge.
    // Top is centred in the lane like every other anchored type, not flush against it.
    it("anchors a non-max-mode selection list", () => {
       const { comp } = makeComponent({

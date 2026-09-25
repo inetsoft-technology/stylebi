@@ -256,6 +256,8 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
    protected initialCellDim: number = -1;
    protected resizeCol: number = -1;
    protected resizeRow: number = -1;
+   // the pixel updateDisplayColumnWidth took off the last column, kept out of a dragged width
+   private lastColBorderAllowance: number = 0;
    protected resizeListener: () => void;
    protected resizeEndListener: () => void;
    protected scale: number;
@@ -727,11 +729,15 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       }
 
       const border = this.model.objectFormat.border.left;
+      const lastCol = this.displayColWidths.length - 1;
 
       // the grid renders one border wider than its columns; a right inset leaves no card border
-      // over the clip edge to hide the last column's right border
-      if((border && border.includes("none")) || this.getPadding().right > 0) {
-         this.displayColWidths[this.displayColWidths.length - 1] -= 1;
+      // over the clip edge to hide the last column's right border. A hidden column stays at 0
+      this.lastColBorderAllowance = this.displayColWidths[lastCol] > 0 &&
+         ((border && border.includes("none")) || this.getPadding().right > 0) ? 1 : 0;
+
+      if(this.lastColBorderAllowance > 0) {
+         this.displayColWidths[lastCol] -= this.lastColBorderAllowance;
       }
 
       this.sumColWidths();
@@ -1290,7 +1296,9 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       }
 
       this.initialMousePos = xPos;
-      this.initialCellDim = this.getSpanWidth(this.displayColWidths, cell);
+      // the stored width: the displayed last column is short by its border allowance
+      this.initialCellDim = this.getSpanWidth(this.displayColWidths, cell) +
+         this.getBorderAllowance(cell);
       this.resizeRow = cell.row;
       this.resizeCol = cell.col;
       this.scaleContainer = GuiTool.closest(this.tableContainer.nativeElement, ".scale-container");
@@ -1421,7 +1429,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       if(colSpan > 1) {
          const currentColWidth = this.initialCellDim;
          const newColWidth = Math.max(currentColWidth + delta, BaseTable.MIN_COL_WIDTH * colSpan);
-         this.displayColWidths[this.resizeCol] = newColWidth;
+         this.displayColWidths[this.resizeCol] = newColWidth - this.getBorderAllowance(cell);
 
          for(let i = col; i < col + colSpan; i++) {
             this.model.colWidths[i] = newColWidth / colSpan;
@@ -1429,9 +1437,20 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       }
       else {
          const width = Math.max(this.initialCellDim + delta, BaseTable.MIN_COL_WIDTH);
-         this.model.colWidths[this.resizeCol] = this.displayColWidths[this.resizeCol] = width;
-         this.resizeHeaderCellWidth(width);
+         const displayWidth = width - this.getBorderAllowance(cell);
+         this.model.colWidths[this.resizeCol] = width;
+         this.displayColWidths[this.resizeCol] = displayWidth;
+         this.resizeHeaderCellWidth(displayWidth);
       }
+   }
+
+   /**
+    * The border allowance a drag of this cell carries: the last column's, when its span ends
+    * there, and none otherwise.
+    */
+   private getBorderAllowance(cell: BaseTableCellModel): number {
+      return cell.col + cell.colSpan >= this.displayColWidths.length ?
+         this.lastColBorderAllowance : 0;
    }
 
    protected resizeHeaderCellWidth(width: number) {
