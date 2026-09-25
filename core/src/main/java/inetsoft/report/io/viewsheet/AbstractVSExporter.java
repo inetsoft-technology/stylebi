@@ -1924,6 +1924,20 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Whether this format insets a table's grid from its card edge. A spreadsheet's fixed row
+    * grid cannot represent an 8-16px inset, and CSV has no geometry.
+    */
+   protected boolean insetsTableCard() {
+      return true;
+   }
+
+   @Override
+   public Insets getTableCardInset(TableDataVSAssemblyInfo info) {
+      Insets padding = info == null || !insetsTableCard() ? null : info.getPadding();
+      return padding == null ? new Insets(0, 0, 0, 0) : (Insets) padding.clone();
+   }
+
+   /**
     * Put the legacy near-black back on a dark-marked format's DEFAULT tier, in place. The export
     * copy is cloned upstream, so this mutates nothing persisted. A USER or CSS colour outranks the
     * DEFAULT tier and is therefore untouched by construction.

@@ -48,5 +48,13 @@ public abstract class ExcelVSExporter extends AbstractVSExporter {
       return false;
    }
 
+   /**
+    * A spreadsheet's rows are a fixed grid, so both Excel exporters keep the grid at the card.
+    */
+   @Override
+   protected boolean insetsTableCard() {
+      return false;
+   }
+
    private boolean exportAllTabbedTables;
 }
