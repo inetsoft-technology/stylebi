@@ -20,13 +20,22 @@ package inetsoft.web.admin.query;
 import java.io.Serializable;
 
 public class DestroyQueriesMessage implements Serializable {
-   public DestroyQueriesMessage(String[] ids) {
+   public DestroyQueriesMessage(String[] ids, String orgID) {
       this.ids = ids;
+      this.orgID = orgID;
    }
 
    public String[] getIds() {
       return ids;
    }
 
+   /**
+    * Gets the organization that the queries must belong to in order to be destroyed.
+    */
+   public String getOrgID() {
+      return orgID;
+   }
+
    private final String[] ids;
+   private final String orgID;
 }

@@ -24,8 +24,9 @@ public class DestroyViewsheetMessage implements Serializable {
    public DestroyViewsheetMessage() {
    }
 
-   public DestroyViewsheetMessage(String[] ids) {
+   public DestroyViewsheetMessage(String[] ids, String orgID) {
       this.ids = ids;
+      this.orgID = orgID;
    }
 
    public String[] getIds() {
@@ -36,5 +37,17 @@ public class DestroyViewsheetMessage implements Serializable {
       this.ids = ids;
    }
 
+   /**
+    * Gets the organization that the viewsheets must belong to in order to be destroyed.
+    */
+   public String getOrgID() {
+      return orgID;
+   }
+
+   public void setOrgID(String orgID) {
+      this.orgID = orgID;
+   }
+
    private String[] ids;
+   private String orgID;
 }
