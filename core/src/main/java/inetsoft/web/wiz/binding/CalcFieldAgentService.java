@@ -169,7 +169,8 @@ public class CalcFieldAgentService {
          // For a name not on this table, ModifyCalculateFieldService's edit/remove path just
          // returns without changing anything or signaling failure -- refuse here instead, so a
          // typo'd name is never reported as a successful removal/edit while the intended field
-         // stays in place.
+         // stays in place. remove() is OR'd in so a request that also sets create:true is still
+         // checked -- the native remove branch ignores create and would no-op just the same.
          if((editing || req.remove()) && existing == null) {
             throw new IllegalArgumentException(
                "No calc field named '" + req.name() + "' exists on '" + tableName +
