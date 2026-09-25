@@ -156,8 +156,13 @@ public class LookAndFeelService {
       int repoTree = model.repositoryTree() ? 0 : 1;
 
       SreeEnv.setProperty("repository.tree.sort", sort, !globalSettings);
-      manager.setReportListType(repoTree);
-      manager.setAutoExpand(model.expand());
+
+      // the report list type, auto expand, user format file and user fonts are global, so
+      // they may only be changed by a global save
+      if(globalSettings) {
+         manager.setReportListType(repoTree);
+         manager.setAutoExpand(model.expand());
+      }
 
       String dir = "portal";
 
@@ -171,7 +176,9 @@ public class LookAndFeelService {
          manager.setFaviconStyle(!defaultFavicon);
       }
 
-      if(model.userformatFile() != null && model.userformatFile().content() != null) {
+      if(globalSettings && model.userformatFile() != null &&
+         model.userformatFile().content() != null)
+      {
          InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(model.userformatFile().content()));
          ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
                                                            "userformat.xml", ActionRecord.OBJECT_TYPE_FILE);
@@ -219,9 +226,11 @@ public class LookAndFeelService {
       // e.g. user scope file removed, global scope file already exists
       CSSDictionary.resetDictionaryCache();
 
-      updateFonts(
-         model.userFonts(), model.fontFaces(), model.deleteFontFaces(), model.newFontFaces(),
-         model.defaultFont(), dataSpace, principal);
+      if(globalSettings) {
+         updateFonts(
+            model.userFonts(), model.fontFaces(), model.deleteFontFaces(), model.newFontFaces(),
+            model.defaultFont(), dataSpace, principal);
+      }
 
       manager.save();
       SreeEnv.save();
