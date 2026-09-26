@@ -917,7 +917,9 @@ public abstract class VSTableDataHelper extends ExporterHelper {
     * Shift a shrunk table so its rendered bottom stays flush with the
     * bottom-tabs tab bar. Mirrors viewer {@code BaseTable.getObjectTop()}.
     * Computes rendered height from padded row heights (PDF/PNG/HTML/Excel);
-    * print layout renders unpadded and must use the three-arg overload.
+    * print layout renders unpadded and uses the
+    * {@code (TableDataVSAssembly, int, int)} overload instead.
+    * @param inset the table card's inset, as the exporter resolves it; never null.
     */
    public static void applyShrunkBottomTabsShift(TableDataVSAssembly assembly,
                                                  VSTableLens lens, Insets inset)

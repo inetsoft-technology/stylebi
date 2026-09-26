@@ -4,7 +4,6 @@ import inetsoft.report.io.viewsheet.excel.ExcelContext;
 import inetsoft.report.io.viewsheet.excel.ExcelCrosstabHelper;
 import inetsoft.report.io.viewsheet.excel.ExcelTableHelper;
 import inetsoft.report.io.viewsheet.excel.PoiExcelVSExporter;
-import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;

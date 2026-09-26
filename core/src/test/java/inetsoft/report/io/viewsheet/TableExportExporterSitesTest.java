@@ -82,6 +82,16 @@ class TableExportExporterSitesTest {
       assertEquals(shift(NONE) - 32, shift(COMFORTABLE));
    }
 
+   // a 10px card cannot hold its 32px inset, 20px title and header: no rows, and no throw
+   @Test
+   void aCardShorterThanItsInsetFitsNoRows() {
+      TableVSAssembly table = table(COMFORTABLE, new Dimension(400, 10), 100, 100, 100);
+      HTMLVSExporter exporter = exporter();
+      exporter.setMatchLayout(true);
+
+      assertEquals(0, exporter.getRegionRowCount(table, lens(table, 30)));
+   }
+
    private static HTMLVSExporter exporter() {
       return new HTMLVSExporter(new ByteArrayOutputStream());
    }

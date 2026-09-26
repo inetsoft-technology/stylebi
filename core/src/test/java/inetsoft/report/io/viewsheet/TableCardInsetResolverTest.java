@@ -2,6 +2,7 @@ package inetsoft.report.io.viewsheet;
 
 import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.report.io.viewsheet.html.HTMLVSExporter;
+import inetsoft.report.io.viewsheet.pdf.PDFVSExporter;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
 import inetsoft.test.SreeHome;
@@ -33,6 +34,13 @@ class TableCardInsetResolverTest {
    void cardFormatsResolveTheTablePadding() {
       assertEquals(new Insets(16, 12, 8, 4),
                    new HTMLVSExporter(new ByteArrayOutputStream())
+                      .getTableCardInset(padded(new Insets(16, 12, 8, 4))));
+   }
+
+   @Test
+   void pdfResolvesTheTablePadding() {
+      assertEquals(new Insets(16, 12, 8, 4),
+                   new PDFVSExporter(null, null, null, null, new ByteArrayOutputStream())
                       .getTableCardInset(padded(new Insets(16, 12, 8, 4))));
    }
 

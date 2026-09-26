@@ -1101,8 +1101,9 @@ public abstract class AbstractVSExporter implements VSExporter {
          // @by klause:
          // if the first detail row height is 0, the other detail row height
          // is alse 0, so the region row number is header line count row number.
+         // a card shorter than its inset, title and header fits no rows
          return displayRowHeight == 0 ? hLineCount :
-            (int) Math.round((double) h / displayRowHeight) + hLineCount + displayRowCount;
+            Math.max(0, (int) Math.round((double) h / displayRowHeight) + hLineCount + displayRowCount);
       }
       else {
          data.moreRows(Integer.MAX_VALUE);
