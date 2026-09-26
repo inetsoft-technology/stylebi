@@ -17,6 +17,8 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.web.composer.model.vs.DynamicValueModel;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -328,18 +330,20 @@ public final class PropertyPath {
       }
 
       // Two bean-building cases for a target coerce() cannot otherwise reach: a plain
-      // multi-field model with a String-driven constructor (e.g. DynamicValueModel's
+      // multi-field model with a String-driven constructor (DynamicValueModel's
       // value/type/dataType, auto-detected from one string), and a JSON object supplying the
-      // model's fields directly. Both are gated on target actually declaring a public
-      // one-argument String constructor -- deliberately, not just as an optimization: that
-      // constructor is the signal that target belongs to the DynamicValueModel family (also
-      // DatePeriodModel/IntervalPaneModel/StandardPeriodPaneModel's own DynamicValueModel-typed
-      // fields, the same leaf type), not a hook for arbitrary JSON-object beans. Without this
-      // gate, a Map value for a bean-array element like VSDimensionModel (no such constructor)
-      // would start building successfully here -- reopening the gap bug #76771/VCG-008
+      // model's fields directly. Both are gated on target being in STRING_BUILDABLE, an
+      // explicit allow-list -- not on target merely declaring a public one-argument String
+      // constructor. That shape is also how JDK value types look (java.util.Date is reachable as
+      // AssetEntry.createdDate, and Date(String)/setTime would happily take "Jan 2 2024" or
+      // {"time":0}; Short, BigDecimal, URL and File would too), and PropertyPath resolves each
+      // leaf's type from the owner's runtime class, so no enumeration can prove the rest safe
+      // (bug #76997). Anything not allow-listed falls through to the throw below, as does a Map
+      // for a bean-array element like VSDimensionModel -- the gap bug #76771/VCG-008
       // deliberately leaves refused, whose fix lives in HierarchyDimensionService instead (see
       // PropertyPathTest.aBeanArrayElementFromAJsonObjectIsRefusedNamingTheBeanTypeAndIndex).
-      Constructor<?> stringCtor = stringConstructor(target);
+      Constructor<?> stringCtor =
+         STRING_BUILDABLE.contains(target) ? stringConstructor(target) : null;
 
       if(stringCtor != null) {
          if(value instanceof String) {
@@ -354,6 +358,13 @@ public final class PropertyPath {
       throw new IllegalArgumentException(
          "'" + path + "' expects " + simpleName(target) + ", which '" + value + "' is not.");
    }
+
+   /**
+    * The only types {@link #coerce} builds from a String or a JSON object (through their
+    * one-argument String constructor, or their no-arg constructor plus setters). An explicit
+    * list rather than a shape test -- see the gate's own comment in {@link #coerce}.
+    */
+   private static final Set<Class<?>> STRING_BUILDABLE = Set.of(DynamicValueModel.class);
 
    private static Constructor<?> stringConstructor(Class<?> target) {
       try {
@@ -379,9 +390,9 @@ public final class PropertyPath {
 
    /**
     * Builds a plain bean from a JSON object -- the counterpart to the array branch above, for a
-    * target {@code coerce} cannot otherwise construct. Only called once the caller has already
-    * confirmed {@code target} has a public one-argument {@code String} constructor
-    * ({@code stringCtor}) -- see the gate's own comment in {@link #coerce} for why that matters.
+    * target {@code coerce} cannot otherwise construct. Only called for a {@code target} in
+    * {@link #STRING_BUILDABLE}, whose public one-argument {@code String} constructor is
+    * {@code stringCtor} -- see the gate's own comment in {@link #coerce} for why that matters.
     *
     * <p>When the map holds exactly one entry, {@code value}, and it is a String, that entry is
     * routed through {@code stringCtor} (via {@link #buildFromString}) instead of the

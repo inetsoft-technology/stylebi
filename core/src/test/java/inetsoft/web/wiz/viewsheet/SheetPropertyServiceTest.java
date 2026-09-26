@@ -176,6 +176,37 @@ class SheetPropertyServiceTest {
       assertThrows(Exception.class, () -> service.set("tok", principal(), Map.of(), ""));
    }
 
+   /** Redmine #76997: the base entry's createdDate is a java.util.Date, which has a public
+    *  (String) constructor, but is not a type PropertyPath builds from a string. The write was
+    *  accepted and mutated the live base entry in place. */
+   @Test
+   void refusesARawDateWriteOnTheBaseEntryRatherThanParsingIt() throws Exception {
+      AssetEntry base = new AssetEntry();
+      SelectDataSourceDialogModel dataSource = new SelectDataSourceDialogModel();
+      dataSource.setDataSource(base);
+      VSOptionsPaneModel options = new VSOptionsPaneModel();
+      options.setSelectDataSourceDialogModel(dataSource);
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class)))
+         .thenReturn(ViewsheetPropertyDialogModel.builder().vsOptionsPane(options).build());
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+      String key = "vsOptionsPane.selectDataSourceDialogModel.dataSource.createdDate";
+
+      for(Object value : List.of("Jan 2 2024", Map.of("time", 0),
+                                 Map.of("value", "Jan 2 2024")))
+      {
+         Exception thrown = assertThrows(Exception.class,
+            () -> service.set("tok", principal(), Map.of(key, value), ""), "refuse " + value);
+
+         assertTrue(thrown.getMessage().contains("'" + key + "' expects Date"),
+                    thrown.getMessage());
+      }
+
+      assertNull(base.getCreatedDate());
+      verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(), any(), anyString(),
+                                               any());
+   }
+
    /** Redmine #76739: the "Customize" parameter list is a plain String[] pair -- proves the
     *  JSON-array-to-String[] coercion PropertyPath already does for other array-typed leaves
     *  also works through this alias, once every named parameter is one the viewsheet's query
