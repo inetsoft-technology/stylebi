@@ -177,6 +177,25 @@ class DataCycleManagerUpdateCycleInfoNotifyTest {
       verify(spy, never()).save();
    }
 
+   @Test
+   void changedCycles_regenerateTasksOnce() throws Exception {
+      String orgId = "notify_save_org";
+      builder = SecurityTestDataBuilder.create().addOrg("NotifySaveOrg", orgId).setup();
+      seed(orgId, endNotify(info("First", orgId), "sales(Group)"));
+      seed(orgId, endNotify(info("Second", orgId), "sales(Group)"));
+      DataCycleManager spy = spy(dataCycleManager);
+
+      OrganizationManager.runInOrgScope(orgId, () -> {
+         spy.updateCycleInfoNotify("sales", "sales2", false);
+         return null;
+      });
+
+      // the pregenerated cycle tasks hold a copy of the CycleInfo, so they must be regenerated
+      verify(spy).setCycleInfo(eq("First"), eq(orgId), any());
+      verify(spy).setCycleInfo(eq("Second"), eq(orgId), any());
+      verify(spy, times(1)).save();
+   }
+
    private void seed(String orgId, DataCycleManager.CycleInfo info) {
       dataCycleManager.addCondition(info.getName(), orgId, TimeCondition.at(1, 0, 0));
       dataCycleManager.setCycleInfo(info.getName(), orgId, info);
