@@ -1002,6 +1002,69 @@ class DefaultCheckPermissionStrategyTest {
          "a direct grant on a global role must still apply"));
    }
 
+   // An org administrator (org admin role, no delegated grant) of TEST_ORG manages identities
+   // of TEST_ORG only; checkOrgAdminPermission() used to resolve a bare org key to the
+   // current org, so "otherOrg" passed (Bug #77061).
+   @ParameterizedTest(name = "org admin {0} {1} -> {2}")
+   @MethodSource("orgAdminCrossOrgCases")
+   void orgAdminRoleIsScopedToCurrentOrg(ResourceType type, String resource, boolean expected) {
+      when(mockProvider.isOrgAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG))))
+         .thenReturn(true);
+
+      assertEquals(expected, checkDelegated(null, type, resource, false),
+                   "org admin of " + TEST_ORG + " checking " + type + " " + resource);
+   }
+
+   static Stream<Arguments> orgAdminCrossOrgCases() {
+      return Stream.of(
+         Arguments.of(ResourceType.SECURITY_USER, OTHER_USER, false),
+         Arguments.of(ResourceType.SECURITY_GROUP, OTHER_GROUP, false),
+         Arguments.of(ResourceType.SECURITY_ROLE, OTHER_ROLE, false),
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION, OTHER_ORG, false),
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION,
+                      new IdentityID(OTHER_ORG, OTHER_ORG).convertToKey(), false),
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION, "*", false),
+         Arguments.of(ResourceType.SECURITY_USER, OWN_USER, true),
+         Arguments.of(ResourceType.SECURITY_GROUP, OWN_GROUP, true),
+         Arguments.of(ResourceType.SECURITY_ROLE, OWN_ROLE, true),
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION, TEST_ORG, true)
+      );
+   }
+
+   // A system administrator role (not a site admin) keeps ADMIN over every org's identities.
+   @ParameterizedTest(name = "sysadmin role {0} {1}")
+   @MethodSource("siteAdminCrossOrgCases")
+   void sysAdminRoleStillManagesOtherOrgs(ResourceType type, String resource) {
+      when(mockProvider.isSystemAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG))))
+         .thenReturn(true);
+
+      assertTrue(checkDelegated(null, type, resource, false),
+                 "sysadmin role checking " + type + " " + resource);
+   }
+
+   // Non-multi-tenant: every identity is in the one org, delegated root grants work as before.
+   @ParameterizedTest(name = "non multi-tenant {0} {1} {2}")
+   @MethodSource("nonMultiTenantCases")
+   void delegatedGrantUnchangedWhenNotMultiTenant(DelegatedGrant grant, ResourceType type,
+                                                  String resource)
+   {
+      stubIdentities();
+      stubGrant(grant);
+      boolean[] result = new boolean[1];
+      runInTestOrg(false, false, () -> result[0] =
+         mockStrategy.checkPermission(mockUser, type, resource, ResourceAction.ADMIN));
+      assertTrue(result[0], grant + " grant checking " + type + " " + resource);
+   }
+
+   static Stream<Arguments> nonMultiTenantCases() {
+      return Stream.of(
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_USER, OWN_USER),
+         Arguments.of(DelegatedGrant.USERS_ROOT, ResourceType.SECURITY_USER, OWN_USER),
+         Arguments.of(DelegatedGrant.GROUPS_ROOT, ResourceType.SECURITY_GROUP, OWN_GROUP),
+         Arguments.of(DelegatedGrant.ORG_SELF_GRANT, ResourceType.SECURITY_USER, OWN_USER)
+      );
+   }
+
    private boolean checkDelegated(DelegatedGrant grant, ResourceType type, String resource,
                                   boolean siteAdmin)
    {
@@ -1018,11 +1081,15 @@ class DefaultCheckPermissionStrategyTest {
    }
 
    private void runInTestOrg(boolean siteAdmin, Runnable check) {
+      runInTestOrg(siteAdmin, true, check);
+   }
+
+   private void runInTestOrg(boolean siteAdmin, boolean multiTenant, Runnable check) {
       try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
           MockedStatic<OrganizationManager> omMock =
              Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
       {
-         sutilMock.when(SUtil::isMultiTenant).thenReturn(true);
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(multiTenant);
          sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
 
          OrganizationManager mockOM = mock(OrganizationManager.class);
