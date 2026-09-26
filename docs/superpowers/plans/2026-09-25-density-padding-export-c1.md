@@ -1298,8 +1298,9 @@ import static inetsoft.report.io.viewsheet.TableExportFixtures.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * A card with a thin border and an inset keeps that border at the card edge; the outer cells no
- * longer copy it, or a second frame would appear at the grid edge.
+ * A card with a medium border and an inset keeps that border at the card edge; the outer cells no
+ * longer copy it, or a second frame would appear at the grid edge. The plain lens rules every
+ * cell edge thin, so a cell that does not copy the card border keeps THIN_LINE.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -1312,31 +1313,31 @@ class TableExportBorderCopyTest {
    void anInsetEdgeKeepsTheBorderOffTheOuterCells() {
       RecordingTableHelper helper = write(COMFORTABLE);
 
-      assertEquals(0, left(helper, 0, 0));
-      assertEquals(0, right(helper, 0, 2));
+      assertEquals(StyleConstants.THIN_LINE, left(helper, 0, 0));
+      assertEquals(StyleConstants.THIN_LINE, right(helper, 0, 2));
    }
 
    @Test
    void withoutAnInsetTheOuterCellsCopyTheBorder() {
       RecordingTableHelper helper = write(NONE);
 
-      assertEquals(StyleConstants.THIN_LINE, left(helper, 0, 0));
-      assertEquals(StyleConstants.THIN_LINE, right(helper, 0, 2));
+      assertEquals(StyleConstants.MEDIUM_LINE, left(helper, 0, 0));
+      assertEquals(StyleConstants.MEDIUM_LINE, right(helper, 0, 2));
    }
 
    @Test
    void anEdgeWithoutAnInsetStillCopiesTheBorder() {
       RecordingTableHelper helper = write(new Insets(0, 24, 0, 0));
 
-      assertEquals(0, left(helper, 0, 0), "the left edge has an inset");
-      assertEquals(StyleConstants.THIN_LINE, right(helper, 0, 2), "the right edge has none");
+      assertEquals(StyleConstants.THIN_LINE, left(helper, 0, 0), "the left edge has an inset");
+      assertEquals(StyleConstants.MEDIUM_LINE, right(helper, 0, 2), "the right edge has none");
    }
 
    private static RecordingTableHelper write(Insets inset) {
       TableVSAssembly table = table(inset, new Dimension(400, 250), 100, 100, 100);
-      int thin = StyleConstants.THIN_LINE;
+      int medium = StyleConstants.MEDIUM_LINE;
       table.getTableDataVSAssemblyInfo().getFormat().getUserDefinedFormat()
-         .setBorders(new Insets(thin, thin, thin, thin));
+         .setBorders(new Insets(medium, medium, medium, medium));
       RecordingTableHelper helper = new RecordingTableHelper(table, exporter(inset, false));
       helper.write(table, lens(table, 3));
       return helper;
@@ -1355,7 +1356,7 @@ class TableExportBorderCopyTest {
 - [ ] **Step 2: Run it and watch it fail**
 
 Run: `./mvnw -q test -pl core -Dtest=TableExportBorderCopyTest -Dsurefire.failIfNoSpecifiedTests=false`
-Expected: `withoutAnInset…` passes; the other two fail with "expected 0 but was 4097", or whatever `THIN_LINE`'s value is.
+Expected: `withoutAnInset…` passes; the other two fail because the outer cells copied the card's `MEDIUM_LINE` where `THIN_LINE` (the lens's own ruling) was expected.
 
 - [ ] **Step 3: Drop the inset edges**
 
