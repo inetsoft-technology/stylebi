@@ -638,9 +638,18 @@ public class UserTreeService {
    void editGroup(String providerName, IdentityID group, EditGroupPaneModel model, Principal principal)
       throws Exception
    {
-      IdentityID oldID = new IdentityID(model.oldName(), model.organization());
-      IdentityID newID = new IdentityID(model.name(), model.organization());
-      IdentityID root = new IdentityID("Groups", model.organization());
+      // the permission check is on the group in the path, so the body must identify the same
+      // group, otherwise the edit would be applied to a group (and org) that was never checked
+      if(!Tool.equals(model.oldName(), group.name) ||
+         !Tool.equals(model.organization(), group.orgID))
+      {
+         throw new java.lang.SecurityException(
+            "The edited group does not match the requested group: " + group.convertToKey());
+      }
+
+      IdentityID oldID = group;
+      IdentityID newID = new IdentityID(model.name(), group.orgID);
+      IdentityID root = new IdentityID("Groups", group.orgID);
 
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -650,10 +659,10 @@ public class UserTreeService {
 
       if(isGroupRoot(new IdentityID(model.name(), group.orgID), principal)) {
          if(getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, root.convertToKey(), ResourceAction.ADMIN) ||
-            getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, new IdentityID(model.name(), model.organization()).convertToKey(), ResourceAction.ADMIN))
+            getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, newID.convertToKey(), ResourceAction.ADMIN))
          {
             identityService.setIdentityPermissions(
-               root, root, ResourceType.SECURITY_GROUP, principal, model.permittedIdentities(), model.organization());
+               root, root, ResourceType.SECURITY_GROUP, principal, model.permittedIdentities(), group.orgID);
          }
 
          return;

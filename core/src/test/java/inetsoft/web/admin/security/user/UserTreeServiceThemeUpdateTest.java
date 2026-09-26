@@ -181,9 +181,11 @@ class UserTreeServiceThemeUpdateTest {
    }
 
    // review finding IMPORTANT-1: the permission check is on the group in the path, so the theme
-   // rename must be scoped by that group's organization, not by the organization in the body
+   // rename must be scoped by that group's organization. A same-named group in another
+   // organization keeps its theme. (A body whose organization differs from the path is rejected
+   // outright since #77078, see UserTreeServiceEditGroupOrgTest.)
    @Test
-   void editGroup_bodyOrgDiffersFromPathOrg_themeRenameScopedToPathGroupOrg() throws Exception {
+   void editGroup_renameSucceeds_themeRenameScopedToPathGroupOrg() throws Exception {
       CustomTheme aTheme = theme("aTheme", ORG);
       aTheme.getGroups().add("sales");
       CustomTheme bTheme = theme("bTheme", "organizationB");
@@ -200,7 +202,7 @@ class UserTreeServiceThemeUpdateTest {
       EditGroupPaneModel model = EditGroupPaneModel.builder()
          .name("sales2")
          .oldName("sales")
-         .organization("organizationB")
+         .organization(ORG)
          .build();
 
       renameService.editGroup("Primary", pathGroup, model, principal);
