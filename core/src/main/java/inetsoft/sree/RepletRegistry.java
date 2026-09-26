@@ -731,8 +731,9 @@ public class RepletRegistry implements Serializable {
       String repfile = getRegistryPath();
       // Bug #76977, each cluster node keeps its own copy and writes the whole file, so saves of
       // the file are serialized across the cluster and a copy that is behind storage is reloaded
-      // (keeping its unsaved changes) before it is written. The lock is taken while holding this
-      // registry's monitor; nothing done while holding it fires an event or waits for a monitor.
+      // (keeping its unsaved changes) before it is written. The lock is always taken while holding
+      // this registry's monitor, and only here (the change listener's init() never takes it), so
+      // nothing done while holding it may fire an event, call a listener or wait for a monitor.
       Lock lock = Cluster.getInstance().getLock(SAVE_LOCK_PREFIX + repfile);
       boolean reloaded = false;
       lock.lock();
