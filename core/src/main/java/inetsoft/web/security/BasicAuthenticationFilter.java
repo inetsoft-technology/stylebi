@@ -206,12 +206,20 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
 
                   if(authc != null && SecurityEngine.getSecurity().isSecurityEnabled()) {
                      for(AuthenticationProvider p : authc.getProviders()) {
-                        if(p.getUser(properUserID) != null) {
+                        User providerUser = p.getUser(properUserID);
+
+                        if(providerUser != null) {
                            // a provider may match the org ignoring case (e.g. the database
                            // provider with security.user.caseSensitive=false); record the
                            // provider's stored org id so the session never carries a
-                           // non-canonical one (Bug #77081)
-                           String storedOrgID = getStoredOrganizationID(p, properUserID.orgID);
+                           // non-canonical one (Bug #77081). Prefer the id on the returned
+                           // user; scan the provider's orgs only for providers that echo it.
+                           String storedOrgID = AuthenticationService.getStoredOrganizationID(
+                              providerUser, properUserID.orgID);
+
+                           if(storedOrgID == null) {
+                              storedOrgID = getStoredOrganizationID(p, properUserID.orgID);
+                           }
 
                            if(storedOrgID != null && !storedOrgID.equals(properUserID.orgID)) {
                               properUserID = new IdentityID(properUserID.name, storedOrgID);

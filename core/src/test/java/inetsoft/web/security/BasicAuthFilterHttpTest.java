@@ -279,6 +279,44 @@ class BasicAuthFilterHttpTest {
       assertAuthenticatedOrgId("orga", new String[] { "OrgA" }, "OrgA");
    }
 
+   // A provider that returns its stored user (like DatabaseAuthenticationProvider after this fix)
+   // is trusted directly: the stored org id is used without re-scanning the provider's orgs.
+   @Test
+   void mixedCaseOrgHeader_providerReturnsStoredUser_usesItsOrgIdWithoutScanning()
+      throws Exception
+   {
+      AuthenticationProvider dbLike = mock(AuthenticationProvider.class, withSettings().lenient());
+      when(dbLike.getUser(any())).thenReturn(new User(new IdentityID("alice", "OrgA")));
+      when(dbLike.getProviderName()).thenReturn("db");
+      AuthenticationChain chain = mock(AuthenticationChain.class, withSettings().lenient());
+      when(chain.getProviders()).thenReturn(List.of(dbLike));
+      when(mockEngine.getAuthenticationChain()).thenReturn(Optional.of(chain));
+      when(mockEngine.isSecurityEnabled()).thenReturn(true);
+
+      SRPrincipal principal = mock(SRPrincipal.class, withSettings().lenient());
+      doReturn(principal).when(authService).authenticate(
+         any(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+
+      try(MockedStatic<SUtil> sutil =
+             mockStatic(SUtil.class, withSettings().defaultAnswer(CALLS_REAL_METHODS)))
+      {
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+
+         mvc.perform(post("/api/internal/data")
+               .header("Authorization", basicAuth("alice", "secret"))
+               .header("X-Inetsoft-Organization-ID", "orga"))
+            .andExpect(status().isOk());
+      }
+
+      ArgumentCaptor<IdentityID> userId = ArgumentCaptor.forClass(IdentityID.class);
+      verify(authService).authenticate(
+         userId.capture(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+      assertEquals("OrgA", userId.getValue().orgID);
+      verify(dbLike, never()).getOrganizationIDs();
+   }
+
    // An exact match is kept even when a case variant also exists in the provider.
    @Test
    void exactOrgHeader_keepsRequestedOrgId() throws Exception {
