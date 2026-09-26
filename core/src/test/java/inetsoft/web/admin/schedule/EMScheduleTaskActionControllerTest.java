@@ -24,9 +24,9 @@ package inetsoft.web.admin.schedule;
  *   getEmailTree      — streams users/groups from SecurityProvider, filters by ADMIN permission
  *   getEmbeddedUsers  — same pattern, users only
  *
- * The remaining endpoints (getBookmarks, hasPrintLayout, getViewsheetHighlights,
- * getViewsheetParameters) delegate to ViewsheetService.openViewsheet() which
- * requires a live ApplicationContext and are covered by E2E tests instead.
+ * The viewsheet metadata endpoints (hasPrintLayout, getViewsheetHighlights,
+ * getViewsheetParameters) are tested with a mocked ViewsheetService for the open/close
+ * contract only; the metadata itself is covered by E2E tests.
  * getViewsheetFolders and getViewsheets are pure-delegation methods tested
  * as such here.
  *
@@ -34,6 +34,7 @@ package inetsoft.web.admin.schedule;
  *   [getEmailTree: user denied]    checkPermission(SECURITY_USER) false → user excluded
  *   [getEmailTree: group permitted] checkPermission(SECURITY_GROUP) true → group included
  *   [getViewsheets: delegation]    delegates to actionService.getViewsheets(principal)
+ *   [vs metadata: open/close]      opens as the caller and closes by runtime id (Bug #77058)
  *
  * Static singleton Catalog is intercepted with Mockito.mockStatic() using lenient()
  * to suppress UnnecessaryStubbingException.
@@ -41,6 +42,7 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.*;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Catalog;
 import inetsoft.web.admin.schedule.model.EmailTreeModel;
@@ -50,6 +52,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -161,5 +164,67 @@ class EMScheduleTaskActionControllerTest {
 
       assertSame(viewsheets, result);
       verify(actionService).getViewsheets(principal);
+   }
+
+   // -------------------------------------------------------------------------
+   // hasPrintLayout() / getViewsheetHighlights() / getViewsheetParameters()
+   // -------------------------------------------------------------------------
+
+   private static final String VS_ID = "1^128^__NULL__^Secret^orgb_id";
+   private static final String RUNTIME_ID = "Secret-7";
+
+   private void stubOpen() throws Exception {
+      when(viewsheetService.openViewsheet(any(AssetEntry.class), any(), anyBoolean()))
+         .thenReturn(RUNTIME_ID);
+   }
+
+   private void verifyOpenAsCallerAndCloseByRuntimeId() throws Exception {
+      verify(viewsheetService).openViewsheet(any(AssetEntry.class), same(principal), eq(false));
+      verify(emActionService).closeViewsheet(eq(RUNTIME_ID), same(principal));
+      verify(emActionService, never()).closeViewsheet(eq(VS_ID), any());
+   }
+
+   // [open/close] Bug #77058: close by runtime id so the runtime sheet is released
+   @Test
+   void hasPrintLayout_opensAsCallerAndClosesByRuntimeId() throws Exception {
+      stubOpen();
+      when(actionServiceProxy.hasPrintLayout(RUNTIME_ID, principal)).thenReturn(true);
+
+      assertTrue(controller.hasPrintLayout(VS_ID, principal));
+      verifyOpenAsCallerAndCloseByRuntimeId();
+   }
+
+   // [open/close] Bug #77058: close by runtime id so the runtime sheet is released
+   @Test
+   void getViewsheetHighlights_opensAsCallerAndClosesByRuntimeId() throws Exception {
+      stubOpen();
+      when(actionServiceProxy.getViewsheetHighlights(RUNTIME_ID, principal)).thenReturn(List.of());
+
+      assertEquals(0, controller.getViewsheetHighlights(VS_ID, principal).highlights().size());
+      verifyOpenAsCallerAndCloseByRuntimeId();
+   }
+
+   // [open/close] Bug #77058: open as the caller, never null, so READ/org checks apply
+   @Test
+   void getViewsheetParameters_opensAsCallerAndClosesByRuntimeId() throws Exception {
+      stubOpen();
+      when(actionServiceProxy.getViewsheetParameters(RUNTIME_ID, principal))
+         .thenReturn(List.of("p1"));
+
+      assertEquals(List.of("p1"),
+                   controller.getViewsheetParameters(VS_ID, principal).parameters());
+      verifyOpenAsCallerAndCloseByRuntimeId();
+   }
+
+   // [close on failure] the runtime sheet is closed even when the metadata call throws
+   @Test
+   void getViewsheetHighlights_metadataFails_stillClosesByRuntimeId() throws Exception {
+      stubOpen();
+      when(actionServiceProxy.getViewsheetHighlights(RUNTIME_ID, principal))
+         .thenThrow(new IllegalStateException("boom"));
+
+      assertThrows(IllegalStateException.class,
+                   () -> controller.getViewsheetHighlights(VS_ID, principal));
+      verify(emActionService).closeViewsheet(eq(RUNTIME_ID), same(principal));
    }
 }

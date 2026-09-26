@@ -164,11 +164,27 @@ public class EMScheduleBatchActionController {
          if(action instanceof ViewsheetAction) {
             String identifier = ((ViewsheetAction) action).getViewsheet();
             AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-            String runtimeId = viewsheetService.openViewsheet(entry, null, false);
-            List<String> vsParameters =
-               actionServiceProxy.getViewsheetParameters(runtimeId, principal);
-            emActionServiceProxy.closeViewsheet(identifier, null);
-            parameterNames.addAll(vsParameters);
+
+            try {
+               String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+
+               try {
+                  parameterNames.addAll(
+                     actionServiceProxy.getViewsheetParameters(runtimeId, principal));
+               }
+               finally {
+                  if(runtimeId != null) {
+                     emActionServiceProxy.closeViewsheet(runtimeId, principal);
+                  }
+               }
+            }
+            catch(Exception ex) {
+               // skip a viewsheet the user can't open so the other actions are still listed
+               LOG.warn("Failed to get the parameters of viewsheet {}: {}",
+                        identifier, ex.getMessage());
+               LOG.debug("Failed to get the parameters of viewsheet {}", identifier, ex);
+            }
+
             parameterNames.addAll(findVariablesInScheduleAction((ViewsheetAction) action));
          }
       }

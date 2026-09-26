@@ -132,11 +132,14 @@ public class ScheduleTaskActionController {
       throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(id);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
-      boolean hasPrintLayout = scheduleTaskActionServiceProxy.hasPrintLayout(runtimeId, principal);
-      scheduleTaskActionServiceProxy.closeViewsheet(id, principal);
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
 
-      return hasPrintLayout;
+      try {
+         return scheduleTaskActionServiceProxy.hasPrintLayout(runtimeId, principal);
+      }
+      finally {
+         closeViewsheet(runtimeId, principal);
+      }
    }
 
    /**
@@ -166,10 +169,14 @@ public class ScheduleTaskActionController {
                                                           Principal principal) throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
-      List<ScheduleAlertModel> highlights = scheduleTaskActionServiceProxy.getViewsheetHighlights(runtimeId, principal);
-      scheduleTaskActionServiceProxy.closeViewsheet(identifier, principal);
-      return highlights;
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+
+      try {
+         return scheduleTaskActionServiceProxy.getViewsheetHighlights(runtimeId, principal);
+      }
+      finally {
+         closeViewsheet(runtimeId, principal);
+      }
    }
 
    /**
@@ -200,10 +207,14 @@ public class ScheduleTaskActionController {
       throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
-      List<String> params = scheduleTaskActionServiceProxy.getViewsheetParameters(runtimeId, principal);
-      scheduleTaskActionServiceProxy.closeViewsheet(identifier, null);
-      return params;
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+
+      try {
+         return scheduleTaskActionServiceProxy.getViewsheetParameters(runtimeId, principal);
+      }
+      finally {
+         closeViewsheet(runtimeId, principal);
+      }
    }
 
    /**
@@ -230,10 +241,24 @@ public class ScheduleTaskActionController {
       Principal principal) throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
-      List<String> assemblies = scheduleTaskActionServiceProxy.getViewsheetTableDataAssemblies(runtimeId, principal);
-      scheduleTaskActionServiceProxy.closeViewsheet(identifier, null);
-      return assemblies;
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+
+      try {
+         return scheduleTaskActionServiceProxy.getViewsheetTableDataAssemblies(runtimeId, principal);
+      }
+      finally {
+         closeViewsheet(runtimeId, principal);
+      }
+   }
+
+   /**
+    * Closes a viewsheet opened by one of the endpoints above. The close is keyed by the
+    * runtime id so that it is routed to, and releases, the runtime sheet that was opened.
+    */
+   private void closeViewsheet(String runtimeId, Principal principal) throws Exception {
+      if(runtimeId != null) {
+         scheduleTaskActionServiceProxy.closeViewsheet(runtimeId, principal);
+      }
    }
 
    private final ScheduleTaskActionService scheduleTaskActionService;
