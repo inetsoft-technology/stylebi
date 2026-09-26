@@ -752,6 +752,13 @@ public class RepletRegistry implements Serializable {
             if(space.exists(null, repfile)) {
                reload();
                reloaded = true;
+
+               if(date == STALE_DATE) {
+                  // the copy now holds only part of the stored file, so writing it would drop
+                  // the rest. Its unsaved changes are kept, and the next save reads again.
+                  throw new Exception("Failed to re-read repository.xml before saving; not " +
+                                      "saved to avoid overwriting other nodes' changes");
+               }
             }
 
             loaded = true;

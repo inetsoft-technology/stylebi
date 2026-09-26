@@ -234,6 +234,33 @@ class RepletRegistryLocalChangesTest {
       stored.shutdown();
    }
 
+   /**
+    * When the fresh read under the lock fails, save must not write the incomplete copy over the
+    * stored file. The unsaved change stays in memory and a later save stores it.
+    */
+   @Test
+   void failedReadInsideSaveDoesNotWrite() throws Exception {
+      blockEvents();
+      nodeA.addFolder(X);
+      nodeA.save();
+      String path = orgId + "/repository.xml";
+      long committed = space.getLastModified(null, path);
+      nodeB.addFolder(B);
+      nodeB.failLoad = true;
+
+      assertThrows(Exception.class, nodeB::save);
+      assertFalse(nodeB.failLoad, "B's save did not read storage");
+      assertEquals(committed, space.getLastModified(null, path), "B's failed save wrote storage");
+
+      nodeB.save();
+      RepletRegistry stored = read();
+      Set<String> folders = folders(stored);
+      assertTrue(folders.contains(A), "stored folders: " + folders);
+      assertTrue(folders.contains(X), "stored folders: " + folders);
+      assertTrue(folders.contains(B), "stored folders: " + folders);
+      stored.shutdown();
+   }
+
    @Test
    void removedFolderStaysRemovedAfterAnotherNodesLaterSave() throws Exception {
       nodeA.removeFolder(A);
