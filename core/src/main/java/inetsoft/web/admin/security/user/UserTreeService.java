@@ -931,6 +931,11 @@ public class UserTreeService {
             //provided org name already exists, return error
             throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationName"));
          }
+         else {
+            // org names and ids share one case-insensitive namespace
+            throwOrgIdentityConflict(
+               OrganizationIdentityConflict.find(securityProvider, null, orgName, orgID));
+         }
 
          newOrgId = newOrgKey.orgID;
          fireCreateOrganizationEvent(EditOrganizationEvent.STARTED, copyFromOrgID, newOrgId, principal);
@@ -1333,21 +1338,20 @@ public class UserTreeService {
    }
 
    private void checkDuplicateOrgIDs(EditOrganizationPaneModel model, Organization oldOrg) throws MessageException {
-      SecurityProvider provider = securityEngine.getSecurityProvider();
-      String[] organizations = provider.getOrganizationIDs();
-      String[] orgNames = provider.getOrganizationNames();
+      // org names and ids share one case-insensitive namespace: reject a name or id that equals
+      // another org's name or id. Unchanged fields are not checked so existing orgs stay editable.
+      throwOrgIdentityConflict(OrganizationIdentityConflict.find(
+         securityEngine.getSecurityProvider(), oldOrg, model.name(), model.id()));
+   }
 
-      for(int i=0;i< organizations.length; i++) {
-         String orgName = orgNames[i];
-         String orgIDName = organizations[i];
-         String orgID = provider.getOrganization(orgIDName).getId();
-
-         if(orgName != null && !orgName.equals(oldOrg.getName()) && orgName.equalsIgnoreCase(model.name())) {
-            throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationName"));
-         }
-         else if(orgID != null && !orgID.equals(oldOrg.getId()) && orgID.equalsIgnoreCase(model.id())) {
-            throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationID"));
-         }
+   private static void throwOrgIdentityConflict(OrganizationIdentityConflict conflict)
+      throws MessageException
+   {
+      if(conflict == OrganizationIdentityConflict.NAME) {
+         throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationName"));
+      }
+      else if(conflict == OrganizationIdentityConflict.ID) {
+         throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationID"));
       }
    }
 
