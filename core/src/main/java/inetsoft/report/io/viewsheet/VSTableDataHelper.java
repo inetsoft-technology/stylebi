@@ -436,6 +436,15 @@ public abstract class VSTableDataHelper extends ExporterHelper {
                 boolean left, boolean bottom,
                 boolean right, boolean top)
    {
+      if(info instanceof TableDataVSAssemblyInfo) {
+         // an inset edge leaves the assembly border at the card edge
+         Insets inset = getCardInset((TableDataVSAssemblyInfo) info);
+         left = left && inset.left == 0;
+         bottom = bottom && inset.bottom == 0;
+         right = right && inset.right == 0;
+         top = top && inset.top == 0;
+      }
+
       if(!left && !bottom && !right && !top) {
          return;
       }
