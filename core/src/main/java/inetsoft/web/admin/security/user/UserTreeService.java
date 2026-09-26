@@ -638,9 +638,16 @@ public class UserTreeService {
    void editGroup(String providerName, IdentityID group, EditGroupPaneModel model, Principal principal)
       throws Exception
    {
-      IdentityID oldID = new IdentityID(model.oldName(), model.organization());
-      IdentityID newID = new IdentityID(model.name(), model.organization());
-      IdentityID root = new IdentityID("Groups", model.organization());
+      // The caller was authorized on the path group only, so the body must name that same group.
+      // Otherwise the IDs below would be built from an identity that was never authorized.
+      if(group == null || !Tool.equals(model.oldName(), group.getName()) ||
+         !Tool.equals(model.organization(), group.getOrgID(), false))
+      {
+         throw new java.lang.SecurityException("Unauthorized access to edit group \"" + model.oldName() +
+            "\": the request does not match the group being edited, by user " + principal);
+      }
+
+      IdentityID root = new IdentityID("Groups", group.getOrgID());
 
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -650,10 +657,10 @@ public class UserTreeService {
 
       if(isGroupRoot(new IdentityID(model.name(), group.orgID), principal)) {
          if(getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, root.convertToKey(), ResourceAction.ADMIN) ||
-            getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, new IdentityID(model.name(), model.organization()).convertToKey(), ResourceAction.ADMIN))
+            getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, new IdentityID(model.name(), group.getOrgID()).convertToKey(), ResourceAction.ADMIN))
          {
             identityService.setIdentityPermissions(
-               root, root, ResourceType.SECURITY_GROUP, principal, model.permittedIdentities(), model.organization());
+               root, root, ResourceType.SECURITY_GROUP, principal, model.permittedIdentities(), group.getOrgID());
          }
 
          return;
@@ -662,6 +669,23 @@ public class UserTreeService {
       final AuthenticationProvider provider =
          authenticationProviderService.getProviderByName(providerName);
       final Group oldGroup = provider.getGroup(group);
+
+      if(oldGroup == null) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "em.security.groupNotFound", group.getName()));
+      }
+
+      // build every identity that is written below from the stored (authorized) group
+      final IdentityID storedID = oldGroup.getIdentityID();
+      final String groupOrgID = storedID.getOrgID() == null || storedID.getOrgID().isEmpty() ?
+         group.getOrgID() : storedID.getOrgID();
+      final IdentityID oldID = new IdentityID(storedID.getName(), groupOrgID);
+      final IdentityID newID = new IdentityID(model.name(), groupOrgID);
+
+      if(!Objects.equals(model.organization(), groupOrgID)) {
+         // case-variant org id: write with the stored org id
+         model = EditGroupPaneModel.builder().from(model).organization(groupOrgID).build();
+      }
 
       if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
          checkGroupEditedHasSysAdmin(oldGroup, model, principal);
@@ -684,7 +708,7 @@ public class UserTreeService {
          model.permittedIdentities(), Identity.GROUP, oldID, newID);
       identityService.setIdentity(oldGroup, model, provider, principal);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
-                                             principal, permittedIdentities, "");
+                                             principal, permittedIdentities, groupOrgID);
       IndexedStorage storage = indexedStorage;
       DataCycleManager cycleManager = dataCycleManager;
       storage.migrateStorageData(oldID.getName(), newID.getName());
