@@ -920,7 +920,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
     * print layout renders unpadded and must use the three-arg overload.
     */
    public static void applyShrunkBottomTabsShift(TableDataVSAssembly assembly,
-                                                 VSTableLens lens)
+                                                 VSTableLens lens, Insets inset)
    {
       if(assembly == null || lens == null) {
          return;
@@ -933,7 +933,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       }
 
       applyShrunkBottomTabsShift(
-         assembly, info.getPixelSize().height, computeShrunkRenderedHeight(info, lens));
+         assembly, info.getPixelSize().height, computeShrunkRenderedHeight(info, lens, inset));
    }
 
    /**
@@ -978,7 +978,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
    }
 
    private static int computeShrunkRenderedHeight(TableDataVSAssemblyInfo info,
-                                                  VSTableLens lens)
+                                                  VSTableLens lens, Insets inset)
    {
       int rowCount = lens.getRowCount();
 
@@ -1009,7 +1009,8 @@ public abstract class VSTableDataHelper extends ExporterHelper {
          height += (int) lens.getRowHeightWithPadding(rowH, i, info);
       }
 
-      return Math.min(height, info.getPixelSize().height);
+      // the rendered card is its rows plus its vertical inset
+      return Math.min(height + inset.top + inset.bottom, info.getPixelSize().height);
    }
 
    private static final Logger LOG =

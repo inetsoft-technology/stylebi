@@ -331,7 +331,8 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
 
             lens.initTableGrid((TableDataVSAssemblyInfo) tableAssembly.getVSAssemblyInfo());
-            VSTableDataHelper.applyShrunkBottomTabsShift(tableAssembly, lens);
+            VSTableDataHelper.applyShrunkBottomTabsShift(
+               tableAssembly, lens, getTableCardInset(tableAssembly.getTableDataVSAssemblyInfo()));
          }
          catch(Exception ex) {
             LOG.debug("Failed to apply bottom-tabs shrink shift for {}",
@@ -969,7 +970,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          TableDataVSAssemblyInfo info =
             (TableDataVSAssemblyInfo) table.getVSAssemblyInfo();
 
-         int totalWidth = table.getPixelSize().width;
+         Insets inset = getTableCardInset(info);
+         int totalWidth = table.getPixelSize().width - inset.left - inset.right;
          int w = 0;
          int idx = 0;
 
@@ -1047,7 +1049,8 @@ public abstract class AbstractVSExporter implements VSExporter {
             headerHeight += dh;
          }
 
-         int tableRowsHeight = size.height - headerHeight;
+         Insets inset = getTableCardInset(info);
+         int tableRowsHeight = size.height - headerHeight - inset.top - inset.bottom;
 
          if(info.isTitleVisible()) {
             tableRowsHeight -= info.getTitleHeight();
@@ -2679,7 +2682,9 @@ public abstract class AbstractVSExporter implements VSExporter {
          expandedHeight = Math.max(expandedHeight, total);
       }
 
-      return expandedHeight;
+      Insets inset = getTableCardInset(info);
+      // the card holds the rows plus its inset
+      return expandedHeight + inset.top + inset.bottom;
    }
 
    private int getCellHeight(int r, VSTableLens lens, TableDataVSAssemblyInfo info) {
@@ -2832,7 +2837,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          i++;
       }
 
-      return expandedWidth;
+      Insets inset = getTableCardInset(tinfo);
+      return expandedWidth + inset.left + inset.right;
    }
 
    /**
@@ -2966,6 +2972,8 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       VSTableLens lens = (VSTableLens) table;
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) obj.getInfo();
+      Insets inset = getTableCardInset(info);
+      int insetW = inset.left + inset.right;
       int[] ws = new int[lens.getColCount()];
       int[] widths = lens.getColumnWidths();
       int totalWidth = 0;
@@ -2979,7 +2987,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
 
          if(widths != null && i < widths.length) {
-            w = widths[i];
+            w = lens.getColumnWidthInGrid(i, info, insetW);
          }
 
          w = lens.getColumnWidthWithPadding(w, i);
@@ -2987,9 +2995,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          totalWidth += w;
       }
 
-      // if the expand table's total columns width is still less than the
-      // assembly size, keep original assembly width
-      if(ow >= totalWidth) {
+      // the columns fill the grid inside the card inset
+      if(ow - insetW >= totalWidth) {
          return ow;
       }
 
