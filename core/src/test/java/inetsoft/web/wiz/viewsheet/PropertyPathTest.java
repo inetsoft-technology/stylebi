@@ -17,14 +17,27 @@
  */
 package inetsoft.web.wiz.viewsheet;
 
+import inetsoft.test.*;
+import inetsoft.web.composer.model.vs.DynamicValueModel;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+// The bug #76888/#76997 tests build the real DynamicValueModel, whose String constructor calls
+// VSUtil -- and VSUtil's static init needs the same running context AssemblyPropertyServiceTest
+// sets up; a bare test has no Spring context for it to find.
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome()
 @Tag("core")
 class PropertyPathTest {
    public enum Alignment { LEFT, CENTER, RIGHT }
@@ -798,54 +811,29 @@ class PropertyPathTest {
       assertTrue(thrown.getMessage().contains("VSDimensionModel"), "name the bean type");
    }
 
-   // ── bug #76888: DynamicValueModel-shaped bean targets ─────────────────────
+   // ── bug #76888: DynamicValueModel bean targets ────────────────────────────
    //
    // CalendarAdvancedPaneModel.min/max (and DatePeriodModel/IntervalPaneModel/
    // StandardPeriodPaneModel's own DynamicValueModel-typed fields) are plain multi-field beans
    // with no primitive/String/enum/array shape of their own, so every raw dotted-path write to
-   // one fell through to the unconditional final throw regardless of the JSON's content. The fix
-   // is gated on target declaring a public one-argument String constructor -- the same signal
-   // that keeps the still-deliberately-refused VSDimensionModel case (immediately above) refused,
-   // since VSDimensionModel has no such constructor.
-
-   /** Mirrors DynamicValueModel's own shape closely enough to exercise the fix generically. */
-   public static class StringConstructible {
-      public StringConstructible() {
-      }
-
-      public StringConstructible(String value) {
-         this.value = value;
-         this.type = value != null && value.startsWith("$(") && value.endsWith(")")
-            ? "VARIABLE" : "VALUE";
-      }
-
-      public Object getValue() { return value; }
-      public void setValue(Object value) { this.value = value; }
-      public String getType() { return type; }
-      public void setType(String type) { this.type = type; }
-      public String getDataType() { return dataType; }
-      public void setDataType(String dataType) { this.dataType = dataType; }
-
-      private Object value;
-      private String type;
-      private String dataType;
-   }
+   // one fell through to the unconditional final throw regardless of the JSON's content. These
+   // run against the real DynamicValueModel, so its own VSUtil auto-detection is what is tested.
 
    public static class DynamicValueHolder {
-      public StringConstructible getBound() { return bound; }
-      public void setBound(StringConstructible bound) { this.bound = bound; }
+      public DynamicValueModel getBound() { return bound; }
+      public void setBound(DynamicValueModel bound) { this.bound = bound; }
 
-      private StringConstructible bound;
+      private DynamicValueModel bound;
    }
 
    @Test
-   void buildsAStringConstructibleBeanFromABareString() {
+   void buildsADynamicValueModelFromABareString() {
       DynamicValueHolder target = new DynamicValueHolder();
 
       PropertyPath.set(target, "bound", "2026-01-01");
 
       assertEquals("2026-01-01", target.getBound().getValue());
-      assertEquals("VALUE", target.getBound().getType(),
+      assertEquals(DynamicValueModel.VALUE, target.getBound().getType(),
                    "the one-argument constructor's own auto-detection decides the type");
    }
 
@@ -856,19 +844,29 @@ class PropertyPathTest {
       PropertyPath.set(target, "bound", "$(Spinner1)");
 
       assertEquals("$(Spinner1)", target.getBound().getValue());
-      assertEquals("VARIABLE", target.getBound().getType(),
+      assertEquals(DynamicValueModel.VARIABLE, target.getBound().getType(),
                    "the same auto-detection the plain DynamicValueModel(String) constructor does");
    }
 
    @Test
-   void buildsAStringConstructibleBeanFromAFullJsonObject() {
+   void aBareStringThatLooksLikeAnExpressionAutoDetectsThroughTheStringConstructor() {
+      DynamicValueHolder target = new DynamicValueHolder();
+
+      PropertyPath.set(target, "bound", "=new Date()");
+
+      assertEquals("=new Date()", target.getBound().getValue());
+      assertEquals(DynamicValueModel.EXPRESSION, target.getBound().getType());
+   }
+
+   @Test
+   void buildsADynamicValueModelFromAFullJsonObject() {
       DynamicValueHolder target = new DynamicValueHolder();
 
       PropertyPath.set(target, "bound",
                        Map.of("value", "2026-01-01", "type", "VALUE", "dataType", "date"));
 
       assertEquals("2026-01-01", target.getBound().getValue());
-      assertEquals("VALUE", target.getBound().getType());
+      assertEquals(DynamicValueModel.VALUE, target.getBound().getType());
       assertEquals("date", target.getBound().getDataType());
    }
 
@@ -879,7 +877,7 @@ class PropertyPathTest {
       PropertyPath.set(target, "bound", Map.of("VALUE", "2026-01-01", "TYPE", "VALUE"));
 
       assertEquals("2026-01-01", target.getBound().getValue());
-      assertEquals("VALUE", target.getBound().getType());
+      assertEquals(DynamicValueModel.VALUE, target.getBound().getType());
    }
 
    @Test
@@ -889,7 +887,7 @@ class PropertyPathTest {
       PropertyPath.set(target, "bound", Map.of("value", "$(Foo)"));
 
       assertEquals("$(Foo)", target.getBound().getValue());
-      assertEquals("VARIABLE", target.getBound().getType(),
+      assertEquals(DynamicValueModel.VARIABLE, target.getBound().getType(),
                    "no 'type' key must not silently default to VALUE for a variable reference");
    }
 
@@ -899,7 +897,7 @@ class PropertyPathTest {
 
       PropertyPath.set(target, "bound", Map.of("value", "$(Foo)", "type", "EXPRESSION"));
 
-      assertEquals("EXPRESSION", target.getBound().getType(),
+      assertEquals(DynamicValueModel.EXPRESSION, target.getBound().getType(),
                    "an explicit type always wins over auto-detection");
    }
 
@@ -912,7 +910,96 @@ class PropertyPathTest {
          () -> PropertyPath.set(target, "bound", Map.of("value", "x", "bogus", "y")));
 
       assertTrue(thrown.getMessage().contains("bogus"), "name the offending key");
-      assertTrue(thrown.getMessage().contains("StringConstructible"), "name the bean type");
+      assertTrue(thrown.getMessage().contains("not a writable property"),
+                 "refused by the setters path, not the final type-mismatch throw");
+      assertTrue(thrown.getMessage().contains("DynamicValueModel"), "name the bean type");
+   }
+
+   // ── bug #76997: only allow-listed types are built from a String or JSON object ──
+   //
+   // A public (String) constructor alone is not a safe signal: JDK value types have one too.
+   // java.util.Date is reachable today (AssetEntry.createdDate/modifiedDate under
+   // vsOptionsPane.selectDataSourceDialogModel.dataSource), and "Jan 2 2024", {"time":0} and
+   // {"value":"Jan 2 2024"} were all silently accepted and written to the live base entry.
+
+   public static class DateHolder {
+      public java.util.Date getWhen() { return when; }
+      public void setWhen(java.util.Date when) { this.when = when; }
+
+      private java.util.Date when;
+   }
+
+   @Test
+   void aDateLeafIsNotBuiltFromAString() {
+      DateHolder target = new DateHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class, () -> PropertyPath.set(target, "when", "Jan 2 2024"));
+
+      assertTrue(thrown.getMessage().contains("'when' expects Date"), thrown.getMessage());
+      assertNull(target.getWhen());
+   }
+
+   @Test
+   void aDateLeafIsNotBuiltFromAJsonObjectThroughItsSetters() {
+      DateHolder target = new DateHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "when", Map.of("time", 0)));
+
+      assertTrue(thrown.getMessage().contains("'when' expects Date"), thrown.getMessage());
+      assertNull(target.getWhen());
+   }
+
+   @Test
+   void aDateLeafIsNotBuiltFromTheOneKeyValueShortcut() {
+      DateHolder target = new DateHolder();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> PropertyPath.set(target, "when", Map.of("value", "Jan 2 2024")));
+
+      assertTrue(thrown.getMessage().contains("'when' expects Date"), thrown.getMessage());
+      assertNull(target.getWhen());
+   }
+
+   /** Has DynamicValueModel's shape -- a public (String) constructor -- but is not allow-listed. */
+   public static class StringConstructible {
+      public StringConstructible() {
+      }
+
+      public StringConstructible(String value) {
+         this.value = value;
+      }
+
+      public Object getValue() { return value; }
+      public void setValue(Object value) { this.value = value; }
+
+      private Object value;
+   }
+
+   public static class StringConstructibleHolder {
+      public StringConstructible getBound() { return bound; }
+      public void setBound(StringConstructible bound) { this.bound = bound; }
+
+      private StringConstructible bound;
+   }
+
+   @Test
+   void aStringConstructorAloneDoesNotMakeATypeBuildableFromAStringOrJsonObject() {
+      StringConstructibleHolder target = new StringConstructibleHolder();
+
+      for(Object value : List.of("x", Map.of("value", "x"), Map.of("value", "x", "extra", "y"))) {
+         Exception thrown = assertThrows(
+            IllegalArgumentException.class, () -> PropertyPath.set(target, "bound", value),
+            "refuse " + value);
+
+         assertTrue(thrown.getMessage().contains("'bound' expects StringConstructible"),
+                    thrown.getMessage());
+      }
+
+      assertNull(target.getBound());
    }
 
    /**
