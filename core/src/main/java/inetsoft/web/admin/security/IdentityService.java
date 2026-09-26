@@ -68,6 +68,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -578,11 +579,17 @@ public class IdentityService {
             repletRegistryManager.removeUser(identityId);
             //rep.removeUser(identityId);
             dashboardRegistryManager.clear(identityId);
+            // read before the user is removed. The stored user has an organization even when
+            // the request has none, which would remove the name from every organization's themes
+            User user = eprovider.getUser(identityId);
+            String userOrgId = user != null ? user.getOrganizationID() :
+               identityId.orgID != null ? identityId.orgID : Organization.getDefaultOrganizationID();
             eprovider.removeUser(identityId);
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
             removeUserScopedAssets(identity);
             UserEnv.removeUser(identityId);
             AutoSaveUtils.deleteUserAutoSaveFiles(identityId);
+            removeIdentityFromThemes(identityId, userOrgId, CustomTheme::getUsers);
          }
          else {
             if(!identityId.equals(oID)) {
@@ -661,12 +668,15 @@ public class IdentityService {
                eprovider.removeGroup(identityId);
                updateIdentityPermissions(type, identityId, null, orgId, orgId, true);
                updatePrincipalGroup(oID, identityId);
+               removeIdentityFromThemes(identityId, orgId, CustomTheme::getGroups);
             }
             else {
                //delete role identityId inside of permissions
                String orgId = eprovider.getRole(identityId).getOrganizationID();
                eprovider.removeRole(identityId);
                updateIdentityPermissions(type, identityId, null, orgId, orgId, true);
+               // a global role (null organization) is removed from every organization's themes
+               removeIdentityFromThemes(identityId, orgId, CustomTheme::getRoles);
             }
          }
          else {
@@ -704,6 +714,23 @@ public class IdentityService {
                }
             }
          }
+      }
+   }
+
+   /**
+    * Removes a deleted user, group or role from the custom themes, so that a new identity with
+    * the same name does not inherit the theme. This is done last in the delete branch and a
+    * failure is only logged, because the identity has already been removed from the provider
+    * and the rest of its cleanup must not be skipped.
+    */
+   private void removeIdentityFromThemes(IdentityID identityId, String orgID,
+                                         Function<CustomTheme, List<String>> fn)
+   {
+      try {
+         themeService.removeIdentity(identityId.name, orgID, fn);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove the deleted identity {} from the custom themes", identityId, e);
       }
    }
 
