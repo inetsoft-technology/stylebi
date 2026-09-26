@@ -1787,7 +1787,7 @@ These run in `AbstractVSExporter` before any helper, so they call `getTableCardI
 
 - [ ] **Step 1: Write the failing test**
 
-These tests use a real `HTMLVSExporter`, so the resolver reads the table's padding. `HTMLVSExporter` cannot be built in `core`: its coordinate helper needs Batik's SVG support, which lives in `utils/inetsoft-xml-formats`.
+These tests use a real `HTMLVSExporter`, so the resolver reads the table's padding. (`SVGVSExporter` cannot be built in `core`: its coordinate helper needs Batik's SVG support, which lives in `utils/inetsoft-xml-formats`.)
 
 ```java
 package inetsoft.report.io.viewsheet;
