@@ -148,9 +148,8 @@ public class ExcelVSUtil {
       boolean matchLayout, boolean needDistributeWidth, int insetW)
    {
       int totalWidth = 0;
-      int cardPixelW = info.getPixelSize().width;
       // the grid inside the card inset, which the last column fills
-      int totalPixelW = Math.max(0, cardPixelW - insetW);
+      int totalPixelW = Math.max(0, info.getPixelSize().width - insetW);
       int lensColumnCount = lens == null ? 0 : lens.getColCount();
       int[] ws = new int[lensColumnCount];
       int[] widths = lens == null ? new int[0] : lens.getColumnWidths();
@@ -180,8 +179,7 @@ public class ExcelVSUtil {
 
       // if totalwidth expand the table pixel width, reset the cell width
       // fixed bug #29975 :In fact, it didn't expand totalPixelW when export html.
-      // against the card, not the grid, so a dropped last-column fill alone doesn't trip it
-      if(!matchLayout && totalWidth > cardPixelW) {
+      if(!matchLayout && totalWidth > totalPixelW) {
          totalWidth = 0;
       }
 

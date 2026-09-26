@@ -38,11 +38,18 @@ class TableExportColumnWidthsTest {
       assertArrayEquals(new int[] { 100, 100, 200 }, pixelWidths(NONE, 100, 100, 100));
    }
 
-   // 150 + 130 + the 100px default = 380, past the 368 grid: the lens's 20px fill comes back
+   // 150 + 130 + the 100px default = 380, past the 368 grid: the last column is cut at the grid
    @Test
-   void aWidthlessLastColumnDropsTheLensCardFill() {
-      assertArrayEquals(new int[] { 150, 130, 100 },
+   void columnsPastTheGridAreCutAtTheGrid() {
+      assertArrayEquals(new int[] { 150, 130, 88 },
                         pixelWidths(COMFORTABLE, 150, 130, Double.NaN));
+   }
+
+   // the lens fills the width-less last column to the 400 card: 120, and the columns fit
+   @Test
+   void withoutAnInsetTheColumnsFitTheCard() {
+      assertArrayEquals(new int[] { 150, 130, 120 },
+                        pixelWidths(NONE, 150, 130, Double.NaN));
    }
 
    @Test
