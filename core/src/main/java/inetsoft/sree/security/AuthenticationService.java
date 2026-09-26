@@ -105,6 +105,10 @@ public class AuthenticationService {
    {
       boolean anonymous = ClientInfo.ANONYMOUS.equals(userId.name);
 
+      if(!anonymous) {
+         userId = getStoredOrganizationUserID(userId);
+      }
+
       if(anonymous && password == null) {
          password = "";
       }
@@ -229,6 +233,59 @@ public class AuthenticationService {
       }
 
       return principal;
+   }
+
+   /**
+    * Gets the user id with its organization id replaced by the id the security provider
+    * stores, when the provider matched the requested organization ignoring case (e.g. the
+    * database provider with security.user.caseSensitive=false). Every interactive log in
+    * (the Basic authentication filter and the public API log in) goes through
+    * {@link #authenticate(IdentityID, IdentityID, String, String, String, String, String,
+    * Locale, boolean, boolean, String, String)}, so doing this here keeps the session principal
+    * from carrying a non-canonical organization id (Bug #77081).
+    */
+   private IdentityID getStoredOrganizationUserID(IdentityID userId) {
+      if(userId == null || userId.orgID == null) {
+         return userId;
+      }
+
+      try {
+         SecurityProvider provider = securityEngine.getSecurityProvider();
+         User user = provider == null ? null : provider.getUser(userId);
+         String storedOrgID = getStoredOrganizationID(user, userId.orgID);
+
+         if(storedOrgID != null) {
+            return new IdentityID(userId.name, storedOrgID);
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the stored organization of user: {}", userId, e);
+      }
+
+      return userId;
+   }
+
+   /**
+    * Gets the organization id stored on a user that a security provider returned for a
+    * requested organization id, if it differs from the requested id only by case.
+    *
+    * @param user  the user returned by the provider, may be <tt>null</tt>.
+    * @param orgID the requested organization id.
+    *
+    * @return the stored organization id, or <tt>null</tt> if the user is <tt>null</tt> or its
+    *         organization id is the requested one or a different organization.
+    */
+   public static String getStoredOrganizationID(User user, String orgID) {
+      IdentityID storedID = user == null ? null : user.getIdentityID();
+      String storedOrgID = storedID == null ? null : storedID.orgID;
+
+      if(orgID != null && storedOrgID != null && !storedOrgID.equals(orgID) &&
+         storedOrgID.equalsIgnoreCase(orgID))
+      {
+         return storedOrgID;
+      }
+
+      return null;
    }
 
    /**

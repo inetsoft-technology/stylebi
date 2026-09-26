@@ -158,7 +158,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                if(pId != null && (pId.name.equals(userKey) &&
                   (loginAsUserKey == null || loginAsUserKey.isEmpty() ||
                      loginAsUserKey.equals(pId.convertToKey()) || loginAsUserKey.equals(pId.name))) &&
-                  (headerOrgID == null || headerOrgID.isEmpty() || headerOrgID.equals(pId.orgID)))
+                  (headerOrgID == null || headerOrgID.isEmpty() || headerOrgID.equalsIgnoreCase(pId.orgID)))
                {
                   authorized = true;
                }
@@ -206,7 +206,26 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
 
                   if(authc != null && SecurityEngine.getSecurity().isSecurityEnabled()) {
                      for(AuthenticationProvider p : authc.getProviders()) {
-                        if(p.getUser(properUserID) != null) {
+                        User providerUser = p.getUser(properUserID);
+
+                        if(providerUser != null) {
+                           // a provider may match the org ignoring case (e.g. the database
+                           // provider with security.user.caseSensitive=false); record the
+                           // provider's stored org id so the session never carries a
+                           // non-canonical one (Bug #77081). Prefer the id on the returned
+                           // user; scan the provider's orgs only for providers that echo it.
+                           String storedOrgID = AuthenticationService.getStoredOrganizationID(
+                              providerUser, properUserID.orgID);
+
+                           if(storedOrgID == null) {
+                              storedOrgID = getStoredOrganizationID(p, properUserID.orgID);
+                           }
+
+                           if(storedOrgID != null && !storedOrgID.equals(properUserID.orgID)) {
+                              properUserID = new IdentityID(properUserID.name, storedOrgID);
+                              recordedOrgID = storedOrgID;
+                           }
+
                            providerName = p.getProviderName();
                            break;
                         }
@@ -416,6 +435,32 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
             }
          }
       }
+   }
+
+   /**
+    * Gets the provider's stored id of the given organization: the exact id if the provider
+    * lists it, otherwise the one that matches ignoring case, or <tt>null</tt> if none matches.
+    */
+   private static String getStoredOrganizationID(AuthenticationProvider provider, String orgID) {
+      String[] orgIDs = orgID == null ? null : provider.getOrganizationIDs();
+
+      if(orgIDs == null) {
+         return null;
+      }
+
+      String match = null;
+
+      for(String id : orgIDs) {
+         if(orgID.equals(id)) {
+            return id;
+         }
+
+         if(match == null && orgID.equalsIgnoreCase(id)) {
+            match = id;
+         }
+      }
+
+      return match;
    }
 
    private List<NameLabelTuple> getLoginAsUsers(Principal principal, SecurityProvider provider,
