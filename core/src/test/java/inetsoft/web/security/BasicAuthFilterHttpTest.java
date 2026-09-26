@@ -316,6 +316,34 @@ class BasicAuthFilterHttpTest {
          anyBoolean(), anyBoolean(), any(), any());
    }
 
+   // The case-insensitive session check must not let a session for one org be reused by a
+   // request that asks for a different org: the session is dropped and the request re-authenticates.
+   @Test
+   void existingSessionWithStoredOrgId_differentOrgHeader_isNotReused() throws Exception {
+      SRPrincipal principal = mock(SRPrincipal.class, withSettings().lenient());
+      when(principal.getName()).thenReturn(new IdentityID("alice", "OrgA").convertToKey());
+
+      try(MockedStatic<SUtil> sutil =
+             mockStatic(SUtil.class, withSettings().defaultAnswer(CALLS_REAL_METHODS)))
+      {
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+         sutil.when(() -> SUtil.getPrincipal(any())).thenReturn(principal);
+
+         // authenticate() is not stubbed -> null -> 401
+         mvc.perform(post("/api/internal/data")
+               .session(new org.springframework.mock.web.MockHttpSession())
+               .header("Authorization", basicAuth("alice", "secret"))
+               .header("X-Inetsoft-Organization-ID", "OrgB"))
+            .andExpect(status().isUnauthorized());
+      }
+
+      ArgumentCaptor<IdentityID> userId = ArgumentCaptor.forClass(IdentityID.class);
+      verify(authService, atLeastOnce()).authenticate(
+         userId.capture(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+      assertEquals("OrgB", userId.getValue().orgID);
+   }
+
    private void assertAuthenticatedOrgId(String headerOrg, String[] storedOrgs, String expected)
       throws Exception
    {
