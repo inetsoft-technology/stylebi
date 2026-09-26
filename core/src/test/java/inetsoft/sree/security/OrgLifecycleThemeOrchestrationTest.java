@@ -57,6 +57,7 @@ package inetsoft.sree.security;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.test.BaseTestConfiguration;
@@ -221,6 +222,7 @@ class OrgLifecycleThemeOrchestrationTest {
                                                          Map<String, String> orgSelectedThemePointer)
    {
       CustomThemesManager mockManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(mockManager);
 
       when(mockManager.getCustomThemes()).thenAnswer(invocation -> storedThemes[0]);
 

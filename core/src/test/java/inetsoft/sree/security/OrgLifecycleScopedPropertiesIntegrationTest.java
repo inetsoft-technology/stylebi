@@ -60,6 +60,7 @@ import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
@@ -290,6 +291,7 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
       setOrganizationInfo.setAccessible(true);
 
       CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
       when(themesManager.getCustomThemes()).thenReturn(new HashSet<>());
 
       // Mirror EM UI: operator switches to the org being renamed before editing its id.

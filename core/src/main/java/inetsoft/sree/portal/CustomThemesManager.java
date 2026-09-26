@@ -18,6 +18,7 @@
 package inetsoft.sree.portal;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.util.*;
 import jakarta.annotation.PreDestroy;
@@ -32,6 +33,7 @@ import java.lang.reflect.Constructor;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
 
 /**
  *
@@ -68,8 +70,55 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       return impl.getCustomThemes();
    }
 
+   /**
+    * Replaces the whole set of custom themes. This is a full replace of the store: any theme
+    * missing from the given set is deleted. Code that changes the current themes must use
+    * {@link #updateCustomThemes(ThemesUpdate)} instead, so that the read, the change and the
+    * write are not interleaved with another writer in the cluster.
+    */
    public void setCustomThemes(Set<CustomTheme> customThemes) {
       impl.setCustomThemes(customThemes);
+   }
+
+   /**
+    * Changes the custom themes under a cluster-wide lock. The current themes are read from the
+    * store after the lock is acquired and passed to the update as a mutable copy. The set the
+    * update returns is then written with {@link #setCustomThemes(Set)} before the lock is
+    * released, so no other writer in the cluster can read or write the themes in between.
+    * <p>
+    * Every lookup that decides the change (finding a theme by ID, checking whether an ID is
+    * taken, ...) must be done by the update on the set it is given, not on a set read before.
+    * Keep the update short: work that does not decide the change, such as notifying other
+    * nodes, should be done before or after this call. The lock is reentrant for the thread
+    * that holds it, so an update may itself call this method.
+    *
+    * @param update the change to apply. It returns the set of themes to store, or
+    *               <tt>null</tt> to leave the store unchanged.
+    * @param <E>    the type of exception the update can throw.
+    *
+    * @throws E if the update throws. The store is not changed in that case.
+    */
+   public <E extends Exception> void updateCustomThemes(ThemesUpdate<E> update) throws E {
+      Lock lock = getThemesLock();
+      lock.lock();
+
+      try {
+         Set<CustomTheme> themes = update.apply(new HashSet<>(getCustomThemes()));
+
+         if(themes != null) {
+            setCustomThemes(themes);
+         }
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Gets the cluster-wide lock that serializes the changes of the custom themes.
+    */
+   protected Lock getThemesLock() {
+      return Cluster.getInstance().getLock(THEMES_LOCK_NAME);
    }
 
    public String getSelectedTheme() {
@@ -130,68 +179,68 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
     * file location after a file or folder rename in the DataSpace.
     */
    public void renameThemeJar(String oldPath, String newPath) {
-      Set<CustomTheme> allThemes = getCustomThemes();
-
-      if(allThemes == null || allThemes.isEmpty()) {
-         return;
-      }
-
-      Set<CustomTheme> themes = new HashSet<>(allThemes);
-      boolean changed = false;
-      String oldPathPrefix = oldPath + "/";
-
-      for(CustomTheme theme : new ArrayList<>(themes)) {
-         String jarPath = theme.getJarPath();
-
-         if(jarPath == null) {
-            continue;
+      updateCustomThemes(themes -> {
+         if(themes.isEmpty()) {
+            return null;
          }
 
-         String updatedPath = null;
+         boolean changed = false;
+         String oldPathPrefix = oldPath + "/";
 
-         if(oldPath.equals(jarPath)) {
-            updatedPath = newPath;
-         }
-         else if(jarPath.startsWith(oldPathPrefix)) {
-            updatedPath = newPath + jarPath.substring(oldPath.length());
+         for(CustomTheme theme : new ArrayList<>(themes)) {
+            String jarPath = theme.getJarPath();
+
+            if(jarPath == null) {
+               continue;
+            }
+
+            String updatedPath = null;
+
+            if(oldPath.equals(jarPath)) {
+               updatedPath = newPath;
+            }
+            else if(jarPath.startsWith(oldPathPrefix)) {
+               updatedPath = newPath + jarPath.substring(oldPath.length());
+            }
+
+            if(updatedPath != null) {
+               themes.remove(theme);
+               theme.setJarPath(updatedPath);
+               themes.add(theme);
+               changed = true;
+            }
          }
 
-         if(updatedPath != null) {
-            themes.remove(theme);
-            theme.setJarPath(updatedPath);
-            themes.add(theme);
-            changed = true;
-         }
-      }
-
-      if(changed) {
-         setCustomThemes(themes);
-      }
+         return changed ? themes : null;
+      });
    }
 
    public void reloadThemes(String path) {
-      Set<CustomTheme> themes = getCustomThemes();
+      Set<CustomTheme> removed = new HashSet<>();
 
-      if(themes == null || themes.isEmpty()) {
-         return;
-      }
-
-      Set<CustomTheme> newThemes = new HashSet<>();
-      String pathPrefix = path + "/";
-
-      themes.forEach(theme -> {
-         String jarPath = theme.getJarPath();
-
-         if(jarPath == null || (!jarPath.equals(path) && !jarPath.startsWith(pathPrefix))) {
-            newThemes.add(theme);
+      updateCustomThemes(themes -> {
+         if(themes.isEmpty()) {
+            return null;
          }
+
+         Set<CustomTheme> newThemes = new HashSet<>();
+         String pathPrefix = path + "/";
+
+         themes.forEach(theme -> {
+            String jarPath = theme.getJarPath();
+
+            if(jarPath == null || (!jarPath.equals(path) && !jarPath.startsWith(pathPrefix))) {
+               newThemes.add(theme);
+            }
+            else {
+               removed.add(theme);
+            }
+         });
+
+         return newThemes;
       });
 
-      themes.stream()
-         .filter(t -> !newThemes.contains(t))
-         .forEach(t -> removeSelectedTheme(t.getId()));
-
-      setCustomThemes(newThemes);
+      removed.forEach(t -> removeSelectedTheme(t.getId()));
    }
 
    @Override
@@ -217,6 +266,29 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    public KeyValueStorageManager getKeyValueStorageManager() {
       return keyValueStorageManager;
    }
+
+   /**
+    * A change of the custom themes, applied by {@link #updateCustomThemes(ThemesUpdate)}.
+    *
+    * @param <E> the type of exception the change can throw.
+    */
+   @FunctionalInterface
+   public interface ThemesUpdate<E extends Exception> {
+      /**
+       * Changes the themes.
+       *
+       * @param themes a mutable copy of the current themes, read under the lock.
+       *
+       * @return the themes to store, or <tt>null</tt> to leave the store unchanged.
+       */
+      Set<CustomTheme> apply(Set<CustomTheme> themes) throws E;
+   }
+
+   /**
+    * The name of the cluster lock that serializes the changes of the custom themes. It is a
+    * literal so that it stays the same on every node if the class is renamed or moved.
+    */
+   public static final String THEMES_LOCK_NAME = "inetsoft.sree.portal.CustomThemes.lock";
 
    private final KeyValueStorageManager keyValueStorageManager;
    private final DataSpace dataSpace;
