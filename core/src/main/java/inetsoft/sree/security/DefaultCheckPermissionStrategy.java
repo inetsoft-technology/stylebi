@@ -53,9 +53,13 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       PermissionChecker checker = new PermissionChecker(provider);
       IdentityID curOrgID = new IdentityID(OrganizationManager.getCurrentOrgName(),
                                            OrganizationManager.getInstance().getCurrentOrgID());
+      // Bug #77061, delegated grants (org node, Users/Groups roots, org self grant) only cover
+      // identities of the org they belong to, never a user/group/role/org of another org
+      boolean targetOutOfOrg = isTargetOutOfOrg(principal, type, resource);
 
       //check admin permissions at org level
-      if(isSecurityIdentity(type) && isNotGlobalRole(type, IdentityID.getIdentityIDFromKey(resource)) &&
+      if(isSecurityIdentity(type) && !targetOutOfOrg &&
+         isNotGlobalRole(type, IdentityID.getIdentityIDFromKey(resource)) &&
          provider.getPermission(ResourceType.SECURITY_ORGANIZATION, curOrgID) != null)
       {
          Permission permission =
@@ -156,14 +160,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             orgRoleRootPer = provider.getPermission(type, rootRole);
          }
 
-         if(orgRoleRootPer != null && (role == null ||
+         if(orgRoleRootPer != null && !targetOutOfOrg && (role == null ||
             Tool.equals(role.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID())) &&
             checker.checkPermission(identity, orgRoleRootPer, action, true))
          {
             return true;
          }
       }
-      else if(type.equals(ResourceType.SECURITY_GROUP)) {
+      else if(type.equals(ResourceType.SECURITY_GROUP) && !targetOutOfOrg) {
          IdentityID rootGroup = new IdentityID("Groups", OrganizationManager.getInstance().getCurrentOrgID());
          Permission rootGroupPerm = provider.getPermission(type, rootGroup);
 
@@ -173,7 +177,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          }
       }
       //return true if admin permissions over root role
-      else if(type.equals(ResourceType.SECURITY_USER)) {
+      else if(type.equals(ResourceType.SECURITY_USER) && !targetOutOfOrg) {
          IdentityID rootUser = new IdentityID("Users", OrganizationManager.getInstance().getCurrentOrgID());
          Permission rootUserPerm = provider.getPermission(type, rootUser);
 
@@ -250,9 +254,20 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             return true;
          }
 
-         if(checkOrgAdminPermission(type, resource, organization, xPrincipal, action)) {
+         // checkOrgAdminPermission() resolves a bare SECURITY_ORGANIZATION key to the current
+         // org, so an out-of-org target must be rejected before it (Bug #77061)
+         if(!targetOutOfOrg &&
+            checkOrgAdminPermission(type, resource, organization, xPrincipal, action))
+         {
             return true;
          }
+      }
+
+      // Bug #77061, the remaining paths (cumulative ADMIN merge, group BFS, user wildcard and
+      // org self grant fallback) are all grants of the current org, which never extend to an
+      // identity or organization of another org
+      if(targetOutOfOrg) {
+         return false;
       }
 
       if(identity == null) {
@@ -568,6 +583,97 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          type.equals(ResourceType.SECURITY_ORGANIZATION);
    }
 
+   /**
+    * Check if a security identity resource (user, group, role or organization) belongs to an
+    * org other than the one the permission is checked in. Global (org-less) roles and
+    * resources whose org can't be determined are never considered out of org.
+    */
+   private boolean isTargetOutOfOrg(Principal principal, ResourceType type, String resource) {
+      // in single tenant mode every identity is in the one org, skip the provider lookups
+      if(!isSecurityIdentity(type) || Tool.isEmptyString(resource) || !SUtil.isMultiTenant()) {
+         return false;
+      }
+
+      // the org the checked principal works in, the same org the permissions are read from.
+      // The grant keys above use the thread's getCurrentOrgID(); for a principal other than
+      // the thread principal the two can differ, which then fails closed (denies).
+      String orgID;
+
+      if(!(principal instanceof XPrincipal)) {
+         orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      }
+      else if(isOpeningShareGlobalAsset(principal)) {
+         orgID = ((XPrincipal) principal).getOrgId();
+      }
+      else {
+         orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      }
+
+      if(Tool.isEmptyString(orgID)) {
+         return false;
+      }
+
+      String targetOrg;
+
+      if(type == ResourceType.SECURITY_ORGANIZATION) {
+         if("*".equals(resource)) {
+            return true;
+         }
+
+         // a bare key is the org id (or, for some callers, the org name), it must not be
+         // resolved through getIdentityIDFromKey(), which would map it to the current org
+         if(!resource.contains(IdentityID.KEY_DELIMITER)) {
+            return !isBareOrgKeyOfOrg(provider, resource, orgID);
+         }
+
+         targetOrg = IdentityID.getIdentityIDFromKey(resource).getOrgID();
+      }
+      else {
+         IdentityID resourceID = IdentityID.getIdentityIDFromKey(resource);
+         // identities not in the provider (e.g. SSO users) and the root/wildcard keys
+         // (Users, Groups, Roles, *) carry their org in the key
+         targetOrg = resourceID.getOrgID();
+         Identity target = type == ResourceType.SECURITY_USER ? provider.getUser(resourceID) :
+            type == ResourceType.SECURITY_GROUP ? provider.getGroup(resourceID) :
+            type == ResourceType.SECURITY_ROLE ? provider.getRole(resourceID) : null;
+
+         // a global role has no org, and stays on the existing global role handling
+         if(target != null &&
+            (type == ResourceType.SECURITY_ROLE || target.getOrganizationID() != null))
+         {
+            targetOrg = target.getOrganizationID();
+         }
+      }
+
+      // org ids are case-insensitive, getCurrentOrgID() lower-cases them
+      return !Tool.isEmptyString(targetOrg) && !targetOrg.equalsIgnoreCase(orgID);
+   }
+
+   /**
+    * Check if a bare SECURITY_ORGANIZATION key denotes the given org. The key is the org id,
+    * compared case-insensitively like all org ids. Some callers pass the org name instead, so
+    * the org's name also matches, but only when it is not the id of any org: an org can be
+    * renamed to another org's id, and must not alias that org (Bug #77061).
+    */
+   private static boolean isBareOrgKeyOfOrg(AuthenticationProvider provider, String key,
+                                            String orgID)
+   {
+      if(orgID == null) {
+         return false;
+      }
+
+      if(key.equalsIgnoreCase(orgID)) {
+         return true;
+      }
+
+      if(!key.equals(provider.getOrgNameFromID(orgID))) {
+         return false;
+      }
+
+      String[] orgIDs = provider.getOrganizationIDs();
+      return orgIDs == null || Arrays.stream(orgIDs).noneMatch(key::equalsIgnoreCase);
+   }
+
    private boolean checkOrgAdminPermission(ResourceType type, String resource, String orgID,
                                            XPrincipal principal, ResourceAction action)
    {
@@ -663,6 +769,12 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       case SECURITY_ORGANIZATION:
          if(resource.equals("*")) {
             return false;
+         }
+
+         // a bare key is an org id (or name), getIdentityIDFromKey() would resolve it to the
+         // current org and so match any org (Bug #77061)
+         if(!resource.contains(IdentityID.KEY_DELIMITER)) {
+            return isBareOrgKeyOfOrg(currProvider, resource, orgID);
          }
 
          return Tool.equals(orgID, resourceID.getOrgID()) ||
