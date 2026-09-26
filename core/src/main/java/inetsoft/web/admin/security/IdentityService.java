@@ -579,17 +579,22 @@ public class IdentityService {
             repletRegistryManager.removeUser(identityId);
             //rep.removeUser(identityId);
             dashboardRegistryManager.clear(identityId);
-            // read before the user is removed. The stored user has an organization even when
-            // the request has none, which would remove the name from every organization's themes
+            // read before the user is removed. A user stored without an organization belongs to
+            // the default organization, so its organization is never null, which would match
+            // every organization's themes
             User user = eprovider.getUser(identityId);
-            String userOrgId = user != null ? user.getOrganizationID() :
-               identityId.orgID != null ? identityId.orgID : Organization.getDefaultOrganizationID();
             eprovider.removeUser(identityId);
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
             removeUserScopedAssets(identity);
             UserEnv.removeUser(identityId);
             AutoSaveUtils.deleteUserAutoSaveFiles(identityId);
-            removeIdentityFromThemes(identityId, userOrgId, CustomTheme::getUsers);
+            if(user != null) {
+               removeIdentityFromThemes(identityId, user.getOrganizationID(), CustomTheme::getUsers);
+            }
+            else {
+               // nothing was deleted, so a same-named user of another organization keeps its theme
+               LOG.debug("User {} not found, skipping the custom theme cleanup", identityId);
+            }
          }
          else {
             if(!identityId.equals(oID)) {

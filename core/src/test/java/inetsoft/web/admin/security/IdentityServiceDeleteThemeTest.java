@@ -44,6 +44,7 @@ import org.mockito.MockedStatic;
 import org.slf4j.LoggerFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
 
@@ -320,6 +321,75 @@ class IdentityServiceDeleteThemeTest {
       assertEquals(List.of("analyst"), bTheme.getRoles(), "org B's analyst must keep its theme");
       assertEquals(List.of("analyst"), globalTheme.getRoles(),
                    "a global theme's analyst belongs to the default organization, not to org A");
+   }
+
+   // a delete whose user is not found removes nothing, so it must not remove a same-named live
+   // user of another organization (here the default organization's bob) from its themes
+   @Test
+   void deleteUser_userNotFound_noThemeWrite() {
+      IdentityID bob = new IdentityID("bob", null);
+      CustomTheme globalTheme = theme("globalTheme", null, "bob");
+      CustomTheme hostTheme = theme("hostTheme", HOST_ORG, "bob");
+      stubThemes(globalTheme, hostTheme);
+
+      List<String> warnings = delete(bob, Identity.USER);
+
+      assertTrue(warnings.isEmpty(), warnings::toString);
+      verify(themesManager, never()).updateCustomThemes(any());
+      verify(themesManager, never()).setCustomThemes(any());
+      assertEquals(List.of("bob"), globalTheme.getUsers());
+      assertEquals(List.of("bob"), hostTheme.getUsers());
+   }
+
+   // a group rename removes the old group from the provider too, but it must leave the themes to
+   // the rename (UserTreeService/SecurityApiService updateTheme) instead of the delete cleanup
+   @Test
+   void renameGroup_themesNotTouchedByDeleteCleanup() throws Exception {
+      IdentityID oldId = new IdentityID("sales", ORG_A);
+      IdentityID newId = new IdentityID("sales2", ORG_A);
+      Group oldGroup = mock(Group.class);
+      when(oldGroup.getOrganizationID()).thenReturn(ORG_A);
+      when(provider.getGroup(oldId)).thenReturn(oldGroup);
+      Group group = mock(Group.class);
+      when(group.getIdentityID()).thenReturn(newId);
+      when(group.getType()).thenReturn(Identity.GROUP);
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getGroups().add("sales");
+      stubThemes(aTheme);
+
+      syncIdentity(group, oldId);
+
+      verify(provider).removeGroup(oldId);
+      verify(themesManager, never()).updateCustomThemes(any());
+      assertEquals(List.of("sales"), aTheme.getGroups());
+   }
+
+   @Test
+   void renameRole_themesNotTouchedByDeleteCleanup() throws Exception {
+      IdentityID oldId = new IdentityID("analyst", ORG_A);
+      IdentityID newId = new IdentityID("analyst2", ORG_A);
+      Role oldRole = mock(Role.class);
+      when(oldRole.getOrganizationID()).thenReturn(ORG_A);
+      when(provider.getRole(oldId)).thenReturn(oldRole);
+      Role role = mock(Role.class);
+      when(role.getIdentityID()).thenReturn(newId);
+      when(role.getType()).thenReturn(Identity.ROLE);
+      CustomTheme aTheme = theme("aTheme", ORG_A);
+      aTheme.getRoles().add("analyst");
+      stubThemes(aTheme);
+
+      syncIdentity(role, oldId);
+
+      verify(provider).removeRole(oldId);
+      verify(themesManager, never()).updateCustomThemes(any());
+      assertEquals(List.of("analyst"), aTheme.getRoles());
+   }
+
+   private void syncIdentity(Identity identity, IdentityID oldId) throws Exception {
+      Method method = IdentityService.class.getDeclaredMethod(
+         "syncIdentity", EditableAuthenticationProvider.class, Identity.class, IdentityID.class);
+      method.setAccessible(true);
+      method.invoke(service, provider, identity, oldId);
    }
 
    private List<String> delete(IdentityID id, int type) {
