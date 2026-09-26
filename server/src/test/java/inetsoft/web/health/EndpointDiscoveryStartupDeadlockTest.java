@@ -52,8 +52,12 @@ class EndpointDiscoveryStartupDeadlockTest {
 
    /** The request thread inserts 11 keys into a 16-bin table: P(collision) = 1 - (15/16)^11. */
    private static final int BASELINE_MAX_ATTEMPTS = 20;
-   private static final int REGRESSION_ATTEMPTS = 10;
-   private static final int NO_PARENT_LOCK_ATTEMPTS = 5;
+   /**
+    * A missing or broken fix fails every attempt (off-main {@code getFilterEndpoint}), so a few
+    * attempts suffice; the rest only repeat a deterministic check.
+    */
+   private static final int REGRESSION_ATTEMPTS = 3;
+   private static final int NO_PARENT_LOCK_ATTEMPTS = 1;
 
    private static final String MAIN = "bug76974-main";
    private static final String REGISTRY =
@@ -110,7 +114,8 @@ class EndpointDiscoveryStartupDeadlockTest {
     * Row C-R5 (LB2): the same overlap, but the request thread runs discovery from a controller
     * method rather than a parent bean factory method, so it never holds the parent singleton
     * lock across its discovery. That does not deadlock, even though main is parked on the
-    * parent lock while holding a reserved bin.
+    * parent lock while holding a reserved bin. This checks Spring's behaviour, not the fix, so it
+    * runs one attempt: the overlap is forced every time, but a bin collision stays a draw.
     */
    @Test
    void overlappingDiscoveryOutsideTheParentLockDoesNotDeadlock() {
@@ -131,11 +136,10 @@ class EndpointDiscoveryStartupDeadlockTest {
                          "startup deadlocked, attempt " + i + ": " + attempt.describe());
          assertEquals(Outcome.STARTED, attempt.outcome, "attempt " + i + ": " + attempt.describe());
 
-         if(attempt.requestHeldParentLock) {
-            assertTrue(attempt.overlapObserved,
-                       "the request held the parent singleton lock but main was not inside the " +
-                          "management context refresh, attempt " + i + ": " + attempt.describe());
-         }
+         assertTrue(attempt.requestHeldParentLock && attempt.overlapObserved,
+                    "harness did not force the request to hold the parent singleton lock while " +
+                       "main was inside the management context refresh, attempt " + i + ": " +
+                       attempt.describe());
 
          // rows O-5 / W-R5: one discovery, on main, before any web server accepts; no
          // getFilterEndpoint call on any other thread

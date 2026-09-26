@@ -108,6 +108,36 @@ import java.util.function.Function;
  * not held at its gate. Main is instead held when the management web server starts, until the
  * request thread holds the parent singleton lock inside {@code healthEndpointWebMvcHandlerMapping}
  * creation, so the same overlap is still forced.
+ * <p>
+ * <b>Leftover deadlock.</b> A deadlocked attempt cannot be released: neither a
+ * {@code ReentrantLock.lock()} nor a monitor wait is interruptible. Its two threads, its started
+ * Tomcat connectors (ephemeral ports on 127.0.0.1) and their daemon pools stay in the test JVM
+ * until it exits. Every run of the baseline tests leaves at least one such pair, so
+ * {@code ThreadMXBean.findDeadlockedThreads()} reports a deadlock for the rest of the surefire
+ * fork. A later test in this module that relies on the real {@code DeadlockHealthService}, or
+ * boots a context containing {@code DeadlockHealthIndicator}, must mock it or run in its own
+ * fork.
+ * <p>
+ * <b>Maintenance on a Spring Boot upgrade.</b> The harness depends on Spring internals:
+ * <ul>
+ *   <li>the private fields {@code EndpointDiscoverer.endpoints} and {@code .filterEndpoints},
+ *       {@code EndpointDiscoverer.EndpointBean.beanName},
+ *       {@code DefaultSingletonBeanRegistry.singletonLock} (Spring 6.2+) and
+ *       {@code ConcurrentHashMap.table} (needs {@code --add-opens java.base/java.util.concurrent});</li>
+ *   <li>{@code EndpointDiscoverer.getFilterEndpoint} being a single
+ *       {@code filterEndpoints.computeIfAbsent} whose mapping function calls {@code getBean};</li>
+ *   <li>{@code AbstractBeanFactory.doGetBean} resolving {@code depends-on} before
+ *       {@code getSingleton} (the gates);</li>
+ *   <li>the bean name {@link #HEALTH_MAPPING} and the Spring/Tomcat frame names matched here and
+ *       in {@code EndpointDiscoveryStartupDeadlockTest}.</li>
+ * </ul>
+ * These fail loudly: a missing field or bean throws, and the baseline positive control fails
+ * if the recorder sees nothing. If the tests go red after an upgrade, first check whether
+ * {@code getFilterEndpoint} still calls {@code getBean} inside {@code computeIfAbsent}. If
+ * upstream no longer does, the deadlock is gone: delete the baselines and this harness, and
+ * consider removing {@link EndpointDiscoveryWarmup}. A baseline that reports "no deadlock in N
+ * forced attempts" while {@code getFilterEndpoint} is unchanged means the harness lost its bin
+ * collision, not that the bug is fixed.
  */
 final class EndpointDiscoveryDeadlockHarness {
    private EndpointDiscoveryDeadlockHarness() {
