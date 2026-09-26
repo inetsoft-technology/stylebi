@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.portal;
 
+import inetsoft.sree.security.Organization;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
 import org.w3c.dom.Element;
@@ -266,6 +267,29 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
     */
    public void setRoles(List<String> roles) {
       this.roles = roles;
+   }
+
+   /**
+    * Determines if the bare names in this theme's users, groups and roles lists can refer to
+    * an identity of the given organization. Identity names are only unique within an
+    * organization, so an organization-private theme only refers to identities of its own
+    * organization and a global theme only refers to identities of the default organization
+    * (which keeps single-tenant data working). Global identities (e.g. global roles, which have
+    * no organization) are referenced by every theme.
+    *
+    * @param identityOrgID the organization ID of the identity, or <tt>null</tt> for a global
+    *                      identity.
+    *
+    * @return <tt>true</tt> if the identity may be referenced by this theme.
+    */
+   public boolean isIdentityOrganization(String identityOrgID) {
+      if(identityOrgID == null) {
+         return true;
+      }
+
+      return Tool.isEmptyString(orgID) ?
+         identityOrgID.equals(Organization.getDefaultOrganizationID()) :
+         orgID.equals(identityOrgID);
    }
 
 
