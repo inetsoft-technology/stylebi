@@ -19,6 +19,7 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.schedule.model.TaskDependencyModel;
@@ -59,8 +60,10 @@ public class ExportTaskController {
          selectedTaskMap.put(taskName, taskName);
       }
 
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
       for(String taskName : tasksNames) {
-         getTaskRequired(taskName, requiredMap, selectedTaskMap);
+         getTaskRequired(taskName, requiredMap, selectedTaskMap, orgID, principal);
       }
 
       requiredMap.forEach((task, requiredBy) -> {
@@ -75,8 +78,11 @@ public class ExportTaskController {
       return result;
    }
 
-   private void getTaskRequired(String taskName, Map<String, String> requiredMap, Map<String, String> selectedTaskMap) {
-      ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+   private void getTaskRequired(String taskName, Map<String, String> requiredMap,
+                                Map<String, String> selectedTaskMap, String orgID,
+                                Principal principal)
+   {
+      ScheduleTask task = getExportTask(taskName, orgID, principal);
 
       if(task == null) {
          return;
@@ -88,19 +94,31 @@ public class ExportTaskController {
          String dependency = dependencies.nextElement();
          String requiredBy = requiredMap.get(dependency);
 
-         if(selectedTaskMap.get(dependency) != null) {
+         // only offer dependencies that the user is allowed to export
+         if(selectedTaskMap.get(dependency) != null ||
+            getExportTask(dependency, orgID, principal) == null)
+         {
             continue;
          }
 
          if(requiredBy == null || "".equals(requiredBy)) {
             requiredMap.put(dependency, taskName);
-            getTaskRequired(dependency, requiredMap, selectedTaskMap);
+            getTaskRequired(dependency, requiredMap, selectedTaskMap, orgID, principal);
          }
          else if(requiredBy.indexOf(taskName) < 0) {
             requiredMap.put(dependency, requiredBy + "," + taskName);
-            getTaskRequired(dependency, requiredMap, selectedTaskMap);
+            getTaskRequired(dependency, requiredMap, selectedTaskMap, orgID, principal);
          }
       }
+   }
+
+   /**
+    * Gets a task in the user's organization, or null if it does not exist or the user is not
+    * allowed to export it.
+    */
+   private ScheduleTask getExportTask(String taskName, String orgID, Principal principal) {
+      ScheduleTask task = scheduleManager.getScheduleTask(taskName, orgID);
+      return task != null && scheduleService.canExportTask(task, principal) ? task : null;
    }
 
    /**
@@ -120,8 +138,13 @@ public class ExportTaskController {
    @GetMapping("/em/schedule/export")
    public void exportScheduledTasks(
            @RequestParam("tasks") String tasks,
+           Principal principal,
            HttpServletResponse response) throws Exception
    {
+      // check all the tasks before writing anything, the response can't be changed to an error
+      // once the output stream has been written and closed
+      List<ScheduleTask> exportTasks = scheduleService.getExportTasks(tasks.split(","), principal);
+
       response.setHeader("Content-disposition",
               "attachment; filename*=utf-8''schedule.xml");
       response.setHeader("extension", "xml");
@@ -129,10 +152,8 @@ public class ExportTaskController {
       response.setHeader("Pragma", "");
       response.setContentType("text/xml");
 
-      String[] tasks2 = tasks.split(",");
-
       try(OutputStream output = response.getOutputStream()) {
-         this.scheduleService.exportScheduledTasks(tasks2, output);
+         this.scheduleService.exportScheduledTasks(exportTasks, output);
       }
       catch(SocketException ignore) {
       }
