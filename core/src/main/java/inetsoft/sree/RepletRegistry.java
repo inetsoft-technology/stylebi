@@ -20,6 +20,7 @@ package inetsoft.sree;
 import inetsoft.report.PropertyChangeEvent;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;
@@ -37,6 +38,7 @@ import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 
 /**
  * RepletRegistry handles registration of replets. It loads the registration
@@ -193,6 +195,7 @@ public class RepletRegistry implements Serializable {
     * Init the registry.
     */
    protected synchronized void init() throws Exception {
+      LocalChanges changes = getLocalChanges();
       // clear out the current in memory copy
       folders.clear();
 //      filemap.clear();
@@ -239,6 +242,25 @@ public class RepletRegistry implements Serializable {
          getFolderMap().put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
          getFolderContextmap().put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
       }
+
+      applyLocalChanges(changes);
+   }
+
+   /**
+    * Gets the changes made to this copy since it was last read from or written to storage.
+    */
+   synchronized LocalChanges getLocalChanges() {
+      return storedState == null ?
+         new LocalChanges() : storedState.diff(getFolderMap(), getFolderContextmap());
+   }
+
+   /**
+    * Records the copy just read from storage and applies the unsaved local changes over it, so
+    * that reading a commit made by another node never discards them (Bug #76977).
+    */
+   synchronized void applyLocalChanges(LocalChanges changes) {
+      storedState = new StoredState(getFolderMap(), getFolderContextmap());
+      changes.applyTo(getFolderMap(), getFolderContextmap());
    }
 
    private String getRegistryPath(String originPath) {
@@ -707,42 +729,61 @@ public class RepletRegistry implements Serializable {
    public synchronized void save() throws Exception {
       DataSpace space = DataSpace.getDataSpace();
       String repfile = getRegistryPath();
-
-      if(!loaded) {
-         // repository.xml exists in the data space but wasn't loaded so reload the registry
-         if(space.exists(null, repfile)) {
-            reload();
-         }
-
-         loaded = true;
-      }
-
-      int idx = repfile.lastIndexOf('.');
-      String repb = ((idx > 0) ? repfile.substring(0, idx) : repfile) + ".bak";
-
-      try(InputStream istream = space.getInputStream(null, repfile)) {
-         if(istream != null) {
-            space.withOutputStream(null, repb, ostream -> Tool.fileCopy(istream, ostream));
-         }
-      }
-      catch(Throwable exc) {
-         throw new Exception("Failed to save repository.xml", exc);
-      }
-
-      dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
+      // Bug #76977, each cluster node keeps its own copy and writes the whole file, so saves of
+      // the file are serialized across the cluster and a copy that is behind storage is reloaded
+      // (keeping its unsaved changes) before it is written. The lock is taken while holding this
+      // registry's monitor; nothing done while holding it fires an event or waits for a monitor.
+      Lock lock = Cluster.getInstance().getLock(SAVE_LOCK_PREFIX + repfile);
+      boolean reloaded = false;
+      lock.lock();
 
       try {
-         space.withOutputStream(null, repfile, this::save);
-      }
-      catch(Throwable exc) {
-         throw new Exception("Failed to save repository.xml", exc);
+         if(!loaded || space.getLastModified(null, repfile) != date) {
+            // repository.xml exists in the data space but wasn't loaded, or was saved by another
+            // node since it was loaded, so reload the registry
+            if(space.exists(null, repfile)) {
+               reload();
+               reloaded = true;
+            }
+
+            loaded = true;
+         }
+
+         int idx = repfile.lastIndexOf('.');
+         String repb = ((idx > 0) ? repfile.substring(0, idx) : repfile) + ".bak";
+
+         try(InputStream istream = space.getInputStream(null, repfile)) {
+            if(istream != null) {
+               space.withOutputStream(null, repb, ostream -> Tool.fileCopy(istream, ostream));
+            }
+         }
+         catch(Throwable exc) {
+            throw new Exception("Failed to save repository.xml", exc);
+         }
+
+         dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
+
+         try {
+            space.withOutputStream(null, repfile, this::save);
+            date = space.getLastModified(null, repfile);
+            storedState = new StoredState(getFolderMap(), getFolderContextmap());
+         }
+         catch(Throwable exc) {
+            throw new Exception("Failed to save repository.xml", exc);
+         }
+         finally {
+            if(uptodate()) {
+               dmgr.addChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
+            }
+         }
       }
       finally {
-         date = space.getLastModified(null, repfile);
+         lock.unlock();
+      }
 
-         if(uptodate()) {
-            dmgr.addChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
-         }
+      if(reloaded) {
+         fireEvent("registry_", RELOAD_EVENT, null, null);
+         fireEvent("registry_", CHANGE_EVENT, null, null);
       }
    }
 
@@ -896,6 +937,7 @@ public class RepletRegistry implements Serializable {
       }
 
       private void init0() throws Exception {
+         LocalChanges changes = getLocalChanges();
          // clear out the current in memory copy
          folders.clear();
 //         filemap.clear();
@@ -911,6 +953,8 @@ public class RepletRegistry implements Serializable {
          if(!folders.containsKey("/")) {
             folders.put("/", "/");
          }
+
+         applyLocalChanges(changes);
 
          if(uptodate()) {
             addChangeListener(DataSpace.getDataSpace(), getRegistryDir(),
@@ -999,6 +1043,107 @@ public class RepletRegistry implements Serializable {
       }
 
       private final String user;
+   }
+
+   /**
+    * The folders and folder contexts of a registry as last read from or written to storage.
+    */
+   private static final class StoredState {
+      StoredState(Map<String, String> folders, Map<String, FolderContext> contexts) {
+         this.folders = new HashSet<>(folders.keySet());
+         contexts.forEach((name, context) -> this.contexts.put(name, copyContext(context)));
+      }
+
+      /**
+       * Gets the changes of an in-memory copy relative to this stored state.
+       */
+      LocalChanges diff(Map<String, String> folders, Map<String, FolderContext> contexts) {
+         LocalChanges changes = new LocalChanges();
+         changes.localFolders.addAll(folders.keySet());
+
+         folders.forEach((folder, value) -> {
+            if(!this.folders.contains(folder)) {
+               changes.addedFolders.put(folder, value);
+            }
+         });
+
+         for(String folder : this.folders) {
+            if(!folders.containsKey(folder)) {
+               changes.removedFolders.add(folder);
+            }
+         }
+
+         contexts.forEach((name, context) -> {
+            if(!isSameContext(this.contexts.get(name), context)) {
+               changes.changedContexts.put(name, copyContext(context));
+            }
+         });
+
+         for(String name : this.contexts.keySet()) {
+            if(!contexts.containsKey(name)) {
+               changes.removedContexts.add(name);
+            }
+         }
+
+         return changes;
+      }
+
+      private static boolean isSameContext(FolderContext context1, FolderContext context2) {
+         return context1 != null && context2 != null &&
+            Objects.equals(context1.getName(), context2.getName()) &&
+            Objects.equals(context1.getAlias(), context2.getAlias()) &&
+            Objects.equals(context1.getDescription(), context2.getDescription()) &&
+            Objects.equals(context1.getFavoritesUser(), context2.getFavoritesUser());
+      }
+
+      private final Set<String> folders;
+      private final Map<String, FolderContext> contexts = new HashMap<>();
+   }
+
+   /**
+    * The changes made to an in-memory copy of a registry since it was last read from or written
+    * to storage, applied again over a copy read from storage.
+    */
+   private static final class LocalChanges {
+      void applyTo(Map<String, String> folders, Map<String, FolderContext> contexts) {
+         // a removed folder takes the folders inside it along, as removeFolder does
+         for(String folder : removedFolders) {
+            String prefix = folder + "/";
+            folders.keySet().removeIf(name -> name.equals(folder) ||
+               name.startsWith(prefix) && !localFolders.contains(name));
+         }
+
+         addedFolders.forEach((folder, value) -> {
+            folders.put(folder, value);
+
+            // create parents, as addFolder does
+            for(int idx = folder.lastIndexOf('/'); idx > 0; idx = folder.lastIndexOf('/', idx - 1)) {
+               String parent = folder.substring(0, idx);
+               folders.putIfAbsent(parent, parent);
+            }
+         });
+
+         removedContexts.forEach(contexts::remove);
+         changedContexts.forEach((name, context) -> contexts.put(name, copyContext(context)));
+      }
+
+      private final Set<String> localFolders = new HashSet<>();
+      private final Map<String, String> addedFolders = new HashMap<>();
+      private final Set<String> removedFolders = new HashSet<>();
+      private final Map<String, FolderContext> changedContexts = new HashMap<>();
+      private final Set<String> removedContexts = new HashSet<>();
+   }
+
+   private static FolderContext copyContext(FolderContext context) {
+      FolderContext copy =
+         new FolderContext(context.getName(), context.getDescription(), context.getAlias());
+      String favoritesUser = context.getFavoritesUser();
+
+      if(!favoritesUser.isEmpty()) {
+         copy.addFavoritesUser(favoritesUser);
+      }
+
+      return copy;
    }
 
    class XMLHandler extends DefaultHandler {
@@ -1122,6 +1267,10 @@ public class RepletRegistry implements Serializable {
    protected DataChangeListenerManager dmgr = new DataChangeListenerManager();
    protected long date = -2L; // last modified
    protected boolean loaded;
+   // what this copy last read from or wrote to storage, to tell its unsaved changes
+   private transient StoredState storedState;
+
+   private static final String SAVE_LOCK_PREFIX = RepletRegistry.class.getName() + ".save:";
 
    static final String GLOBAL_LISTENERS = RepletRegistry.class.getName() + ".globalListeners";
    private static final Logger LOG = LoggerFactory.getLogger(RepletRegistry.class);
