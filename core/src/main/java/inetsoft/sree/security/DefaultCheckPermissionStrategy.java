@@ -589,11 +589,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
     * resources whose org can't be determined are never considered out of org.
     */
    private boolean isTargetOutOfOrg(Principal principal, ResourceType type, String resource) {
-      if(!isSecurityIdentity(type) || Tool.isEmptyString(resource)) {
+      // in single tenant mode every identity is in the one org, skip the provider lookups
+      if(!isSecurityIdentity(type) || Tool.isEmptyString(resource) || !SUtil.isMultiTenant()) {
          return false;
       }
 
-      // the org the checked principal works in, the same org the permissions are read from
+      // the org the checked principal works in, the same org the permissions are read from.
+      // The grant keys above use the thread's getCurrentOrgID(); for a principal other than
+      // the thread principal the two can differ, which then fails closed (denies).
       String orgID;
 
       if(!(principal instanceof XPrincipal)) {
@@ -620,7 +623,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          // a bare key is the org id (or, for some callers, the org name), it must not be
          // resolved through getIdentityIDFromKey(), which would map it to the current org
          if(!resource.contains(IdentityID.KEY_DELIMITER)) {
-            return !resource.equals(orgID) && !resource.equals(provider.getOrgNameFromID(orgID));
+            return !isBareOrgKeyOfOrg(provider, resource, orgID);
          }
 
          targetOrg = IdentityID.getIdentityIDFromKey(resource).getOrgID();
@@ -642,7 +645,33 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          }
       }
 
-      return !Tool.isEmptyString(targetOrg) && !targetOrg.equals(orgID);
+      // org ids are case-insensitive, getCurrentOrgID() lower-cases them
+      return !Tool.isEmptyString(targetOrg) && !targetOrg.equalsIgnoreCase(orgID);
+   }
+
+   /**
+    * Check if a bare SECURITY_ORGANIZATION key denotes the given org. The key is the org id,
+    * compared case-insensitively like all org ids. Some callers pass the org name instead, so
+    * the org's name also matches, but only when it is not the id of any org: an org can be
+    * renamed to another org's id, and must not alias that org (Bug #77061).
+    */
+   private static boolean isBareOrgKeyOfOrg(AuthenticationProvider provider, String key,
+                                            String orgID)
+   {
+      if(orgID == null) {
+         return false;
+      }
+
+      if(key.equalsIgnoreCase(orgID)) {
+         return true;
+      }
+
+      if(!key.equals(provider.getOrgNameFromID(orgID))) {
+         return false;
+      }
+
+      String[] orgIDs = provider.getOrganizationIDs();
+      return orgIDs == null || Arrays.stream(orgIDs).noneMatch(key::equalsIgnoreCase);
    }
 
    private boolean checkOrgAdminPermission(ResourceType type, String resource, String orgID,
@@ -740,6 +769,12 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       case SECURITY_ORGANIZATION:
          if(resource.equals("*")) {
             return false;
+         }
+
+         // a bare key is an org id (or name), getIdentityIDFromKey() would resolve it to the
+         // current org and so match any org (Bug #77061)
+         if(!resource.contains(IdentityID.KEY_DELIMITER)) {
+            return isBareOrgKeyOfOrg(currProvider, resource, orgID);
          }
 
          return Tool.equals(orgID, resourceID.getOrgID()) ||

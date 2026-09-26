@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1065,6 +1066,102 @@ class DefaultCheckPermissionStrategyTest {
       );
    }
 
+   // Org name that equals another org's id (Bug #77061, review r1): an admin of TEST_ORG can
+   // rename TEST_ORG to "otherOrg", the id of another org. A bare org key is the org id first,
+   // so the name must not make "otherOrg" count as TEST_ORG.
+   @ParameterizedTest(name = "org admin role {0}")
+   @ValueSource(booleans = { true, false })
+   void orgNamedLikeAnotherOrgIdDoesNotAliasIt(boolean orgAdminRole) {
+      stubOrganizations(OTHER_ORG);
+      stubOrgAdmin(orgAdminRole);
+
+      assertFalse(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION, OTHER_ORG, false),
+                  TEST_ORG + " named " + OTHER_ORG + " must not pass the id of " + OTHER_ORG);
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION, TEST_ORG, false),
+                 "the id of the own org still passes");
+   }
+
+   // Some callers pass the org name as a bare key (SystemAdminService role members); the name
+   // of the own org, when it is no org's id, still denotes the own org.
+   @ParameterizedTest(name = "org admin role {0}")
+   @ValueSource(booleans = { true, false })
+   void bareOrgNameKeyOfOwnOrgStillPasses(boolean orgAdminRole) {
+      stubOrganizations("Org A");
+      stubOrgAdmin(orgAdminRole);
+
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION, "Org A", false),
+                 "the name of the own org passes");
+      assertFalse(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION, "Org B", false),
+                  "the name of another org is denied");
+   }
+
+   // Org ids are case-insensitive and getCurrentOrgID() lower-cases them, while
+   // getCurrentOrgID(principal) keeps the stored case (Bug #77061, review r1): same-org grants
+   // and keys built from the lower-cased id must still pass.
+   @Test
+   void mixedCaseOrgIdOfOwnOrgStillPasses() {
+      String lowerOrg = TEST_ORG.toLowerCase();
+      assertNotEquals(TEST_ORG, lowerOrg, "TEST_ORG must be mixed case for this test");
+      threadOrgID = lowerOrg;
+      Permission admin = grantedPermission(TEST_USER, lowerOrg, ResourceAction.ADMIN, false);
+      // Users root grant keyed by the lower-cased current org id
+      when(mockProvider.getPermission(eq(ResourceType.SECURITY_USER),
+                                      eq(new IdentityID("Users", lowerOrg))))
+         .thenReturn(admin);
+      // org node grant keyed by the lower-cased current org id
+      when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION),
+                                      eq(new IdentityID(TEST_ORG, lowerOrg))))
+         .thenReturn(admin);
+
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_USER,
+                                new IdentityID("Users", lowerOrg).convertToKey(), false),
+                 "Users root of the own org, lower-cased id");
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION, lowerOrg, false),
+                 "own org, lower-cased bare id");
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION,
+                                new IdentityID(TEST_ORG, lowerOrg).convertToKey(), false),
+                 "own org, lower-cased id in the key");
+      assertFalse(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION,
+                                 OTHER_ORG.toLowerCase(), false),
+                  "another org is still denied");
+   }
+
+   @Test
+   void mixedCaseOrgIdOfOwnOrgStillPassesForOrgAdmin() {
+      threadOrgID = TEST_ORG.toLowerCase();
+      stubOrgAdmin(true);
+
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION,
+                                TEST_ORG.toLowerCase(), false),
+                 "org admin, own org with lower-cased bare id");
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION,
+                                TEST_ORG.toUpperCase(), false),
+                 "org admin, own org with upper-cased bare id");
+      assertFalse(checkDelegated(null, ResourceType.SECURITY_ORGANIZATION,
+                                 OTHER_ORG.toUpperCase(), false),
+                  "org admin, another org with upper-cased bare id");
+   }
+
+   // TEST_ORG is named ownOrgName, OTHER_ORG is named "Org B"
+   private void stubOrganizations(String ownOrgName) {
+      lenient().when(mockProvider.getOrganizationIDs()).thenReturn(new String[]{ TEST_ORG, OTHER_ORG });
+      lenient().when(mockProvider.getOrgNameFromID(eq(TEST_ORG))).thenReturn(ownOrgName);
+      lenient().when(mockProvider.getOrgNameFromID(eq(OTHER_ORG))).thenReturn("Org B");
+      lenient().when(mockProvider.getOrgIdFromName(eq(ownOrgName))).thenReturn(TEST_ORG);
+      lenient().when(mockProvider.getOrgIdFromName(eq("Org B"))).thenReturn(OTHER_ORG);
+   }
+
+   // the org admin role, or else the delegated ADMIN grant on the org node
+   private void stubOrgAdmin(boolean orgAdminRole) {
+      if(orgAdminRole) {
+         when(mockProvider.isOrgAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG))))
+            .thenReturn(true);
+      }
+      else {
+         stubGrant(DelegatedGrant.ORG_NODE);
+      }
+   }
+
    private boolean checkDelegated(DelegatedGrant grant, ResourceType type, String resource,
                                   boolean siteAdmin)
    {
@@ -1079,6 +1176,9 @@ class DefaultCheckPermissionStrategyTest {
          mockStrategy.checkPermission(mockUser, type, resource, ResourceAction.ADMIN));
       return result[0];
    }
+
+   // the org id OrganizationManager.getCurrentOrgID() returns (it lower-cases the real one)
+   private String threadOrgID = TEST_ORG;
 
    private void runInTestOrg(boolean siteAdmin, Runnable check) {
       runInTestOrg(siteAdmin, true, check);
@@ -1095,7 +1195,7 @@ class DefaultCheckPermissionStrategyTest {
          OrganizationManager mockOM = mock(OrganizationManager.class);
          omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
          omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
-         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(threadOrgID);
          when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
          when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(siteAdmin);
 
