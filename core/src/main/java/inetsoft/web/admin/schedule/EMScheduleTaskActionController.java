@@ -153,10 +153,13 @@ public class EMScheduleTaskActionController {
    {
       AssetEntry entry = AssetEntry.createAssetEntry(id);
       String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
-      boolean hasPrintLayout = actionServiceProxy.hasPrintLayout(runtimeId, principal);
-      emActionService.closeViewsheet(id, principal);
 
-      return hasPrintLayout;
+      try {
+         return actionServiceProxy.hasPrintLayout(runtimeId, principal);
+      }
+      finally {
+         closeViewsheet(runtimeId, principal);
+      }
    }
 
    /**
@@ -183,8 +186,14 @@ public class EMScheduleTaskActionController {
    {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
       String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
-      List<ScheduleAlertModel> highlights = actionServiceProxy.getViewsheetHighlights(runtimeId, principal);
-      emActionService.closeViewsheet(identifier, principal);
+      List<ScheduleAlertModel> highlights;
+
+      try {
+         highlights = actionServiceProxy.getViewsheetHighlights(runtimeId, principal);
+      }
+      finally {
+         closeViewsheet(runtimeId, principal);
+      }
 
       return HighlightListModel.builder()
          .highlights(highlights)
@@ -214,13 +223,30 @@ public class EMScheduleTaskActionController {
       throws Exception
    {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
-      List<String> params = actionServiceProxy.getViewsheetParameters(runtimeId, principal);
-      emActionService.closeViewsheet(identifier, null);
+      String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
+      List<String> params;
+
+      try {
+         params = actionServiceProxy.getViewsheetParameters(runtimeId, principal);
+      }
+      finally {
+         closeViewsheet(runtimeId, principal);
+      }
+
       return ViewsheetParametersModel.builder()
          .parameters(params)
          .build();
 
+   }
+
+   /**
+    * Closes a viewsheet opened by one of the endpoints above. The close is keyed by the
+    * runtime id so that it is routed to, and releases, the runtime sheet that was opened.
+    */
+   private void closeViewsheet(String runtimeId, Principal principal) throws Exception {
+      if(runtimeId != null) {
+         emActionService.closeViewsheet(runtimeId, principal);
+      }
    }
 
    /**
