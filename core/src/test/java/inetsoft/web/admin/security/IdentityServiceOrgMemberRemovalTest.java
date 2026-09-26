@@ -357,7 +357,10 @@ class IdentityServiceOrgMemberRemovalTest {
       verify(scheduleManager, never()).identityRemoved(
          argThat(i -> admin.equals(i.getIdentityID())), any());
       verify(provider).removeUser(bob);
-      assertNotNull(Tool.getUserMessage());
+      UserMessage message = Tool.getUserMessage();
+      assertNotNull(message);
+      assertEquals(Catalog.getCatalog().getString("em.security.delself"), message.getMessage(),
+                   "the refusal must be the only message, and must use the delete-yourself text");
    }
 
    private void updateMembers(String orgID, String oldOrgID, IdentityID... keptUsers)
