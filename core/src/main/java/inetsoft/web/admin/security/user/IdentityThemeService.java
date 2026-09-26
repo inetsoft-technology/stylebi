@@ -51,6 +51,7 @@ public class IdentityThemeService {
       return customThemesManager.getCustomThemes().stream()
          .filter(t -> fn.apply(t).contains(name.name))
          .filter(theme -> theme.getOrgID() == null || theme.getOrgID().equals(orgID))
+         .filter(theme -> theme.isIdentityOrganization(name.orgID))
          .map(CustomTheme::getId)
          .findFirst()
          .orElse(null);
@@ -78,46 +79,113 @@ public class IdentityThemeService {
       customThemesManager.setOrgSelectedTheme("default", orgID);
    }
 
-   public void updateTheme(String oldId, String id, Function<CustomTheme, List<String>> fn) {
+   /**
+    * Renames a user, group or role in the themes that can refer to it. Only the themes of the
+    * identity's organization are changed, see {@link CustomTheme#isIdentityOrganization(String)}.
+    *
+    * @param oldName the old identity name.
+    * @param name    the new identity name.
+    * @param orgID   the organization of the identity, or <tt>null</tt> for a global identity
+    *                (e.g. a global role), which is renamed in the themes of every organization.
+    * @param fn      the function that gets the identity list of a theme.
+    */
+   public void updateTheme(String oldName, String name, String orgID,
+                           Function<CustomTheme, List<String>> fn)
+   {
+      if(oldName == null || name == null || oldName.equals(name)) {
+         return;
+      }
+
       Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
-      String oldThemeIdentity = oldId == null ? id : oldId;
-      themes.stream()
-      .map(theme -> {
-         if(fn.apply(theme).contains(oldThemeIdentity)) {
-            fn.apply(theme).remove(oldThemeIdentity);
-            fn.apply(theme).add(id);
+      boolean changed = false;
+
+      for(CustomTheme theme : themes) {
+         List<String> identities = fn.apply(theme);
+
+         if(theme.isIdentityOrganization(orgID) && identities.contains(oldName)) {
+            identities.removeIf(identity -> identity.equals(oldName) || identity.equals(name));
+            identities.add(name);
+            changed = true;
          }
+      }
 
-         if(Tool.equals(theme.getOrgID(), oldId)) {
-            theme.setOrgID(id);
-            theme.setJarPath(theme.getJarPath().replace(oldId, id));
-         }
-
-         return theme;
-      })
-      .collect(Collectors.toList());
-
-      customThemesManager.setCustomThemes(themes);
+      if(changed) {
+         customThemesManager.setCustomThemes(themes);
+      }
    }
 
-   public void updateUserTheme(String oldId, String id, String ntheme) {
+   /**
+    * @deprecated use {@link #updateTheme(String, String, String, Function)}. This overload
+    * treats the identity as belonging to the current organization.
+    */
+   @Deprecated
+   public void updateTheme(String oldName, String name, Function<CustomTheme, List<String>> fn) {
+      updateTheme(oldName, name, OrganizationManager.getInstance().getCurrentOrgID(), fn);
+   }
+
+   /**
+    * Renames a user in the themes that can refer to it and assigns the user to the selected
+    * theme. Only the themes of the user's organization are changed, see
+    * {@link CustomTheme#isIdentityOrganization(String)}.
+    *
+    * @param oldName the old user name.
+    * @param name    the new user name.
+    * @param orgID   the organization of the user.
+    * @param ntheme  the ID of the selected theme, an empty string for the default theme, or
+    *                <tt>null</tt> to only rename the user. A theme that cannot be assigned to
+    *                the user's organization is ignored.
+    */
+   public void updateUserTheme(String oldName, String name, String orgID, String ntheme) {
+      if(oldName == null || name == null) {
+         return;
+      }
+
       Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
+      String selected = ntheme;
 
-      themes.stream().map(theme -> {
-         if(theme.getUsers().contains(oldId)) {
-            theme.getUsers().remove(oldId);
-            theme.getUsers().add(id);
+      if(!Tool.isEmptyString(ntheme) && themes.stream().noneMatch(
+         theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID)))
+      {
+         selected = null;
+      }
+
+      boolean changed = false;
+
+      for(CustomTheme theme : themes) {
+         if(!theme.isIdentityOrganization(orgID)) {
+            continue;
          }
 
-         if(Tool.equals(theme.getId(), ntheme) && !theme.getUsers().contains(oldId)) {
-            theme.getUsers().add(id);
+         List<String> users = theme.getUsers();
+         boolean renamed = !oldName.equals(name) && users.contains(oldName);
+         boolean assigned = selected == null ?
+            users.contains(oldName) || users.contains(name) : selected.equals(theme.getId());
+
+         // a user is assigned to at most one theme, so selecting a theme (or the default
+         // theme) removes the user from the theme that was previously selected
+         if(renamed || assigned != users.contains(name)) {
+            users.removeIf(user -> user.equals(oldName) || user.equals(name));
+
+            if(assigned) {
+               users.add(name);
+            }
+
+            changed = true;
          }
+      }
 
-         return theme;
-      })
-      .collect(Collectors.toList());
+      if(changed) {
+         customThemesManager.setCustomThemes(themes);
+      }
+   }
 
-      customThemesManager.setCustomThemes(themes);
+   /**
+    * @deprecated use {@link #updateUserTheme(String, String, String, String)}. This overload
+    * treats the user as belonging to the current organization.
+    */
+   @Deprecated
+   public void updateUserTheme(String oldName, String name, String ntheme) {
+      updateUserTheme(oldName, name, OrganizationManager.getInstance().getCurrentOrgID(), ntheme);
    }
 
    private final CustomThemesManager customThemesManager;

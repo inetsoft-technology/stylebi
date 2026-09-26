@@ -677,12 +677,12 @@ public class UserTreeService {
          throw new MessageException(Catalog.getCatalog().getString("em.security.noOrgAdmin"));
       }
 
-      themeService.updateTheme(model.oldName(), model.name(), CustomTheme::getGroups);
-
       // if the group has admin permission on themselves, rename the group in the grant
       List<IdentityModel> permittedIdentities = getRenamedPermittedIdentities(
          model.permittedIdentities(), Identity.GROUP, oldID, newID);
       identityService.setIdentity(oldGroup, model, provider, principal);
+      themeService.updateTheme(model.oldName(), model.name(), model.organization(),
+                               CustomTheme::getGroups);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
       IndexedStorage storage = indexedStorage;
@@ -1182,8 +1182,6 @@ public class UserTreeService {
          return;
       }
 
-      themeService.updateUserTheme(model.oldName(), model.name(), model.theme());
-
       final AuthenticationProvider provider =
          authenticationProviderService.getProviderByName(providerName);
       IdentityID oldID = new IdentityID(model.oldName(), model.organization());
@@ -1215,6 +1213,9 @@ public class UserTreeService {
       if(provider instanceof EditableAuthenticationProvider) {
          identityService.setIdentity(oldUser, model, provider, principal);
       }
+
+      themeService.updateUserTheme(model.oldName(), model.name(), model.organization(),
+                                   model.theme());
 
       // if the user has admin permission on themselves, rename the user in the grant
       List<IdentityModel> permittedIdentities = getRenamedPermittedIdentities(
@@ -1703,8 +1704,9 @@ public class UserTreeService {
          throw new MessageException(Catalog.getCatalog().getString("em.security.noOrgAdmin"));
       }
 
-      themeService.updateTheme(model.oldName(), model.name(), CustomTheme::getRoles);
       identityService.setIdentity(oldRole, model, provider, principal);
+      themeService.updateTheme(model.oldName(), model.name(), model.organization(),
+                               CustomTheme::getRoles);
       renameVPMRole(model.oldName(), model.name());
    }
 
