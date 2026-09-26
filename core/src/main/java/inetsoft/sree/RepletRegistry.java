@@ -210,6 +210,9 @@ public class RepletRegistry implements Serializable {
       getFolderMap().put("/", "/");
 
       StringTokenizer tokens = new StringTokenizer(repfiles, ";", false);
+      // taken before the content is read, so that a commit landing during the read leaves date
+      // older than what was read and the next save() reads storage again (Bug #76977)
+      long lastModified = space.getLastModified(null, getRegistryPath());
 
       try {
          while(tokens.hasMoreTokens()) {
@@ -233,7 +236,7 @@ public class RepletRegistry implements Serializable {
          LOG.error("Failed to initialize the registry", ex);
       }
       finally {
-         date = space.getLastModified(null, getRegistryPath());
+         date = lastModified;
          loaded = date != 0;
       }
 
@@ -965,10 +968,12 @@ public class RepletRegistry implements Serializable {
 
       synchronized void load() throws Exception {
          String file = getRegistryPath();
-         DataSpace space = null;
+         long lastModified = 0;
 
          try {
-            space = DataSpace.getDataSpace();
+            DataSpace space = DataSpace.getDataSpace();
+            // taken before the content is read, as in init() (Bug #76977)
+            lastModified = space.getLastModified(null, file);
 
             if(!space.exists(null, file)) {
                return;
@@ -983,7 +988,7 @@ public class RepletRegistry implements Serializable {
             }
          }
          finally {
-            date = space == null ? 0 : space.getLastModified(null, file);
+            date = lastModified;
             loaded = date != 0;
          }
       }
