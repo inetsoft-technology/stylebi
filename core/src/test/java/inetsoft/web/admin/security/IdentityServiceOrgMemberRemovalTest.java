@@ -286,6 +286,31 @@ class IdentityServiceOrgMemberRemovalTest {
       assertNotNull(Tool.getUserMessage());
    }
 
+   // when the cleanup fails after the user was already removed from the provider, the user must
+   // not be removed a second time, and it still counts as deleted: logged out, announced and swept
+   // from the favorites
+   @Test
+   void cleanupFailsAfterRemove_noSecondRemove_userStillTreatedAsDeleted() throws Exception {
+      IdentityID bob = addUser("bob", ORG_A);
+      SRPrincipal bobSession = session(bob);
+      doAnswer(inv -> {
+         when(provider.getUser(bob)).thenReturn(null);
+         return null;
+      }).when(provider).removeUser(bob);
+      userEnv.when(() -> UserEnv.removeUser(bob)).thenThrow(new RuntimeException("storage down"));
+
+      updateMembers(ORG_A, ORG_A);
+
+      verify(provider, times(1)).removeUser(bob);
+      verify(authenticationService).logout(bobSession, true);
+      verify(cluster).sendMessage(any(IdentityChangedMessage.class));
+      verify(favoritesService).removeFavorites(
+         ArgumentMatchers.<Collection<IdentityID>>argThat(ids -> ids.contains(bob)));
+      UserMessage message = Tool.getUserMessage();
+      assertNotNull(message);
+      assertTrue(message.getMessage().contains("bob"), message.getMessage());
+   }
+
    // with an organization id change, a kept user is moved to the new id and must not be cleaned,
    // while a dropped user is cleaned under the old id
    @Test
