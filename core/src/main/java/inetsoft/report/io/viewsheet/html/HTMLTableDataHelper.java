@@ -62,12 +62,44 @@ public class HTMLTableDataHelper {
       initAnnotation();
    }
 
+   /**
+    * The table card's inset, as the exporter resolves it.
+    */
+   public void setCardInset(Insets inset) {
+      this.cardInset = inset == null ? new Insets(0, 0, 0, 0) : inset;
+   }
+
+   protected boolean hasCardInset() {
+      return cardInset.top != 0 || cardInset.left != 0 || cardInset.bottom != 0 ||
+         cardInset.right != 0;
+   }
+
+   protected int getGridWidth(Rectangle2D bounds) {
+      return Math.max(0, (int) bounds.getWidth() - cardInset.left - cardInset.right);
+   }
+
+   protected int getGridHeight(Rectangle2D bounds) {
+      return Math.max(0, (int) bounds.getHeight() - cardInset.top - cardInset.bottom);
+   }
+
+   /**
+    * The box inside the card that holds the title and the data.
+    */
+   protected String getGridBoxStart(Rectangle2D bounds) {
+      return "<div style='position:absolute;left:" + cardInset.left + "px;top:" +
+         cardInset.top + "px;width:" + getGridWidth(bounds) + "px;height:" +
+         getGridHeight(bounds) + "px'>";
+   }
+
+   protected Insets cardInset = new Insets(0, 0, 0, 0);
+
    protected void fixShrinkTableBounds(TableDataVSAssemblyInfo info, Rectangle2D bounds) {
       if(info.isShrink()) {
          int titleH = !((TitledVSAssemblyInfo) info).isTitleVisible() ? 0 :
                       ((TitledVSAssemblyInfo) info).getTitleHeight();
-         int height = totalHeight + titleH;
-         Dimension d = new Dimension(totalWidth, height);
+         // the card wraps the content plus its inset
+         int height = totalHeight + titleH + cardInset.top + cardInset.bottom;
+         Dimension d = new Dimension(totalWidth + cardInset.left + cardInset.right, height);
          d = vHelper.getOutputSize(d);
 
          bounds.setRect(bounds.getX(), bounds.getY(), Math.min(bounds.getWidth(), d.getWidth()),
@@ -150,8 +182,8 @@ public class HTMLTableDataHelper {
          float hBorderWidth = Common.getLineWidth(cfmt.getBorders().left) +
             Common.getLineWidth(cfmt.getBorders().right);
          Point pos = vs.getPixelPosition(info);
-         int x = (int) (pos.x + (hBorderWidth * (c + 1)));
-         int y = (int) (titleH + pos.y + (vBorderWidth * (r + 1)));
+         int x = (int) (pos.x + cardInset.left + (hBorderWidth * (c + 1)));
+         int y = (int) (titleH + pos.y + cardInset.top + (vBorderWidth * (r + 1)));
 
          for(int i = 0; i < c; i++) {
             x += columnWidths[i];
