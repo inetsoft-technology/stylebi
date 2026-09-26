@@ -27,6 +27,7 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XRepository;
 import inetsoft.util.IndexedStorage;
@@ -152,6 +153,7 @@ class UserTreeServiceThemeUpdateTest {
       CustomTheme bTheme = theme("bTheme", "organizationB");
       CustomTheme globalTheme = theme("globalTheme", null);
       CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
       when(themesManager.getCustomThemes())
          .thenReturn(new HashSet<>(Set.of(aTheme, bTheme, globalTheme)));
       XRepository repository = mock(XRepository.class);
@@ -189,6 +191,7 @@ class UserTreeServiceThemeUpdateTest {
       CustomTheme bTheme = theme("bTheme", "organizationB");
       bTheme.getGroups().add("sales");
       CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
       when(themesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(aTheme, bTheme)));
       doNothing().when(identityService).setIdentity(any(), any(), any(), any());
       UserTreeService renameService = new UserTreeService(

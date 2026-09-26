@@ -367,7 +367,7 @@ class CustomThemesManagerTest {
       CustomThemesManager manager = spy(new CustomThemesManager(keyValueStorageManager, dataSpace));
       lenient().doReturn(themesLock).when(manager).getThemesLock();
       Set<CustomTheme> themeSet = new HashSet<>(Arrays.asList(themes));
-      doReturn(themeSet).when(manager).getCustomThemes();
+      lenient().doReturn(themeSet).when(manager).getCustomThemes();
       lenient().doNothing().when(manager).setCustomThemes(any());
       lenient().doNothing().when(manager).removeSelectedTheme(any());
       return manager;
