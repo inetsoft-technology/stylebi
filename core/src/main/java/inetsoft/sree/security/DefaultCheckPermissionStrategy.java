@@ -244,8 +244,10 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             }
          }
 
-         //if admin permissions to this resource, return true
-         boolean hasResourcePermission = provider.getPermission(type, resource, orgID) != null &&
+         //if admin permissions to this resource, return true. Bug #77061, a direct grant stored
+         //on an identity or organization of another org never applies in the current org
+         boolean hasResourcePermission = !targetOutOfOrg &&
+            provider.getPermission(type, resource, orgID) != null &&
             provider.getPermission(type, resource, orgID)
                .getOrgScopedUserGrants(ResourceAction.ADMIN, OrganizationManager.getInstance().getCurrentOrgID())
                .contains(pId);

@@ -1142,6 +1142,35 @@ class DefaultCheckPermissionStrategyTest {
                   "org admin, another org with upper-cased bare id");
    }
 
+   // A direct ADMIN user grant stored on an identity or organization key of another org (as
+   // the #77078 editGroup bug could write, scoped to TEST_ORG) passed the direct grant check,
+   // which ran before the out-of-org gate (Bug #77061, review r2 peer finding).
+   @ParameterizedTest(name = "direct grant {0} {1} -> {2}")
+   @MethodSource("directGrantCrossOrgCases")
+   void directGrantOnOutOfOrgTargetIsDenied(ResourceType type, String resource, boolean expected) {
+      when(mockProvider.getPermission(eq(type), eq(resource), eq(TEST_ORG)))
+         .thenReturn(grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false));
+
+      assertEquals(expected, checkDelegated(null, type, resource, false),
+                   "direct ADMIN grant on " + type + " " + resource);
+   }
+
+   static Stream<Arguments> directGrantCrossOrgCases() {
+      return Stream.of(
+         Arguments.of(ResourceType.SECURITY_USER, OTHER_USER, false),
+         Arguments.of(ResourceType.SECURITY_USER,
+                      new IdentityID("ghost", OTHER_ORG).convertToKey(), false),
+         Arguments.of(ResourceType.SECURITY_GROUP, OTHER_GROUP, false),
+         Arguments.of(ResourceType.SECURITY_ROLE, OTHER_ROLE, false),
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION, OTHER_ORG, false),
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION,
+                      new IdentityID(OTHER_ORG, OTHER_ORG).convertToKey(), false),
+         Arguments.of(ResourceType.SECURITY_USER, OWN_USER, true),
+         Arguments.of(ResourceType.SECURITY_GROUP, OWN_GROUP, true),
+         Arguments.of(ResourceType.SECURITY_ROLE, OWN_ROLE, true)
+      );
+   }
+
    // TEST_ORG is named ownOrgName, OTHER_ORG is named "Org B"
    private void stubOrganizations(String ownOrgName) {
       lenient().when(mockProvider.getOrganizationIDs()).thenReturn(new String[]{ TEST_ORG, OTHER_ORG });
