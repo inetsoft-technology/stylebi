@@ -124,6 +124,34 @@ public class IdentityThemeService {
    }
 
    /**
+    * Removes a deleted user, group or role from the themes that can refer to it, so that a new
+    * identity with the same name does not inherit the theme. Only the themes of the identity's
+    * organization are changed, see {@link CustomTheme#isIdentityOrganization(String)}.
+    *
+    * @param name  the name of the deleted identity.
+    * @param orgID the organization of the identity, or <tt>null</tt> for a global identity
+    *              (e.g. a global role), which is removed from the themes of every organization.
+    * @param fn    the function that gets the identity list of a theme.
+    */
+   public void removeIdentity(String name, String orgID, Function<CustomTheme, List<String>> fn) {
+      if(name == null) {
+         return;
+      }
+
+      customThemesManager.updateCustomThemes(themes -> {
+         boolean changed = false;
+
+         for(CustomTheme theme : themes) {
+            if(theme.isIdentityOrganization(orgID)) {
+               changed |= fn.apply(theme).removeIf(name::equals);
+            }
+         }
+
+         return changed ? themes : null;
+      });
+   }
+
+   /**
     * @deprecated use {@link #updateTheme(String, String, String, Function)}. This overload
     * treats the identity as belonging to the current organization.
     */
