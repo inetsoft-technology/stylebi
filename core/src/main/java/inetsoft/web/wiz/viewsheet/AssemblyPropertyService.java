@@ -34,6 +34,7 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.adhoc.model.property.TargetInfo;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.ImagePreviewPaneModel;
+import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.model.vs.RangePaneModel;
 import inetsoft.web.composer.model.vs.TableStylePaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
@@ -841,9 +842,12 @@ public class AssemblyPropertyService {
     * an alias and rewritten to the canonical one: it is the reading a caller naturally takes
     * from the tree, and normalizing costs less than expecting every caller to learn the prefix.
     *
-    * <p>Dynamic values — a whole-value {@code $(...)} or {@code =...}
-    * ({@link VSUtil#isDynamicValue}) — pass through unresolved: they name a variable or
-    * expression, not a node. Anything else, including {@code $logo.png}, is a literal path.
+    * <p>On an Image only, dynamic values — a whole-value {@code $(...)} or {@code =...}
+    * ({@link VSUtil#isDynamicValue}) — pass through unresolved: its image value is a
+    * DynamicValue, so they name a variable or expression, not a node. A group container's
+    * background image is a plain String that nothing ever evaluates, so there every value,
+    * dynamic-looking or not, is a literal path and must name a node. On either type,
+    * {@code $logo.png} is a literal path.
     *
     * <p>Walks the model's own {@code imagePreviewPaneModel.imageTree}, already populated by
     * {@code readModel()} before the patch loop runs, the same way
@@ -859,9 +863,12 @@ public class AssemblyPropertyService {
 
       String text = String.valueOf(value).trim();
 
-      // Blank clears the image, which is a legitimate state; a dynamic reference is resolved at
-      // render time and has no node to match here.
-      if(text.isEmpty() || VSUtil.isDynamicValue(text)) {
+      // Blank clears the image, which is a legitimate state. A dynamic reference has no node to
+      // match, but only an Image stores a DynamicValue that could ever resolve it; a group
+      // container's background is a literal String, so "$(X)" there is just a missing file.
+      if(text.isEmpty() ||
+         model instanceof ImagePropertyDialogModel && VSUtil.isDynamicValue(text))
+      {
          return value;
       }
 
