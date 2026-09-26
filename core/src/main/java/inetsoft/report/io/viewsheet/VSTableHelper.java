@@ -141,8 +141,8 @@ public abstract class VSTableHelper extends VSTableDataHelper {
          irow == 0 && !info.isTitleVisible());
       VSFormat newformat = (VSFormat) format.clone();
 
-      Viewsheet vs = getViewsheet();
-      Dimension psize = vs.getPixelSize(info);
+      // columns past the grid's right edge are culled
+      int gridW = getGridBounds(info).width;
 
       int totalW = 0;
       int[] colsWidth = new int[columnPixelW.length];
@@ -151,12 +151,12 @@ public abstract class VSTableHelper extends VSTableDataHelper {
       for(int i = 0; i < colsWidth.length; i++) {
          totalW += colsWidth[i];
 
-         if(i == (icol - 1) && totalW > psize.width) {
+         if(i == (icol - 1) && totalW > gridW) {
             return;
          }
 
-         if(totalW > psize.width) {
-            colsWidth[i] = psize.width - (totalW - colsWidth[i]);
+         if(totalW > gridW) {
+            colsWidth[i] = gridW - (totalW - colsWidth[i]);
          }
       }
 
@@ -198,14 +198,15 @@ public abstract class VSTableHelper extends VSTableDataHelper {
     * Gets the number of visible rows, for match exact layouts.
     */
    protected static int getVisibleRowCount(TableDataVSAssemblyInfo info,
-                                           VSTableLens lens)
+                                           VSTableLens lens, Insets inset)
    {
       Dimension size = CoordinateHelper.getAssemblySize(
          info, CoordinateHelper.getLensSize(lens, true));
       int infoRows = 0;
 
       if(size.height == info.getPixelSize().height) {
-         int tableRowsHeight = size.height - (info.isTitleVisible() ? info.getTitleHeight() : 0)
+         int tableRowsHeight = size.height - inset.top - inset.bottom
+            - (info.isTitleVisible() ? info.getTitleHeight() : 0)
             - info.getViewsheet().getDisplayRowHeight(true, info.getName());
          int displayRowHeight = info.getViewsheet().getDisplayRowHeight(false, info.getName());
          VizContext ctx = VizContext.of(info);
@@ -256,7 +257,7 @@ public abstract class VSTableHelper extends VSTableDataHelper {
 
       // @by gregm ensure we do not print too many rows because of wrapping.
       int rowCount = exporter.isMatchLayout() ?
-            getVisibleRowCount(info, lens) : lens.getRowCount();
+            getVisibleRowCount(info, lens, getCardInset(info)) : lens.getRowCount();
       rowCount = Math.min(rowCount, lens.getRowCount());
 
       int colCount = lens.getColCount();

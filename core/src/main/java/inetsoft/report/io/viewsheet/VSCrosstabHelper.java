@@ -314,7 +314,7 @@ public abstract class VSCrosstabHelper extends VSTableDataHelper {
    {
       VSExporter exporter = this.getExporter();
       int rowCount = exporter.isMatchLayout() && info.isShrink() ?
-         VSTableHelper.getVisibleRowCount(info, lens) : lens.getRowCount();
+         VSTableHelper.getVisibleRowCount(info, lens, getCardInset(info)) : lens.getRowCount();
       int colCount = columnPixelW.length;
       int anchor_x = info.getPixelOffset().x;
       int anchor_y = info.getPixelOffset().y + (info.isTitleVisible() ? info.getTitleHeight() : 0);
@@ -332,8 +332,26 @@ public abstract class VSCrosstabHelper extends VSTableDataHelper {
       double ratio = getPixelToPointRatio();
       Rectangle2D pbounds = getPixelBounds(info, 0, 0, new Dimension(1, 1), null);
       double pheight = pbounds == null ? 0 : pbounds.getHeight();
+      Insets inset = getCardInset(info);
 
-      return getViewsheet().getPixelSize(info).height * ratio - pheight * ratio;
+      return (getViewsheet().getPixelSize(info).height - inset.top - inset.bottom) * ratio -
+         pheight * ratio;
+   }
+
+   /**
+    * The height the data rows may fill: the grid's, less the title.
+    */
+   protected double getDataHeightBudget(TableDataVSAssemblyInfo info) {
+      Insets inset = getCardInset(info);
+      Dimension psize = getViewsheet().getPixelSize(info);
+      double height = Math.max(getTablePixelHeight(info),
+                               psize.getHeight() - inset.top - inset.bottom);
+
+      if(info.isTitleVisible()) {
+         height -= info.getTitleHeight();
+      }
+
+      return height;
    }
 
    /**
@@ -364,13 +382,7 @@ public abstract class VSCrosstabHelper extends VSTableDataHelper {
       VSCompositeFormat parentformat = info.getFormat();
       Rectangle rec = new Rectangle(0, 0, tableRange.width, tableRange.height);
       int lastColStarts = columnStarts[colCount - 1] + columnWidths[colCount - 1];
-      Viewsheet vs = getViewsheet();
-      Dimension psize = vs.getPixelSize(info);
-      double height = Math.max(getTablePixelHeight(info), psize.getHeight());
-
-      if(info.isTitleVisible()) {
-         height -= info.getTitleHeight();
-      }
+      double height = getDataHeightBudget(info);
 
       for(int irow = 0; irow < tableRange.height; irow++) {
          for(int icol = 0; icol < tableRange.width; icol++) {

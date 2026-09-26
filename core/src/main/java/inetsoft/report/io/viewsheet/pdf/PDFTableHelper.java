@@ -194,7 +194,9 @@ public class PDFTableHelper extends VSTableHelper {
 
          if(height > PDF_MAX_HEIGHT) {
             rec.height = i;
-            info.getPixelSize().height = height;
+            Insets inset = getCardInset(info);
+            // the capped rows fill the grid; the card carries the inset around them
+            info.getPixelSize().height = height + inset.top + inset.bottom;
             setMaxRows(i);
             LOG.warn(
                "The length of the table has been truncated to " + i
