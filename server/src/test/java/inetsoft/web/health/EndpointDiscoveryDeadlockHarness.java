@@ -68,9 +68,11 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 /**
  * Bug #76974 harness. Boots a minimal Spring Boot servlet application with StyleBI's actuator
@@ -169,6 +171,10 @@ final class EndpointDiscoveryDeadlockHarness {
       volatile boolean childSideBlockedOnParentLock;
       volatile boolean overlapObserved;
       volatile boolean requestBlockedOnReservationSeen;
+      /** getFilterEndpoint calls (one computeIfAbsent each) on threads other than main. */
+      final AtomicInteger offMainFilterEndpointCalls = new AtomicInteger();
+      /** One entry per discoverEndpoints() execution on the parent discoverer. */
+      final List<Discovery> discoveries = Collections.synchronizedList(new ArrayList<>());
       final List<String> trace = Collections.synchronizedList(new ArrayList<>());
 
       Optional<ThreadInfo> deadlockedInfo(Thread thread) {
@@ -196,6 +202,8 @@ final class EndpointDiscoveryDeadlockHarness {
             .append(", discoveryDoneBeforeRequest=").append(discoveryDoneBeforeRequest)
             .append(", overlapObserved=").append(overlapObserved)
             .append(", requestBlockedOnReservationSeen=").append(requestBlockedOnReservationSeen)
+            .append(", offMainFilterEndpointCalls=").append(offMainFilterEndpointCalls)
+            .append(", discoveries=").append(discoveries)
             .append('\n');
          synchronized(trace) {
             trace.forEach(t -> sb.append("  ").append(t).append('\n'));
@@ -207,6 +215,35 @@ final class EndpointDiscoveryDeadlockHarness {
 
          return sb.toString();
       }
+   }
+
+   /**
+    * One execution of {@code discoverEndpoints()} on the parent discoverer: the thread, the first
+    * non-JDK caller of {@code getEndpoints()}, how many web servers were accepting, and whether
+    * main was inside the management child refresh when it started.
+    */
+   record Discovery(String thread, boolean onMain, String caller, int acceptingServers,
+                    boolean mainInsideChildRefresh)
+   {
+   }
+
+   /**
+    * Replaces the discoverer's {@code filterEndpoints} map. Every {@code getFilterEndpoint} call
+    * is exactly one {@code computeIfAbsent} on it, and every discovery creates a new key for the
+    * health endpoint, so this counts both without replacing any Spring class.
+    */
+   private static final class RecordingFilterEndpoints extends ConcurrentHashMap<Object, Object> {
+      RecordingFilterEndpoints(HookState state) {
+         this.state = state;
+      }
+
+      @Override
+      public Object computeIfAbsent(Object key, Function<? super Object, ?> mappingFunction) {
+         state.recordFilterEndpointCall(key);
+         return super.computeIfAbsent(key, mappingFunction);
+      }
+
+      private final transient HookState state;
    }
 
    /**
@@ -509,6 +546,71 @@ final class EndpointDiscoveryDeadlockHarness {
          }
       }
 
+      /**
+       * Called once, when the discoverer bean is initialized and before any discovery on it.
+       */
+      void recordFilterEndpointCalls(WebEndpointDiscoverer discoverer) {
+         try {
+            Field field = Class.forName(DISCOVERER_CLASS).getDeclaredField("filterEndpoints");
+            field.setAccessible(true);
+            field.set(discoverer, new RecordingFilterEndpoints(this));
+         }
+         catch(ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
+      void recordFilterEndpointCall(Object endpointBean) {
+         Thread thread = Thread.currentThread();
+         boolean onMain = thread == attempt.harnessMain;
+
+         if(!onMain) {
+            attempt.offMainFilterEndpointCalls.incrementAndGet();
+         }
+
+         if(!"healthEndpoint".equals(beanName(endpointBean)) || !healthKeys.add(endpointBean)) {
+            return;
+         }
+
+         StackTraceElement[] stack = thread.getStackTrace();
+         int getEndpoints = -1;
+
+         for(int i = 0; i < stack.length; i++) {
+            if(stack[i].getMethodName().equals("getEndpoints") &&
+               stack[i].getClassName().equals(DISCOVERER_CLASS))
+            {
+               getEndpoints = i;
+            }
+         }
+
+         String caller = "?";
+
+         for(int i = getEndpoints + 1; getEndpoints >= 0 && i < stack.length; i++) {
+            if(!stack[i].getClassName().startsWith("java.")) {
+               caller = stack[i].getClassName() + "." + stack[i].getMethodName();
+               break;
+            }
+         }
+
+         boolean inChildRefresh = onStack(
+            attempt.harnessMain.getStackTrace(),
+            "org.springframework.boot.actuate.autoconfigure.web.server.ChildManagementContextInitializer",
+            "start");
+         attempt.discoveries.add(new Discovery(thread.getName(), onMain, caller, webServers.size(),
+                                               inChildRefresh));
+      }
+
+      private static String beanName(Object endpointBean) {
+         try {
+            Field field = endpointBean.getClass().getDeclaredField("beanName");
+            field.setAccessible(true);
+            return (String) field.get(endpointBean);
+         }
+         catch(ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+         }
+      }
+
       boolean currentThreadHoldsParentSingletonLock() {
          try {
             Field field = Class.forName(
@@ -688,6 +790,8 @@ final class EndpointDiscoveryDeadlockHarness {
       volatile boolean abandoned;
       final Set<String> endpointBeanNames = ConcurrentHashMap.newKeySet();
       final List<WebServer> webServers = new CopyOnWriteArrayList<>();
+      final Set<Object> healthKeys = Collections.synchronizedSet(
+         Collections.newSetFromMap(new IdentityHashMap<>()));
       final AtomicBoolean requestSideClaimed = new AtomicBoolean();
       final AtomicBoolean childSideClaimed = new AtomicBoolean();
       final AtomicBoolean lockHookClaimed = new AtomicBoolean();
@@ -791,6 +895,7 @@ final class EndpointDiscoveryDeadlockHarness {
       @Override
       public Object postProcessAfterInitialization(Object bean, String beanName) {
          if(bean instanceof WebEndpointDiscoverer discoverer && state.discoverer == null) {
+            state.recordFilterEndpointCalls(discoverer);
             state.discoverer = discoverer;
          }
 

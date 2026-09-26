@@ -18,6 +18,7 @@
 package inetsoft.web.health;
 
 import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Attempt;
+import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Discovery;
 import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Options;
 import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Outcome;
 import inetsoft.web.health.EndpointDiscoveryDeadlockHarness.Shape;
@@ -80,6 +81,7 @@ class EndpointDiscoveryStartupDeadlockTest {
       Attempt deadlock = firstDeadlock(Shape.MAIN_AND_SERVER_REQUEST, List.of(),
                                        BASELINE_MAX_ATTEMPTS);
       assertDumpShape(deadlock);
+      assertOffMainDiscoveryRecorded(deadlock);
       assertEquals(MAIN, deadlock.childSideThread.getName(), deadlock.describe());
    }
 
@@ -88,6 +90,7 @@ class EndpointDiscoveryStartupDeadlockTest {
       Attempt deadlock = firstDeadlock(Shape.MANAGEMENT_REQUEST_AND_SERVER_REQUEST, List.of(),
                                        BASELINE_MAX_ATTEMPTS);
       assertDumpShape(deadlock);
+      assertOffMainDiscoveryRecorded(deadlock);
       assertNotEquals(MAIN, deadlock.childSideThread.getName(), deadlock.describe());
       assertTrue(deadlock.deadlockedInfo(deadlock.harnessMain).isEmpty(),
                  "main must not be in the cycle\n" + deadlock.describe());
@@ -133,7 +136,28 @@ class EndpointDiscoveryStartupDeadlockTest {
                        "the request held the parent singleton lock but main was not inside the " +
                           "management context refresh, attempt " + i + ": " + attempt.describe());
          }
+
+         // rows O-5 / W-R5: one discovery, on main, before any web server accepts; no
+         // getFilterEndpoint call on any other thread
+         assertEquals(0, attempt.offMainFilterEndpointCalls.get(),
+                      "getFilterEndpoint ran off main, attempt " + i + ": " + attempt.describe());
+         assertEquals(1, attempt.discoveries.size(),
+                      "attempt " + i + ": " + attempt.describe());
+         Discovery discovery = attempt.discoveries.get(0);
+         assertTrue(discovery.onMain() && discovery.acceptingServers() == 0 &&
+                       !discovery.mainInsideChildRefresh(),
+                    "discovery not on main before the connectors, attempt " + i + ": " +
+                       attempt.describe());
       }
+   }
+
+   /**
+    * The recorder must see the request thread's discovery when no fix is present, otherwise a
+    * zero count in the regression tests would mean nothing.
+    */
+   private static void assertOffMainDiscoveryRecorded(Attempt deadlock) {
+      assertTrue(deadlock.offMainFilterEndpointCalls.get() > 0, deadlock.describe());
+      assertTrue(deadlock.discoveries.stream().anyMatch(d -> !d.onMain()), deadlock.describe());
    }
 
    private static Attempt firstDeadlock(Shape shape, List<Class<?>> sources, int maxAttempts) {
