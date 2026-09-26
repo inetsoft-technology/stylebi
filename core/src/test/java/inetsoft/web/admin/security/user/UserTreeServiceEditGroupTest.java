@@ -26,6 +26,7 @@ package inetsoft.web.admin.security.user;
  * path group.
  */
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
@@ -177,6 +178,59 @@ class UserTreeServiceEditGroupTest {
          service.editGroup("Primary", path, model("ghost", "ghost", ORG_A), principal));
 
       assertEquals(Catalog.getCatalog().getString("em.security.groupNotFound", "ghost"), thrown.getMessage());
+      assertNothingWritten();
+   }
+
+   @Test
+   void siteAdminEditsOtherOrgGroup_matchingPathAndBody_writtenInThatOrg() throws Exception {
+      // current org is orgA, the site admin edits g2 in orgB with a consistent path and body
+      IdentityID path = new IdentityID("g2", ORG_B);
+      FSGroup stored = new FSGroup(path);
+      when(provider.getGroup(path)).thenReturn(stored);
+
+      service.editGroup("Primary", path, model("g2", "g2", ORG_B), principal);
+
+      ArgumentCaptor<EditGroupPaneModel> written = ArgumentCaptor.forClass(EditGroupPaneModel.class);
+      verify(identityService).setIdentity(same(stored), written.capture(), eq(provider), eq(principal));
+      assertEquals(ORG_B, written.getValue().organization());
+      verify(identityService).setIdentityPermissions(
+         eq(path), eq(path), eq(ResourceType.SECURITY_GROUP), eq(principal), anyList(), eq(ORG_B));
+   }
+
+   @Test
+   void bodyWithoutOrganization_defaultsToHostOrg_rejectedForOtherOrgPath() throws Exception {
+      IdentityID path = new IdentityID("g1", ORG_A);
+      when(provider.getGroup(path)).thenReturn(new FSGroup(path));
+      EditGroupPaneModel model = new ObjectMapper().readValue(
+         "{\"name\":\"g1\",\"oldName\":\"g1\"}", EditGroupPaneModel.class);
+      assertEquals(Organization.getDefaultOrganizationID(), model.organization());
+
+      assertThrows(java.lang.SecurityException.class, () ->
+         service.editGroup("Primary", path, model, principal));
+
+      assertNothingWritten();
+   }
+
+   @Test
+   void bodyWithNullOrganization_rejectedWithoutNpe() throws Exception {
+      IdentityID path = new IdentityID("g1", ORG_A);
+      when(provider.getGroup(path)).thenReturn(new FSGroup(path));
+      EditGroupPaneModel model = new ObjectMapper().readValue(
+         "{\"name\":\"g1\",\"oldName\":\"g1\",\"organization\":null}", EditGroupPaneModel.class);
+
+      assertThrows(java.lang.SecurityException.class, () ->
+         service.editGroup("Primary", path, model, principal));
+
+      assertNothingWritten();
+   }
+
+   @Test
+   void pathWithNullOrg_rejectedWithoutNpe() {
+      IdentityID path = new IdentityID("g1", null);
+
+      assertThrows(java.lang.SecurityException.class, () ->
+         service.editGroup("Primary", path, model("g1", "g1", ORG_A), principal));
+
       assertNothingWritten();
    }
 
