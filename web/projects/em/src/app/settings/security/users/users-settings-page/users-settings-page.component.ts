@@ -56,6 +56,9 @@ import { LoadingSpinnerComponent } from "../../../../common/util/loading-spinner
 import { UsersSettingsViewComponent } from "../users-settings-view/users-settings-view.component";
 import { AsyncPipe } from "@angular/common";
 
+// the prefix of the message FilesystemExternalStorageService.renameFolder() adds when it fails
+const RENAME_FOLDER_FAILED = "Failed to rename folder ";
+
 @Secured({
    route: "/settings/security/users",
    label: "Users"
@@ -325,17 +328,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                      return this.errorService.showSnackBar(error);
                   }),
                   finalize(() => this.orgBusy.endOrgSave())
-               ).subscribe((msg) => {
-                  if(msg) {
-                     this.dialog.open(MessageDialog, {
-                        data: {
-                           title: "_#(js:Confirm)",
-                           content: "_#(js:em.organization.renameIssue)",
-                           type: MessageDialogType.CONFIRMATION
-                        }
-                     });
-                  }
-
+               ).subscribe((msg: string) => {
+                  this.showOrganizationSaveMessage(msg);
                   window.open("../logout?fromEm=true", "_self");
                });
             }
@@ -353,17 +347,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }),
             tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION)),
             finalize(() => this.orgBusy.endOrgSave())
-         ).subscribe((msg) => {
-            if(msg) {
-               this.dialog.open(MessageDialog, {
-                  data: {
-                     title: "_#(js:Confirm)",
-                     content: "_#(js:em.organization.renameIssue)",
-                     type: MessageDialogType.CONFIRMATION
-                  }
-               });
-            }
-
+         ).subscribe((msg: string) => {
+            this.showOrganizationSaveMessage(msg);
             this.loading = false;
 
             if(orgNameChanged) {
@@ -371,6 +356,32 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }
          });
       }
+   }
+
+   /**
+    * Shows the messages returned by an organization save. A failed rename of the organization's
+    * server files (FilesystemExternalStorageService.renameFolder) is shown as the localized
+    * rename issue instead of the raw text, which contains the folder paths.
+    */
+   private showOrganizationSaveMessage(msg: string): void {
+      if(!msg) {
+         return;
+      }
+
+      const lines = msg.split("\n").filter(line => !!line.trim());
+      const content = lines.filter(line => !line.startsWith(RENAME_FOLDER_FAILED));
+
+      if(content.length < lines.length) {
+         content.unshift("_#(js:em.organization.renameIssue)");
+      }
+
+      this.dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:Confirm)",
+            content: content.join("\n"),
+            type: MessageDialogType.CONFIRMATION
+         }
+      });
    }
 
    private postUserInfo(model: EditIdentityPaneModel, logout: boolean) {

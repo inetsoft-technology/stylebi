@@ -37,6 +37,8 @@
  *   Group 9 [Risk 2] — selectionChanged(): navigatingAway=false for event.length>1 — pageChanged
  *                       and incomplete-new-user guards both silently bypassed on multi-select
  *                       (Design Gap)
+ *   Group 10 [Risk 2] — setOrganization(): the messages returned by the save must be shown, with
+ *                       a failed folder rename shown as the localized rename issue
  *
  * KEY contracts:
  *   - clearIncompleteNewUser(false) must NOT trigger refreshTree.
@@ -71,7 +73,10 @@ import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { IdentityId } from "../identity-id";
-import { EditUserPaneModel } from "../edit-identity-pane/edit-identity-pane.model";
+import {
+   EditOrganizationPaneModel,
+   EditUserPaneModel
+} from "../edit-identity-pane/edit-identity-pane.model";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixtures
@@ -857,5 +862,78 @@ describe("UsersSettingsPageComponent — selectionChanged(): multi-select bypass
       expect(dialogSpy.open).not.toHaveBeenCalled();
       expect(comp.newUserIdentity).toBe(pendingId); // pending user still tracked but not cleaned up
       expect(comp.selectedNodes).toEqual([node1, node2]);
+   });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Group 10 [Risk 2] — setOrganization(): messages returned by the save
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("UsersSettingsPageComponent — setOrganization(): save messages", () => {
+
+   const makeOrgModel = (): EditOrganizationPaneModel => ({
+      name: "OtherOrg",
+      oldName: "OtherOrg",
+      id: "otherorg",
+      organization: "otherorg",
+      root: false,
+      identityNames: [],
+      members: [],
+      roles: [],
+      permittedIdentities: [],
+      editable: true,
+      properties: [],
+      localesList: [],
+      currentUserName: "admin",
+   });
+
+   async function saveWithResponse(message: string) {
+      server.use(
+         http.post("*/api/em/security/users/edit-organization/*", () =>
+            HttpResponse.json(message),
+         ),
+      );
+
+      const rendered = await renderComponent();
+      rendered.comp.setOrganization(makeOrgModel());
+      return rendered;
+   }
+
+   // Bug #77087: the server reports why a removed member could not be cleaned up, and that
+   // text must reach the admin instead of the unrelated rename-lock message
+   it("should show the returned message text", async () => {
+      const { dialogSpy } = await saveWithResponse(
+         "Failed to clean up the data of the removed member bob.");
+
+      await vi.waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      expect(dialogSpy.open.mock.calls[0][1].data.content)
+         .toBe("Failed to clean up the data of the removed member bob.");
+   });
+
+   // 🔁 Regression-sensitive: a locked folder keeps showing the localized rename issue, and the
+   // raw message with the server folder paths is not shown
+   it("should show the rename issue for a failed folder rename", async () => {
+      const { dialogSpy } = await saveWithResponse(
+         "Failed to rename folder /data/orga to /data/orgb:folder is locked");
+
+      await vi.waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      expect(dialogSpy.open.mock.calls[0][1].data.content)
+         .toBe("_#(js:em.organization.renameIssue)");
+   });
+
+   it("should show both the rename issue and the other messages", async () => {
+      const { dialogSpy } = await saveWithResponse(
+         "Cannot delete yourself.\nFailed to rename folder /data/orga to /data/orgb:locked");
+
+      await vi.waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      expect(dialogSpy.open.mock.calls[0][1].data.content)
+         .toBe("_#(js:em.organization.renameIssue)\nCannot delete yourself.");
+   });
+
+   it("should not open a dialog when the save returns no message", async () => {
+      const { comp, dialogSpy } = await saveWithResponse("");
+
+      await vi.waitFor(() => expect(comp.loading).toBe(false));
+      expect(dialogSpy.open).not.toHaveBeenCalled();
    });
 });

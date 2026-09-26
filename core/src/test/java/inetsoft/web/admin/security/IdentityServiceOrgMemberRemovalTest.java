@@ -78,6 +78,7 @@ class IdentityServiceOrgMemberRemovalTest {
    private MockedStatic<UserEnv> userEnv;
    private MockedStatic<AutoSaveUtils> autoSave;
    private java.security.Principal oldThreadPrincipal;
+   private java.security.Principal requester;
    private final List<IdentityID> users = new ArrayList<>();
    private final List<IdentityID> groups = new ArrayList<>();
    private final List<IdentityID> roles = new ArrayList<>();
@@ -142,6 +143,7 @@ class IdentityServiceOrgMemberRemovalTest {
       XPrincipal threadPrincipal = mock(XPrincipal.class);
       when(threadPrincipal.getGroups()).thenReturn(new String[0]);
       when(threadPrincipal.getName()).thenReturn(ADMIN.convertToKey());
+      requester = threadPrincipal;
       oldThreadPrincipal = ThreadContext.getPrincipal();
       ThreadContext.setPrincipal(threadPrincipal);
       Tool.clearUserMessage();
@@ -368,11 +370,11 @@ class IdentityServiceOrgMemberRemovalTest {
          .toList();
       Method method = IdentityService.class.getDeclaredMethod(
          "updateOrganizationMembers", Organization.class, List.class, String.class,
-         EditableAuthenticationProvider.class);
+         EditableAuthenticationProvider.class, java.security.Principal.class);
       method.setAccessible(true);
 
       try {
-         method.invoke(service, org, models, oldOrgID, provider);
+         method.invoke(service, org, models, oldOrgID, provider, requester);
       }
       catch(InvocationTargetException ex) {
          throw (Exception) ex.getCause();

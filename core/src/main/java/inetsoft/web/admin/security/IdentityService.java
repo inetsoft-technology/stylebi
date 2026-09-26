@@ -862,7 +862,8 @@ public class IdentityService {
 
    private void updateOrganizationMembers(Organization identity, List<IdentityModel> memberModels,
                                           String oldOrgID,
-                                          EditableAuthenticationProvider eprovider)
+                                          EditableAuthenticationProvider eprovider,
+                                          Principal principal)
    {
       String orgID = identity.getId();
       List<String> members = Arrays.asList(identity.getMembers());
@@ -887,7 +888,6 @@ public class IdentityService {
       boolean orgNameChanged = !Tool.equals(orgIdChange, oldOrgID);
 
       AuthorizationChain authoc = ((AuthorizationChain) securityProvider.getAuthorizationProvider());
-      Principal requester = ThreadContext.getContextPrincipal();
       List<IdentityID> droppedUsers = new ArrayList<>();
 
       for(int i = 0; i < users.length; i++) {
@@ -929,7 +929,7 @@ public class IdentityService {
          else if(!members.contains(user.getName())) {
             // like deleteIdentities(), never delete the requesting user, which would also have to
             // log out the session of the request that is being processed
-            if(requester != null && isSelfAndEMUser(requester, oldID, Identity.USER)) {
+            if(principal != null && isSelfAndEMUser(principal, oldID, Identity.USER)) {
                Tool.addUserMessage(Catalog.getCatalog().getString("em.security.delself"));
                continue;
             }
@@ -2440,7 +2440,7 @@ public class IdentityService {
             !Tool.equals(oldOrg.getMembers(), memberNames) ||
             !Tool.equals(fromOrgID, model.id()))
       {
-         updateOrganizationMembers(newOrg, members, oldID, eprovider);
+         updateOrganizationMembers(newOrg, members, oldID, eprovider, principal);
       }
 
       if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
