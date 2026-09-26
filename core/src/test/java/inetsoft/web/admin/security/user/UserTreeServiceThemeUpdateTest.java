@@ -24,7 +24,10 @@ package inetsoft.web.admin.security.user;
  */
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.CustomTheme;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XRepository;
 import inetsoft.util.MessageException;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.security.IdentityService;
@@ -33,6 +36,7 @@ import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -51,16 +55,16 @@ class UserTreeServiceThemeUpdateTest {
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
 
       provider = mock(EditableAuthenticationProvider.class, withSettings().lenient());
-      AuthenticationProviderService providerService =
+      providerService =
          mock(AuthenticationProviderService.class, withSettings().lenient());
       when(providerService.getProviderByName("Primary")).thenReturn(provider);
 
       SecurityProvider securityProvider = mock(SecurityProvider.class, withSettings().lenient());
       when(securityProvider.getOrganization(ORG)).thenReturn(new FSOrganization(ORG));
-      SecurityEngine securityEngine = mock(SecurityEngine.class, withSettings().lenient());
+      securityEngine = mock(SecurityEngine.class, withSettings().lenient());
       when(securityEngine.getSecurityProvider()).thenReturn(securityProvider);
 
-      SystemAdminService systemAdminService =
+      systemAdminService =
          mock(SystemAdminService.class, withSettings().lenient());
       when(systemAdminService.hasSysAdmin(any())).thenReturn(true);
       when(systemAdminService.hasOrgAdmin(any())).thenReturn(true);
@@ -138,6 +142,61 @@ class UserTreeServiceThemeUpdateTest {
       verifyNoInteractions(themeService);
    }
 
+   // a successful EM role rename renames the role only in the themes of the role's organization,
+   // except for a global role (no organization), which is renamed in every organization's themes
+   @Test
+   void editRole_renameSucceeds_themeRenameScopedToRoleOrg() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      CustomTheme bTheme = theme("bTheme", "organizationB");
+      CustomTheme globalTheme = theme("globalTheme", null);
+      CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      when(themesManager.getCustomThemes())
+         .thenReturn(new HashSet<>(Set.of(aTheme, bTheme, globalTheme)));
+      XRepository repository = mock(XRepository.class);
+      when(repository.getDataSourceFullNames(any())).thenReturn(new String[0]);
+      doNothing().when(identityService).setIdentity(any(), any(), any(), any());
+      UserTreeService renameService = new UserTreeService(
+         providerService, systemAdminService, identityService, null, securityEngine,
+         new IdentityThemeService(themesManager), null, null, null, null, null, null, null, null,
+         repository, null, null);
+
+      when(provider.getRole(new IdentityID("designer", ORG))).thenReturn(new FSRole(
+         new IdentityID("designer", ORG)));
+      renameService.editRole(roleModel("designer", "viewer", ORG), "Primary", principal);
+
+      assertEquals(List.of("viewer"), aTheme.getRoles());
+      assertEquals(List.of("designer"), bTheme.getRoles(), "org B's designer must keep its theme");
+      assertEquals(List.of("designer"), globalTheme.getRoles(),
+         "a global theme's designer belongs to the default organization");
+
+      when(provider.getRole(new IdentityID("designer", null))).thenReturn(new FSRole(
+         new IdentityID("designer", null)));
+      renameService.editRole(roleModel("designer", "lead", null), "Primary", principal);
+
+      assertEquals(List.of("viewer"), aTheme.getRoles());
+      assertEquals(List.of("lead"), bTheme.getRoles());
+      assertEquals(List.of("lead"), globalTheme.getRoles());
+   }
+
+   private static EditRolePaneModel roleModel(String oldName, String name, String orgID) {
+      return EditRolePaneModel.builder()
+         .name(name)
+         .oldName(oldName)
+         .isSysAdmin(false)
+         .isOrgAdmin(false)
+         .organization(orgID)
+         .build();
+   }
+
+   private static CustomTheme theme(String id, String orgID) {
+      CustomTheme theme = new CustomTheme();
+      theme.setId(id);
+      theme.setName(id);
+      theme.setOrgID(orgID);
+      theme.getRoles().add("designer");
+      return theme;
+   }
+
    private static EditUserPaneModel userModel(String oldName, String name) {
       return EditUserPaneModel.builder()
          .name(name)
@@ -149,6 +208,9 @@ class UserTreeServiceThemeUpdateTest {
 
    private static final String ORG = "organizationA";
    private EditableAuthenticationProvider provider;
+   private AuthenticationProviderService providerService;
+   private SystemAdminService systemAdminService;
+   private SecurityEngine securityEngine;
    private IdentityService identityService;
    private IdentityThemeService themeService;
    private Principal principal;
