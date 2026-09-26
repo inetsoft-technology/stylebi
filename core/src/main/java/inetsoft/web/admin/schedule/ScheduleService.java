@@ -1959,14 +1959,57 @@ public class ScheduleService {
       }
    }
 
-   public void exportScheduledTasks(String[] taskListModel, OutputStream output) {
+   /**
+    * Gets the tasks to export. Every task must resolve in the caller's organization and be
+    * visible to the caller, otherwise the export is rejected.
+    *
+    * @param taskNames the names of the tasks to export.
+    * @param principal the user exporting the tasks.
+    *
+    * @return the tasks to export.
+    */
+   public List<ScheduleTask> getExportTasks(String[] taskNames, Principal principal)
+      throws SecurityException
+   {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      Catalog catalog = Catalog.getCatalog(principal);
+      List<ScheduleTask> tasks = new ArrayList<>();
+
+      for(String taskName : taskNames) {
+         ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
+
+         if(task == null) {
+            throw new MessageException(catalog.getString(
+               "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
+         }
+
+         if(!canExportTask(task, principal)) {
+            throw new SecurityException(String.format(
+               "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+         }
+
+         tasks.add(task);
+      }
+
+      return tasks;
+   }
+
+   /**
+    * Determines if a task may be exported by a user. This is the same check that is used to
+    * determine if the task is shown in the user's task list.
+    */
+   public boolean canExportTask(ScheduleTask task, Principal principal) {
+      RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
+      return engine != null && engine.hasTaskPermission(task, principal);
+   }
+
+   public void exportScheduledTasks(List<ScheduleTask> tasks, OutputStream output) {
       PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
       writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
       writer.write("<schedule>");
 
-      for(String task : taskListModel) {
-         ScheduleTask task1 = scheduleManager.getScheduleTask(task);
-         task1.writeXML(writer);
+      for(ScheduleTask task : tasks) {
+         task.writeXML(writer);
       }
 
       writer.write("<timeRanges>");
