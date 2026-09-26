@@ -27,8 +27,11 @@ package inetsoft.sree.security;
  * organization's name or id. An organization whose name equals its own id (e.g. a cloned org)
  * is legal.
  * <p>
- * This check is for writes only: a field is only checked when it actually changes, so an
- * organization that already collides (data created before the check existed) stays editable.
+ * This check is for writes only: a field is only checked when it changes (compared exactly, so
+ * a case-only change is checked too), so an organization that already collides (data created
+ * before the check existed) stays editable as long as the colliding field is left unchanged.
+ * The edited organization is excluded by its exact id, so a pre-existing case-variant twin is
+ * still treated as another organization.
  */
 public enum OrganizationIdentityConflict {
    /** No conflict. */
@@ -46,7 +49,8 @@ public enum OrganizationIdentityConflict {
     * @param provider  the provider whose organizations make up the namespace, normally the
     *                  security provider (authentication chain).
     * @param editedOrg the organization being edited, or {@code null} when creating one. It is
-    *                  excluded from the check, and its unchanged fields are not checked.
+    *                  excluded from the check (by exact id), and its fields that are exactly
+    *                  unchanged are not checked.
     * @param newName   the requested organization name.
     * @param newId     the requested organization id.
     *
@@ -56,11 +60,14 @@ public enum OrganizationIdentityConflict {
                                                    Organization editedOrg,
                                                    String newName, String newId)
    {
-      // a case-only change cannot introduce a new case-insensitive collision
+      // "changed" is exact: a case-only change must still be checked, because another org may
+      // already be a case-variant twin (e.g. "orga" and "ORGA"), and changing "ORGA" to "orga"
+      // would merge into it. Without such a twin, a case-only change of the org's own name or
+      // id finds no other match and is accepted.
       boolean checkName = !isEmpty(newName) &&
-         (editedOrg == null || !newName.equalsIgnoreCase(editedOrg.getName()));
+         (editedOrg == null || !newName.equals(editedOrg.getName()));
       boolean checkId = !isEmpty(newId) &&
-         (editedOrg == null || !newId.equalsIgnoreCase(editedOrg.getId()));
+         (editedOrg == null || !newId.equals(editedOrg.getId()));
       String[] orgIds = provider == null ? null : provider.getOrganizationIDs();
 
       if((!checkName && !checkId) || orgIds == null) {

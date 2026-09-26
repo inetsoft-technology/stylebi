@@ -138,6 +138,28 @@ class UserTreeServiceEditOrganizationTest {
       assertDuplicateName(edit(orgA, "ACME", "orga"));
    }
 
+   @Test
+   void caseOnlyIdChangeOntoCaseVariantTwin_rejectedAsDuplicateId() {
+      // pre-existing twins "host-org" and "HOST-ORG": changing HOST-ORG's id to "host-org"
+      // would copyOrganization(replace=true) into the existing default org
+      Organization twin = org("HOST-ORG", "Case Variant");
+      addOrg(twin);
+      assertDuplicateId(edit(twin, "Case Variant", "host-org"));
+   }
+
+   @Test
+   void caseOnlyRenameOntoAnotherOrgsExactName_rejectedAsDuplicateName() {
+      // pre-existing case-insensitive name collision: org C "ACME" vs org B "acme"
+      Organization orgC = org("orgc", "ACME");
+      addOrg(orgC);
+      assertDuplicateName(edit(orgC, "acme", "orgc"));
+   }
+
+   @Test
+   void caseOnlyRenameOfOwnNameAndId_noTwin_accepted() {
+      assertNull(edit(orgA, "ORG A", "OrgA"));
+   }
+
    private void addOrg(Organization org) {
       when(securityProvider.getOrganizationIDs())
          .thenReturn(new String[]{ "host-org", "orga", "orgb", org.getId() });

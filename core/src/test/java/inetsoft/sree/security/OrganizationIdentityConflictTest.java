@@ -64,6 +64,32 @@ class OrganizationIdentityConflictTest {
    }
 
    @Test
+   void edit_caseOnlyIdChangeOntoTwin_rejected() {
+      // pre-existing case-variant twins: changing "ORGA"'s id to "orga" would merge into "orga"
+      when(provider.getOrganizationIDs()).thenReturn(new String[]{ "orga", "ORGA" });
+      Organization twin = org("ORGA", "Twin");
+      when(provider.getOrganization("ORGA")).thenReturn(twin);
+      assertEquals(ID, find(provider, twin, "Twin", "orga"));
+   }
+
+   @Test
+   void edit_caseOnlyRenameOntoAnotherOrgsName_rejected() {
+      Organization orgC = org("orgc", "ORG A");
+      when(provider.getOrganizationIDs()).thenReturn(new String[]{ "orga", "orgc" });
+      when(provider.getOrganization("orgc")).thenReturn(orgC);
+      // "ORG A" -> "Org A" is case-only for orgc, but "Org A" is org a's exact name
+      assertEquals(NAME, find(provider, orgC, "Org A", "orgc"));
+   }
+
+   @Test
+   void edit_caseOnlyChangeWithoutTwin_accepted() {
+      // a legitimate case-only rename of the org's own name and id
+      assertEquals(NONE, find(provider, orgA, "ORG A", "OrgA"));
+      assertEquals(NONE, find(provider, orgA, "Org A", "ORGA"));
+      assertEquals(NONE, find(provider, orgA, "org a", "orga"));
+   }
+
+   @Test
    void emptyInputsOrProvider_noConflict() {
       assertEquals(NONE, find(provider, null, null, ""));
       assertEquals(NONE, find(null, null, "orgb", "orgb"));

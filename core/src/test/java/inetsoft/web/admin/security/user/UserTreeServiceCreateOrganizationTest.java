@@ -168,8 +168,8 @@ class UserTreeServiceCreateOrganizationTest {
    private void stubOrgOne() {
       FSOrganization org1 = new FSOrganization("org1");
       org1.setName("acme");
+      // the name check reads getOrganization(id).getName(), not getOrganizationNames()
       when(securityProvider.getOrganization("org1")).thenReturn(org1);
-      when(securityProvider.getOrganizationNames()).thenReturn(new String[]{ "Host Organization", "acme" });
    }
 
    private EditableAuthenticationProvider editProvider;
