@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.*;
 class CustomThemesManagerTest {
    @Mock private KeyValueStorageManager keyValueStorageManager;
    @Mock private DataSpace dataSpace;
+   private final ReentrantLock themesLock = new ReentrantLock();
 
    // [A] exact file path — only the theme whose jarPath matches the deleted file is removed
    @Test
@@ -249,6 +251,107 @@ class CustomThemesManagerTest {
    }
 
    // -------------------------------------------------------------------------
+   // updateCustomThemes (Bug #76978)
+   // -------------------------------------------------------------------------
+
+   // the themes are read, changed and written while the themes lock is held, and the lock is
+   // released afterwards
+   @Test
+   void updateCustomThemes_readsChangesAndWritesUnderLock() {
+      CustomTheme existing = theme("existing", null);
+      CustomThemesManager manager = managerWithThemes(existing);
+      boolean[] heldOnRead = new boolean[1];
+      boolean[] heldOnWrite = new boolean[1];
+      doAnswer(invocation -> {
+         heldOnRead[0] = themesLock.isHeldByCurrentThread();
+         return new HashSet<>(Set.of(existing));
+      }).when(manager).getCustomThemes();
+      doAnswer(invocation -> {
+         heldOnWrite[0] = themesLock.isHeldByCurrentThread();
+         return null;
+      }).when(manager).setCustomThemes(any());
+
+      manager.updateCustomThemes(themes -> {
+         assertTrue(themesLock.isHeldByCurrentThread());
+         themes.add(theme("added", null));
+         return themes;
+      });
+
+      assertTrue(heldOnRead[0], "the themes must be read under the lock");
+      assertTrue(heldOnWrite[0], "the themes must be written under the lock");
+      assertFalse(themesLock.isLocked(), "the lock must be released");
+      Set<CustomTheme> saved = captureSetCustomThemes(manager);
+      assertEquals(Set.of("existing", "added"), ids(saved));
+   }
+
+   // the update gets a copy, so changing it does not change the set returned by the store
+   @Test
+   void updateCustomThemes_passesMutableCopyOfCurrentThemes() {
+      CustomThemesManager manager = managerWithThemes(theme("a", null));
+      Set<CustomTheme> current = manager.getCustomThemes();
+
+      manager.updateCustomThemes(themes -> {
+         assertNotSame(current, themes);
+         themes.clear();
+         return themes;
+      });
+
+      assertEquals(1, current.size());
+      assertTrue(captureSetCustomThemes(manager).isEmpty());
+   }
+
+   // an update that returns null leaves the store unchanged
+   @Test
+   void updateCustomThemes_nullResult_doesNotWrite() {
+      CustomThemesManager manager = managerWithThemes(theme("a", null));
+
+      manager.updateCustomThemes(themes -> null);
+
+      verify(manager, never()).setCustomThemes(any());
+      assertFalse(themesLock.isLocked());
+   }
+
+   // an update that throws leaves the store unchanged and releases the lock
+   @Test
+   void updateCustomThemes_updateThrows_doesNotWriteAndReleasesLock() {
+      CustomThemesManager manager = managerWithThemes(theme("a", null));
+      Exception expected = new Exception("failed");
+
+      Exception thrown = assertThrows(Exception.class, () -> manager.updateCustomThemes(themes -> {
+         throw expected;
+      }));
+
+      assertSame(expected, thrown);
+      verify(manager, never()).setCustomThemes(any());
+      assertFalse(themesLock.isLocked());
+   }
+
+   // the lock is reentrant, so an update can change the themes through a nested update
+   @Test
+   void updateCustomThemes_nestedUpdate_doesNotDeadlock() {
+      CustomThemesManager manager = managerWithThemes(theme("a", null));
+
+      manager.updateCustomThemes(themes -> {
+         manager.updateCustomThemes(inner -> null);
+         return themes;
+      });
+
+      verify(manager).setCustomThemes(any());
+      assertFalse(themesLock.isLocked());
+   }
+
+   // renameThemeJar and reloadThemes go through the lock
+   @Test
+   void renameThemeJarAndReloadThemes_useUpdateCustomThemes() {
+      CustomThemesManager manager = managerWithThemes(theme("a", "portal/theme/a.jar"));
+
+      manager.renameThemeJar("portal/theme/a.jar", "portal/theme/b.jar");
+      manager.reloadThemes("portal/theme/b.jar");
+
+      verify(manager, times(2)).updateCustomThemes(any());
+   }
+
+   // -------------------------------------------------------------------------
    // helpers
    // -------------------------------------------------------------------------
 
@@ -262,11 +365,18 @@ class CustomThemesManagerTest {
 
    private CustomThemesManager managerWithThemes(CustomTheme... themes) {
       CustomThemesManager manager = spy(new CustomThemesManager(keyValueStorageManager, dataSpace));
+      lenient().doReturn(themesLock).when(manager).getThemesLock();
       Set<CustomTheme> themeSet = new HashSet<>(Arrays.asList(themes));
       doReturn(themeSet).when(manager).getCustomThemes();
       lenient().doNothing().when(manager).setCustomThemes(any());
       lenient().doNothing().when(manager).removeSelectedTheme(any());
       return manager;
+   }
+
+   private static Set<String> ids(Set<CustomTheme> themes) {
+      Set<String> ids = new HashSet<>();
+      themes.forEach(t -> ids.add(t.getId()));
+      return ids;
    }
 
    private static Set<CustomTheme> captureSetCustomThemes(CustomThemesManager manager) {

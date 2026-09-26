@@ -109,6 +109,7 @@ import inetsoft.mv.fs.internal.DefaultBlockSystem;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.util.DataSpace;
 import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
@@ -291,6 +292,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>());
 
@@ -319,6 +321,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -353,6 +356,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(original);
 
@@ -382,6 +386,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -414,6 +419,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -449,6 +455,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -490,6 +497,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          when(mockDs.exists(null, "portal/toOrg/theme/theme1.jar")).thenReturn(true);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -522,6 +530,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          when(mockDs.exists(null, "portal/fromOrg/theme/theme1.jar")).thenReturn(true);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -554,6 +563,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          when(mockDs.exists(null, "portal/fromOrg/theme/theme1.jar")).thenReturn(true);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -584,6 +594,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          when(mockDs.exists(any(), any())).thenReturn(false);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -620,6 +631,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 
@@ -655,6 +667,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
 
@@ -691,6 +704,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
 
@@ -725,6 +739,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
 
@@ -757,6 +772,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
 
@@ -790,6 +806,7 @@ class AbstractEditableAuthenticationProviderStaticDepTest {
          ds.when(DataSpace::getDataSpace).thenReturn(mockDs);
 
          CustomThemesManager mockManager = mock(CustomThemesManager.class);
+         CustomThemesManagerMocks.applyUpdates(mockManager);
          ctm.when(CustomThemesManager::getManager).thenReturn(mockManager);
          when(mockManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(theme)));
 

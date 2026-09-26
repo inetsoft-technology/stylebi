@@ -67,23 +67,25 @@ public class IdentityThemeService {
    }
 
    public void removeTheme(String orgID) {
-      Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
-      Iterator<CustomTheme> iterator = themes.iterator();
+      customThemesManager.updateCustomThemes(themes -> {
+         Iterator<CustomTheme> iterator = themes.iterator();
 
-      while (iterator.hasNext()) {
-         CustomTheme theme = iterator.next();
+         while (iterator.hasNext()) {
+            CustomTheme theme = iterator.next();
 
-         if(Tool.equals(orgID, theme.getOrgID())) {
-            iterator.remove();
+            if(Tool.equals(orgID, theme.getOrgID())) {
+               iterator.remove();
+            }
+            else {
+               // strip the deleted org's membership from remaining (e.g. globally-shared)
+               // themes so a new org reusing this ID doesn't inherit a stale theme
+               theme.getOrganizations().remove(orgID);
+            }
          }
-         else {
-            // strip the deleted org's membership from remaining (e.g. globally-shared)
-            // themes so a new org reusing this ID doesn't inherit a stale theme
-            theme.getOrganizations().remove(orgID);
-         }
-      }
 
-      customThemesManager.setCustomThemes(themes);
+         return themes;
+      });
+
       customThemesManager.setOrgSelectedTheme("default", orgID);
    }
 
@@ -104,22 +106,21 @@ public class IdentityThemeService {
          return;
       }
 
-      Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
-      boolean changed = false;
+      customThemesManager.updateCustomThemes(themes -> {
+         boolean changed = false;
 
-      for(CustomTheme theme : themes) {
-         List<String> identities = fn.apply(theme);
+         for(CustomTheme theme : themes) {
+            List<String> identities = fn.apply(theme);
 
-         if(theme.isIdentityOrganization(orgID) && identities.contains(oldName)) {
-            identities.removeIf(identity -> identity.equals(oldName) || identity.equals(name));
-            identities.add(name);
-            changed = true;
+            if(theme.isIdentityOrganization(orgID) && identities.contains(oldName)) {
+               identities.removeIf(identity -> identity.equals(oldName) || identity.equals(name));
+               identities.add(name);
+               changed = true;
+            }
          }
-      }
 
-      if(changed) {
-         customThemesManager.setCustomThemes(themes);
-      }
+         return changed ? themes : null;
+      });
    }
 
    /**
@@ -148,45 +149,44 @@ public class IdentityThemeService {
          return;
       }
 
-      Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
-      String selected = ntheme;
+      customThemesManager.updateCustomThemes(themes -> {
+         String selected = ntheme;
 
-      if(!Tool.isEmptyString(ntheme) && themes.stream().noneMatch(
-         theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID)))
-      {
-         LOG.warn("Ignoring theme {} for user {} because it cannot be assigned to organization {}",
-                  ntheme, name, orgID);
-         selected = null;
-      }
-
-      boolean changed = false;
-
-      for(CustomTheme theme : themes) {
-         if(!theme.isIdentityOrganization(orgID)) {
-            continue;
+         if(!Tool.isEmptyString(ntheme) && themes.stream().noneMatch(
+            theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID)))
+         {
+            LOG.warn("Ignoring theme {} for user {} because it cannot be assigned to organization {}",
+                     ntheme, name, orgID);
+            selected = null;
          }
 
-         List<String> users = theme.getUsers();
-         boolean renamed = !oldName.equals(name) && users.contains(oldName);
-         boolean assigned = selected == null ?
-            users.contains(oldName) || users.contains(name) : selected.equals(theme.getId());
+         boolean changed = false;
 
-         // a user is assigned to at most one theme, so selecting a theme (or the default
-         // theme) removes the user from the theme that was previously selected
-         if(renamed || assigned != users.contains(name)) {
-            users.removeIf(user -> user.equals(oldName) || user.equals(name));
-
-            if(assigned) {
-               users.add(name);
+         for(CustomTheme theme : themes) {
+            if(!theme.isIdentityOrganization(orgID)) {
+               continue;
             }
 
-            changed = true;
-         }
-      }
+            List<String> users = theme.getUsers();
+            boolean renamed = !oldName.equals(name) && users.contains(oldName);
+            boolean assigned = selected == null ?
+               users.contains(oldName) || users.contains(name) : selected.equals(theme.getId());
 
-      if(changed) {
-         customThemesManager.setCustomThemes(themes);
-      }
+            // a user is assigned to at most one theme, so selecting a theme (or the default
+            // theme) removes the user from the theme that was previously selected
+            if(renamed || assigned != users.contains(name)) {
+               users.removeIf(user -> user.equals(oldName) || user.equals(name));
+
+               if(assigned) {
+                  users.add(name);
+               }
+
+               changed = true;
+            }
+         }
+
+         return changed ? themes : null;
+      });
    }
 
    /**

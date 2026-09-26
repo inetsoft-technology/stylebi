@@ -45,6 +45,7 @@ import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.ViewsheetEntry;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
@@ -521,6 +522,7 @@ class DashboardRegistryOrgLifecycleTest {
 
    private static CustomThemesManager noopThemesManager() {
       CustomThemesManager mockManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(mockManager);
       when(mockManager.getCustomThemes()).thenReturn(new HashSet<>());
       return mockManager;
    }
