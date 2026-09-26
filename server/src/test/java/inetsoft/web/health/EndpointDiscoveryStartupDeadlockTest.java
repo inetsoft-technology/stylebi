@@ -47,7 +47,7 @@ class EndpointDiscoveryStartupDeadlockTest {
     * THE FIX PLUG POINT. Configuration or component classes of the fix, added as sources to the
     * harness application of the regression tests (never to the baseline tests).
     */
-   private static final List<Class<?>> FIX_SOURCES = List.of();
+   private static final List<Class<?>> FIX_SOURCES = List.of(EndpointDiscoveryWarmup.class);
 
    /** The request thread inserts 11 keys into a 16-bin table: P(collision) = 1 - (15/16)^11. */
    private static final int BASELINE_MAX_ATTEMPTS = 20;
