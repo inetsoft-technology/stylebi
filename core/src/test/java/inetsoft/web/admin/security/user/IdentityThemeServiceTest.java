@@ -276,6 +276,50 @@ class IdentityThemeServiceTest {
       }
    }
 
+   // review finding MINOR-1: the organizations list holds organization IDs, so a non-default
+   // organization's default global theme is still shown for that organization
+   @Test
+   void getTheme_organizationsList_globalThemeShownForNonDefaultOrg() {
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getOrganizations().add(ORG_B);
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+      OrganizationManager orgManager = mock(OrganizationManager.class);
+
+      try(MockedStatic<OrganizationManager> orgManagerStatic =
+             mockStatic(OrganizationManager.class))
+      {
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.getCurrentOrgID()).thenReturn(ORG_B);
+         assertEquals("globalTheme",
+            service.getTheme(new IdentityID(ORG_B, ORG_B), CustomTheme::getOrganizations));
+      }
+   }
+
+   // review finding MINOR-2: when a user is listed on several themes, the identity editor shows
+   // the theme with the lowest ID, which is the one applied at runtime
+   @Test
+   void getTheme_severalMatchingThemes_returnsLowestId() {
+      Set<CustomTheme> themes = new HashSet<>();
+
+      for(String id : List.of("t5", "t3", "t9", "t1", "t7")) {
+         CustomTheme theme = theme(id, HOST_ORG);
+         theme.getUsers().add("bob");
+         themes.add(theme);
+      }
+
+      when(manager.getCustomThemes()).thenReturn(themes);
+      OrganizationManager orgManager = mock(OrganizationManager.class);
+
+      try(MockedStatic<OrganizationManager> orgManagerStatic =
+             mockStatic(OrganizationManager.class))
+      {
+         orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+         when(orgManager.getCurrentOrgID()).thenReturn(HOST_ORG);
+         assertEquals("t1",
+            service.getTheme(new IdentityID("bob", HOST_ORG), CustomTheme::getUsers));
+      }
+   }
+
    private static CustomTheme theme(String id, String orgID) {
       CustomTheme theme = new CustomTheme();
       theme.setId(id);

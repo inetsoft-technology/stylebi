@@ -681,8 +681,8 @@ public class UserTreeService {
       List<IdentityModel> permittedIdentities = getRenamedPermittedIdentities(
          model.permittedIdentities(), Identity.GROUP, oldID, newID);
       identityService.setIdentity(oldGroup, model, provider, principal);
-      themeService.updateTheme(model.oldName(), model.name(), model.organization(),
-                               CustomTheme::getGroups);
+      // scope by the permission-checked group from the path, not the organization in the body
+      themeService.updateTheme(group.name, model.name(), group.orgID, CustomTheme::getGroups);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
       IndexedStorage storage = indexedStorage;

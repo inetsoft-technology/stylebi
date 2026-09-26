@@ -23,11 +23,13 @@ package inetsoft.web.admin.security.user;
  * a user that does not exist still rewrote the themes.
  */
 
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XRepository;
+import inetsoft.util.IndexedStorage;
 import inetsoft.util.MessageException;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.security.IdentityService;
@@ -176,6 +178,35 @@ class UserTreeServiceThemeUpdateTest {
       assertEquals(List.of("viewer"), aTheme.getRoles());
       assertEquals(List.of("lead"), bTheme.getRoles());
       assertEquals(List.of("lead"), globalTheme.getRoles());
+   }
+
+   // review finding IMPORTANT-1: the permission check is on the group in the path, so the theme
+   // rename must be scoped by that group's organization, not by the organization in the body
+   @Test
+   void editGroup_bodyOrgDiffersFromPathOrg_themeRenameScopedToPathGroupOrg() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getGroups().add("sales");
+      CustomTheme bTheme = theme("bTheme", "organizationB");
+      bTheme.getGroups().add("sales");
+      CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      when(themesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(aTheme, bTheme)));
+      doNothing().when(identityService).setIdentity(any(), any(), any(), any());
+      UserTreeService renameService = new UserTreeService(
+         providerService, systemAdminService, identityService, null, securityEngine,
+         new IdentityThemeService(themesManager), null, null, mock(DataCycleManager.class), null,
+         null, mock(IndexedStorage.class), null, null, null, null, null);
+      IdentityID pathGroup = new IdentityID("sales", ORG);
+      when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
+      EditGroupPaneModel model = EditGroupPaneModel.builder()
+         .name("sales2")
+         .oldName("sales")
+         .organization("organizationB")
+         .build();
+
+      renameService.editGroup("Primary", pathGroup, model, principal);
+
+      assertEquals(List.of("sales2"), aTheme.getGroups());
+      assertEquals(List.of("sales"), bTheme.getGroups(), "org B's sales must keep its theme");
    }
 
    private static EditRolePaneModel roleModel(String oldName, String name, String orgID) {

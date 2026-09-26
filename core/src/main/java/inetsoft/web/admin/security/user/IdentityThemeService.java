@@ -21,6 +21,8 @@ import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -48,11 +50,17 @@ public class IdentityThemeService {
    public String getTheme(IdentityID name, Function<CustomTheme, List<String>> fn) {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
+      // the organizations list holds globally unique organization IDs, so only user, group and
+      // role names are limited to the identities a theme can refer to. Sorted by ID to show the
+      // theme that CustomThemesImpl.getUserTheme() applies when several themes match.
       return customThemesManager.getCustomThemes().stream()
          .filter(t -> fn.apply(t).contains(name.name))
          .filter(theme -> theme.getOrgID() == null || theme.getOrgID().equals(orgID))
-         .filter(theme -> theme.isIdentityOrganization(name.orgID))
+         .filter(theme -> fn.apply(theme) == theme.getOrganizations() ||
+            theme.isIdentityOrganization(name.orgID))
          .map(CustomTheme::getId)
+         .filter(Objects::nonNull)
+         .sorted()
          .findFirst()
          .orElse(null);
 
@@ -146,6 +154,8 @@ public class IdentityThemeService {
       if(!Tool.isEmptyString(ntheme) && themes.stream().noneMatch(
          theme -> ntheme.equals(theme.getId()) && theme.isIdentityOrganization(orgID)))
       {
+         LOG.warn("Ignoring theme {} for user {} because it cannot be assigned to organization {}",
+                  ntheme, name, orgID);
          selected = null;
       }
 
@@ -189,4 +199,5 @@ public class IdentityThemeService {
    }
 
    private final CustomThemesManager customThemesManager;
+   private static final Logger LOG = LoggerFactory.getLogger(IdentityThemeService.class);
 }
