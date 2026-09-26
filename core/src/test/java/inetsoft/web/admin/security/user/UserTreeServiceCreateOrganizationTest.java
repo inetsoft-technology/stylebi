@@ -128,6 +128,50 @@ class UserTreeServiceCreateOrganizationTest {
       assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
    }
 
+   // Bug #77082: org names and ids share one case-insensitive namespace, so an explicit-id
+   // create must also reject a name equal to another org's id and an id equal to another
+   // org's name (and a name equal to another org's name ignoring case).
+
+   @Test
+   void explicitId_nameEqualToAnotherOrgIdIgnoringCase_rejectedAsDuplicateName() {
+      stubOrgOne();
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "ORG1", "org2", principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void explicitId_idEqualToAnotherOrgNameIgnoringCase_rejectedAsDuplicateId() {
+      stubOrgOne();
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "New Org", "ACME", principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationID"), thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void explicitId_nameEqualToAnotherOrgNameDifferentCase_rejectedAsDuplicateName() {
+      stubOrgOne();
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "ACME", "org2", principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   private void stubOrgOne() {
+      FSOrganization org1 = new FSOrganization("org1");
+      org1.setName("acme");
+      when(securityProvider.getOrganization("org1")).thenReturn(org1);
+      when(securityProvider.getOrganizationNames()).thenReturn(new String[]{ "Host Organization", "acme" });
+   }
+
    private EditableAuthenticationProvider editProvider;
    private SecurityProvider securityProvider;
    private Principal principal;
