@@ -18,6 +18,7 @@
 package inetsoft.web.security;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.ActiveSessionInfo;
 import inetsoft.sree.web.SessionLicenseServiceProvider;
@@ -28,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,6 +44,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -262,6 +265,92 @@ class BasicAuthFilterHttpTest {
       return Stream.of(
          Arguments.of("LOGIN_AS action not granted", false, "on"),
          Arguments.of("global login.loginAs toggle off", true, "off"));
+   }
+
+   // ── Bug #77081: the session org id is the provider's stored id, not the request's case ──
+
+   // A provider that matches ignoring case (e.g. DatabaseAuthenticationProvider with
+   // security.user.caseSensitive=false) accepts "alice~;~orga" directly; the principal must still
+   // carry the stored id "OrgA", otherwise every exact org-keyed grant/permission lookup misses.
+   @Test
+   void mixedCaseOrgHeader_providerMatchesIgnoringCase_authenticatesWithStoredOrgId()
+      throws Exception
+   {
+      assertAuthenticatedOrgId("orga", new String[] { "OrgA" }, "OrgA");
+   }
+
+   // An exact match is kept even when a case variant also exists in the provider.
+   @Test
+   void exactOrgHeader_keepsRequestedOrgId() throws Exception {
+      assertAuthenticatedOrgId("orga", new String[] { "OrgA", "orga" }, "orga");
+   }
+
+   // An org the provider does not list is passed through unchanged (authentication decides).
+   @Test
+   void unknownOrgHeader_isUnchanged() throws Exception {
+      assertAuthenticatedOrgId("orgz", new String[] { "OrgA" }, "orgz");
+   }
+
+   // Once the session carries the stored id "OrgA", a client that keeps sending the header in
+   // another case must reuse that session rather than being logged out and re-authenticated.
+   @Test
+   void existingSessionWithStoredOrgId_mixedCaseHeader_isReused() throws Exception {
+      SRPrincipal principal = mock(SRPrincipal.class, withSettings().lenient());
+      when(principal.getName()).thenReturn(new IdentityID("alice", "OrgA").convertToKey());
+
+      try(MockedStatic<SUtil> sutil =
+             mockStatic(SUtil.class, withSettings().defaultAnswer(CALLS_REAL_METHODS)))
+      {
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+         sutil.when(() -> SUtil.getPrincipal(any())).thenReturn(principal);
+
+         mvc.perform(post("/api/internal/data")
+               .session(new org.springframework.mock.web.MockHttpSession())
+               .header("Authorization", basicAuth("alice", "secret"))
+               .header("X-Inetsoft-Organization-ID", "orga"))
+            .andExpect(status().isOk());
+      }
+
+      verify(authService, never()).authenticate(
+         any(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+   }
+
+   private void assertAuthenticatedOrgId(String headerOrg, String[] storedOrgs, String expected)
+      throws Exception
+   {
+      AuthenticationProvider dbLike = mock(AuthenticationProvider.class, withSettings().lenient());
+      // echoes whatever case it is asked for, like the case-insensitive DB provider did
+      when(dbLike.getUser(any())).thenAnswer(inv -> new User(inv.getArgument(0)));
+      when(dbLike.getOrganizationIDs()).thenReturn(storedOrgs);
+      when(dbLike.getProviderName()).thenReturn("db");
+      AuthenticationChain chain = mock(AuthenticationChain.class, withSettings().lenient());
+      when(chain.getProviders()).thenReturn(List.of(dbLike));
+      when(mockEngine.getAuthenticationChain()).thenReturn(Optional.of(chain));
+      when(mockEngine.isSecurityEnabled()).thenReturn(true);
+
+      SRPrincipal principal = mock(SRPrincipal.class, withSettings().lenient());
+      doReturn(principal).when(authService).authenticate(
+         any(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+
+      try(MockedStatic<SUtil> sutil =
+             mockStatic(SUtil.class, withSettings().defaultAnswer(CALLS_REAL_METHODS)))
+      {
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+
+         mvc.perform(post("/api/internal/data")
+               .header("Authorization", basicAuth("alice", "secret"))
+               .header("X-Inetsoft-Organization-ID", headerOrg))
+            .andExpect(status().isOk());
+      }
+
+      ArgumentCaptor<IdentityID> userId = ArgumentCaptor.forClass(IdentityID.class);
+      verify(authService).authenticate(
+         userId.capture(), any(), any(), any(), any(), any(), any(), any(),
+         anyBoolean(), anyBoolean(), any(), any());
+      assertEquals("alice", userId.getValue().name);
+      assertEquals(expected, userId.getValue().orgID);
    }
 
    // ── helper ────────────────────────────────────────────────────────────────

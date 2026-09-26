@@ -174,8 +174,10 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          if(caseSensitive && userIdentity.equals(userName) ||
             !caseSensitive && userIdentity.equalsIgnoreCase(userName))
          {
-            return new User(userIdentity, getEmails(userIdentity),
-                            getUserGroups(userIdentity, caseSensitive), getRoles(userIdentity), "", "");
+            // build from the stored id, not the argument: a case-insensitive match must not
+            // echo the caller's case into the user's name/org id (Bug #77081)
+            return new User(userName, getEmails(userName),
+                            getUserGroups(userName, caseSensitive), getRoles(userName), "", "");
          }
       }
 
@@ -192,7 +194,9 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          if(caseSensitive && id.equals(orgID) ||
             !caseSensitive && id.equalsIgnoreCase(orgID))
          {
-            return new Organization(getOrganizationName(id), id, getOrganizationMembers(id), "", true);
+            // return the stored org id, not the argument's case (Bug #77081)
+            return new Organization(getOrganizationName(orgID), orgID,
+                                    getOrganizationMembers(orgID), "", true);
          }
       }
 
