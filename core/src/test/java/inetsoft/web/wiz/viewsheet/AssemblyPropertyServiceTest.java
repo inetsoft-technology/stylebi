@@ -1952,6 +1952,10 @@ class AssemblyPropertyServiceTest {
    }
 
    private static ImagePropertyDialogModel imageModelWithTree() {
+      return imageModelWithTree(sampleImageTree());
+   }
+
+   private static ImagePropertyDialogModel imageModelWithTree(TreeNodeModel tree) {
       return ImagePropertyDialogModel.builder()
          .imageGeneralPaneModel(
             ImageGeneralPaneModel.builder()
@@ -1959,7 +1963,7 @@ class AssemblyPropertyServiceTest {
                   StaticImagePaneModel.builder()
                      .imagePreviewPaneModel(
                         ImagePreviewPaneModel.builder()
-                           .imageTree(sampleImageTree())
+                           .imageTree(tree)
                            .build())
                      .build())
                .build())
@@ -2089,6 +2093,94 @@ class AssemblyPropertyServiceTest {
 
       assertDoesNotThrow(() -> service.set("tok", principal(), "Image1",
                                            Map.of(SELECTED_IMAGE_PATH, "$(ImageName)"), ""));
+   }
+
+   /** A script expression is the runtime's other dynamic form and passes through the same way. */
+   @Test
+   void allowsAScriptSelectedImageExpression() {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      assertDoesNotThrow(() -> service.set("tok", principal(), "Image1",
+                                           Map.of(SELECTED_IMAGE_PATH, "=\"logo.png\""), ""));
+   }
+
+   // Bug #76994: "dynamic" is VSUtil.isDynamicValue -- a whole-value $(...) or =... -- not
+   // "starts with $". Each of these is a literal path to DynamicValue.getRValue, renders the
+   // same empty box VOF-011 closed, and must be refused like any other unknown name.
+
+   @Test
+   void refusesADollarPrefixedLiteralSelectedImage() {
+      assertRefusedAsUnknownImage("$logo.png");
+   }
+
+   @Test
+   void refusesAVariableWithTrailingTextAsSelectedImage() {
+      assertRefusedAsUnknownImage("$(X).png");
+   }
+
+   @Test
+   void refusesAnUnclosedVariableAsSelectedImage() {
+      assertRefusedAsUnknownImage("$(X");
+   }
+
+   /**
+    * An upload may legitimately be named with a leading "$"; its tree value still carries the
+    * type marker, so the canonical form is accepted while the bare name is refused and the
+    * message points at the canonical one.
+    */
+   @Test
+   void distinguishesADollarNamedUploadFromItsBareName() throws Exception {
+      TreeNodeModel upload = TreeNodeModel.builder()
+         .label("$logo.png")
+         .data("$logo.png")
+         .type(ImageVSAssemblyInfo.UPLOADED_IMAGE)
+         .leaf(true)
+         .build();
+      TreeNodeModel uploadFolder = TreeNodeModel.builder()
+         .label("Uploaded")
+         .data("Uploaded")
+         .leaf(false)
+         .children(java.util.List.of(upload))
+         .build();
+      TreeNodeModel tree = TreeNodeModel.builder()
+         .children(java.util.List.of(uploadFolder))
+         .build();
+
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(tree), imageService);
+
+      service.set("tok", principal(), "Image1",
+                  Map.of(SELECTED_IMAGE_PATH, "^UPLOADED^$logo.png"), "");
+      assertEquals("^UPLOADED^$logo.png", writtenSelectedImage(imageService));
+
+      ImagePropertyDialogService refusingService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService refusing =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(tree), refusingService);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> refusing.set("tok", principal(), "Image1",
+                            Map.of(SELECTED_IMAGE_PATH, "$logo.png"), ""));
+
+      assertTrue(thrown.getMessage().contains("^UPLOADED^$logo.png"),
+                 "must list the canonical value: " + thrown.getMessage());
+   }
+
+   private void assertRefusedAsUnknownImage(String value) {
+      ImagePropertyDialogService imageService = mock(ImagePropertyDialogService.class);
+      AssemblyPropertyService service =
+         serviceWithImage(mock(ImageVSAssembly.class), imageModelWithTree(), imageService);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Image1",
+                           Map.of(SELECTED_IMAGE_PATH, value), ""));
+
+      assertTrue(thrown.getMessage().contains(value),
+                 "must name the bad value: " + thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("^UPLOADED^2.png"),
+                 "must list what does work: " + thrown.getMessage());
    }
 
    // ── harness ───────────────────────────────────────────────────────────────

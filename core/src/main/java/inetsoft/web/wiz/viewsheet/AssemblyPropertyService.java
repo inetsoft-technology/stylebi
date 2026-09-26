@@ -841,8 +841,9 @@ public class AssemblyPropertyService {
     * an alias and rewritten to the canonical one: it is the reading a caller naturally takes
     * from the tree, and normalizing costs less than expecting every caller to learn the prefix.
     *
-    * <p>Dynamic values ({@code $...}/{@code =...}) pass through unresolved, exactly as the
-    * Composer's own preview pane treats them — they name a variable or expression, not a node.
+    * <p>Dynamic values — a whole-value {@code $(...)} or {@code =...}
+    * ({@link VSUtil#isDynamicValue}) — pass through unresolved: they name a variable or
+    * expression, not a node. Anything else, including {@code $logo.png}, is a literal path.
     *
     * <p>Walks the model's own {@code imagePreviewPaneModel.imageTree}, already populated by
     * {@code readModel()} before the patch loop runs, the same way
@@ -860,7 +861,7 @@ public class AssemblyPropertyService {
 
       // Blank clears the image, which is a legitimate state; a dynamic reference is resolved at
       // render time and has no node to match here.
-      if(text.isEmpty() || text.startsWith("$") || text.startsWith("=")) {
+      if(text.isEmpty() || VSUtil.isDynamicValue(text)) {
          return value;
       }
 
