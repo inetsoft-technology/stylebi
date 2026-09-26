@@ -195,26 +195,27 @@ public class RepletRegistry implements Serializable {
     * Init the registry.
     */
    protected synchronized void init() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String prop = SreeEnv.getProperty("dashboard.mydashboard.disabled");
+      noMyreports = Tool.equals(prop, "true", false);
+      String repfiles = SreeEnv.getProperty("replet.repository.file");
+      StringTokenizer tokens = new StringTokenizer(repfiles, ";", false);
+
       LocalChanges changes = getLocalChanges();
       // clear out the current in memory copy
       folders.clear();
 //      filemap.clear();
 //      filefoldermap.clear();
 
-      DataSpace space = DataSpace.getDataSpace();
-      String prop = SreeEnv.getProperty("dashboard.mydashboard.disabled");
-      noMyreports = Tool.equals(prop, "true", false);
-      String repfiles = SreeEnv.getProperty("replet.repository.file");
-
       // always add root folder
       getFolderMap().put("/", "/");
-
-      StringTokenizer tokens = new StringTokenizer(repfiles, ";", false);
-      // taken before the content is read, so that a commit landing during the read leaves date
-      // older than what was read and the next save() reads storage again (Bug #76977)
-      long lastModified = space.getLastModified(null, getRegistryPath());
+      long readDate = STALE_DATE;
 
       try {
+         // taken before the content is read, so that a commit landing during the read leaves date
+         // older than what was read and the next save() reads storage again (Bug #76977)
+         long lastModified = space.getLastModified(null, getRegistryPath());
+
          while(tokens.hasMoreTokens()) {
             String repfile = getRegistryPath(Tool.convertUserFileName(tokens.nextToken()));
 
@@ -231,22 +232,25 @@ public class RepletRegistry implements Serializable {
                load(repository);
             }
          }
+
+         readDate = lastModified;
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize the registry", ex);
       }
       finally {
-         date = lastModified;
+         // a copy that was not read completely counts as behind storage
+         date = readDate;
          loaded = date != 0;
-      }
 
-      // always add My Reports folder
-      if(!getFolderMap().containsKey(Tool.MY_DASHBOARD)) {
-         getFolderMap().put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
-         getFolderContextmap().put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
-      }
+         // always add My Reports folder
+         if(!getFolderMap().containsKey(Tool.MY_DASHBOARD)) {
+            getFolderMap().put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+            getFolderContextmap().put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
+         }
 
-      applyLocalChanges(changes);
+         applyLocalChanges(changes);
+      }
    }
 
    /**
@@ -947,18 +951,29 @@ public class RepletRegistry implements Serializable {
 //         filemap.clear();
 //         filefoldermap.clear();
 
-         load();
+         boolean read = false;
 
-         // always add My Reports folder
-         if(!folders.containsKey(Tool.MY_DASHBOARD)) {
-            folders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+         try {
+            load();
+            read = true;
          }
+         finally {
+            if(!read) {
+               // a copy that was not read completely counts as behind storage
+               date = STALE_DATE;
+            }
 
-         if(!folders.containsKey("/")) {
-            folders.put("/", "/");
+            // always add My Reports folder
+            if(!folders.containsKey(Tool.MY_DASHBOARD)) {
+               folders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+            }
+
+            if(!folders.containsKey("/")) {
+               folders.put("/", "/");
+            }
+
+            applyLocalChanges(changes);
          }
-
-         applyLocalChanges(changes);
 
          if(uptodate()) {
             addChangeListener(DataSpace.getDataSpace(), getRegistryDir(),
@@ -1277,6 +1292,8 @@ public class RepletRegistry implements Serializable {
    private transient StoredState storedState;
 
    private static final String SAVE_LOCK_PREFIX = RepletRegistry.class.getName() + ".save:";
+   // date of a copy that is behind storage whatever storage holds, as no stored file has it
+   private static final long STALE_DATE = -3L;
 
    static final String GLOBAL_LISTENERS = RepletRegistry.class.getName() + ".globalListeners";
    private static final Logger LOG = LoggerFactory.getLogger(RepletRegistry.class);

@@ -17,6 +17,7 @@
  */
 package inetsoft.sree;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.test.*;
 import inetsoft.util.DataChangeListener;
 import inetsoft.util.DataSpace;
@@ -26,6 +27,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -173,6 +175,65 @@ class RepletRegistryLocalChangesTest {
       stored.shutdown();
    }
 
+   /**
+    * A reload that fails after the copy was cleared must not turn into a pending removal of every
+    * folder, which the next successful reload would re-apply and the next save would store.
+    */
+   @Test
+   void failedUserReloadDoesNotBecomeLocalRemoval() throws Exception {
+      String key = new IdentityID("user76977", orgId).convertToKey();
+      RepletRegistry.UserRepletRegistry seed = new RepletRegistry.UserRepletRegistry(key);
+      seed.addFolder(USER_F1);
+      seed.save();
+      String path = seed.getRegistryPath();
+      seed.shutdown();
+      byte[] good;
+
+      try(InputStream in = space.getInputStream(null, path)) {
+         good = in.readAllBytes();
+      }
+
+      RepletRegistry.UserRepletRegistry copy = new RepletRegistry.UserRepletRegistry(key);
+      assertTrue(copy.isFolder(USER_F1), "setup: " + folders(copy));
+
+      rewrite(path, "<Registry><Replet name=".getBytes(StandardCharsets.UTF_8));
+      copy.reload(); // fails inside init0(), logged
+      String afterFailure = folders(copy).toString();
+      rewrite(path, good);
+      copy.reload(); // succeeds
+      assertTrue(copy.isFolder(USER_F1),
+                 "after failure: " + afterFailure + "; after good reload: " + folders(copy));
+
+      copy.addFolder(USER_F2);
+      copy.save();
+      copy.shutdown();
+      RepletRegistry.UserRepletRegistry stored = new RepletRegistry.UserRepletRegistry(key);
+      assertTrue(stored.isFolder(USER_F1), "stored: " + folders(stored));
+      assertTrue(stored.isFolder(USER_F2), "stored: " + folders(stored));
+      stored.shutdown();
+   }
+
+   /**
+    * A reload that fails to read storage leaves the copy incomplete, so the next save must read
+    * storage again instead of writing the incomplete copy over it.
+    */
+   @Test
+   void failedReloadIsReadAgainBeforeSave() throws Exception {
+      nodeB.failLoad = true;
+      nodeB.reload(); // fails inside init(), logged
+      assertFalse(nodeB.failLoad, "B's reload did not read storage");
+      assertFalse(nodeB.isFolder(A), "B's reload did not fail: " + folders(nodeB));
+      nodeB.addFolder(B);
+      nodeB.save();
+
+      RepletRegistry stored = read();
+      Set<String> folders = folders(stored);
+      assertTrue(folders.contains(A), "stored folders: " + folders);
+      assertTrue(folders.contains(B), "stored folders: " + folders);
+      assertEquals("seed", stored.getFolderAlias(A));
+      stored.shutdown();
+   }
+
    @Test
    void removedFolderStaysRemovedAfterAnotherNodesLaterSave() throws Exception {
       nodeA.removeFolder(A);
@@ -205,6 +266,23 @@ class RepletRegistryLocalChangesTest {
 
    private RepletRegistry read() throws Exception {
       return new RepletRegistry(orgId);
+   }
+
+   private static Set<String> folders(RepletRegistry registry) {
+      return new TreeSet<>(Arrays.asList(registry.getAllFolders()));
+   }
+
+   /**
+    * Writes a file with a modification time later than its current one.
+    */
+   private void rewrite(String path, byte[] content) throws Exception {
+      long lastModified = space.getLastModified(null, path);
+
+      while(System.currentTimeMillis() <= lastModified) {
+         Thread.onSpinWait();
+      }
+
+      space.withOutputStream(null, path, out -> out.write(content));
    }
 
    private static List<String> favorites(RepletRegistry registry) {
@@ -291,6 +369,11 @@ class RepletRegistryLocalChangesTest {
 
       @Override
       protected void load(InputStream repository) throws Exception {
+         if(failLoad) {
+            failLoad = false;
+            throw new IOException("read failure injected by the test");
+         }
+
          super.load(repository);
          Runnable hook = afterLoad;
 
@@ -301,6 +384,7 @@ class RepletRegistryLocalChangesTest {
       }
 
       private volatile Runnable afterLoad;
+      private volatile boolean failLoad;
    }
 
    private static final String PARENT = "cluster-p113";
@@ -308,6 +392,8 @@ class RepletRegistryLocalChangesTest {
    private static final String B = PARENT + "/b";
    private static final String X = PARENT + "/x";
    private static final String RENAMED = PARENT + "/renamed";
+   private static final String USER_F1 = "My Dashboards/f1";
+   private static final String USER_F2 = "My Dashboards/f2";
    private static final String FAVORITES_USER = "user76977~;~host-org";
    private static final String BARRIER_DIR = "test76977-local-barrier";
    private static final long TIMEOUT = 30;
