@@ -890,6 +890,230 @@ class DefaultCheckPermissionStrategyTest {
    }
 
    // ─────────────────────────────────────────────────────────────────
+   // Bug #77061: delegated org-level grants must not reach identities of another org
+   // ─────────────────────────────────────────────────────────────────
+
+   static final String OTHER_ORG = "otherOrg";
+   static final String OTHER_USER = new IdentityID("bob", OTHER_ORG).convertToKey();
+   static final String OTHER_GROUP = new IdentityID("grpB", OTHER_ORG).convertToKey();
+   static final String OTHER_ROLE = new IdentityID("roleB", OTHER_ORG).convertToKey();
+   static final String OWN_USER = new IdentityID("bobA", TEST_ORG).convertToKey();
+   static final String OWN_GROUP = new IdentityID("grpA", TEST_ORG).convertToKey();
+   static final String OWN_ROLE = new IdentityID("roleA", TEST_ORG).convertToKey();
+
+   /** The delegated grants a non-org-admin user of TEST_ORG can hold. */
+   enum DelegatedGrant {
+      ORG_NODE,        // ADMIN on the org's SECURITY_ORGANIZATION node (checked at org level)
+      USERS_ROOT,      // ADMIN on "Users" root of the org
+      GROUPS_ROOT,     // ADMIN on "Groups" root of the org
+      GROUPS_ROOT_BFS, // ADMIN on "Groups" root, only reachable through the group parent BFS
+      ORG_SELF_GRANT,  // ADMIN on the org self grant, only reachable through the fallback
+      USER_WILDCARD    // the SECURITY_USER wildcard keyed by org id
+   }
+
+   // A user of TEST_ORG holding only a delegated grant (no org admin role, not site admin)
+   // passed ADMIN on users/groups/roles/organizations of another org (Bug #77061).
+   @ParameterizedTest(name = "{0} {1} {2} -> {3}")
+   @MethodSource("delegatedGrantCrossOrgCases")
+   void delegatedGrantIsScopedToCurrentOrg(DelegatedGrant grant, ResourceType type,
+                                          String resource, boolean expected)
+   {
+      assertEquals(expected, checkDelegated(grant, type, resource, false),
+                   grant + " grant on " + TEST_ORG + " checking " + type + " " + resource);
+   }
+
+   static Stream<Arguments> delegatedGrantCrossOrgCases() {
+      return Stream.of(
+         // org node grant
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_USER, OTHER_USER, false),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_GROUP, OTHER_GROUP, false),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_ROLE, OTHER_ROLE, false),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_USER,
+                      new IdentityID("Users", OTHER_ORG).convertToKey(), false),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_ORGANIZATION, OTHER_ORG, false),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_ORGANIZATION,
+                      new IdentityID(OTHER_ORG, OTHER_ORG).convertToKey(), false),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_ORGANIZATION, "*", false),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_USER, OWN_USER, true),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_GROUP, OWN_GROUP, true),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_ROLE, OWN_ROLE, true),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_ORGANIZATION, TEST_ORG, true),
+         Arguments.of(DelegatedGrant.ORG_NODE, ResourceType.SECURITY_ORGANIZATION,
+                      new IdentityID(TEST_ORG, TEST_ORG).convertToKey(), true),
+         // Users root grant (also consulted by the cumulative ADMIN merge)
+         Arguments.of(DelegatedGrant.USERS_ROOT, ResourceType.SECURITY_USER, OTHER_USER, false),
+         Arguments.of(DelegatedGrant.USERS_ROOT, ResourceType.SECURITY_USER,
+                      new IdentityID("ghost", OTHER_ORG).convertToKey(), false),
+         Arguments.of(DelegatedGrant.USERS_ROOT, ResourceType.SECURITY_USER, OWN_USER, true),
+         // Groups root grant, for groups and for users that belong to a group
+         Arguments.of(DelegatedGrant.GROUPS_ROOT, ResourceType.SECURITY_GROUP, OTHER_GROUP, false),
+         Arguments.of(DelegatedGrant.GROUPS_ROOT, ResourceType.SECURITY_USER, OTHER_USER, false),
+         Arguments.of(DelegatedGrant.GROUPS_ROOT, ResourceType.SECURITY_GROUP, OWN_GROUP, true),
+         Arguments.of(DelegatedGrant.GROUPS_ROOT, ResourceType.SECURITY_USER, OWN_USER, true),
+         // Groups root reached through the group parent traversal
+         Arguments.of(DelegatedGrant.GROUPS_ROOT_BFS, ResourceType.SECURITY_GROUP, OTHER_GROUP, false),
+         Arguments.of(DelegatedGrant.GROUPS_ROOT_BFS, ResourceType.SECURITY_GROUP, OWN_GROUP, true),
+         // org self grant fallback
+         Arguments.of(DelegatedGrant.ORG_SELF_GRANT, ResourceType.SECURITY_USER, OTHER_USER, false),
+         Arguments.of(DelegatedGrant.ORG_SELF_GRANT, ResourceType.SECURITY_GROUP, OTHER_GROUP, false),
+         Arguments.of(DelegatedGrant.ORG_SELF_GRANT, ResourceType.SECURITY_ROLE, OTHER_ROLE, false),
+         Arguments.of(DelegatedGrant.ORG_SELF_GRANT, ResourceType.SECURITY_USER, OWN_USER, true),
+         Arguments.of(DelegatedGrant.ORG_SELF_GRANT, ResourceType.SECURITY_GROUP, OWN_GROUP, true),
+         Arguments.of(DelegatedGrant.ORG_SELF_GRANT, ResourceType.SECURITY_ROLE, OWN_ROLE, true),
+         // user wildcard
+         Arguments.of(DelegatedGrant.USER_WILDCARD, ResourceType.SECURITY_USER, OTHER_USER, false),
+         Arguments.of(DelegatedGrant.USER_WILDCARD, ResourceType.SECURITY_USER, OWN_USER, true)
+      );
+   }
+
+   // A site admin keeps ADMIN over identities and organizations of every org.
+   @ParameterizedTest(name = "site admin {0} {1}")
+   @MethodSource("siteAdminCrossOrgCases")
+   void siteAdminStillManagesOtherOrgs(ResourceType type, String resource) {
+      assertTrue(checkDelegated(null, type, resource, true),
+                 "site admin checking " + type + " " + resource);
+   }
+
+   static Stream<Arguments> siteAdminCrossOrgCases() {
+      return Stream.of(
+         Arguments.of(ResourceType.SECURITY_USER, OTHER_USER),
+         Arguments.of(ResourceType.SECURITY_GROUP, OTHER_GROUP),
+         Arguments.of(ResourceType.SECURITY_ROLE, OTHER_ROLE),
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION, OTHER_ORG),
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION, "*")
+      );
+   }
+
+   // A global (org-less) role is not treated as out of org: a direct grant on it still applies.
+   @Test
+   void globalRoleIsNotTreatedAsOutOfOrg() {
+      IdentityID globalRoleId = new IdentityID("globalRole", null);
+      String globalRoleResource = globalRoleId.convertToKey();
+      Role globalRole = mock(Role.class);
+      when(globalRole.getIdentityID()).thenReturn(globalRoleId);
+      when(globalRole.getOrganizationID()).thenReturn(null);
+      when(mockProvider.getRole(eq(globalRoleId))).thenReturn(globalRole);
+      when(mockProvider.getPermission(eq(ResourceType.SECURITY_ROLE), eq(globalRoleResource), eq(TEST_ORG)))
+         .thenReturn(grantedPermission(TEST_USER, TEST_ORG, ResourceAction.READ, false));
+
+      runInTestOrg(false, () -> assertTrue(
+         mockStrategy.checkPermission(mockUser, ResourceType.SECURITY_ROLE, globalRoleResource,
+                                      ResourceAction.READ),
+         "a direct grant on a global role must still apply"));
+   }
+
+   private boolean checkDelegated(DelegatedGrant grant, ResourceType type, String resource,
+                                  boolean siteAdmin)
+   {
+      stubIdentities();
+
+      if(grant != null) {
+         stubGrant(grant);
+      }
+
+      boolean[] result = new boolean[1];
+      runInTestOrg(siteAdmin, () -> result[0] =
+         mockStrategy.checkPermission(mockUser, type, resource, ResourceAction.ADMIN));
+      return result[0];
+   }
+
+   private void runInTestOrg(boolean siteAdmin, Runnable check) {
+      try(MockedStatic<SUtil> sutilMock = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS);
+          MockedStatic<OrganizationManager> omMock =
+             Mockito.mockStatic(OrganizationManager.class, Mockito.CALLS_REAL_METHODS))
+      {
+         sutilMock.when(SUtil::isMultiTenant).thenReturn(true);
+         sutilMock.when(() -> SUtil.isInternalUser(any())).thenReturn(false);
+
+         OrganizationManager mockOM = mock(OrganizationManager.class);
+         omMock.when(OrganizationManager::getInstance).thenReturn(mockOM);
+         omMock.when(OrganizationManager::getCurrentOrgName).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID()).thenReturn(TEST_ORG);
+         when(mockOM.getCurrentOrgID(any())).thenReturn(TEST_ORG);
+         when(mockOM.isSiteAdmin(any(Principal.class))).thenReturn(siteAdmin);
+
+         check.run();
+      }
+   }
+
+   // bob/grpB/roleB live in OTHER_ORG, bobA/grpA/roleA in TEST_ORG; the users are members of
+   // their org's group, the groups have no parent group
+   private void stubIdentities() {
+      stubUser(OTHER_USER, "grpB");
+      stubUser(OWN_USER, "grpA");
+      stubGroup(OTHER_GROUP);
+      stubGroup(OWN_GROUP);
+      stubRole(OTHER_ROLE);
+      stubRole(OWN_ROLE);
+   }
+
+   private void stubUser(String key, String group) {
+      IdentityID id = IdentityID.getIdentityIDFromKey(key);
+      User user = mock(User.class);
+      lenient().when(user.getIdentityID()).thenReturn(id);
+      lenient().when(user.getOrganizationID()).thenReturn(id.getOrgID());
+      lenient().when(user.getGroups()).thenReturn(new String[]{ group });
+      lenient().when(mockProvider.getUser(eq(id))).thenReturn(user);
+      lenient().when(mockProvider.getUserGroups(eq(id))).thenReturn(new String[]{ group });
+   }
+
+   private void stubGroup(String key) {
+      IdentityID id = IdentityID.getIdentityIDFromKey(key);
+      Group group = mock(Group.class);
+      lenient().when(group.getIdentityID()).thenReturn(id);
+      lenient().when(group.getOrganizationID()).thenReturn(id.getOrgID());
+      lenient().when(group.getRoles()).thenReturn(new IdentityID[0]);
+      lenient().when(mockProvider.getGroup(eq(id))).thenReturn(group);
+      lenient().when(mockProvider.getGroupParentGroups(eq(id))).thenReturn(new String[0]);
+   }
+
+   private void stubRole(String key) {
+      IdentityID id = IdentityID.getIdentityIDFromKey(key);
+      Role role = mock(Role.class);
+      lenient().when(role.getIdentityID()).thenReturn(id);
+      lenient().when(role.getOrganizationID()).thenReturn(id.getOrgID());
+      lenient().when(mockProvider.getRole(eq(id))).thenReturn(role);
+   }
+
+   private void stubGrant(DelegatedGrant grant) {
+      Permission admin = grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false);
+
+      switch(grant) {
+      case ORG_NODE:
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION),
+                                         eq(new IdentityID(TEST_ORG, TEST_ORG))))
+            .thenReturn(admin);
+         break;
+      case USERS_ROOT:
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_USER),
+                                         eq(new IdentityID("Users", TEST_ORG))))
+            .thenReturn(admin);
+         break;
+      case GROUPS_ROOT:
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_GROUP),
+                                         eq(new IdentityID("Groups", TEST_ORG))))
+            .thenReturn(admin);
+         break;
+      case GROUPS_ROOT_BFS:
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_GROUP),
+                                         eq(new IdentityID("Groups", TEST_ORG).convertToKey()),
+                                         eq(TEST_ORG)))
+            .thenReturn(admin);
+         break;
+      case ORG_SELF_GRANT:
+         // role grantee so the org-node user grant (org admin permission) isn't involved
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_ORGANIZATION),
+                                         eq(new IdentityID(TEST_ORG, TEST_ORG)), eq(TEST_ORG)))
+            .thenReturn(roleGrantedPermission(TEST_ROLE, TEST_ORG, ResourceAction.ADMIN, false));
+         break;
+      case USER_WILDCARD:
+         when(mockProvider.getPermission(eq(ResourceType.SECURITY_USER), eq(TEST_ORG)))
+            .thenReturn(admin);
+         break;
+      }
+   }
+
+   // ─────────────────────────────────────────────────────────────────
    // Permission builder helpers
    // ─────────────────────────────────────────────────────────────────
 
