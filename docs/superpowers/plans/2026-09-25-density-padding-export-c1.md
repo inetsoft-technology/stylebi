@@ -1161,11 +1161,18 @@ class TableExportColumnWidthsTest {
       assertArrayEquals(new int[] { 100, 100, 200 }, pixelWidths(NONE, 100, 100, 100));
    }
 
-   // 150 + 130 + the 100px default = 380, past the 368 grid: the lens's 20px fill comes back
+   // 150 + 130 + the 100px default = 380, past the 368 grid: the last column is cut at the grid
    @Test
-   void aWidthlessLastColumnDropsTheLensCardFill() {
-      assertArrayEquals(new int[] { 150, 130, 100 },
+   void columnsPastTheGridAreCutAtTheGrid() {
+      assertArrayEquals(new int[] { 150, 130, 88 },
                         pixelWidths(COMFORTABLE, 150, 130, Double.NaN));
+   }
+
+   // the lens fills the width-less last column to the 400 card: 120, and the columns fit
+   @Test
+   void withoutAnInsetTheColumnsFitTheCard() {
+      assertArrayEquals(new int[] { 150, 130, 120 },
+                        pixelWidths(NONE, 150, 130, Double.NaN));
    }
 
    @Test
@@ -1190,7 +1197,7 @@ class TableExportColumnWidthsTest {
 - [ ] **Step 2: Run it and watch it fail**
 
 Run: `./mvnw -q test -pl core -Dtest=TableExportColumnWidthsTest -Dsurefire.failIfNoSpecifiedTests=false`
-Expected: `withoutAnInset…` passes. The two inset tests fail with `[100, 100, 200]` and `[150, 130, 120]`. `theWrappedLineCounts…` fails with 200 at index 2.
+Expected: the two `withoutAnInset…` tests pass. `theLastColumnFillsTheGrid` fails with `[100, 100, 200]`, `columnsPastTheGridAreCutAtTheGrid` fails with `[150, 130, 120]`, and `theWrappedLineCounts…` fails with 200 at index 2.
 
 - [ ] **Step 3: Give `ExcelVSUtil.calculateColumnWidths` a fill width**
 
@@ -1244,7 +1251,7 @@ Task 3 declared `Insets inset` further down in `write`; the name `gridInset` kee
 - [ ] **Step 5: Run it and watch it pass**
 
 Run: `./mvnw -q test -pl core "-Dtest=TableExportColumnWidthsTest,TableExportGridOriginTest,TableExportChromeBoundsTest" -Dsurefire.failIfNoSpecifiedTests=false`
-Expected: 4 + 8 + 3 tests, 0 failures, 0 errors.
+Expected: 5 + 8 + 3 tests, 0 failures, 0 errors. The overflow guard, `if(!matchLayout && totalWidth > totalPixelW)`, keeps comparing against `totalPixelW`, now the grid, so columns past the grid are cut at it, just as they are cut at the card without an inset.
 
 - [ ] **Step 6: Commit**
 
