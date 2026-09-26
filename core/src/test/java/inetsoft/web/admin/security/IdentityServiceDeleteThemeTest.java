@@ -278,6 +278,50 @@ class IdentityServiceDeleteThemeTest {
          ArgumentMatchers.<Collection<IdentityID>>argThat(ids -> ids.contains(bob)));
    }
 
+   // the EM multi-select delete posts the whole selection in one call; every identity in it must
+   // be removed from its own organization's themes, and an organization role only from the
+   // themes of its organization
+   @Test
+   void deleteBulk_userGroupOrgRole_eachRemovedFromOwnOrgThemes() {
+      IdentityID bob = new IdentityID("bob", ORG_A);
+      stubUser(bob, ORG_A);
+      IdentityID sales = new IdentityID("sales", ORG_A);
+      Group group = mock(Group.class);
+      when(group.getOrganizationID()).thenReturn(ORG_A);
+      when(provider.getGroup(sales)).thenReturn(group);
+      IdentityID analyst = new IdentityID("analyst", ORG_A);
+      Role role = mock(Role.class);
+      when(role.getOrganizationID()).thenReturn(ORG_A);
+      when(provider.getRole(analyst)).thenReturn(role);
+      CustomTheme aTheme = theme("aTheme", ORG_A, "bob", "alice");
+      aTheme.getGroups().add("sales");
+      aTheme.getRoles().add("analyst");
+      CustomTheme bTheme = theme("bTheme", ORG_B, "bob");
+      bTheme.getGroups().add("sales");
+      bTheme.getRoles().add("analyst");
+      CustomTheme globalTheme = theme("globalTheme", null);
+      globalTheme.getRoles().add("analyst");
+      stubThemes(aTheme, bTheme, globalTheme);
+      IdentityModel[] models = {
+         IdentityModel.builder().identityID(bob).type(Identity.USER).build(),
+         IdentityModel.builder().identityID(sales).type(Identity.GROUP).build(),
+         IdentityModel.builder().identityID(analyst).type(Identity.ROLE).build()
+      };
+
+      List<String> warnings = service.deleteIdentities(models, PROVIDER, principal);
+
+      assertTrue(warnings.isEmpty(), warnings::toString);
+      verify(themesManager, times(3)).updateCustomThemes(any());
+      assertEquals(List.of("alice"), aTheme.getUsers());
+      assertTrue(aTheme.getGroups().isEmpty());
+      assertTrue(aTheme.getRoles().isEmpty());
+      assertEquals(List.of("bob"), bTheme.getUsers(), "org B's bob must keep its theme");
+      assertEquals(List.of("sales"), bTheme.getGroups(), "org B's sales must keep its theme");
+      assertEquals(List.of("analyst"), bTheme.getRoles(), "org B's analyst must keep its theme");
+      assertEquals(List.of("analyst"), globalTheme.getRoles(),
+                   "a global theme's analyst belongs to the default organization, not to org A");
+   }
+
    private List<String> delete(IdentityID id, int type) {
       IdentityModel model = IdentityModel.builder().identityID(id).type(type).build();
       return service.deleteIdentities(new IdentityModel[] { model }, PROVIDER, principal);
