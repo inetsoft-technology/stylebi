@@ -29,6 +29,7 @@ import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
 import jakarta.annotation.PostConstruct;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -1117,7 +1120,7 @@ public class ScheduleManager {
 
          for(int j = 0; j < task.getActionCount(); j++) {
             ScheduleAction action = task.getAction(j);
-            updateNotifications(action, identityID, task, changedTasks);
+            updateNotifications(action, identityID.name, null, type, task, changedTasks);
          }
       }
 
@@ -1326,7 +1329,7 @@ public class ScheduleManager {
 
          for(int j = 0; j < task.getActionCount(); j++) {
             ScheduleAction action = task.getAction(j);
-            updateNotifications(action, id, task, changedTasks);
+            updateNotifications(action, oname.name, name, type, task, changedTasks);
 
             if(type == Identity.USER) {
                updateScheduleAction(action, oname, id, task, changedTasks);
@@ -1430,24 +1433,125 @@ public class ScheduleManager {
    }
 
 
-   private void updateNotifications(ScheduleAction action, IdentityID id,
-                                    ScheduleTask task,
-                                    Set<ScheduleTask> changedTasks)
+   /**
+    * Removes (nname is null) or renames the notification recipients that denote the identity.
+    */
+   private void updateNotifications(ScheduleAction action, String oname, String nname, int type,
+                                    ScheduleTask task, Set<ScheduleTask> changedTasks)
    {
       if(action instanceof AbstractAction) {
          AbstractAction aaction = (AbstractAction) action;
 
          if(aaction.getNotifications() != null && aaction.getNotifications().length() > 0) {
-            String oldNotifies = aaction.getNotifications();
-            String newNotifies = Tool.arrayToString(
-               Tool.remove(Tool.split(oldNotifies, ','), id.name));
+            String newNotifies =
+               updateNotifications(aaction.getNotifications(), oname, nname, type);
 
-            if(!Tool.equals(oldNotifies, newNotifies)) {
+            if(newNotifies != null) {
                aaction.setNotifications(newNotifies);
                changedTasks.add(task);
             }
          }
       }
+   }
+
+   /**
+    * Removes (nname is null) or renames the recipients that denote the identity in a notification
+    * list. A bare name that is not an email address denotes a user, name(User) a user and
+    * name(Group) a group, so a user matches a bare or a (User) token and a group matches only a
+    * (Group) token. A renamed token keeps its form. The other tokens, the delimiters and the
+    * spacing are kept.
+    *
+    * @return the new list, or null if no token denotes the identity.
+    */
+   private static String updateNotifications(String notifies, String oname, String nname,
+                                             int type)
+   {
+      List<String> tokens = new ArrayList<>();
+      List<String> delimiters = new ArrayList<>();
+      Matcher matcher = NOTIFICATION_DELIMITER.matcher(notifies);
+      int start = 0;
+
+      while(matcher.find()) {
+         tokens.add(notifies.substring(start, matcher.start()));
+         delimiters.add(matcher.group());
+         start = matcher.end();
+      }
+
+      tokens.add(notifies.substring(start));
+      boolean matched = false;
+
+      for(int i = 0; i < tokens.size(); i++) {
+         String token = tokens.get(i);
+         String suffix = getNotificationSuffix(StringUtils.normalizeSpace(token), oname, type);
+
+         if(suffix == null) {
+            continue;
+         }
+
+         matched = true;
+
+         if(nname == null) {
+            tokens.set(i, null);
+         }
+         else {
+            // a bare email address is not a user, so a user renamed to one is written typed
+            if(suffix.isEmpty() && Tool.matchEmail(nname)) {
+               suffix = Identity.USER_SUFFIX;
+            }
+
+            String trimmed = token.trim();
+            int lead = token.indexOf(trimmed);
+            tokens.set(i, token.substring(0, lead) + nname + suffix +
+               token.substring(lead + trimmed.length()));
+         }
+      }
+
+      if(!matched) {
+         return null;
+      }
+
+      StringBuilder result = new StringBuilder();
+      boolean first = true;
+
+      for(int i = 0; i < tokens.size(); i++) {
+         if(tokens.get(i) == null) {
+            continue;
+         }
+
+         if(!first) {
+            result.append(delimiters.get(i - 1));
+         }
+
+         result.append(tokens.get(i));
+         first = false;
+      }
+
+      return result.toString();
+   }
+
+   /**
+    * Gets the suffix of the notification token if it denotes the identity: an empty string for a
+    * bare user name, the user or group suffix for a typed one, or null if it does not denote it.
+    */
+   private static String getNotificationSuffix(String token, String name, int type) {
+      if(name == null || token.isEmpty()) {
+         return null;
+      }
+
+      if(type == Identity.USER) {
+         if(token.equals(name) && !Tool.matchEmail(token)) {
+            return "";
+         }
+
+         if(token.equals(name + Identity.USER_SUFFIX)) {
+            return Identity.USER_SUFFIX;
+         }
+      }
+      else if(type == Identity.GROUP && token.equals(name + Identity.GROUP_SUFFIX)) {
+         return Identity.GROUP_SUFFIX;
+      }
+
+      return null;
    }
 
    private void updateViewsheets(ScheduleAction action,
@@ -1901,6 +2005,7 @@ public class ScheduleManager {
    // RepletRegistry monitor.
    private final Lock extensionLock = new ReentrantLock();
 
+   private static final Pattern NOTIFICATION_DELIMITER = Pattern.compile("[;,]");
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleManager.class);
 
    private record ExtTaskKey(String name, String orgId) { }

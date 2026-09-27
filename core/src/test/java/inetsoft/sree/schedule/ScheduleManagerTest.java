@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.exceptions.misusing.UnfinishedStubbingException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
@@ -509,6 +510,194 @@ public class ScheduleManagerTest {
       CompletionCondition cond = (CompletionCondition)
          scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk_sys").getCondition(0);
       assertEquals("__balance tasks__", cond.getTaskName());
+   }
+
+   /**
+    * Bug #77111: a group removal removes the name(Group) token and keeps a same-named bare token,
+    * which denotes a user.
+    */
+   @Test
+   void identityRemoved_groupRemovesOnlyGroupNotifications() throws Exception {
+      IdentityID gX = new IdentityID("gX", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedNotificationTask("n77111_grp", "gX,gX(Group),e@f.com", "host-org");
+         scheduleManager.identityRemoved(new Group(gX), mockProvider(new Group(gX)));
+         assertEquals("gX,e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a user removal removes the bare and the name(User) tokens, and keeps the
+    * same-named group.
+    */
+   @Test
+   void identityRemoved_userRemovesBareAndTypedNotifications() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_usr", "u9,u9(User),u9(Group),e@f.com", "host-org");
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("u9(Group),e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a group rename renames only the old name(Group) token. The same-named users of
+    * the old and the new name keep their tokens.
+    */
+   @Test
+   void identityRenamed_groupRenamesOnlyGroupNotifications() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedNotificationTask(
+            "n77111_grpren", "g1,g1(Group),sales,sales(User),e@f.com", "host-org");
+         scheduleManager.identityRenamed(new IdentityID("g1", "host-org"),
+                                         new Group(new IdentityID("sales", "host-org")));
+         assertEquals("g1,sales(Group),sales,sales(User),e@f.com",
+                      readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a user rename renames the bare and the name(User) tokens in the same form, and
+    * keeps the same-named group.
+    */
+   @Test
+   void identityRenamed_userRenamesBareAndTypedNotifications() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_usrren", "a,a(User),a(Group),e@f.com", "host-org");
+         scheduleManager.identityRenamed(new IdentityID("a", "host-org"),
+                                         new User(new IdentityID("b", "host-org")));
+         assertEquals("b,b(User),a(Group),e@f.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: semicolon and comma lists are both matched, and the delimiters and the spacing
+    * of the kept tokens are preserved.
+    */
+   @Test
+   void identityRenamedAndRemoved_keepDelimitersAndSpacing() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask removed =
+            seedNotificationTask("n77111_semi", "e@f.com; u9(User) ;gX", "host-org");
+         ScheduleTask renamed =
+            seedNotificationTask("n77111_mixed", "a;x@y.com , a(User)", "host-org");
+
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("e@f.com;gX", readNotifications(removed, "host-org"));
+
+         scheduleManager.identityRenamed(new IdentityID("a", "host-org"),
+                                         new User(new IdentityID("b", "host-org")));
+         assertEquals("b;x@y.com , b(User)", readNotifications(renamed, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a bare email address is an address, not a user, even if a user has that name.
+    */
+   @Test
+   void identityRemoved_emailTokenIsNotAUser() throws Exception {
+      IdentityID alice = new IdentityID("alice@x.com", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedNotificationTask("n77111_email", "alice@x.com,alice@x.com(User)", "host-org");
+         scheduleManager.identityRemoved(new User(alice), mockProvider(new User(alice)));
+         assertEquals("alice@x.com", readNotifications(task, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a task whose notifications do not denote the identity is left byte-identical and
+    * is not saved.
+    */
+   @Test
+   void identityRemoved_unmatchedNotificationsNotSaved() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask matched = seedNotificationTask("n77111_hit", "u9,e@f.com", "host-org");
+         ScheduleTask unmatched =
+            seedNotificationTask("n77111_miss", "a@b.com; c@d.com,u9(Group)", "host-org");
+         ScheduleManager spyManager = spy(scheduleManager);
+         spyManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Collection<ScheduleTask>> saved = ArgumentCaptor.forClass(Collection.class);
+         verify(spyManager).save(saved.capture(), eq("host-org"));
+         Set<String> savedNames = new HashSet<>();
+         saved.getValue().forEach(task -> savedNames.add(task.getName()));
+         assertEquals(Set.of("n77111_hit"), savedNames);
+         assertEquals("e@f.com", readNotifications(matched, "host-org"));
+         assertEquals("a@b.com; c@d.com,u9(Group)", readNotifications(unmatched, "host-org"));
+      });
+   }
+
+   /**
+    * Bug #77111: a removal only changes the notifications in the identity's own org.
+    */
+   @Test
+   void identityRemoved_notificationsScopedToOrg() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "org1");
+
+      withNotificationTasks(() -> {
+         ScheduleTask org1Task = seedNotificationTask("n77111_org1", "u9,e@f.com", "org1");
+         ScheduleTask org2Task = seedNotificationTask("n77111_org2", "u9,e@f.com", "org2");
+         scheduleManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+         assertEquals("e@f.com", readNotifications(org1Task, "org1"));
+         assertEquals("u9,e@f.com", readNotifications(org2Task, "org2"));
+      });
+   }
+
+   private static EditableAuthenticationProvider mockProvider(User user) {
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+      when(provider.getUser(user.getIdentityID())).thenReturn(user);
+      return provider;
+   }
+
+   private static EditableAuthenticationProvider mockProvider(Group group) {
+      EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+      when(provider.getGroup(group.getIdentityID())).thenReturn(group);
+      return provider;
+   }
+
+   /**
+    * Runs the body and then removes the n77111_ tasks it seeded.
+    */
+   private void withNotificationTasks(NotificationTestBody body) throws Exception {
+      try {
+         body.run();
+      }
+      finally {
+         for(String org : new String[] { "host-org", "org1", "org2" }) {
+            scheduleManager.getOrgTaskMap(org).values()
+               .removeIf(task -> task != null && task.getName().startsWith("n77111_"));
+         }
+      }
+   }
+
+   private ScheduleTask seedNotificationTask(String name, String notifications, String orgID)
+      throws Exception
+   {
+      ScheduleTask task = createScheduleTask(name);
+      ((AbstractAction) task.getAction(0)).setNotifications(notifications);
+      scheduleManager.save(List.of(task), orgID);
+      return task;
+   }
+
+   private String readNotifications(ScheduleTask task, String orgID) {
+      ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
+      return ((AbstractAction) loaded.getAction(0)).getNotifications();
+   }
+
+   @FunctionalInterface
+   private interface NotificationTestBody {
+      void run() throws Exception;
    }
 
    /**
