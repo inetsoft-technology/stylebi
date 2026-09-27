@@ -654,6 +654,154 @@ public class ScheduleManagerTest {
       });
    }
 
+   /**
+    * Bug #77148: a user removal removes the bare and the name(User) tokens from the to, cc and bcc
+    * delivery lists, and keeps the same-named group, the other groups and the email addresses.
+    */
+   @Test
+   void identityRemoved_userRemovesDeliveryRecipients() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_usr", "bob(User),bob,g1(Group),bob(Group),e@f.com", "bob", "bob(User)",
+            "host-org");
+         scheduleManager.identityRemoved(new User(bob), mockProvider(new User(bob)));
+         assertDelivery(task, "host-org", "g1(Group),bob(Group),e@f.com", "", "");
+      });
+   }
+
+   /**
+    * Bug #77148: a group removal removes only the name(Group) tokens from the delivery lists. A
+    * same-named bare token and a same-named name(User) token denote a user and are kept.
+    */
+   @Test
+   void identityRemoved_groupRemovesOnlyGroupDeliveryRecipients() throws Exception {
+      IdentityID g1 = new IdentityID("g1", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_grp", "g1,g1(User),g1(Group),e@f.com", "g1(Group)", "g1", "host-org");
+         scheduleManager.identityRemoved(new Group(g1), mockProvider(new Group(g1)));
+         assertDelivery(task, "host-org", "g1,g1(User),e@f.com", "", "g1");
+      });
+   }
+
+   /**
+    * Bug #77148: a user rename renames the bare and the name(User) tokens of the delivery lists in
+    * the same form, and keeps the same-named group, the delimiters and the spacing.
+    */
+   @Test
+   void identityRenamed_userRenamesDeliveryRecipients() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_usrren", "alice , alice(User);alice(Group),e@f.com", "alice", "alice(User)",
+            "host-org");
+         scheduleManager.identityRenamed(new IdentityID("alice", "host-org"),
+                                         new User(new IdentityID("alice2", "host-org")));
+         assertDelivery(task, "host-org", "alice2 , alice2(User);alice(Group),e@f.com",
+                        "alice2", "alice2(User)");
+      });
+   }
+
+   /**
+    * Bug #77148: a group rename renames only the name(Group) tokens of the delivery lists. The
+    * same-named user tokens are kept.
+    */
+   @Test
+   void identityRenamed_groupRenamesOnlyGroupDeliveryRecipients() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_grpren", "g1,g1(User),g1(Group),e@f.com", "g1(Group)", "g1", "host-org");
+         scheduleManager.identityRenamed(new IdentityID("g1", "host-org"),
+                                         new Group(new IdentityID("g2", "host-org")));
+         assertDelivery(task, "host-org", "g1,g1(User),g2(Group),e@f.com", "g2(Group)", "g1");
+      });
+   }
+
+   /**
+    * Bug #77148: a raw email address equal to a removed user's name and a display-name address
+    * are addresses, not the user, and are kept. Only the name(User) token is removed.
+    */
+   @Test
+   void identityRemoved_emailShapedUserKeepsDeliveryAddresses() throws Exception {
+      IdentityID bob = new IdentityID("bob@x.com", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_email", "bob@x.com, Bob <bob@x.com>; bob@x.com(User)", "bob@x.com",
+            "Bob <bob@x.com>", "host-org");
+         scheduleManager.identityRemoved(new User(bob), mockProvider(new User(bob)));
+         assertDelivery(task, "host-org", "bob@x.com, Bob <bob@x.com>", "bob@x.com",
+                        "Bob <bob@x.com>");
+      });
+   }
+
+   /**
+    * Bug #77148: a non-ASCII user name is renamed in the delivery lists.
+    */
+   @Test
+   void identityRenamed_nonAsciiUserRenamesDeliveryRecipients() throws Exception {
+      String zhang = "\u5f20\u4e09";
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_nonascii", zhang + "," + zhang + "(User)", zhang, "e@f.com", "host-org");
+         scheduleManager.identityRenamed(new IdentityID(zhang, "host-org"),
+                                         new User(new IdentityID("zs", "host-org")));
+         assertDelivery(task, "host-org", "zs,zs(User)", "zs", "e@f.com");
+      });
+   }
+
+   /**
+    * Bug #77148: a task whose delivery lists do not denote the removed identity is left
+    * byte-identical and is not saved.
+    */
+   @Test
+   void identityRemoved_unmatchedDeliveryRecipientsNotSaved() throws Exception {
+      IdentityID u9 = new IdentityID("u9", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask matched =
+            seedDeliveryTask("n77148_hit", "e@f.com", "u9(User)", "x@y.com", "host-org");
+         ScheduleTask unmatched = seedDeliveryTask(
+            "n77148_miss", "a@b.com; c@d.com", "u9(Group)", "x@y.com , U9", "host-org");
+         ScheduleManager spyManager = spy(scheduleManager);
+         spyManager.identityRemoved(new User(u9), mockProvider(new User(u9)));
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Collection<ScheduleTask>> saved = ArgumentCaptor.forClass(Collection.class);
+         verify(spyManager).save(saved.capture(), eq("host-org"));
+         Set<String> savedNames = new HashSet<>();
+         saved.getValue().forEach(task -> savedNames.add(task.getName()));
+         assertEquals(Set.of("n77148_hit"), savedNames);
+         assertDelivery(matched, "host-org", "e@f.com", "", "x@y.com");
+         assertDelivery(unmatched, "host-org", "a@b.com; c@d.com", "u9(Group)", "x@y.com , U9");
+      });
+   }
+
+   /**
+    * Bug #77148: when the removed identity was the only "to" recipient, the "to" list becomes
+    * empty, so the email step is skipped at run time (and shown as disabled), while the cc list is
+    * kept as is.
+    */
+   @Test
+   void identityRemoved_onlyToRecipientRemovedDisablesEmailStep() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task =
+            seedDeliveryTask("n77148_onlyto", "bob", "carol@x.com", null, "host-org");
+         scheduleManager.identityRemoved(new User(bob), mockProvider(new User(bob)));
+
+         ViewsheetAction loaded = (ViewsheetAction)
+            scheduleManager.getScheduleTask(task.getTaskId(), "host-org").getAction(0);
+         assertEquals("", loaded.getEmails());
+         assertTrue(loaded.getScheduleEmails(null).isEmpty());
+         assertEquals("carol@x.com", loaded.getCCAddresses());
+      });
+   }
+
    private static EditableAuthenticationProvider mockProvider(User user) {
       EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
       when(provider.getUser(user.getIdentityID())).thenReturn(user);
@@ -667,7 +815,7 @@ public class ScheduleManagerTest {
    }
 
    /**
-    * Runs the body and then removes the n77111_ tasks it seeded.
+    * Runs the body and then removes the n77111_ and n77148_ tasks it seeded.
     */
    private void withNotificationTasks(NotificationTestBody body) throws Exception {
       try {
@@ -676,7 +824,8 @@ public class ScheduleManagerTest {
       finally {
          for(String org : new String[] { "host-org", "org1", "org2" }) {
             scheduleManager.getOrgTaskMap(org).values()
-               .removeIf(task -> task != null && task.getName().startsWith("n77111_"));
+               .removeIf(task -> task != null && (task.getName().startsWith("n77111_") ||
+                                                  task.getName().startsWith("n77148_")));
          }
       }
    }
@@ -693,6 +842,29 @@ public class ScheduleManagerTest {
    private String readNotifications(ScheduleTask task, String orgID) {
       ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
       return ((AbstractAction) loaded.getAction(0)).getNotifications();
+   }
+
+   private ScheduleTask seedDeliveryTask(String name, String emails, String ccAddresses,
+                                         String bccAddresses, String orgID)
+      throws Exception
+   {
+      ScheduleTask task = createScheduleTask(name);
+      AbstractAction action = (AbstractAction) task.getAction(0);
+      action.setEmails(emails);
+      action.setCCAddresses(ccAddresses);
+      action.setBCCAddresses(bccAddresses);
+      scheduleManager.save(List.of(task), orgID);
+      return task;
+   }
+
+   private void assertDelivery(ScheduleTask task, String orgID, String emails,
+                               String ccAddresses, String bccAddresses)
+   {
+      ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
+      AbstractAction action = (AbstractAction) loaded.getAction(0);
+      assertEquals(emails, action.getEmails(), "to");
+      assertEquals(ccAddresses, action.getCCAddresses(), "cc");
+      assertEquals(bccAddresses, action.getBCCAddresses(), "bcc");
    }
 
    @FunctionalInterface

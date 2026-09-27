@@ -1183,8 +1183,9 @@ public class ScheduleManager {
     * Compute, without modifying anything, which scheduled tasks would be affected if the
     * given identity were removed: tasks owned by a user (which
     * {@link #identityRemoved(Identity, EditableAuthenticationProvider)} deletes) and tasks where
-    * the identity is the "execute as" (which it resets). The notification-list cleanup that
-    * identityRemoved also performs is not reported here.
+    * the identity is the "execute as" (which it resets). The recipient cleanup that
+    * identityRemoved also performs (removing the identity's tokens from the notification and the
+    * delivery to, cc and bcc lists) is not reported here.
     */
    public synchronized IdentityTaskImpact getIdentityRemovalImpact(Identity identity,
                                                                    EditableAuthenticationProvider eprovider)
@@ -1434,38 +1435,62 @@ public class ScheduleManager {
 
 
    /**
-    * Removes (nname is null) or renames the notification recipients that denote the identity.
+    * Removes (nname is null) or renames the recipients that denote the identity in the
+    * notification list and in the delivery (to, cc and bcc) lists of the action. A list is only
+    * set back, and the task only marked as changed, when a token of it denotes the identity.
     */
    private void updateNotifications(ScheduleAction action, String oname, String nname, int type,
                                     ScheduleTask task, Set<ScheduleTask> changedTasks)
    {
       if(action instanceof AbstractAction) {
          AbstractAction aaction = (AbstractAction) action;
+         String notifies = updateNotifications(aaction.getNotifications(), oname, nname, type);
 
-         if(aaction.getNotifications() != null && aaction.getNotifications().length() > 0) {
-            String newNotifies =
-               updateNotifications(aaction.getNotifications(), oname, nname, type);
+         if(notifies != null) {
+            aaction.setNotifications(notifies);
+            changedTasks.add(task);
+         }
 
-            if(newNotifies != null) {
-               aaction.setNotifications(newNotifies);
-               changedTasks.add(task);
-            }
+         String emails = updateNotifications(aaction.getEmails(), oname, nname, type);
+
+         if(emails != null) {
+            aaction.setEmails(emails);
+            changedTasks.add(task);
+         }
+
+         String ccAddresses = updateNotifications(aaction.getCCAddresses(), oname, nname, type);
+
+         if(ccAddresses != null) {
+            aaction.setCCAddresses(ccAddresses);
+            changedTasks.add(task);
+         }
+
+         String bccAddresses = updateNotifications(aaction.getBCCAddresses(), oname, nname, type);
+
+         if(bccAddresses != null) {
+            aaction.setBCCAddresses(bccAddresses);
+            changedTasks.add(task);
          }
       }
    }
 
    /**
-    * Removes (nname is null) or renames the recipients that denote the identity in a notification
-    * list. A bare name that is not an email address denotes a user, name(User) a user and
-    * name(Group) a group, so a user matches a bare or a (User) token and a group matches only a
-    * (Group) token. A renamed token keeps its form. The other tokens, the delimiters and the
-    * spacing are kept.
+    * Removes (nname is null) or renames the recipients that denote the identity in a recipient
+    * list, which is a notification list or a delivery (to, cc or bcc) list. A bare name that is
+    * not an email address denotes a user, name(User) a user and name(Group) a group, so a user
+    * matches a bare or a (User) token and a group matches only a (Group) token. A renamed token
+    * keeps its form. The other tokens, the delimiters and the spacing are kept.
     *
-    * @return the new list, or null if no token denotes the identity.
+    * @return the new list, or null if the list is null or empty or no token denotes the
+    *         identity.
     */
    private static String updateNotifications(String notifies, String oname, String nname,
                                              int type)
    {
+      if(notifies == null || notifies.isEmpty()) {
+         return null;
+      }
+
       List<String> tokens = new ArrayList<>();
       List<String> delimiters = new ArrayList<>();
       Matcher matcher = NOTIFICATION_DELIMITER.matcher(notifies);
