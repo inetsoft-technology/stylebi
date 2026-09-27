@@ -29,6 +29,7 @@ package inetsoft.web.admin.security.user;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.security.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.MessageException;
@@ -139,7 +140,8 @@ class UserTreeServiceEditGroupTest {
       verify(identityService).setIdentityPermissions(
          eq(path), eq(new IdentityID("g1new", ORG_A)), eq(ResourceType.SECURITY_GROUP), eq(principal),
          anyList(), eq(ORG_A));
-      verify(indexedStorage).migrateStorageData("g1", "g1new");
+      verify(indexedStorage).migrateStorageData(
+         path, new IdentityID("g1new", ORG_A), Identity.GROUP);
    }
 
    @Test

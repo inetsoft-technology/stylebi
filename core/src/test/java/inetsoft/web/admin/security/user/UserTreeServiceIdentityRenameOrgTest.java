@@ -91,7 +91,8 @@ class UserTreeServiceIdentityRenameOrgTest {
       principal = mock(Principal.class, withSettings().lenient());
       when(principal.getName()).thenReturn(new IdentityID("admin", ORG_A).convertToKey());
 
-      doAnswer(inv -> record("storage")).when(storage).migrateStorageData(anyString(), anyString());
+      doAnswer(inv -> record("storage")).when(storage)
+         .migrateStorageData(any(IdentityID.class), any(IdentityID.class), anyInt());
       doAnswer(inv -> record("cycle")).when(cycleManager)
          .updateCycleInfoNotify(anyString(), anyString(), anyBoolean());
       doAnswer(inv -> record("mvAssets")).when(mvManager).migrateUserAssetsMV(any(), any());
@@ -118,7 +119,8 @@ class UserTreeServiceIdentityRenameOrgTest {
       service.editGroup("Primary", pathGroup, groupModel("sales", "sales2", ORG_B), principal);
 
       assertEquals(List.of("storage@" + ORG_B, "cycle@" + ORG_B), migrations);
-      verify(storage).migrateStorageData("sales", "sales2");
+      verify(storage).migrateStorageData(
+         new IdentityID("sales", ORG_B), new IdentityID("sales2", ORG_B), Identity.GROUP);
       verify(cycleManager).updateCycleInfoNotify("sales", "sales2", false);
       verify(identityService).setIdentityPermissions(
          eq(pathGroup), eq(new IdentityID("sales2", ORG_B)), eq(ResourceType.SECURITY_GROUP),
@@ -173,7 +175,7 @@ class UserTreeServiceIdentityRenameOrgTest {
 
       assertEquals(List.of("storage@" + ORG_B, "mvAssets@" + ORG_B, "mvUsers@" + ORG_B,
                            "cycle@" + ORG_B), migrations);
-      verify(storage).migrateStorageData("bob", "bob2");
+      verify(storage).migrateStorageData(oldUser, newUser, Identity.USER);
       verify(mvManager).migrateUserAssetsMV(oldUser, newUser);
       verify(mvManager).updateMVUser(oldUser, newUser);
       verify(cycleManager).updateCycleInfoNotify("bob", "bob2", true);
@@ -200,6 +202,48 @@ class UserTreeServiceIdentityRenameOrgTest {
       stubUser(new IdentityID("bob", ORG_B));
 
       service.editUser(userModel("bob", "bob", ORG_B), "Primary", principal);
+
+      verifyNoInteractions(storage, cycleManager, mvManager, dependencyStorageService, recycleBin);
+   }
+
+   // Bug #77097: the REST API renames through the same helpers as the EM panes
+   @Test
+   void migrateGroupRename_fromOtherOrgSession_migratesGroupInItsOrg() throws Exception {
+      IdentityID oldGroup = new IdentityID("sales", ORG_B);
+      IdentityID newGroup = new IdentityID("sales2", ORG_B);
+
+      service.migrateGroupRename(oldGroup, newGroup);
+
+      assertEquals(List.of("storage@" + ORG_B, "cycle@" + ORG_B), migrations);
+      verify(storage).migrateStorageData(oldGroup, newGroup, Identity.GROUP);
+      verify(storage, never()).migrateStorageData(anyString(), anyString());
+      verify(cycleManager).updateCycleInfoNotify("sales", "sales2", false);
+      verifyNoInteractions(mvManager, dependencyStorageService, recycleBin);
+      assertEquals(ORG_A, orgManager.getCurrentOrgID(), "the org scope must be restored");
+   }
+
+   @Test
+   void migrateUserRename_fromOtherOrgSession_migratesUserInItsOrg() throws Exception {
+      IdentityID oldUser = new IdentityID("bob", ORG_B);
+      IdentityID newUser = new IdentityID("bob2", ORG_B);
+
+      service.migrateUserRename(oldUser, newUser);
+
+      assertEquals(List.of("storage@" + ORG_B, "mvAssets@" + ORG_B, "mvUsers@" + ORG_B,
+                           "cycle@" + ORG_B), migrations);
+      verify(storage).migrateStorageData(oldUser, newUser, Identity.USER);
+      verify(cycleManager).updateCycleInfoNotify("bob", "bob2", true);
+      verify(dependencyStorageService).migrateStorageData(oldUser, newUser);
+      verify(recycleBin).renameUser(oldUser, newUser);
+      assertEquals(ORG_A, orgManager.getCurrentOrgID(), "the org scope must be restored");
+   }
+
+   @Test
+   void migrateRename_sameID_runsNoMigrations() throws Exception {
+      IdentityID id = new IdentityID("sales", ORG_B);
+
+      service.migrateGroupRename(id, id);
+      service.migrateUserRename(id, id);
 
       verifyNoInteractions(storage, cycleManager, mvManager, dependencyStorageService, recycleBin);
    }
