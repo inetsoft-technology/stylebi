@@ -325,17 +325,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                      return this.errorService.showSnackBar(error);
                   }),
                   finalize(() => this.orgBusy.endOrgSave())
-               ).subscribe((msg) => {
-                  if(msg) {
-                     this.dialog.open(MessageDialog, {
-                        data: {
-                           title: "_#(js:Confirm)",
-                           content: "_#(js:em.organization.renameIssue)",
-                           type: MessageDialogType.CONFIRMATION
-                        }
-                     });
-                  }
-
+               ).subscribe((msg: string) => {
+                  this.showOrganizationSaveMessage(msg);
                   window.open("../logout?fromEm=true", "_self");
                });
             }
@@ -353,17 +344,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }),
             tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION)),
             finalize(() => this.orgBusy.endOrgSave())
-         ).subscribe((msg) => {
-            if(msg) {
-               this.dialog.open(MessageDialog, {
-                  data: {
-                     title: "_#(js:Confirm)",
-                     content: "_#(js:em.organization.renameIssue)",
-                     type: MessageDialogType.CONFIRMATION
-                  }
-               });
-            }
-
+         ).subscribe((msg: string) => {
+            this.showOrganizationSaveMessage(msg);
             this.loading = false;
 
             if(orgNameChanged) {
@@ -371,6 +353,25 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }
          });
       }
+   }
+
+   /**
+    * Shows the message returned by an organization save. The server returns only localized
+    * text for this save, including the rename issue when the organization's server files could
+    * not be renamed, so it is shown as is.
+    */
+   private showOrganizationSaveMessage(msg: string): void {
+      if(!msg) {
+         return;
+      }
+
+      this.dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:Warning)",
+            content: msg,
+            type: MessageDialogType.WARNING
+         }
+      });
    }
 
    private postUserInfo(model: EditIdentityPaneModel, logout: boolean) {

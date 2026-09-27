@@ -852,8 +852,8 @@ public class IdentityService {
       }
       catch(Exception ex) {
          LOG.warn("Failed to clean up the removed organization member: {}", id, ex);
-         Tool.addUserMessage("Failed to clean up the data of the removed member " +
-                                id.getName() + ".");
+         Tool.addUserMessage(Catalog.getCatalog(ThreadContext.getContextPrincipal())
+                                .getString("em.security.orgMemberCleanupFailed", id.getName()));
 
          // the cleanup may have failed before the member was removed from the provider
          try {
