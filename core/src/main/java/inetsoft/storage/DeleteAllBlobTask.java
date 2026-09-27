@@ -95,14 +95,14 @@ public class DeleteAllBlobTask<T extends Serializable> extends BlobTask<T>
 
       // Bulk delete from blob engine
       if(!digestsToDelete.isEmpty()) {
-         BlobEngine.getInstance().deleteAll(getId(), digestsToDelete);
+         getBlobEngine().deleteAll(getId(), digestsToDelete);
       }
 
       getLastModified().set(System.currentTimeMillis());
 
       // Send a single cache clear message for all deleted digests
       if(!digestsToDelete.isEmpty()) {
-         Cluster.getInstance().sendMessage(new ClearAllBlobCacheMessage(getId(), digestsToDelete));
+         getCluster().sendMessage(new ClearAllBlobCacheMessage(getId(), digestsToDelete));
       }
 
       return digestsToDelete;

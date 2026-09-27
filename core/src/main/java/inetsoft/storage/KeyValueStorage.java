@@ -196,6 +196,25 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
    boolean isClosed();
 
    /**
+    * Checks if the initial load of the storage completed. A storage whose initial load failed is
+    * readable, but it is empty rather than known to be empty.
+    *
+    * @return {@code true} if the storage is loaded.
+    */
+   default boolean isLoaded() {
+      return true;
+   }
+
+   /**
+    * Submits the initial load of the storage again if it did not complete, and waits for it.
+    *
+    * @return {@code true} if the storage is loaded.
+    */
+   default boolean retryLoad() {
+      return isLoaded();
+   }
+
+   /**
     * {@code Event} signals that an entry has changed in a key-value store.
     *
     * @param <T> the value type.

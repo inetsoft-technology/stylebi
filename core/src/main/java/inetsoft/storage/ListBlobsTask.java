@@ -18,7 +18,6 @@
 
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SingletonCallableTask;
 import inetsoft.util.FileSystemService;
 
@@ -41,11 +40,11 @@ public class ListBlobsTask<T extends Serializable> extends BlobTask<T>
 
       try(PrintWriter writer = new PrintWriter(new FileOutputStream(tempFile, true))) {
          writer.println(getId());
-         BlobEngine.getInstance().list(getId(), writer);
+         getBlobEngine().list(getId(), writer);
          writer.println();
       }
 
-      return Cluster.getInstance().addTransferFile(tempFile);
+      return getCluster().addTransferFile(tempFile);
    }
 }
 

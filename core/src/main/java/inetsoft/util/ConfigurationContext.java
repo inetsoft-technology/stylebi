@@ -22,7 +22,9 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -30,6 +32,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -228,6 +231,8 @@ public class ConfigurationContext implements AutoCloseable {
       //
       // Spring singleton beans are safe to retrieve concurrently — getBean() is idempotent
       // and thread-safe, so two concurrent cache-miss threads both get the same instance.
+      // It is not free of waiting: during a refresh, a singleton that is not created yet
+      // waits for the refreshing thread's singleton lock, see awaitSpringBean().
       IN_CACHE_LOAD.set(true);
       T bean;
 
@@ -240,6 +245,87 @@ public class ConfigurationContext implements AutoCloseable {
 
       beanCache.put(type, bean);
       return bean;
+   }
+
+   /**
+    * Gets a Spring singleton from a thread that the thread refreshing the context may itself be
+    * waiting on, such as a cluster singleton-service thread.
+    *
+    * <p>Until the bean factory configuration is frozen, Spring creates singletons under one lock,
+    * and the refreshing thread holds it for as long as it creates beans. Looking up a singleton
+    * that is not created yet parks on that lock, which deadlocks when the refreshing thread waits
+    * for the calling thread meanwhile (Bug #76975). So while the configuration is not frozen and
+    * no bean of the type is created yet, this method waits for the bean instead of looking it up,
+    * for at most the given time, after which it looks it up anyway.</p>
+    *
+    * @param type    the bean type.
+    * @param timeout the maximum time to wait for the bean to be created.
+    * @param unit    the unit of the timeout.
+    *
+    * @return the bean.
+    */
+   public <T> T awaitSpringBean(Class<T> type, long timeout, TimeUnit unit) {
+      long deadline = System.nanoTime() + unit.toNanos(timeout);
+
+      while(!isSingletonAvailable(type)) {
+         if(System.nanoTime() - deadline >= 0) {
+            LOG.warn("Spring bean {} was not created within {} {}, looking it up anyway",
+                     type.getName(), timeout, unit);
+            break;
+         }
+
+         try {
+            Thread.sleep(20L);
+         }
+         catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            break;
+         }
+      }
+
+      return getSpringBean(type);
+   }
+
+   /**
+    * Determines if a singleton of the given type can be looked up without waiting on the singleton
+    * lock of a context that is being refreshed. Only reads state that Spring keeps outside of that
+    * lock.
+    */
+   private boolean isSingletonAvailable(Class<?> type) {
+      ApplicationContext context = applicationContext;
+
+      if(!(context instanceof ConfigurableApplicationContext configurable) ||
+         beanCache.getIfPresent(type) != null)
+      {
+         return true;
+      }
+
+      try {
+         ConfigurableListableBeanFactory factory = configurable.getBeanFactory();
+
+         if(factory.isConfigurationFrozen()) {
+            return true;
+         }
+
+         String[] names = factory.getBeanNamesForType(type, true, false);
+
+         if(names.length == 0) {
+            // not defined in this context, the lookup reports or resolves it
+            return true;
+         }
+
+         for(String name : names) {
+            if(factory.containsSingleton(name)) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+      catch(IllegalStateException e) {
+         // the context is not refreshed yet or already closed, the lookup reports it
+         return true;
+      }
    }
 
    /**

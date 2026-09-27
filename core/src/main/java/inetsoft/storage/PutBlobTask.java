@@ -17,7 +17,6 @@
  */
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SingletonCallableTask;
 
 import java.io.Serializable;
@@ -72,8 +71,8 @@ public class PutBlobTask<T extends Serializable>
 
                if(refs.isEmpty()) {
                   if(exists) {
-                     BlobEngine.getInstance().delete(getId(), oldBlob.getDigest());
-                     Cluster.getInstance()
+                     getBlobEngine().delete(getId(), oldBlob.getDigest());
+                     getCluster()
                         .sendMessage(new ClearBlobCacheMessage(getId(), oldBlob.getDigest()));
                   }
 

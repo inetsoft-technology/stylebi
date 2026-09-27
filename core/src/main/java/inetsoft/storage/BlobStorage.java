@@ -806,7 +806,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
             initIndexedStorage(map, orgID);
          }
 
-         Cluster cluster = Cluster.getInstance();
+         Cluster cluster = getCluster();
          DistributedLong ts = cluster.getLong("inetsoft.storage.blob.ts." + getId());
          ts.set(map.values().stream()
                    .map(Blob::getLastModified)
