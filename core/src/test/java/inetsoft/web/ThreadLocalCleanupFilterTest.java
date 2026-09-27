@@ -24,6 +24,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -83,6 +85,27 @@ class ThreadLocalCleanupFilterTest {
       assertNotNull(message, "nested forward must not clear the outer request's messages");
       assertTrue(message.getMessage().contains("ADDED-BEFORE-FORWARD"), message.getMessage());
       assertTrue(message.getMessage().contains("ADDED-BY-FORWARD"), message.getMessage());
+   }
+
+   @ParameterizedTest
+   @EnumSource(value = DispatcherType.class, names = { "FORWARD", "INCLUDE", "ERROR", "ASYNC" })
+   void nonRequestDispatchLeavesMessagesUntouched(DispatcherType type) throws Exception {
+      // only the REQUEST dispatch owns the clear; ERROR runs after the REQUEST's finally has
+      // already cleared, and FORWARD/INCLUDE/ASYNC must not drop messages of the enclosing request
+      ThreadLocalCleanupFilter filter = new ThreadLocalCleanupFilter();
+      CoreTool.addUserMessage("ADDED-BEFORE-DISPATCH");
+      AtomicReference<UserMessage> seenInChain = new AtomicReference<>();
+
+      filter.doFilter(request(type), mock(HttpServletResponse.class), (req, res) -> {
+         seenInChain.set(CoreTool.getUserMessage());
+         CoreTool.addUserMessage("ADDED-DURING-DISPATCH");
+      });
+
+      assertNotNull(seenInChain.get(), type + " dispatch must not clear before the chain");
+      assertTrue(seenInChain.get().getMessage().contains("ADDED-BEFORE-DISPATCH"));
+      UserMessage after = CoreTool.getUserMessage();
+      assertNotNull(after, type + " dispatch must not clear after the chain");
+      assertTrue(after.getMessage().contains("ADDED-DURING-DISPATCH"), after.getMessage());
    }
 
    private static HttpServletRequest request(DispatcherType type) {
