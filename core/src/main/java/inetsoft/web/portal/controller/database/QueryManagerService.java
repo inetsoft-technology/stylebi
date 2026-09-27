@@ -1355,12 +1355,18 @@ public class QueryManagerService {
 
    /**
     * Checks READ on the data source named by the {@code prefix} property of a client-supplied
-    * query-scope data source or physical entry. The asset engine resolves the children of such
-    * an entry from that data source without checking it (Bug #77163).
+    * query-scope entry (data source, physical folder/table, logical model, entity, ...). The
+    * asset engine resolves the children of such an entry from the data source in its prefix
+    * without checking it, so the prefix is required and must be readable. Only the root and
+    * data source folders are exempt, because the engine lists their data sources READ-filtered
+    * (Bug #77163).
+    *
+    * @throws java.lang.SecurityException if the prefix is missing, if READ is not granted, or
+    *                                     if the check itself fails.
     */
    public void checkQueryEntryReadPermission(AssetEntry entry, Principal principal) {
       if(entry != null && entry.getScope() == AssetRepository.QUERY_SCOPE &&
-         (entry.isDataSource() || entry.isPhysicalFolder() || entry.isPhysicalTable()))
+         !entry.isRoot() && !entry.isDataSourceFolder())
       {
          checkDataSourceReadPermission(entry.getProperty("prefix"), principal);
       }

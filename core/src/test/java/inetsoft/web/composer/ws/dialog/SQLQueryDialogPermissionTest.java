@@ -196,9 +196,20 @@ class SQLQueryDialogPermissionTest {
 
    @Test
    void s1ExistingAssemblyDeniedOnBoundSource() throws Exception {
+      // the requested name is readable, only the source the assembly is bound to is not
       RuntimeWorksheet rws = existingSqlTable("T1", queryBoundTo(DENIED));
 
+      assertDenied(() -> queryManager.getSqlQueryDialogModel(rws, "T1", ALLOWED, principal));
+      verifyReadChecked(DENIED);
+      verify(runtimeQueryService, never()).createRuntimeQuery(any(), any(), any(), any());
+   }
+
+   @Test
+   void s1ExistingAssemblyDeniedOnDifferingParam() throws Exception {
+      RuntimeWorksheet rws = existingSqlTable("T1", queryBoundTo(ALLOWED));
+
       assertDenied(() -> queryManager.getSqlQueryDialogModel(rws, "T1", DENIED, principal));
+      verifyReadChecked(ALLOWED);
       verifyReadChecked(DENIED);
       verify(runtimeQueryService, never()).createRuntimeQuery(any(), any(), any(), any());
    }
@@ -331,6 +342,51 @@ class SQLQueryDialogPermissionTest {
       verifyReadChecked(ALLOWED);
    }
 
+   /** Logical model and entity entries resolve their children from the prefix source too. */
+   @ParameterizedTest
+   @ValueSource(strings = { "LOGIC_MODEL", "TABLE" })
+   void s7TableColumnsDeniedOnLogicalEntryPrefix(String type) throws Exception {
+      AssetRepository assetRepository = wireAssetRepository();
+      AssetEntry entry = logicalEntry(AssetEntry.Type.valueOf(type), DENIED);
+
+      assertDenied(() -> controller.getTableColumns(entry, principal));
+      verifyReadChecked(DENIED);
+      verifyNoInteractions(assetRepository);
+   }
+
+   @Test
+   void s7TableColumnsDeniedWithoutPrefix() throws Exception {
+      AssetRepository assetRepository = wireAssetRepository();
+      AssetEntry entry = logicalEntry(AssetEntry.Type.LOGIC_MODEL, null);
+
+      assertDenied(() -> controller.getTableColumns(entry, principal));
+      verifyNoInteractions(assetRepository);
+   }
+
+   @Test
+   void s7TableColumnsAllowedOnReadableLogicalEntry() throws Exception {
+      AssetRepository assetRepository = wireAssetRepository();
+      AssetEntry entry = logicalEntry(AssetEntry.Type.TABLE, ALLOWED);
+      AssetEntry[] attributes = new AssetEntry[0];
+      when(assetRepository.getEntries(entry, principal, ResourceAction.READ)).thenReturn(attributes);
+
+      assertSame(attributes, controller.getTableColumns(entry, principal));
+      verifyReadChecked(ALLOWED);
+   }
+
+   private static AssetEntry logicalEntry(AssetEntry.Type type, String prefix) {
+      String source = prefix == null ? "X" : prefix;
+      String path = type == AssetEntry.Type.LOGIC_MODEL ? source + "/LM" : source + "/LM/E";
+      AssetEntry entry = queryEntry(type, path, prefix);
+      entry.setProperty("source", "LM");
+
+      if(type == AssetEntry.Type.TABLE) {
+         entry.setProperty("entity", "E");
+      }
+
+      return entry;
+   }
+
    private AssetRepository wireAssetRepository() {
       AssetRepository assetRepository = mock(AssetRepository.class);
       when(wsEngine.getAssetRepository()).thenReturn(assetRepository);
@@ -448,6 +504,37 @@ class SQLQueryDialogPermissionTest {
          verifyReadChecked(ALLOWED);
          verifyReadChecked(DENIED);
          verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @ParameterizedTest
+   @ValueSource(strings = { "LOGIC_MODEL", "TABLE" })
+   void q1ExpandedLogicalEntryDeniedOnPrefix(String type) throws Exception {
+      AssetEntry expanded = logicalEntry(AssetEntry.Type.valueOf(type), DENIED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
+         assertDenied(() -> queryManager.getDataSourceTreeNode(ALLOWED, true, expanded, principal));
+         verifyReadChecked(DENIED);
+         verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @Test
+   void q1ExpandedLogicalEntryAllowedWithRead() throws Exception {
+      AssetEntry expanded = logicalEntry(AssetEntry.Type.LOGIC_MODEL, ALLOWED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+         when(assetRepository.getEntries(same(expanded), same(principal), eq(ResourceAction.READ),
+                                         any())).thenReturn(new AssetEntry[0]);
+
+         assertNotNull(queryManager.getDataSourceTreeNode(ALLOWED, true, expanded, principal));
+         verify(assetRepository).getEntries(same(expanded), same(principal),
+                                            eq(ResourceAction.READ), any());
       }
    }
 
