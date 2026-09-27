@@ -49,7 +49,18 @@ public class DataSpace implements AutoCloseable {
       this.blobStorageManager = blobStorageManager;
       listeners = new ListenerTree();
 
-      BlobStorage<Metadata> storage = blobStorageManager.<Metadata>getStorage("dataSpace", true);
+      BlobStorage<Metadata> storage = blobStorageManager.<Metadata>getStorage(STORAGE_ID, true);
+
+      // the security provider chains and the virtual admin are stored here, and a file that is
+      // missing from an unloaded store is replaced with a default one. Starting with a store whose
+      // load failed would start the node with security off and overwrite the stored files, so
+      // retry the load once and fail if it still does not complete (Bug #77198)
+      if(storage != null && !storage.isLoaded() && !storage.retryLoad()) {
+         throw new IllegalStateException(
+            "Failed to load the data space storage " + STORAGE_ID + ", the server cannot start " +
+            "without its data space");
+      }
+
       this.blobStorage = storage;
 
       if(storage != null) {
@@ -72,11 +83,17 @@ public class DataSpace implements AutoCloseable {
             BlobStorage<Metadata> old = blobStorage;
 
             if(old != null && old.isClosed()) {
-               BlobStorage<Metadata> fresh = blobStorageManager.<Metadata>getStorage("dataSpace", false);
+               BlobStorage<Metadata> fresh = blobStorageManager.<Metadata>getStorage(STORAGE_ID, false);
 
                if(fresh == null) {
                   LOG.error("Failed to obtain a fresh DataSpace blob storage after eviction");
                   return blobStorage;
+               }
+
+               // the replicated map was loaded when the data space was created and outlives the
+               // eviction, so a failed reload does not leave it empty
+               if(!fresh.isLoaded()) {
+                  LOG.warn("Failed to reload the DataSpace blob storage after eviction");
                }
 
                fresh.addListener(listeners);
@@ -593,6 +610,7 @@ public class DataSpace implements AutoCloseable {
    private final ListenerTree listeners;
 
    private static final String HOME_PLACEHOLDER = "$(sree.home)";
+   private static final String STORAGE_ID = "dataSpace";
    private static final Logger LOG = LoggerFactory.getLogger(DataSpace.class);
 
    public static final class Metadata implements Serializable {

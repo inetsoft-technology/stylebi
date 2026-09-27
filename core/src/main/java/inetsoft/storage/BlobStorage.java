@@ -627,6 +627,30 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       return isClosed || storage.isClosed();
    }
 
+   /**
+    * Checks if the initial load of the metadata storage completed. A storage whose initial load
+    * failed is readable, but it is empty rather than known to be empty.
+    *
+    * @return {@code true} if the metadata storage is loaded.
+    *
+    * @see KeyValueStorage#isLoaded()
+    */
+   public boolean isLoaded() {
+      return storage.isLoaded();
+   }
+
+   /**
+    * Submits the initial load of the metadata storage again if it did not complete, and waits
+    * for it.
+    *
+    * @return {@code true} if the metadata storage is loaded.
+    *
+    * @see KeyValueStorage#retryLoad()
+    */
+   public boolean retryLoad() {
+      return storage.retryLoad();
+   }
+
    public static <T extends Serializable> BlobStorage<T> createBlobStorage(String id,
                                                                            boolean preload,
                                                                            BlobCache blobCache,
