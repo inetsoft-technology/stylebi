@@ -271,8 +271,25 @@ public class ConfigurationContext implements AutoCloseable {
     */
    public <T> T awaitSpringBean(Class<T> type, long timeout, TimeUnit unit) {
       long deadline = System.nanoTime() + unit.toNanos(timeout);
+      String[] names = null;
 
-      while(!isSingletonAvailable(type)) {
+      while(true) {
+         ConfigurableListableBeanFactory factory = getRefreshingBeanFactory(type);
+
+         if(factory == null) {
+            break;
+         }
+
+         if(names == null) {
+            // the bean definitions are registered before the singletons are created, so the
+            // candidates are computed once and only their creation is polled
+            names = factory.getBeanNamesForType(type, true, false);
+         }
+
+         if(isAnyCreated(factory, names)) {
+            break;
+         }
+
          if(System.nanoTime() - deadline >= 0) {
             LOG.warn("Spring bean {} was not created within {} {}, looking it up anyway",
                      type.getName(), timeout, unit);
@@ -296,42 +313,54 @@ public class ConfigurationContext implements AutoCloseable {
     * lock of a context that is being refreshed. Only reads state that Spring keeps outside of that
     * lock. A frozen configuration counts as available, which only holds for beans created during
     * the refresh, see {@link #awaitSpringBean}.
+    *
+    * @param type the bean type.
+    *
+    * @return {@code true} if the bean is created, is not defined in the current context, or the
+    *         context is not being refreshed.
     */
-   private boolean isSingletonAvailable(Class<?> type) {
+   public boolean isSingletonAvailable(Class<?> type) {
+      ConfigurableListableBeanFactory factory = getRefreshingBeanFactory(type);
+      return factory == null ||
+         isAnyCreated(factory, factory.getBeanNamesForType(type, true, false));
+   }
+
+   /**
+    * Gets the bean factory of the current context while its configuration is not frozen and no
+    * bean of the given type was looked up yet, or {@code null} otherwise.
+    */
+   private ConfigurableListableBeanFactory getRefreshingBeanFactory(Class<?> type) {
       ApplicationContext context = applicationContext;
 
       if(!(context instanceof ConfigurableApplicationContext configurable) ||
          beanCache.getIfPresent(type) != null)
       {
-         return true;
+         return null;
       }
 
       try {
          ConfigurableListableBeanFactory factory = configurable.getBeanFactory();
-
-         if(factory.isConfigurationFrozen()) {
-            return true;
-         }
-
-         String[] names = factory.getBeanNamesForType(type, true, false);
-
-         if(names.length == 0) {
-            // not defined in this context, the lookup reports or resolves it
-            return true;
-         }
-
-         for(String name : names) {
-            if(factory.containsSingleton(name)) {
-               return true;
-            }
-         }
-
-         return false;
+         return factory.isConfigurationFrozen() ? null : factory;
       }
       catch(IllegalStateException e) {
          // the context is not refreshed yet or already closed, the lookup reports it
+         return null;
+      }
+   }
+
+   private static boolean isAnyCreated(ConfigurableListableBeanFactory factory, String[] names) {
+      if(names.length == 0) {
+         // not defined in this context, the lookup reports or resolves it
          return true;
       }
+
+      for(String name : names) {
+         if(factory.containsSingleton(name)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
