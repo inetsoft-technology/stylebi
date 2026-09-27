@@ -62,6 +62,13 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          organizationStorage = KeyValueStorageManager.getInstance().getStorage(
             "defaultSecurityOrganizations",
             new LoadOrganizationsTask("defaultSecurityOrganizations"));
+
+         // the caches are node-local, so they must also be invalidated when another cluster node
+         // changes a user, group or role (Bug #76973). The listeners are added again whenever a
+         // storage is re-opened; re-adding the same listener to an open storage is a no-op.
+         roleStorage.addListener(roleCacheListener);
+         userStorage.addListener(userCacheListener);
+         groupStorage.addListener(groupCacheListener);
       }
    }
 
@@ -352,8 +359,18 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             algorithm = "MD5";
          }
 
-         return Tool.checkHashedPassword(
+         boolean authenticated = Tool.checkHashedPassword(
             savedPasswd, passwd, algorithm, uobj.getPasswordSalt(), uobj.isAppendPasswordSalt());
+
+         if(authenticated) {
+            // the login principal is built from getRoles() and getUserGroups(), load them from
+            // storage instead of an entry that a change on another node may not have invalidated
+            // yet (Bug #76973)
+            userGroupCache.invalidate(userIdentity);
+            userRoleCache.invalidate(userIdentity);
+         }
+
+         return authenticated;
       }
    }
 
@@ -424,6 +441,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          }
       }
 
+      clearCache();
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   @Override
+   public void clearCache() {
       userGroupCache.invalidateAll();
       userRoleCache.invalidateAll();
    }
@@ -545,6 +570,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       try {
          userStorage.remove(userIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
+         userGroupCache.invalidate(userIdentity);
+         userRoleCache.invalidateAll();
          processAuthenticationChange(userIdentity, null, null, null, Identity.USER, true);
       }
       catch(Exception e) {
@@ -972,17 +999,44 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    private KeyValueStorage<FSGroup> groupStorage;
    private KeyValueStorage<FSRole> roleStorage;
    private KeyValueStorage<FSOrganization> organizationStorage;
+   // expire after write, not after access, so that an entry which missed an invalidation (e.g. a
+   // load racing a change on another node) is not kept alive by a busy session (Bug #76973)
    private final LoadingCache<IdentityID, String[]> userGroupCache = Caffeine.newBuilder()
-      .expireAfterAccess(1L, TimeUnit.HOURS)
+      .expireAfterWrite(5L, TimeUnit.MINUTES)
       .maximumSize(500L)
       .build(this::doGetUserGroups);
    private final LoadingCache<IdentityID, IdentityID[]> userRoleCache = Caffeine.newBuilder()
-      .expireAfterAccess(1L, TimeUnit.HOURS)
+      .expireAfterWrite(5L, TimeUnit.MINUTES)
       .maximumSize(500L)
       .build(this::doGetRoles);
+   private final KeyValueStorage.Listener<FSUser> userCacheListener = new CacheListener<>();
+   private final KeyValueStorage.Listener<FSGroup> groupCacheListener = new CacheListener<>();
+   private final KeyValueStorage.Listener<FSRole> roleCacheListener = new CacheListener<>();
    private final Lock lock = new ReentrantLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(FileAuthenticationProvider.class);
+
+   /**
+    * Invalidates the user role and group caches when a user, group or role is changed on any
+    * cluster node. The events may be delivered out of order, so the caches are only invalidated
+    * and never updated from the event values.
+    */
+   private final class CacheListener<T> implements KeyValueStorage.Listener<T> {
+      @Override
+      public void entryAdded(KeyValueStorage.Event<T> event) {
+         clearCache();
+      }
+
+      @Override
+      public void entryUpdated(KeyValueStorage.Event<T> event) {
+         clearCache();
+      }
+
+      @Override
+      public void entryRemoved(KeyValueStorage.Event<T> event) {
+         clearCache();
+      }
+   }
 
    private static final class LoadUsersTask extends LoadKeyValueTask<FSUser> {
       public LoadUsersTask(String id) {
