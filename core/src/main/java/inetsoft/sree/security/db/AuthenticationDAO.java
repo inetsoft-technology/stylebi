@@ -135,6 +135,69 @@ class AuthenticationDAO {
       return Optional.ofNullable(matches.get(0).value());
    }
 
+   /**
+    * Checks whether the database treats the name of the given user as the name of several users.
+    * The users query is bound the same way as the user roles and user emails queries. If its rows
+    * carry more than one distinct user name (ignoring trailing spaces), or more than one distinct
+    * credential, the name is ambiguous, for example because a case-insensitive collation matches
+    * both "bob" and "BOB", or "acme" and "ACME" as organization IDs. The roles and emails queries
+    * would then return the rows of all those users, so they must not be used for this user. This
+    * uses the same criteria as {@link #selectUserRow}: a single row, or rows that only repeat the
+    * same user and credential, are not ambiguous.
+    *
+    * @return {@code true} if the roles and emails of the user must not be loaded.
+    */
+   private boolean isAmbiguousUser(Handle handle, IdentityID user) {
+      if(user == null || user.name == null || StringUtils.isBlank(provider.getUserQuery())) {
+         return false;
+      }
+
+      try {
+         Query query = handle.createQuery(provider.getUserQuery());
+
+         if(provider.isMultiTenant()) {
+            query.bind(0, user.orgID);
+            query.bind(1, user.name);
+         }
+         else {
+            query.bind(0, user.name);
+         }
+
+         List<UserRow<Void>> rows = query
+            .map((rs, ctx) -> new UserRow<Void>(rs.getString(1), mapToOptionalCredential(rs), null))
+            .list();
+
+         if(rows.size() < 2) {
+            return false;
+         }
+
+         long names = rows.stream()
+            .map(UserRow::name)
+            .filter(Objects::nonNull)
+            .map(String::stripTrailing)
+            .distinct()
+            .count();
+         long credentials = rows.stream()
+            .map(UserRow::credential)
+            .distinct()
+            .count();
+
+         if(names > 1 || credentials > 1) {
+            LOG.warn(
+               "The users query returned the rows of several different users for user \"{}\", " +
+               "the roles and emails of this user will not be loaded. User names and organization " +
+               "IDs must be unique under the database collation.", user.name);
+            return true;
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to check that user \"{}\" is unique, the users query failed.",
+                  user.name, ex);
+      }
+
+      return false;
+   }
+
    private UserCredential mapToOptionalCredential(ResultSet rs) throws SQLException {
       int count = rs.getMetaData().getColumnCount();
       String password = count > 1 ? rs.getString(2) : null;
@@ -338,6 +401,10 @@ class AuthenticationDAO {
          Jdbi jdbi = Jdbi.create(connection);
 
          try(Handle handle = jdbi.open()) {
+            if(isAmbiguousUser(handle, user)) {
+               return new QueryResult<>(new IdentityID[0], false);
+            }
+
             Query query = handle.createQuery(provider.getUserRolesQuery());
 
             if(provider.isMultiTenant()) {
@@ -434,6 +501,10 @@ class AuthenticationDAO {
          Jdbi jdbi = Jdbi.create(connection);
 
          try(Handle handle = jdbi.open()) {
+            if(isAmbiguousUser(handle, user)) {
+               return new QueryResult<>(new String[0], false);
+            }
+
             Query query = handle.createQuery(provider.getUserEmailsQuery());
 
             if(provider.isMultiTenant()) {
