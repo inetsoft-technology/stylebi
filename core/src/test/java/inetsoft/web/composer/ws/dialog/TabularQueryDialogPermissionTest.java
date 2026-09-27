@@ -30,9 +30,13 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.TabularTableAssemblyInfo;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.Catalog;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.log.LogManager;
+import inetsoft.web.composer.ComposerControllerErrorHandler;
 import inetsoft.web.composer.model.ws.*;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -42,12 +46,16 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -378,5 +386,104 @@ class TabularQueryDialogPermissionTest {
          verify(t.query()).setDataSource(updated);
          f.wsEventUtil.verify(() -> WorksheetEventUtil.loadTableData(f.rws, "T1", true, true));
       }
+   }
+
+   // ---- Tester additions (04-verify) ----
+
+   /**
+    * Data sources inside folders: the dialog list (getModel) and the actions (refreshView,
+    * setModel) must make the same decision for the same full name, and the name is checked
+    * verbatim (folder path kept, no "::" mapping, no leaf-only name), so folder-level grants
+    * that SecurityEngine resolves through DATA_SOURCE_FOLDER parents still apply.
+    */
+   @Test
+   void folderedNamesListAndActionsAgree() throws Exception {
+      String denied = "Folder/DS1";
+      String nestedAllowed = "Folder/Sub/DS2";
+      String rootAllowed = "DS3";
+      Set<String> readable = Set.of(nestedAllowed, rootAllowed);
+      when(securityEngine.checkPermission(
+         any(Principal.class), eq(ResourceType.DATA_SOURCE), anyString(), eq(ResourceAction.READ)))
+         .thenAnswer(inv -> readable.contains(inv.<String>getArgument(2)));
+
+      // raw folder path resolves to the folder resource, which is what makes folder grants
+      // inherit; a "Folder::DS1" form would resolve to a DATA_SOURCE parent instead
+      Resource parent = ResourceType.DATA_SOURCE.getParent(denied);
+      assertEquals(ResourceType.DATA_SOURCE_FOLDER, parent.getType());
+      assertEquals("Folder", parent.getPath());
+
+      try(ServiceFixture f = new ServiceFixture(new Worksheet())) {
+         Map<String, XDataSource> sources = new LinkedHashMap<>();
+
+         for(String name : List.of(denied, nestedAllowed, rootAllowed)) {
+            XDataSource ds = dataSource(name, 1L);
+            sources.put(name, ds);
+            when(f.repository.getDataSource(name)).thenReturn(ds);
+         }
+
+         when(f.repository.getDataSourceFullNames()).thenReturn(sources.keySet().toArray(new String[0]));
+         TabularQueryDialogModel model = f.service.getModel("rid", null, rootAllowed, principal);
+         assertEquals(List.of(rootAllowed, nestedAllowed), model.getDataSources());
+
+         for(String name : sources.keySet()) {
+            boolean offered = model.getDataSources().contains(name);
+            TabularView view = new TabularView();
+
+            if(offered) {
+               assertSame(view, controller.refreshTabularView(view, name, null, null, principal, request),
+                          name);
+            }
+            else {
+               assertThrows(java.lang.SecurityException.class, () -> controller.refreshTabularView(
+                  view, name, null, null, principal, request), name);
+               assertThrows(java.lang.SecurityException.class, () -> f.setModel(name, "T_" + name),
+                            name);
+               tabularUtil.verify(() -> TabularUtil.createQuery(name), never());
+            }
+         }
+
+         verify(securityEngine, never()).checkPermission(
+            any(Principal.class), eq(ResourceType.DATA_SOURCE), eq("Folder::DS1"), any());
+         verify(securityEngine, never()).checkPermission(
+            any(Principal.class), eq(ResourceType.DATA_SOURCE), eq("DS1"), any());
+      }
+   }
+
+   /**
+    * The deny type is java.lang.SecurityException, so over REST the composer error handler
+    * returns 403 with the catalog message (the data source name and user are not echoed),
+    * and over STOMP (E5) the generic handler sends an ERROR command and rethrows (fails
+    * closed). The STOMP message text is deliberately not pinned (reviewer M2/M3).
+    */
+   @Test
+   void denyMapsToForbiddenOverRestAndErrorOverStomp() throws Exception {
+      grantRead(false);
+      java.lang.SecurityException restDeny = assertThrows(java.lang.SecurityException.class,
+         () -> controller.refreshTabularView(new TabularView(), DS, null, null, principal, request));
+
+      java.lang.SecurityException stompDeny;
+
+      try(ServiceFixture f = new ServiceFixture(new Worksheet())) {
+         stompDeny = assertThrows(java.lang.SecurityException.class, () -> f.setModel(DS, "T1"));
+      }
+
+      assertSame(java.lang.SecurityException.class, restDeny.getClass());
+      assertSame(java.lang.SecurityException.class, stompDeny.getClass());
+
+      ComposerControllerErrorHandler handler = new ComposerControllerErrorHandler();
+      handler.setLogManager(mock(LogManager.class));
+
+      ResponseEntity<Map<String, String>> response = handler.handleSecurityException(restDeny);
+      assertEquals(HttpStatus.FORBIDDEN, response.getStatusCode());
+      assertEquals(Catalog.getCatalog().getString("http.error.unauthorized"),
+                   response.getBody().get("message"));
+      assertFalse(response.getBody().get("message").contains("bob"));
+
+      CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      assertThrows(java.lang.SecurityException.class,
+                   () -> handler.handleException(stompDeny, dispatcher));
+      ArgumentCaptor<MessageCommand> command = ArgumentCaptor.forClass(MessageCommand.class);
+      verify(dispatcher).sendCommand(command.capture());
+      assertEquals(MessageCommand.Type.ERROR, command.getValue().getType());
    }
 }
