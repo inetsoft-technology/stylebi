@@ -853,12 +853,10 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             for(FSUser user : userList) {
                IdentityID[] roles = user.getRoles();
-               String[] groups = user.getGroups();
                IdentityID userIdentity = user.getIdentityID();
 
                if(Arrays.asList(roles).contains(newID) || removed) {
                   user.setRoles(Tool.remove(roles, oldID));
-                  user.setGroups(Tool.remove(groups, oldID.name));
                   userStorage.put(userIdentity.convertToKey(), user).get(10L, TimeUnit.SECONDS);
                   userGroupCache.invalidate(userIdentity);
                   userRoleCache.invalidateAll();
