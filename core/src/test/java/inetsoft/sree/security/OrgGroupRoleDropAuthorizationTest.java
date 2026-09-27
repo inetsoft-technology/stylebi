@@ -49,6 +49,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
@@ -75,6 +76,7 @@ class OrgGroupRoleDropAuthorizationTest {
    private static final IdentityID PLAIN_ROLE = new IdentityID("plainRole", ORG_ID);
    private static final IdentityID SYS_GROUP = new IdentityID("ops", ORG_ID);
    private static final IdentityID PLAIN_GROUP = new IdentityID("plainGroup", ORG_ID);
+   private static final IdentityID GLOBAL_ROLE = new IdentityID("grdropGlobal", null);
 
    private SecurityTestDataBuilder builder;
    private FileAuthenticationProvider fileProvider;
@@ -98,6 +100,7 @@ class OrgGroupRoleDropAuthorizationTest {
          .addUserToRole(ORG_ADMIN.name, ORG_ADMIN_ROLE.name, ORG_ID)
          .addUserToRole(ORG_ADMIN.name, ANALYST_ROLE.name, ORG_ID)
          .addUserToRole(SITE_ADMIN.name, SITE_ADMIN_ROLE.name, ORG_ID)
+         .addGlobalRole(GLOBAL_ROLE.name)
          .setup();
 
       fileProvider = (FileAuthenticationProvider)
@@ -201,8 +204,29 @@ class OrgGroupRoleDropAuthorizationTest {
 
       assertNotNull(fileProvider.getGroup(PLAIN_GROUP), "the group must be kept");
       assertNotNull(fileProvider.getRole(PLAIN_ROLE), "the role must be kept");
-      assertTrue(userMessage().contains("Unauthorized access to resource(s)"),
-                 "the refused drop must be reported, but was: " + userMessage());
+      String message = userMessage();
+      assertTrue(message.contains(Catalog.getCatalog().getString(
+                    "em.common.security.no.permission", PLAIN_GROUP.name + ", " + PLAIN_ROLE.name)),
+                 "the refused drop must be reported, but was: " + message);
+      assertFalse(message.contains(plainUser.getName()),
+                  "the message must not expose the caller's identity key: " + message);
+   }
+
+   @Test
+   void failedSave_leavesNoUserMessage() throws Exception {
+      SRPrincipal orgAdmin = loginAs(ORG_ADMIN);
+      List<IdentityModel> members = new ArrayList<>(allOrgMembersExcept(SYS_ROLE));
+      // a global role can't be an organization member, so the save is rejected
+      members.add(member(GLOBAL_ROLE, Identity.ROLE));
+
+      InvocationTargetException ex = assertThrows(
+         InvocationTargetException.class,
+         () -> setOrganizationInfo(model(members), orgAdmin));
+
+      assertInstanceOf(MessageException.class, ex.getCause());
+      assertNotNull(fileProvider.getRole(SYS_ROLE), "a rejected save must not delete anything");
+      assertNull(Tool.getUserMessage(),
+                 "a rejected save must not leave a message on the thread for a later request");
    }
 
    @Test

@@ -2465,9 +2465,6 @@ public class IdentityService {
             .forEach(m -> memberNames.add(m));
       }
 
-      // a dropped group or role is deleted, so it must pass the same checks as deleteIdentities()
-      keepUndeletableGroupsAndRoles(oldOrg.getId(), memberNames, eprovider, principal);
-
       for(IdentityModel member : model.members()) {
          if(member.type() == Identity.ROLE) {
             Role role = eprovider.getRole(member.identityID());
@@ -2485,6 +2482,10 @@ public class IdentityService {
                "em.security.orgMemberFromOtherOrg", member.identityID().getName()));
          }
       }
+
+      // a dropped group or role is deleted, so it must pass the same checks as deleteIdentities().
+      // Called after the validation, so a rejected save leaves no message behind on the thread.
+      keepUndeletableGroupsAndRoles(oldOrg.getId(), memberNames, eprovider, principal);
 
       newOrg.setMembers(memberNames.toArray(new String[0]));
       newOrg.setActive(model.status());
@@ -2779,7 +2780,8 @@ public class IdentityService {
             "Unauthorized access to resource(s) \"%s\" by user %s.",
             String.join(", ", unauthorized), principal != null ? principal.getName() : null);
          LOG.warn(warning);
-         Tool.addUserMessage(warning);
+         Tool.addUserMessage(catalog.getString("em.common.security.no.permission",
+                                               String.join(", ", unauthorized)));
       }
    }
 
