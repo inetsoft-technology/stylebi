@@ -1638,7 +1638,8 @@ public class IdentityService {
 
    /**
     * The ids and names of the default and self organizations are hard-coded constants, so they
-    * cannot be changed on any save path. A null new id or name is no change.
+    * cannot be changed on any save path. A null new name is no change, but a null new id is
+    * refused because setOrganizationInfo treats it as a rename, as the EM does.
     */
    private void checkDefaultOrganizationRename(Organization oldOrg, EditOrganizationPaneModel model) {
       String oldId = oldOrg.getId();
@@ -1653,7 +1654,7 @@ public class IdentityService {
          return;
       }
 
-      if(model.id() != null && !model.id().equals(oldId)) {
+      if(!Tool.equals(oldId, model.id())) {
          throw new MessageException(Catalog.getCatalog().getString("em.security.writeDefaultOrgId"));
       }
 

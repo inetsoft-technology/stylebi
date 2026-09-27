@@ -138,8 +138,9 @@ class IdentityServiceOrganizationIdTest {
    // Bug #77169: the default and self organization ids and names are hard-coded constants, so
    // setIdentity must refuse to change them on every save path, not only in the EM.
    @ParameterizedTest
-   @CsvSource({ "Host Organization,host-org,renamed-org", "Self Organization,SELF,renamed-self",
-                "Host Organization,host-org,HOST-ORG" })
+   @CsvSource(value = { "Host Organization,host-org,renamed-org", "Self Organization,SELF,renamed-self",
+                        "Host Organization,host-org,HOST-ORG", "Host Organization,host-org,NULL",
+                        "Self Organization,SELF,NULL" }, nullValues = "NULL")
    void setIdentity_changeDefaultOrSelfOrgId_rejectedBeforeAnyChange(String name, String oldId,
                                                                     String newId)
    {
@@ -169,8 +170,7 @@ class IdentityServiceOrganizationIdTest {
    }
 
    @ParameterizedTest
-   @CsvSource(value = { "Host Organization,host-org", "Self Organization,SELF",
-                        "Host Organization,NULL", "Org A,orgB" }, nullValues = "NULL")
+   @CsvSource({ "Host Organization,host-org", "Self Organization,SELF", "Org A,orgB" })
    void setIdentity_defaultOrgUnchangedOrNormalOrgRenamed_passesTheGate(String name, String newId) {
       String oldId = "Org A".equals(name) ? "orgA" : "host-org";
       oldId = "Self Organization".equals(name) ? "SELF" : oldId;
