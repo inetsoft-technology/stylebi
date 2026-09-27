@@ -107,7 +107,8 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
       if(table.getHeaderRowCount() <= r && !invalid && partRefIndex != null && partRefIndex >= 0 &&
          c == partRefIndex)
       {
-         MergePartCell mergePartCell = new MergePartCell(table.getObject(r, c));
+         MergePartCell mergePartCell = new MergePartCell(table.getObject(r, c), partRef,
+            dateGroupRef, visibleDcExtraRefs);
 
          for(XDimensionRef dcExtraRef : dcExtraRefs) {
             Object value = table.getObject(r, refsIndex.get(dcExtraRef.getFullName()));
@@ -258,9 +259,20 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
    }
 
 
-   public class MergePartCell implements DCMergeCell, Comparable, Cloneable {
-      public MergePartCell(Object originalValue) {
+   /**
+    * The merged part cell. It is static and holds its own references to the refs it
+    * needs, so a cell never carries the owning filter or its table. Cells reach
+    * forwarded commands (e.g. crosstab LoadTableDataCommand.cellData), and the table
+    * must never be in such a message. (Bug #77196)
+    */
+   public static class MergePartCell implements DCMergeCell, Comparable, Cloneable {
+      public MergePartCell(Object originalValue, XDimensionRef partRef,
+                           XDimensionRef dateGroupRef, List<XDimensionRef> visibleDcExtraRefs)
+      {
          this.originalValue = originalValue;
+         this.partRef = partRef;
+         this.dateGroupRef = dateGroupRef;
+         this.visibleDcExtraRefs = visibleDcExtraRefs;
       }
 
       private void setDateGroupValue(Object originalValue) {
@@ -318,7 +330,8 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
                   (cal.get(Calendar.MONTH) + 1) * 10 + cal.get(Calendar.WEEK_OF_MONTH);
 
                if(weekMonthOfYear != equivalenceValue) {
-                  MergePartCell equivalenceCell = new MergePartCell(this.originalValue);
+                  MergePartCell equivalenceCell = new MergePartCell(this.originalValue,
+                     this.partRef, this.dateGroupRef, this.visibleDcExtraRefs);
                   equivalenceCell.dateGroupValue = dateGroupValue;
                   equivalenceCell.quarterOfYear = quarterOfYear;
                   ArrayList<Object> newValues = new ArrayList<>(values);
@@ -473,6 +486,10 @@ public class DCMergeDatePartFilter extends AbstractTableLens implements TableFil
       private Object dateGroupValue;
       private Object originalRawDate;
       private int quarterOfYear = -1;
+      // shared with the owning filter (not copied), set once at construction
+      private final XDimensionRef partRef;
+      private final XDimensionRef dateGroupRef;
+      private final List<XDimensionRef> visibleDcExtraRefs;
    }
 
    private TableLens table;

@@ -21,6 +21,7 @@ package inetsoft.report.filter;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.report.TableLens;
 import inetsoft.report.lens.DataSetTable;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
@@ -39,12 +40,17 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static inetsoft.test.XTableUtil.date;
 
@@ -249,6 +255,204 @@ public class DCMergeDatePartFilterTest {
          Assertions.assertNull(mpc.getEquivalenceCell(),
             "sequential-week part must skip the equivalence remap (it is already aligned)");
       });
+   }
+
+   // Bug #77196: MergePartCell values reach crosstab LoadTableDataCommand.cellData, which is
+   // forwarded to the websocket node as an object graph. A non-static inner cell dragged the
+   // owning filter (this$0) and its whole table into that message. The cell must be a static
+   // nested class with no outer-instance field.
+   @Test
+   public void testMergePartCellHasNoOuterInstance() {
+      Class<?> cls = DCMergeDatePartFilter.MergePartCell.class;
+      Assertions.assertTrue(Modifier.isStatic(cls.getModifiers()),
+                            "MergePartCell must be a static nested class");
+      Assertions.assertEquals("inetsoft.report.filter.DCMergeDatePartFilter$MergePartCell",
+                              cls.getName(), "binary name must stay unchanged");
+
+      for(Field field : cls.getDeclaredFields()) {
+         Assertions.assertFalse(field.isSynthetic() || field.getName().startsWith("this$"),
+                                "MergePartCell must not hold an outer instance: " + field);
+      }
+   }
+
+   // Bug #77196: no TableLens/XTable (or the owning filter) may be reachable from a cell,
+   // walking non-static, non-transient fields the way Ignite's BinaryMarshaller does.
+   @Test
+   public void testMergePartCellReachesNoTable() {
+      MergePartCellFixture fx = new MergePartCellFixture();
+
+      for(int r = fx.base.getHeaderRowCount(); r < fx.base.getRowCount(); r++) {
+         Object cell = fx.filter.getObject(r, fx.partCol);
+         Assertions.assertInstanceOf(DCMergeDatePartFilter.MergePartCell.class, cell);
+         assertNoTableReachable(cell);
+
+         DCMergeDatePartFilter.MergePartCell mpc = (DCMergeDatePartFilter.MergePartCell) cell;
+         assertNoTableReachable(mpc.clone());
+         assertNoTableReachable(mpc.copyCell(new Date()));
+      }
+   }
+
+   // Bug #77196: the static cell must expose the same refs the filter was built with (shared
+   // instances), for the cell itself, its clone/copy and its equivalence cell.
+   @Test
+   public void testMergePartCellGetterParity() {
+      MergePartCellFixture fx = new MergePartCellFixture();
+      Object cell = fx.filter.getObject(fx.base.getHeaderRowCount(), fx.partCol);
+      Assertions.assertInstanceOf(DCMergeDatePartFilter.MergePartCell.class, cell);
+      DCMergeDatePartFilter.MergePartCell mpc = (DCMergeDatePartFilter.MergePartCell) cell;
+
+      assertRefParity(fx, mpc);
+      assertRefParity(fx, mpc.clone());
+      assertRefParity(fx, mpc.copyCell(mpc.getDateGroupValue()));
+      Assertions.assertEquals("2021-" + mpc.getValue(1), mpc.toString());
+      Assertions.assertEquals(fx.rawDate, mpc.getOriginalRawDate(),
+                              "ignored dc temp ref should populate the original raw date");
+
+      // Equivalence cell: find a WeekOfYear row whose equivalence value diverges.
+      DCMergeDatePartFilter.MergePartCell equivalence = null;
+
+      for(int r = fx.base.getHeaderRowCount(); r < fx.base.getRowCount() && equivalence == null;
+          r++)
+      {
+         Object obj = fx.filter.getObject(r, fx.partCol);
+         equivalence = ((DCMergeDatePartFilter.MergePartCell) obj).getEquivalenceCell();
+      }
+
+      Assertions.assertNotNull(equivalence, "expected at least one diverging equivalence cell");
+      assertRefParity(fx, equivalence);
+      assertNoTableReachable(equivalence);
+   }
+
+   private static void assertRefParity(MergePartCellFixture fx,
+                                       DCMergeDatePartFilter.MergePartCell cell)
+   {
+      Assertions.assertSame(fx.partRef, cell.getPartRef());
+      List<XDimensionRef> merged = cell.getMergedRefs();
+      Assertions.assertEquals(2, merged.size(), "ignored dc temp ref must not be merged");
+      Assertions.assertSame(fx.yearRef, merged.get(0));
+      Assertions.assertSame(fx.partRef, merged.get(1));
+   }
+
+   private static void assertNoTableReachable(Object root) {
+      Map<Object, Boolean> seen = new IdentityHashMap<>();
+      List<Object> stack = new ArrayList<>();
+      List<String> paths = new ArrayList<>();
+      stack.add(root);
+      paths.add(root.getClass().getSimpleName());
+
+      while(!stack.isEmpty()) {
+         Object obj = stack.remove(stack.size() - 1);
+         String path = paths.remove(paths.size() - 1);
+
+         if(obj == null || seen.put(obj, Boolean.TRUE) != null) {
+            continue;
+         }
+
+         Assertions.assertFalse(obj instanceof XTable || obj instanceof TableLens ||
+                                obj instanceof DCMergeDatePartFilter,
+                                "table reachable from MergePartCell via " + path);
+         Class<?> cls = obj.getClass();
+
+         if(cls.isArray()) {
+            if(!cls.getComponentType().isPrimitive()) {
+               for(int i = 0; i < Array.getLength(obj); i++) {
+                  stack.add(Array.get(obj, i));
+                  paths.add(path + "[" + i + "]");
+               }
+            }
+
+            continue;
+         }
+
+         if(obj instanceof Iterable<?> it && cls.getName().startsWith("java.")) {
+            int i = 0;
+
+            for(Object item : it) {
+               stack.add(item);
+               paths.add(path + "[" + i++ + "]");
+            }
+
+            continue;
+         }
+
+         if(obj instanceof Map<?, ?> map && cls.getName().startsWith("java.")) {
+            for(Map.Entry<?, ?> e : map.entrySet()) {
+               stack.add(e.getKey());
+               paths.add(path + ".key");
+               stack.add(e.getValue());
+               paths.add(path + "[" + e.getKey() + "]");
+            }
+
+            continue;
+         }
+
+         if(cls.getName().startsWith("java.")) {
+            continue; // JDK value types (String, Date, Number, ...)
+         }
+
+         for(Class<?> c = cls; c != null && c != Object.class; c = c.getSuperclass()) {
+            for(Field field : c.getDeclaredFields()) {
+               int mod = field.getModifiers();
+
+               if(Modifier.isStatic(mod) || Modifier.isTransient(mod) ||
+                  field.getType().isPrimitive())
+               {
+                  continue;
+               }
+
+               try {
+                  field.setAccessible(true);
+                  stack.add(field.get(obj));
+                  paths.add(path + "." + field.getName());
+               }
+               catch(Exception ex) {
+                  Assertions.fail("cannot inspect " + field + ": " + ex);
+               }
+            }
+         }
+      }
+   }
+
+   /**
+    * A 2021 x WeekOfYear crosstab-shaped table: one visible dc extra ref (year), one
+    * ignored dc temp ref (raw date), the part ref and the date group ref.
+    */
+   private static final class MergePartCellFixture {
+      MergePartCellFixture() {
+         List<Object[]> rows = new ArrayList<>();
+         rows.add(new Object[]{ "Year(date)", "WeekOfYear(date)", "date", "raw" });
+         rawDate = date("2021-01-01");
+
+         for(int month = 1; month <= 12; month++) {
+            for(int week = 4; week <= 6; week++) {
+               String mm = month < 10 ? "0" + month : Integer.toString(month);
+               rows.add(new Object[]{ 2021, month * 10 + week, date("2021-" + mm + "-15"),
+                                      rawDate });
+            }
+         }
+
+         base = new DataSetTable(new DefaultDataSet(rows.toArray(new Object[0][])));
+         yearRef = new VSDimensionRef();
+         yearRef.setDataRef(new AttributeRef("Year(date)"));
+         VSDimensionRef rawRef = new VSDimensionRef();
+         rawRef.setDataRef(new AttributeRef("raw"));
+         rawRef.setIgnoreDcTemp(true);
+         partRef = new VSDimensionRef();
+         partRef.setDataRef(new AttributeRef("WeekOfYear(date)"));
+         VSDimensionRef dateGroupRef = new VSDimensionRef();
+         dateGroupRef.setDataRef(new AttributeRef("date"));
+         List<XDimensionRef> extras = new ArrayList<>();
+         extras.add(yearRef);
+         extras.add(rawRef);
+         filter = new DCMergeDatePartFilter(base, extras, partRef, dateGroupRef, null);
+      }
+
+      final DataSetTable base;
+      final VSDimensionRef yearRef;
+      final VSDimensionRef partRef;
+      final DCMergeDatePartFilter filter;
+      final Date rawDate;
+      final int partCol = 1;
    }
 
    // Mirrors JavaScriptEngine.datePart("ww", date, true): the sequential week-of-year value
