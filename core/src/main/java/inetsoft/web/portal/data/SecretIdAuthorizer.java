@@ -32,6 +32,8 @@ import inetsoft.util.credential.CloudCredential;
 import inetsoft.util.credential.Credential;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.security.Principal;
 import java.util.*;
@@ -190,6 +192,49 @@ public class SecretIdAuthorizer {
 
       if(!Tool.isEmptyString(id)) {
          ids.add(id);
+      }
+   }
+
+   /**
+    * Gets the cloud secret ids that the credentials in a data source XML element reference,
+    * including those of its additional connections. The element is not parsed into a data
+    * source, so the ids are not resolved.
+    */
+   public static Set<String> getCloudSecretIds(Element element) {
+      Set<String> ids = new HashSet<>();
+
+      if(element == null) {
+         return ids;
+      }
+
+      NodeList nodes = element.getElementsByTagName("PasswordCredential");
+
+      for(int i = 0; i < nodes.getLength(); i++) {
+         Element node = (Element) nodes.item(i);
+         String id = node.getAttribute("id");
+
+         // tabular sources use the cloud flag, JDBC and XMLA sources create the named class
+         if(!Tool.isEmptyString(id) && ("true".equals(node.getAttribute("cloud")) ||
+            isCloudCredentialClass(node.getAttribute("class"))))
+         {
+            ids.add(id);
+         }
+      }
+
+      return ids;
+   }
+
+   private static boolean isCloudCredentialClass(String className) {
+      if(Tool.isEmptyString(className)) {
+         return false;
+      }
+
+      try {
+         return CloudCredential.class.isAssignableFrom(
+            Class.forName(className, false, SecretIdAuthorizer.class.getClassLoader()));
+      }
+      catch(ClassNotFoundException | LinkageError e) {
+         return false;
       }
    }
 
