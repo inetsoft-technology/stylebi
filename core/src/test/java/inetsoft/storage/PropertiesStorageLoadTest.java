@@ -24,6 +24,7 @@ import inetsoft.util.ConfigurationContext;
 import inetsoft.util.FileSystemService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -40,6 +41,12 @@ import static org.mockito.Mockito.mock;
  * load did not complete, because the node would then start with security off and could replace
  * the stored keys. It retries the load once, and fails if the retry does not complete either, so
  * the startup fails instead.
+ *
+ * <p>The {@code PropertiesEngine} under test is kept out of the context that
+ * {@link ConfigurationContext} points at, which only holds what the service tasks look up. A
+ * reload that another test scheduled on its own {@code PropertiesEngine} can still run after
+ * that test, and it looks up {@code PropertiesEngine} through {@link ConfigurationContext}; it must
+ * not create, and so load, the one under test.</p>
  */
 @Tag("core")
 class PropertiesStorageLoadTest {
@@ -58,7 +65,12 @@ class PropertiesStorageLoadTest {
       LoadTimesOutCluster cluster = new LoadTimesOutCluster(Integer.MAX_VALUE);
 
       try(AnnotationConfigApplicationContext context = createContext(cluster)) {
-         context.refresh();
+         // a reload left over from another test looks the engine up like this
+         ConfigurationContext global = ConfigurationContext.getContext();
+         assertThrows(NoSuchBeanDefinitionException.class,
+                      () -> global.getSpringBean(PropertiesEngine.class));
+         assertEquals(0, cluster.timedOutLoads.get(), "the lookup loaded the store under test");
+
          // PropertiesEngine is lazy, the server creates it while it creates SecurityEngine
          BeanCreationException e = assertThrows(
             BeanCreationException.class, () -> context.getBean(PropertiesEngine.class));
@@ -74,7 +86,6 @@ class PropertiesStorageLoadTest {
       LoadTimesOutCluster cluster = new LoadTimesOutCluster(1);
 
       try(AnnotationConfigApplicationContext context = createContext(cluster)) {
-         context.refresh();
          PropertiesEngine engine = context.getBean(PropertiesEngine.class);
 
          assertEquals(1, cluster.timedOutLoads.get(), "the first load did not time out");
@@ -83,14 +94,29 @@ class PropertiesStorageLoadTest {
       }
    }
 
+   /**
+    * Creates the node context, whose parent holds the beans that the service tasks look up.
+    * Closing the node context closes its parent.
+    */
    @SuppressWarnings("unchecked")
    private static AnnotationConfigApplicationContext createContext(Cluster cluster) {
       KeyValueEngine engine = new TestKeyValueEngine();
       engine.put(STORE, "security.enabled", "true");
 
-      AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
-      context.registerBean("cluster", Cluster.class, () -> cluster);
-      context.registerBean("keyValueEngine", KeyValueEngine.class, () -> engine);
+      AnnotationConfigApplicationContext services = new AnnotationConfigApplicationContext();
+      services.registerBean("cluster", Cluster.class, () -> cluster);
+      services.registerBean("keyValueEngine", KeyValueEngine.class, () -> engine);
+      services.refresh();
+      ConfigurationContext.getContext().setApplicationContext(services);
+
+      AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext() {
+         @Override
+         protected void doClose() {
+            super.doClose();
+            services.close();
+         }
+      };
+      context.setParent(services);
       context.registerBean(
          KeyValueStorageManager.class, () -> new KeyValueStorageManager(engine, cluster));
       context.registerBean(
@@ -98,7 +124,7 @@ class PropertiesStorageLoadTest {
          () -> new PropertiesEngine(
             context.getBean(KeyValueStorageManager.class), mock(FileSystemService.class),
             context, mock(ObjectProvider.class)));
-      ConfigurationContext.getContext().setApplicationContext(context);
+      context.refresh();
       return context;
    }
 
