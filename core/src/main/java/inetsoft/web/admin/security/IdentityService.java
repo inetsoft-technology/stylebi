@@ -1637,6 +1637,32 @@ public class IdentityService {
    }
 
    /**
+    * The ids and names of the default and self organizations are hard-coded constants, so they
+    * cannot be changed on any save path. A null new id or name is no change.
+    */
+   private void checkDefaultOrganizationRename(Organization oldOrg, EditOrganizationPaneModel model) {
+      String oldId = oldOrg.getId();
+      String oldName = oldOrg.getName();
+      boolean reserved =
+         Organization.getDefaultOrganizationID().equalsIgnoreCase(oldId) ||
+         Organization.getSelfOrganizationID().equalsIgnoreCase(oldId) ||
+         Organization.getDefaultOrganizationName().equals(oldName) ||
+         Organization.getSelfOrganizationName().equals(oldName);
+
+      if(!reserved) {
+         return;
+      }
+
+      if(model.id() != null && !model.id().equals(oldId)) {
+         throw new MessageException(Catalog.getCatalog().getString("em.security.writeDefaultOrgId"));
+      }
+
+      if(model.name() != null && !model.name().equals(oldName)) {
+         throw new MessageException(Catalog.getCatalog().getString("em.security.writeDefaultOrgName"));
+      }
+   }
+
+   /**
     * Update an identity.
     */
    public void setIdentity(Identity identity,
@@ -1661,6 +1687,7 @@ public class IdentityService {
          }
 
          if(type == Identity.ORGANIZATION) {
+            checkDefaultOrganizationRename((Organization) identity, (EditOrganizationPaneModel) model);
             OrganizationIdRules.checkRename(((Organization) identity).getId(),
                                             ((EditOrganizationPaneModel) model).id());
          }
