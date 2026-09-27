@@ -280,6 +280,16 @@ describe("ToolboxPane — ngOnDestroy memory-leak guard", () => {
    });
 });
 
+function makeLargeTree(): TreeNodeModel {
+   const children: TreeNodeModel[] = [];
+
+   for(let i = 0; i < 2000; i++) {
+      children.push({ label: "Col" + i, leaf: true, children: [] });
+   }
+
+   return { label: "Data Source", expanded: true, leaf: false, children };
+}
+
 describe("ToolboxPane — Bug #76714 NG0100 on first check", () => {
    // 🔁 Regression (Bug #76714): the BindingTreeService BehaviorSubject replays synchronously.
    //    When only the child ComposerBindingTree consumed it, the replay called treeNodesLoaded()
@@ -309,6 +319,42 @@ describe("ToolboxPane — Bug #76714 NG0100 on first check", () => {
       expect(() => fixture.checkNoChanges()).not.toThrow();
       expect(fixture.componentInstance.useVirtualScroll).toBe(false);
       expect((fixture.componentInstance as any).combinationTreeRoot.children[0]).toBe(root);
+   });
+
+   it("should keep virtual scroll on without NG0100 when the replayed tree is large", async () => {
+      const { fixture } = await renderWithRealBindingTree(makeLargeTree());
+
+      fixture.detectChanges(false);
+      expect(() => fixture.checkNoChanges()).not.toThrow();
+      expect(fixture.componentInstance.useVirtualScroll).toBe(true);
+   });
+
+   // Bug #76714 follow-up: the tree now reaches ToolboxPane via its own service subscription, not
+   // the child output, so later emissions (data source added/changed) must still re-evaluate it.
+   it("should re-evaluate useVirtualScroll when the binding tree changes after init", async () => {
+      const subject = new BehaviorSubject<TreeNodeModel>(null);
+      const { fixture } = await render(ToolboxPane, {
+         schemas: [NO_ERRORS_SCHEMA],
+         componentImports: [],
+         providers: [
+            { provide: BindingTreeService, useValue: makeTreeServiceMock(subject) },
+         ],
+         componentProviders: [
+            { provide: DomService, useValue: DOM_SERVICE_MOCK },
+         ],
+         componentProperties: { inactive: false },
+      });
+      expect(fixture.componentInstance.useVirtualScroll).toBe(false);
+
+      const large = makeLargeTree();
+      subject.next(large);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.useVirtualScroll).toBe(true);
+      expect((fixture.componentInstance as any).combinationTreeRoot.children[0]).toBe(large);
+
+      subject.next(null);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.useVirtualScroll).toBe(false);
    });
 
    it("should call treeNodesLoaded once per emission (no duplicate refresh via the child output)", async () => {
