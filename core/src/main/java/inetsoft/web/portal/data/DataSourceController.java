@@ -714,6 +714,21 @@ public class DataSourceController {
    }
 
    @PostMapping("/api/portal/data/datasources/grant-password")
+   @Secured(
+      value = {
+         @RequiredPermission(
+            resourceType = ResourceType.PORTAL_TAB,
+            resource = "Data",
+            actions = ResourceAction.ACCESS
+         ),
+         @RequiredPermission(
+            resourceType = ResourceType.WORKSHEET,
+            resource = "*",
+            actions = ResourceAction.ACCESS
+         )
+      },
+      operator = "OR"
+   )
    public Tokens getPasswordGrantResponse(@RequestBody TabularOAuthParams request) {
       return AuthorizationClient.doPasswordGrantAuth(
          request.user(), request.password(), request.clientId(), request.clientSecret(),
