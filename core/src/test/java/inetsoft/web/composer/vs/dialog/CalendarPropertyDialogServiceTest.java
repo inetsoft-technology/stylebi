@@ -27,7 +27,6 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.CalendarPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +36,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.awt.*;
 import java.security.Principal;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import org.junit.jupiter.api.Tag;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
@@ -44,8 +49,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
+@Tag("core")
 class CalendarPropertyDialogServiceTest {
    @BeforeEach
    void setup() {
@@ -60,14 +69,43 @@ class CalendarPropertyDialogServiceTest {
 
    @Test
    void bottomTabsPositionAdjustedOnTitleHeightChange() throws Exception {
+      // keep show type as dropdown, but change title height from 20 to 30
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, true,
+              CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, 30);
+      // position should be: tabTop(420) - 30 = 390
+      assertEquals(390, result.getPixelOffset().y);
+   }
+
+   @Test
+   void bottomTabsPositionAdjustedOnShowTypeChange() throws Exception {
+      // change show type from calendar to dropdown, title height unchanged
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, true,
+              CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, 20);
+      // position should be: tabTop(420) - 20 = 400 (initial y is 300)
+      assertEquals(400, result.getPixelOffset().y);
+   }
+
+   @Test
+   void positionUnchangedWhenTabsNotAtBottom() throws Exception {
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, false,
+              CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, 30);
+      assertEquals(300, result.getPixelOffset().y);
+   }
+
+   private CalendarVSAssemblyInfo save(int oldShowType, boolean bottomTabs, int newShowType,
+                                       int newTitleHeight) throws Exception
+   {
       CalendarVSAssemblyInfo info = new CalendarVSAssemblyInfo();
-      info.setShowTypeValue(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+      info.setShowTypeValue(oldShowType);
       info.setTitleHeightValue(20);
-      info.setPixelOffset(new Point(50, 400));
+      info.setPixelOffset(new Point(50, 300));
       info.setPixelSize(new Dimension(200, 20));
 
       TabVSAssemblyInfo tabInfo = new TabVSAssemblyInfo();
-      tabInfo.setBottomTabsValue(true);
+      tabInfo.setBottomTabsValue(bottomTabs);
       tabInfo.setPixelOffset(new Point(0, 420));
 
       TabVSAssembly tabAssembly = Mockito.mock(TabVSAssembly.class);
@@ -75,21 +113,19 @@ class CalendarPropertyDialogServiceTest {
       when(calendarAssembly.getContainer()).thenReturn(tabAssembly);
       when(calendarAssembly.getVSAssemblyInfo()).thenReturn(info);
 
-      when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(calendarAssembly);
 
-      // keep show type as dropdown, but change title height to 30
       given(calendarPropertyDialogModel.getCalendarGeneralPaneModel()
                .getGeneralPropPaneModel().getBasicGeneralPaneModel().getName())
          .willReturn("Calendar1");
       given(calendarPropertyDialogModel.getCalendarGeneralPaneModel()
                .getSizePositionPaneModel().getTitleHeight())
-         .willReturn(30);
+         .willReturn(newTitleHeight);
       given(calendarPropertyDialogModel.getCalendarAdvancedPaneModel()
                .getShowType())
-         .willReturn(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
+         .willReturn(newShowType);
 
       service.setCalendarPropertyModel("Viewsheet1", "Calendar1",
                                        calendarPropertyDialogModel,
@@ -104,16 +140,11 @@ class CalendarPropertyDialogServiceTest {
                                                          any(String.class),
                                                          nullable(Principal.class),
                                                          any(CommandDispatcher.class));
-
-      CalendarVSAssemblyInfo result = argument.getValue();
-      // dropdown stays dropdown, title height changed to 30
-      // position should be: tabTop(420) - 30 = 390
-      assertEquals(390, result.getPixelOffset().y);
+      return argument.getValue();
    }
 
    @Mock VSObjectPropertyService vsObjectPropertyService;
    @Mock VSOutputService vsOutputService;
-   @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;
    @Mock ViewsheetService engine;
