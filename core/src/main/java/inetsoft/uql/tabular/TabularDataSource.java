@@ -26,6 +26,8 @@ import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * This is the base class for defining a tabular data source.
@@ -259,7 +261,40 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
       credential.setId(credentialId);
 
       if(credential instanceof CloudCredential) {
-         ((CloudCredential) credential).fetchCredential();
+         Predicate<String> gate = CREDENTIAL_FETCH_GATE.get();
+
+         // a rejected id is still set, but the secret it references is not resolved
+         if(gate == null || Tool.isEmptyString(credentialId) || gate.test(credentialId)) {
+            ((CloudCredential) credential).fetchCredential();
+         }
+      }
+   }
+
+   /**
+    * Runs an action while restricting which secret ids {@link #setCredentialId(String)} may
+    * resolve from the secrets manager on the current thread. This is used when refreshing a data
+    * source definition that was supplied by a client, so that it can only resolve the secrets that
+    * the caller is already allowed to see. Loading saved data sources is not affected.
+    *
+    * @param gate   tests if a secret id may be resolved.
+    * @param action the action to run.
+    *
+    * @return the result of the action.
+    */
+   public static <T> T withCredentialFetchGate(Predicate<String> gate, Supplier<T> action) {
+      Predicate<String> oldGate = CREDENTIAL_FETCH_GATE.get();
+      CREDENTIAL_FETCH_GATE.set(gate);
+
+      try {
+         return action.get();
+      }
+      finally {
+         if(oldGate == null) {
+            CREDENTIAL_FETCH_GATE.remove();
+         }
+         else {
+            CREDENTIAL_FETCH_GATE.set(oldGate);
+         }
       }
    }
 
@@ -274,4 +309,5 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
    }
 
    private Credential credential;
+   private static final ThreadLocal<Predicate<String>> CREDENTIAL_FETCH_GATE = new ThreadLocal<>();
 }

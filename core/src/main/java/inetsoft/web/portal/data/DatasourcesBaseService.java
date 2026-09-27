@@ -27,6 +27,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
+import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.service.*;
 import inetsoft.uql.tabular.*;
@@ -34,6 +35,8 @@ import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.credential.CloudCredential;
+import inetsoft.util.credential.Credential;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.composer.model.ws.TabularOAuthParams;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
@@ -137,12 +140,12 @@ public abstract class DatasourcesBaseService {
    }
 
    public DataSourceDefinition refreshTabularView(DataSourceDefinition definition) {
-      refreshAndGetDataSource(definition);
+      refreshDraftDataSource(definition);
       return definition;
    }
 
    public TabularOAuthParams getOAuthParams(DataSourceOAuthParamsRequest request) {
-      Object ds = refreshAndGetDataSource(request.dataSource());
+      Object ds = refreshDraftDataSource(request.dataSource());
       String license = SreeEnv.getProperty("license.key");
       int index = license.indexOf(',');
 
@@ -190,7 +193,7 @@ public abstract class DatasourcesBaseService {
    }
 
    public DataSourceDefinition setOAuthTokens(DataSourceOAuthTokens tokens) {
-      Object ds = refreshAndGetDataSource(tokens.dataSource());
+      Object ds = refreshDraftDataSource(tokens.dataSource());
 
       if(ds != null) {
          Tokens params = Tokens.builder()
@@ -206,6 +209,107 @@ public abstract class DatasourcesBaseService {
       }
 
       return tokens.dataSource();
+   }
+
+   /**
+    * Creates a data source from a definition that was supplied by the client and refreshes its
+    * view. The definition may reference any secret id, so a secret is only resolved if the caller
+    * can already see it through a saved data source.
+    */
+   private Object refreshDraftDataSource(DataSourceDefinition definition) {
+      Principal principal = ThreadContext.getContextPrincipal();
+      Map<String, Boolean> authorized = new HashMap<>();
+      return TabularDataSource.withCredentialFetchGate(
+         secretId -> authorized.computeIfAbsent(
+            secretId, id -> isSecretIdAuthorized(definition, id, principal)),
+         () -> refreshAndGetDataSource(definition));
+   }
+
+   /**
+    * Determines if a secret id referenced by a client-supplied definition may be resolved. Secret
+    * ids are not scoped to a data source or organization, so an id may only be resolved if a saved
+    * data source in the current organization that the caller can write, or one of its additional
+    * connections, already references it. The caller can already see the secret by editing that
+    * data source.
+    */
+   private boolean isSecretIdAuthorized(DataSourceDefinition definition, String secretId,
+                                        Principal principal)
+   {
+      if(principal == null) {
+         return false;
+      }
+
+      try {
+         String savedPath = getSavedDataSourcePath(definition);
+
+         if(savedPath != null && isSecretIdStoredOn(savedPath, secretId, principal)) {
+            return true;
+         }
+
+         for(String path : dataSourceRegistry.getDataSourceFullNames()) {
+            if(!path.equals(savedPath) && isSecretIdStoredOn(path, secretId, principal)) {
+               return true;
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check access to a secret id referenced by a data source", e);
+      }
+
+      return false;
+   }
+
+   private static String getSavedDataSourcePath(DataSourceDefinition definition) {
+      String name = definition.getParentDataSource() != null ?
+         definition.getParentDataSource() :
+         (definition.getOldName() != null ? definition.getOldName() : definition.getName());
+
+      if(StringUtils.isEmpty(name)) {
+         return null;
+      }
+
+      String parentPath = definition.getParentPath();
+      return StringUtils.isEmpty(parentPath) || "/".equals(parentPath) ?
+         name : parentPath + "/" + name;
+   }
+
+   private boolean isSecretIdStoredOn(String path, String secretId, Principal principal)
+      throws SecurityException
+   {
+      if(!securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE, path, ResourceAction.WRITE))
+      {
+         return false;
+      }
+
+      XDataSource dataSource = dataSourceRegistry.getDataSource(path);
+
+      if(secretId.equals(getCloudSecretId(dataSource))) {
+         return true;
+      }
+
+      if(dataSource instanceof AdditionalConnectionDataSource<?> parent) {
+         for(String name : parent.getDataSourceNames()) {
+            if(secretId.equals(getCloudSecretId(parent.getDataSource(name)))) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   private static String getCloudSecretId(XDataSource dataSource) {
+      Credential credential = null;
+
+      if(dataSource instanceof TabularDataSource<?> tabular) {
+         credential = tabular.getCredential();
+      }
+      else if(dataSource instanceof JDBCDataSource jdbc) {
+         credential = jdbc.getCredential();
+      }
+
+      return credential instanceof CloudCredential ? credential.getId() : null;
    }
 
    private Object refreshAndGetDataSource(DataSourceDefinition definition) {
