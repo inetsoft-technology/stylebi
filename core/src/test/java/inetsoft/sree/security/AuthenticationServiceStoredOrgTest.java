@@ -89,6 +89,22 @@ class AuthenticationServiceStoredOrgTest {
       assertAuthenticatedAs(new IdentityID("alice", "orga"), "OrgA");
    }
 
+   // Bug #77089: a provider that matches the name ignoring case (the database provider with
+   // security.user.caseSensitive=false, or LDAP) returns its stored user: the name is replaced
+   // too, so the password is checked for the user the principal is named after.
+   @Test
+   void mixedCaseName_providerReturnsStoredUser_authenticatesWithStoredId() throws Exception {
+      when(provider.getUser(any())).thenReturn(new User(new IdentityID("alice", "OrgA")));
+      assertAuthenticatedAs(new IdentityID("ALICE", "orga"), new IdentityID("alice", "OrgA"));
+   }
+
+   // A provider that returns a different user must never redirect the log in.
+   @Test
+   void providerReturnsDifferentName_isUnchanged() throws Exception {
+      when(provider.getUser(any())).thenReturn(new User(new IdentityID("alicia", "OrgA")));
+      assertAuthenticatedAs(new IdentityID("alice", "OrgA"), new IdentityID("alice", "OrgA"));
+   }
+
    @Test
    void exactOrg_isUnchanged() throws Exception {
       when(provider.getUser(any())).thenReturn(new User(new IdentityID("alice", "OrgA")));
@@ -120,6 +136,12 @@ class AuthenticationServiceStoredOrgTest {
    private void assertAuthenticatedAs(IdentityID requested, String expectedOrgID)
       throws Exception
    {
+      assertAuthenticatedAs(requested, new IdentityID(requested.name, expectedOrgID));
+   }
+
+   private void assertAuthenticatedAs(IdentityID requested, IdentityID expected)
+      throws Exception
+   {
       // no stub -> null principal (failed log in); only the identity passed down matters here
       service.authenticate(requested, null, "secret", "host", "127.0.0.1", "server", null,
                            Locale.US, false, true, "http-session", "/api/public/login");
@@ -127,8 +149,7 @@ class AuthenticationServiceStoredOrgTest {
       ArgumentCaptor<ClientInfo> info = ArgumentCaptor.forClass(ClientInfo.class);
       ArgumentCaptor<Object> ticket = ArgumentCaptor.forClass(Object.class);
       verify(securityEngine).authenticate(info.capture(), ticket.capture(), eq(provider));
-      assertEquals(requested.name, info.getValue().getUserIdentity().name);
-      assertEquals(expectedOrgID, info.getValue().getUserIdentity().orgID);
-      assertEquals(expectedOrgID, ((DefaultTicket) ticket.getValue()).getName().orgID);
+      assertEquals(expected, info.getValue().getUserIdentity());
+      assertEquals(expected, ((DefaultTicket) ticket.getValue()).getName());
    }
 }
