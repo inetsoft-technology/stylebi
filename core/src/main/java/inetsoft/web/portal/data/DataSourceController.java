@@ -544,7 +544,11 @@ public class DataSourceController {
     * @return updated data source definition.
     */
    @PostMapping("/api/portal/data/datasources/refreshView")
-//   @Secured(permissions = @RequiredPermission(ActionTypes.DATA_TAB))
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public DataSourceDefinition refreshTabularView(@RequestBody DataSourceDefinition definition,
                                                   HttpServletRequest request,
                                                   Principal principal)
@@ -571,6 +575,11 @@ public class DataSourceController {
    }
 
    @PostMapping("/api/portal/data/datasources/oauth-params")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public TabularOAuthParams getOAuthParameters(@RequestBody DataSourceOAuthParamsRequest request,
                                                 HttpServletRequest httpRequest)
    {
@@ -579,6 +588,11 @@ public class DataSourceController {
    }
 
    @PostMapping("/api/portal/data/datasources/oauth-tokens")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public DataSourceDefinition setOAuthTokens(@RequestBody DataSourceOAuthTokens tokens,
                                               HttpServletRequest request)
    {
