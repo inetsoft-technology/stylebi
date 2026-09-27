@@ -276,6 +276,70 @@ class DashboardRegistryReloadRaceTest {
                    "a file deleted after it was saved must reload to an empty registry");
    }
 
+   // (7) first load from an existing file (no save by this instance) records the file digest,
+   // so a later notification for that unchanged file does not drop unsaved dashboards
+   @Test
+   void firstLoadFromExistingFile_ownEvent_keepsUnsavedDashboard() throws Exception {
+      String orgId = "dr77103_existing";
+      DashboardRegistry first = adminRegistry(orgId);
+      writeExternal(first, "Existing__GLOBAL", 0);
+      // drop the cached instance so that the next lookup loads the existing file from scratch
+      dashboardRegistryManager.clear(new IdentityID(null, orgId));
+      DashboardRegistry registry = dashboardRegistryManager.getRegistry(orgId);
+      assertNotSame(first, registry, "precondition: a fresh registry instance");
+      assertNotNull(registry.getDashboard("Existing__GLOBAL"), "precondition: loaded from file");
+
+      registry.addDashboard("Unsaved__GLOBAL", newVsDashboard()); // never saved by this instance
+      fireOwnEvent(registry);
+
+      assertNotNull(registry.getDashboard("Existing__GLOBAL"));
+      assertNotNull(registry.getDashboard("Unsaved__GLOBAL"),
+                    "an event for the unchanged file loaded at first load must not reload");
+   }
+
+   // (8) a directory-shaped event (an ancestor of the registry file) is a no-op for an unchanged file
+   @Test
+   void directoryEvent_keepsUnsavedDashboard() throws Exception {
+      DashboardRegistry registry = adminRegistry("dr77103_dir");
+
+      registry.addDashboard("A__GLOBAL", newVsDashboard());
+      registry.save();
+      registry.addDashboard("B__GLOBAL", newVsDashboard()); // unsaved
+
+      String path = registry.getPath();
+      String dir = path.substring(0, path.lastIndexOf('/')); // .../portal/<org>
+      int idx = dir.lastIndexOf('/');
+      fire(registry, new DataChangeEvent(dir.substring(0, idx), dir.substring(idx + 1),
+                                         System.currentTimeMillis()));
+
+      assertNotNull(registry.getDashboard("A__GLOBAL"));
+      assertNotNull(registry.getDashboard("B__GLOBAL"),
+                    "a directory event must not drop an unsaved dashboard");
+   }
+
+   // (9) a reload of an old-format file ports it (and saves); the port save's own late
+   // notification must then be recognized as ours
+   @Test
+   void portedReload_recordsSavedDigest() throws Exception {
+      DashboardRegistry registry = adminRegistry("dr77103_port");
+
+      registry.addDashboard("A__GLOBAL", newVsDashboard());
+      registry.save();
+      // an external old-format file whose name lacks the __GLOBAL suffix
+      writeExternal(registry, "Old", 0, "0.0");
+      fireOwnEvent(registry);
+
+      assertNotNull(registry.getDashboard("Old__GLOBAL"), "the old-format entry must be ported");
+      assertTrue(fileNames(registry).contains("Old__GLOBAL"), "the port must be saved");
+
+      registry.addDashboard("After__GLOBAL", newVsDashboard()); // unsaved
+      fireOwnEvent(registry); // late notification of the port save
+
+      assertNotNull(registry.getDashboard("Old__GLOBAL"));
+      assertNotNull(registry.getDashboard("After__GLOBAL"),
+                    "the port save's own notification must not drop an unsaved dashboard");
+   }
+
    // ── helpers ──
 
    private DashboardRegistry adminRegistry(String orgId) throws Exception {
@@ -287,14 +351,18 @@ class DashboardRegistryReloadRaceTest {
    }
 
    private static void fireOwnEvent(DashboardRegistry registry) {
+      String path = registry.getPath();
+      int idx = path.lastIndexOf('/');
+      fire(registry, new DataChangeEvent(path.substring(0, idx), path.substring(idx + 1),
+                                         System.currentTimeMillis()));
+   }
+
+   private static void fire(DashboardRegistry registry, DataChangeEvent event) {
       try {
          Field field = DashboardRegistry.class.getDeclaredField("changeListener");
          field.setAccessible(true);
          DataChangeListener listener = (DataChangeListener) field.get(registry);
-         String path = registry.getPath();
-         int idx = path.lastIndexOf('/');
-         listener.dataChanged(new DataChangeEvent(path.substring(0, idx), path.substring(idx + 1),
-                                                  System.currentTimeMillis()));
+         listener.dataChanged(event);
       }
       catch(ReflectiveOperationException e) {
          throw new RuntimeException(e);
@@ -317,11 +385,18 @@ class DashboardRegistryReloadRaceTest {
    private void writeExternal(DashboardRegistry registry, String name, int fillers)
       throws Exception
    {
+      writeExternal(registry, name, fillers, FileVersions.DASHBOARD_REGISTRY);
+   }
+
+   private void writeExternal(DashboardRegistry registry, String name, int fillers,
+                              String version)
+      throws Exception
+   {
       StringWriter buffer = new StringWriter();
       PrintWriter writer = new PrintWriter(buffer);
       writer.println("<?xml version=\"1.0\"?>");
       writer.println("<dashboardRegistry>");
-      writer.println("<Version>" + FileVersions.DASHBOARD_REGISTRY + "</Version>");
+      writer.println("<Version>" + version + "</Version>");
       writeNode(writer, name);
 
       for(int i = 0; i < fillers; i++) {
