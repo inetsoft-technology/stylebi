@@ -2530,8 +2530,7 @@ public class IdentityService {
          }
       }
 
-      String currentTheme = fromOrg != null ? fromOrg.getTheme() : null;
-      String theme = getEligibleOrgTheme(model.theme(), currentTheme, oldOrg.getId());
+      String theme = getEligibleOrgTheme(model.theme(), oldOrg.getTheme(), oldOrg.getId());
 
       if(fromOrg != null && Tool.equals(fromOrg.getId(), newOrg.getId()) &&
          fromOrg instanceof FSOrganization)
