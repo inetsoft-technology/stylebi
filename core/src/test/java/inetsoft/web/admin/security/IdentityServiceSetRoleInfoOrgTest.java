@@ -20,6 +20,7 @@ package inetsoft.web.admin.security;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardManager;
+import inetsoft.uql.util.DefaultIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.web.admin.security.user.EditRolePaneModel;
 import org.junit.jupiter.api.*;
@@ -264,6 +265,127 @@ class IdentityServiceSetRoleInfoOrgTest {
       assertArrayEquals(new IdentityID[] { new IdentityID("analyst2", ORG_C) }, userC.getRoles());
    }
 
+   // Bug #77165: a site administrator is shown every organization's members of a global role,
+   // so unchecking another organization's members must remove them
+   @Test
+   void siteAdmin_globalRoleMemberEdit_removesOmittedOtherOrgMembers() throws Exception {
+      FSGroup groupA = group("grpA", ORG_A, new IdentityID("gRole", null));
+      FSGroup groupB = group("grpB", ORG_B, new IdentityID("gRole", null));
+      FSUser userB = user("userB", ORG_B, new IdentityID("gRole", null));
+
+      editRole("gRole", "gRole", null, List.of(), List.of(groupA.getIdentityID()));
+
+      assertArrayEquals(new IdentityID[] { new IdentityID("gRole", null) }, groupA.getRoles());
+      assertArrayEquals(new IdentityID[0], groupB.getRoles());
+      assertArrayEquals(new IdentityID[0], userB.getRoles());
+   }
+
+   @Test
+   void siteAdmin_globalRoleRename_removesOmittedOtherOrgMembers() throws Exception {
+      IdentityID newRole = new IdentityID("gRole2", null);
+      FSGroup groupB = group("grpB", ORG_B, new IdentityID("gRole", null));
+      FSUser userB = user("userB", ORG_B, new IdentityID("gRole", null));
+
+      editRole("gRole", "gRole2", null, List.of(), List.of(groupB.getIdentityID()));
+
+      assertArrayEquals(new IdentityID[] { newRole }, groupB.getRoles());
+      assertArrayEquals(new IdentityID[0], userB.getRoles());
+   }
+
+   @Test
+   void orgAdmin_globalRoleMemberEdit_keepsOmittedOtherOrgMembers() throws Exception {
+      setSiteAdmin(false);
+      IdentityID role = new IdentityID("gRole", null);
+      FSGroup groupA = group("grpA", ORG_A, new IdentityID("gRole", null));
+      FSGroup groupB = group("grpB", ORG_B, new IdentityID("gRole", null));
+      FSUser userB = user("userB", ORG_B, new IdentityID("gRole", null));
+
+      editRole("gRole", "gRole", null, List.of(), List.of(groupA.getIdentityID()));
+
+      assertArrayEquals(new IdentityID[] { role }, groupA.getRoles());
+      assertArrayEquals(new IdentityID[] { role }, groupB.getRoles());
+      assertArrayEquals(new IdentityID[] { role }, userB.getRoles());
+   }
+
+   // a rename removes the old role through the provider, which must not strip the global role
+   // from other organizations' members that a non-site admin carries over
+   @Test
+   void orgAdmin_globalRoleRename_carriesOtherOrgRoleInheritance() throws Exception {
+      setSiteAdmin(false);
+      IdentityID newRole = new IdentityID("gRole2", null);
+      FSGroup groupA = group("grpA", ORG_A, new IdentityID("gRole", null));
+      FSGroup groupB = group("grpB", ORG_B, new IdentityID("gRole", null));
+      FSUser userB = user("userB", ORG_B, new IdentityID("gRole", null));
+      IdentityID roleB = new IdentityID("roleB", ORG_B);
+      roles.put(roleB, new FSRole(roleB, new IdentityID[] { new IdentityID("gRole", null) }));
+
+      editRole("gRole", "gRole2", null, List.of(), List.of(groupA.getIdentityID()));
+
+      assertArrayEquals(new IdentityID[] { newRole }, groupB.getRoles());
+      assertArrayEquals(new IdentityID[] { newRole }, userB.getRoles());
+      assertArrayEquals(new IdentityID[] { newRole }, roles.get(roleB).getRoles());
+   }
+
+   // Bug #77165: deleting a global role must remove it from the members of every organization
+   @Test
+   void deleteGlobalRole_removesItFromMembersInEveryOrg() throws Exception {
+      IdentityID role = new IdentityID("gRole", null);
+      IdentityID roleB = new IdentityID("roleB", ORG_B);
+      FSGroup groupB = group("grpB", ORG_B, new IdentityID("gRole", null));
+      FSUser userA = user("userA", ORG_A, new IdentityID("gRole", null));
+      FSUser userB = user("userB", ORG_B, new IdentityID("gRole", null));
+      FSUser keepB = user("keepB", ORG_B, new IdentityID("roleB", ORG_B));
+      roles.put(role, new FSRole(new IdentityID("gRole", null)));
+      roles.put(roleB, new FSRole(roleB, new IdentityID[] { new IdentityID("gRole", null) }));
+
+      deleteRole(role);
+
+      assertFalse(roles.containsKey(role));
+      assertArrayEquals(new IdentityID[0], groupB.getRoles());
+      assertArrayEquals(new IdentityID[0], userA.getRoles());
+      assertArrayEquals(new IdentityID[0], userB.getRoles());
+      assertArrayEquals(new IdentityID[0], roles.get(roleB).getRoles());
+      assertArrayEquals(new IdentityID[] { roleB }, keepB.getRoles());
+   }
+
+   @Test
+   void deleteGlobalRole_keepsSameNamedOrgIdentities() throws Exception {
+      IdentityID global = new IdentityID("gRole", null);
+      IdentityID sameB = new IdentityID("gRole", ORG_B);
+      IdentityID inheritB = new IdentityID("inheritB", ORG_B);
+      roles.put(global, new FSRole(new IdentityID("gRole", null)));
+      roles.put(sameB, new FSRole(new IdentityID("gRole", ORG_B)));
+      roles.put(inheritB, new FSRole(inheritB, new IdentityID[] {
+         new IdentityID("gRole", ORG_B), new IdentityID("gRole", null) }));
+      FSUser userB = user("userB", ORG_B, new IdentityID("gRole", ORG_B),
+                          new IdentityID("gRole", null));
+      FSGroup groupB = group("gRole", ORG_B, new IdentityID("gRole", ORG_B));
+
+      deleteRole(global);
+
+      assertArrayEquals(new IdentityID[] { sameB }, userB.getRoles());
+      assertArrayEquals(new IdentityID[] { sameB }, groupB.getRoles());
+      assertArrayEquals(new IdentityID[] { sameB }, roles.get(inheritB).getRoles());
+      assertTrue(roles.containsKey(sameB));
+   }
+
+   @Test
+   void deleteOrgRole_keepsSameNamedGlobalRole() throws Exception {
+      IdentityID global = new IdentityID("gRole", null);
+      IdentityID sameB = new IdentityID("gRole", ORG_B);
+      roles.put(global, new FSRole(new IdentityID("gRole", null)));
+      roles.put(sameB, new FSRole(new IdentityID("gRole", ORG_B)));
+      FSUser userA = user("userA", ORG_A, new IdentityID("gRole", null));
+      FSUser userB = user("userB", ORG_B, new IdentityID("gRole", ORG_B),
+                          new IdentityID("gRole", null));
+
+      deleteRole(sameB);
+
+      assertArrayEquals(new IdentityID[] { global }, userA.getRoles());
+      assertArrayEquals(new IdentityID[] { global }, userB.getRoles());
+      assertTrue(roles.containsKey(global));
+   }
+
    private void setCurrentOrg(String orgID) {
       when(organizationManager.getCurrentOrgID()).thenReturn(orgID);
       when(organizationManager.getCurrentOrgID(any())).thenReturn(orgID);
@@ -316,5 +438,12 @@ class IdentityServiceSetRoleInfoOrgTest {
       method.setAccessible(true);
       method.invoke(service, model, provider, provider.getUsers(), provider.getGroups(),
                     new String[0], userV, groupV, new ArrayList<IdentityID>(), principal);
+   }
+
+   private void deleteRole(IdentityID roleID) throws Exception {
+      Method method = IdentityService.class.getDeclaredMethod(
+         "syncIdentity", EditableAuthenticationProvider.class, Identity.class, IdentityID.class);
+      method.setAccessible(true);
+      method.invoke(service, provider, new DefaultIdentity(roleID, Identity.ROLE), null);
    }
 }
