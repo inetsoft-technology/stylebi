@@ -19,6 +19,7 @@ package inetsoft.web.admin.security;
 
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.UserEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.CustomThemesManagerMocks;
@@ -33,6 +34,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.admin.favorites.FavoritesService;
+import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
@@ -272,6 +274,63 @@ class IdentityServiceCrossOrgMemberUpdateTest {
       assertFalse(roles.containsKey(new IdentityID("auditor", ORG_2)));
    }
 
+   // REST does not keep display names unique: when organization3 has the same display name as the
+   // edited organization1, the old id must come from the edited organization, not from a name
+   // lookup that resolves organization3 and would move organization3's members into organization1
+   @Test
+   void duplicateDisplayName_oldIdTakenFromEditedOrg() throws Exception {
+      seedOrg1();
+      IdentityID otherAlice = addUser("alice", ORG_3);
+      FSOrganization org1 = new FSOrganization(ORG_1);
+      org1.setName(SHARED_NAME);
+      org1.setMembers(new String[] { "alice", "hidden", "sales", "analyst" });
+      FSOrganization org3 = new FSOrganization(ORG_3);
+      org3.setName(SHARED_NAME);
+      org3.setMembers(new String[] { "alice" });
+      when(provider.getOrgIdFromName(SHARED_NAME)).thenReturn(ORG_3);
+      when(provider.getOrganization(ORG_1)).thenReturn(org1);
+      when(provider.getOrganization(ORG_3)).thenReturn(org3);
+      // the caller cannot administer the hidden user, so it is kept back as a member
+      when(securityProvider.getUser(any())).thenAnswer(inv -> users.get(inv.<IdentityID>getArgument(0)));
+      when(securityProvider.checkPermission(any(), eq(ResourceType.SECURITY_USER), anyString(),
+                                            eq(ResourceAction.ADMIN)))
+         .thenAnswer(inv -> !HIDDEN.getName().equals(inv.getArgument(2)));
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .id(ORG_1)
+         .name(SHARED_NAME)
+         .oldName(SHARED_NAME)
+         .members(List.of(model("alice", ORG_1, Identity.USER),
+                          model("sales", ORG_1, Identity.GROUP),
+                          model("analyst", ORG_1, Identity.ROLE)))
+         .build();
+      Method method = IdentityService.class.getDeclaredMethod(
+         "setOrganizationInfo", FSOrganization.class, EditOrganizationPaneModel.class,
+         EditableAuthenticationProvider.class, java.security.Principal.class);
+      method.setAccessible(true);
+
+      Exception failure = null;
+
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
+         sutil.when(SUtil::loadLocaleProperties).thenReturn(new Properties());
+         method.invoke(service, org1, model, provider, requester);
+      }
+      catch(InvocationTargetException ex) {
+         // assert the members first, a wrong old id fails later on the other org's registries
+         failure = (Exception) ex.getCause();
+      }
+
+      assertEquals(Set.of(ALICE, HIDDEN, otherAlice), users.keySet());
+      assertEquals(Set.of(SALES), groups.keySet());
+      assertEquals(Set.of(ANALYST), roles.keySet());
+      verifyNoProviderWrites();
+      assertTrue(permissionCalls.isEmpty(), "no permission may be re-scoped");
+      verify(dashboardRegistryManager, never()).migrateRegistry(any(), any(), any());
+
+      if(failure != null) {
+         throw failure;
+      }
+   }
+
    // organization1 has alice, the hidden user, the sales group and the analyst role, and the
    // save keeps all four; the hidden user is listed in the members but not in the models, as
    // setOrganizationInfo() adds the members the caller cannot administer
@@ -353,6 +412,8 @@ class IdentityServiceCrossOrgMemberUpdateTest {
    private static final String HOST_ORG = "host-org";
    private static final String ORG_1 = "organization1";
    private static final String ORG_2 = "organization2";
+   private static final String ORG_3 = "organization3";
+   private static final String SHARED_NAME = "Shared";
    private static final IdentityID ALICE = new IdentityID("alice", ORG_1);
    private static final IdentityID HIDDEN = new IdentityID("hidden", ORG_1);
    private static final IdentityID SALES = new IdentityID("sales", ORG_1);
