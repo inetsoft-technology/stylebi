@@ -117,19 +117,6 @@ class UserTreeServiceCreateOrganizationTest {
       verify(editProvider, never()).addOrganization(any());
    }
 
-   @Test
-   void explicitId_distinctOrgId_passesIdCheck() {
-      // control: a genuinely new id must not trip the id check; use a duplicate name so the
-      // method stops at the (next) name check instead of running the full create flow.
-      when(editProvider.getOrganization("org2")).thenReturn(null);
-      when(editProvider.getOrgIdFromName("Taken Name")).thenReturn("org1");
-
-      MessageException thrown = assertThrows(MessageException.class, () ->
-         service.createOrganization(null, "Primary", "Taken Name", "org2", principal, null));
-
-      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
-   }
-
    // Bug #77136: an explicit id naming a system folder of external storage, or containing path
    // characters, must be rejected before the organization is added or cloned
    @ParameterizedTest
@@ -153,6 +140,19 @@ class UserTreeServiceCreateOrganizationTest {
       verify(editProvider, never()).copyOrganization(any(), any(), any(), any(), any(), any(), any(),
                                                      anyBoolean(), any());
       verify(editProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void explicitId_distinctOrgId_passesIdCheck() {
+      // control: a genuinely new id must not trip the id check; use a duplicate name so the
+      // method stops at the (next) name check instead of running the full create flow.
+      when(editProvider.getOrganization("org2")).thenReturn(null);
+      when(editProvider.getOrgIdFromName("Taken Name")).thenReturn("org1");
+
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "Taken Name", "org2", principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationName"), thrown.getMessage());
    }
 
    private EditableAuthenticationProvider editProvider;
