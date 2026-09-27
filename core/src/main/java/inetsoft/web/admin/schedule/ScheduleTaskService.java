@@ -580,6 +580,9 @@ public class ScheduleTaskService {
       sanitizeConditions(task, originalTask, principal);
 
       if(!internalTask) {
+         List<ScheduleAction> originalActions = new ArrayList<>();
+         originalTask.getActionStream().forEach(originalActions::add);
+
          for(int i = 0; i < model.actions().size(); i++) {
             ScheduleAction scheduleAction = originalTask.getActionCount() > i ? originalTask.getAction(i) : null;
             ScheduleAction action =
@@ -589,7 +592,7 @@ public class ScheduleTaskService {
                continue;
             }
 
-            sanitizeAction(action, scheduleAction, principal);
+            sanitizeAction(action, scheduleAction, principal, originalActions);
 
             if(action instanceof IndividualAssetBackupAction) {
                IndividualAssetBackupAction backupAction = (IndividualAssetBackupAction) action;
@@ -715,10 +718,34 @@ public class ScheduleTaskService {
    public void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
                               Principal principal)
    {
-      if(!(action instanceof ViewsheetAction vsa)) {
-         return;
+      sanitizeAction(action, originalAction, principal,
+         originalAction == null ? List.of() : List.of(originalAction));
+   }
+
+   /**
+    * Restores the fields of an action that the principal is not permitted to change, and rejects
+    * the action if it references a secret id that the principal may not use.
+    *
+    * @param action          the action being saved.
+    * @param originalAction  the stored action that it replaces, or {@code null} if none.
+    * @param principal       the principal saving the action.
+    * @param originalActions all the actions of the stored task. A secret id that one of them
+    *                        already uses may be kept.
+    */
+   public void sanitizeAction(ScheduleAction action, ScheduleAction originalAction,
+                              Principal principal, Collection<ScheduleAction> originalActions)
+   {
+      if(action instanceof ViewsheetAction vsa) {
+         sanitizeScheduleOptions(vsa, originalAction, principal);
       }
 
+      new ScheduleSecretIdChecker(securityEngine)
+         .checkSecretIds(action, originalActions, principal);
+   }
+
+   private void sanitizeScheduleOptions(ViewsheetAction vsa, ScheduleAction originalAction,
+                                        Principal principal)
+   {
       boolean canSetNotificationEmail = scheduleService.checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "notificationEmail");
       boolean canSaveToDisk = scheduleService.checkPermission(
