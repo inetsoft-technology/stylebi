@@ -57,10 +57,21 @@ public @interface Property {
 
    /**
     * True if this is a SQL string. This affects how variables are replaced.
-    * Note that string values substituted into such a property are escaped
-    * for JSON query text (backslash escaping, as used by the MongoDB query
-    * property), not with SQL quote doubling; see
-    * {@code VarSQL.LiteralEscapeStyle#JSON}.
+    * Note that string values substituted into such a property are encoded
+    * for JSON query text (as used by the MongoDB query property), not with
+    * SQL quote doubling: punctuation, and the first character of a string
+    * value, are written as <code>&#92;uXXXX</code>, which bson decodes back to
+    * the exact value inside a quoted string, and which fails to parse
+    * anywhere else; see {@code VarSQL.LiteralEscapeStyle#JSON}. Put
+    * placeholders inside {@code '...'} strings or unquoted, and use
+    * {@code {$regex: '...$(name)...'}} rather than a {@code /regex/} literal.
+    * <p>
+    * Values are never safe inside server-side JavaScript source
+    * ({@code $where}, {@code $function.body}, {@code $accumulator}, mapReduce
+    * functions): the decoded value becomes code. Pass values as data through
+    * {@code $function.args} or use {@code $expr} operators instead, and
+    * consider disabling server-side JavaScript in MongoDB
+    * ({@code security.javascriptEnabled: false}).
     */
    boolean sql() default false;
 
