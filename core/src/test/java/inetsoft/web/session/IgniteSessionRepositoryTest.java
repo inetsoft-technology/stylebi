@@ -79,6 +79,7 @@ import inetsoft.sree.RepletRepository;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MockCluster;
+import inetsoft.sree.security.AuthenticationProvider;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
@@ -267,6 +268,48 @@ class IgniteSessionRepositoryTest {
 
       verify(authenticationService)
          .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+   }
+
+   /**
+    * Bug #76973: the user edit path rewrites the roles of every live session principal of the
+    * edited user (both cookies), so an existing session is corrected on every node that reads the
+    * replicated session. Other users' principals are left alone.
+    */
+   @Test
+   void updatePrincipalRolesAndGroups_rewritesLiveSessionPrincipals() {
+      IdentityID user = new IdentityID("x", "host-org");
+      IdentityID everyone = new IdentityID("Everyone", "host-org");
+      IdentityID admin = new IdentityID("Administrator", null);
+      SRPrincipal principal = new SRPrincipal(
+         user, new IdentityID[] { everyone, admin }, new String[0], "host-org", 1L);
+      SRPrincipal emPrincipal = new SRPrincipal(
+         user, new IdentityID[] { everyone, admin }, new String[0], "host-org", 2L);
+      SRPrincipal other = new SRPrincipal(
+         new IdentityID("y", "host-org"), new IdentityID[] { everyone, admin }, new String[0],
+         "host-org", 3L);
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      session.setAttribute(RepletRepository.EM_PRINCIPAL_COOKIE, emPrincipal);
+      repository.save(session);
+      IgniteSessionRepository.IgniteSession otherSession = repository.createSession();
+      otherSession.setAttribute(RepletRepository.PRINCIPAL_COOKIE, other);
+      repository.save(otherSession);
+
+      AuthenticationProvider provider = mock(AuthenticationProvider.class);
+      when(provider.getAllRoles(any(IdentityID[].class))).thenAnswer(inv -> inv.getArgument(0));
+      when(provider.getAllGroups(any(IdentityID[].class))).thenReturn(new IdentityID[0]);
+      repository.updatePrincipalRolesAndGroups(
+         user, new IdentityID[] { everyone }, new String[0], provider);
+
+      IgniteSessionRepository.IgniteSession reread = repository.findById(session.getId());
+      SRPrincipal updated = reread.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+      SRPrincipal updatedEm = reread.getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
+      SRPrincipal untouched =
+         repository.findById(otherSession.getId()).getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+      assertArrayEquals(new IdentityID[] { everyone }, updated.getRoles());
+      assertArrayEquals(new IdentityID[] { everyone }, updatedEm.getRoles());
+      assertArrayEquals(new IdentityID[] { everyone, admin }, untouched.getRoles());
    }
 
    private static SRPrincipal mockPrincipal(String name, String ip) {
