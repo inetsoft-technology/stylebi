@@ -57,6 +57,11 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
 
          LoggerFactory.getLogger(getClass()).warn("Failed to load key-value storage {}", id, e);
       }
+      catch(InterruptedException e) {
+         Thread.currentThread().interrupt();
+         LoggerFactory.getLogger(getClass())
+            .warn("Interrupted loading key-value storage {}", id, e);
+      }
       catch(Exception e) {
          LoggerFactory.getLogger(getClass()).warn("Failed to load key-value storage {}", id, e);
       }
@@ -71,7 +76,8 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
 
    @Override
    public boolean retryLoad() {
-      if(!loaded) {
+      // an interrupted thread, e.g. a startup being shut down, does not wait again
+      if(!loaded && !Thread.currentThread().isInterrupted()) {
          loaded = load();
       }
 

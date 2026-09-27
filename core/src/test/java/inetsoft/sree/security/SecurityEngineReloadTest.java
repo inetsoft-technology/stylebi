@@ -104,6 +104,36 @@ class SecurityEngineReloadTest {
                  "a reload that did not change the security state re-initialized SecurityEngine");
    }
 
+   /**
+    * Security is enabled but no provider can be created (no chain), and the engine was
+    * initialized that way: a reload must not re-initialize it every time.
+    */
+   @Test
+   void reloadWithSecurityEnabledButNoProviderDoesNotReinitialize() throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+
+      try {
+         space.delete(null, AUTHC_CHAIN);
+         space.delete(null, AUTHZ_CHAIN);
+         reload("security.enabled", "true");
+         // let the listener of that reload finish before the engine is initialized again
+         Thread.sleep(1000L);
+         engine.init();
+         SecurityProvider provider = engine.getSecurityProvider();
+         assertTrue(provider.getAuthenticationProvider().isVirtual(),
+                    "a provider was created without a chain");
+
+         reload(UNRELATED, "changed");
+         Thread.sleep(1000L);
+         assertSame(provider, engine.getSecurityProvider(),
+                    "a reload re-initialized SecurityEngine although it was already " +
+                       "initialized with security enabled");
+      }
+      finally {
+         engine.newChain();
+      }
+   }
+
    private void reload(String name, String value) throws Exception {
       keyValueEngine.put(STORE, name, value);
       cluster.submit(STORE, new LoadKeyValueTask<String>(STORE, true)).get(10L, TimeUnit.SECONDS);
