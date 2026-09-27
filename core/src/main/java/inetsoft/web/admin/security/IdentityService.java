@@ -2596,8 +2596,8 @@ public class IdentityService {
          fromOrg instanceof FSOrganization)
       {
          fromOrg.setName(name);
-         ((FSOrganization) fromOrg).setLocale(localeString);
          ((FSOrganization) fromOrg).setActive(model.status());
+         ((FSOrganization) fromOrg).setLocale(localeString);
          updateCustomThemeOrganization(fromOrg.getTheme(), theme, fromOrgID, fromOrgID);
          ((FSOrganization) fromOrg).setTheme(theme);
          eprovider.setOrganization(fromOrgID, fromOrg);
