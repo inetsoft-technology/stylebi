@@ -86,6 +86,26 @@ describe("SaveWizVisualizationDialog — Bug #76714 NG0100 on the name page", ()
       });
    }
 
+   it("should enable OK on the name page after typing a valid name into a cleared 'Untitled-' dialog", async () => {
+      const fixture = await renderDialog("Untitled-1", true);
+      fixture.detectChanges(false);
+      fixture.componentInstance.next();
+      fixture.detectChanges(false);
+      fixture.checkNoChanges();
+
+      const input: HTMLInputElement = fixture.nativeElement.querySelector("input#name");
+      input.value = "Viz1";
+      input.dispatchEvent(new Event("input"));
+      fixture.detectChanges(false);
+      expect(() => fixture.checkNoChanges()).not.toThrow();
+
+      const okButton: HTMLButtonElement =
+         fixture.nativeElement.querySelector(".modal-footer .btn-primary");
+      expect(fixture.componentInstance.model.name).toBe("Viz1");
+      expect(fixture.componentInstance.form.valid).toBe(true);
+      expect(okButton.disabled).toBe(false);
+   });
+
    it("should keep a real name and enable OK on the name page", async () => {
       const fixture = await renderDialog("Sales", true);
       fixture.detectChanges(false);
