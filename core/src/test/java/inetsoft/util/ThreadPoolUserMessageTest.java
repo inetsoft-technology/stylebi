@@ -27,7 +27,9 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
 import java.security.Principal;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,6 +123,34 @@ class ThreadPoolUserMessageTest {
       assertEquals("own message", saw.get().getMessage());
    }
 
+   @Test
+   void workerHoldsNoMessagesAfterTaskEvenIfNoFurtherTaskRuns() throws Exception {
+      // pins the end-of-task clear: no next task runs, so the start-of-task clear cannot mask it
+      ThreadPool pool = new ThreadPool(1, 1, "bug77175d-");
+      AtomicReference<Thread> worker = new AtomicReference<>();
+      AtomicReference<List<?>> workerList = new AtomicReference<>();
+      AtomicReference<Integer> sizeInTask = new AtomicReference<>();
+
+      try {
+         runOn(pool, user("alice"), () -> {
+            worker.set(Thread.currentThread());
+            // a producer whose message nobody reads, e.g. an @InGroupedThread render
+            Tool.addUserMessage("unread residue");
+            // CoreTool.clearUserMessage() empties this worker's list in place
+            workerList.set(userMessageList());
+            sizeInTask.set(workerList.get().size());
+         });
+
+         assertEquals(1, sizeInTask.get(), "precondition: the task added its message");
+         awaitIdleInQueuePoll(worker.get());
+         assertTrue(workerList.get().isEmpty(),
+                    () -> "idle worker still holds messages: " + workerList.get());
+      }
+      finally {
+         pool.dispose();
+      }
+   }
+
    private static XPrincipal user(String name) {
       return new XPrincipal(new IdentityID(name, name + "-org"));
    }
@@ -163,5 +193,40 @@ class ThreadPoolUserMessageTest {
 
       pool.add(task);
       assertTrue(done.await(10, TimeUnit.SECONDS), "task did not complete");
+   }
+
+   private static List<?> userMessageList() {
+      try {
+         Field field = CoreTool.class.getDeclaredField("USER_MESSAGE_LOCAL");
+         field.setAccessible(true);
+         return (List<?>) ((ThreadLocal<?>) field.get(null)).get();
+      }
+      catch(ReflectiveOperationException e) {
+         throw new AssertionError(e);
+      }
+   }
+
+   /**
+    * Waits until the worker has left the per-task finally and is idle, waiting on the pool's
+    * queue for the next task.
+    */
+   private static void awaitIdleInQueuePoll(Thread worker) throws InterruptedException {
+      long deadline = System.currentTimeMillis() + 10_000;
+
+      while(System.currentTimeMillis() < deadline) {
+         if(worker.getState() == Thread.State.TIMED_WAITING) {
+            for(StackTraceElement frame : worker.getStackTrace()) {
+               if("java.util.concurrent.PriorityBlockingQueue".equals(frame.getClassName()) &&
+                  "poll".equals(frame.getMethodName()))
+               {
+                  return;
+               }
+            }
+         }
+
+         Thread.sleep(10);
+      }
+
+      fail("worker did not return to the queue poll");
    }
 }
