@@ -1900,28 +1900,54 @@ public class UserTreeService {
     * organization are updated, or the VPMs of every organization for a global role. A VPM stores
     * bare role names, so in each organization the new name is only added if no other role visible
     * there has that name, and the old name is only removed if no role visible there still has it.
+    * A failure in one organization does not stop the other organizations from being updated; the
+    * first failure is rethrown after all of them were attempted.
     *
-    * @param oldID the old role ID, which also gives the organization to update.
-    * @param newID the new role ID.
+    * @param oldRoleID the old role ID, which also gives the organization to update. A global role
+    *                  has a null organization or the global organization key.
+    * @param newRoleID the new role ID.
     */
-   public void migrateRoleRename(IdentityID oldID, IdentityID newID) throws Exception {
+   public void migrateRoleRename(IdentityID oldRoleID, IdentityID newRoleID) throws Exception {
+      // the key round trip maps the global organization key to the null organization of a global
+      // role
+      IdentityID oldID = IdentityID.getIdentityIDFromKey(oldRoleID.convertToKey());
+      IdentityID newID = IdentityID.getIdentityIDFromKey(newRoleID.convertToKey());
+
       if(newID.equals(oldID)) {
          return;
       }
 
       String[] orgIDs = oldID.getOrgID() != null ?
          new String[] { oldID.getOrgID() } : getSecurityProvider().getOrganizationIDs();
+      Exception failure = null;
 
       for(String orgID : orgIDs) {
-         boolean addNew = !isOtherRoleVisible(newID.getName(), orgID, oldID, newID);
-         boolean removeOld = !isOtherRoleVisible(oldID.getName(), orgID, oldID, newID);
+         try {
+            boolean addNew = !isOtherRoleVisible(newID.getName(), orgID, oldID, newID);
+            boolean removeOld = !isOtherRoleVisible(oldID.getName(), orgID, oldID, newID);
 
-         // the data source registry resolves the current org, which is not the role's org when a
-         // site admin edits a role of another org or a global role
-         OrganizationManager.runInOrgScope(orgID, () -> {
-            renameVPMRole(orgID, oldID.getName(), newID.getName(), addNew, removeOld);
-            return null;
-         });
+            // the data source registry resolves the current org, which is not the role's org when
+            // a site admin edits a role of another org or a global role
+            OrganizationManager.runInOrgScope(orgID, () -> {
+               renameVPMRole(orgID, oldID.getName(), newID.getName(), addNew, removeOld);
+               return null;
+            });
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to update the VPMs of organization {} for the role renamed from {} " +
+                     "to {}", orgID, oldID.getName(), newID.getName(), ex);
+
+            if(failure == null) {
+               failure = ex;
+            }
+            else {
+               failure.addSuppressed(ex);
+            }
+         }
+      }
+
+      if(failure != null) {
+         throw failure;
       }
    }
 
@@ -1976,7 +2002,7 @@ public class UserTreeService {
                   changed = true;
                }
             }
-            else {
+            else if(!roles.contains(newName)) {
                skipped = true;
             }
 
