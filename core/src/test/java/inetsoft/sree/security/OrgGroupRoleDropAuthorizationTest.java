@@ -218,6 +218,30 @@ class OrgGroupRoleDropAuthorizationTest {
       assertNotNull(fileProvider.getGroup(SYS_GROUP), "the group must be kept");
    }
 
+   // deleteIdentities() now runs its refusals through the helpers shared with the org member update
+   @Test
+   void deleteIdentities_sameRefusalsAsBefore() {
+      String provider = fileProvider.getProviderName();
+      List<String> orgAdminWarnings = identityService.deleteIdentities(new IdentityModel[] {
+         member(SYS_ROLE, Identity.ROLE), member(SYS_GROUP, Identity.GROUP),
+         member(ANALYST_ROLE, Identity.ROLE) }, provider, loginAs(ORG_ADMIN));
+      List<String> plainUserWarnings = identityService.deleteIdentities(new IdentityModel[] {
+         member(PLAIN_ROLE, Identity.ROLE) }, provider, loginAs(PLAIN_USER));
+
+      assertNotNull(fileProvider.getRole(SYS_ROLE), "a system administrator role must not be deleted");
+      assertNotNull(fileProvider.getGroup(SYS_GROUP), "a system administrator group must not be deleted");
+      assertNotNull(fileProvider.getRole(ANALYST_ROLE), "the caller's own role must not be deleted");
+      assertNotNull(fileProvider.getRole(PLAIN_ROLE), "a role without admin permission must not be deleted");
+      assertTrue(orgAdminWarnings.contains(Catalog.getCatalog().getString("em.security.delself")),
+                 "the self role must be reported, but was: " + orgAdminWarnings);
+      assertTrue(orgAdminWarnings.stream().anyMatch(w -> w.startsWith(
+                    "Unauthorized access to resource(s) \"" + SYS_ROLE.name + ", " + SYS_GROUP.name + "\"")),
+                 "the system administrator targets must be reported, but was: " + orgAdminWarnings);
+      assertTrue(plainUserWarnings.stream().anyMatch(w -> w.startsWith(
+                    "Unauthorized access to resource(s) \"" + PLAIN_ROLE.name + "\"")),
+                 "the target without admin permission must be reported, but was: " + plainUserWarnings);
+   }
+
    private SRPrincipal loginAs(IdentityID user) {
       SRPrincipal principal = builder.principalOf(user.name, ORG_ID);
       ThreadContext.setContextPrincipal(principal);
