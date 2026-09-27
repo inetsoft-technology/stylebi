@@ -22,6 +22,14 @@ import org.junit.jupiter.api.Test;
 
 import java.text.Collator;
 import java.util.Locale;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +40,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * uses the Collator for non-ASCII strings but falls through to Tool.compare for
  * ASCII-only strings. When no Collator, it always uses Tool.compare.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 public class TextComparerTest {
 
    // -----------------------------------------------------------------------

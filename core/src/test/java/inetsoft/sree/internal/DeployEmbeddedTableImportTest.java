@@ -23,6 +23,7 @@ import sun.misc.Unsafe;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * "^_^" with "/" before those names reach importAsset(). Bug #74189 reverts
  * that change.
  */
+@Tag("core")
 class DeployEmbeddedTableImportTest {
 
    private static final String WS_EMBEDDED_PREFIX = "__WS_EMBEDDED_TABLE_";

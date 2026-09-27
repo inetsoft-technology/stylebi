@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Known values: for {2, 4, 4, 4, 5, 5, 7, 9}, sample variance = 4.571428...
  * For {2, 4, 4, 4, 5, 5, 7, 9} mean=5, sum of sq deviations=32, sample var=32/7≈4.5714
  */
+@Tag("core")
 public class VarianceFormulaTest {
 
    private VarianceFormula formula;
