@@ -272,6 +272,29 @@ public class VarSQLTest {
                       vars("p", 18, "q", "18", "r", "true 日本")));
    }
 
+   /**
+    * Bug #77105 round 1: in JSON style a quoted-position Number, Boolean or
+    * Date is emitted unescaped (as {@link VarSQL#toSQLConstant} does for
+    * non-String values); its text cannot close a string or regex literal.
+    * Any other non-String value is encoded like a String (first-char rule).
+    */
+   @Test
+   void jsonQuoted_numberBooleanDateUnescaped_otherObjectsEncodedLikeString() {
+      assertEquals("{a: '-3', b: '1.5', c: '1E+5', d: '-0.25', e: 'true'}",
+                   jsonStringVarSql().replaceVariables(
+                      "{a: '$(a)', b: '$(b)', c: '$(c)', d: '$(d)', e: '$(e)'}",
+                      vars("a", -3, "b", 1.5, "c", new java.math.BigDecimal("1E+5"),
+                           "d", new java.math.BigDecimal("-0.25"), "e", Boolean.TRUE)));
+
+      java.sql.Timestamp ts = java.sql.Timestamp.valueOf("2024-01-02 03:04:05.0");
+      assertEquals("{t: '2024-01-02 03:04:05.0'}",
+                   jsonStringVarSql().replaceVariables("{t: '$(t)'}", vars("t", ts)));
+
+      assertEquals("{o: '\\u004dinKey'}",
+                   jsonStringVarSql().replaceVariables(
+                      "{o: '$(o)'}", vars("o", new StringBuilder("MinKey"))));
+   }
+
    @Test
    void jsonEmbedPlaceholder_staysRaw() {
       assertEquals("{a: 'x', b: 1}", replaceJson("{$(@frag), b: 1}", "frag", "a: 'x'"));

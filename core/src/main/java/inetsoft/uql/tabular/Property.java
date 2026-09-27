@@ -61,9 +61,12 @@ public @interface Property {
     * for JSON query text (as used by the MongoDB query property), not with
     * SQL quote doubling: punctuation, and the first character of a string
     * value, are written as <code>&#92;uXXXX</code>, which bson decodes back to
-    * the exact value inside a quoted string, and which fails to parse
-    * anywhere else; see {@code VarSQL.LiteralEscapeStyle#JSON}. Put
-    * placeholders inside {@code '...'} strings or unquoted, and use
+    * the exact value inside a quoted string, which fails to parse in
+    * structural context, and which is kept as literal escape text inside a
+    * {@code /regex/} literal; see {@code VarSQL.LiteralEscapeStyle#JSON}.
+    * Number, Boolean and Date values are substituted unescaped so they keep
+    * their type. Put string placeholders inside {@code '...'} strings (or
+    * unquoted), leave numeric/boolean placeholders unquoted, and use
     * {@code {$regex: '...$(name)...'}} rather than a {@code /regex/} literal.
     * <p>
     * Values are never safe inside server-side JavaScript source

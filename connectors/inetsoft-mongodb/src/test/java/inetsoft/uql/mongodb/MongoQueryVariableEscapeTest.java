@@ -227,6 +227,101 @@ class MongoQueryVariableEscapeTest {
       assertEquals(18, ((Document) desync.get("age")).get("$gt"));
    }
 
+   /**
+    * Bug #77105 round 1: Number and Boolean variables keep their bson type in
+    * every template - normal and lexer-desync - because their text is emitted
+    * unescaped (it cannot close a string or regex literal). Expected value is
+    * what bson reads for the same literal text in a normal template; in a quoted
+    * position it is the value's text as a String; in a regex literal the pattern
+    * keeps the text (R2q and R1 reach bson through toSQLConstant, which pads the
+    * text with spaces - pre-existing, not changed here). R4-wrap cannot parse for
+    * any number: bson is inside a string that only a String value's quote
+    * wrapper would close.
+    */
+   @ParameterizedTest
+   @MethodSource("nonStringScalarCases")
+   void numberAndBooleanValue_keepTypeInEveryTemplate(String match, String field,
+                                                      String kind, Object value)
+   {
+      String text = value.toString();
+
+      if("fail".equals(kind)) {
+         org.junit.jupiter.api.Assertions.assertThrows(JsonParseException.class,
+            () -> parseMatch(match, value), match + " <- " + text);
+         return;
+      }
+
+      Document matchDoc = parseMatch(match, value);
+      Object parsed = matchDoc.get(field);
+
+      if(parsed instanceof Document) { // {$gt: $(p)}
+         assertEquals(Collections.singleton("$gt"), ((Document) parsed).keySet(), match);
+         parsed = ((Document) parsed).get("$gt");
+      }
+
+      switch(kind) {
+      case "typed":
+         Object expected = Document.parse("{v: " + text + "}").get("v");
+         assertEquals(expected, parsed, match + " <- " + text);
+         assertInstanceOf((Class<?>) (value instanceof Boolean ? Boolean.class : Number.class), parsed,
+                          match + " <- " + text);
+         break;
+      case "string":
+         assertEquals(text, parsed, match + " <- " + text);
+         break;
+      case "paddedString":
+         // VarSQL is outside a quote here, so the value goes through
+         // toSQLConstant, which pads it with a space on each side (pre-existing)
+         assertEquals(" " + text + " ", parsed, match + " <- " + text);
+         break;
+      default: // regex, also via the padded toSQLConstant path
+         assertInstanceOf(BsonRegularExpression.class, parsed, match + " <- " + text);
+         assertEquals("^ " + text + " ", ((BsonRegularExpression) parsed).getPattern(), match);
+      }
+   }
+
+   static Stream<Arguments> nonStringScalarCases() {
+      Object[] values = { 18, -3, 1.5, 1.5E20, new java.math.BigDecimal("1E+5"),
+                          new java.math.BigDecimal("-0.25"), 18L, Boolean.TRUE,
+                          Boolean.FALSE };
+      String[][] templates = {
+         // normal templates
+         { "{age: {$gt: $(p)}, other: 1}", "age", "typed" },
+         { "{age: $(p), other: 1}", "age", "typed" },
+         { "{age: '$(p)', other: 1}", "age", "string" },
+         // lexer-desync templates (VarSQL believes the placeholder is quoted)
+         { "{a: /it's/, age: {$gt: $(p)}}", "age", "typed" },    // R2gt
+         { "{a: /it's/, age: $(p)}", "age", "typed" },           // R2
+         { "{a: /say \"/, age: $(p)}", "age", "typed" },         // R2dq
+         { "{a: 'it\\\\'s', age: $(p)}", "age", "typed" },       // R4
+         // R4-wrap: bson is inside a string VarSQL thinks is closed; a number has
+         // no wrapper to close it, so it cannot parse (before and after the fix)
+         { "{a: 'x\\\\', age: $(p)}", "age", "fail" },           // R4-wrap
+         { "{a: /it's/, age: '$(p)'}", "age", "paddedString" },  // R2q
+         { "{a: /^$(p)/}", "a", "regex" },                       // R1
+      };
+      List<Arguments> args = new ArrayList<>();
+
+      for(String[] t : templates) {
+         for(Object v : values) {
+            args.add(Arguments.of(t[0], t[1], t[2], v));
+         }
+      }
+
+      return args.stream();
+   }
+
+   /**
+    * Bug #77105 round 1: a non-String, non-Number/Boolean value (here a
+    * StringBuilder whose text is a bson keyword) is encoded like a String, so in
+    * a desync template it fails to parse instead of becoming a MinKey.
+    */
+   @Test
+   void otherObjectValue_inDesyncTemplate_failsClosed() {
+      org.junit.jupiter.api.Assertions.assertThrows(JsonParseException.class,
+         () -> parseMatch("{a: /it's/, name: $(p)}", new StringBuilder("MinKey")));
+   }
+
    private static Document parseMatch(String match, Object value) {
       MongoQuery query = new MongoQuery();
       query.setQueryString("{aggregate: 'c', pipeline: [{$match: " + match + "}], cursor: {}}");
