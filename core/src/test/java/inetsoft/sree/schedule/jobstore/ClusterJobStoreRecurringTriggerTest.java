@@ -47,9 +47,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Bug #76976: the store keeps the triggers of a non-concurrent job blocked while one of them
- * runs and releases them when it completes. A recurring trigger whose run outlasts its interval
- * must be released after every run, so it keeps firing, and must never run concurrently.
+ * Bug #76976: the store keeps a fired trigger of a non-concurrent job blocked while it runs and
+ * releases it when a run of the job completes. A recurring trigger whose run outlasts its interval
+ * must be released after every run, so it keeps firing, and must never run concurrently; a run
+ * that never completes must not keep the task's other conditions from firing.
  *
  * <p>Two real Quartz schedulers built like {@code Scheduler.initialize0()} share one cluster whose
  * replicated maps keep and hand out serialized copies, like Ignite's. Timings are the production
@@ -65,6 +66,12 @@ class ClusterJobStoreRecurringTriggerTest {
 
    @AfterEach
    void tearDown() throws Exception {
+      Recorder recorder = recorder();
+
+      if(recorder != null) {
+         recorder.release.countDown();
+      }
+
       for(org.quartz.Scheduler scheduler : schedulers) {
          scheduler.shutdown(true);
       }
@@ -78,39 +85,16 @@ class ClusterJobStoreRecurringTriggerTest {
    @Test
    void recurringRunOutlastingTheIntervalKeepsFiringAndNeverOverlaps() throws Exception {
       startSchedulers("node-A", "node-B");
-      RECORDERS.put(recorderId, new Recorder());
-      String taskId = "task-76976-recurring";
-
-      JobDataMap dataMap = new JobDataMap();
-      ScheduleTask task = new ScheduleTask(taskId);
-      task.setOwner(OWNER);
-      dataMap.put(ScheduleTask.class.getName(), task);
-      dataMap.put(RECORDER_KEY, recorderId);
-      JobDetail job = JobBuilder.newJob(SlowTaskJob.class)
-         .withIdentity(taskId, inetsoft.sree.schedule.Scheduler.GROUP_NAME)
-         .storeDurably(true)
-         .usingJobData(dataMap)
-         .build();
-
       long start = (System.currentTimeMillis() / 1000 + 2) * 1000;
-      IntervalTrigger trigger = new IntervalTrigger();
-      trigger.setName(taskId + "-1");
-      trigger.setGroup(inetsoft.sree.schedule.Scheduler.GROUP_NAME);
-      trigger.setJobKey(job.getKey());
-      // a daily condition, so the completion listener keeps the trigger
-      trigger.setCondition(TimeCondition.at(1, 0, 0));
-      trigger.setStartTime(new Date(start));
-      trigger.setEndTime(new Date(start + TimeUnit.HOURS.toMillis(1)));
-      trigger.setMisfireInstruction(ConditionTrigger.MISFIRE_INSTRUCTION_FIRE_ONCE_NOW);
+      JobDetail job = createJob();
+      IntervalTrigger trigger = recurringTrigger(job, 1, start);
       schedulers.get(0).scheduleJob(job, Collections.singleton(trigger), true);
 
       Thread.sleep(start + OBSERVATION - System.currentTimeMillis());
 
       Recorder recorder = recorder();
-      List<Execution> executions = new ArrayList<>(recorder.executions);
-      executions.sort(Comparator.comparingLong(e -> e.start));
-      String trace = executions.stream().map(Execution::toString)
-         .collect(Collectors.joining("\n  ", "\n  ", ""));
+      List<Execution> executions = executions();
+      String trace = trace(executions);
 
       assertEquals(1, recorder.maxRunning.get(), "runs overlapped:" + trace);
       assertTrue(executions.size() >= 3, "trigger stopped firing:" + trace);
@@ -119,6 +103,88 @@ class ClusterJobStoreRecurringTriggerTest {
          long idle = executions.get(i).start - executions.get(i - 1).end;
          assertTrue(idle <= MAX_IDLE, "trigger was not released after run " + i + ":" + trace);
       }
+   }
+
+   /**
+    * A run that never completes (its node died or was scaled in) stands in here as a run that
+    * hangs until the test ends. The task's run-once condition must still fire at its time, and
+    * its completion must release the hung run's recurring trigger, as before the fix.
+    */
+   @Test
+   void runThatNeverCompletesDoesNotStopTheOtherConditions() throws Exception {
+      startSchedulers("node-A", "node-B");
+      long start = (System.currentTimeMillis() / 1000 + 2) * 1000;
+      long runOnce = start + 3000;
+      JobDetail job = createJob();
+
+      IntervalTrigger recurring = recurringTrigger(job, 1, start);
+      recurring.getJobDataMap().put(HANG_KEY, true);
+
+      TimeConditionTriggerImpl atTrigger = new TimeConditionTriggerImpl();
+      atTrigger.setName(job.getKey().getName() + "-2");
+      atTrigger.setGroup(inetsoft.sree.schedule.Scheduler.GROUP_NAME);
+      atTrigger.setJobKey(job.getKey());
+      atTrigger.setCondition(TimeCondition.at(new Date(runOnce)));
+      atTrigger.setStartTime(new Date(runOnce));
+      atTrigger.setEndTime(new Date(runOnce + TimeUnit.HOURS.toMillis(1)));
+      atTrigger.setMisfireInstruction(ConditionTrigger.MISFIRE_INSTRUCTION_FIRE_ONCE_NOW);
+      atTrigger.getJobDataMap().put(DURATION_KEY, 500L);
+
+      Set<Trigger> triggers = new HashSet<>();
+      triggers.add(recurring);
+      triggers.add(atTrigger);
+      schedulers.get(0).scheduleJob(job, triggers, true);
+
+      Thread.sleep(runOnce + 500 + MAX_IDLE + 1000 - System.currentTimeMillis());
+
+      List<Execution> executions = executions();
+      String trace = trace(executions);
+      Map<String, Long> perTrigger = executions.stream()
+         .collect(Collectors.groupingBy(e -> e.trigger, TreeMap::new, Collectors.counting()));
+
+      assertEquals(1L, perTrigger.getOrDefault(atTrigger.getName(), 0L),
+                   "run-once condition did not fire once:" + trace);
+      assertTrue(perTrigger.getOrDefault(recurring.getName(), 0L) >= 2,
+                 "hung run's recurring trigger was never released:" + trace);
+   }
+
+   private JobDetail createJob() {
+      RECORDERS.put(recorderId, new Recorder());
+      String taskId = "task-76976-recurring";
+      JobDataMap dataMap = new JobDataMap();
+      ScheduleTask task = new ScheduleTask(taskId);
+      task.setOwner(OWNER);
+      dataMap.put(ScheduleTask.class.getName(), task);
+      dataMap.put(RECORDER_KEY, recorderId);
+      return JobBuilder.newJob(SlowTaskJob.class)
+         .withIdentity(taskId, inetsoft.sree.schedule.Scheduler.GROUP_NAME)
+         .storeDurably(true)
+         .usingJobData(dataMap)
+         .build();
+   }
+
+   private static IntervalTrigger recurringTrigger(JobDetail job, int index, long start) {
+      IntervalTrigger trigger = new IntervalTrigger();
+      trigger.setName(job.getKey().getName() + "-" + index);
+      trigger.setGroup(inetsoft.sree.schedule.Scheduler.GROUP_NAME);
+      trigger.setJobKey(job.getKey());
+      // a daily condition, so the completion listener keeps the trigger
+      trigger.setCondition(TimeCondition.at(1, 0, 0));
+      trigger.setStartTime(new Date(start));
+      trigger.setEndTime(new Date(start + TimeUnit.HOURS.toMillis(1)));
+      trigger.setMisfireInstruction(ConditionTrigger.MISFIRE_INSTRUCTION_FIRE_ONCE_NOW);
+      return trigger;
+   }
+
+   private List<Execution> executions() {
+      List<Execution> executions = new ArrayList<>(recorder().executions);
+      executions.sort(Comparator.comparingLong(e -> e.start));
+      return executions;
+   }
+
+   private static String trace(List<Execution> executions) {
+      return executions.stream().map(Execution::toString)
+         .collect(Collectors.joining("\n  ", "\n  ", ""));
    }
 
    private void startSchedulers(String... instanceIds) throws Exception {
@@ -313,13 +379,20 @@ class ClusterJobStoreRecurringTriggerTest {
    public static class SlowTaskJob implements Job {
       @Override
       public void execute(JobExecutionContext context) throws JobExecutionException {
-         Recorder recorder = RECORDERS.get(context.getMergedJobDataMap().getString(RECORDER_KEY));
-         Execution execution = new Execution(instanceId(context.getScheduler()));
+         JobDataMap data = context.getMergedJobDataMap();
+         Recorder recorder = RECORDERS.get(data.getString(RECORDER_KEY));
+         Execution execution = new Execution(
+            instanceId(context.getScheduler()), context.getTrigger().getKey().getName());
          recorder.maxRunning.accumulateAndGet(recorder.running.incrementAndGet(), Math::max);
          recorder.executions.add(execution);
 
          try {
-            Thread.sleep(DURATION);
+            if(data.containsKey(HANG_KEY)) {
+               recorder.release.await(1, TimeUnit.MINUTES);
+            }
+            else {
+               Thread.sleep(data.containsKey(DURATION_KEY) ? data.getLong(DURATION_KEY) : DURATION);
+            }
          }
          catch(InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -335,20 +408,23 @@ class ClusterJobStoreRecurringTriggerTest {
       final Queue<Execution> executions = new ConcurrentLinkedQueue<>();
       final AtomicInteger running = new AtomicInteger();
       final AtomicInteger maxRunning = new AtomicInteger();
+      final CountDownLatch release = new CountDownLatch(1);
    }
 
    private static final class Execution {
-      Execution(String schedulerId) {
+      Execution(String schedulerId, String trigger) {
          this.schedulerId = schedulerId;
+         this.trigger = trigger;
          this.start = System.currentTimeMillis();
       }
 
       @Override
       public String toString() {
-         return String.format("%s ran %tT.%<tL-%tT.%<tL", schedulerId, start, end);
+         return String.format("%s fired %s: ran %tT.%<tL-%tT.%<tL", schedulerId, trigger, start, end);
       }
 
       final String schedulerId;
+      final String trigger;
       final long start;
       volatile long end;
    }
@@ -362,6 +438,8 @@ class ClusterJobStoreRecurringTriggerTest {
    // allow a full acquire horizon plus the misfire threshold before calling it stranded
    private static final long MAX_IDLE = IDLE_WAIT + MISFIRE_THRESHOLD + 500;
    private static final String RECORDER_KEY = "test.recorder";
+   private static final String DURATION_KEY = "test.duration";
+   private static final String HANG_KEY = "test.hang";
    private static final IdentityID OWNER = new IdentityID("scheduler-test", "host");
    private static final Map<String, Recorder> RECORDERS = new ConcurrentHashMap<>();
 

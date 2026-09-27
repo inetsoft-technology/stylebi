@@ -36,12 +36,6 @@ public class TriggerWrapper implements Serializable {
 
    private TriggerState state;
 
-   /**
-    * The fire instance id of the execution that blocked this trigger, if it is BLOCKED or
-    * PAUSED_BLOCKED because a trigger of the same non-concurrent job is running.
-    */
-   private final String blockedBy;
-
    public Long getNextFireTime() {
       return trigger == null || trigger.getNextFireTime() == null
          ? null : trigger.getNextFireTime().getTime();
@@ -52,7 +46,7 @@ public class TriggerWrapper implements Serializable {
          ? null : trigger.getEndTime().getTime();
    }
 
-   private TriggerWrapper(OperableTrigger trigger, TriggerState state, String blockedBy) {
+   private TriggerWrapper(OperableTrigger trigger, TriggerState state) {
       if(trigger == null) {
          throw new IllegalArgumentException("Trigger cannot be null!");
       }
@@ -61,7 +55,6 @@ public class TriggerWrapper implements Serializable {
       key = trigger.getKey();
       this.jobKey = trigger.getJobKey();
       this.state = state;
-      this.blockedBy = blockedBy;
 
       // Change to normal if acquired is not released in 5 seconds
       if(state == TriggerState.ACQUIRED) {
@@ -79,22 +72,13 @@ public class TriggerWrapper implements Serializable {
    public static TriggerWrapper newTriggerWrapper(TriggerWrapper tw,
                                                   TriggerState state)
    {
-      return new TriggerWrapper(tw.trigger, state, null);
+      return new TriggerWrapper(tw.trigger, state);
    }
 
    public static TriggerWrapper newTriggerWrapper(OperableTrigger trigger,
                                                   TriggerState state)
    {
-      return new TriggerWrapper(trigger, state, null);
-   }
-
-   /**
-    * Creates a wrapper for a trigger blocked by the execution with the given fire instance id.
-    */
-   public static TriggerWrapper newBlockedTriggerWrapper(OperableTrigger trigger,
-                                                         TriggerState state, String blockedBy)
-   {
-      return new TriggerWrapper(trigger, state, blockedBy);
+      return new TriggerWrapper(trigger, state);
    }
 
    @Override
@@ -127,10 +111,6 @@ public class TriggerWrapper implements Serializable {
       return acquiredAt;
    }
 
-   public String getBlockedBy() {
-      return blockedBy;
-   }
-
    @Override
    public String toString() {
       return "TriggerWrapper{"
@@ -139,7 +119,6 @@ public class TriggerWrapper implements Serializable {
          + ", nextFireTime=" + getNextFireTime()
          + ", endTime=" + getEndTime()
          + ", acquiredAt=" + getAcquiredAt()
-         + ", blockedBy=" + blockedBy
          + '}';
    }
 }

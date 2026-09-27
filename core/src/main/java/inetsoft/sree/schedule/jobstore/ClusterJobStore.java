@@ -39,7 +39,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static inetsoft.sree.schedule.jobstore.TriggerState.*;
-import static inetsoft.sree.schedule.jobstore.TriggerWrapper.newBlockedTriggerWrapper;
 import static inetsoft.sree.schedule.jobstore.TriggerWrapper.newTriggerWrapper;
 
 public class ClusterJobStore implements JobStore, Serializable {
@@ -903,7 +902,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          TriggerWrapper tw = triggersByKey.get(triggerKey);
 
          // only release the acquisition made by the caller, another node may have acquired
-         // or blocked the trigger since
+         // the trigger since
          if(tw != null && isAcquiredBy(tw, trigger)) {
             storeTriggerWrapper(newTriggerWrapper(trigger, WAITING));
          }
@@ -926,119 +925,79 @@ public class ClusterJobStore implements JobStore, Serializable {
       List<TriggerFiredResult> results = new ArrayList<>();
 
       for(OperableTrigger trigger : firedTriggers) {
-         JobDetail job = retrieveJob(trigger.getJobKey());
-
-         // was the job deleted since being acquired?
-         if(job == null) {
-            continue;
-         }
-
-         // for a non-concurrent job, lock the job before the trigger so that firing one of its
-         // triggers and blocking the others is atomic across the cluster
-         boolean jobLocked = job.isConcurrentExectionDisallowed();
-
-         if(jobLocked) {
-            jobsByKey.lock(job.getKey(), 5, TimeUnit.MINUTES);
-         }
+         triggersByKey.lock(trigger.getKey(), 5, TimeUnit.MINUTES);
 
          try {
-            TriggerFiredResult result = triggerFired(trigger, job);
+            TriggerWrapper tw = triggersByKey.get(trigger.getKey());
 
-            if(result != null) {
-               results.add(result);
+            // was the trigger deleted since being acquired?
+            if(tw == null || tw.trigger == null) {
+               continue;
             }
+            // was the trigger completed, paused, blocked, etc. or acquired by another node since
+            // being acquired?
+            if(!isAcquiredBy(tw, trigger)) {
+               continue;
+            }
+
+            Calendar cal = null;
+
+            if(tw.trigger.getCalendarName() != null) {
+               cal = retrieveCalendar(tw.trigger.getCalendarName());
+
+               if(cal == null) {
+                  continue;
+               }
+            }
+
+            Date prevFireTime = trigger.getPreviousFireTime();
+            // call triggered on our copy, and the scheduler's copy
+            tw.trigger.triggered(cal);
+
+            if(tw.trigger != trigger) {
+               trigger.triggered(cal);
+            }
+
+            JobDetail job = retrieveJob(tw.jobKey);
+
+            if(trigger.getNextFireTime() == null) {
+               // a trigger that will not fire again must not stay acquirable with its old fire
+               // time
+               tw = newTriggerWrapper(trigger, COMPLETE);
+            }
+            else if(job.isConcurrentExectionDisallowed()) {
+               // keep the trigger from being acquired again until its execution completes
+               tw = newTriggerWrapper(trigger, BLOCKED);
+            }
+            else {
+               tw = newTriggerWrapper(trigger, WAITING);
+            }
+
+            storeTriggerWrapper(tw);
+
+            TriggerFiredBundle bndle = new TriggerFiredBundle(
+               retrieveJob(tw.jobKey),
+               trigger,
+               cal,
+               false,
+               new Date(),
+               trigger.getPreviousFireTime(),
+               prevFireTime,
+               trigger.getNextFireTime());
+
+            results.add(new TriggerFiredResult(bndle));
          }
          finally {
-            if(jobLocked) {
-               try {
-                  jobsByKey.unlock(job.getKey());
-               }
-               catch(IllegalMonitorStateException ex) {
-                  LOG.warn("Error unlocking since it is already released.", ex);
-               }
+            try {
+               triggersByKey.unlock(trigger.getKey());
+            }
+            catch(IllegalMonitorStateException ex) {
+               LOG.warn("Error unlocking since it is already released.", ex);
             }
          }
       }
 
       return results;
-   }
-
-   private TriggerFiredResult triggerFired(OperableTrigger trigger, JobDetail job)
-      throws JobPersistenceException
-   {
-      String fireInstanceId = trigger.getFireInstanceId();
-      triggersByKey.lock(trigger.getKey(), 5, TimeUnit.MINUTES);
-
-      try {
-         TriggerWrapper tw = triggersByKey.get(trigger.getKey());
-
-         // was the trigger deleted since being acquired?
-         if(tw == null || tw.trigger == null) {
-            return null;
-         }
-
-         // was the trigger completed, paused, blocked, etc. or acquired by another node since
-         // being acquired?
-         if(!isAcquiredBy(tw, trigger)) {
-            return null;
-         }
-
-         Calendar cal = null;
-
-         if(tw.trigger.getCalendarName() != null) {
-            cal = retrieveCalendar(tw.trigger.getCalendarName());
-
-            if(cal == null) {
-               return null;
-            }
-         }
-
-         Date prevFireTime = trigger.getPreviousFireTime();
-         // call triggered on our copy, and the scheduler's copy
-         tw.trigger.triggered(cal);
-
-         if(tw.trigger != trigger) {
-            trigger.triggered(cal);
-         }
-
-         if(trigger.getNextFireTime() == null) {
-            // a trigger that will not fire again must not stay acquirable with its old fire time
-            tw = newTriggerWrapper(trigger, COMPLETE);
-         }
-         else if(job.isConcurrentExectionDisallowed()) {
-            // keep the trigger from being acquired again until this execution completes
-            tw = newBlockedTriggerWrapper(trigger, BLOCKED, fireInstanceId);
-         }
-         else {
-            tw = newTriggerWrapper(trigger, WAITING);
-         }
-
-         storeTriggerWrapper(tw);
-
-         if(job.isConcurrentExectionDisallowed()) {
-            blockTriggers(job.getKey(), trigger.getKey(), fireInstanceId);
-         }
-
-         TriggerFiredBundle bndle = new TriggerFiredBundle(
-            retrieveJob(tw.jobKey),
-            trigger,
-            cal,
-            false,
-            new Date(),
-            trigger.getPreviousFireTime(),
-            prevFireTime,
-            trigger.getNextFireTime());
-
-         return new TriggerFiredResult(bndle);
-      }
-      finally {
-         try {
-            triggersByKey.unlock(trigger.getKey());
-         }
-         catch(IllegalMonitorStateException ex) {
-            LOG.warn("Error unlocking since it is already released.", ex);
-         }
-      }
    }
 
    @Override
@@ -1065,9 +1024,13 @@ public class ClusterJobStore implements JobStore, Serializable {
             }
          }
       }
+      else if(jobDetail.isConcurrentExectionDisallowed()) {
+         ArrayList<TriggerWrapper> trigs = getTriggerWrappersForJob(jobDetail.getKey());
 
-      if(jobDetail.isConcurrentExectionDisallowed()) {
-         releaseBlockedTriggers(jobDetail.getKey(), trigger.getFireInstanceId());
+         for(TriggerWrapper ttw : trigs) {
+            releaseBlockedTrigger(ttw.key);
+         }
+
          schedSignaler.signalSchedulingChange(0L);
       }
 
@@ -1166,103 +1129,35 @@ public class ClusterJobStore implements JobStore, Serializable {
    }
 
    /**
-    * Blocks the other triggers of a non-concurrent job while one of its triggers fires, including
-    * one that another node acquired but has not fired yet. The caller holds the job lock.
+    * Releases a trigger of a non-concurrent job that is blocked while it runs. A trigger acquired
+    * by a node but not fired yet, or one that already fired for the last time, is left alone.
     */
-   private void blockTriggers(JobKey jobKey, TriggerKey firedKey, String fireInstanceId) {
-      Collection<TriggerKey> triggerKeys = triggersByJob.get(jobKey);
-
-      if(triggerKeys == null) {
-         return;
-      }
-
-      for(TriggerKey key : new ArrayList<>(triggerKeys)) {
-         if(key == null || key.equals(firedKey)) {
-            continue;
-         }
-
+   private void releaseBlockedTrigger(TriggerKey key) {
+      try {
          triggersByKey.lock(key, 5, TimeUnit.MINUTES);
-
-         try {
-            TriggerWrapper ttw = triggersByKey.get(key);
-
-            if(ttw == null) {
-               continue;
-            }
-
-            TriggerState state = ttw.getState();
-
-            if(state == NORMAL || state == WAITING || state == ACQUIRED) {
-               storeTriggerWrapper(newBlockedTriggerWrapper(ttw.trigger, BLOCKED, fireInstanceId));
-            }
-            else if(state == PAUSED) {
-               storeTriggerWrapper(
-                  newBlockedTriggerWrapper(ttw.trigger, PAUSED_BLOCKED, fireInstanceId));
-            }
-         }
-         finally {
-            try {
-               triggersByKey.unlock(key);
-            }
-            catch(IllegalMonitorStateException ex) {
-               LOG.warn("Error unlocking since it is already released.", ex);
-            }
-         }
       }
-   }
-
-   /**
-    * Releases the triggers of a non-concurrent job that the given execution blocked, leaving
-    * alone triggers blocked by another execution, held by another node, or already fired.
-    */
-   private void releaseBlockedTriggers(JobKey jobKey, String fireInstanceId) {
-      if(fireInstanceId == null) {
+      catch(IllegalStateException ex) {
+         LOG.warn("Failed to lock trigger {} to release it", key, ex);
          return;
       }
-
-      jobsByKey.lock(jobKey, 5, TimeUnit.MINUTES);
 
       try {
-         Collection<TriggerKey> triggerKeys = triggersByJob.get(jobKey);
+         TriggerWrapper tw = triggersByKey.get(key);
 
-         if(triggerKeys == null) {
+         if(tw == null) {
             return;
          }
 
-         for(TriggerKey key : new ArrayList<>(triggerKeys)) {
-            if(key == null) {
-               continue;
-            }
-
-            triggersByKey.lock(key, 5, TimeUnit.MINUTES);
-
-            try {
-               TriggerWrapper ttw = triggersByKey.get(key);
-
-               if(ttw == null || !fireInstanceId.equals(ttw.getBlockedBy())) {
-                  continue;
-               }
-
-               if(ttw.getState() == BLOCKED) {
-                  storeTriggerWrapper(newTriggerWrapper(ttw, WAITING));
-               }
-               else if(ttw.getState() == PAUSED_BLOCKED) {
-                  storeTriggerWrapper(newTriggerWrapper(ttw, PAUSED));
-               }
-            }
-            finally {
-               try {
-                  triggersByKey.unlock(key);
-               }
-               catch(IllegalMonitorStateException ex) {
-                  LOG.warn("Error unlocking since it is already released.", ex);
-               }
-            }
+         if(tw.getState() == BLOCKED) {
+            storeTriggerWrapper(newTriggerWrapper(tw, WAITING));
+         }
+         else if(tw.getState() == PAUSED_BLOCKED) {
+            storeTriggerWrapper(newTriggerWrapper(tw, PAUSED));
          }
       }
       finally {
          try {
-            jobsByKey.unlock(jobKey);
+            triggersByKey.unlock(key);
          }
          catch(IllegalMonitorStateException ex) {
             LOG.warn("Error unlocking since it is already released.", ex);
@@ -1321,19 +1216,31 @@ public class ClusterJobStore implements JobStore, Serializable {
    private boolean removeTrigger(TriggerKey key, boolean removeOrphanedJob)
       throws JobPersistenceException
    {
-      final TriggerWrapper tw;
+      boolean removed;
 
       // remove from triggers by FQN map
       triggersByKey.lock(key, 5, TimeUnit.MINUTES);
 
       try {
-         tw = triggersByKey.remove(key);
+         final TriggerWrapper tw = triggersByKey.remove(key);
+         removed = tw != null;
 
-         if(tw != null) {
+         if(removed) {
             // remove from triggers by group
             triggersByGroup.remove(key.getGroup(), key);
             triggersByJob.remove(tw.jobKey, key);
             //        triggers.remove(tw);
+
+            if(removeOrphanedJob) {
+               JobDetail job = jobsByKey.get(tw.jobKey);
+               List<OperableTrigger> trigs = getTriggersForJob(tw.jobKey);
+
+               if((trigs == null || trigs.isEmpty()) && job != null && !job.isDurable()) {
+                  if(removeJob(job.getKey())) {
+                     schedSignaler.notifySchedulerListenersJobDeleted(job.getKey());
+                  }
+               }
+            }
          }
       }
       finally {
@@ -1345,20 +1252,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          }
       }
 
-      // remove the orphaned job after releasing the trigger lock, the job lock is always taken
-      // before a trigger lock
-      if(tw != null && removeOrphanedJob) {
-         JobDetail job = jobsByKey.get(tw.jobKey);
-         List<OperableTrigger> trigs = getTriggersForJob(tw.jobKey);
-
-         if((trigs == null || trigs.isEmpty()) && job != null && !job.isDurable()) {
-            if(removeJob(job.getKey())) {
-               schedSignaler.notifySchedulerListenersJobDeleted(job.getKey());
-            }
-         }
-      }
-
-      return tw != null;
+      return removed;
    }
 
    private void storeTriggerWrapper(TriggerWrapper tw) {
