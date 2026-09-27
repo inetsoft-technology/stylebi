@@ -509,6 +509,8 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     * @param principal represents an entity.
     */
    public void run(Principal principal) throws Throwable {
+      checkIdentityResolvable();
+
       synchronized(this) {
          if(isRunning()) {
             throw new Exception("Task is still running: " + getTaskId());
@@ -535,6 +537,36 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       finally {
          runtimeTask = null;
          running = false;
+      }
+   }
+
+   /**
+    * Bug #77120, fail closed instead of running the task under a principal that no admin
+    * configured when its execute-as identity can't be resolved. With security disabled the task
+    * keeps running as its owner.
+    */
+   private void checkIdentityResolvable() {
+      if(identity == null || !isSecurityEnabled()) {
+         return;
+      }
+
+      IdentityID id = identity.getIdentityID();
+
+      if(SUtil.getIdentity(id, identity.getType()) == null) {
+         String msg = "Execute-as identity " + id + " (type " + identity.getType() +
+            ") of task " + getTaskId() + " cannot be resolved, the task was not run";
+         LOG.error(msg);
+         throw new IllegalStateException(msg);
+      }
+   }
+
+   private static boolean isSecurityEnabled() {
+      try {
+         return SecurityEngine.getSecurity().isSecurityEnabled();
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to check whether security is enabled", ex);
+         return false;
       }
    }
 
@@ -1449,7 +1481,17 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          identity = SUtil.getIdentity(idname, idtype);
       }
       catch(Exception exp) {
-         LOG.error("Failed to set owner of task " + name + " to " + idname, exp);
+         LOG.error("Failed to set execute-as identity of task " + name + " to " + idname, exp);
+      }
+
+      // Bug #77120, a lookup miss can't tell a deleted identity from one that can't be resolved
+      // right now, so keep the reference instead of dropping it (which ran the task as its owner
+      // and lost the setting on the next save). run() refuses to run it while it's unresolved.
+      if(identity == null && idname != null && isSecurityEnabled()) {
+         LOG.warn("Execute-as identity {} (type {}) of task {} could not be resolved, " +
+                  "keeping it unresolved", idname, idtype, name);
+         identity = idtype == Identity.GROUP ? new Group(idname) :
+            idtype == Identity.ROLE ? new Role(idname) : new User(idname);
       }
 
       String taskType = elem.getAttribute("type");
