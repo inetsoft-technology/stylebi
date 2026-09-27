@@ -308,6 +308,162 @@ class DatasourcesServiceDraftSecretTest {
       assertEquals(STORED_SECRET, after.getClientSecret());
    }
 
+   @Test
+   void gateIsClearedWhenTheGatedActionThrows() {
+      assertThrows(IllegalStateException.class, () -> TabularDataSource.withCredentialFetchGate(
+         id -> false, () -> {
+            throw new IllegalStateException("refresh failed");
+         }));
+
+      // a later request on the same thread is not gated
+      CloudTestDataSource after = new CloudTestDataSource();
+      after.setUseCredentialId(true);
+      after.setCredentialId(SECRET_ID);
+      assertEquals(STORED_SECRET, after.getClientSecret());
+   }
+
+   @Test
+   void nestedGateRestoresTheOuterGate() {
+      TabularDataSource.withCredentialFetchGate(id -> false, () -> {
+         TabularDataSource.withCredentialFetchGate(id -> true, () -> {
+            CloudTestDataSource inner = new CloudTestDataSource();
+            inner.setUseCredentialId(true);
+            inner.setCredentialId(SECRET_ID);
+            assertEquals(STORED_SECRET, inner.getClientSecret());
+            return null;
+         });
+
+         CloudTestDataSource outer = new CloudTestDataSource();
+         outer.setUseCredentialId(true);
+         outer.setCredentialId(SECRET_ID);
+         assertNull(outer.getClientSecret());
+         return null;
+      });
+
+      CloudTestDataSource after = new CloudTestDataSource();
+      after.setUseCredentialId(true);
+      after.setCredentialId(SECRET_ID);
+      assertEquals(STORED_SECRET, after.getClientSecret());
+   }
+
+   @Test
+   void gateDoesNotOutliveADraftRefreshOnAReusedPoolThread() throws Exception {
+      java.util.concurrent.ExecutorService executor =
+         java.util.concurrent.Executors.newSingleThreadExecutor();
+
+      try {
+         // no writable data source stores the id, so the draft's secret id is rejected
+         DataSourceDefinition result = executor.submit(() -> {
+            SECRETS.set(secretsManager);
+            return service.refreshTabularView(draft(CLOUD, SECRET_ID));
+         }).get();
+         assertNull(editorValue(result.getTabularView(), "testClientSecret"));
+
+         // a later non-draft use of the same thread still resolves the secret
+         String secret = executor.submit(() -> {
+            SECRETS.set(secretsManager);
+            CloudTestDataSource source = new CloudTestDataSource();
+            source.setUseCredentialId(true);
+            source.setCredentialId(SECRET_ID);
+            return source.getClientSecret();
+         }).get();
+         assertEquals(STORED_SECRET, secret);
+      }
+      finally {
+         executor.shutdownNow();
+      }
+   }
+
+   @Test
+   void refreshViewDoesNotResolveSecretIdWhenThePermissionCheckFails() throws Exception {
+      when(registry.getDataSourceFullNames()).thenReturn(new String[] { "other" });
+      when(registry.getDataSource("other")).thenReturn(savedSource(SECRET_ID));
+      when(securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE, "other", ResourceAction.WRITE))
+         .thenThrow(new RuntimeException("security provider failed"));
+
+      DataSourceDefinition result = service.refreshTabularView(draft(CLOUD, SECRET_ID));
+
+      verify(secretsManager, never()).getCredential(any());
+      assertNull(editorValue(result.getTabularView(), "testClientSecret"));
+   }
+
+   @Test
+   void refreshViewDoesNotConsultWritableDataSourceOutsideTheCurrentOrgListing() throws Exception {
+      // a data source in another organization is not listed for the current organization, even
+      // if the caller has write on it there
+      when(registry.getDataSource("elsewhere")).thenReturn(savedSource(SECRET_ID));
+      grantWrite("elsewhere", true);
+
+      DataSourceDefinition result = service.refreshTabularView(draft(CLOUD, SECRET_ID));
+
+      verify(secretsManager, never()).getCredential(any());
+      verify(registry, never()).getDataSource("elsewhere");
+      assertNull(editorValue(result.getTabularView(), "testClientSecret"));
+   }
+
+   @Test
+   void refreshViewResolvesSecretIdStoredOnAdditionalConnectionOfWritableDataSource()
+      throws Exception
+   {
+      CloudTestDataSource parent = spy(savedSource("parent-secret"));
+      doReturn(new String[] { "conn" }).when(parent).getDataSourceNames();
+      doReturn(savedSource(SECRET_ID)).when(parent).getDataSource("conn");
+      when(registry.getDataSourceFullNames()).thenReturn(new String[] { "parent" });
+      when(registry.getDataSource("parent")).thenReturn(parent);
+      grantWrite("parent", true);
+
+      DataSourceDefinition result = service.refreshTabularView(draft(CLOUD, SECRET_ID));
+
+      assertEquals(STORED_SECRET, editorValue(result.getTabularView(), "testClientSecret"));
+   }
+
+   @Test
+   void draftAdditionalConnectionDoesNotResolveSecretIdTheCallerCannotManage() throws Exception {
+      DataSourceDefinition additional = draft(CLOUD, SECRET_ID);
+      additional.setName("conn");
+      DataSourceDefinition definition = draft(CLOUD, "");
+      definition.setAdditionalConnections(new java.util.ArrayList<>(java.util.List.of(additional)));
+
+      service.refreshTabularView(definition);
+
+      verify(secretsManager, never()).getCredential(any());
+      assertNull(editorValue(additional.getTabularView(), "testClientSecret"));
+      assertEquals(SECRET_ID, editorValue(additional.getTabularView(), "credentialId"));
+   }
+
+   @Test
+   void oauthTokensEchoSecretIdWhenTheCallerCanWriteADataSourceThatStoresIt() throws Exception {
+      when(registry.getDataSourceFullNames()).thenReturn(new String[] { "other" });
+      when(registry.getDataSource("other")).thenReturn(savedSource(SECRET_ID));
+      grantWrite("other", true);
+      DataSourceOAuthTokens tokens = DataSourceOAuthTokens.builder()
+         .accessToken("NEW-ACCESS-TOKEN")
+         .refreshToken("NEW-REFRESH-TOKEN")
+         .method("updateTokens")
+         .dataSource(draft(CLOUD, SECRET_ID))
+         .build();
+
+      DataSourceDefinition result = service.setOAuthTokens(tokens);
+
+      assertEquals(STORED_SECRET, editorValue(result.getTabularView(), "testClientSecret"));
+      assertEquals("NEW-ACCESS-TOKEN", editorValue(result.getTabularView(), "accessToken"));
+   }
+
+   @Test
+   void oauthParamsForUnsavedDraftWithUnmanagedSecretIdReturnNoClientCredentials()
+      throws Exception
+   {
+      // behavior change: the draft must be saved first, the client reports the missing parameters
+      // as an authorization error
+      TabularOAuthParams params = service.getOAuthParams(oauthRequest(CLOUD, "clientSecret"));
+
+      assertNull(params.error());
+      assertNull(params.clientId());
+      assertNull(params.clientSecret());
+      assertNull(params.tokenUri());
+   }
+
    private void grantWrite(String path, boolean granted) throws Exception {
       when(securityEngine.checkPermission(
          principal, ResourceType.DATA_SOURCE, path, ResourceAction.WRITE)).thenReturn(granted);
