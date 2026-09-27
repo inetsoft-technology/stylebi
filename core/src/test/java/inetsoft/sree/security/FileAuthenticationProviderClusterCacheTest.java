@@ -52,7 +52,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.security.Principal;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 
@@ -161,37 +160,40 @@ class FileAuthenticationProviderClusterCacheTest {
 
    /**
     * X's session principal is already corrected to [Everyone] cluster-wide by the edit path
-    * (IgniteSessionRepository.updatePrincipalRolesAndGroups), and B's storage holds [Everyone],
-    * yet OrganizationManager.isSiteAdmin(Principal) falls back to B's cached getRoles(X).
+    * (IgniteSessionRepository.updatePrincipalRolesAndGroups sets its roles), and B's storage holds
+    * [Everyone], yet OrganizationManager.isSiteAdmin(Principal) falls back to B's cached
+    * getRoles(X). The principal is the real login principal, so DefaultCheckPermissionStrategy
+    * treats it as a non-SSO principal (roles from storage), as it does in a live session.
     */
    @Test
    void existingSessionLosesEmAccessOnLoginNodeAfterRevoke() {
       IdentityID x = new IdentityID("u76973session", ORG);
       nodeA.addUser(user(x, new String[0], EVERYONE, ADMIN));
-      Principal login = login(x);
-      assertHasAdmin(((SRPrincipal) login).getRoles(), "precondition: login on B is admin");
+      SRPrincipal session = login(x);
+      assertHasAdmin(session.getRoles(), "precondition: login on B is admin");
 
       nodeA.setUser(x, user(x, new String[0], EVERYONE));
-      SRPrincipal corrected = principal(x, EVERYONE);
+      session.setRoles(new IdentityID[] { EVERYONE });
 
-      waitFor(() -> !emAccess(corrected));
-      assertFalse(emAccess(corrected),
+      waitFor(() -> !emAccess(session));
+      assertFalse(emAccess(session),
                   "existing session on B (principal and storage roles [Everyone]) must lose EM " +
                   "access after the revoke on A; B.getRoles(X)=" + Arrays.toString(nodeB.getRoles(x)) +
                   ", B storage roles=" + Arrays.toString(nodeB.getUser(x).getRoles()) +
-                  ", isSiteAdmin(principal)=" + OrganizationManager.getInstance().isSiteAdmin(corrected));
+                  ", principal roles=" + Arrays.toString(session.getRoles()) +
+                  ", isSiteAdmin(principal)=" + OrganizationManager.getInstance().isSiteAdmin(session));
    }
 
    @Test
    void newLoginOnLoginNodeIsNotAdminAfterRevoke() {
       IdentityID x = new IdentityID("u76973relogin", ORG);
       nodeA.addUser(user(x, new String[0], EVERYONE, ADMIN));
-      assertHasAdmin(((SRPrincipal) login(x)).getRoles(), "precondition: login on B is admin");
+      assertHasAdmin(login(x).getRoles(), "precondition: login on B is admin");
 
       nodeA.setUser(x, user(x, new String[0], EVERYONE));
 
-      waitFor(() -> !isAdmin(((SRPrincipal) login(x)).getRoles()));
-      IdentityID[] roles = ((SRPrincipal) login(x)).getRoles();
+      waitFor(() -> !isAdmin(login(x).getRoles()));
+      IdentityID[] roles = login(x).getRoles();
       assertFalse(isAdmin(roles),
                   "a new login on B after the revoke on A must not carry Administrator; principal " +
                   "roles=" + Arrays.toString(roles) + ", B storage roles=" +
@@ -206,19 +208,21 @@ class FileAuthenticationProviderClusterCacheTest {
    void invalidatingOnlyLoginNodeCachesRemovesAdmin() {
       IdentityID x = new IdentityID("u76973control", ORG);
       nodeA.addUser(user(x, new String[0], EVERYONE, ADMIN));
-      assertHasAdmin(((SRPrincipal) login(x)).getRoles(), "precondition: login on B is admin");
+      SRPrincipal session = login(x);
+      assertHasAdmin(session.getRoles(), "precondition: login on B is admin");
       nodeA.setUser(x, user(x, new String[0], EVERYONE));
+      session.setRoles(new IdentityID[] { EVERYONE });
 
       ((Cache<?, ?>) ReflectionTestUtils.getField(nodeB, "userRoleCache")).invalidateAll();
       ((Cache<?, ?>) ReflectionTestUtils.getField(nodeB, "userGroupCache")).invalidateAll();
 
-      assertFalse(emAccess(principal(x, EVERYONE)), "existing session must lose EM access");
-      assertFalse(isAdmin(((SRPrincipal) login(x)).getRoles()), "new login must not be admin");
+      assertFalse(emAccess(session), "existing session must lose EM access");
+      assertFalse(isAdmin(login(x).getRoles()), "new login must not be admin");
    }
 
-   private Principal login(IdentityID x) {
+   private SRPrincipal login(IdentityID x) {
       ClientInfo info = new ClientInfo(x, "127.0.0.1", UUID.randomUUID().toString());
-      Principal principal = SecurityEngine.getSecurity().authenticate(
+      SRPrincipal principal = (SRPrincipal) SecurityEngine.getSecurity().authenticate(
          info, new DefaultTicket(x, PASSWORD));
       assertNotNull(principal, "login of " + x + " must succeed");
       return principal;
@@ -229,10 +233,6 @@ class FileAuthenticationProviderClusterCacheTest {
          new DefaultCheckPermissionStrategy(SecurityEngine.getSecurity().getSecurityProvider());
       return strategy.checkPermission(
          principal, ResourceType.EM_COMPONENT, "settings/security/provider", ResourceAction.ACCESS);
-   }
-
-   private static SRPrincipal principal(IdentityID x, IdentityID... roles) {
-      return new SRPrincipal(x, roles, new String[0], x.orgID, 1L);
    }
 
    private FSUser user(IdentityID id, String[] groups, IdentityID... roles) {
