@@ -587,7 +587,8 @@ public class ScheduleManagerTest {
 
    /**
     * Bug #77100 guard: user and group removal keep their existing behavior (own org scanned,
-    * owned tasks deleted, "execute as" cleared, bare notification tokens removed).
+    * owned tasks deleted, "execute as" cleared). The notification cleanup is type aware since
+    * Bug #77111 and is covered by its tests.
     */
    @Test
    void identityRemoved_userAndGroupUnchanged() throws Exception {
@@ -606,7 +607,6 @@ public class ScheduleManagerTest {
          scheduleManager.identityRemoved(new DefaultIdentity(gX, Identity.GROUP), provider);
          ScheduleTask groupAfter = scheduleManager.getScheduleTask(groupTask.getTaskId(), "org1");
          assertNull(groupAfter.getIdentity());
-         assertEquals("e@f.com", getNotifications(groupAfter));
 
          scheduleManager.identityRemoved(new DefaultIdentity(u9, Identity.USER), provider);
          assertNull(scheduleManager.getScheduleTask(ownedTask.getTaskId(), "org1"));
