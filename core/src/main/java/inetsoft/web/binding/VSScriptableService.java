@@ -100,8 +100,9 @@ public class VSScriptableService {
       ObjectNode root = createScriptDefinitions(mapper);
 
       if(box.isPresent()) {
+         box.get().lockRead();
+
          try {
-            box.get().lockRead();
             createComponentDefinitions(mapper, root, rvs, vsName, assemblyName);
             createParameterDefinitions(mapper, root, viewsheetService, rvs, vsName);
             createFieldDefinitions(mapper, root, rvs, viewsheet, assemblyName, tableName,
