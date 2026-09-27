@@ -34,7 +34,9 @@ import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
+import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -409,6 +411,59 @@ class IdentityThemeServiceTest {
       verify(manager, never()).setCustomThemes(any());
       assertEquals(List.of("alice"), aTheme.getUsers());
       assertEquals(List.of("bob"), bTheme.getUsers());
+   }
+
+   // Issue #77116: a site admin editing another organization is offered the global themes and
+   // the edited organization's themes, not the themes of the admin's current organization
+   @Test
+   void getThemes_siteAdminEditsOtherOrg_listsEditedOrgThemes() {
+      Principal principal = mock(Principal.class);
+
+      try(MockedStatic<OrganizationManager> ignored = mockThemesAndOrg(ORG_A, true, principal)) {
+         assertEquals(Set.of("tb", "g", "e"), themeIds(service.getThemes(ORG_B, principal)));
+      }
+   }
+
+   // Issue #77116: an organization admin can only list its own organization's themes, so another
+   // organization ID falls back to the current organization
+   @Test
+   void getThemes_nonSiteAdminPassesOtherOrg_listsCurrentOrgThemes() {
+      Principal principal = mock(Principal.class);
+
+      try(MockedStatic<OrganizationManager> ignored = mockThemesAndOrg(ORG_A, false, principal)) {
+         assertEquals(Set.of("ta", "g", "e"), themeIds(service.getThemes(ORG_B, principal)));
+      }
+   }
+
+   // Issue #77116: without an organization ID the current organization's themes are listed
+   @Test
+   void getThemes_noOrgId_listsCurrentOrgThemes() {
+      Principal principal = mock(Principal.class);
+
+      try(MockedStatic<OrganizationManager> ignored = mockThemesAndOrg(ORG_A, true, principal)) {
+         assertEquals(Set.of("ta", "g", "e"), themeIds(service.getThemes()));
+         assertEquals(Set.of("ta", "g", "e"), themeIds(service.getThemes("", principal)));
+         assertEquals(Set.of("ta", "g", "e"), themeIds(service.getThemes(ORG_A, principal)));
+      }
+   }
+
+   private MockedStatic<OrganizationManager> mockThemesAndOrg(String currentOrgID,
+                                                              boolean siteAdmin,
+                                                              Principal principal)
+   {
+      // a theme with an empty organization ID is global, see IdentityService.getEligibleOrgTheme()
+      when(manager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(
+         theme("ta", ORG_A), theme("tb", ORG_B), theme("g", null), theme("e", ""))));
+      OrganizationManager orgManager = mock(OrganizationManager.class);
+      MockedStatic<OrganizationManager> orgManagerStatic = mockStatic(OrganizationManager.class);
+      orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      when(orgManager.getCurrentOrgID()).thenReturn(currentOrgID);
+      when(orgManager.isSiteAdmin(principal)).thenReturn(siteAdmin);
+      return orgManagerStatic;
+   }
+
+   private static Set<String> themeIds(IdentityThemeList list) {
+      return list.themes().stream().map(IdentityTheme::id).collect(Collectors.toSet());
    }
 
    private static CustomTheme theme(String id, String orgID) {
