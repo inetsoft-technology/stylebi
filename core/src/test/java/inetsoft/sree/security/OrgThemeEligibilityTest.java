@@ -226,6 +226,63 @@ class OrgThemeEligibilityTest {
       verify(themesManager).setOrgSelectedTheme(OWN_THEME, RENAMED_ORG_ID);
    }
 
+   @Test
+   void duplicateOrgName_themeOfSameNamedOrg_rejected() throws Exception {
+      // eligibility must be anchored on the edited org's id, not on the org resolved from the
+      // display name, which can be another org with the same name
+      String sharedName = "OrgThemeShared";
+
+      for(String orgID : List.of(EDITED_ORG_ID, OTHER_ORG_ID)) {
+         FSOrganization org = (FSOrganization) fileProvider.getOrganization(orgID);
+         org.setName(sharedName);
+         org.setTheme(null);
+         fileProvider.setOrganization(orgID, org);
+      }
+
+      String resolvedID = fileProvider.getOrgIdFromName(sharedName);
+      String editedID = EDITED_ORG_ID.equals(resolvedID) ? OTHER_ORG_ID : EDITED_ORG_ID;
+      // a private theme of the same-named org the display name resolves to
+      String foreignTheme = EDITED_ORG_ID.equals(resolvedID) ? OWN_THEME : OTHER_THEME;
+      List<String> foreignOrganizations =
+         new ArrayList<>(themeById(foreignTheme).getOrganizations());
+
+      FSOrganization oldOrg = (FSOrganization) fileProvider.getOrganization(editedID);
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .id(editedID)
+         .name(sharedName)
+         .oldName(sharedName)
+         .members(List.of())
+         .status(true)
+         .theme(foreignTheme)
+         .build();
+
+      try {
+         invokeSetOrganizationInfo(oldOrg, model);
+      }
+      catch(InvocationTargetException e) {
+         // Tolerated: syncIdentity() needs storage infrastructure this minimal context does not
+         // provide. The new organization's theme is set before syncIdentity() is called.
+      }
+
+      // the id-change path is taken while the name lookup resolves the other org, otherwise the
+      // edited org itself is updated
+      ArgumentCaptor<Organization> newOrg = ArgumentCaptor.forClass(Organization.class);
+      String editedTheme = mockingDetails(dashboardRegistryManager).getInvocations().isEmpty() ?
+         fileProvider.getOrganization(editedID).getTheme() :
+         captureMigratedOrg(newOrg).getTheme();
+
+      assertNotEquals(foreignTheme, editedTheme,
+                      "a private theme of a same-named org must not become the org default");
+      assertEquals(foreignOrganizations, themeById(foreignTheme).getOrganizations(),
+                   "the same-named org's private theme must not gain the edited org");
+      verify(themesManager, never()).setOrgSelectedTheme(eq(foreignTheme), eq(editedID));
+   }
+
+   private Organization captureMigratedOrg(ArgumentCaptor<Organization> newOrg) {
+      verify(dashboardRegistryManager).migrateRegistry(isNull(), any(), newOrg.capture());
+      return newOrg.getValue();
+   }
+
    private void updateTheme(String theme) throws Exception {
       FSOrganization oldOrg = (FSOrganization) fileProvider.getOrganization(EDITED_ORG_ID);
       EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
