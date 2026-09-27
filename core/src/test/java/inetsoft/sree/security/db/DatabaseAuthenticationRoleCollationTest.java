@@ -19,6 +19,7 @@
 package inetsoft.sree.security.db;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.test.BaseTestConfiguration;
 import inetsoft.test.ConfigurationContextInitializer;
@@ -174,6 +175,83 @@ class DatabaseAuthenticationRoleCollationTest {
       assertEquals(List.of("bob@acme"), sorted(p.getEmails(bob)));
    }
 
+   @ParameterizedTest(name = "userRoleListQuery={0}")
+   @ValueSource(booleans = { false, true })
+   void cacheEnabled_rolesAndEmailsNotMerged(boolean userRoleList) throws Exception {
+      createSingleTenantDb(true);
+      DatabaseAuthenticationProvider p = cachedSingleTenantProvider(userRoleList);
+      assertTrue(p.isCacheEnabled());
+      AuthenticationChain chain = new AuthenticationChain();
+      chain.setProviders(List.of(p));
+
+      // Without the bulk user role list, the cache loads the roles of each user through the
+      // checked DAO lookup. With it, the preloaded roles are keyed by the exact user name.
+      List<String> bobRoles = userRoleList ? List.of("role-bob") : List.of();
+      List<String> upperBobRoles = userRoleList ? List.of("Administrator") : List.of();
+
+      for(int i = 0; i < 2; i++) {
+         assertEquals(bobRoles, roles(p.getRoles(id("bob"))), "bob roles, call " + i);
+         assertEquals(upperBobRoles, roles(p.getRoles(id("BOB"))), "BOB roles, call " + i);
+         assertEquals(bobRoles, roles(chain.getRoles(id("bob"))), "bob chain roles, call " + i);
+         assertEquals(List.of(), sorted(p.getEmails(id("bob"))), "bob emails, call " + i);
+         assertEquals(List.of(), sorted(p.getEmails(id("BOB"))), "BOB emails, call " + i);
+      }
+
+      User bob = p.getUser(id("bob"));
+      assertNotNull(bob);
+      assertEquals(bobRoles, roles(bob.getRoles()), "getUser(bob) roles");
+      assertEquals(List.of(), sorted(bob.getEmails()), "getUser(bob) emails");
+      assertEquals(List.of("r-alice"), roles(p.getRoles(id("alice"))));
+      assertEquals(List.of("alice@z"), sorted(p.getEmails(id("alice"))));
+   }
+
+   @Test
+   void unambiguousUsers_rolesUnchanged() throws Exception {
+      createSingleTenantDb(true);
+      exec("INSERT INTO U VALUES ('dave', 'pw-dave')",
+           "INSERT INTO UR VALUES ('carol', 'r-carol')",
+           "INSERT INTO UE VALUES ('carol', 'carol@z')");
+      DatabaseAuthenticationProvider p = singleTenantProvider(true);
+
+      // a user with no row in the users query is not ambiguous
+      assertEquals(List.of("r-carol"), roles(p.getRoles(id("carol"))));
+      assertEquals(List.of("carol@z"), sorted(p.getEmails(id("carol"))));
+      // a user with no roles and no emails is unchanged
+      assertEquals(List.of(), roles(p.getRoles(id("dave"))));
+      assertEquals(List.of(), sorted(p.getEmails(id("dave"))));
+      assertTrue(login(p, "dave", "pw-dave"));
+   }
+
+   private DatabaseAuthenticationProvider cachedSingleTenantProvider(boolean userRoleList)
+      throws Exception
+   {
+      DatabaseAuthenticationProvider p = singleTenantProvider(true, true);
+
+      if(userRoleList) {
+         p.setUserRoleListQuery("SELECT USER_NAME, ROLE_NAME FROM UR");
+      }
+
+      // The cluster loader service needs a configured SecurityEngine, so a stub stands in for
+      // it and fills the replicated maps from the real DAO, as a cache load does.
+      String name = "rolecollation_cache_" + (dbCounter++);
+      String prefix = "DatabaseSecurity:" + name;
+      Cluster cluster = Cluster.getInstance();
+      DatabaseAuthenticationCacheService service = mock(DatabaseAuthenticationCacheService.class);
+      when(service.isInitialized()).thenReturn(true);
+      cluster.getSingletonService(prefix, DatabaseAuthenticationCacheService.class, () -> service);
+      p.setProviderName(name);
+
+      AuthenticationDAO dao = p.getDao();
+      Map<String, Object> lists = cluster.getReplicatedMap(prefix + ".lists");
+      lists.put("orgs", new TreeSet<>(Arrays.asList(dao.getOrganizations().result())));
+      lists.put("users", new TreeSet<>(Arrays.asList(dao.getUsers().result())));
+      lists.put("groups", new TreeSet<>(Arrays.asList(dao.getGroups().result())));
+      lists.put("roles", new TreeSet<>(Arrays.asList(dao.getRoles().result())));
+      Map<IdentityID, IdentityArray> userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
+      userRoles.putAll(dao.getUserRoles().result());
+      return p;
+   }
+
    private void createSingleTenantDb(boolean caseInsensitive) throws Exception {
       url = newUrl(caseInsensitive);
       exec("CREATE TABLE U (NAME VARCHAR(50) NOT NULL, PW VARCHAR(50))",
@@ -204,7 +282,14 @@ class DatabaseAuthenticationRoleCollationTest {
    private DatabaseAuthenticationProvider singleTenantProvider(boolean caseSensitive)
       throws Exception
    {
-      DatabaseAuthenticationProvider p = newProvider(caseSensitive);
+      return singleTenantProvider(caseSensitive, false);
+   }
+
+   private DatabaseAuthenticationProvider singleTenantProvider(boolean caseSensitive,
+                                                               boolean cache)
+      throws Exception
+   {
+      DatabaseAuthenticationProvider p = newProvider(caseSensitive, cache);
       p.setMultiTenantSupplier(() -> false);
       p.setUserQuery("SELECT NAME, PW FROM U WHERE NAME = ?");
       p.setUserListQuery("SELECT NAME FROM U");
@@ -217,7 +302,7 @@ class DatabaseAuthenticationRoleCollationTest {
    }
 
    private DatabaseAuthenticationProvider multiTenantProvider() throws Exception {
-      DatabaseAuthenticationProvider p = newProvider(true);
+      DatabaseAuthenticationProvider p = newProvider(true, false);
       p.setMultiTenantSupplier(() -> true);
       p.setOrganizationListQuery("SELECT ID FROM O");
       p.setOrganizationNameQuery("SELECT NAME FROM O WHERE ID = ?");
@@ -229,13 +314,15 @@ class DatabaseAuthenticationRoleCollationTest {
       return p;
    }
 
-   private DatabaseAuthenticationProvider newProvider(boolean caseSensitive) throws Exception {
+   private DatabaseAuthenticationProvider newProvider(boolean caseSensitive, boolean cache)
+      throws Exception
+   {
       String oldCaseSensitive = SreeEnv.getProperty("security.user.caseSensitive");
       String oldCache = SreeEnv.getProperty("security.cache");
       DatabaseAuthenticationProvider p;
 
       try {
-         SreeEnv.setProperty("security.cache", "false");
+         SreeEnv.setProperty("security.cache", Boolean.toString(cache));
          SreeEnv.setProperty("security.user.caseSensitive", Boolean.toString(caseSensitive));
          p = new DatabaseAuthenticationProvider();
       }
