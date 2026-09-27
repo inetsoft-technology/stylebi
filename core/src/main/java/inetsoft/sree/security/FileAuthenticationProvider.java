@@ -363,9 +363,9 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             savedPasswd, passwd, algorithm, uobj.getPasswordSalt(), uobj.isAppendPasswordSalt());
 
          if(authenticated) {
-            // the login principal is built from getRoles() and getUserGroups(), load them from
-            // storage instead of an entry that a change on another node may not have invalidated
-            // yet (Bug #76973)
+            // on every successful password check, so that a login principal built from getRoles()
+            // and getUserGroups() is loaded from storage instead of an entry that a change on
+            // another node may not have invalidated yet (Bug #76973)
             userGroupCache.invalidate(userIdentity);
             userRoleCache.invalidate(userIdentity);
          }
