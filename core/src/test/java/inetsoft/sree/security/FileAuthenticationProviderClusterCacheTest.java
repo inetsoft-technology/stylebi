@@ -34,6 +34,7 @@ package inetsoft.sree.security;
  * [Revoke: delete+recreate] B loaded roles(X) + A removeUser + addUser(Everyone) → B.getRoles(X) drops Administrator
  * [Existing session]        principal/storage [Everyone] after revoke on A      → EM_COMPONENT check on B denied
  * [New login]               login on B after revoke on A                        → new principal has no Administrator
+ * [Login in window]          B's listeners off, login on B right after revoke    → new principal has no Administrator
  * [Control: cache only]     B's caches invalidated locally                      → existing session and new login denied
  *
  * Event delivery from the storage to node B is asynchronous (LocalKeyValueStorage re-dispatches
@@ -43,6 +44,7 @@ package inetsoft.sree.security;
 import com.github.benmanes.caffeine.cache.Cache;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
+import inetsoft.storage.KeyValueStorage;
 import inetsoft.test.*;
 import inetsoft.util.PasswordEncryption;
 import org.junit.jupiter.api.*;
@@ -52,6 +54,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.Serializable;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 
@@ -198,6 +201,53 @@ class FileAuthenticationProviderClusterCacheTest {
                   "a new login on B after the revoke on A must not carry Administrator; principal " +
                   "roles=" + Arrays.toString(roles) + ", B storage roles=" +
                   Arrays.toString(nodeB.getUser(x).getRoles()));
+   }
+
+   /**
+    * A login on B inside the window before B's storage listener has delivered the revoke must not
+    * copy the stale cache entry into the new principal (Bug #76973, F-6). B's listeners are removed
+    * so that the listener cannot be what drops Administrator, and the login is checked immediately.
+    */
+   @Test
+   void loginBeforeListenerDeliveryIsNotAdminAfterRevoke() {
+      IdentityID x = new IdentityID("u76973window", ORG);
+      Map<KeyValueStorage<Serializable>, KeyValueStorage.Listener<Serializable>> listeners = nodeBListeners();
+      listeners.forEach(KeyValueStorage::removeListener);
+
+      try {
+         nodeA.addUser(user(x, new String[0], EVERYONE, ADMIN));
+         assertHasAdmin(login(x).getRoles(), "precondition: login on B is admin");
+
+         nodeA.setUser(x, user(x, new String[0], EVERYONE));
+
+         assertArrayEquals(new IdentityID[] { EVERYONE }, nodeB.getUser(x).getRoles(),
+                           "B's storage replica must already hold the revoked roles");
+         assertHasAdmin(nodeB.getRoles(x),
+                        "precondition: B's cache must still be stale (no listener delivery)");
+
+         IdentityID[] roles = login(x).getRoles();
+         assertFalse(isAdmin(roles),
+                     "a login on B before B's cache is invalidated must be built from storage; " +
+                     "principal roles=" + Arrays.toString(roles) + ", B storage roles=" +
+                     Arrays.toString(nodeB.getUser(x).getRoles()));
+      }
+      finally {
+         listeners.forEach(KeyValueStorage::addListener);
+      }
+   }
+
+   @SuppressWarnings("unchecked")
+   private Map<KeyValueStorage<Serializable>, KeyValueStorage.Listener<Serializable>> nodeBListeners() {
+      nodeB.getUser(new IdentityID("admin", ORG)); // opens the storages and registers the listeners
+      Map<KeyValueStorage<Serializable>, KeyValueStorage.Listener<Serializable>> listeners = new HashMap<>();
+
+      for(String type : new String[] { "user", "group", "role" }) {
+         listeners.put(
+            (KeyValueStorage<Serializable>) ReflectionTestUtils.getField(nodeB, type + "Storage"),
+            (KeyValueStorage.Listener<Serializable>) ReflectionTestUtils.getField(nodeB, type + "CacheListener"));
+      }
+
+      return listeners;
    }
 
    /**
