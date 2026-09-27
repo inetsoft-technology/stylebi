@@ -607,6 +607,74 @@ public class ScheduleTaskTest {
       });
    }
 
+   // --- Bug #77167, a site-admin import moves the execute-as identity to the importing org ---
+
+   private static final IdentityID SOURCE_EXEC_AS = new IdentityID("x", "source-org");
+   private static final IdentityID TARGET_EXEC_AS = new IdentityID("x", "target-org");
+
+   @ParameterizedTest(name = "site-admin import moves execute-as of type {0} to the target org")
+   @ValueSource(ints = { Identity.USER, Identity.GROUP, Identity.ROLE })
+   void parseXML_siteAdminImport_executeAsMovesToTargetOrg(int type) throws Exception {
+      ScheduleTask task = importTask(importXml(SOURCE_EXEC_AS, type),
+                                     knownProvider(SOURCE_EXEC_AS, TARGET_EXEC_AS), true);
+
+      assertEquals(new IdentityID("admin", "target-org"), task.getOwner());
+      assertNotNull(task.getIdentity());
+      assertEquals(type, task.getIdentity().getType());
+      assertEquals(TARGET_EXEC_AS, task.getIdentity().getIdentityID(),
+                   "the execute-as identity must follow the owner into the importing org");
+   }
+
+   @Test
+   void parseXML_siteAdminImport_globalRoleStaysGlobal() throws Exception {
+      IdentityID global = new IdentityID("x", null);
+      ScheduleTask task = importTask(importXml(global, Identity.ROLE), knownProvider(global), true);
+
+      assertNotNull(task.getIdentity());
+      assertEquals(global, task.getIdentity().getIdentityID());
+   }
+
+   @ParameterizedTest(name = "non-site-admin import keeps execute-as of type {0} unchanged")
+   @ValueSource(ints = { Identity.USER, Identity.GROUP, Identity.ROLE })
+   void parseXML_nonSiteAdminImport_executeAsUnchanged(int type) throws Exception {
+      ScheduleTask task = importTask(importXml(SOURCE_EXEC_AS, type),
+                                     knownProvider(SOURCE_EXEC_AS, TARGET_EXEC_AS), false);
+
+      assertNotNull(task.getIdentity());
+      assertEquals(SOURCE_EXEC_AS, task.getIdentity().getIdentityID());
+   }
+
+   private static String importXml(IdentityID executeAs, int type) {
+      return "<Task name=\"t1\" owner=\"" +
+         Tool.escape(new IdentityID("admin", "source-org").convertToKey()) +
+         "\" enabled=\"true\" idname=\"" + Tool.escape(executeAs.convertToKey()) +
+         "\" idtype=\"" + type + "\"/>";
+   }
+
+   private static SecurityProvider knownProvider(IdentityID... ids) {
+      SecurityProvider provider = mock(SecurityProvider.class);
+
+      for(IdentityID id : ids) {
+         when(provider.getUser(id)).thenReturn(new User(id));
+         when(provider.getGroup(id)).thenReturn(new Group(id));
+         when(provider.getRole(id)).thenReturn(new Role(id));
+      }
+
+      return provider;
+   }
+
+   private ScheduleTask importTask(String xml, SecurityProvider provider, boolean siteAdmin)
+      throws Exception
+   {
+      Element elem = parseTaskXml(xml);
+      ScheduleTask task = new ScheduleTask();
+      withSecurity(provider, true, () -> OrganizationManager.runInOrgScope("target-org", () -> {
+         task.parseXML(elem, siteAdmin);
+         return null;
+      }));
+      return task;
+   }
+
    private static String executeAsXml(int type) {
       return "<Task name=\"t1\" owner=\"admin~;~host-org\" enabled=\"true\" idname=\"" +
          Tool.escape(EXEC_AS.convertToKey()) + "\" idtype=\"" + type + "\"/>";

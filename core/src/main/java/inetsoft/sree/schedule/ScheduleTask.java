@@ -1476,6 +1476,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       timeZone = Tool.getAttribute(elem, "timeZone");
 
       IdentityID idname = IdentityID.getIdentityIDFromKey(Tool.getAttribute(elem, "idname"));
+
+      // Bug #77167, move the execute-as identity to the importing org along with the owner,
+      // global identities (null org) stay global
+      if(isSiteAdminImport && idname != null && idname.getOrgID() != null) {
+         idname = new IdentityID(idname.getName(), OrganizationManager.getInstance().getCurrentOrgID());
+      }
+
       int idtype = 0;
 
       try {
