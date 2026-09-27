@@ -122,6 +122,9 @@ class DashboardRegistryOrgLifecycleTest {
    // provider-refresh timing. The mechanism itself (IdentityService.copyDashboardRegistry()
    // looping securityEngine.getOrgUsers()) is still correctly described in the matrix doc row 4c;
    // only this test's reliability is in question, not the finding.
+   // Before re-enabling: every assertion pair below also calls getDashboard() twice on a live
+   // registry that holds an un-detached change listener, which is the same exposure as 4d had
+   // (Bug #77102). Assert on the raw registry XML (orgIdFromRegistryXml) instead.
    @Disabled("Flaky -- intermittent SecurityEngine.getOrgUsers() race right after "
       + "SecurityTestDataBuilder.setup(); root cause not yet isolated, see comment above")
    @Test
@@ -189,13 +192,15 @@ class DashboardRegistryOrgLifecycleTest {
       String toOrgId = "dashreg_rename_to";
       IdentityID user = new IdentityID("bob", fromOrgId);
 
-      // toOrgId must also be a real registered org: the plain (admin) DashboardRegistry(String
-      // orgId, ...) constructor resolves orgId via provider.getOrgNameFromID()/getOrganization()
-      // and collapses to organizationId=null if the org isn't recognized (DashboardRegistry.java
-      // :51-68) -- this matters here because getRegistry(toOrgId) below constructs a *brand new*
-      // registry object from scratch (nothing in copyOrganizationInternal(replace=true) itself
-      // ever populates/caches one for toOrgId), unlike the per-user UserDashboardRegistry
-      // constructor, which assigns organizationId directly with no such resolution/validation.
+      // toOrgId is registered so the target org is a real org, as it would be in production.
+      // Note that the assertions below deliberately do NOT load the relocated files through
+      // dashboardRegistryManager.getRegistry(toOrgId) / getRegistry(bob@toOrgId), and read the
+      // raw DataSpace XML instead (Bug #77102). A freshly loaded DashboardRegistry registers a
+      // DataSpace change listener on its file, and a late BlobStorageEvent delivery (its own
+      // port-on-load save(), the copyDataSpace() rename's events, or an ancestor "portal"
+      // directory event from an earlier test class) makes that listener reset() the live
+      // registry in place and re-parse it asynchronously; a lookup in that window sees an empty
+      // registry.
       builder = SecurityTestDataBuilder.create()
          .addOrg("DashRegRenameFrom", fromOrgId)
          .addOrg("DashRegRenameTo", toOrgId)
@@ -246,28 +251,29 @@ class DashboardRegistryOrgLifecycleTest {
       // never invokes. This is asserted here as current behavior (not @Disabled -- it is an
       // accurate description of what the code does, same convention as this file's sibling
       // OrgLifecycleThemeOrchestrationTest's documented-gap test).
-      // dashboardRegistryManager.getRegistry(toOrgId) is a fresh cache-miss load from the
-      // just-relocated file, which runs DashboardRegistry.parseXML() -- that unconditionally
-      // appends a "__GLOBAL" suffix to admin/global dashboard names that don't already have one
-      // (DashboardRegistry.java:202-205), independent of anything this scenario is about; the
-      // per-user dashboard below is unaffected since UserDashboardRegistry.isGlobal() is false.
-      DashboardRegistry newAdminRegistry = dashboardRegistryManager.getRegistry(toOrgId);
-      assertNotNull(newAdminRegistry.getDashboard("AdminDash__GLOBAL"),
-                    "the admin registry FILE was relocated to the new org's path by "
-                    + "copyDataSpace()'s blanket DataSpace rename, so it is readable there");
-      assertEquals(fromOrgId, orgIdOf((VSDashboard) newAdminRegistry.getDashboard("AdminDash__GLOBAL")),
+      // Assert on the raw relocated XML, as 4e does, not through getRegistry(toOrgId) /
+      // getRegistry(bob@toOrgId): loading a live registry here registers a change listener, and
+      // a late BlobStorageEvent reset()s that registry in place and re-loads it asynchronously,
+      // so back-to-back getDashboard() calls could see it empty (Bug #77102). The raw XML still
+      // proves what this scenario is about: the files were moved and their content was not
+      // rewritten.
+      String newAdminPath = "portal/" + toOrgId + "/dashboard-registry.xml";
+      String newUserPath = "portal/" + toOrgId + "/bob/dashboard-registry.xml";
+
+      assertTrue(dataSpace.exists(null, newAdminPath),
+                 "the admin registry FILE was relocated to the new org's path by "
+                 + "copyDataSpace()'s blanket DataSpace rename, so it is readable there");
+      assertEquals(fromOrgId, orgIdFromRegistryXml(newAdminPath),
                   "but its internal viewsheet reference still points at the OLD org -- "
                   + "copyOrganizationInternal(replace=true) never rewrites dashboard content, "
                   + "only DashboardRegistryManager.migrateRegistry() does that, and this call "
                   + "path never invokes it");
 
-      DashboardRegistry newUserRegistry =
-         dashboardRegistryManager.getRegistry(new IdentityID("bob", toOrgId));
-      assertNotNull(newUserRegistry.getDashboard("BobDash"),
-                    "the per-user registry FILE was relocated the same way -- copyDataSpace() "
-                    + "does not distinguish admin vs. per-user paths, both start with "
-                    + "\"portal/{fromOrgId}/\"");
-      assertEquals(fromOrgId, orgIdOf((VSDashboard) newUserRegistry.getDashboard("BobDash")),
+      assertTrue(dataSpace.exists(null, newUserPath),
+                 "the per-user registry FILE was relocated the same way -- copyDataSpace() "
+                 + "does not distinguish admin vs. per-user paths, both start with "
+                 + "\"portal/{fromOrgId}/\"");
+      assertEquals(fromOrgId, orgIdFromRegistryXml(newUserPath),
                   "same stale-content gap as the admin registry");
 
       // Nothing is left behind under the old org's prefix -- confirms "moved", not "duplicated".
