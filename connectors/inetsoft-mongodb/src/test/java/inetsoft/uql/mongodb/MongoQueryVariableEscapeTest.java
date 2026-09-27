@@ -59,6 +59,37 @@ class MongoQueryVariableEscapeTest {
       assertRoundTrip("{name: \"$(p)\", other: 1}", value, value);
    }
 
+   /**
+    * A value that itself contains placeholder syntax must be emitted literally, not
+    * re-expanded against the variable table (no second-order substitution), and
+    * non-ASCII / control characters must round-trip unchanged.
+    */
+   @ParameterizedTest
+   @MethodSource("placeholderTemplates")
+   void valueContainingPlaceholderSyntaxOrUnicode_isNotReExpanded(String match) {
+      String[] values = { "$(q)", "a$(q)b)", "$(@q)", "Zoë'日本\n\t😀" };
+
+      for(String value : values) {
+         MongoQuery query = new MongoQuery();
+         query.setQueryString("{aggregate: 'c', pipeline: [{$match: " + match + "}], cursor: {}}");
+         VariableTable vars = new VariableTable();
+         vars.put("p", value);
+         vars.put("q", "', admin: '1");
+         TabularUtil.replaceVariables(query, vars);
+
+         Document doc = Document.parse(query.getQueryString());
+         Document matchDoc = (Document) ((Document) ((List<?>) doc.get("pipeline")).get(0))
+            .get("$match");
+         assertEquals(new HashSet<>(Arrays.asList("name", "other")), matchDoc.keySet(), value);
+         assertEquals(value, matchDoc.get("name"));
+      }
+   }
+
+   static Stream<String> placeholderTemplates() {
+      return Stream.of("{name: $(p), other: 1}", "{name: '$(p)', other: 1}",
+                       "{name: \"$(p)\", other: 1}");
+   }
+
    @ParameterizedTest
    @MethodSource("values")
    void arrayValueInScalarContext_roundTripsFirstElement(String value) {
