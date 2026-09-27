@@ -217,7 +217,8 @@ public class SQLQueryDialogService {
       }
 
       if(model.isCloseDialog()) {
-         queryManagerService.clearRuntimeQuery();
+         // Bug #77190, remove only this dialog's runtime query, not every user's.
+         queryManagerService.destroyRuntimeQuery(model.getRuntimeId(), principal);
       }
 
       WorksheetEventUtil.refreshColumnSelection(rws, name, true);
