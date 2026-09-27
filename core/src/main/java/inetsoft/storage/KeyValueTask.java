@@ -96,7 +96,7 @@ public abstract class KeyValueTask<T extends Serializable> implements Serializab
     *
     * @return the bean.
     */
-   static <B> B getServiceBean(Class<B> type) {
+   protected static <B> B getServiceBean(Class<B> type) {
       return ConfigurationContext.getContext()
          .awaitSpringBean(type, SERVICE_BEAN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
    }

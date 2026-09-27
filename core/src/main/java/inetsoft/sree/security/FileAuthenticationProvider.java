@@ -1005,7 +1005,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       @Override
       protected void validate(Map<String, FSUser> map) {
-         LicenseManager manager = LicenseManager.getInstance();
+         LicenseManager manager = getServiceBean(LicenseManager.class);
          int namedUserCount =
             manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
 

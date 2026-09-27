@@ -915,8 +915,7 @@ public class DashboardManager implements AutoCloseable {
 
       @Override
       protected void validate(Map<String, DashboardData> map) throws Exception {
-         SecurityProvider security = ConfigurationContext.getContext()
-            .getSpringBean(SecurityEngine.class).getSecurityProvider();
+         SecurityProvider security = getServiceBean(SecurityEngine.class).getSecurityProvider();
 
          for(Map.Entry<String, DashboardData> e : map.entrySet()) {
             int index = e.getKey().indexOf(':');

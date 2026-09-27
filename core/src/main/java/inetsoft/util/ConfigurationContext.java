@@ -258,6 +258,11 @@ public class ConfigurationContext implements AutoCloseable {
     * no bean of the type is created yet, this method waits for the bean instead of looking it up,
     * for at most the given time, after which it looks it up anyway.</p>
     *
+    * <p>This closes only the window before the configuration is frozen, and relies on the bean
+    * being created during the refresh. After the refresh Spring locks strictly again, so a lookup
+    * of a lazy singleton that is first created later can still wait for a thread that holds the
+    * lock while it creates another bean.</p>
+    *
     * @param type    the bean type.
     * @param timeout the maximum time to wait for the bean to be created.
     * @param unit    the unit of the timeout.
@@ -289,7 +294,8 @@ public class ConfigurationContext implements AutoCloseable {
    /**
     * Determines if a singleton of the given type can be looked up without waiting on the singleton
     * lock of a context that is being refreshed. Only reads state that Spring keeps outside of that
-    * lock.
+    * lock. A frozen configuration counts as available, which only holds for beans created during
+    * the refresh, see {@link #awaitSpringBean}.
     */
    private boolean isSingletonAvailable(Class<?> type) {
       ApplicationContext context = applicationContext;
