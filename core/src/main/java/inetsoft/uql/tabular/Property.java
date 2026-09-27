@@ -57,6 +57,10 @@ public @interface Property {
 
    /**
     * True if this is a SQL string. This affects how variables are replaced.
+    * Note that string values substituted into such a property are escaped
+    * for JSON query text (backslash escaping, as used by the MongoDB query
+    * property), not with SQL quote doubling; see
+    * {@code VarSQL.LiteralEscapeStyle#JSON}.
     */
    boolean sql() default false;
 
