@@ -204,9 +204,27 @@ public class PropertiesEngine {
 
    @PreDestroy
    public void shutdown() throws Exception {
-      // the debouncer still runs a pending change task after it is closed, so the task checks
-      // this flag and does not reload a closed engine (Bug #77201)
+      // a change task that is already scheduled must not reload the properties after this engine
+      // was shut down. Set the flag first, then stop receiving change events, so that no task can
+      // be scheduled after it was cancelled (Bug #77201, Bug #77142)
       closed = true;
+      KeyValueStorage<String> storage;
+
+      // read under the same monitor getStorage() writes kvStorage under (Bug #77177)
+      synchronized(this) {
+         storage = kvStorage;
+      }
+
+      if(storage != null) {
+         try {
+            storage.removeListener(changeListener);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to remove the property storage listener", e);
+         }
+      }
+
+      debouncer.cancel("change");
       debouncer.close();
    }
 
@@ -326,11 +344,19 @@ public class PropertiesEngine {
     * Remove the named property.
     */
    public void remove(String name) {
-      init();
-      Properties prop = getInternalProperties();
       String key = fixPropertyNameCase(name);
       name = key;
-      changeProperty(key, () -> prop.remove(key));
+      // a writer waits for a running reload, so that it changes the reloaded properties rather
+      // than the ones the reload is about to replace (Bug #77142)
+      propertiesLock.lock();
+
+      try {
+         Properties prop = getLoadedProperties();
+         changeProperty(key, () -> prop.remove(key));
+      }
+      finally {
+         propertiesLock.unlock();
+      }
 
       // the SQL helper properties are deliberately not applied here, to keep the existing
       // removal behavior
@@ -367,8 +393,6 @@ public class PropertiesEngine {
     */
    public void setProperty(String name, String val) {
       checkScriptThread();
-      init();
-      Properties prop = getInternalProperties();
       name = fixPropertyNameCase(name);
 
       if(val == null) {
@@ -394,14 +418,26 @@ public class PropertiesEngine {
             }
          }
 
-         // if value is the same then don't set it as changed and just return
-         if(Tool.equals(prop.getProperty(name), val)) {
-            return;
-         }
-
          String key = name;
          String value = val;
-         changeProperty(key, () -> prop.put(key, value));
+         // a writer waits for a running reload, so that it changes the reloaded properties rather
+         // than the ones the reload is about to replace (Bug #77142)
+         propertiesLock.lock();
+
+         try {
+            Properties prop = getLoadedProperties();
+
+            // if value is the same then don't set it as changed and just return
+            if(Tool.equals(prop.getProperty(key), value)) {
+               return;
+            }
+
+            changeProperty(key, () -> prop.put(key, value));
+         }
+         finally {
+            propertiesLock.unlock();
+         }
+
          applyProperty(name);
       }
    }
@@ -550,8 +586,7 @@ public class PropertiesEngine {
 
       if(orgID != null) {
          orgID = orgID.toLowerCase();
-         init();
-         Properties prop = getInternalProperties();
+         Properties prop = getLoadedProperties();
          String orgPropertyName = "inetsoft.org." + orgID + "." + propertyName;
 
          if(prop.containsKey(orgPropertyName)) {
@@ -571,8 +606,23 @@ public class PropertiesEngine {
     * like properties from user storage, which should be getted with organizationID.
     */
    private Properties getUserEnhancedProperties() {
-      init();
-      return internalProperties;
+      return getLoadedProperties();
+   }
+
+   /**
+    * Gets the published properties, loading them first if needed. The field is read once into a
+    * local, so the returned properties are never {@code null}: a reload publishes the reloaded
+    * properties in a single write and never clears the field (Bug #77142). Only {@link #clear()}
+    * does, hence the loop.
+    */
+   private Properties getLoadedProperties() {
+      Properties prop;
+
+      while((prop = internalProperties) == null) {
+         init();
+      }
+
+      return prop;
    }
 
    /**
@@ -583,7 +633,7 @@ public class PropertiesEngine {
    }
 
    public void init(boolean fromChange) {
-      if(!fromChange && getInternalProperties() != null) {
+      if(!fromChange && internalProperties != null) {
          return;
       }
 
@@ -592,23 +642,34 @@ public class PropertiesEngine {
       String oldHome = null;
       Properties oldProperties = null;
       EarlyLoadedProperties oldEarlyLoaded = null;
+      // the properties published by this call, or kept by a failed reload
+      Properties properties = null;
 
       try {
+         EarlyLoadedProperties earlyLoaded;
+
          if(fromChange) {
             oldHome = getProperty("sree.home");
-            oldProperties = getInternalProperties();
+            oldProperties = internalProperties;
             oldEarlyLoaded = EarlyLoadedProperties.getInstance();
-            // keep the change listener attached, so that no change stored during the reload is
-            // missed (Bug #76954)
-            clear(false);
+            // @by stephenwebster, For Bug #29148
+            // the log manager must be reset prior to a re-initialization of SreeEnv
+            logManagerProvider.ifAvailable(LogManager::close);
+            defaultProperties = null;
+            // the previous properties stay published until the reloaded properties replace them,
+            // so that no reader ever sees null (Bug #77142). The change listener stays attached,
+            // so that no change stored during the reload is missed (Bug #76954).
+            earlyLoaded = createEarlyLoadedProperties(oldEarlyLoaded);
          }
-
          // @by davidd, Recheck once lock acquired to prevent reinitialization.
-         if(getInternalProperties() != null) {
+         else if((properties = internalProperties) != null) {
             return;
          }
+         else {
+            earlyLoaded = EarlyLoadedProperties.getInstance();
+         }
 
-         Properties prop = getEarlyLoadedProperties();
+         Properties prop = earlyLoaded.asProperties();
 
          if(prop instanceof DefaultProperties) {
             prop = ((DefaultProperties) prop).getMainProperties();
@@ -661,7 +722,15 @@ public class PropertiesEngine {
             restorePendingChanges(oldProperties, prop);
          }
 
-         internalProperties = new DefaultProperties(prop, getDefaultProperties());
+         Properties loaded = new DefaultProperties(prop, getDefaultProperties());
+
+         if(fromChange) {
+            // the storage contents were loaded into the new early-loaded properties, which drop
+            // the keys that were removed from the storage (Bug #76954)
+            EarlyLoadedProperties.restore(earlyLoaded);
+         }
+
+         internalProperties = properties = loaded;
 
          if(fromChange) {
             setProperty("sree.home", oldHome);
@@ -674,31 +743,53 @@ public class PropertiesEngine {
             // a failed reload keeps the previously loaded properties. Publishing the defaults
             // would drop every stored property, the security settings included, until the next
             // reload succeeds (Bug #76979)
-            if(getInternalProperties() == null) {
+            if(properties == null) {
                EarlyLoadedProperties.restore(oldEarlyLoaded);
-               internalProperties = oldProperties;
+               properties = oldProperties;
             }
          }
          else {
             LOG.error("Failed to initialize SreeEnv: {}", ex, ex);
             Properties prop = getDefaultProperties();
-            internalProperties = new DefaultProperties(prop, prop);
+            internalProperties = properties = new DefaultProperties(prop, prop);
          }
       }
       finally {
          propertiesLock.unlock();
       }
 
-      initLogging();
+      // the properties just built are passed on rather than read back from the field, which a
+      // concurrent reload or clear() may have replaced in the meantime (Bug #77142)
+      initLogging(properties);
 
       if(fromChange) {
          // initLogging() only applies the log properties that are present, so the running log
          // levels of the properties removed by the reload must be reset (Bug #77006)
-         resetRemovedLogProperties(oldProperties);
+         resetRemovedLogProperties(oldProperties, properties);
       }
 
       initFonts();
       LOG.info("InetSoft {} build {} started", Tool.getReportVersion(), Tool.getBuildNumber());
+   }
+
+   /**
+    * Creates the early-loaded properties that a reload loads the storage into. The current
+    * instance is installed again right away, so that the readers of the early-loaded properties
+    * keep seeing the previous properties until the reload installs the new instance.
+    *
+    * @param current the currently installed instance.
+    *
+    * @return the new instance, which is not installed.
+    */
+   private static EarlyLoadedProperties createEarlyLoadedProperties(EarlyLoadedProperties current) {
+      EarlyLoadedProperties.reset();
+
+      try {
+         return EarlyLoadedProperties.getInstance();
+      }
+      finally {
+         EarlyLoadedProperties.restore(current);
+      }
    }
 
    /**
@@ -995,12 +1086,10 @@ public class PropertiesEngine {
    /**
     * Initializes logging.
     */
-   private void initLogging() {
+   private void initLogging(Properties props) {
       logManagerProvider.ifAvailable(lm -> DEFAULT_LOG_LEVELS.forEach(lm::setLevel));
 
       reloadLoggingFramework();
-
-      Properties props = getInternalProperties();
 
       for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
          applyLogProperty((String) e.nextElement());
@@ -1034,7 +1123,7 @@ public class PropertiesEngine {
    /**
     * Resets the running log level of a removed log property to the effective value of the
     * property (e.g. from defaults.properties), else the built-in level set by
-    * {@link #initLogging()}, else no level, so that it is inherited.
+    * {@link #initLogging(Properties)}, else no level, so that it is inherited.
     *
     * @param prop the name of the removed property.
     */
@@ -1048,10 +1137,9 @@ public class PropertiesEngine {
     * Resets the running log levels of the log properties that a reload removed.
     *
     * @param oldProperties the properties before the reload.
+    * @param props         the reloaded properties.
     */
-   private void resetRemovedLogProperties(Properties oldProperties) {
-      Properties props = getInternalProperties();
-
+   private void resetRemovedLogProperties(Properties oldProperties, Properties props) {
       if(oldProperties == null || props == null) {
          return;
       }
@@ -1378,18 +1466,25 @@ public class PropertiesEngine {
    public void save() throws IOException {
       checkScriptThread();
 
-      if(getInternalProperties() == null) {
-         init();
-      }
-
       Set<String> changedProps;
       Properties prop;
+      // the snapshot waits for a running reload, so that it is taken from the reloaded
+      // properties, which hold the pending changes it clears (Bug #77142). The storage is written
+      // without the lock.
+      propertiesLock.lock();
 
-      synchronized(this.changedProps) {
-         changedProps = new HashSet<>(this.changedProps);
-         this.changedProps.clear();
-         changedPropsBaseline.clear();
-         prop = (Properties) getInternalProperties().clone();
+      try {
+         Properties current = getLoadedProperties();
+
+         synchronized(this.changedProps) {
+            changedProps = new HashSet<>(this.changedProps);
+            this.changedProps.clear();
+            changedPropsBaseline.clear();
+            prop = (Properties) current.clone();
+         }
+      }
+      finally {
+         propertiesLock.unlock();
       }
 
       String admHome = prop.getProperty("sree.home", ".");
@@ -1521,8 +1616,12 @@ public class PropertiesEngine {
             return;
          }
 
-         String security = getProperty("security.provider");
-         String license = getProperty("license.key");
+         // reload the engine that received the change. getInstance() resolves the engine of the
+         // current configuration context, which is another engine once the context of this one
+         // was replaced, e.g. by the next test class (Bug #77142)
+         PropertiesEngine instance = PropertiesEngine.this;
+         String security = instance.getProperty("security.provider");
+         String license = instance.getProperty("license.key");
 
          // the change listener stays attached during the reload, so that no change stored in
          // the meantime is missed (Bug #76954)
@@ -1549,11 +1648,17 @@ public class PropertiesEngine {
    private final Map<String, StorageValue> changedPropsBaseline = new HashMap<>();
    private final PropertyChangeSupport support = new PropertyChangeSupport(PropertiesEngine.class);
    private KeyValueStorage<String> kvStorage;
-   private Properties internalProperties;
+   // Concurrency axis (Bug #77142): lock-free readers x writers x change-triggered reload x
+   // shutdown. The field is published in a single write and a reload never sets it to null, so a
+   // reader reads it once into a local and takes no lock. Writers (setProperty, remove and the
+   // snapshot of save) hold propertiesLock, like the reload, so that they are never applied to
+   // the properties a running reload is about to replace. A shut-down engine never reloads.
+   private volatile Properties internalProperties;
    private Properties defaultProperties;
    private final Lock propertiesLock = new ReentrantLock();
-   private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
-   // set on shutdown and read by the change task on the debouncer thread
+   // a single task key, so the sequence of different keys is irrelevant, and cancel() only works
+   // on a debouncer that does not preserve it
+   private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>(false);
    private volatile boolean closed;
    private final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
    private final Map<String, Font> fontMap = new ConcurrentHashMap<>();
