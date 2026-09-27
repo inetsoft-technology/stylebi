@@ -133,6 +133,72 @@ class PropertiesEngineReloadRaceTest {
    }
 
    @Test
+   void earlyLoadedReaderDuringEarlyLoadedBuildSeesThePreviousProperties() throws Exception {
+      // the reload builds new early-loaded properties (defaults, system properties, environment)
+      // before it loads the storage into them. A reader of the early-loaded properties that runs
+      // while they are built must still resolve the installed instance, with its stored values.
+      String name = prefix + "key";
+      storage.remotePut(name, "old", false);
+      initEngine();
+      storage.remotePut(name, "new", false);
+      EarlyLoadedProperties installed = EarlyLoadedProperties.getInstance();
+      assertEquals("old", engine.getProperty(name, true));
+
+      Thread reloadThread = Thread.currentThread();
+      AtomicBoolean armed = new AtomicBoolean();
+      AtomicInteger builds = new AtomicInteger();
+      AtomicReference<EarlyLoadedProperties> seen = new AtomicReference<>();
+      AtomicReference<String> read = new AtomicReference<>();
+      AtomicReference<Throwable> failure = new AtomicReference<>();
+      Properties systemProperties = System.getProperties();
+      // EarlyLoadedProperties.build() falls back to the system properties for this key, so the
+      // hook runs inside the build of the reload's early-loaded properties
+      Properties hooked = new Properties() {
+         @Override
+         public String getProperty(String key) {
+            if(Thread.currentThread() == reloadThread &&
+               "StyleReport.locale.resource".equals(key) && armed.compareAndSet(true, false))
+            {
+               builds.incrementAndGet();
+               Thread reader = new Thread(() -> {
+                  try {
+                     seen.set(EarlyLoadedProperties.getInstance());
+                     read.set(engine.getProperty(name, true));
+                  }
+                  catch(Throwable e) {
+                     failure.set(e);
+                  }
+               });
+               reader.start();
+               PropertiesEngineReloadRaceTest.join(reader, 5000L);
+            }
+
+            return super.getProperty(key);
+         }
+      };
+      hooked.putAll(systemProperties);
+      System.setProperties(hooked);
+
+      try {
+         armed.set(true);
+         engine.init(true);
+      }
+      finally {
+         armed.set(false);
+         System.setProperties(systemProperties);
+      }
+
+      assertEquals(1, builds.get(), "the reload did not build new early-loaded properties");
+      assertNull(failure.get());
+      assertSame(installed, seen.get(),
+                 "the early-loaded properties were not published while the reload built them");
+      assertEquals("old", read.get(),
+                   "a reader saw early-loaded properties without the stored values");
+      assertNotSame(installed, EarlyLoadedProperties.getInstance());
+      assertEquals("new", engine.getProperty(name, true));
+   }
+
+   @Test
    void initLoggingUsesThePropertiesItBuilt() throws Exception {
       // the first init() of an engine publishes the properties, releases the lock and only then
       // initializes logging. A reload that starts at that moment must not make it read null.

@@ -656,10 +656,12 @@ public class PropertiesEngine {
             // the log manager must be reset prior to a re-initialization of SreeEnv
             logManagerProvider.ifAvailable(LogManager::close);
             defaultProperties = null;
-            // the previous properties stay published until the reloaded properties replace them,
-            // so that no reader ever sees null (Bug #77142). The change listener stays attached,
-            // so that no change stored during the reload is missed (Bug #76954).
-            earlyLoaded = createEarlyLoadedProperties(oldEarlyLoaded);
+            // the previous properties and early-loaded properties stay published until the
+            // reloaded ones replace them, so that no reader ever sees null or properties without
+            // the stored values (Bug #77142). The new early-loaded properties are built without
+            // touching the installed instance. The change listener stays attached, so that no
+            // change stored during the reload is missed (Bug #76954).
+            earlyLoaded = EarlyLoadedProperties.create();
          }
          // @by davidd, Recheck once lock acquired to prevent reinitialization.
          else if((properties = internalProperties) != null) {
@@ -744,6 +746,7 @@ public class PropertiesEngine {
             // would drop every stored property, the security settings included, until the next
             // reload succeeds (Bug #76979)
             if(properties == null) {
+               // the old instance is still installed unless installing the new one failed
                EarlyLoadedProperties.restore(oldEarlyLoaded);
                properties = oldProperties;
             }
@@ -770,26 +773,6 @@ public class PropertiesEngine {
 
       initFonts();
       LOG.info("InetSoft {} build {} started", Tool.getReportVersion(), Tool.getBuildNumber());
-   }
-
-   /**
-    * Creates the early-loaded properties that a reload loads the storage into. The current
-    * instance is installed again right away, so that the readers of the early-loaded properties
-    * keep seeing the previous properties until the reload installs the new instance.
-    *
-    * @param current the currently installed instance.
-    *
-    * @return the new instance, which is not installed.
-    */
-   private static EarlyLoadedProperties createEarlyLoadedProperties(EarlyLoadedProperties current) {
-      EarlyLoadedProperties.reset();
-
-      try {
-         return EarlyLoadedProperties.getInstance();
-      }
-      finally {
-         EarlyLoadedProperties.restore(current);
-      }
    }
 
    /**

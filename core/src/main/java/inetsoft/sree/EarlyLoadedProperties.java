@@ -46,6 +46,17 @@ public class EarlyLoadedProperties {
    }
 
    /**
+    * Creates a new instance built from the system properties, the {@code INETSOFT_*} environment
+    * variables and the built-in defaults only, without installing it. {@link PropertiesEngine}
+    * loads the key-value storage contents into it during a reload while the current instance
+    * stays installed, and installs it with {@link #restore(EarlyLoadedProperties)} once it is
+    * complete.
+    */
+   static EarlyLoadedProperties create() {
+      return new EarlyLoadedProperties();
+   }
+
+   /**
     * Discards the current instance so that the next {@link #getInstance()} call rebuilds it from
     * the system properties, the {@code INETSOFT_*} environment variables and the built-in
     * defaults only. {@link PropertiesEngine} loads the key-value storage contents into this
@@ -57,8 +68,7 @@ public class EarlyLoadedProperties {
    }
 
    /**
-    * Puts back an instance that was discarded by {@link #reset()}, used by
-    * {@link PropertiesEngine} to keep the previous properties when a reload fails.
+    * Installs an instance, one discarded by {@link #reset()} or one created by {@link #create()}.
     */
    static void restore(EarlyLoadedProperties instance) {
       ConfigurationContext.getContext().put(EarlyLoadedProperties.class.getName(), instance);
