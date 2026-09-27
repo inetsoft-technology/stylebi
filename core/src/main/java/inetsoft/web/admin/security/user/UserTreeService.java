@@ -932,6 +932,7 @@ public class UserTreeService {
             throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationName"));
          }
 
+         OrganizationIdRules.checkCreate(orgID);
          newOrgId = newOrgKey.orgID;
          fireCreateOrganizationEvent(EditOrganizationEvent.STARTED, copyFromOrgID, newOrgId, principal);
 
@@ -1282,6 +1283,9 @@ public class UserTreeService {
       if(!Tool.equals(oldID, newID) || !Tool.equals(oldOrg.getId(), model.id())) {
          checkDuplicateOrgIDs(model, oldOrg);
       }
+
+      // before any org property is saved, so a rejected rename leaves nothing behind
+      OrganizationIdRules.checkRename(oldOrg.getId(), model.id());
 
       OrganizationManager.runInOrgScope(oldOrg.getId(), () -> {
          boolean saveProperties = false;

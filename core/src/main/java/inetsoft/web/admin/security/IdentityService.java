@@ -1644,6 +1644,11 @@ public class IdentityService {
             return;
          }
 
+         if(type == Identity.ORGANIZATION) {
+            OrganizationIdRules.checkRename(((Organization) identity).getId(),
+                                            ((EditOrganizationPaneModel) model).id());
+         }
+
          SecurityEngine.touch();
          EditableAuthenticationProvider eprovider = (EditableAuthenticationProvider) provider;
          IdentityID[] pusers = provider.getUsers();
@@ -2956,6 +2961,15 @@ public class IdentityService {
       String norg = norganization.getId();
 
       if(Tool.equals(oorg, norg)) {
+         return;
+      }
+
+      // a reserved id names a system folder of external storage (or collides with the base
+      // path), so moving it would move system data along with, or into, the organization files
+      if(OrganizationIdRules.isReserved(oorg) || OrganizationIdRules.isReserved(norg)) {
+         LOG.warn(
+            "Did not move the external storage files of organization {} to {}, the organization " +
+            "ID is reserved. Move the organization files manually.", oorg, norg);
          return;
       }
 
