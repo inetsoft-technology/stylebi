@@ -146,6 +146,18 @@ class OrganizationManagerStalePrincipalTest {
          .addRoleToGroup("AdminS", "GS", ORG)
          .addUser("us", ORG, PASSWORD)
          .addUserToGroup("us", "GS", ORG)
+         // admin through the parent group of the user's group
+         .addSysAdminRole("AdminN", ORG)
+         .addGroup("Top", ORG)
+         .addGroup("Sub", ORG)
+         .addGroupParent("Sub", "Top", ORG)
+         .addRoleToGroup("AdminN", "Top", ORG)
+         .addUser("un", ORG, PASSWORD)
+         .addUserToGroup("un", "Sub", ORG)
+         // direct member of the built-in organization administrator role
+         .addRole("Organization Administrator", ORG)
+         .addUser("uoa", ORG, PASSWORD)
+         .addUserToRole("uoa", "Organization Administrator", ORG)
          // non-admin users
          .addUser("plain", ORG, PASSWORD)
          .addUser("grantee", ORG, PASSWORD)
@@ -162,9 +174,11 @@ class OrganizationManagerStalePrincipalTest {
          (FileAuthenticationProvider) ReflectionTestUtils.getField(builder, "authcProvider");
       assertNotSame(chainProvider, otherNodeProvider);
 
-      FSRole orgAdminRole = (FSRole) chainProvider.getRole(new IdentityID("OrgAdminG", ORG));
-      orgAdminRole.setOrgAdmin(true);
-      chainProvider.setRole(orgAdminRole.getIdentityID(), orgAdminRole);
+      for(String name : new String[] { "OrgAdminG", "Organization Administrator" }) {
+         FSRole orgAdminRole = (FSRole) chainProvider.getRole(new IdentityID(name, ORG));
+         orgAdminRole.setOrgAdmin(true);
+         chainProvider.setRole(orgAdminRole.getIdentityID(), orgAdminRole);
+      }
 
       sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS);
       sutil.when(SUtil::isMultiTenant).thenReturn(true);
@@ -341,6 +355,48 @@ class OrganizationManagerStalePrincipalTest {
 
       assertEquals(0, chainProvider.getGroup(groupID).getRoles().length);
       assertFalse(isSiteAdmin(session));
+   }
+
+   /**
+    * The roles of a parent group of the user's group are included, so a genuine admin through a
+    * nested group is not locked out, and a revoke on the parent group is effective.
+    */
+   @Test
+   void parentGroupAdminIsKeptAndItsRevokeIsEffective() throws Exception {
+      String session = store(login("un"));
+      assertTrue(isSiteAdmin(session));
+
+      IdentityID groupID = new IdentityID("Top", ORG);
+      FSGroup group = (FSGroup) chainProvider.getGroup(groupID);
+      group.setRoles(new IdentityID[0]);
+      chainProvider.setGroup(groupID, group);
+
+      assertTrue(Arrays.asList(readBack(session).getRoles()).contains(new IdentityID("AdminN", ORG)),
+                 "the session principal still holds the role that was expanded at login");
+      assertFalse(isSiteAdmin(session));
+   }
+
+   /**
+    * The built-in organization administrator role is hidden when multi-tenancy is disabled, so
+    * a user that is a direct member of it is not an organization admin in a single-tenant
+    * installation, the same as before the storage-only check.
+    */
+   @Test
+   void organizationAdministratorRoleIsIgnoredWithoutMultiTenancy() throws Exception {
+      SRPrincipal principal;
+
+      try {
+         sutil.when(SUtil::isMultiTenant).thenReturn(false);
+         principal = readBack(store(login("uoa")));
+         assertEquals("true", principal.getProperty("__internal__"));
+         assertFalse(OrganizationManager.getInstance().isOrgAdmin(principal));
+      }
+      finally {
+         sutil.when(SUtil::isMultiTenant).thenReturn(true);
+      }
+
+      // the same principal is an organization admin when multi-tenancy is enabled
+      assertTrue(OrganizationManager.getInstance().isOrgAdmin(principal));
    }
 
    /**
