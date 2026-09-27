@@ -614,6 +614,25 @@ public class ScheduleManagerTest {
    }
 
    /**
+    * Bug #77100 guard: the role branch returns early, but schedule extensions must still be
+    * notified of the removed role.
+    */
+   @Test
+   void identityRemoved_roleStillNotifiesExtensions() throws Exception {
+      ScheduleExt ext = mock(ScheduleExt.class);
+      Identity role = new DefaultIdentity(new IdentityID("roleE", "org1"), Identity.ROLE);
+      scheduleManager.addScheduleExt(ext);
+
+      try {
+         scheduleManager.identityRemoved(role, mock(EditableAuthenticationProvider.class));
+         verify(ext).identityRemoved(role);
+      }
+      finally {
+         scheduleManager.getExtensions().remove(ext);
+      }
+   }
+
+   /**
     * Runs the body with orgs host-org/org1/org2 and a provider that still resolves the roles and
     * groups, so a stale "execute as" survives a reload instead of re-resolving to null.
     */
