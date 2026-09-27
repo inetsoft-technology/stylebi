@@ -27,6 +27,7 @@ import inetsoft.sree.schedule.quartz.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.util.ThreadContext;
 import org.junit.jupiter.api.*;
 import org.quartz.*;
 import org.quartz.impl.DirectSchedulerFactory;
@@ -34,6 +35,7 @@ import org.quartz.simpl.SimpleThreadPool;
 import org.springframework.context.ApplicationContext;
 
 import java.io.*;
+import java.security.Principal;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -62,6 +64,8 @@ class ClusterJobStoreDuplicateFireTest {
    @BeforeEach
    void setUp() {
       savedAppContext = ConfigurationContext.getContext().getApplicationContext();
+      // ClusterJobStore.storeJob sets the task owner as this thread's principal
+      savedPrincipal = ThreadContext.getContextPrincipal();
    }
 
    @AfterEach
@@ -72,6 +76,7 @@ class ClusterJobStoreDuplicateFireTest {
 
       RECORDERS.remove(recorderId);
       ConfigurationContext.getContext().setApplicationContext(savedAppContext);
+      ThreadContext.setContextPrincipal(savedPrincipal);
    }
 
    /**
@@ -458,4 +463,5 @@ class ClusterJobStoreDuplicateFireTest {
    private final String recorderId = UUID.randomUUID().toString();
    private final List<org.quartz.Scheduler> schedulers = new ArrayList<>();
    private ApplicationContext savedAppContext;
+   private Principal savedPrincipal;
 }
