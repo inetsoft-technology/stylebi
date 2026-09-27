@@ -162,6 +162,54 @@ class MigrateScheduleTaskTest {
       assertEquals("alice2", child(doc, 1, "Notify").getAttribute("email"));
    }
 
+   @Test
+   void orgMigration_keepsRecipientBytes_andMigratesLaterActionIds() throws Exception {
+      String legacyCc = Tool.byteEncode2("bob(User);张三");
+      String xml = action(
+         mailTo("email", "carol , dave;e@f.com", "ccAddresses", legacyCc,
+                "bccAddresses", "bob") +
+         notify("bob(User) ; carol")) +
+         action(mailTo("email", "carol") + "<Bookmark user=\"bob~;~" + ORG + "\"/>");
+      Document before = parse(task(xml));
+      Document after = migrate(new MigrateScheduleTask(null, new Organization(ORG),
+                                                       new Organization("org2")), xml);
+
+      for(int i = 0; i < 2; i++) {
+         assertEquals(serialize(child(before, i, "MailTo")), serialize(child(after, i, "MailTo")));
+      }
+
+      assertEquals(serialize(child(before, 0, "Notify")), serialize(child(after, 0, "Notify")));
+      assertEquals(legacyCc, child(after, 0, "MailTo").getAttribute("ccAddresses"));
+
+      String nvs = "1^128^__NULL__^vs1^org2";
+      NodeList actions = after.getElementsByTagName("Action");
+      assertEquals(nvs, ((Element) actions.item(0)).getAttribute("viewsheet"));
+      // the first action has no Bookmark, the later action must still be migrated
+      assertEquals(nvs, ((Element) actions.item(1)).getAttribute("viewsheet"));
+      assertEquals("bob~;~org2", child(after, 1, "Bookmark").getAttribute("user"));
+   }
+
+   @Test
+   void actionAfterMvActionWithoutMvDef_isMigrated() throws Exception {
+      Document doc = migrateUser("alice", "alice2",
+         "<Action type=\"MV\"></Action>" +
+         action(mailTo("email", "alice(User)", "ccAddresses", "alice") + notify("alice")));
+
+      Element mailTo = (Element) doc.getElementsByTagName("MailTo").item(0);
+      assertEquals("alice2(User)", mailTo.getAttribute("email"));
+      assertEquals("alice2", mailTo.getAttribute("ccAddresses"));
+      assertEquals("alice2",
+                   ((Element) doc.getElementsByTagName("Notify").item(0)).getAttribute("email"));
+   }
+
+   private static String serialize(Node node) throws Exception {
+      StringWriter writer = new StringWriter();
+      var transformer = TransformerFactory.newInstance().newTransformer();
+      transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+      transformer.transform(new DOMSource(node), new StreamResult(writer));
+      return writer.toString();
+   }
+
    private static Document migrateUser(String oname, String nname, String actions)
       throws Exception
    {
