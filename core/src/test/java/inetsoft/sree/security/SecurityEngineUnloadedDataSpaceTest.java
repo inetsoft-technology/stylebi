@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.EarlyLoadedProperties;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.UnloadedDataSpaceTestConfiguration;
@@ -63,6 +64,10 @@ class SecurityEngineUnloadedDataSpaceTest {
    static void clearEngine() throws Exception {
       UnloadedDataSpaceTestConfiguration.timeOutLoads(0);
       ENGINE.close();
+      // the early-loaded properties outlive a context in the test JVM and still hold the
+      // security.enabled=true that these tests stored. A later test class that sets the same
+      // value would not store it, so its next reload would turn security off
+      ConfigurationContext.getContext().remove(EarlyLoadedProperties.class.getName());
    }
 
    @Test
