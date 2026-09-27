@@ -20,6 +20,8 @@ package inetsoft.storage.fs;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,8 +37,15 @@ public class FilesystemExternalStorageService implements ExternalStorageService 
 
    @Override
    public void write(String path, Path file) throws IOException {
-      Path targetPath = Paths.get(path);
-      Path target = base.resolve(targetPath).toAbsolutePath();
+      Path root = base.toAbsolutePath().normalize();
+      Path target = root.resolve(Paths.get(path)).normalize();
+
+      // an absolute path or one with ".." segments must not write outside of the storage folder
+      if(!target.startsWith(root) || target.equals(root)) {
+         LOG.warn("Refused to write {} outside of the external storage folder {}", path, root);
+         throw new IOException("The file path is outside of the external storage folder");
+      }
+
       Files.createDirectories(target.getParent());
       Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
    }
@@ -135,4 +144,5 @@ public class FilesystemExternalStorageService implements ExternalStorageService 
    }
 
    private final Path base;
+   private static final Logger LOG = LoggerFactory.getLogger(FilesystemExternalStorageService.class);
 }

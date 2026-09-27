@@ -3340,15 +3340,6 @@ public class SUtil {
          return path;
       }
 
-      String dir = null;
-      String file = path;
-      int idx = path.lastIndexOf("/");
-
-      if(idx != -1) {
-         dir = path.substring(0, idx);
-         file = path.substring(idx + 1);
-      }
-
       StringBuilder stringBuilder = new  StringBuilder();
 
       if(SUtil.isMultiTenant()) {
@@ -3368,24 +3359,22 @@ public class SUtil {
       String prefix = stringBuilder.toString();
 
       if(!StringUtils.isEmpty(SreeEnv.getProperty("server.save.locations"))) {
-         List<ServerLocation> serverLocations = SUtil.getServerLocations();
-         String serverPath = "";
+         // the filesystem storage passes the path relative to the root, so match the location
+         // without the leading slashes, on a segment boundary as the portal does
+         String relativePath = path.replaceAll("^/+", "");
 
-         for(ServerLocation serverLocation : serverLocations) {
-            if(dir != null && dir.startsWith(serverLocation.path())) {
-               serverPath = serverLocation.path();
-               dir = dir.substring(serverLocation.path().length());
-               break;
+         for(ServerLocation serverLocation : SUtil.getServerLocations()) {
+            String location = serverLocation.path();
+            String relativeLocation = location.replaceAll("^/+", "");
+
+            if(!relativeLocation.isEmpty() && relativePath.startsWith(relativeLocation + "/")) {
+               // keep the leading slash form of the path, so that a relative path never gets an
+               // absolute key, which the filesystem storage would resolve outside of its folder
+               String serverPath = path.startsWith("/") ? location : relativeLocation;
+               return serverPath + "/" + prefix +
+                  relativePath.substring(relativeLocation.length());
             }
          }
-         if(dir == null) {
-            dir = prefix;
-         }
-         else {
-            dir = serverPath + "/" + prefix + dir;
-         }
-
-         return dir + "/" + file;
       }
 
       if(path.startsWith(prefix)) {
