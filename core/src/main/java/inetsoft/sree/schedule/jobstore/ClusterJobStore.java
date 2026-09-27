@@ -87,6 +87,8 @@ public class ClusterJobStore implements JobStore, Serializable {
 
    @Override
    public void shutdown() {
+      releaseOwnAcquiredTriggers();
+
       if(shutdownClusterOnShutdown) {
          try {
             Cluster.getInstance().close();
@@ -94,6 +96,51 @@ public class ClusterJobStore implements JobStore, Serializable {
          catch(Exception ex) {
             LOG.debug("Failed to shut down cluster instance", ex);
          }
+      }
+   }
+
+   /**
+    * Releases the triggers this store acquired but did not fire, so that another node can fire
+    * them. Quartz does not release them when the scheduler shuts down.
+    */
+   private void releaseOwnAcquiredTriggers() {
+      try {
+         for(TriggerWrapper tw : triggersByKey.values()) {
+            String fireInstanceId = tw.trigger.getFireInstanceId();
+
+            if(tw.getState() != ACQUIRED || fireInstanceId == null ||
+               !fireInstanceId.startsWith(fireInstanceIdPrefix))
+            {
+               continue;
+            }
+
+            try {
+               triggersByKey.lock(tw.key, 5, TimeUnit.SECONDS);
+            }
+            catch(IllegalStateException ex) {
+               LOG.warn("Failed to lock trigger {} to release it", tw.key, ex);
+               continue;
+            }
+
+            try {
+               TriggerWrapper current = triggersByKey.get(tw.key);
+
+               if(current != null && isAcquiredBy(current, tw.trigger)) {
+                  storeTriggerWrapper(newTriggerWrapper(current, WAITING));
+               }
+            }
+            finally {
+               try {
+                  triggersByKey.unlock(tw.key);
+               }
+               catch(IllegalMonitorStateException ex) {
+                  LOG.warn("Error unlocking since it is already released.", ex);
+               }
+            }
+         }
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to release the acquired triggers on shutdown", ex);
       }
    }
 
@@ -1129,8 +1176,10 @@ public class ClusterJobStore implements JobStore, Serializable {
    }
 
    /**
-    * Releases a trigger of a non-concurrent job that is blocked while it runs. A trigger acquired
-    * by a node but not fired yet, or one that already fired for the last time, is left alone.
+    * Releases a trigger of a non-concurrent job that is blocked while it runs or held by an
+    * acquisition, so a hold left by a node that stopped or died does not strand it. A released
+    * hold can only be fired by its next acquisition (see {@link #isAcquiredBy}). A trigger that
+    * already fired for the last time is left alone.
     */
    private void releaseBlockedTrigger(TriggerKey key) {
       try {
@@ -1148,7 +1197,7 @@ public class ClusterJobStore implements JobStore, Serializable {
             return;
          }
 
-         if(tw.getState() == BLOCKED) {
+         if(tw.getState() == BLOCKED || tw.getState() == ACQUIRED) {
             storeTriggerWrapper(newTriggerWrapper(tw, WAITING));
          }
          else if(tw.getState() == PAUSED_BLOCKED) {
@@ -1210,7 +1259,7 @@ public class ClusterJobStore implements JobStore, Serializable {
    }
 
    private synchronized String getFiredTriggerRecordId() {
-      return instanceId + ftrCtr++;
+      return fireInstanceIdPrefix + ftrCtr++;
    }
 
    private boolean removeTrigger(TriggerKey key, boolean removeOrphanedJob)
@@ -1358,6 +1407,9 @@ public class ClusterJobStore implements JobStore, Serializable {
    private String instanceName;
    private boolean shutdownClusterOnShutdown = true;
    private static long ftrCtr = System.currentTimeMillis();
+   // the instance id is "AUTO" on every node, so a random part keeps fire instance ids unique
+   // across the cluster, which the ownership check in isAcquiredBy() relies on
+   private final String fireInstanceIdPrefix = UUID.randomUUID() + "-";
    private static final Logger LOG = LoggerFactory.getLogger(ClusterJobStore.class);
 }
 

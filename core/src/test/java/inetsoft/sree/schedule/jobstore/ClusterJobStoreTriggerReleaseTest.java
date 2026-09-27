@@ -32,15 +32,18 @@ import org.junit.jupiter.api.*;
 import org.quartz.*;
 import org.quartz.impl.DirectSchedulerFactory;
 import org.quartz.simpl.SimpleThreadPool;
+import org.quartz.spi.OperableTrigger;
 import org.springframework.context.ApplicationContext;
 
 import java.io.*;
+import java.time.Duration;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
@@ -48,16 +51,18 @@ import static org.mockito.Mockito.*;
 
 /**
  * Bug #76976: the store keeps a fired trigger of a non-concurrent job blocked while it runs and
- * releases it when a run of the job completes. A recurring trigger whose run outlasts its interval
- * must be released after every run, so it keeps firing, and must never run concurrently; a run
- * that never completes must not keep the task's other conditions from firing.
+ * releases the job's blocked and acquired triggers when a run of the job completes. A recurring
+ * trigger whose run outlasts its interval must be released after every run, so it keeps firing
+ * once per fire time and never concurrently; a run that never completes must not keep the task's
+ * other conditions from firing; and a trigger acquired by a node that then stopped or died must
+ * still run, exactly once, on another node.
  *
  * <p>Two real Quartz schedulers built like {@code Scheduler.initialize0()} share one cluster whose
  * replicated maps keep and hand out serialized copies, like Ignite's. Timings are the production
  * ones scaled by 1/10 (acquire horizon 2 s, misfire threshold 0.5 s).
  */
 @Tag("core")
-class ClusterJobStoreRecurringTriggerTest {
+class ClusterJobStoreTriggerReleaseTest {
    @BeforeEach
    void setUp() {
       savedAppContext = ConfigurationContext.getContext().getApplicationContext();
@@ -98,6 +103,7 @@ class ClusterJobStoreRecurringTriggerTest {
 
       assertEquals(1, recorder.maxRunning.get(), "runs overlapped:" + trace);
       assertTrue(executions.size() >= 3, "trigger stopped firing:" + trace);
+      assertDistinctFireTimes(executions, trace);
 
       for(int i = 1; i < executions.size(); i++) {
          long idle = executions.get(i).start - executions.get(i - 1).end;
@@ -120,15 +126,7 @@ class ClusterJobStoreRecurringTriggerTest {
       IntervalTrigger recurring = recurringTrigger(job, 1, start);
       recurring.getJobDataMap().put(HANG_KEY, true);
 
-      TimeConditionTriggerImpl atTrigger = new TimeConditionTriggerImpl();
-      atTrigger.setName(job.getKey().getName() + "-2");
-      atTrigger.setGroup(inetsoft.sree.schedule.Scheduler.GROUP_NAME);
-      atTrigger.setJobKey(job.getKey());
-      atTrigger.setCondition(TimeCondition.at(new Date(runOnce)));
-      atTrigger.setStartTime(new Date(runOnce));
-      atTrigger.setEndTime(new Date(runOnce + TimeUnit.HOURS.toMillis(1)));
-      atTrigger.setMisfireInstruction(ConditionTrigger.MISFIRE_INSTRUCTION_FIRE_ONCE_NOW);
-      atTrigger.getJobDataMap().put(DURATION_KEY, 500L);
+      TimeConditionTriggerImpl atTrigger = runOnceTrigger(job, 2, runOnce, 500);
 
       Set<Trigger> triggers = new HashSet<>();
       triggers.add(recurring);
@@ -146,6 +144,105 @@ class ClusterJobStoreRecurringTriggerTest {
                    "run-once condition did not fire once:" + trace);
       assertTrue(perTrigger.getOrDefault(recurring.getName(), 0L) >= 2,
                  "hung run's recurring trigger was never released:" + trace);
+      assertDistinctFireTimes(executions, trace);
+   }
+
+   /**
+    * A node acquires trigger 2 shortly before its time and then stops gracefully (scale-in,
+    * restart, rolling upgrade). Quartz releases the acquisition on halt only if its scheduler
+    * thread is waiting for the fire time at that moment; this test suppresses that release, so the
+    * store's own shutdown must release it: the trigger runs exactly once, on the other node.
+    */
+   @Test
+   void triggerHeldByAStoppedNodeRunsOnceOnAnotherNode() throws Exception {
+      runTriggerHeldByNodeThatGoesAway(false);
+   }
+
+   /**
+    * Same as above, but the node dies: nothing on it releases the acquisition. The completion of
+    * the run on the other node must release it, and the trigger runs exactly once.
+    */
+   @Test
+   void triggerHeldByADeadNodeRunsOnceAfterTheOtherRunCompletes() throws Exception {
+      runTriggerHeldByNodeThatGoesAway(true);
+   }
+
+   private void runTriggerHeldByNodeThatGoesAway(boolean dies) throws Exception {
+      // one worker per node, so the node running run 1 cannot acquire trigger 2 itself before
+      // run 1 ends and trigger 2 can only be held by the other node
+      startSchedulers(1, true, "node-A", "node-B");
+      long t1 = (System.currentTimeMillis() / 1000 + 3) * 1000;
+      long t2 = t1 + GAP;
+      JobDetail job = createJob();
+      TimeConditionTriggerImpl trigger1 = runOnceTrigger(job, 1, t1, GAP - 700);
+      TimeConditionTriggerImpl trigger2 = runOnceTrigger(job, 2, t2, 500);
+      Set<Trigger> triggers = new HashSet<>();
+      triggers.add(trigger1);
+      triggers.add(trigger2);
+      schedulers.get(0).scheduleJob(job, triggers, true);
+
+      await().atMost(Duration.ofMillis(t2 - System.currentTimeMillis()))
+         .until(() -> !recorder().executions.isEmpty());
+      String runner = recorder().executions.peek().schedulerId;
+      org.quartz.Scheduler other = schedulers.stream()
+         .filter(s -> !runner.equals(instanceId(s)))
+         .findFirst().orElseThrow();
+
+      // wake the other node's scheduler thread for an ordinary acquire pass while trigger 2 is
+      // inside its acquire horizon and run 1 is still running (an unknown key changes nothing)
+      Thread.sleep(Math.max(0, t2 - 1500 - System.currentTimeMillis()));
+      other.resumeTrigger(TriggerKey.triggerKey("wake-up", "ClusterJobStoreTriggerReleaseTest"));
+      Thread.sleep(Math.max(0, t2 - 1200 - System.currentTimeMillis()));
+
+      DistributedMap<TriggerKey, TriggerWrapper> triggersByKey =
+         cluster.getReplicatedMap("jobstore.triggersByKey");
+      TriggerWrapper held = triggersByKey.get(trigger2.getKey());
+      assertEquals(TriggerState.ACQUIRED, held.getState(), "trigger 2 not held: " + held);
+
+      StoppingJobStore otherStore = stores.get(instanceId(other));
+      otherStore.stopping = true;
+      otherStore.dies = dies;
+      other.shutdown(false);
+
+      Thread.sleep(t2 + 500 + MAX_IDLE + 1500 - System.currentTimeMillis());
+
+      List<Execution> executions = executions();
+      String trace = trace(executions);
+      List<Execution> runs2 = executions.stream()
+         .filter(e -> e.trigger.equals(trigger2.getName()))
+         .collect(Collectors.toList());
+      Execution run1 = executions.get(0);
+
+      assertEquals(1, runs2.size(), "trigger 2 did not run exactly once:" + trace);
+      assertEquals(runner, runs2.get(0).schedulerId, "trigger 2 ran on the stopped node:" + trace);
+      assertTrue(runs2.get(0).start >= run1.end, "trigger 2 ran before run 1 ended:" + trace);
+   }
+
+   private static TimeConditionTriggerImpl runOnceTrigger(JobDetail job, int index, long time,
+                                                          long duration)
+   {
+      TimeConditionTriggerImpl trigger = new TimeConditionTriggerImpl();
+      trigger.setName(job.getKey().getName() + "-" + index);
+      trigger.setGroup(inetsoft.sree.schedule.Scheduler.GROUP_NAME);
+      trigger.setJobKey(job.getKey());
+      trigger.setCondition(TimeCondition.at(new Date(time)));
+      trigger.setStartTime(new Date(time));
+      trigger.setEndTime(new Date(time + TimeUnit.HOURS.toMillis(1)));
+      trigger.setMisfireInstruction(ConditionTrigger.MISFIRE_INSTRUCTION_FIRE_ONCE_NOW);
+      trigger.getJobDataMap().put(DURATION_KEY, duration);
+      return trigger;
+   }
+
+   /**
+    * Each trigger's executions have distinct scheduled fire times, i.e. no fire time ran twice.
+    */
+   private static void assertDistinctFireTimes(List<Execution> executions, String trace) {
+      Set<String> fireTimes = new HashSet<>();
+
+      for(Execution execution : executions) {
+         assertTrue(fireTimes.add(execution.trigger + "@" + execution.scheduledFireTime),
+                    "a fire time ran twice:" + trace);
+      }
    }
 
    private JobDetail createJob() {
@@ -188,15 +285,27 @@ class ClusterJobStoreRecurringTriggerTest {
    }
 
    private void startSchedulers(String... instanceIds) throws Exception {
-      installContext(new IgniteLikeCluster());
+      startSchedulers(3, false, instanceIds);
+   }
+
+   private void startSchedulers(int threads, boolean stoppable, String... instanceIds)
+      throws Exception
+   {
+      cluster = new IgniteLikeCluster();
+      installContext(cluster);
 
       for(String instanceId : instanceIds) {
          String name = "inetsoft-" + instanceId + "-" + recorderId;
          DirectSchedulerFactory factory = DirectSchedulerFactory.getInstance();
-         ClusterJobStore jobStore = new ClusterJobStore();
+         ClusterJobStore jobStore = stoppable ? new StoppingJobStore() : new ClusterJobStore();
+
+         if(stoppable) {
+            stores.put(instanceId, (StoppingJobStore) jobStore);
+         }
+
          jobStore.setMisfireThreshold(MISFIRE_THRESHOLD);
          factory.createScheduler(
-            name, instanceId, new SimpleThreadPool(3, Thread.NORM_PRIORITY),
+            name, instanceId, new SimpleThreadPool(threads, Thread.NORM_PRIORITY),
             jobStore, null, 0, IDLE_WAIT, -1);
          org.quartz.Scheduler scheduler = factory.getScheduler(name);
          scheduler.getListenerManager().addJobListener(
@@ -263,6 +372,30 @@ class ClusterJobStoreRecurringTriggerTest {
          return afterTime == null ? null :
             new Date((afterTime.getTime() / INTERVAL + 1) * INTERVAL);
       }
+   }
+
+   /**
+    * A store whose node is going away. Once stopping, the scheduler's own release of acquired
+    * triggers is ignored (Quartz can miss it on halt), and a dying node's store releases nothing
+    * on shutdown either.
+    */
+   private static final class StoppingJobStore extends ClusterJobStore {
+      @Override
+      public void releaseAcquiredTrigger(OperableTrigger trigger) {
+         if(!stopping) {
+            super.releaseAcquiredTrigger(trigger);
+         }
+      }
+
+      @Override
+      public void shutdown() {
+         if(!dies) {
+            super.shutdown();
+         }
+      }
+
+      volatile boolean stopping;
+      volatile boolean dies;
    }
 
    /**
@@ -382,7 +515,8 @@ class ClusterJobStoreRecurringTriggerTest {
          JobDataMap data = context.getMergedJobDataMap();
          Recorder recorder = RECORDERS.get(data.getString(RECORDER_KEY));
          Execution execution = new Execution(
-            instanceId(context.getScheduler()), context.getTrigger().getKey().getName());
+            instanceId(context.getScheduler()), context.getTrigger().getKey().getName(),
+            context.getScheduledFireTime().getTime());
          recorder.maxRunning.accumulateAndGet(recorder.running.incrementAndGet(), Math::max);
          recorder.executions.add(execution);
 
@@ -412,19 +546,22 @@ class ClusterJobStoreRecurringTriggerTest {
    }
 
    private static final class Execution {
-      Execution(String schedulerId, String trigger) {
+      Execution(String schedulerId, String trigger, long scheduledFireTime) {
          this.schedulerId = schedulerId;
          this.trigger = trigger;
+         this.scheduledFireTime = scheduledFireTime;
          this.start = System.currentTimeMillis();
       }
 
       @Override
       public String toString() {
-         return String.format("%s fired %s: ran %tT.%<tL-%tT.%<tL", schedulerId, trigger, start, end);
+         return String.format("%s fired %s: scheduled %tT.%<tL, ran %tT.%<tL-%tT.%<tL",
+                              schedulerId, trigger, scheduledFireTime, start, end);
       }
 
       final String schedulerId;
       final String trigger;
+      final long scheduledFireTime;
       final long start;
       volatile long end;
    }
@@ -432,6 +569,7 @@ class ClusterJobStoreRecurringTriggerTest {
    private static final long IDLE_WAIT = 2000;
    private static final long MISFIRE_THRESHOLD = 500;
    private static final long INTERVAL = 2000;
+   private static final long GAP = 6000;
    private static final long DURATION = INTERVAL + 1500;
    private static final long OBSERVATION = 15000;
    // a released trigger is past due, so it fires as soon as the completing node is signalled;
@@ -446,5 +584,7 @@ class ClusterJobStoreRecurringTriggerTest {
    private final String recorderId = UUID.randomUUID().toString();
    private final List<org.quartz.Scheduler> schedulers = new ArrayList<>();
    private ApplicationContext savedAppContext;
+   private Cluster cluster;
+   private final Map<String, StoppingJobStore> stores = new HashMap<>();
    private Principal savedPrincipal;
 }
