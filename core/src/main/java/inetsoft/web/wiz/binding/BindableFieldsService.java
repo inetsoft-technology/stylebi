@@ -22,9 +22,11 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.DataVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Tool;
 import inetsoft.web.binding.service.VSBindingTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.wiz.binding.model.BindableField;
@@ -113,13 +115,20 @@ public class BindableFieldsService {
 
    /** The table an assembly is bound to right now, or {@code null} if it has none yet. */
    private static String sourceNameOf(VSAssembly assembly) {
-      if(!(assembly instanceof DataVSAssembly data)) {
-         return null;
+      if(assembly instanceof DataVSAssembly data) {
+         SourceInfo source = data.getSourceInfo();
+
+         return source == null || source.isEmpty() ? null : source.getSource();
       }
 
-      SourceInfo source = data.getSourceInfo();
+      // Bug #76592: Gauge/Text (OutputVSAssembly) keep their table in BindingInfo, not a SourceInfo
+      if(assembly instanceof BindableVSAssembly bindable) {
+         String table = bindable.getTableName();
 
-      return source == null || source.isEmpty() ? null : source.getSource();
+         return Tool.isEmptyString(table) ? null : table;
+      }
+
+      return null;
    }
 
    /**

@@ -942,13 +942,20 @@ public class WizAutoBindingService {
     * <p>Null when unavailable, which leaves autoBinding on the worksheet's primary assembly.
     */
    static String sourceTableName(VSAssembly target) {
-      if(!(target instanceof DataVSAssembly dataAsm)) {
-         return null;
+      if(target instanceof DataVSAssembly dataAsm) {
+         SourceInfo source = dataAsm.getSourceInfo();
+
+         return source == null ? null : source.getSource();
       }
 
-      SourceInfo source = dataAsm.getSourceInfo();
+      // Bug #76592: Gauge/Text (OutputVSAssembly) keep their table in BindingInfo, not a SourceInfo
+      if(target instanceof BindableVSAssembly bindable) {
+         String table = bindable.getTableName();
 
-      return source == null ? null : source.getSource();
+         return Tool.isEmptyString(table) ? null : table;
+      }
+
+      return null;
    }
 
    /**
