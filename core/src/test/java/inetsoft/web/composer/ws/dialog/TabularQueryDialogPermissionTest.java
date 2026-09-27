@@ -1,0 +1,382 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2026  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.composer.ws.dialog;
+
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.*;
+import inetsoft.test.*;
+import inetsoft.uql.XDataSource;
+import inetsoft.uql.XRepository;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.TabularTableAssemblyInfo;
+import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.tabular.*;
+import inetsoft.util.FileSystemService;
+import inetsoft.web.composer.model.ws.*;
+import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+
+import java.security.Principal;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * Bug #77149: every tabular query dialog entry point that uses a stored data source by
+ * name must require DATA_SOURCE READ on that name before the source is loaded or bound.
+ * <ul>
+ *    <li>E1 POST /api/composer/ws/tabular-query-dialog/refreshView</li>
+ *    <li>E2 POST /api/composer/ws/tabular-query-dialog/oauth-params</li>
+ *    <li>E3 POST /api/composer/ws/tabular-query-dialog/oauth-tokens</li>
+ *    <li>E4 POST /api/composer/ws/tabular-query-dialog/browse</li>
+ *    <li>E5 STOMP /events/ws/dialog/tabular-query-dialog-model (setModel), both the new
+ *        assembly branch and the existing assembly (same-name rebind) branch</li>
+ * </ul>
+ */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
+class TabularQueryDialogPermissionTest {
+   private static final String DS = "DS1";
+
+   private SecurityEngine securityEngine;
+   private TabularQueryDialogServiceProxy serviceProxy;
+   private TabularQueryDialogController controller;
+   private HttpServletRequest request;
+   private final Principal principal = () -> "bob";
+
+   private MockedStatic<TabularUtil> tabularUtil;
+   private TabularQuery query;
+
+   @BeforeEach
+   void setUp() {
+      securityEngine = mock(SecurityEngine.class);
+      serviceProxy = mock(TabularQueryDialogServiceProxy.class);
+      controller = new TabularQueryDialogController(
+         serviceProxy, mock(FileSystemService.class), securityEngine);
+      request = mock(HttpServletRequest.class);
+      HttpSession session = mock(HttpSession.class);
+      when(request.getSession()).thenReturn(session);
+      when(session.getId()).thenReturn("session1");
+
+      query = mock(TabularQuery.class);
+      tabularUtil = mockStatic(TabularUtil.class);
+      tabularUtil.when(() -> TabularUtil.createQuery(DS)).thenReturn(query);
+   }
+
+   @AfterEach
+   void tearDown() {
+      tabularUtil.close();
+   }
+
+   private void grantRead(boolean granted) throws Exception {
+      when(securityEngine.checkPermission(
+         any(Principal.class), eq(ResourceType.DATA_SOURCE), anyString(), eq(ResourceAction.READ)))
+         .thenReturn(granted);
+   }
+
+   private void verifyReadChecked(String name) throws Exception {
+      verify(securityEngine).checkPermission(
+         principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ);
+   }
+
+   private void assertDeniedBeforeLoad(Executable call) {
+      assertThrows(java.lang.SecurityException.class, call);
+      tabularUtil.verify(() -> TabularUtil.createQuery(any()), never());
+   }
+
+   private TabularQueryOAuthParamsRequest oauthParamsRequest() {
+      return mock(TabularQueryOAuthParamsRequest.class);
+   }
+
+   private TabularQueryOAuthTokens oauthTokens(TabularView view) {
+      TabularQueryOAuthTokens tokens = mock(TabularQueryOAuthTokens.class);
+      when(tokens.method()).thenReturn("m");
+      when(tokens.view()).thenReturn(view);
+      return tokens;
+   }
+
+   // ---- E1-E4: denied ----
+
+   @Test
+   void refreshViewDeniedWithoutRead() throws Exception {
+      grantRead(false);
+      assertDeniedBeforeLoad(() -> controller.refreshTabularView(
+         new TabularView(), DS, null, null, principal, request));
+      verifyReadChecked(DS);
+      tabularUtil.verify(
+         () -> TabularUtil.refreshView(any(), any(), any(), any()), never());
+   }
+
+   @Test
+   void oauthParamsDeniedWithoutRead() throws Exception {
+      grantRead(false);
+      assertDeniedBeforeLoad(
+         () -> controller.getOAuthParameters(oauthParamsRequest(), DS, principal, request));
+      verifyReadChecked(DS);
+   }
+
+   @Test
+   void oauthTokensDeniedWithoutRead() throws Exception {
+      grantRead(false);
+      assertDeniedBeforeLoad(() -> controller.setOAuthTokens(
+         oauthTokens(new TabularView()), DS, principal, request));
+      verifyReadChecked(DS);
+      tabularUtil.verify(() -> TabularUtil.setOAuthTokens(any(), any(), any(), any()), never());
+   }
+
+   @Test
+   void browseDeniedWithoutRead() throws Exception {
+      grantRead(false);
+      assertDeniedBeforeLoad(
+         () -> controller.browse(DS, "p", "/", false, new TabularView(), principal));
+      verifyReadChecked(DS);
+   }
+
+   @Test
+   void checkFailureIsTreatedAsDenied() throws Exception {
+      when(securityEngine.checkPermission(
+         any(Principal.class), eq(ResourceType.DATA_SOURCE), anyString(), eq(ResourceAction.READ)))
+         .thenThrow(new inetsoft.sree.security.SecurityException("boom"));
+      assertDeniedBeforeLoad(() -> controller.refreshTabularView(
+         new TabularView(), DS, null, null, principal, request));
+   }
+
+   @ParameterizedTest
+   @NullSource
+   @ValueSource(strings = { "", "   " })
+   void controllerRejectsMissingName(String name) throws Exception {
+      grantRead(true);
+      assertDeniedBeforeLoad(() -> controller.refreshTabularView(
+         new TabularView(), name, null, null, principal, request));
+      assertDeniedBeforeLoad(
+         () -> controller.getOAuthParameters(oauthParamsRequest(), name, principal, request));
+      assertDeniedBeforeLoad(() -> controller.setOAuthTokens(
+         oauthTokens(new TabularView()), name, principal, request));
+      assertDeniedBeforeLoad(
+         () -> controller.browse(name, "p", "/", false, new TabularView(), principal));
+      verifyNoInteractions(securityEngine);
+   }
+
+   // ---- E1-E4: granted, behavior unchanged ----
+
+   @Test
+   void refreshViewAllowedWithRead() throws Exception {
+      grantRead(true);
+      TabularView view = new TabularView();
+      assertSame(view, controller.refreshTabularView(view, DS, null, null, principal, request));
+      verifyReadChecked(DS);
+      tabularUtil.verify(() -> TabularUtil.refreshView(same(view), same(query), any(), same(principal)));
+   }
+
+   @Test
+   void oauthParamsAllowedWithRead() throws Exception {
+      grantRead(true);
+
+      try(MockedStatic<SreeEnv> sreeEnv = mockStatic(SreeEnv.class)) {
+         sreeEnv.when(() -> SreeEnv.getProperty("license.key")).thenReturn("key1,key2");
+         TabularOAuthParams params =
+            controller.getOAuthParameters(oauthParamsRequest(), DS, principal, request);
+         assertEquals("key1", params.license());
+      }
+
+      verifyReadChecked(DS);
+      tabularUtil.verify(() -> TabularUtil.getOAuthParameters(
+         any(), any(), any(), any(), any(), any(), any(), any(), same(query)));
+   }
+
+   @Test
+   void oauthTokensAllowedWithRead() throws Exception {
+      grantRead(true);
+      TabularView view = new TabularView();
+      assertSame(view, controller.setOAuthTokens(oauthTokens(view), DS, principal, request));
+      verifyReadChecked(DS);
+      tabularUtil.verify(() -> TabularUtil.setOAuthTokens(any(), same(query), eq("m"), same(view)));
+   }
+
+   @Test
+   void browseAllowedWithRead() throws Exception {
+      grantRead(true);
+      tabularUtil.when(() -> TabularUtil.createQuery(DS)).thenReturn(null);
+      assertNotNull(controller.browse(DS, "p", "/", false, new TabularView(), principal));
+      verifyReadChecked(DS);
+      tabularUtil.verify(() -> TabularUtil.createQuery(DS));
+   }
+
+   // ---- E5: setModel ----
+
+   private final class ServiceFixture implements AutoCloseable {
+      final ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      final XRepository repository = mock(XRepository.class);
+      final RuntimeWorksheet rws = mock(RuntimeWorksheet.class);
+      final CommandDispatcher dispatcher = mock(CommandDispatcher.class);
+      final TabularQueryDialogService service = new TabularQueryDialogService(
+         viewsheetService, securityEngine, repository, mock(DataSourceRegistry.class));
+      final MockedStatic<WorksheetEventUtil> wsEventUtil = mockStatic(WorksheetEventUtil.class);
+      final MockedStatic<AssetEventUtil> assetEventUtil = mockStatic(AssetEventUtil.class);
+
+      ServiceFixture(Worksheet ws) throws Exception {
+         when(viewsheetService.getWorksheet("rid", principal)).thenReturn(rws);
+         when(rws.getWorksheet()).thenReturn(ws);
+         when(rws.getID()).thenReturn("rid");
+         AssetEntry entry = mock(AssetEntry.class);
+         when(entry.getPath()).thenReturn("ws1");
+         when(rws.getEntry()).thenReturn(entry);
+         when(rws.getAssetQuerySandbox()).thenReturn(mock(AssetQuerySandbox.class));
+      }
+
+      TabularQueryDialogModel model(String dataSource, String tableName) {
+         TabularQueryDialogModel model = new TabularQueryDialogModel();
+         model.setDataSource(dataSource);
+         model.setTableName(tableName);
+         model.setTabularView(new TabularView());
+         return model;
+      }
+
+      void setModel(String dataSource, String tableName) throws Exception {
+         service.setModel("rid", model(dataSource, tableName), principal, dispatcher);
+      }
+
+      void verifyNothingBound() {
+         verifyNoInteractions(viewsheetService, repository);
+         tabularUtil.verify(() -> TabularUtil.createQuery(any()), never());
+         wsEventUtil.verify(() -> WorksheetEventUtil.loadTableData(any(), any(), anyBoolean(),
+                                                                   anyBoolean()), never());
+      }
+
+      @Override
+      public void close() {
+         assetEventUtil.close();
+         wsEventUtil.close();
+      }
+   }
+
+   private static XDataSource dataSource(String name, long lastModified) {
+      XDataSource ds = mock(XDataSource.class);
+      when(ds.getFullName()).thenReturn(name);
+      when(ds.getLastModified()).thenReturn(lastModified);
+      return ds;
+   }
+
+   private record ExistingTable(Worksheet ws, TabularTableAssemblyInfo info, TabularQuery query) {
+   }
+
+   private static ExistingTable existingTable() {
+      Worksheet ws = mock(Worksheet.class);
+      TabularTableAssembly assembly = mock(TabularTableAssembly.class);
+      TabularTableAssemblyInfo info = mock(TabularTableAssemblyInfo.class);
+      TabularQuery existingQuery = mock(TabularQuery.class);
+      XDataSource bound = dataSource(DS, 1L);
+      when(ws.getAssembly("T1")).thenReturn(assembly);
+      when(assembly.getName()).thenReturn("T1");
+      when(assembly.getTableInfo()).thenReturn(info);
+      when(info.getQuery()).thenReturn(existingQuery);
+      when(existingQuery.getDataSource()).thenReturn(bound);
+      return new ExistingTable(ws, info, existingQuery);
+   }
+
+   @Test
+   void setModelNewAssemblyDeniedWithoutRead() throws Exception {
+      grantRead(false);
+
+      try(ServiceFixture f = new ServiceFixture(new Worksheet())) {
+         assertThrows(java.lang.SecurityException.class, () -> f.setModel(DS, "T1"));
+         verifyReadChecked(DS);
+         f.verifyNothingBound();
+      }
+   }
+
+   @Test
+   void setModelSameNameRebindDeniedWithoutRead() throws Exception {
+      grantRead(false);
+      ExistingTable t = existingTable();
+
+      try(ServiceFixture f = new ServiceFixture(t.ws())) {
+         assertThrows(java.lang.SecurityException.class, () -> f.setModel(DS, "T1"));
+         verifyReadChecked(DS);
+         f.verifyNothingBound();
+         verify(t.query(), never()).setDataSource(any());
+      }
+   }
+
+   @ParameterizedTest
+   @NullSource
+   @ValueSource(strings = { "", "   " })
+   void setModelRejectsMissingName(String name) throws Exception {
+      grantRead(true);
+      ExistingTable t = existingTable();
+
+      try(ServiceFixture f = new ServiceFixture(t.ws())) {
+         assertThrows(java.lang.SecurityException.class, () -> f.setModel(name, "T1"));
+         f.verifyNothingBound();
+         verifyNoInteractions(securityEngine);
+      }
+   }
+
+   @Test
+   void setModelNewAssemblyAllowedWithRead() throws Exception {
+      grantRead(true);
+      Worksheet ws = new Worksheet();
+
+      try(ServiceFixture f = new ServiceFixture(ws)) {
+         f.setModel(DS, "T1");
+         verifyReadChecked(DS);
+         TabularTableAssembly assembly = (TabularTableAssembly) ws.getAssembly("T1");
+         assertNotNull(assembly);
+         TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
+         assertSame(query, info.getQuery());
+         assertEquals(DS, info.getSourceInfo().getSource());
+         f.wsEventUtil.verify(() -> WorksheetEventUtil.createAssembly(
+            same(f.rws), same(assembly), same(f.dispatcher), same(principal)));
+      }
+   }
+
+   @Test
+   void setModelSameNameRebindAllowedWithRead() throws Exception {
+      grantRead(true);
+      ExistingTable t = existingTable();
+      XDataSource updated = dataSource(DS, 2L);
+
+      try(ServiceFixture f = new ServiceFixture(t.ws())) {
+         when(f.repository.getDataSource(DS)).thenReturn(updated);
+         f.setModel(DS, "T1");
+         verifyReadChecked(DS);
+         verify(t.query()).setDataSource(updated);
+         f.wsEventUtil.verify(() -> WorksheetEventUtil.loadTableData(f.rws, "T1", true, true));
+      }
+   }
+}
