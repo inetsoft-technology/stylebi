@@ -17,25 +17,32 @@
  */
 package inetsoft.web.messaging;
 
+import inetsoft.sree.internal.cluster.AffinityCallable;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import inetsoft.web.ServiceProxyContext;
+import inetsoft.web.admin.content.repository.ExportAssetService;
+import inetsoft.web.admin.content.repository.ExportAssetServiceProxy;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ExecutorSubscribableChannel;
 import org.springframework.messaging.support.MessageBuilder;
 
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #77135: the thread-local user message list ({@code CoreTool.USER_MESSAGE_LOCAL}) must not
@@ -51,7 +58,9 @@ import static org.mockito.Mockito.when;
  * {@link MessageScopeInterceptor} on a single-thread executor, so alice's and bob's messages are
  * handled on the same pooled thread. The async case replays the sequence the generated
  * {@code @ClusterProxy} callable runs ({@code preprocess -> service -> postprocess -> apply}) on a
- * WorksheetEngine-style pool, which has no end-of-task cleanup of its own.
+ * WorksheetEngine-style pool, which has no end-of-task cleanup of its own; a second async case drives
+ * a generated proxy ({@code ExportAssetServiceProxy.checkExportStatusAsync}) through a mocked
+ * {@link Cluster}, so a template change that re-adds messages on the pool thread is also caught.
  */
 @Tag("core")
 class UserMessageThreadBoundaryTest {
@@ -205,6 +214,103 @@ class UserMessageThreadBoundaryTest {
       }
       finally {
          wsPool.shutdownNow();
+      }
+   }
+
+   // STOMP: the afterMessageHandled clear on its own. A message added during handling and never
+   // read must be gone once the message is done, even for plain work on that pooled thread that
+   // does not go through the interceptor (so the next message's beforeHandle clear cannot mask it).
+   @Test
+   void stompMessageAddedDuringHandlingIsClearedWhenMessageIsDone() throws Exception {
+      List<Thread> threads = new CopyOnWriteArrayList<>();
+      ExecutorSubscribableChannel ch = channel(m -> {
+         threads.add(Thread.currentThread());
+         Tool.addUserWarning("alice-unread-at-exit");
+      });
+
+      ch.send(stomp("alice"));
+      drain();
+
+      Future<String> next = inboundPool.submit(() -> {
+         threads.add(Thread.currentThread());
+         return text(Tool.getUserMessage());
+      });
+
+      assertEquals("<none>", next.get(5, TimeUnit.SECONDS),
+                   "alice's message survived afterMessageHandled on the pooled thread");
+      assertSame(threads.get(0), threads.get(1), "both units of work must share one pooled thread");
+   }
+
+   // Async proxy, driven through a generated @ClusterProxy class rather than a hand-replayed
+   // sequence: the generated xxxAsync callable must leave no message on the executor thread.
+   @Test
+   void generatedAsyncProxyCallableLeavesNoMessageOnPoolThread() throws Exception {
+      ExecutorService wsPool =
+         Executors.newSingleThreadExecutor(r -> new GroupedThread(r, "WorksheetEngine"));
+
+      try {
+         ExportAssetService service = mock(ExportAssetService.class);
+         when(service.checkExportStatus("alice-export")).thenAnswer(inv -> {
+            Tool.addUserWarning("alice-async-export-warning");
+            return Boolean.TRUE;
+         });
+         ConfigurationContext context = mock(ConfigurationContext.class);
+         when(context.lookupProxyTarget(ExportAssetService.class)).thenReturn(service);
+
+         // Run the job on the pool, like WorksheetEngine.affinityCallAsync's local branch
+         // (no end-of-task cleanup). Static mocks are thread-local, so open it on the pool thread.
+         Cluster cluster = mock(Cluster.class);
+         when(cluster.affinityCallAsync(anyString(), any(), any())).thenAnswer(inv -> {
+            AffinityCallable<?> job = inv.getArgument(2);
+            return CompletableFuture.supplyAsync(() -> {
+               try(MockedStatic<ConfigurationContext> cc = mockStatic(ConfigurationContext.class)) {
+                  cc.when(ConfigurationContext::getContext).thenReturn(context);
+                  return job.call();
+               }
+               catch(Exception ex) {
+                  throw new CompletionException(ex);
+               }
+            }, wsPool);
+         });
+
+         ExportAssetServiceProxy proxy = new ExportAssetServiceProxy(cluster, null, service);
+         assertEquals(Boolean.TRUE,
+                      proxy.checkExportStatusAsync("alice-export").get(5, TimeUnit.SECONDS));
+         verify(service).checkExportStatus("alice-export");
+
+         String nextTaskSaw = CompletableFuture
+            .supplyAsync(() -> text(Tool.getUserMessage()), wsPool)
+            .get(5, TimeUnit.SECONDS);
+
+         assertEquals("<none>", nextTaskSaw,
+                      "next task on the pool saw a message left by the generated async callable");
+      }
+      finally {
+         wsPool.shutdownNow();
+      }
+   }
+
+   // IgniteAffinity pool backstop: clearAffinityThreadContext must drop user messages too.
+   @Test
+   void clearAffinityThreadContextDropsUserMessages() throws Exception {
+      ExecutorService affinityPool =
+         Executors.newSingleThreadExecutor(r -> new GroupedThread(r, "IgniteAffinity"));
+
+      try {
+         Method clear =
+            IgniteCluster.class.getDeclaredMethod("clearAffinityThreadContext", Object.class);
+         clear.setAccessible(true);
+
+         String seen = affinityPool.submit(() -> {
+            Tool.addUserWarning("alice-affinity-warning");
+            clear.invoke(null, "test");
+            return text(Tool.getUserMessage());
+         }).get(5, TimeUnit.SECONDS);
+
+         assertEquals("<none>", seen, "clearAffinityThreadContext left a user message behind");
+      }
+      finally {
+         affinityPool.shutdownNow();
       }
    }
 
