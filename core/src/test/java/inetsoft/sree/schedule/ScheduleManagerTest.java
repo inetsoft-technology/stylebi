@@ -849,6 +849,63 @@ public class ScheduleManagerTest {
       });
    }
 
+   /**
+    * Bug #77148: a task whose only match is in the bcc list is saved, and the removal is in the
+    * stored task, not only in the cached in-memory copy.
+    */
+   @Test
+   void identityRemoved_bccOnlyMatchSavedToStorage() throws Exception {
+      IdentityID bob = new IdentityID("bob", "host-org");
+
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_bcconly", "e@f.com", "x@y.com", "bob,z@w.com", "host-org");
+         ScheduleManager spyManager = spy(scheduleManager);
+         spyManager.identityRemoved(new User(bob), mockProvider(new User(bob)));
+
+         @SuppressWarnings("unchecked")
+         ArgumentCaptor<Collection<ScheduleTask>> saved = ArgumentCaptor.forClass(Collection.class);
+         verify(spyManager).save(saved.capture(), eq("host-org"));
+         Set<String> savedNames = new HashSet<>();
+         saved.getValue().forEach(t -> savedNames.add(t.getName()));
+         assertEquals(Set.of("n77148_bcconly"), savedNames);
+
+         AbstractAction stored = loadStoredAction(task, "host-org");
+         assertEquals("e@f.com", stored.getEmails(), "to");
+         assertEquals("x@y.com", stored.getCCAddresses(), "cc");
+         assertEquals("z@w.com", stored.getBCCAddresses(), "bcc");
+      });
+   }
+
+   /**
+    * Bug #77148: a user referenced in both the to and the cc list is renamed in both lists of the
+    * stored task.
+    */
+   @Test
+   void identityRenamed_userInToAndCcRenamedInStorage() throws Exception {
+      withNotificationTasks(() -> {
+         ScheduleTask task = seedDeliveryTask(
+            "n77148_toccren", "alice,e@f.com", "alice(User)", null, "host-org");
+         scheduleManager.identityRenamed(new IdentityID("alice", "host-org"),
+                                         new User(new IdentityID("alice2", "host-org")));
+
+         AbstractAction stored = loadStoredAction(task, "host-org");
+         assertEquals("alice2,e@f.com", stored.getEmails(), "to");
+         assertEquals("alice2(User)", stored.getCCAddresses(), "cc");
+      });
+   }
+
+   /**
+    * Drops the schedule task cache and parses the first action of the task again from storage.
+    */
+   private AbstractAction loadStoredAction(ScheduleTask task, String orgID) {
+      scheduleManager.getOrgTaskMap(orgID).clearCache();
+      ScheduleTask loaded = scheduleManager.getScheduleTask(task.getTaskId(), orgID);
+      assertNotNull(loaded);
+      assertNotSame(task, loaded);
+      return (AbstractAction) loaded.getAction(0);
+   }
+
    private static EditableAuthenticationProvider mockProvider(User user) {
       EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
       when(provider.getUser(user.getIdentityID())).thenReturn(user);
