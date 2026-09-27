@@ -328,6 +328,15 @@ public class DashboardRegistry {
    }
 
    /**
+    * Re-load the dashboards from the file. The lock is held from the reset to the end of the
+    * load, so a concurrent reader never sees the registry empty while it is being re-loaded.
+    */
+   private synchronized void reload(DashboardRegistry globalRegistry) {
+      reset();
+      loadDashboard(globalRegistry);
+   }
+
+   /**
     * Rename the dashboard.
     */
    public synchronized void renameDashboard(String oname, String name) {
@@ -462,10 +471,9 @@ public class DashboardRegistry {
    private final SecurityEngine securityEngine;
    private final DataChangeListenerManager dmgr = new DataChangeListenerManager();
    private final DataChangeListener changeListener = e -> {
-      reset();
-
       try {
-         loadDashboard(isGlobal() ? null : DashboardRegistryManager.getInstance().getRegistry());
+         // get the global registry before locking this one, the manager locks before registries
+         reload(isGlobal() ? null : DashboardRegistryManager.getInstance().getRegistry());
       }
       catch(Exception ex) {
          LOG.error("Failed to reload dashboard registry", ex);
