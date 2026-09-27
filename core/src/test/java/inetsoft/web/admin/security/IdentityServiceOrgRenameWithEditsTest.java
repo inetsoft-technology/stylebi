@@ -203,8 +203,8 @@ class IdentityServiceOrgRenameWithEditsTest {
            List.of(IdentityModel.builder().identityID(ALICE).type(Identity.USER).build()));
    }
 
-   private void save(String newId, String newName, String theme, String locale,
-                     List<IdentityModel> members) throws Exception
+   private Identity save(String newId, String newName, String theme, String locale,
+                         List<IdentityModel> members) throws Exception
    {
       FSOrganization oldOrg = (FSOrganization) orgs.get(ORG_1).clone();
       EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
@@ -224,7 +224,7 @@ class IdentityServiceOrgRenameWithEditsTest {
 
       try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS)) {
          sutil.when(SUtil::loadLocaleProperties).thenReturn(locales);
-         method.invoke(service, oldOrg, model, provider, requester);
+         return (Identity) method.invoke(service, oldOrg, model, provider, requester);
       }
       catch(InvocationTargetException ex) {
          throw (Exception) ex.getCause();
@@ -299,6 +299,70 @@ class IdentityServiceOrgRenameWithEditsTest {
       );
    }
 
+   // a rename in the same save as a member add, a member drop, a theme and a locale change
+   @Test
+   void rename_memberAddAndDrop_themeAndLocale() throws Exception {
+      save(ORG_1, "New", "t2", "German",
+           List.of(IdentityModel.builder().identityID(ALICE).type(Identity.USER).build(),
+                   IdentityModel.builder().identityID(CAROL).type(Identity.USER).build()));
+      Organization stored = orgs.get(ORG_1);
+      assertAll(
+         () -> assertEquals("New", stored.getName(), "name"),
+         () -> assertTrue(users.containsKey(ALICE), "alice kept"),
+         () -> assertFalse(users.containsKey(BOB), "bob dropped"),
+         () -> assertTrue(users.containsKey(CAROL), "carol added"),
+         () -> assertEquals("t2", stored.getTheme(), "org theme"),
+         () -> assertEquals("de_DE", stored.getLocale(), "org locale"),
+         () -> verify(themesManager).setOrgSelectedTheme("t2", ORG_1),
+         () -> verify(dashboardRegistryManager, never()).migrateRegistry(any(), any(), any())
+      );
+   }
+
+   // a member the requester may not administer is kept back on a rename, as on any other save
+   @Test
+   void rename_keepsHiddenMember() throws Exception {
+      when(securityProvider.checkPermission(any(), eq(ResourceType.SECURITY_USER), eq("bob"),
+                                            any(ResourceAction.class))).thenReturn(false);
+      save("New");
+      Organization stored = orgs.get(ORG_1);
+      assertAll(
+         () -> assertEquals("New", stored.getName(), "name"),
+         () -> assertTrue(users.containsKey(BOB), "hidden member bob must be kept"),
+         () -> assertEquals("t2", stored.getTheme(), "org theme")
+      );
+   }
+
+   // an id and name change moves the kept members to the new id and drops the others
+   @Test
+   void idAndNameChange_membersMoved() throws Exception {
+      Identity result = save("organization2", "New", "t1", null,
+                             List.of(IdentityModel.builder().identityID(ALICE).type(Identity.USER).build()));
+      IdentityID movedAlice = new IdentityID("alice", "organization2");
+      assertAll(
+         () -> assertEquals("New", ((Organization) result).getName(), "name"),
+         () -> assertEquals("organization2", ((Organization) result).getId(), "id"),
+         () -> assertArrayEquals(new String[] { "alice" }, ((Organization) result).getMembers(), "members"),
+         () -> assertTrue(users.containsKey(movedAlice), "alice moved to the new id"),
+         () -> assertFalse(users.containsKey(ALICE), "alice no longer under the old id"),
+         () -> assertFalse(users.containsKey(BOB), "bob dropped"),
+         () -> assertFalse(users.containsKey(new IdentityID("bob", "organization2")), "bob not moved"),
+         () -> verify(dashboardRegistryManager, times(1)).migrateRegistry(isNull(), any(), any()),
+         () -> verify(repletRegistryManager, times(1)).getRegistry("organization1")
+      );
+   }
+
+   // an org admin of the edited organization renames their own organization
+   @Test
+   void orgAdminOwnOrg_renameWithEdits() throws Exception {
+      XPrincipal orgAdmin = mock(XPrincipal.class);
+      when(orgAdmin.getGroups()).thenReturn(new String[0]);
+      when(orgAdmin.getName()).thenReturn(ALICE.convertToKey());
+      requester = orgAdmin;
+      ThreadContext.setPrincipal(orgAdmin);
+      save("New");
+      assertEdits("New");
+   }
+
    private static CustomTheme theme(String id) {
       CustomTheme theme = new CustomTheme();
       theme.setId(id);
@@ -308,4 +372,5 @@ class IdentityServiceOrgRenameWithEditsTest {
    private static final String ORG_1 = "organization1";
    private static final IdentityID ALICE = new IdentityID("alice", ORG_1);
    private static final IdentityID BOB = new IdentityID("bob", ORG_1);
+   private static final IdentityID CAROL = new IdentityID("carol", ORG_1);
 }
