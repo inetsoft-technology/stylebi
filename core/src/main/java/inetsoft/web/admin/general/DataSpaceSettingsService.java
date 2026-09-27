@@ -46,6 +46,8 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class DataSpaceSettingsService extends BackupSupport {
@@ -158,14 +160,12 @@ public class DataSpaceSettingsService extends BackupSupport {
          return;
       }
 
+      // only the files named as getBackFile() names them, any other file in the folder is not a
+      // backup and must neither be counted nor deleted
       List<String> zips = this.externalStorageService.listFiles(BACKUP_FOLDER).stream()
-         .filter(f -> f.endsWith(".zip") && f.contains(BACKUP_PATH_SPLIT))
-         .sorted((z1, z2) -> {
-            long z1Time = getTimestamp(z1);
-            long z2Time = getTimestamp(z2);
-
-            return Long.compare(z1Time, z2Time);
-         })
+         .filter(f -> BACKUP_FILE_NAME.matcher(f).matches())
+         .sorted(Comparator.comparingLong(DataSpaceSettingsService::getTimestamp)
+                    .thenComparingInt(DataSpaceSettingsService::getCopyNumber))
          .toList();
 
 
@@ -188,6 +188,8 @@ public class DataSpaceSettingsService extends BackupSupport {
    }
 
    private static long getTimestamp(String fileName) {
+      // getAvailableFile() adds "(n)" to a name that is already taken
+      fileName = fileName.replaceFirst("\\(\\d+\\)(\\.zip)$", "$1");
       int index = fileName.lastIndexOf(".");
 
       if(index >= 0 && fileName.substring(0, index).contains(BACKUP_PATH_SPLIT)) {
@@ -209,6 +211,19 @@ public class DataSpaceSettingsService extends BackupSupport {
       }
 
       return -1;
+   }
+
+   // the "(n)" getAvailableFile() adds to a name, 0 without it
+   private static int getCopyNumber(String fileName) {
+      Matcher matcher = BACKUP_FILE_NAME.matcher(fileName);
+
+      try {
+         return matcher.matches() && matcher.group(1) != null ?
+            Integer.parseInt(matcher.group(1)) : 0;
+      }
+      catch(NumberFormatException e) {
+         return Integer.MAX_VALUE;
+      }
    }
 
    private String getBackFile(String name, String timestamp) {
@@ -241,6 +256,9 @@ public class DataSpaceSettingsService extends BackupSupport {
 
    private static final String BACKUP_FOLDER = "backup";
    private static final String BACKUP_PATH_SPLIT = "-";
+   // name-yyyyMMddHHmmss.zip, as written by getBackFile(), with the "(n)" of getAvailableFile()
+   private static final Pattern BACKUP_FILE_NAME =
+      Pattern.compile("^.+-\\d{14}(?:\\((\\d+)\\))?\\.zip$");
 
    private static final Lock backupLock = new ReentrantLock();
    private static final Logger LOG = LoggerFactory.getLogger(DataSpaceSettingsService.class);
