@@ -27,7 +27,6 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XLogicalModel;
-import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.service.*;
 import inetsoft.uql.tabular.*;
@@ -35,8 +34,6 @@ import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
-import inetsoft.util.credential.CloudCredential;
-import inetsoft.util.credential.Credential;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.composer.model.ws.TabularOAuthParams;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
@@ -50,6 +47,7 @@ import org.slf4j.LoggerFactory;
 import java.io.FileNotFoundException;
 import java.security.Principal;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public abstract class DatasourcesBaseService {
@@ -64,6 +62,7 @@ public abstract class DatasourcesBaseService {
       this.dataSourceStatusService = dataSourceStatusService;
       this.dataSourceRegistry = dataSourceRegistry;
       this.uqlConfig = uqlConfig;
+      this.secretIdAuthorizer = new SecretIdAuthorizer(securityEngine, dataSourceRegistry);
    }
 
    protected XRepository getRepository() {
@@ -235,28 +234,8 @@ public abstract class DatasourcesBaseService {
    private boolean isSecretIdAuthorized(DataSourceDefinition definition, String secretId,
                                         Principal principal)
    {
-      if(principal == null) {
-         return false;
-      }
-
-      try {
-         String savedPath = getSavedDataSourcePath(definition);
-
-         if(savedPath != null && isSecretIdStoredOn(savedPath, secretId, principal)) {
-            return true;
-         }
-
-         for(String path : dataSourceRegistry.getDataSourceFullNames()) {
-            if(!path.equals(savedPath) && isSecretIdStoredOn(path, secretId, principal)) {
-               return true;
-            }
-         }
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to check access to a secret id referenced by a data source", e);
-      }
-
-      return false;
+      return secretIdAuthorizer.isStoredOnWritableDataSource(
+         secretId, getSavedDataSourcePath(definition), principal);
    }
 
    private static String getSavedDataSourcePath(DataSourceDefinition definition) {
@@ -273,43 +252,45 @@ public abstract class DatasourcesBaseService {
          name : parentPath + "/" + name;
    }
 
-   private boolean isSecretIdStoredOn(String path, String secretId, Principal principal)
-      throws SecurityException
+   /**
+    * Creates the data source that a client-supplied definition describes, so that it can be
+    * saved. Each secret id that the definition or one of its additional connections references
+    * is only resolved if the caller may use it, and the definition is rejected before anything is
+    * saved if the caller may not.
+    *
+    * @param definition the data source definition.
+    * @param ds         the data source to update, or {@code null} to create a new one.
+    * @param stored     the data source that is stored at the path being saved, if any.
+    * @param principal  the caller.
+    *
+    * @return the data source.
+    */
+   private XDataSource createAuthorizedDataSource(BaseDataSourceDefinition definition,
+                                                  XDataSource ds, XDataSource stored,
+                                                  Principal principal)
    {
-      if(!securityEngine.checkPermission(
-         principal, ResourceType.DATA_SOURCE, path, ResourceAction.WRITE))
-      {
-         return false;
-      }
+      Predicate<String> check = secretIdAuthorizer.createCheck(stored, principal);
 
-      XDataSource dataSource = dataSourceRegistry.getDataSource(path);
+      return TabularDataSource.withCredentialFetchGate(check, () -> {
+         XDataSource result = createDataSource(definition, ds);
+         SecretIdAuthorizer.checkSecretId(SecretIdAuthorizer.getCloudSecretId(result), check);
 
-      if(secretId.equals(getCloudSecretId(dataSource))) {
-         return true;
-      }
-
-      if(dataSource instanceof AdditionalConnectionDataSource<?> parent) {
-         for(String name : parent.getDataSourceNames()) {
-            if(secretId.equals(getCloudSecretId(parent.getDataSource(name)))) {
-               return true;
+         // additional connections are created after the data source is saved, so check the
+         // secret ids they reference now
+         if(result instanceof AdditionalConnectionDataSource &&
+            definition instanceof DataSourceDefinition dsDefinition &&
+            dsDefinition.getAdditionalConnections() != null)
+         {
+            for(DataSourceDefinition additional : dsDefinition.getAdditionalConnections()) {
+               if(refreshAndGetDataSource(additional) instanceof XDataSource child) {
+                  SecretIdAuthorizer.checkSecretId(
+                     SecretIdAuthorizer.getCloudSecretId(child), check);
+               }
             }
          }
-      }
 
-      return false;
-   }
-
-   private static String getCloudSecretId(XDataSource dataSource) {
-      Credential credential = null;
-
-      if(dataSource instanceof TabularDataSource<?> tabular) {
-         credential = tabular.getCredential();
-      }
-      else if(dataSource instanceof JDBCDataSource jdbc) {
-         credential = jdbc.getCredential();
-      }
-
-      return credential instanceof CloudCredential ? credential.getId() : null;
+         return result;
+      });
    }
 
    private Object refreshAndGetDataSource(DataSourceDefinition definition) {
@@ -460,7 +441,7 @@ public abstract class DatasourcesBaseService {
                principal);
       }
 
-      XDataSource ds = createDataSource(definition, null);
+      XDataSource ds = createAuthorizedDataSource(definition, null, null, principal);
 
       if(ds != null) {
          String name = ds.getName();
@@ -530,7 +511,8 @@ public abstract class DatasourcesBaseService {
       String nName = parentPath + definition.getName();
       XDataSource oldSrc = repository.getDataSource(oldName);
       checkUpdateDatasourcePermission(nName, oldSrc, principal);
-      XDataSource newSrc = createDataSource(definition, (XDataSource) Tool.clone(oldSrc));
+      XDataSource newSrc = createAuthorizedDataSource(
+         definition, (XDataSource) Tool.clone(oldSrc), oldSrc, principal);
 
       if(newSrc != null) {
          if(oldSrc == null) {
@@ -752,5 +734,6 @@ public abstract class DatasourcesBaseService {
    private final DataSourceStatusService dataSourceStatusService;
    private final DataSourceRegistry dataSourceRegistry;
    private final Config uqlConfig;
+   private final SecretIdAuthorizer secretIdAuthorizer;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }
