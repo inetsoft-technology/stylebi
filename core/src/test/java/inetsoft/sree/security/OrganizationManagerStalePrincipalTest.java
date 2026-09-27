@@ -154,6 +154,15 @@ class OrganizationManagerStalePrincipalTest {
          .addRoleToGroup("AdminN", "Top", ORG)
          .addUser("un", ORG, PASSWORD)
          .addUserToGroup("un", "Sub", ORG)
+         // admin through a group, with a provider ahead of the user's provider in the chain
+         .addSysAdminRole("AdminC", ORG)
+         .addGroup("GC", ORG)
+         .addRoleToGroup("AdminC", "GC", ORG)
+         .addUser("uc", ORG, PASSWORD)
+         .addUserToGroup("uc", "GC", ORG)
+         // admin through a role of the user's organization
+         .addSysAdminRole("AdminO", ORG)
+         .addUser("uorg", ORG, PASSWORD)
          // direct member of the built-in organization administrator role
          .addRole("Organization Administrator", ORG)
          .addUser("uoa", ORG, PASSWORD)
@@ -377,6 +386,64 @@ class OrganizationManagerStalePrincipalTest {
    }
 
    /**
+    * The chain has a provider ahead of the file provider that, like LDAP, returns a group with no
+    * roles for any name. The user's groups must be read from the file provider that contains the
+    * user, not through the chain, or a genuine admin through a group is locked out.
+    */
+   @Test
+   void groupAdminIsReadFromTheUsersProviderInAChain() throws Exception {
+      String session = store(login("uc"));
+      AuthenticationChain chain = getChain();
+      List<AuthenticationProvider> providers = chain.getProviderList();
+
+      try {
+         chain.setProviderList(List.of(createLdapLikeProvider(), chainProvider));
+         assertNotNull(chain.getGroup(new IdentityID("GC", ORG)));
+         assertEquals(0, chain.getGroup(new IdentityID("GC", ORG)).getRoles().length);
+         assertTrue(isSiteAdmin(session));
+
+         IdentityID groupID = new IdentityID("GC", ORG);
+         FSGroup group = (FSGroup) chainProvider.getGroup(groupID);
+         group.setRoles(new IdentityID[0]);
+         chainProvider.setGroup(groupID, group);
+
+         assertFalse(isSiteAdmin(session));
+      }
+      finally {
+         chain.setProviderList(providers);
+      }
+   }
+
+   /**
+    * The roles of the user's organization are included, read from the provider that contains the
+    * user. The file provider's organizations have no roles, so the organization is stubbed.
+    */
+   @Test
+   void organizationRoleAdminIsKeptAndItsRevokeIsEffective() throws Exception {
+      String session = store(login("uorg"));
+      assertFalse(isSiteAdmin(session));
+
+      AuthenticationChain chain = getChain();
+      List<AuthenticationProvider> providers = chain.getProviderList();
+      FileAuthenticationProvider userProvider = spy(chainProvider);
+      Organization organization = mock(Organization.class);
+      when(organization.getRoles())
+         .thenReturn(new IdentityID[] { new IdentityID("AdminO", ORG) });
+      doReturn(organization).when(userProvider).getOrganization(ORG);
+
+      try {
+         chain.setProviderList(List.of(createLdapLikeProvider(), userProvider));
+         assertTrue(isSiteAdmin(session));
+
+         when(organization.getRoles()).thenReturn(new IdentityID[0]);
+         assertFalse(isSiteAdmin(session));
+      }
+      finally {
+         chain.setProviderList(providers);
+      }
+   }
+
+   /**
     * The built-in organization administrator role is hidden when multi-tenancy is disabled, so
     * a user that is a direct member of it is not an organization admin in a single-tenant
     * installation, the same as before the storage-only check.
@@ -430,8 +497,9 @@ class OrganizationManagerStalePrincipalTest {
    }
 
    /**
-    * The EM organization switch is gated by isSiteAdmin(), so a user whose Administrator role was
-    * revoked through a group edit can no longer switch into another tenant.
+    * A user whose Administrator role was revoked through a group edit is no longer a site admin,
+    * and can no longer switch the EM organization into another tenant. The switch is gated by
+    * isSiteAdmin() and by the ADMIN permission on the target organization.
     */
    @Test
    void revokedAdminCannotSwitchOrganization() throws Exception {
@@ -441,6 +509,7 @@ class OrganizationManagerStalePrincipalTest {
       FSGroup group = (FSGroup) chainProvider.getGroup(groupID);
       group.setRoles(new IdentityID[0]);
       chainProvider.setGroup(groupID, group);
+      assertFalse(OrganizationManager.getInstance().isSiteAdmin(user));
 
       Cluster emCluster = mock(Cluster.class);
       DataSourceRegistry dataSourceRegistry = mock(DataSourceRegistry.class);
@@ -464,6 +533,29 @@ class OrganizationManagerStalePrincipalTest {
       assertNotNull(principal, "login failed for " + name);
       assertEquals("true", principal.getProperty("__internal__"));
       return principal;
+   }
+
+   private static AuthenticationChain getChain() {
+      return (AuthenticationChain)
+         SecurityEngine.getSecurity().getSecurityProvider().getAuthenticationProvider();
+   }
+
+   /**
+    * Creates a provider that behaves like {@code LdapAuthenticationProvider} for names that are
+    * not in the directory: it has no such user or role, but returns a group with no roles for any
+    * name, and the default organization.
+    */
+   private static AuthenticationProvider createLdapLikeProvider() {
+      AuthenticationProvider provider = mock(AuthenticationProvider.class);
+      when(provider.getProviderName()).thenReturn("ldap");
+      when(provider.getRoles(any())).thenReturn(new IdentityID[0]);
+      when(provider.getGroup(any())).thenAnswer(invocation -> new Group(
+         new IdentityID(invocation.<IdentityID>getArgument(0).getName(),
+                        Organization.getDefaultOrganizationID()),
+         null, new String[0], new IdentityID[0]));
+      when(provider.getOrganization(Organization.getDefaultOrganizationID()))
+         .thenReturn(Organization.getDefaultOrganization());
+      return provider;
    }
 
    private static String store(SRPrincipal principal) {

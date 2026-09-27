@@ -162,8 +162,12 @@ public class OrganizationManager {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
       if(isStoredUserPrincipal(principal)) {
+         // The organization administrator role is hidden when multi-tenancy is disabled, the
+         // same as in XPrincipal.getAllRoles(). It is removed after the parent roles are added,
+         // so it is not inherited through a child role either.
+         boolean multiTenant = SUtil.isMultiTenant();
          return Arrays.stream(getStoredUserRoles(provider, principal))
-            .filter(OrganizationManager::isRoleVisible)
+            .filter(role -> multiTenant || !"Organization Administrator".equals(role.name))
             .anyMatch(provider::isOrgAdministratorRole);
       }
 
@@ -213,12 +217,33 @@ public class OrganizationManager {
     * {@link AuthenticationProvider#getRoles(IdentityID)}, which is not updated on other cluster
     * nodes or when a user is removed.
     *
+    * <p>The user, groups and organization are read from the provider in the authentication chain
+    * that contains the user, the same provider that authenticates the user. They are not read
+    * through the chain, because a provider ahead of it may return a group or organization with the
+    * same name that has no roles, e.g. LDAP returns a group for any name.
+    *
     * @return the roles or an empty array if the user no longer exists.
     */
-   private static IdentityID[] getStoredUserRoles(AuthenticationProvider provider,
-                                                  Principal principal)
-   {
-      User user = provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName()));
+   private static IdentityID[] getStoredUserRoles(SecurityProvider provider, Principal principal) {
+      IdentityID userID = IdentityID.getIdentityIDFromKey(principal.getName());
+      AuthenticationProvider userProvider = provider;
+      User user = null;
+
+      if(provider.getAuthenticationProvider() instanceof AuthenticationChain chain) {
+         for(AuthenticationProvider child : chain.getProviders()) {
+            user = child.getUser(userID);
+
+            if(user != null) {
+               userProvider = child;
+               break;
+            }
+         }
+      }
+
+      if(user == null) {
+         // not a chain, or a user from the external user provider
+         user = provider.getUser(userID);
+      }
 
       if(user == null) {
          return new IdentityID[0];
@@ -232,31 +257,42 @@ public class OrganizationManager {
       }
 
       if(user.getGroups() != null) {
-         IdentityID[] groups = Arrays.stream(user.getGroups())
-            .map(group -> new IdentityID(group, orgID))
-            .toArray(IdentityID[]::new);
+         // same walk as AuthenticationProvider.getAllGroups(), collecting the roles as it goes
+         Set<IdentityID> groups = new HashSet<>();
+         Deque<IdentityID> queue = new ArrayDeque<>();
 
-         Arrays.stream(provider.getAllGroups(groups))
-            .map(provider::getGroup)
-            .filter(group -> group != null && group.getRoles() != null)
-            .forEach(group -> roles.addAll(Arrays.asList(group.getRoles())));
+         for(String group : user.getGroups()) {
+            queue.addLast(new IdentityID(group, orgID));
+         }
+
+         while(!queue.isEmpty()) {
+            IdentityID groupID = queue.removeFirst();
+
+            if(groups.add(groupID)) {
+               Group group = userProvider.getGroup(groupID);
+
+               if(group != null) {
+                  if(group.getRoles() != null) {
+                     roles.addAll(Arrays.asList(group.getRoles()));
+                  }
+
+                  if(group.getGroups() != null) {
+                     for(String parent : group.getGroups()) {
+                        queue.addLast(new IdentityID(parent, group.getOrganizationID()));
+                     }
+                  }
+               }
+            }
+         }
       }
 
-      Organization organization = orgID == null ? null : provider.getOrganization(orgID);
+      Organization organization = orgID == null ? null : userProvider.getOrganization(orgID);
 
       if(organization != null && organization.getRoles() != null) {
          roles.addAll(Arrays.asList(organization.getRoles()));
       }
 
       return provider.getAllRoles(roles.toArray(new IdentityID[0]));
-   }
-
-   /**
-    * The organization administrator role is hidden when multi-tenancy is disabled, the same as
-    * in {@link AuthenticationChain#getRoles(IdentityID)}.
-    */
-   private static boolean isRoleVisible(IdentityID role) {
-      return SUtil.isMultiTenant() || !"Organization Administrator".equals(role.name);
    }
 
    public List<IdentityID> orgAdminUsers(String orgID) {
