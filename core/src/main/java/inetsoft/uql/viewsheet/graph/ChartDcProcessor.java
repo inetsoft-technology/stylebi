@@ -190,7 +190,8 @@ public class ChartDcProcessor {
             periodRef != null, comparisonDateDims);
 
       if(calculator != null && calculator instanceof ValueOfCalc) {
-         ((ValueOfCalc) calculator).setDcTempGroups(Arrays.asList(info.getDcTempGroups()));
+         ((ValueOfCalc) calculator).setDcTempGroups(
+            getCalcIgnoreTempGroups(info.getDcTempGroups(), dateDim));
       }
 
       List<XAggregateRef> dateComparisonAggs = new ArrayList<>();
@@ -207,6 +208,37 @@ public class ChartDcProcessor {
       updateDateComparisonChartType(info);
       updateStaticColorFrame(info, dcInfo);
       setDefaultFormatForAggs(info);
+   }
+
+   /**
+    * Build the list of temp date groups the comparison calculator ignores in its
+    * previous-period lookup condition. A temp group whose full name equals the
+    * (updated) comparison date dimension is the visible part axis itself, e.g.
+    * WeekOfQuarter for Quarter/Week-to-Date/Week, so it must stay in the lookup
+    * condition. Otherwise every part is compared with the first part of the
+    * previous period (Bug #77176). The info's temp group list is left unchanged
+    * because query grouping and the merge-part table rely on it (Bug #77010).
+    */
+   static List<XDimensionRef> getCalcIgnoreTempGroups(XDimensionRef[] tempGroups,
+                                                      XDimensionRef dateDim)
+   {
+      List<XDimensionRef> result = new ArrayList<>();
+
+      if(tempGroups == null) {
+         return result;
+      }
+
+      String dateName = dateDim == null ? null : dateDim.getFullName();
+
+      for(XDimensionRef ref : tempGroups) {
+         if(ref != null && dateName != null && Tool.equals(ref.getFullName(), dateName)) {
+            continue;
+         }
+
+         result.add(ref);
+      }
+
+      return result;
    }
 
    // for month->week-of-month, avoid breaking week at month boundary by returning
