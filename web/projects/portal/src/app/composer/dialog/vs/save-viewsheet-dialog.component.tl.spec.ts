@@ -255,6 +255,34 @@ describe("SaveViewsheetDialog — ngOnInit Untitled- clearing", () => {
       const comp = await renderComponent(model);
       expect(comp.model.name).toBe("Sales Dashboard");
    });
+
+   // 🔁 Regression (Bug #76714): the form control used to be built from "Untitled-N" (valid) before
+   //    model.name was cleared, so the OK button's [disabled] flipped false -> true inside the first
+   //    change-detection pass and dev-mode checkNoChanges threw NG0100.
+   it("should not throw NG0100 and should disable OK on the first pass for an 'Untitled-' name", async () => {
+      const { fixture } = await render(SaveViewsheetDialog, {
+         schemas: [NO_ERRORS_SCHEMA],
+         detectChangesOnRender: false,
+         autoDetectChanges: false,
+         importOverrides: [
+            { replace: AssetTreeComponent, with: AssetTreeComponentStub },
+            { replace: ViewsheetOptionsPane, with: ViewsheetOptionsPaneStub },
+            { replace: ModalHeaderComponent, with: ModalHeaderComponentStub },
+         ],
+         providers: [
+            { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
+            { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },
+         ],
+         componentProperties: { model: makeModel("Untitled-1"), runtimeId: "vs-123" },
+      });
+
+      fixture.detectChanges(false);
+      expect(() => fixture.checkNoChanges()).not.toThrow();
+
+      const okButton: HTMLButtonElement = fixture.nativeElement.querySelector(".modal-footer .btn-primary");
+      expect(okButton.disabled).toBe(true);
+      expect(fixture.componentInstance.form.valid).toBe(false);
+   });
 });
 
 // ---------------------------------------------------------------------------
