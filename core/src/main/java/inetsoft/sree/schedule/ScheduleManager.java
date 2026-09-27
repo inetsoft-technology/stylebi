@@ -1480,12 +1480,22 @@ public class ScheduleManager {
     * not an email address denotes a user, name(User) a user and name(Group) a group, so a user
     * matches a bare or a (User) token and a group matches only a (Group) token. A renamed token
     * keeps its form. The other tokens, the delimiters and the spacing are kept.
+    * <p>
+    * This is the shared helper for any stored recipient list (it is also used for the data
+    * cycle notification recipients), not to be confused with the private
+    * {@code updateNotifications(ScheduleAction, ...)} overload, which applies it to the lists
+    * of a schedule action.
+    *
+    * @param notifies the recipient list, tokens separated by ',' or ';'.
+    * @param oname    the old (or removed) name of the identity.
+    * @param nname    the new name of the identity, or null to remove its tokens.
+    * @param type     the identity type, {@link Identity#USER} or {@link Identity#GROUP}.
     *
     * @return the new list, or null if the list is null or empty or no token denotes the
     *         identity.
     */
-   private static String updateNotifications(String notifies, String oname, String nname,
-                                             int type)
+   public static String updateNotifications(String notifies, String oname, String nname,
+                                            int type)
    {
       if(notifies == null || notifies.isEmpty()) {
          return null;
