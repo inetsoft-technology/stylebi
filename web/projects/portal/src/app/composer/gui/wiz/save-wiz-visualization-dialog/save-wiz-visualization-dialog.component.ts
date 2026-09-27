@@ -70,11 +70,13 @@ export class SaveWizVisualizationDialog implements OnInit, AfterViewInit {
    }
 
    ngOnInit(): void {
-      this.initForm();
-
+      // Clear the auto-generated name before building the form so the name control starts from
+      // the same value as model.name; otherwise its validity flips during the first check (NG0100).
       if(this.model.name && this.model.name.indexOf("Untitled-") === 0) {
          this.model.name = "";
       }
+
+      this.initForm();
    }
 
    ngAfterViewInit(): void {
