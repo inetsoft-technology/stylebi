@@ -155,9 +155,10 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
                loginUser = pId;
 
-               if(pId != null && (pId.name.equals(userKey) &&
+               if(pId != null && (isSessionUser(pId, new IdentityID(userKey, pId.orgID)) &&
                   (loginAsUserKey == null || loginAsUserKey.isEmpty() ||
-                     loginAsUserKey.equals(pId.convertToKey()) || loginAsUserKey.equals(pId.name))) &&
+                     loginAsUserKey.equals(pId.convertToKey()) || loginAsUserKey.equals(pId.name) ||
+                     isSessionUser(pId, getLoginAsUserID(loginAsUserKey, pId.orgID)))) &&
                   (headerOrgID == null || headerOrgID.isEmpty() || headerOrgID.equalsIgnoreCase(pId.orgID)))
                {
                   authorized = true;
@@ -435,6 +436,38 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
             }
          }
       }
+   }
+
+   /**
+    * Determines if a requested user id refers to the user of the existing session. An exact
+    * match does. A match that differs only by case does only when the security provider
+    * resolves the requested id to the session's stored id (e.g. the database provider with
+    * security.user.caseSensitive=false), so a case-insensitive provider keeps reusing the
+    * session while a case-sensitive one never lets a case variant take it over (Bug #77081).
+    */
+   private boolean isSessionUser(IdentityID sessionUser, IdentityID requested) {
+      if(sessionUser.equals(requested)) {
+         return true;
+      }
+
+      if(!sessionUser.equalsIgnoreCase(requested)) {
+         return false;
+      }
+
+      try {
+         SecurityProvider provider = getSecurityProvider();
+         User user = provider == null ? null : provider.getUser(requested);
+         return user != null && sessionUser.equals(user.getIdentityID());
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to get the stored id of user: {}", requested, e);
+         return false;
+      }
+   }
+
+   private static IdentityID getLoginAsUserID(String loginAsUserKey, String orgID) {
+      return loginAsUserKey.contains(IdentityID.KEY_DELIMITER) ?
+         IdentityID.getIdentityIDFromKey(loginAsUserKey) : new IdentityID(loginAsUserKey, orgID);
    }
 
    /**

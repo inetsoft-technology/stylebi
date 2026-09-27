@@ -79,6 +79,14 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return false;
       }
 
+      if(!caseSensitive && isAmbiguousUserID(username)) {
+         // several stored users match the name ignoring case and none exactly; which one's
+         // password the users query checks is up to the database, so refuse (Bug #77081)
+         LOG.warn("Failed to authenticate, user name \"{}\" matches more than one user " +
+                     "ignoring case.", username);
+         return false;
+      }
+
       try {
          Optional<UserCredential> passwordAndSalt = dao.getUserCredential(username);
 
@@ -166,22 +174,61 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
    @Override
    public User getUser(IdentityID userIdentity) {
+      IdentityID userName = getStoredUserID(userIdentity);
+
+      if(userName == null) {
+         return null;
+      }
+
+      // build from the stored id, not the argument: a case-insensitive match must not
+      // echo the caller's case into the user's name/org id (Bug #77081)
+      return new User(userName, getEmails(userName),
+                      getUserGroups(userName, caseSensitive), getRoles(userName), "", "");
+   }
+
+   private boolean isAmbiguousUserID(IdentityID userIdentity) {
+      int matches = 0;
+
+      for(IdentityID userName : getUsers()) {
+         if(userIdentity.equals(userName)) {
+            return false;
+         }
+
+         if(userIdentity.equalsIgnoreCase(userName)) {
+            matches++;
+         }
+      }
+
+      return matches > 1;
+   }
+
+   /**
+    * Gets the stored id of a user. An exact match always wins. Otherwise, when user names are
+    * not case sensitive, the one stored id that matches ignoring case is returned. If several
+    * stored ids (e.g. <tt>bob</tt> and <tt>BOB</tt>) match ignoring case and none exactly, the
+    * requested id is ambiguous and <tt>null</tt> is returned, so a log in can never be mapped
+    * to a different user than the one whose password is checked (Bug #77081).
+    */
+   private IdentityID getStoredUserID(IdentityID userIdentity) {
       if(userIdentity == null) {
          return null;
       }
 
+      IdentityID match = null;
+      boolean ambiguous = false;
+
       for(IdentityID userName : getUsers()) {
-         if(caseSensitive && userIdentity.equals(userName) ||
-            !caseSensitive && userIdentity.equalsIgnoreCase(userName))
-         {
-            // build from the stored id, not the argument: a case-insensitive match must not
-            // echo the caller's case into the user's name/org id (Bug #77081)
-            return new User(userName, getEmails(userName),
-                            getUserGroups(userName, caseSensitive), getRoles(userName), "", "");
+         if(userIdentity.equals(userName)) {
+            return userName;
+         }
+
+         if(!caseSensitive && userIdentity.equalsIgnoreCase(userName)) {
+            ambiguous = match != null;
+            match = match == null ? userName : match;
          }
       }
 
-      return null;
+      return ambiguous ? null : match;
    }
 
    @Override
@@ -190,17 +237,27 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return null;
       }
 
+      // prefer the exact id, then the stored id that matches ignoring case; return the
+      // stored org id, not the argument's case (Bug #77081)
+      String match = null;
+
       for(String orgID : this.getOrganizationIDs()) {
-         if(caseSensitive && id.equals(orgID) ||
-            !caseSensitive && id.equalsIgnoreCase(orgID))
-         {
-            // return the stored org id, not the argument's case (Bug #77081)
-            return new Organization(getOrganizationName(orgID), orgID,
-                                    getOrganizationMembers(orgID), "", true);
+         if(id.equals(orgID)) {
+            match = orgID;
+            break;
+         }
+
+         if(match == null && !caseSensitive && id.equalsIgnoreCase(orgID)) {
+            match = orgID;
          }
       }
 
-      return null;
+      if(match == null) {
+         return null;
+      }
+
+      return new Organization(getOrganizationName(match), match,
+                              getOrganizationMembers(match), "", true);
    }
 
    @Override

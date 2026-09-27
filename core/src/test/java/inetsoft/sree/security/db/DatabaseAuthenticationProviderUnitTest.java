@@ -243,6 +243,58 @@ class DatabaseAuthenticationProviderUnitTest {
       assertNull(p.getOrganization("orgb"));
    }
 
+   // ---- Bug #77081: an exact match wins over a case-insensitive one ----
+
+   @Test
+   void getUser_caseInsensitive_bothVariantsStored_returnsExactMatch() {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+      doReturn(new IdentityID[] { new IdentityID("bob", "OrgA"), new IdentityID("BOB", "OrgA") })
+         .when(p).getUsers();
+
+      assertEquals(new IdentityID("bob", "OrgA"),
+                   p.getUser(new IdentityID("bob", "OrgA")).getIdentityID());
+      assertEquals(new IdentityID("BOB", "OrgA"),
+                   p.getUser(new IdentityID("BOB", "OrgA")).getIdentityID());
+      // no exact match and two case-insensitive ones: ambiguous, not the first one
+      assertNull(p.getUser(new IdentityID("Bob", "OrgA")));
+   }
+
+   @Test
+   void getOrganization_caseInsensitive_bothVariantsStored_returnsExactMatch() {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+      doReturn(new String[] { "orga", "OrgA" }).when(p).getOrganizationIDs();
+      doReturn("org a").when(p).getOrganizationName("orga");
+
+      assertEquals("OrgA", p.getOrganization("OrgA").getOrganizationID());
+      assertEquals("orga", p.getOrganization("orga").getOrganizationID());
+      assertEquals("orga", p.getOrganization("ORGA").getOrganizationID());
+   }
+
+   // the password checked is always the one of the name the principal gets: an exact name is
+   // checked as is, and an ambiguous case variant is refused before any password is checked
+   @Test
+   void authenticate_caseInsensitive_bothVariantsStored_checksExactNameOrRefuses()
+      throws Exception
+   {
+      DatabaseAuthenticationProvider p = stubbedProvider(false);
+      doReturn(new IdentityID[] { new IdentityID("bob", "OrgA"), new IdentityID("BOB", "OrgA") })
+         .when(p).getUsers();
+      p.setUserQuery("SELECT NAME, PW FROM U WHERE ORG=? AND NAME=?");
+      AuthenticationDAO dao = mock(AuthenticationDAO.class);
+      when(dao.getUserCredential(any())).thenReturn(java.util.Optional.empty());
+      java.lang.reflect.Field field = DatabaseAuthenticationProvider.class.getDeclaredField("dao");
+      field.setAccessible(true);
+      field.set(p, dao);
+
+      IdentityID ambiguous = new IdentityID("Bob", "OrgA");
+      assertFalse(p.authenticate(ambiguous, new DefaultTicket(ambiguous, "pw")));
+      verify(dao, never()).getUserCredential(any());
+
+      IdentityID exact = new IdentityID("BOB", "OrgA");
+      p.authenticate(exact, new DefaultTicket(exact, "pw"));
+      verify(dao).getUserCredential(exact);
+   }
+
    private static DatabaseAuthenticationProvider stubbedProvider(boolean caseSensitive) {
       String old = SreeEnv.getProperty("security.user.caseSensitive");
       DatabaseAuthenticationProvider p;
