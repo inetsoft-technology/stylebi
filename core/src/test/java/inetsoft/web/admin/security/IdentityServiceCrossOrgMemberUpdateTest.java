@@ -99,11 +99,11 @@ class IdentityServiceCrossOrgMemberUpdateTest {
          .when(provider).setRole(any(), any());
       doAnswer(inv -> users.remove(inv.<IdentityID>getArgument(0)))
          .when(provider).removeUser(any());
-      doAnswer(inv -> groups.remove(inv.<IdentityID>getArgument(0)))
+      doAnswer(inv -> removeGroup(inv.getArgument(0), true))
          .when(provider).removeGroup(any());
-      doAnswer(inv -> groups.remove(inv.<IdentityID>getArgument(0)))
+      doAnswer(inv -> removeGroup(inv.getArgument(0), inv.getArgument(1)))
          .when(provider).removeGroup(any(), anyBoolean());
-      doAnswer(inv -> roles.remove(inv.<IdentityID>getArgument(0)))
+      doAnswer(inv -> removeRole(inv.getArgument(0)))
          .when(provider).removeRole(any());
 
       securityProvider = mock(SecurityProvider.class);
@@ -329,6 +329,113 @@ class IdentityServiceCrossOrgMemberUpdateTest {
       if(failure != null) {
          throw failure;
       }
+   }
+
+   // a group and a role dropped in the same save as an id change must also be removed from the
+   // members that move: alice is in the dropped group and has the dropped role, and the kept sales
+   // group has the dropped role
+   @Test
+   void sameOrg_idChanged_droppedGroupAndRoleRemovedFromMovedMembers() throws Exception {
+      when(organizationManager.getCurrentOrgID()).thenReturn(ORG_1);
+      seedDroppedGroupAndRoleReferences();
+
+      updateMembers(ORG_2, ORG_1);
+
+      assertDroppedGroupAndRoleNotReferenced();
+   }
+
+   // the same for a site admin in the host org, with the id changed
+   @Test
+   void crossOrg_idChanged_droppedGroupAndRoleRemovedFromMovedMembers() throws Exception {
+      seedDroppedGroupAndRoleReferences();
+
+      updateMembers(ORG_2, ORG_1);
+
+      assertDroppedGroupAndRoleNotReferenced();
+      verify(dashboardRegistryManager, never()).migrateRegistry(
+         any(), argThat(o -> o != null && HOST_ORG.equals(o.getId())), any());
+   }
+
+   // with the real permission re-scoping and a real id change by a site admin in the host org, the
+   // edited org's permission moves to the new id while the host org's permission is neither moved
+   // nor copied
+   @Test
+   void crossOrg_idChanged_hostOrgPermissionNotMoved() throws Exception {
+      realPermissions = true;
+      AuthorizationProvider authz = mock(AuthorizationProvider.class);
+      List<Tuple4<ResourceType, String, String, Permission>> permissions = List.of(
+         new Tuple4<>(ResourceType.REPORT, HOST_ORG, "hostFolder/sales", new Permission()),
+         new Tuple4<>(ResourceType.REPORT, ORG_1, "org1Folder/sales", new Permission()));
+      when(authz.getPermissions()).thenReturn(permissions);
+      AuthorizationChain chain = mock(AuthorizationChain.class);
+      when(chain.getProviders()).thenReturn(List.of(authz));
+      when(securityEngine.getAuthorizationChain()).thenReturn(Optional.of(chain));
+      seedOrg1();
+
+      updateMembers(ORG_2, ORG_1);
+
+      assertMovedToOrg2();
+      verify(authz, never()).setPermission(any(), eq("hostFolder/sales"), any(), anyString());
+      verify(authz, never()).removePermission(any(), eq("hostFolder/sales"), anyString());
+      verify(authz, atLeastOnce()).setPermission(any(), eq("org1Folder/sales"), any(), eq(ORG_2));
+      verify(authz, atLeastOnce()).removePermission(any(), eq("org1Folder/sales"), eq(ORG_1));
+   }
+
+   // organization1 as seeded by seedOrg1(), plus the group temps and the role auditor, which the
+   // save drops; alice is in temps and has auditor, and the kept sales group has auditor
+   private void seedDroppedGroupAndRoleReferences() {
+      seedOrg1();
+      addGroup("temps", ORG_1);
+      addRole("auditor", ORG_1);
+      FSUser alice = (FSUser) users.get(ALICE);
+      alice.setGroups(new String[] { "sales", "temps" });
+      alice.setRoles(new IdentityID[] { new IdentityID("analyst", ORG_1),
+                                        new IdentityID("auditor", ORG_1) });
+      ((FSGroup) groups.get(SALES)).setRoles(new IdentityID[] { new IdentityID("auditor", ORG_1) });
+   }
+
+   private void assertDroppedGroupAndRoleNotReferenced() {
+      assertMovedToOrg2();
+      User alice = users.get(new IdentityID("alice", ORG_2));
+      assertEquals(List.of("sales"), Arrays.asList(alice.getGroups()),
+                   "the moved user must not stay in the deleted group");
+      assertEquals(List.of("analyst"),
+                   Arrays.stream(alice.getRoles()).map(IdentityID::getName).toList(),
+                   "the moved user must not keep the deleted role");
+      Group sales = groups.get(new IdentityID("sales", ORG_2));
+      assertEquals(0, sales.getRoles().length, "the moved group must not keep the deleted role");
+   }
+
+   // models FileAuthenticationProvider.processAuthenticationChange(): a deleted group or role is
+   // removed only from the identities of its own organization
+   private Group removeGroup(IdentityID id, boolean removed) {
+      Group group = groups.remove(id);
+
+      if(removed) {
+         users.values().stream()
+            .filter(u -> Tool.equals(u.getOrganizationID(), id.getOrgID()))
+            .forEach(u -> ((FSUser) u).setGroups(Tool.remove(u.getGroups(), id.getName())));
+         groups.values().stream()
+            .filter(g -> Tool.equals(g.getOrganizationID(), id.getOrgID()))
+            .forEach(g -> ((FSGroup) g).setGroups(Tool.remove(g.getGroups(), id.getName())));
+      }
+
+      return group;
+   }
+
+   private Role removeRole(IdentityID id) {
+      Role role = roles.remove(id);
+      users.values().stream()
+         .filter(u -> Tool.equals(u.getOrganizationID(), id.getOrgID()))
+         .forEach(u -> ((FSUser) u).setRoles(Tool.remove(u.getRoles(), id)));
+      groups.values().stream()
+         .filter(g -> Tool.equals(g.getOrganizationID(), id.getOrgID()))
+         .forEach(g -> ((FSGroup) g).setRoles(Tool.remove(g.getRoles(), id)));
+      roles.values().stream()
+         .filter(r -> r.getOrganizationID() == null ||
+            Tool.equals(r.getOrganizationID(), id.getOrgID()))
+         .forEach(r -> ((FSRole) r).setRoles(Tool.remove(r.getRoles(), id)));
+      return role;
    }
 
    // organization1 has alice, the hidden user, the sales group and the analyst role, and the
