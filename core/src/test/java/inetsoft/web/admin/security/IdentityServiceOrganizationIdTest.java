@@ -115,6 +115,14 @@ class IdentityServiceOrganizationIdTest {
       FSOrganization org = new FSOrganization(new IdentityID("Backup Org", "backup"));
       when(eprovider.getOrganizationNames()).thenReturn(new String[]{ "Backup Org" });
       when(eprovider.getOrganization("backup")).thenReturn(org);
+      // a rename takes the full save path, which also updates the (empty) member list
+      when(eprovider.getUsers()).thenReturn(new IdentityID[0]);
+      when(eprovider.getGroups()).thenReturn(new IdentityID[0]);
+      when(eprovider.getRoles()).thenReturn(new IdentityID[0]);
+      SecurityProvider securityProvider = mock(SecurityProvider.class);
+      when(securityProvider.getAuthorizationProvider()).thenReturn(mock(AuthorizationChain.class));
+      ReflectionTestUtils.setField(service, "securityProvider", securityProvider);
+      sUtilStatic.when(SUtil::loadLocaleProperties).thenReturn(new Properties());
 
       service.setIdentity(org, orgModel("Backup Renamed", "backup"), eprovider, principal);
 

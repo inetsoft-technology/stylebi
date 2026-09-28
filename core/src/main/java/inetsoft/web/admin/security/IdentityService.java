@@ -2505,16 +2505,6 @@ public class IdentityService {
       newOrg.setName(name);
       List<IdentityModel> members = model.members();
 
-      if(oldOrg != null && !Tool.equals(oldOrg.getName(), newOrg.getName()) &&
-         Tool.equals(oldOrg.getId(), newOrg.getId()))
-      {
-         Organization org = eprovider.getOrganization(id);
-         org.setName(newOrg.getName());
-         eprovider.setOrganization(id, org);
-
-         return org;
-      }
-
       List<String> memberNames = members.stream()
          .map(IdentityModel::identityID)
          .map(i -> i.name)
@@ -2569,7 +2559,8 @@ public class IdentityService {
          updateOrganizationMembers(newOrg, members, oldID, eprovider, principal);
       }
 
-      if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
+      // only an id change migrates, a name change is a same-id save
+      if(fromOrg != null && !Tool.equals(fromOrgID, newOrg.getId())) {
          dashboardRegistryManager.migrateRegistry(null, fromOrg, newOrg);
          repletRegistryManager.getRegistry(fromOrgID).shutdown();
          updateOrgScopedDataSpace(fromOrg, newOrg);
@@ -2590,6 +2581,7 @@ public class IdentityService {
       if(fromOrg != null && Tool.equals(fromOrg.getId(), newOrg.getId()) &&
          fromOrg instanceof FSOrganization)
       {
+         fromOrg.setName(name);
          ((FSOrganization) fromOrg).setLocale(localeString);
          updateCustomThemeOrganization(fromOrg.getTheme(), theme, fromOrgID, fromOrgID);
          ((FSOrganization) fromOrg).setTheme(theme);
