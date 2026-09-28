@@ -645,7 +645,14 @@ public class IdentityService {
       else if(identity.getType() == Identity.ORGANIZATION) {
          if(oID == null) {
             Organization oOrg = eprovider.getOrganization(identityId.orgID);
-            dashboardRegistryManager.clear(identityId);
+            String deletedOrgID = identityId.orgID;
+
+            // Evict the org's cached dashboard registries: the global registry and the
+            // registries of all of its users, including users the provider does not list (SSO,
+            // virtual) and entries cached under the lowercased current-org id. The org
+            // identity's key (orgId__orgName) matches none of them.
+            dashboardRegistryManager.clearOrganization(deletedOrgID);
+
             clearDataSourceMetadata();
 
             if(oOrg != null) {

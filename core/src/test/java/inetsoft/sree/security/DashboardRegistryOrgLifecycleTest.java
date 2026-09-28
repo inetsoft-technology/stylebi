@@ -77,6 +77,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
@@ -442,6 +443,306 @@ class DashboardRegistryOrgLifecycleTest {
                  + "path starting with \"portal/{orgId}/\", which covers the nested per-user path "
                  + "too, so no orphan survives a delete for either registry shape");
    }
+
+   // ── Bug #77231: migrateRegistry() with no new org must not write the file back ──
+
+   @Test
+   void migrateRegistry_noNewOrg_registryFileDeletedAndNotWrittenBack() throws Exception {
+      String orgId = "dashreg_migrate_null";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg("DashRegMigrateNull", orgId)
+         .setup();
+
+      seedAdminDashboard(orgId, "AdminDash", orgId);
+      String adminPath = "portal/" + orgId + "/dashboard-registry.xml";
+      assertTrue(dataSpace.exists(null, adminPath), "precondition: admin registry file must exist");
+
+      dashboardRegistryManager.migrateRegistry(null, new Organization(orgId), null);
+
+      assertFalse(dataSpace.exists(null, adminPath),
+                  "migrateRegistry(null, org, null) deletes the registry file, it must not "
+                  + "save() it back at the same path");
+      assertFalse(registryCache().containsKey(orgId + "__ADMIN__"),
+                  "the removed registry must not stay cached");
+   }
+
+   // ── Bug #77231: org delete evicts the org's global and user registries ──
+
+   @Test
+   void delete_syncIdentity_evictsGlobalAndUserRegistries_recreatedOrgGetsFreshEmptyRegistries()
+      throws Exception
+   {
+      String orgId = "dashreg_evict_org";
+      String orgName = "DashRegEvictOrg";
+      IdentityID user = new IdentityID("erin", orgId);
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(orgName, orgId)
+         .addUser("erin", orgId, "password")
+         .setup();
+
+      FileAuthenticationProvider fileProvider = fileProvider();
+      assertTrue(Arrays.asList(fileProvider.getUsers()).contains(user),
+                 "precondition: the provider must list the org's user");
+
+      seedAdminDashboard(orgId, "AdminDash", orgId);
+      seedUserDashboard(user, "ErinDash", orgId, "erin");
+      DashboardRegistry oldGlobal = dashboardRegistryManager.getRegistry(orgId);
+      DashboardRegistry oldUser = dashboardRegistryManager.getRegistry(user);
+      assertSame(oldGlobal, registryCache().get(orgId + "__ADMIN__"), "precondition: global cached");
+      assertSame(oldUser, registryCache().get(orgId + "__erin"), "precondition: user cached");
+
+      String adminPath = "portal/" + orgId + "/dashboard-registry.xml";
+      String userPath = "portal/" + orgId + "/erin/dashboard-registry.xml";
+      dataSpace.delete(null, NULL_ORG_ADMIN_PATH);
+
+      deleteOrganization(fileProvider, new IdentityID(orgName, orgId));
+
+      assertFalse(registryCache().containsKey(orgId + "__ADMIN__"),
+                  "org delete must evict the org's global registry (" + orgId + "__ADMIN__)");
+      assertFalse(registryCache().containsKey(orgId + "__erin"),
+                  "org delete must evict the registries of the org's users");
+      assertFalse(registryCache().containsValue(oldGlobal));
+      assertFalse(registryCache().containsValue(oldUser));
+      assertTrue(isDetached(oldGlobal), "the evicted global registry must no longer watch its file");
+      assertTrue(isDetached(oldUser), "the evicted user registry must no longer watch its file");
+      assertFalse(dataSpace.exists(null, adminPath), "admin registry file must be gone");
+      assertFalse(dataSpace.exists(null, userPath), "per-user registry file must be gone");
+
+      // re-create an org with the same id
+      FSOrganization org = new FSOrganization(orgId);
+      org.setName(orgName);
+      org.setMembers(new String[0]);
+      fileProvider.addOrganization(org);
+
+      DashboardRegistry newGlobal = dashboardRegistryManager.getRegistry(orgId);
+      DashboardRegistry newUser = dashboardRegistryManager.getRegistry(user);
+
+      try {
+         assertNotSame(oldGlobal, newGlobal, "the re-created org must get a new global registry");
+         assertNotSame(oldUser, newUser, "the re-created org's user must get a new registry");
+         assertEquals(0, newGlobal.getDashboardNames().length, "the new global registry is empty");
+         assertEquals(0, newUser.getDashboardNames().length, "the new user registry is empty");
+         assertEquals(orgId, field(DashboardRegistry.class, "organizationId", newGlobal),
+                      "the new global registry must use the re-created org's path, not portal/null");
+
+         newGlobal.addDashboard("NewDash", newVsDashboard(orgId, null));
+         newGlobal.save();
+      }
+      finally {
+         detachFileWatch(newGlobal);
+         detachFileWatch(newUser);
+      }
+
+      assertTrue(dataSpace.exists(null, adminPath), "the new org's registry is saved at its path");
+      assertFalse(dataSpace.exists(null, NULL_ORG_ADMIN_PATH),
+                  "no registry may be written under portal/null");
+   }
+
+   @Test
+   void delete_syncIdentity_doesNotEvictAnotherOrgWhoseIdStartsWithTheDeletedId() throws Exception {
+      String orgId = "dashreg_ab";
+      String otherOrgId = "dashreg_ab__b";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg("DashRegAb", orgId)
+         .addOrg("DashRegAbB", otherOrgId)
+         .setup();
+
+      seedAdminDashboard(orgId, "AdminDash", orgId);
+      seedAdminDashboard(otherOrgId, "OtherDash", otherOrgId);
+      DashboardRegistry other = dashboardRegistryManager.getRegistry(otherOrgId);
+
+      deleteOrganization(fileProvider(), new IdentityID("DashRegAb", orgId));
+
+      assertFalse(registryCache().containsKey(orgId + "__ADMIN__"));
+      assertSame(other, registryCache().get(otherOrgId + "__ADMIN__"),
+                 "deleting org " + orgId + " must not evict org " + otherOrgId);
+      assertTrue(dataSpace.exists(null, "portal/" + otherOrgId + "/dashboard-registry.xml"));
+   }
+
+   @Test
+   void delete_syncIdentity_userRegistriesOfAnotherOrgWhoseIdStartsWithTheDeletedIdAreKept()
+      throws Exception
+   {
+      String orgId = "dashreg_uab";
+      String otherOrgId = "dashreg_uab__b";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg("DashRegUab", orgId)
+         .addOrg("DashRegUabB", otherOrgId)
+         .setup();
+
+      // Keys are org__user and both parts may contain "__": the deleted org's user "b__y" is
+      // cached as dashreg_uab__b__y, which looks like org dashreg_uab__b + user y. The other
+      // org's user "x" is cached as dashreg_uab__b__x.
+      DashboardRegistry ownUser = dashboardRegistryManager.getRegistry(new IdentityID("b__y", orgId));
+      DashboardRegistry otherUser =
+         dashboardRegistryManager.getRegistry(new IdentityID("x", otherOrgId));
+      DashboardRegistry otherGlobal = dashboardRegistryManager.getRegistry(otherOrgId);
+      detachFileWatch(otherUser);
+      detachFileWatch(otherGlobal);
+      assertSame(ownUser, registryCache().get(orgId + "__b__y"), "precondition: own user cached");
+      assertSame(otherUser, registryCache().get(otherOrgId + "__x"),
+                 "precondition: other org's user cached");
+
+      deleteOrganization(fileProvider(), new IdentityID("DashRegUab", orgId));
+
+      assertFalse(registryCache().containsKey(orgId + "__b__y"),
+                  "the deleted org's user registry must be evicted, whatever its user name");
+      assertTrue(isDetached(ownUser));
+      assertSame(otherUser, registryCache().get(otherOrgId + "__x"),
+                 "deleting org " + orgId + " must not evict the user registries of org " + otherOrgId);
+      assertSame(otherGlobal, registryCache().get(otherOrgId + "__ADMIN__"),
+                 "deleting org " + orgId + " must not evict the global registry of org " + otherOrgId);
+   }
+
+   @Test
+   void delete_syncIdentity_evictsUserRegistryNotListedByTheProvider() throws Exception {
+      String orgId = "dashreg_sso_org";
+      String orgName = "DashRegSsoOrg";
+      // An SSO (SAML ORGID_CLAIM) / virtual user: it has a session and a cached registry for
+      // the org, but the editable provider does not list it.
+      IdentityID ssoUser = new IdentityID("sso_user", orgId);
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(orgName, orgId)
+         .setup();
+
+      FileAuthenticationProvider fileProvider = fileProvider();
+      assertFalse(Arrays.asList(fileProvider.getUsers()).contains(ssoUser),
+                  "precondition: the provider must not list the SSO user");
+
+      DashboardRegistry ssoRegistry = dashboardRegistryManager.getRegistry(ssoUser);
+      assertSame(ssoRegistry, registryCache().get(orgId + "__sso_user"),
+                 "precondition: SSO user registry cached");
+
+      deleteOrganization(fileProvider, new IdentityID(orgName, orgId));
+
+      assertFalse(registryCache().containsKey(orgId + "__sso_user"),
+                  "org delete must evict the registry of a user the provider does not list");
+      assertTrue(isDetached(ssoRegistry), "the evicted registry must no longer watch its file");
+   }
+
+   @Test
+   void delete_syncIdentity_mixedCaseOrg_evictsGlobalCachedUnderLowercasedCurrentOrgId()
+      throws Exception
+   {
+      String orgId = "DashRegMixedCo";
+      String orgName = "DashRegMixedCoName";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(orgName, orgId)
+         .setup();
+
+      // No-arg / current-org path, as DashboardManager does: getCurrentOrgID() lowercases the id.
+      DashboardRegistry currentOrgGlobal;
+      OrganizationContextHolder.setCurrentOrgId(orgId);
+
+      try {
+         currentOrgGlobal = dashboardRegistryManager.getRegistry((IdentityID) null);
+      }
+      finally {
+         OrganizationContextHolder.setCurrentOrgId(null);
+      }
+
+      detachFileWatch(currentOrgGlobal);
+      String lowercasedKey = orgId.toLowerCase() + "__ADMIN__";
+      assertSame(currentOrgGlobal, registryCache().get(lowercasedKey),
+                 "precondition: the current-org global is cached under the lowercased id");
+      assertFalse(registryCache().containsKey(orgId + "__ADMIN__"),
+                  "precondition: it is not cached under the org id as given");
+
+      DashboardRegistry exactGlobal = dashboardRegistryManager.getRegistry(orgId);
+      detachFileWatch(exactGlobal);
+
+      deleteOrganization(fileProvider(), new IdentityID(orgName, orgId));
+
+      assertFalse(registryCache().containsKey(lowercasedKey),
+                  "org delete must evict the global cached under the lowercased current-org id");
+      assertFalse(registryCache().containsKey(orgId + "__ADMIN__"),
+                  "org delete must evict the global cached under the org id as given");
+      assertFalse(registryCache().containsValue(currentOrgGlobal));
+      assertFalse(registryCache().containsValue(exactGlobal));
+   }
+
+   /**
+    * Runs the org branch of IdentityService.syncIdentity() (private) for a delete, with the
+    * storage helpers unrelated to dashboards stubbed.
+    */
+   private void deleteOrganization(FileAuthenticationProvider fileProvider, IdentityID orgIdentity)
+      throws Exception
+   {
+      RepletRegistryManager repletRegistryManager = mock(RepletRegistryManager.class);
+      when(repletRegistryManager.getRegistry(anyString())).thenReturn(mock(RepletRegistry.class));
+
+      IdentityService realService = new IdentityService(
+         SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
+         mock(IdentityThemeService.class), null, null, favoritesService, null, null,
+         mock(DataCycleManager.class), mock(inetsoft.uql.service.DataSourceRegistry.class),
+         mock(LogManager.class), null, mock(inetsoft.sree.schedule.ScheduleManager.class), null,
+         Optional.empty(),
+         null, mock(CustomThemesManager.class), null,
+         dashboardRegistryManager,
+         null, mock(inetsoft.sree.web.dashboard.DashboardManager.class),
+         mock(PortalThemesManager.class), null, dataSpace,
+         null, null, null,
+         repletRegistryManager,
+         Optional.empty());
+
+      IdentityService spyService = spy(realService);
+      doNothing().when(spyService).clearDataSourceMetadata();
+      doNothing().when(spyService).removeOrgProperties(any());
+      doNothing().when(spyService).updateRepletRegistry(any(), any());
+      doNothing().when(spyService).removeStorages(any());
+
+      Method syncIdentity = IdentityService.class.getDeclaredMethod(
+         "syncIdentity", EditableAuthenticationProvider.class, Identity.class, IdentityID.class);
+      syncIdentity.setAccessible(true);
+
+      try {
+         syncIdentity.invoke(spyService, fileProvider,
+                             new inetsoft.uql.util.DefaultIdentity(orgIdentity, Identity.ORGANIZATION),
+                             null);
+      }
+      catch(InvocationTargetException e) {
+         // Tolerated: the tail of the org delete may hit statics (FSService/XJobPool/...) absent
+         // in this minimal context; the registry eviction and the file removal run earlier.
+      }
+      finally {
+         OrganizationContextHolder.setCurrentOrgId(null);
+      }
+   }
+
+   private static FileAuthenticationProvider fileProvider() {
+      AuthenticationProvider authc = SecurityEngine.getSecurity().getSecurityProvider()
+         .getAuthenticationProvider();
+      return (FileAuthenticationProvider) ((AuthenticationChain) authc).getProviders().get(0);
+   }
+
+   @SuppressWarnings("unchecked")
+   private Map<String, DashboardRegistry> registryCache() {
+      return (Map<String, DashboardRegistry>)
+         field(DashboardRegistryManager.class, "registries", dashboardRegistryManager);
+   }
+
+   private static boolean isDetached(DashboardRegistry registry) {
+      return (Boolean) field(DashboardRegistry.class, "detached", registry);
+   }
+
+   private static Object field(Class<?> type, String name, Object target) {
+      try {
+         java.lang.reflect.Field field = type.getDeclaredField(name);
+         field.setAccessible(true);
+         return field.get(target);
+      }
+      catch(ReflectiveOperationException e) {
+         throw new AssertionError(e);
+      }
+   }
+
+   private static final String NULL_ORG_ADMIN_PATH = "portal/null/dashboard-registry.xml";
 
    // ── fixture helpers ──
 

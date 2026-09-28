@@ -403,13 +403,13 @@ public class DashboardRegistryManager {
 
                   try {
                      if(nKey == null) {
+                        // no new org, the registry is removed, don't write its file back
                         dataSpace.delete(null, oldPath);
                      }
                      else {
                         registry.modifyOrgId(nOID);
+                        registry.save();
                      }
-
-                     registry.save();
                   }
                   catch(Exception ex) {
                      LOG.error(ex.getMessage(), ex);
@@ -572,6 +572,45 @@ public class DashboardRegistryManager {
 
          if(registry != null) {
             registry.clear();
+         }
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
+   /**
+    * Clear every cached dashboard registry of an organization: its global registry and the
+    * registries of all of its users, including users the editable provider does not list (SSO,
+    * virtual or anonymous users, or users of other providers).
+    *
+    * <p>The org is matched on the registry's own org id, ignoring case, since the current-org
+    * path lowercases the id. It is not parsed from the key: the key is org__user and both parts
+    * may contain "__". A global registry whose org id did not resolve (null) is matched on its
+    * key, orgId__ADMIN__, ignoring case.
+    */
+   public void clearOrganization(String orgId) {
+      if(orgId == null) {
+         return;
+      }
+
+      String globalKey = getRegistryKey(null, orgId);
+      lock.lock();
+
+      try {
+         Iterator<Map.Entry<String, DashboardRegistry>> it = registries.entrySet().iterator();
+
+         while(it.hasNext()) {
+            Map.Entry<String, DashboardRegistry> entry = it.next();
+            DashboardRegistry registry = entry.getValue();
+            String registryOrgId = registry.getOrgID();
+            boolean match = registryOrgId != null ? orgId.equalsIgnoreCase(registryOrgId) :
+               globalKey.equalsIgnoreCase(entry.getKey());
+
+            if(match) {
+               it.remove();
+               registry.clear();
+            }
          }
       }
       finally {
