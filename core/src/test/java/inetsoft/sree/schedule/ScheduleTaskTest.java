@@ -625,6 +625,21 @@ public class ScheduleTaskTest {
                    "the execute-as identity must follow the owner into the importing org");
    }
 
+   @ParameterizedTest(name = "site-admin import keeps a target-org placeholder of type {0}")
+   @ValueSource(ints = { Identity.USER, Identity.GROUP, Identity.ROLE })
+   void parseXML_siteAdminImport_missingInTargetOrg_placeholderInTargetOrg(int type)
+      throws Exception
+   {
+      // only the source org has the identity, it must not bind to it
+      ScheduleTask task = importTask(importXml(SOURCE_EXEC_AS, type),
+                                     knownProvider(SOURCE_EXEC_AS), true);
+
+      assertNotNull(task.getIdentity());
+      assertEquals(type, task.getIdentity().getType());
+      assertEquals(TARGET_EXEC_AS, task.getIdentity().getIdentityID(),
+                   "the unresolved placeholder must be scoped to the importing org");
+   }
+
    @Test
    void parseXML_siteAdminImport_globalRoleStaysGlobal() throws Exception {
       IdentityID global = new IdentityID("x", null);
