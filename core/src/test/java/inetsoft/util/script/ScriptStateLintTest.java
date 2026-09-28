@@ -89,6 +89,7 @@ class ScriptStateLintTest {
          { "var i = 0; do { n++; i++ } while(i < 3); n", "R2:n" },
          { "for(var i=0;i<3;i++) { var t = (t || 0) + i } t", "R1:t" },
          { "var s = ''; for(var k in field) { out = (out || '') + k } out", "R2:out" },
+         { "var sum; for(var i=0;i<3;i++){ sum = sum ? sum + i : i } sum", "R1:sum" },
       }).map(c -> Arguments.of(c[0], c[1]));
    }
 
@@ -106,6 +107,13 @@ class ScriptStateLintTest {
          "for(var i = 0; i < 5; i++) { if(i > 0) use(prev); prev = i; }",
          "var n = 0; while(n < 3) { n++ } n",
          "var x = 0; for(var i = 0; i < 3; i++) { x = x + 1 } x",
+         // initialized before the loop: reads inside the loop, in or outside the write, are safe
+         "var fact = 1; for(var j = 2; j <= field['n']; j++) fact *= j; fact",
+         "var r = ''; for(var k in obj) { r += k + ','; } r",
+         "var count = 0; var i = 0; while(i < 10) { if(field['x'] > i) count++; i++; } count",
+         "var max = null; for(var i = 0; i < a.length; i++) { if(max == null || a[i] > max) max = a[i]; } max",
+         "var found = false; for(var i = 0; i < 3 && !found; i++) { if(a[i] == 1) found = true; } found",
+         "var str = field['s']; var res = ''; for(var i = str.length - 1; i >= 0; i--) { res = res + str.charAt(i); } res",
          "var o = {total: 1, count: 2}; o.total + o.count",
          "field[-1]['RunningTotal'] + field['Sales']",
          "row == 0 ? field['Sales'] : field[-1]['Total'] + field['Sales']",
