@@ -250,6 +250,7 @@ public class RuntimeQueryService {
          return principal.getName() + "#" + srPrincipal.getSecureID();
       }
 
+      // authenticated users are always SRPrincipals, other principals are internal ones
       return principal.getName();
    }
 

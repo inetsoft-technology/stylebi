@@ -37,6 +37,7 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.composer.model.ws.*;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.dialog.SQLQueryDialogService;
+import inetsoft.web.portal.model.database.AdvancedSQLQueryModel;
 import inetsoft.web.portal.model.database.events.AddQueryTableEvent;
 import inetsoft.web.portal.model.database.events.GetGraphModelEvent;
 import inetsoft.web.portal.model.database.graph.TableDetailJoinInfo;
@@ -167,6 +168,20 @@ class RuntimeQueryOwnershipTest {
 
    /** Applies the SQL query dialog with closeDialog = true (STOMP setModel). */
    private void setModelAndClose(String runtimeQueryId, Principal user) throws Exception {
+      SQLQueryDialogModel model = new SQLQueryDialogModel();
+      model.setName("T1");
+      model.setRuntimeId(runtimeQueryId);
+      model.setDataSource(DS);
+      model.setAdvancedEdit(false);
+      BasicSQLQueryModel simple = new BasicSQLQueryModel();
+      simple.setColumns(new SQLQueryDialogColumnModel[0]);
+      model.setSimpleModel(simple);
+      model.setCloseDialog(true);
+      applyDialog(model, user);
+   }
+
+   /** Applies the SQL query dialog to the existing assembly T1 (STOMP setModel). */
+   private void applyDialog(SQLQueryDialogModel model, Principal user) throws Exception {
       RuntimeWorksheet rws = mock(RuntimeWorksheet.class, RETURNS_DEEP_STUBS);
       Worksheet ws = mock(Worksheet.class);
       SQLBoundTableAssembly assembly = mock(SQLBoundTableAssembly.class);
@@ -180,16 +195,6 @@ class RuntimeQueryOwnershipTest {
       when(wsEngine.getAssetRepository()).thenReturn(mock(AssetRepository.class));
       doReturn(new ColumnSelection()).when(qms)
          .getColumnSelection(any(), any(), any(), any(), any());
-
-      SQLQueryDialogModel model = new SQLQueryDialogModel();
-      model.setName("T1");
-      model.setRuntimeId(runtimeQueryId);
-      model.setDataSource(DS);
-      model.setAdvancedEdit(false);
-      BasicSQLQueryModel simple = new BasicSQLQueryModel();
-      simple.setColumns(new SQLQueryDialogColumnModel[0]);
-      model.setSimpleModel(simple);
-      model.setCloseDialog(true);
 
       SQLQueryDialogService service = new SQLQueryDialogService(
          wsEngine, qms, mock(QueryGraphModelService.class), repository, securityEngine);
@@ -318,6 +323,48 @@ class RuntimeQueryOwnershipTest {
 
       verify(cache, never()).put(eq(aliceId), any());
       assertNull(lookup(alice, aliceId).getSelectedTables());
+   }
+
+   @Test
+   void clearTableWithForeignIdIsANoOp() throws Exception {
+      String aliceId = open(alice);
+      RuntimeQueryService.RuntimeXQuery before = store.get(aliceId);
+      QueryGraphModelController controller = graphController();
+      clearInvocations(cache);
+
+      as(bob);
+      assertDoesNotThrow(() -> controller.clearTable(aliceId));
+
+      verify(cache, never()).put(eq(aliceId), any());
+      assertSame(before, store.get(aliceId));
+   }
+
+   @Test
+   void advancedQueryUpdateWithForeignIdReportsSessionExpired() throws Exception {
+      String aliceId = open(alice);
+      RuntimeQueryService.RuntimeXQuery before = store.get(aliceId);
+
+      as(bob);
+      assertThrows(MessageException.class,
+                   () -> qms.updateQuery(aliceId, new AdvancedSQLQueryModel(), null, true));
+      assertSame(before, store.get(aliceId));
+   }
+
+   @Test
+   void advancedDialogApplyWithForeignIdReportsSessionExpired() throws Exception {
+      String aliceId = open(alice);
+      RuntimeQueryService.RuntimeXQuery before = store.get(aliceId);
+
+      SQLQueryDialogModel model = new SQLQueryDialogModel();
+      model.setName("T1");
+      model.setRuntimeId(aliceId);
+      model.setDataSource(DS);
+      model.setAdvancedEdit(true);
+      model.setAdvancedModel(new AdvancedSQLQueryModel());
+
+      as(bob);
+      assertThrows(MessageException.class, () -> applyDialog(model, bob));
+      assertSame(before, store.get(aliceId));
    }
 
    private QueryGraphModelController graphController() {

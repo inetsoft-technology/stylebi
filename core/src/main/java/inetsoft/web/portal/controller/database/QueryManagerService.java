@@ -138,7 +138,8 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
 
       if(runtimeQuery == null) {
-         return;
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = runtimeQuery.getQuery();
