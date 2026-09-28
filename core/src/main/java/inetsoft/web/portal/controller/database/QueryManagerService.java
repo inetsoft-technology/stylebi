@@ -138,7 +138,8 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
 
       if(runtimeQuery == null) {
-         return;
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
       }
 
       JDBCQuery query = runtimeQuery.getQuery();
@@ -409,13 +410,14 @@ public class QueryManagerService {
       // Bug #77163, the named data source is bound into a new runtime query below.
       checkDataSourceReadPermission(dataSource, principal);
       SQLQueryDialogModel model = new SQLQueryDialogModel();
-      model.setRuntimeId(runtimeId);
       model.setName(tableName);
       model.setDataSource(dataSource);
       model.setAdvancedEdit(advancedEdit);
 
+      // Bug #77190, a blank id gets a new id, and another session's id is refused.
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         createNewRuntimeQuery(runtimeId, tableName, dataSource);
+         createNewRuntimeQuery(runtimeId, tableName, dataSource, principal);
+      model.setRuntimeId(runtimeQuery.getId());
 
       if(advancedEdit) {
          AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery, principal);
@@ -1200,8 +1202,8 @@ public class QueryManagerService {
       runtimeQueryService.destroy(runtimeId);
    }
 
-   public void clearRuntimeQuery() {
-      runtimeQueryService.clear();
+   public void destroyRuntimeQuery(String runtimeId, Principal principal) {
+      runtimeQueryService.destroy(runtimeId, principal);
    }
 
    private JDBCQuery createNewQuery(String name, String database) {
@@ -2571,21 +2573,12 @@ public class QueryManagerService {
    }
 
    private RuntimeQueryService.RuntimeXQuery createNewRuntimeQuery(String runtimeId, String tableName,
-                                                                   String dataSource)
+                                                                   String dataSource,
+                                                                   Principal principal)
       throws Exception
    {
       JDBCQuery newQuery = createNewQuery(tableName, dataSource);
-      RuntimeQueryService.RuntimeXQuery runtimeQuery =
-         runtimeQueryService.createRuntimeQuery(null, newQuery, dataSource, null);
-
-      if(runtimeId != null) {
-         String newId = runtimeQuery.getId();
-         destroyRuntimeQuery(newId);
-         runtimeQuery.setId(runtimeId);
-         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
-      }
-
-      return runtimeQuery;
+      return runtimeQueryService.resetRuntimeQuery(runtimeId, newQuery, dataSource, principal);
    }
 
    private DataRef getOldAttributeRef(String oldAlias, String fullname, ColumnSelection oldColumns,

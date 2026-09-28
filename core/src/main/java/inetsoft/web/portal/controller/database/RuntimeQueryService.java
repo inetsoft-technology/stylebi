@@ -19,6 +19,7 @@ package inetsoft.web.portal.controller.database;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.VariableTable;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,9 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,8 +68,8 @@ public class RuntimeQueryService {
             rws.getAssetQuerySandbox().getVariableTable(), principal);
       }
 
-      RuntimeXQuery runtimeQuery =
-         new RuntimeXQuery(query, generateRuntimeId(query.getName()), database);
+      RuntimeXQuery runtimeQuery = new RuntimeXQuery(query, generateRuntimeId(), database);
+      runtimeQuery.setOwner(getOwnerKey(principal != null ? principal : contextPrincipal()));
       VariableTable vars = rws == null ?
          new VariableTable() : rws.getAssetQuerySandbox().getVariableTable();
       runtimeQuery.setVariables(vars);
@@ -75,16 +78,69 @@ public class RuntimeQueryService {
       return runtimeQuery;
    }
 
+   /**
+    * Replaces the runtime query of a dialog with a new query (the dialog's clear action).
+    * A blank id gets a new id. An id owned by the caller is replaced in place. An id that no
+    * longer exists (e.g. expired) is recreated under the same id, owned by the caller. An id
+    * owned by anyone else is refused.
+    *
+    * @param runtimeId the id held by the client, may be blank.
+    * @param query     the new query.
+    * @param database  the data source name.
+    * @param principal the caller.
+    *
+    * @return the new runtime query.
+    */
+   public RuntimeXQuery resetRuntimeQuery(String runtimeId, JDBCQuery query, String database,
+                                          Principal principal) throws Exception
+   {
+      String owner = getOwnerKey(principal != null ? principal : contextPrincipal());
+      boolean blank = runtimeId == null || runtimeId.trim().isEmpty();
+      RuntimeXQuery runtimeQuery = new RuntimeXQuery(
+         query.clone(), blank ? generateRuntimeId() : runtimeId, database);
+      runtimeQuery.setOwner(owner);
+      runtimeQuery.setVariables(new VariableTable());
+
+      if(blank) {
+         saveRuntimeQuery(runtimeQuery);
+         return runtimeQuery;
+      }
+
+      RuntimeXQuery existing = cache.get(runtimeId);
+
+      if(existing == null) {
+         if(cache.putIfAbsent(runtimeId, runtimeQuery)) {
+            return runtimeQuery;
+         }
+
+         // created concurrently, check the owner of that entry instead
+         existing = cache.get(runtimeId);
+      }
+
+      if(existing != null && !isOwner(existing, owner)) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("common.sqlquery.sessionExpired"));
+      }
+
+      saveRuntimeQuery(runtimeQuery);
+      return runtimeQuery;
+   }
+
    public String openNewRuntimeQuery(String oldId) throws Exception {
-      RuntimeXQuery oldQuery = this.getRuntimeQuery(oldId);
+      return openNewRuntimeQuery(oldId, contextPrincipal());
+   }
+
+   public String openNewRuntimeQuery(String oldId, Principal principal) throws Exception {
+      RuntimeXQuery oldQuery = this.getRuntimeQuery(oldId, principal);
 
       if(oldQuery == null) {
          throw new MessageException(
             "The query session has expired. Please close and reopen the query editor.");
       }
 
+      // the clone keeps the owner of the original query
       RuntimeXQuery query = oldQuery.clone();
-      String newId = generateRuntimeId(query.query.getName());
+      String newId = generateRuntimeId();
       query.setId(newId);
 
       saveRuntimeQuery(query);
@@ -92,12 +148,34 @@ public class RuntimeQueryService {
       return newId;
    }
 
+   /**
+    * Gets a runtime query owned by the principal of the current request or message.
+    *
+    * @return the runtime query, or {@code null} if it does not exist or is not owned by the
+    *         current principal.
+    */
    public RuntimeXQuery getRuntimeQuery(String id) {
-      return cache.get(id);
+      return getRuntimeQuery(id, contextPrincipal());
    }
 
-   public String generateRuntimeId(String name) {
-      return name + System.currentTimeMillis();
+   /**
+    * Gets a runtime query owned by the specified principal.
+    *
+    * @return the runtime query, or {@code null} if it does not exist or is not owned by the
+    *         principal.
+    */
+   public RuntimeXQuery getRuntimeQuery(String id, Principal principal) {
+      if(id == null) {
+         return null;
+      }
+
+      RuntimeXQuery runtimeQuery = cache.get(id);
+      return runtimeQuery != null && isOwner(runtimeQuery, getOwnerKey(principal)) ?
+         runtimeQuery : null;
+   }
+
+   private String generateRuntimeId() {
+      return UUID.randomUUID().toString();
    }
 
    public void saveRuntimeQuery(RuntimeXQuery runtimeQuery) {
@@ -105,8 +183,15 @@ public class RuntimeQueryService {
    }
 
    public void closeRuntimeQuery(String originRuntimeId, String newRuntimeId, boolean save) {
-      RuntimeXQuery newQuery = getRuntimeQuery(newRuntimeId);
-      RuntimeXQuery oldQuery = getRuntimeQuery(originRuntimeId);
+      closeRuntimeQuery(originRuntimeId, newRuntimeId, save, contextPrincipal());
+   }
+
+   public void closeRuntimeQuery(String originRuntimeId, String newRuntimeId, boolean save,
+                                 Principal principal)
+   {
+      // both ids must be owned by the caller before one is written under the other
+      RuntimeXQuery newQuery = getRuntimeQuery(newRuntimeId, principal);
+      RuntimeXQuery oldQuery = getRuntimeQuery(originRuntimeId, principal);
 
       if(newQuery == null || oldQuery == null) {
          return;
@@ -117,30 +202,68 @@ public class RuntimeQueryService {
          saveRuntimeQuery(newQuery);
       }
 
-      touch(originRuntimeId);
-      destroy(newRuntimeId);
+      touch(originRuntimeId, principal);
+      destroy(newRuntimeId, principal);
    }
 
    public boolean touch(String id) {
-      return cache.get(id) != null;
+      return touch(id, contextPrincipal());
+   }
+
+   public boolean touch(String id, Principal principal) {
+      return getRuntimeQuery(id, principal) != null;
    }
 
    /**
-    * Destroy the runtime.
+    * Destroy the runtime query if it is owned by the principal of the current request or
+    * message.
     */
    public void destroy(String id) {
-      cache.remove(id);
+      destroy(id, contextPrincipal());
    }
 
    /**
-    * Clear the runtime.
+    * Destroy the runtime query if it is owned by the specified principal.
     */
-   public void clear() {
-      cache.clear();
+   public void destroy(String id, Principal principal) {
+      if(getRuntimeQuery(id, principal) != null) {
+         cache.remove(id);
+      }
    }
 
    public boolean isExpired(String id) {
-      return cache.get(id) == null;
+      return getRuntimeQuery(id) == null;
+   }
+
+   /**
+    * Gets the key that identifies the owner of a runtime query. For an {@link SRPrincipal}
+    * this includes the secure id, so that the entry is bound to the login session, the same
+    * as {@code RuntimeSheet.matches}. The current organization is deliberately not part of
+    * the key, it depends on the thread.
+    */
+   static String getOwnerKey(Principal principal) {
+      if(principal == null || principal.getName() == null) {
+         return null;
+      }
+
+      if(principal instanceof SRPrincipal srPrincipal) {
+         return principal.getName() + "#" + srPrincipal.getSecureID();
+      }
+
+      // authenticated users are always SRPrincipals, other principals are internal ones
+      return principal.getName();
+   }
+
+   /**
+    * Checks if a runtime query is owned by the owner key. A missing key, or a query without
+    * an owner (e.g. one written by an older node), never matches.
+    */
+   private static boolean isOwner(RuntimeXQuery runtimeQuery, String owner) {
+      return owner != null && owner.equals(runtimeQuery.getOwner());
+   }
+
+   private static Principal contextPrincipal() {
+      return ThreadContext.getContextPrincipal();
    }
 
    private final Cluster cluster;
@@ -197,6 +320,17 @@ public class RuntimeQueryService {
 
       public void setId(String id) {
          this.id = id;
+      }
+
+      /**
+       * Gets the key of the login session that owns this runtime query.
+       */
+      public String getOwner() {
+         return owner;
+      }
+
+      void setOwner(String owner) {
+         this.owner = owner;
       }
 
       public int getMaxPreviewRow() {
@@ -322,6 +456,7 @@ public class RuntimeQueryService {
 
       private JDBCQuery query;
       private String id;
+      private String owner;
       private int maxPreviewRow;
       private String dataSource;
       private XTypeNode metadata;
