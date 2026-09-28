@@ -466,9 +466,9 @@ public class IdentityService {
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(parentID.getOrgID() == null && !Tool.equals(currentOrgID, childId.getOrgID())) {
-         // other organizations' members of a global role keep their membership unless a site
-         // administrator changes it, a rename only carries it over to the new role id
-         if(!isChild || !isCrossOrgEditAllowed(principal)) {
+         // a site administrator is shown every organization's members of a global role, so the
+         // submitted members are authoritative; anyone else only carries a rename over
+         if(!isCrossOrgEditAllowed(principal)) {
             isChild = list.contains(oldParentID);
          }
       }
@@ -490,6 +490,45 @@ public class IdentityService {
       }
 
       return null;
+   }
+
+   /**
+    * A global role can be held by the users, groups and roles of every organization, which the
+    * provider only cleans up in the removed role's own organization. This is done here rather than
+    * in the provider's removeRole, which also runs on a rename and would drop the members that a
+    * rename carries over. Only the editable FS* identities are updated.
+    */
+   private void removeGlobalRoleFromMembers(EditableAuthenticationProvider eprovider,
+                                            IdentityID roleId)
+   {
+      for(IdentityID userId : eprovider.getUsers()) {
+         User user = eprovider.getUser(userId);
+
+         if(user instanceof FSUser fsUser && Arrays.asList(user.getRoles()).contains(roleId)) {
+            fsUser.setRoles(Tool.remove(user.getRoles(), roleId));
+            eprovider.setUser(userId, user);
+         }
+      }
+
+      for(IdentityID groupId : eprovider.getGroups()) {
+         Group group = eprovider.getGroup(groupId);
+
+         if(group instanceof FSGroup fsGroup && Arrays.asList(group.getRoles()).contains(roleId)) {
+            fsGroup.setRoles(Tool.remove(group.getRoles(), roleId));
+            eprovider.setGroup(groupId, group);
+         }
+      }
+
+      for(IdentityID otherId : eprovider.getRoles()) {
+         Role role = eprovider.getRole(otherId);
+
+         if(role instanceof FSRole fsRole && !otherId.equals(roleId) &&
+            Arrays.asList(role.getRoles()).contains(roleId))
+         {
+            fsRole.setRoles(Tool.remove(role.getRoles(), roleId));
+            eprovider.setRole(otherId, role);
+         }
+      }
    }
 
    /**
@@ -562,6 +601,10 @@ public class IdentityService {
       if(oID == null) {
          dmanager.setDashboards(nid, null);
          smanager.identityRemoved(identity, eprovider);
+
+         if(type == Identity.ROLE && identityId.orgID == null) {
+            removeGlobalRoleFromMembers(eprovider, identityId);
+         }
       }
       else {
          if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
