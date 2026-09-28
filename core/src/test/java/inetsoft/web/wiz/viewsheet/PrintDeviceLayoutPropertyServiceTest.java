@@ -311,6 +311,83 @@ class PrintDeviceLayoutPropertyServiceTest {
       assertEquals("inches", written.getUnits());
    }
 
+   // ── Bug 77045 #4: units-only patch converts existing dimension fields ──
+
+   @Test
+   void unitsOnlyPatchConvertsExistingMarginsHeaderFooterAndCustomSizeRatherThanRelabelingThem()
+      throws Exception
+   {
+      VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
+      existing.setPaperSize("(Custom Size)");
+      existing.setMarginTop(2);
+      existing.setMarginBottom(1);
+      existing.setMarginLeft(1);
+      existing.setMarginRight(1);
+      existing.setHeaderFromEdge(0.5f);
+      existing.setFooterFromEdge(0.75f);
+      existing.setCustomWidth(8.5);
+      existing.setCustomHeight(11);
+      existing.setUnits("inches");
+      existing.setScaleFont(1.0f);
+
+      ScreensPaneModel screensPane = new ScreensPaneModel();
+      screensPane.setPrintLayout(existing);
+      Harness h = new Harness(screensPane);
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("units", "mm"), "");
+
+      VSPrintLayoutDialogModel written = writtenPrintLayout(h);
+      assertEquals("mm", written.getUnits());
+      assertEquals(2 * 25.4, written.getMarginTop(), 0.001);
+      assertEquals(1 * 25.4, written.getMarginBottom(), 0.001);
+      assertEquals(1 * 25.4, written.getMarginLeft(), 0.001);
+      assertEquals(1 * 25.4, written.getMarginRight(), 0.001);
+      assertEquals(0.5f * 25.4f, written.getHeaderFromEdge(), 0.01f);
+      assertEquals(0.75f * 25.4f, written.getFooterFromEdge(), 0.01f);
+      assertEquals(8.5 * 25.4, written.getCustomWidth(), 0.001);
+      assertEquals(11 * 25.4, written.getCustomHeight(), 0.001);
+   }
+
+   /**
+    * The lead's own decision for #4: a field the SAME patch also sets explicitly must not be
+    * double-converted -- it is already expressed in the new unit by the caller.
+    */
+   @Test
+   void unitsPatchDoesNotRescaleAFieldTheSamePatchAlsoSetsExplicitly() throws Exception {
+      VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
+      existing.setPaperSize("Letter");
+      existing.setMarginTop(2);
+      existing.setUnits("inches");
+      existing.setScaleFont(1.0f);
+      ScreensPaneModel screensPane = new ScreensPaneModel();
+      screensPane.setPrintLayout(existing);
+      Harness h = new Harness(screensPane);
+
+      Map<String, Object> patch = new HashMap<>();
+      patch.put("units", "mm");
+      patch.put("marginTop", 50.0);
+
+      h.service.setPrintLayout("tok", h.principal, patch, "");
+
+      assertEquals(50.0, writtenPrintLayout(h).getMarginTop(), 0.0001);
+   }
+
+   @Test
+   void aUnitsPatchThatDoesNotActuallyChangeTheUnitLeavesMarginsUnconverted() throws Exception {
+      VSPrintLayoutDialogModel existing = new VSPrintLayoutDialogModel();
+      existing.setPaperSize("Letter");
+      existing.setMarginTop(2);
+      existing.setUnits("inches");
+      existing.setScaleFont(1.0f);
+      ScreensPaneModel screensPane = new ScreensPaneModel();
+      screensPane.setPrintLayout(existing);
+      Harness h = new Harness(screensPane);
+
+      h.service.setPrintLayout("tok", h.principal, Map.of("units", "inches"), "");
+
+      assertEquals(2, writtenPrintLayout(h).getMarginTop(), 0.0001);
+   }
+
    @Test
    void refusesAnEmptyPatchRatherThanOpeningACheckpointForNothing() {
       Harness h = new Harness(screensPaneWithNoPrintLayout());
@@ -485,6 +562,176 @@ class PrintDeviceLayoutPropertyServiceTest {
       assertTrue(thrown.getMessage().contains("Does Not Exist"), thrown.getMessage());
       verify(h.dialog, never())
          .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   // ── Bug 77045 #1: mobileOnly string coercion ────────────────────────────
+
+   @Test
+   void mobileOnlyAcceptsAStringifiedBooleanCaseInsensitively() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "create",
+         Map.of("name", "Phone", "selectedDevices", List.of("wiz-mobile"), "mobileOnly", "TRUE"),
+         "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(h.dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                        anyString(), any());
+      assertTrue(captor.getValue().screensPane().getDeviceLayouts().get(0).isMobileOnly());
+   }
+
+   @Test
+   void mobileOnlyRefusesAnUnrecognizedStringRatherThanSilentlyResolvingToFalse() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "create",
+         Map.of("name", "Phone", "selectedDevices", List.of("wiz-mobile"), "mobileOnly", "yes"),
+         ""));
+
+      assertTrue(thrown.getMessage().contains("mobileOnly"), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   // ── Bug 77045 #2: unrecognized patch keys / catalogue-guard neutered by "name" ─
+
+   @Test
+   void refusesAnUnrecognizedPatchKeyRatherThanSilentlyDroppingIt() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "update", Map.of("name", "Phone", "scaleFont", 0.8f), ""));
+
+      assertTrue(thrown.getMessage().contains("scaleFont"), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   /**
+    * Risk 2's own catalogue-write detector used to require "name" to be ABSENT before firing --
+    * but every device-layout request reaching this method through the plugin's own tool always
+    * carries "name" (layoutTools.ts's manage_device_layout injects it unconditionally, for every
+    * action), which made the guard permanently dead code for that caller. Widened to fire on the
+    * catalogue-only fields alone, regardless of whether "name" also happens to be present.
+    */
+   @Test
+   void refusesACatalogueShapedFieldEvenWhenNameIsAlsoPresent() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "create",
+         Map.of("name", "Phone", "selectedDevices", List.of("wiz-mobile"), "description", "x"),
+         ""));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("admin"), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   // ── Bug 77045 #3: zero-device device layouts ────────────────────────────
+
+   @Test
+   void refusesCreateWithAnEmptySelectedDevices() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "create", Map.of("name", "Phone", "selectedDevices", List.of()), ""));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("at least one device"),
+                 thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   @Test
+   void refusesCreateWithSelectedDevicesOmittedEntirely() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "create", Map.of("name", "Phone"), ""));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("at least one device"),
+                 thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   @Test
+   void refusesUpdatingSelectedDevicesToAnExplicitEmptyList() throws Exception {
+      VSDeviceLayoutDialogModel existing = new VSDeviceLayoutDialogModel();
+      existing.setName("Phone");
+      existing.setSelectedDevices(List.of("wiz-mobile"));
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.getDeviceLayouts().add(existing);
+      Harness h = new Harness(screensPane);
+      h.registerDevices("wiz-mobile");
+
+      Exception thrown = assertThrows(Exception.class, () -> h.service.manageDeviceLayout(
+         "tok", h.principal, "update", Map.of("name", "Phone", "selectedDevices", List.of()), ""));
+
+      assertTrue(thrown.getMessage().toLowerCase().contains("empty list"), thrown.getMessage());
+      verify(h.dialog, never())
+         .setViewsheetInfo(anyString(), any(), any(), any(), anyString(), any());
+   }
+
+   /**
+    * The precision amendment from the refute pass: omitting selectedDevices on update is NOT the
+    * same as an explicit empty list -- it must be allowed through as an ordinary partial update
+    * that leaves the existing devices untouched.
+    */
+   @Test
+   void updateWithSelectedDevicesOmittedLeavesExistingDevicesUntouched() throws Exception {
+      VSDeviceLayoutDialogModel existing = new VSDeviceLayoutDialogModel();
+      existing.setName("Phone");
+      existing.setSelectedDevices(List.of("wiz-mobile"));
+      ScreensPaneModel screensPane = screensPaneWithNoPrintLayout();
+      screensPane.getDeviceLayouts().add(existing);
+      Harness h = new Harness(screensPane);
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "update",
+         Map.of("name", "Phone", "mobileOnly", true), "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(h.dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                        anyString(), any());
+      assertEquals(List.of("wiz-mobile"),
+         captor.getValue().screensPane().getDeviceLayouts().get(0).getSelectedDevices());
+   }
+
+   // ── Bug 77045 NEW-1: device layout create must assign a real id ────────
+
+   /**
+    * Every OTHER path that ever constructs a VSDeviceLayoutDialogModel assigns an id before it is
+    * ever posted (the Angular dialog does so client-side) -- this create branch was the one path
+    * that never did, leaving the persisted ViewsheetLayout's own id null, which NPE'd every LATER
+    * write in the same session (ViewsheetPropertyDialogService.setViewsheetInfo:482, matching
+    * null against oldLayouts).
+    */
+   @Test
+   void createAssignsANonNullIdToTheNewDeviceLayout() throws Exception {
+      Harness h = new Harness(screensPaneWithNoPrintLayout());
+      h.registerDevices("wiz-mobile");
+
+      h.service.manageDeviceLayout("tok", h.principal, "create",
+         Map.of("name", "Phone", "selectedDevices", List.of("wiz-mobile")), "");
+
+      ArgumentCaptor<ViewsheetPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(ViewsheetPropertyDialogModel.class);
+      verify(h.dialog).setViewsheetInfo(eq("rt1"), captor.capture(), any(Principal.class), any(),
+                                        anyString(), any());
+      String id = captor.getValue().screensPane().getDeviceLayouts().get(0).getId();
+      assertNotNull(id);
+      assertFalse(id.isBlank());
    }
 
    // ── harness ───────────────────────────────────────────────────────────────

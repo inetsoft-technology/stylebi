@@ -22,6 +22,7 @@ import inetsoft.report.internal.PaperSize;
 import inetsoft.util.Catalog;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
+import inetsoft.uql.viewsheet.vslayout.PrintInfo;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.dialog.ViewsheetPropertyDialogService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -129,6 +130,18 @@ public class PrintDeviceLayoutPropertyService {
             printLayout.setFooterFromEdge(0.75f);
             printLayout.setScaleFont(1.0f);
          }
+         else if(resolvedPatch.containsKey("units")) {
+            // Bug 77045 #4: a units-only (or units-plus-something-else) patch must PRESERVE the
+            // physical size of every dimension field already on this print layout, not silently
+            // relabel the same raw number under a new unit -- matching
+            // viewsheet-print-layout-dialog.component.ts's own unitChanged(), which rescales every
+            // dimension field by the ratio between the old and new unit whenever the unit picker
+            // changes. A field the SAME patch also sets explicitly is left untouched here: that
+            // value is already expressed in the NEW unit by the caller, and applyPrintLayoutPatch
+            // (which runs right after this) overwrites it anyway -- rescaling it first would
+            // double-convert.
+            convertUnitsIfChanged(printLayout, resolvedPatch);
+         }
 
          applyPrintLayoutPatch(printLayout, resolvedPatch);
          screensPane.setPrintLayout(printLayout);
@@ -166,14 +179,17 @@ public class PrintDeviceLayoutPropertyService {
 
       // Risk 2: refuse anything shaped like a device CATALOGUE write (a ScreenSizeDialogModel --
       // label/description/minWidth/maxWidth) rather than a device LAYOUT write (a
-      // VSDeviceLayoutDialogModel -- name/mobileOnly/selectedDevices). Every device-layout
-      // request carries "name"; a catalogue-entry request never does, since catalogue entries are
-      // identified by "id"/"label", not "name". This check happens before any DeviceRegistry
-      // lookup or write, since this tool has no business forwarding such a request anywhere near
-      // DeviceController at all.
-      boolean looksLikeCatalogueWrite = !safePatch.containsKey("name") &&
-         (safePatch.containsKey("label") || safePatch.containsKey("minWidth") ||
-          safePatch.containsKey("maxWidth") || safePatch.containsKey("description"));
+      // VSDeviceLayoutDialogModel -- name/mobileOnly/selectedDevices). Bug 77045 #2: this used to
+      // also require "name" to be ABSENT before firing -- but layoutTools.ts's manage_device_layout
+      // tool always injects "name" into every wire request (it identifies the device layout being
+      // create/update/delete'd), for every action, so that precondition can never be true for a
+      // call coming through this plugin's own tool surface, making this whole check permanently
+      // dead code from that caller. No legitimate device-layout patch ever needs
+      // label/minWidth/maxWidth/description regardless of whether "name" also happens to be
+      // present, so the check now fires on the catalogue-only fields alone.
+      boolean looksLikeCatalogueWrite = safePatch.containsKey("label") ||
+         safePatch.containsKey("minWidth") || safePatch.containsKey("maxWidth") ||
+         safePatch.containsKey("description");
 
       if(looksLikeCatalogueWrite) {
          throw new IllegalArgumentException(
@@ -182,6 +198,19 @@ public class PrintDeviceLayoutPropertyService {
             "an org-admin operation outside this tool's scope -- that has to go through " +
             "Composer's Device admin screen. Pick an existing device id from list_layouts's " +
             "catalogue for selectedDevices instead.");
+      }
+
+      // Bug 77045 #2 (Java default:throw parity with applyPrintLayoutPatch): manageDeviceLayout
+      // only ever reads "name"/"selectedDevices"/"mobileOnly" off safePatch by exact key name --
+      // anything else (a typo like "selectedDevice", or an inapplicable print-layout field like
+      // "scaleFont"/"description" not already caught above) used to be silently never read, with
+      // ok:true returned regardless.
+      for(String key : safePatch.keySet()) {
+         if(!DEVICE_LAYOUT_PATCH_KEYS.contains(key)) {
+            throw new IllegalArgumentException(
+               "manage_device_layout: unknown device-layout property \"" + key + "\" -- expected " +
+               "one of " + DEVICE_LAYOUT_PATCH_KEYS + ".");
+         }
       }
 
       String name = asString(safePatch.get("name"));
@@ -239,8 +268,36 @@ public class PrintDeviceLayoutPropertyService {
          }
       }
 
+      // Bug 77045 #3: viewsheet-device-layout-dialog.component.ts's own deviceSelected() disables
+      // the OK button until at least one device is checked, but neither backend path re-enforces
+      // it -- a device layout scoped to zero devices persisted silently. The two actions need
+      // DIFFERENT rules, not one shared check: "create" has no existing device list to fall back
+      // on, so an omitted OR explicitly-empty selectedDevices is equally a zero-device layout and
+      // both must be refused; "update" must still allow OMITTING selectedDevices entirely to mean
+      // "leave the existing devices untouched" (ordinary partial-update semantics) -- only an
+      // EXPLICIT empty list on update is refused.
+      if("create".equals(normalizedAction) &&
+         (selectedDevices == null || selectedDevices.isEmpty()))
+      {
+         throw new IllegalArgumentException(
+            "manage_device_layout: \"selectedDevices\" must include at least one device id on " +
+            "create -- StyleBI's own dialog disables its OK button until at least one device is " +
+            "checked. Call list_layouts for the available device ids.");
+      }
+
+      if("update".equals(normalizedAction) && selectedDevices != null && selectedDevices.isEmpty())
+      {
+         throw new IllegalArgumentException(
+            "manage_device_layout: \"selectedDevices\" cannot be updated to an empty list -- a " +
+            "device layout must stay scoped to at least one device. Omit \"selectedDevices\" " +
+            "entirely to leave the existing devices untouched.");
+      }
+
+      // Bug 77045 #1: a JSON string "true"/"false" reaching Boolean.TRUE.equals(...) resolves to
+      // false regardless of which string was sent -- the same shape of bug this class's own
+      // Hazard-3/L11-#13 precedent already guards other fields against, just missed here.
       Boolean mobileOnly = safePatch.containsKey("mobileOnly")
-         ? Boolean.TRUE.equals(safePatch.get("mobileOnly")) : null;
+         ? toNullableBoolean("mobileOnly", safePatch.get("mobileOnly")) : null;
 
       sessions.mutate(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          ViewsheetPropertyDialogModel model = dialogService.getViewsheetInfo(runtimeId, user);
@@ -261,6 +318,18 @@ public class PrintDeviceLayoutPropertyService {
 
                VSDeviceLayoutDialogModel created = new VSDeviceLayoutDialogModel();
                created.setName(name);
+               // NEW-1: every OTHER path that ever constructs a VSDeviceLayoutDialogModel
+               // assigns an id before it is ever posted -- the Angular dialog does so
+               // client-side (viewsheet-device-layout-dialog.component.ts:87), and
+               // ViewsheetPropertyDialogService.setViewsheetInfo never generates one itself,
+               // only ever copying whatever the incoming DTO already carries (setID(layout
+               // .getId())). This was the one path that never assigned one, so the persisted
+               // ViewsheetLayout's own id stayed null -- and every LATER write in the same
+               // session then NPE'd matching a null id against oldLayouts (setViewsheetInfo:482).
+               // A random UUID, prefixed to match the Angular dialog's own naming convention for
+               // a human reading the persisted XML, is sufficient: nothing anywhere parses or
+               // derives structure from this id, it is only ever compared with .equals().
+               created.setId("ViewsheetLayout-" + java.util.UUID.randomUUID());
                created.setMobileOnly(Boolean.TRUE.equals(mobileOnly));
                created.setSelectedDevices(
                   selectedDevices != null ? selectedDevices : new ArrayList<>());
@@ -307,6 +376,68 @@ public class PrintDeviceLayoutPropertyService {
          requireUsableUnits(screensPane);
          dialogService.setViewsheetInfo(runtimeId, model, user, dispatcher, linkUri, null);
       });
+   }
+
+   /**
+    * Rescales {@code printLayout}'s margins, header/footer-from-edge, and custom width/height by
+    * the ratio between its OLD units and the patch's NEW units -- the server-side mirror of
+    * {@code viewsheet-print-layout-dialog.component.ts}'s {@code unitChanged()}. Only touches a
+    * field the patch does NOT also set explicitly; {@code applyPrintLayoutPatch} (called right
+    * after this) applies the caller's own explicit fields on top, already expressed in the new
+    * unit. A no-op when {@code printLayout} has no usable old units yet (nothing to convert from)
+    * or the new units are the same as the old (case-insensitively) -- not a real unit change.
+    */
+   private static void convertUnitsIfChanged(VSPrintLayoutDialogModel printLayout,
+                                              Map<String, Object> patch)
+   {
+      String oldUnits = printLayout.getUnits();
+      String newUnits = asString(patch.get("units"));
+
+      if(oldUnits == null || oldUnits.isBlank() || newUnits == null ||
+         oldUnits.equalsIgnoreCase(newUnits))
+      {
+         return;
+      }
+
+      double ratio = PrintInfo.getUnitRatio(oldUnits) / PrintInfo.getUnitRatio(newUnits);
+
+      if(!patch.containsKey("marginTop")) {
+         printLayout.setMarginTop(printLayout.getMarginTop() * ratio);
+      }
+
+      if(!patch.containsKey("marginBottom")) {
+         printLayout.setMarginBottom(printLayout.getMarginBottom() * ratio);
+      }
+
+      if(!patch.containsKey("marginLeft")) {
+         printLayout.setMarginLeft(printLayout.getMarginLeft() * ratio);
+      }
+
+      if(!patch.containsKey("marginRight")) {
+         printLayout.setMarginRight(printLayout.getMarginRight() * ratio);
+      }
+
+      if(!patch.containsKey("headerFromEdge")) {
+         printLayout.setHeaderFromEdge((float) (printLayout.getHeaderFromEdge() * ratio));
+      }
+
+      if(!patch.containsKey("footerFromEdge")) {
+         printLayout.setFooterFromEdge((float) (printLayout.getFooterFromEdge() * ratio));
+      }
+
+      // Rescaled unconditionally, even when paperSize is a named preset (where
+      // ViewsheetPropertyDialogService re-derives the persisted size from PaperSize.getSize(...)
+      // on every write regardless): a preset makes this dead work, harmlessly overwritten
+      // downstream, but a "(Custom Size)" paperSize makes it load-bearing -- customWidth/
+      // customHeight share the exact same units-reinterpretation defect margins do, and are not
+      // protected by any self-correction the way a named preset's own size is.
+      if(!patch.containsKey("customWidth")) {
+         printLayout.setCustomWidth(printLayout.getCustomWidth() * ratio);
+      }
+
+      if(!patch.containsKey("customHeight")) {
+         printLayout.setCustomHeight(printLayout.getCustomHeight() * ratio);
+      }
    }
 
    /** Applies every key present in {@code patch} onto {@code printLayout}; leaves the rest. */
@@ -409,6 +540,36 @@ public class PrintDeviceLayoutPropertyService {
       return value == null ? null : String.valueOf(value);
    }
 
+   /**
+    * Accepts a real {@code Boolean}, or the strings {@code "true"}/{@code "false"} (any case) --
+    * refuses anything else by name rather than letting {@code Boolean.TRUE.equals(...)} silently
+    * resolve a stringified value to {@code false} (bug 77045 #1).
+    */
+   private static Boolean toNullableBoolean(String field, Object value) {
+      if(value == null) {
+         return null;
+      }
+
+      if(value instanceof Boolean bool) {
+         return bool;
+      }
+
+      if(value instanceof String str) {
+         String normalized = str.trim().toLowerCase();
+
+         if("true".equals(normalized)) {
+            return Boolean.TRUE;
+         }
+
+         if("false".equals(normalized)) {
+            return Boolean.FALSE;
+         }
+      }
+
+      throw new IllegalArgumentException(
+         "manage_device_layout: \"" + field + "\" must be a boolean -- got " + value + ".");
+   }
+
    @SuppressWarnings("unchecked")
    private static List<String> asStringList(Object value) {
       if(value == null) {
@@ -448,6 +609,11 @@ public class PrintDeviceLayoutPropertyService {
    }
 
    private static final Set<String> VALID_ACTIONS = Set.of("create", "update", "delete");
+
+   // The only three keys manageDeviceLayout itself ever reads off a patch -- everything else is
+   // either a device-CATALOGUE field (caught earlier, with a more specific message) or unknown.
+   private static final Set<String> DEVICE_LAYOUT_PATCH_KEYS =
+      Set.of("name", "selectedDevices", "mobileOnly");
 
    // Mirrors form-validators.ts's validLayoutName exactly.
    private static final java.util.regex.Pattern DEVICE_LAYOUT_INVALID_NAME_CHARS =
