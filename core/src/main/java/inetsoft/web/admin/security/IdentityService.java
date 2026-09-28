@@ -667,7 +667,7 @@ public class IdentityService {
                removeOrgProperties(orgID);
                removeOrgScopedDataSpaceElements(oOrg);
                updateRepletRegistry(orgID, null);
-               themeService.removeTheme(orgID);
+               removeOrganizationThemes(orgID);
                themesManager.removeCSSEntry(orgID);
                themesManager.removeLogoEntry(orgID);
                themesManager.removeFaviconEntry(orgID);
@@ -773,6 +773,20 @@ public class IdentityService {
       }
       catch(Exception e) {
          LOG.warn("Failed to remove the deleted identity {} from the custom themes", identityId, e);
+      }
+   }
+
+   /**
+    * Removes the themes of a deleted organization. A failure is only logged: the themes are
+    * left unchanged when they cannot be read reliably (Bug #77222), and the rest of the
+    * organization's cleanup must not be skipped.
+    */
+   private void removeOrganizationThemes(String orgID) {
+      try {
+         themeService.removeTheme(orgID);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to remove the custom themes of the deleted organization {}", orgID, e);
       }
    }
 
@@ -2670,39 +2684,47 @@ public class IdentityService {
 
    private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
       if(!Tool.equals(oldThemeId, themeID)) {
-         customThemesManager.updateCustomThemes(themes -> {
-            boolean modified = false;
+         // the organization is partly saved at this point: a theme store that cannot be read
+         // reliably (Bug #77222) leaves the themes unchanged and is only logged, so the rest of
+         // the save is not skipped
+         try {
+            customThemesManager.updateCustomThemes(themes -> {
+               boolean modified = false;
 
-            if(oldThemeId != null) {
-               CustomTheme oldTheme = themes.stream()
-                  .filter(t -> Tool.equals(t.getId(), oldThemeId))
-                  .findFirst().orElse(null);
+               if(oldThemeId != null) {
+                  CustomTheme oldTheme = themes.stream()
+                     .filter(t -> Tool.equals(t.getId(), oldThemeId))
+                     .findFirst().orElse(null);
 
-               if(oldTheme != null) {
-                  oldTheme.getOrganizations().remove(oldOrgID);
-                  modified = true;
-               }
-            }
-
-            if(themeID != null) {
-               CustomTheme theme = themes.stream()
-                  .filter(t -> Tool.equals(t.getId(), themeID))
-                  .findFirst().orElse(null);
-
-               if(theme != null) {
-                  List<String> themeOrgs = theme.getOrganizations();
-
-                  if(!themeOrgs.contains(newOrgID)) {
-                     themeOrgs.add(newOrgID);
+                  if(oldTheme != null) {
+                     oldTheme.getOrganizations().remove(oldOrgID);
+                     modified = true;
                   }
-
-                  theme.setOrganizations(themeOrgs);
-                  modified = true;
                }
-            }
 
-            return modified ? themes : null;
-         });
+               if(themeID != null) {
+                  CustomTheme theme = themes.stream()
+                     .filter(t -> Tool.equals(t.getId(), themeID))
+                     .findFirst().orElse(null);
+
+                  if(theme != null) {
+                     List<String> themeOrgs = theme.getOrganizations();
+
+                     if(!themeOrgs.contains(newOrgID)) {
+                        themeOrgs.add(newOrgID);
+                     }
+
+                     theme.setOrganizations(themeOrgs);
+                     modified = true;
+                  }
+               }
+
+               return modified ? themes : null;
+            });
+         }
+         catch(IllegalStateException e) {
+            LOG.error("Failed to update the custom themes of organization {}", newOrgID, e);
+         }
 
          if(themeID != null) {
             customThemesManager.setOrgSelectedTheme(themeID, newOrgID);
