@@ -339,6 +339,9 @@ public class FormulaTableLens extends AbstractTableLens
       // set when this batch ends in a lock stall: the rows past the stall are not computed,
       // so the row table is not complete even if the base has no more rows (bug #77123)
       boolean stalled = false;
+      // set when this batch ends in any other exception, such as a script error of one row:
+      // the rows past it are not computed yet, so the row table is not complete (bug #77123)
+      boolean failed = false;
 
       try {
          int nrows = getProcessedRowCount();
@@ -483,6 +486,10 @@ public class FormulaTableLens extends AbstractTableLens
          stalled = true;
          throw ex;
       }
+      catch(RuntimeException | Error ex) {
+         failed = true;
+         throw ex;
+      }
       finally {
          // the lock is released even if closing the span throws
          try {
@@ -497,9 +504,9 @@ public class FormulaTableLens extends AbstractTableLens
             execLock.unlock();
          }
 
-         // a stalled batch leaves the row table open: a completed one may be swapped out,
-         // and the rows a resumed read appends to it would be lost (bug #77123)
-         if(!more && !stalled) {
+         // a stalled or failed batch leaves the row table open: a completed one may be swapped
+         // out, and the rows a resumed read appends to it would be lost (bug #77123)
+         if(!more && !stalled && !failed) {
             if(rows != null) {
                rows.complete();
             }
