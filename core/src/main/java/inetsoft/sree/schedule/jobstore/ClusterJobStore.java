@@ -87,6 +87,8 @@ public class ClusterJobStore implements JobStore, Serializable {
 
    @Override
    public void shutdown() {
+      releaseOwnAcquiredTriggers();
+
       if(shutdownClusterOnShutdown) {
          try {
             Cluster.getInstance().close();
@@ -94,6 +96,51 @@ public class ClusterJobStore implements JobStore, Serializable {
          catch(Exception ex) {
             LOG.debug("Failed to shut down cluster instance", ex);
          }
+      }
+   }
+
+   /**
+    * Releases the triggers this store acquired but did not fire, so that another node can fire
+    * them. Quartz does not release them when the scheduler shuts down.
+    */
+   private void releaseOwnAcquiredTriggers() {
+      try {
+         for(TriggerWrapper tw : triggersByKey.values()) {
+            String fireInstanceId = tw.trigger.getFireInstanceId();
+
+            if(tw.getState() != ACQUIRED || fireInstanceId == null ||
+               !fireInstanceId.startsWith(fireInstanceIdPrefix))
+            {
+               continue;
+            }
+
+            try {
+               triggersByKey.lock(tw.key, 5, TimeUnit.SECONDS);
+            }
+            catch(IllegalStateException ex) {
+               LOG.warn("Failed to lock trigger {} to release it", tw.key, ex);
+               continue;
+            }
+
+            try {
+               TriggerWrapper current = triggersByKey.get(tw.key);
+
+               if(current != null && isAcquiredBy(current, tw.trigger)) {
+                  storeTriggerWrapper(newTriggerWrapper(current, WAITING));
+               }
+            }
+            finally {
+               try {
+                  triggersByKey.unlock(tw.key);
+               }
+               catch(IllegalMonitorStateException ex) {
+                  LOG.warn("Error unlocking since it is already released.", ex);
+               }
+            }
+         }
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to release the acquired triggers on shutdown", ex);
       }
    }
 
@@ -901,9 +948,9 @@ public class ClusterJobStore implements JobStore, Serializable {
       try {
          TriggerWrapper tw = triggersByKey.get(triggerKey);
 
-         if(tw != null && tw.getState() != TriggerState.PAUSED &&
-            tw.getState() != TriggerState.PAUSED_BLOCKED)
-         {
+         // only release the acquisition made by the caller, another node may have acquired
+         // the trigger since
+         if(tw != null && isAcquiredBy(tw, trigger)) {
             storeTriggerWrapper(newTriggerWrapper(trigger, WAITING));
          }
       }
@@ -934,8 +981,9 @@ public class ClusterJobStore implements JobStore, Serializable {
             if(tw == null || tw.trigger == null) {
                continue;
             }
-            // was the trigger completed, paused, blocked, etc. since being acquired?
-            if(tw.getState() != ACQUIRED) {
+            // was the trigger completed, paused, blocked, etc. or acquired by another node since
+            // being acquired?
+            if(!isAcquiredBy(tw, trigger)) {
                continue;
             }
 
@@ -959,27 +1007,20 @@ public class ClusterJobStore implements JobStore, Serializable {
 
             JobDetail job = retrieveJob(tw.jobKey);
 
-            if(job.isConcurrentExectionDisallowed()) {
-               ArrayList<TriggerWrapper> trigs = getTriggerWrappersForJob(job.getKey());
-
-               for(TriggerWrapper ttw : trigs) {
-                  if(ttw.getState() == WAITING) {
-                     ttw = newTriggerWrapper(ttw, BLOCKED);
-                  }
-                  else if(ttw.getState() == PAUSED) {
-                     ttw = newTriggerWrapper(ttw, PAUSED_BLOCKED);
-                  }
-               }
-
-               tw = newTriggerWrapper(trigger, ACQUIRED);
+            if(trigger.getNextFireTime() == null) {
+               // a trigger that will not fire again must not stay acquirable with its old fire
+               // time
+               tw = newTriggerWrapper(trigger, COMPLETE);
+            }
+            else if(job.isConcurrentExectionDisallowed()) {
+               // keep the trigger from being acquired again until its execution completes
+               tw = newTriggerWrapper(trigger, BLOCKED);
             }
             else {
                tw = newTriggerWrapper(trigger, WAITING);
             }
 
-            if(tw.trigger.getNextFireTime() != null) {
-               storeTriggerWrapper(tw);
-            }
+            storeTriggerWrapper(tw);
 
             TriggerFiredBundle bndle = new TriggerFiredBundle(
                retrieveJob(tw.jobKey),
@@ -1034,16 +1075,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          ArrayList<TriggerWrapper> trigs = getTriggerWrappersForJob(jobDetail.getKey());
 
          for(TriggerWrapper ttw : trigs) {
-            if(ttw.getTrigger() instanceof SimpleTrigger) {
-               continue;
-            }
-
-            if(ttw.getState() == BLOCKED || ttw.getState() == ACQUIRED) {
-               storeTriggerWrapper(newTriggerWrapper(ttw, WAITING));
-            }
-            else if(ttw.getState() == PAUSED_BLOCKED) {
-               storeTriggerWrapper(newTriggerWrapper(ttw, PAUSED));
-            }
+            releaseBlockedTrigger(ttw.key);
          }
 
          schedSignaler.signalSchedulingChange(0L);
@@ -1143,6 +1175,53 @@ public class ClusterJobStore implements JobStore, Serializable {
       return trigList;
    }
 
+   /**
+    * Releases a trigger of a non-concurrent job that is blocked while it runs or held by an
+    * acquisition, so a hold left by a node that stopped or died does not strand it. A released
+    * hold can only be fired by its next acquisition (see {@link #isAcquiredBy}). A trigger that
+    * already fired for the last time is left alone.
+    */
+   private void releaseBlockedTrigger(TriggerKey key) {
+      try {
+         triggersByKey.lock(key, 5, TimeUnit.MINUTES);
+      }
+      catch(IllegalStateException ex) {
+         LOG.warn("Failed to lock trigger {} to release it", key, ex);
+         return;
+      }
+
+      try {
+         TriggerWrapper tw = triggersByKey.get(key);
+
+         if(tw == null) {
+            return;
+         }
+
+         if(tw.getState() == BLOCKED || tw.getState() == ACQUIRED) {
+            storeTriggerWrapper(newTriggerWrapper(tw, WAITING));
+         }
+         else if(tw.getState() == PAUSED_BLOCKED) {
+            storeTriggerWrapper(newTriggerWrapper(tw, PAUSED));
+         }
+      }
+      finally {
+         try {
+            triggersByKey.unlock(key);
+         }
+         catch(IllegalMonitorStateException ex) {
+            LOG.warn("Error unlocking since it is already released.", ex);
+         }
+      }
+   }
+
+   /**
+    * Checks if the stored trigger is still held by the acquisition that produced the given copy.
+    */
+   private static boolean isAcquiredBy(TriggerWrapper tw, OperableTrigger trigger) {
+      return tw.getState() == ACQUIRED && trigger.getFireInstanceId() != null &&
+         trigger.getFireInstanceId().equals(tw.trigger.getFireInstanceId());
+   }
+
    private boolean applyMisfire(TriggerWrapper tw) throws JobPersistenceException {
       long misfireTime = DateBuilder.newDate().build().getTime();
       if(misfireThreshold > 0) {
@@ -1180,7 +1259,7 @@ public class ClusterJobStore implements JobStore, Serializable {
    }
 
    private synchronized String getFiredTriggerRecordId() {
-      return instanceId + ftrCtr++;
+      return fireInstanceIdPrefix + ftrCtr++;
    }
 
    private boolean removeTrigger(TriggerKey key, boolean removeOrphanedJob)
@@ -1328,6 +1407,9 @@ public class ClusterJobStore implements JobStore, Serializable {
    private String instanceName;
    private boolean shutdownClusterOnShutdown = true;
    private static long ftrCtr = System.currentTimeMillis();
+   // the instance id is "AUTO" on every node, so a random part keeps fire instance ids unique
+   // across the cluster, which the ownership check in isAcquiredBy() relies on
+   private final String fireInstanceIdPrefix = UUID.randomUUID() + "-";
    private static final Logger LOG = LoggerFactory.getLogger(ClusterJobStore.class);
 }
 
