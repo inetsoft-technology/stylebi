@@ -198,6 +198,89 @@ class ChartRegionPropertyServiceTest {
    }
 
    /**
+    * Bug #77027 item 1, round r1 addendum B3: correcting {@code linear} alone does not fix
+    * {@code list()} -- the model's constructor already populated {@code ignoreNull}/
+    * {@code truncate} (or skipped them) under the wrong value before {@code readModel()} ever
+    * sees the object, so every fresh {@code list_chart_region_properties} call on a
+    * previously-misclassified axis reported the stale default FOREVER, not just until the next
+    * write -- reproducing the original bug's symptom through the read path. This pins the fix:
+    * {@code list()} on a fresh, still-misclassified model must report the value the REAL,
+    * already-persisted {@code AxisDescriptor} holds (simulating a prior successful write), not
+    * the wrongly-constructed model's Java-default {@code false}.
+    */
+   @Test
+   void listsBackfilledIgnoreNullOnAPreviouslyMisclassifiedAxis() throws Exception {
+      VSChartDimensionRef dimension = mock(VSChartDimensionRef.class);
+      when(dimension.getFullName()).thenReturn("STATE");
+      when(dimension.getName()).thenReturn("STATE");
+      AxisDescriptor persistedDescriptor = mock(AxisDescriptor.class);
+      when(persistedDescriptor.isNoNull()).thenReturn(true);
+      when(dimension.getAxisDescriptor()).thenReturn(persistedDescriptor);
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimension }));
+      // A fresh model, misclassified linear:true by the area-index-0 mechanism (as every real
+      // request reconstructs), so the constructor's own `if(!linear) {setIgnoreNull(...)}` branch
+      // never ran and the pane's ignoreNull is stuck at the bean's Java default (false) --
+      // exactly what a real server response would look like for this axis before this fix.
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "x", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Object ignoreNull = props.stream()
+         .filter(p -> "ignoreNull".equals(p.get("name")))
+         .findFirst()
+         .map(p -> p.get("value"))
+         .orElse(null);
+
+      assertEquals(true, ignoreNull,
+                   "list() must backfill ignoreNull from the real, already-persisted " +
+                   "AxisDescriptor, not report the wrongly-constructed model's stale default");
+   }
+
+   /**
+    * The companion negative case: when the shelf has more than one field of this axis type and no
+    * {@code field} was given to disambiguate, there is no reliable column name to backfill from --
+    * the model still gets its `linear` flag corrected (so a subsequent write is not silently
+    * dropped), but the pane's stale default is left alone rather than guessed at.
+    */
+   @Test
+   void skipsTheBackfillWhenTheShelfIsAmbiguousWithNoFieldGiven() throws Exception {
+      VSChartDimensionRef dimensionOne = mock(VSChartDimensionRef.class);
+      when(dimensionOne.getFullName()).thenReturn("STATE");
+      VSChartDimensionRef dimensionTwo = mock(VSChartDimensionRef.class);
+      when(dimensionTwo.getFullName()).thenReturn("REGION");
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimensionOne, dimensionTwo }));
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true);
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      Map<String, Object> listed = h.service.list("tok", principal(), "Chart1", "axis", "x", null);
+
+      @SuppressWarnings("unchecked")
+      List<Map<String, Object>> props = (List<Map<String, Object>>) listed.get("properties");
+      Object ignoreNull = props.stream()
+         .filter(p -> "ignoreNull".equals(p.get("name")))
+         .findFirst()
+         .map(p -> p.get("value"))
+         .orElse(null);
+
+      // Not backfilled (ambiguous, no field) -- but this must not throw, and the (still
+      // corrected) linear flag still protects a subsequent write from being silently dropped.
+      assertEquals(false, ignoreNull);
+      verifyNoInteractions(dimensionOne);
+      verifyNoInteractions(dimensionTwo);
+   }
+
+   /**
     * Bug #77027 item 2: {@code increment} is neither refused nor covered by
     * {@code LINEAR_ONLY_AXIS_KEYS} -- it applies to a linear axis OR a non-linear time-series
     * date axis, so on a genuinely non-linear, non-time-series dimension axis it used to be
@@ -930,6 +1013,13 @@ class ChartRegionPropertyServiceTest {
       when(info.getXFields()).thenReturn(xFields);
       when(info.getYFields()).thenReturn(new ChartRef[] { y });
       when(info.isInvertedGraph()).thenReturn(false);
+      // ChartRegionHandler.getAxisDescriptor -> getChartRef -> findDataRef reads this
+      // unconditionally (round r1 addendum B3's backfill path reaches it); an unstubbed mock
+      // returns null, not an empty array, which NPEs Arrays.stream.
+      when(info.getRuntimeDateComparisonRefs()).thenReturn(new ChartRef[0]);
+      // Same reason: a shared (non-per-ref) measure axis descriptor falls through to
+      // info.getAxisDescriptor() in that dispatch; an unstubbed mock returns null.
+      when(info.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
       ChartVSAssembly chart = mock(ChartVSAssembly.class);
       when(chart.getVSChartInfo()).thenReturn(info);
       Viewsheet vs = mock(Viewsheet.class);
@@ -1537,6 +1627,11 @@ class ChartRegionPropertyServiceTest {
       when(info.getXFields()).thenReturn(x);
       when(info.getYFields()).thenReturn(y);
       when(info.isInvertedGraph()).thenReturn(false);
+      // See mixedShelfViewsheet's identical stubs for why these are needed once a test's ref has
+      // getFullName() stubbed and reaches ChartRegionHandler.getAxisDescriptor's real dispatch
+      // (round r1 addendum B3's backfill path).
+      when(info.getRuntimeDateComparisonRefs()).thenReturn(new ChartRef[0]);
+      when(info.getAxisDescriptor()).thenReturn(mock(AxisDescriptor.class));
 
       ChartVSAssemblyInfo assemblyInfo = chartAssemblyInfo(hiddenTitleType);
       ChartVSAssembly chart = mock(ChartVSAssembly.class);

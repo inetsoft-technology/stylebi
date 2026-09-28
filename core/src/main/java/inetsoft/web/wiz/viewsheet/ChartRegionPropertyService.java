@@ -20,6 +20,7 @@ package inetsoft.web.wiz.viewsheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
@@ -27,6 +28,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
 import inetsoft.web.graph.handler.ChartRegionHandler;
+import inetsoft.web.graph.model.dialog.AxisLinePaneModel;
 import inetsoft.web.graph.model.dialog.AxisPropertyDialogModel;
 import inetsoft.web.graph.model.dialog.LegendFormatDialogModel;
 import inetsoft.web.graph.model.dialog.ModelAlias;
@@ -36,6 +38,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Properties of a chart's <b>sub-elements</b>: its axes, legends and titles.
@@ -766,20 +769,78 @@ public class ChartRegionPropertyService {
       // (an `ignoreNull`/`truncate` write to a categorical axis area-index-0 wrongly reports as
       // linear no longer lands in the `else if(this.linear)` branch and gets silently dropped).
       //
-      // Known residual gap on the READ side: `ignoreNull`/`truncate` (or `logarithmicScale`/
-      // `shared`/`reverse`) were already populated -- or left at the AxisLinePaneModel bean's
-      // Java defaults -- inside the *constructor*, under the WRONG `linear` value, before this
-      // method ever sees the model. Correcting `linear` here does not retroactively backfill
-      // those already-populated-or-skipped pane fields from the real AxisDescriptor, so
-      // `list_chart_region_properties` on a previously-misclassified axis can still read back a
-      // stale default for the field the corrected branch would have populated (see 03-fix.md).
+      // Round r1 addendum (B3): correcting `linear` alone does not fix the READ side.
+      // `ignoreNull`/`truncate` (or `logarithmicScale`/`shared`/`reverse`) were already populated
+      // -- or left at the AxisLinePaneModel bean's Java defaults -- inside the *constructor*,
+      // under the WRONG `linear` value, before this method ever sees the model; correcting the
+      // flag here changes nothing already written to those fields. Confirmed by round-r1 review to
+      // be PERMANENT, not stale-until-a-write: every call reconstructs the model from scratch
+      // under the identical wrong classification, so `list_chart_region_properties` on a
+      // previously-misclassified axis reported the stale default forever, reproducing the
+      // original bug's user-visible symptom through the read path instead of the write path.
+      // Backfilled below via backfillAxisLinearOnlyFields.
       if("axis".equals(region)) {
-         boolean trueLinear =
-            computeTrueAxisKind(sessionToken, user, assembly, target, field).linear();
-         ((AxisPropertyDialogModel) model).setLinear(trueLinear);
+         AxisKind kind = computeTrueAxisKind(sessionToken, user, assembly, target, field);
+         AxisPropertyDialogModel axisModel = (AxisPropertyDialogModel) model;
+
+         if(axisModel.getLinear() != kind.linear()) {
+            axisModel.setLinear(kind.linear());
+            backfillAxisLinearOnlyFields(sessionToken, user, assembly, target, field, kind,
+                                         axisModel);
+         }
       }
 
       return model;
+   }
+
+   /**
+    * Backfills the pane fields {@link AxisPropertyDialogModel}'s constructor populated under the
+    * WRONG {@code linear} value, once {@link #readModel} has corrected the flag itself (bug
+    * #77027 item 1, round r1 addendum B3).
+    *
+    * <p>Re-fetches the real {@code AxisDescriptor} via {@code ChartRegionHandler}'s own
+    * correctly-dispatched {@code getAxisDescriptor(ChartInfo, String, String, AtomicBoolean)}
+    * overload -- the same one {@code ChartRegionHandler.updateAxisPropertyDialogModel} uses on the
+    * write path -- rather than re-deriving that dispatch logic here: radar/mekko/
+    * secondary-axis-sharing charts have real special-casing in it this class must not duplicate.
+    *
+    * <p>Needs a resolved column name: {@code field}, if given, or {@code kind}'s own {@code
+    * matchedRef} when the shelf had exactly one unambiguous candidate (see {@link
+    * #computeTrueAxisKind}). When neither is available -- a blank {@code field} on a shelf with
+    * more than one field of this axis type -- there is no reliable way to say which descriptor
+    * this axis-target/field pair means, so the backfill is skipped and the pane keeps its
+    * construction-time state; a narrower, still-documented residual, not a silent guess.
+    */
+   private void backfillAxisLinearOnlyFields(String sessionToken, Principal user, String assembly,
+                                             String axisTarget, String field, AxisKind kind,
+                                             AxisPropertyDialogModel model)
+      throws Exception
+   {
+      String columnName = field != null && !field.isBlank() ? field
+         : kind.matchedRef() != null ? kind.matchedRef().getFullName() : null;
+
+      if(columnName == null) {
+         return;
+      }
+
+      Void ignored = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         AxisDescriptor axisDesc = regionHandler.getAxisDescriptor(
+            info, columnName, axisType(axisTarget), new AtomicBoolean());
+         AxisLinePaneModel pane = model.getAxisLinePaneModel();
+
+         if(kind.linear()) {
+            pane.setLogarithmicScale(axisDesc.isLogarithmicScale());
+            pane.setShared(axisDesc.isSharedRange());
+            pane.setReverse(axisDesc.isReversed());
+         }
+         else {
+            pane.setIgnoreNull(axisDesc.isNoNull());
+            pane.setTruncate(axisDesc.isTruncate());
+         }
+
+         return null;
+      });
    }
 
    /**
