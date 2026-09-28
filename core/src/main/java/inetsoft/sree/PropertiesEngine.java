@@ -75,7 +75,7 @@ public class PropertiesEngine {
       addPropertyChangeListener(
          QueryCacheSettings.TIMEOUT_PROPERTY,
          evt -> QueryCacheSettings.applyTimeout((String) evt.getNewValue()));
-      KeyValueStorage<String> storage = keyValueStorageManager.getStorage(STORAGE_ID);
+      KeyValueStorage<String> storage = getStorage();
 
       // the security settings and the encryption keys are stored here. Starting with a store
       // whose load failed would start the node with security off, and a key generated for the
@@ -86,8 +86,26 @@ public class PropertiesEngine {
             "Failed to load the property storage " + STORAGE_ID + ", the server cannot start " +
             "without its properties");
       }
+   }
 
-      kvStorage = storage;
+   /**
+    * Gets the key-value storage backing the stored properties, re-fetching it from the
+    * {@link KeyValueStorageManager} and re-attaching {@link #changeListener} if the previously
+    * held instance was evicted (and thus closed) by the manager's cache. Every read/write of
+    * {@link #kvStorage} other than {@link #clear(boolean)}'s listener detach goes through this
+    * method instead of the field directly, so a stale, closed instance is replaced before it can
+    * silently go empty on enumeration (Bug #77177). Mirrors the established
+    * {@link inetsoft.report.LibManager#getStorage()} idiom for a listener-bearing storage holder.
+    *
+    * @return the live key-value storage instance.
+    */
+   private synchronized KeyValueStorage<String> getStorage() {
+      if(kvStorage == null || kvStorage.isClosed()) {
+         kvStorage = keyValueStorageManager.getStorage(STORAGE_ID);
+         kvStorage.addListener(changeListener);
+      }
+
+      return kvStorage;
    }
 
    @PreDestroy
@@ -507,8 +525,13 @@ public class PropertiesEngine {
 
          String home = ConfigurationContext.getContext().getHome();
 
-         kvStorage.addListener(changeListener);
-         loadFromStorage(prop, kvStorage);
+         // getStorage() replaces a stale/closed instance before it is used below; the listener
+         // is (re-)added unconditionally here too (harmless if already present, a Set add), so
+         // that a storage instance swapped in by something other than getStorage()'s own
+         // refetch (e.g. a test double) still gets the listener attached on every reload.
+         KeyValueStorage<String> storage = getStorage();
+         storage.addListener(changeListener);
+         loadFromStorage(prop, storage);
 
          // @by mikec, if sree.home was defined in sree.properties file
          // do not use the parent folder as sree.home
@@ -583,7 +606,7 @@ public class PropertiesEngine {
     */
    public String getPropertyFromStorage(String name) {
       name = fixPropertyNameCase(name);
-      KeyValueStorage<String> storage = kvStorage;
+      KeyValueStorage<String> storage = getStorage();
 
       if(storage == null) {
          throw new IllegalStateException(
@@ -707,7 +730,7 @@ public class PropertiesEngine {
    }
 
    private StorageValue readStorageValue(String name) {
-      KeyValueStorage<String> storage = kvStorage;
+      KeyValueStorage<String> storage = getStorage();
 
       if(storage == null) {
          return null;
@@ -1253,7 +1276,7 @@ public class PropertiesEngine {
       // the changes other cluster nodes stored during the save, and the reload that this node's
       // own change events trigger is harmless (Bug #76954).
       try {
-         saveToStorage(prop, kvStorage, changedProps);
+         saveToStorage(prop, getStorage(), changedProps);
       }
       catch(ExecutionException | InterruptedException | TimeoutException e) {
          throw new IOException("Failed to store properties in storage", e);
