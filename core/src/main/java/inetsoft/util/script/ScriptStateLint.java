@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -35,7 +36,10 @@ import java.util.function.Predicate;
  * as {@code var acc = (acc || 0) + field['Sales']}). Such a value is not reliable: it is shared
  * across tables and runs on one env with the script context pool off, and it resets at every
  * pooled batch with the pool on (Feature #77123, context-pool brief §5 P2). Detection only; it
- * never changes how a script runs.
+ * never changes how a script runs. The exception is a top-level var of an expression column's
+ * formula, which its table owns (Testing #77123): it is not reported, except, with the pool
+ * on, when it is assigned a script object, which is kept only within one batch
+ * ({@link #checkColumn(String, Object, XTable, int, String, String, String, Set, boolean)}).
  *
  * <p>The detector is a token-level lexer (comments, strings, templates, regex vs division) with
  * two rules:
@@ -78,6 +82,29 @@ public final class ScriptStateLint {
    public static void checkColumn(String formula, Object compiled, XTable table, int hrows,
                                   String colName, String tableName, String contextName)
    {
+      checkColumn(formula, compiled, table, hrows, colName, tableName, contextName, null,
+                  false);
+   }
+
+   /**
+    * Check the formula of an expression column of a table that owns the top-level vars of
+    * its formulas (Testing #77123): an owned var keeps its value from row to row for the
+    * whole table, so reading it before writing it is a supported accumulator and not a
+    * finding. The exception is the pool: with the script context pool on, a script object in
+    * an owned var (array, object, Date, function) is kept only within one batch of rows, so a
+    * read-before-write of an owned var that is assigned such a value is still reported.
+    * R2 (an undeclared global) is not affected.
+    *
+    * @param owned  the names the table owns ({@code GraalJavaScriptEngine.collectOwnedVarNames}
+    *               of all its formulas), or {@code null} for a table that owns no vars.
+    * @param pooled true when the formulas run on the worksheet script context pool.
+    *
+    * @see #checkColumn(String, Object, XTable, int, String, String, String)
+    */
+   public static void checkColumn(String formula, Object compiled, XTable table, int hrows,
+                                  String colName, String tableName, String contextName,
+                                  Set<String> owned, boolean pooled)
+   {
       // the column resolution reads header row 0, which is a data row without a header
       if(compiled == null || table == null || hrows < 1) {
          return;
@@ -99,7 +126,40 @@ public final class ScriptStateLint {
          private TableRow row;
       };
 
-      check(formula, where, colName, column);
+      checkFindings(formula, where, colName, f -> {
+         if(column.test(f.name())) {
+            return Disposition.SKIP;
+         }
+
+         // R2 stays as is: an undeclared global is not a var of this formula
+         if(!"R1".equals(f.rule())) {
+            return Disposition.REPORT;
+         }
+
+         if(owned == null) {
+            return Disposition.REPORT;
+         }
+
+         if(owned.contains(f.name())) {
+            return pooled && f.objectValue() ? Disposition.REPORT_POOLED_OBJECT
+               : Disposition.SKIP;
+         }
+
+         // declared with let/const in a formula of this table too: the table does not own it
+         return Disposition.REPORT_NOT_OWNED;
+      });
+   }
+
+   /** What to do with one finding, and which explanation its WARN gets. */
+   enum Disposition {
+      /** A host name or a supported accumulator: not a finding. */
+      SKIP,
+      /** A value kept in a global or in a variable nothing owns. */
+      REPORT,
+      /** An expression column's var that its table does not own (a let/const of the name). */
+      REPORT_NOT_OWNED,
+      /** A var its table owns that holds a script object, with the pool on. */
+      REPORT_POOLED_OBJECT
    }
 
    /**
@@ -134,8 +194,16 @@ public final class ScriptStateLint {
    public static void check(String script, String where, String column,
                             Predicate<String> hostOwned)
    {
+      checkFindings(script, where, column,
+            f -> hostOwned != null && hostOwned.test(f.name()) ? Disposition.SKIP
+               : Disposition.REPORT);
+   }
+
+   private static void checkFindings(String script, String where, String column,
+                                     Function<Finding, Disposition> disposition)
+   {
       try {
-         check0(script, where, column, hostOwned);
+         check0(script, where, column, disposition);
       }
       catch(StackOverflowError ex) {
          // a deeply nested script: never let the check affect the query
@@ -152,7 +220,7 @@ public final class ScriptStateLint {
    }
 
    private static void check0(String script, String where, String column,
-                              Predicate<String> hostOwned)
+                              Function<Finding, Disposition> disposition)
    {
       if(script == null || script.isEmpty()) {
          return;
@@ -180,16 +248,21 @@ public final class ScriptStateLint {
       NODE_CHECKS.incrementAndGet();
       List<Finding> raw = detect(script);
       List<Finding> findings = new ArrayList<>();
+      List<Disposition> kinds = new ArrayList<>();
 
       for(Finding finding : raw) {
-         if(hostOwned == null || !hostOwned.test(finding.name())) {
+         Disposition kind = disposition.apply(finding);
+
+         if(kind != Disposition.SKIP) {
             findings.add(finding);
+            kinds.add(kind);
          }
       }
 
       if(findings.isEmpty()) {
-         // the host owned every name here (e.g. a column); on another table or scope it
-         // may not, so check this text again next time (once per compile, never per row)
+         // the host owned every name here (e.g. a column, or a var its table owns); on
+         // another table, scope or pool mode it may not, so check this text again next time
+         // (once per compile, never per row)
          if(!raw.isEmpty()) {
             CHECKED.remove(hash);
          }
@@ -209,11 +282,18 @@ public final class ScriptStateLint {
       }
 
       if(LOG.isWarnEnabled()) {
-         LOG.warn(message(script, where, column, findings));
+         LOG.warn(message(script, where, column, findings, kinds));
       }
    }
 
    static String message(String script, String where, String column, List<Finding> findings) {
+      return message(script, where, column, findings,
+                     Collections.nCopies(findings.size(), Disposition.REPORT));
+   }
+
+   static String message(String script, String where, String column, List<Finding> findings,
+                         List<Disposition> kinds)
+   {
       StringBuilder buf = new StringBuilder("Script state carried between evaluations: ");
       buf.append(where);
 
@@ -231,12 +311,43 @@ public final class ScriptStateLint {
 
          buf.append(" (rule ").append(f.rule()).append(", line ")
             .append(line(script, f.offset())).append(")");
+
+         if(kinds.get(i) == Disposition.REPORT_POOLED_OBJECT) {
+            buf.append(" and assigns it an object, array, Date or function");
+         }
+         else if(kinds.get(i) == Disposition.REPORT_NOT_OWNED) {
+            buf.append(", which a formula of this table also declares with let or const, " +
+                       "so the table does not keep it");
+         }
       }
 
-      buf.append(". A value kept from an earlier evaluation is not reliable: it is not " +
-                 "reset between tables, conditions or queries, and its value can depend on " +
-                 "how the table is read (for example, it resets every batch when the " +
-                 "worksheet script context pool is on).");
+      boolean pooledObject = false;
+      boolean shared = false;
+
+      for(int i = 0; i < findings.size() && i < MAX_REPORTED; i++) {
+         pooledObject |= kinds.get(i) == Disposition.REPORT_POOLED_OBJECT;
+         shared |= kinds.get(i) != Disposition.REPORT_POOLED_OBJECT;
+      }
+
+      buf.append(".");
+
+      if(shared) {
+         buf.append(column != null
+            ? " A value kept from an earlier evaluation in a global, or in a variable its " +
+              "table does not keep, is not reliable: "
+            : " A value kept from an earlier evaluation is not reliable: ");
+         buf.append("it is not reset between tables, conditions or queries, and its value " +
+                    "can depend on how the table is read (for example, it resets every batch " +
+                    "when the worksheet script context pool is on).");
+      }
+
+      if(pooledObject) {
+         buf.append(" A top-level var of an expression column's formula keeps its value " +
+                    "from row to row for its whole table, but with the worksheet script " +
+                    "context pool on an object, array, Date or function in it is kept only " +
+                    "within one batch of rows: a batch that runs on another pooled context " +
+                    "reads it as undefined. A number, string or boolean is always kept.");
+      }
 
       if(column != null) {
          buf.append(" For a running total use field[-1]['").append(column)
@@ -316,8 +427,17 @@ public final class ScriptStateLint {
 
    // ---------------------------------------------------------------- detector
 
-   /** A read of {@code name} at {@code offset} (a char offset) before it is written. */
-   public record Finding(String rule, String name, int offset) {
+   /**
+    * A read of {@code name} at {@code offset} (a char offset) before it is written.
+    * {@code objectValue} is true when a top-level write of the name assigns a value that
+    * looks like a script object: an object or array literal, {@code new}, a function or an
+    * arrow function (a lexical check; a call that returns an object is not seen).
+    */
+   public record Finding(String rule, String name, int offset, boolean objectValue) {
+      public Finding(String rule, String name, int offset) {
+         this(rule, name, offset, false);
+      }
+
       @Override
       public String toString() {
          return rule + ":" + name;
@@ -474,6 +594,8 @@ public final class ScriptStateLint {
       // the first write itself (x = x + 1, x += 1, x++) is not taken for a loop-carried read
       Map<String, Integer> firstWriteStart = new HashMap<>();
       Map<String, List<Integer>> reads = new LinkedHashMap<>();
+      // names that a top-level write may give a script object (array, object, Date, function)
+      Set<String> objectWrites = new HashSet<>();
       int declDepth = -1;
       boolean declExpectName = false;
       String declKw = null;
@@ -549,7 +671,12 @@ public final class ScriptStateLint {
             }
 
             if(init) {
-               write(firstWrite, firstWriteStart, name, i, exprEnd(t, match, depth, i + 2, true));
+               int end = exprEnd(t, match, depth, i + 2, true);
+               write(firstWrite, firstWriteStart, name, i, end);
+
+               if(objectValue(t, i + 2, end)) {
+                  objectWrites.add(name);
+               }
             }
             else if(forInOf) {
                write(firstWrite, firstWriteStart, name, i, i);
@@ -575,11 +702,23 @@ public final class ScriptStateLint {
          Tok next = i + 1 < n ? t.get(i + 1) : null;
 
          if(next != null && next.text.equals("=")) {
-            write(firstWrite, firstWriteStart, name, i, exprEnd(t, match, depth, i + 2, false));
+            int end = exprEnd(t, match, depth, i + 2, false);
+            write(firstWrite, firstWriteStart, name, i, end);
+
+            if(objectValue(t, i + 2, end)) {
+               objectWrites.add(name);
+            }
          }
          else if(next != null && COMPOUND.contains(next.text)) {
             read(reads, name, i);
             write(firstWrite, firstWriteStart, name, i, i + 1);
+
+            // x ||= [], x ??= {}: the logical assignments can store an object
+            if(LOGICAL_ASSIGN.contains(next.text) &&
+               objectValue(t, i + 2, exprEnd(t, match, depth, i + 2, false)))
+            {
+               objectWrites.add(name);
+            }
          }
          else if(next != null && !next.nl && (next.text.equals("++") || next.text.equals("--")) ||
                  prev != null && prev.type == T.P &&
@@ -626,13 +765,13 @@ public final class ScriptStateLint {
             }
 
             if(decl) {
-               out.add(new Finding("R1", name, t.get(pos).start));
+               out.add(new Finding("R1", name, t.get(pos).start, objectWrites.contains(name)));
                break;
             }
 
             // a plain read of a name the script never writes is a column, function, etc.
             if(w != null) {
-               out.add(new Finding("R2", name, t.get(pos).start));
+               out.add(new Finding("R2", name, t.get(pos).start, objectWrites.contains(name)));
                break;
             }
          }
@@ -887,6 +1026,32 @@ public final class ScriptStateLint {
       return false;
    }
 
+   /**
+    * Whether the expression in tokens {@code [from, to)} can evaluate to a script object: it
+    * contains an object literal, an array literal (not a subscript), {@code new},
+    * {@code function} or {@code =>}.
+    */
+   private static boolean objectValue(List<Tok> t, int from, int to) {
+      for(int i = Math.max(0, from); i < to && i < t.size(); i++) {
+         Tok k = t.get(i);
+
+         if(k.type == T.P) {
+            if(k.text.equals("{") || k.text.equals("=>") ||
+               k.text.equals("[") && (i == from || !endsValue(t.get(i - 1))))
+            {
+               return true;
+            }
+         }
+         else if(k.type == T.ID && (k.text.equals("new") || k.text.equals("function")) &&
+                 !isMember(t, i))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    private static void mark(boolean[] a, int from, int to) {
       for(int i = Math.max(0, from); i <= to && i < a.length; i++) {
          a[i] = true;
@@ -1067,6 +1232,7 @@ public final class ScriptStateLint {
       ">>>=", "...", "===", "!==", "**=", "<<=", ">>=", ">>>", "&&=", "||=", "??=",
       "=>", "==", "!=", "<=", ">=", "&&", "||", "??", "?.", "++", "--", "+=", "-=", "*=", "/=",
       "%=", "&=", "|=", "^=", "<<", ">>", "**" };
+   private static final Set<String> LOGICAL_ASSIGN = Set.of("&&=", "||=", "??=");
    private static final Set<String> COMPOUND = Set.of(
       "+=", "-=", "*=", "/=", "%=", "**=", "<<=", ">>=", ">>>=", "&=", "|=", "^=", "&&=", "||=",
       "??=");

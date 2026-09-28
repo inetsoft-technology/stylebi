@@ -30,6 +30,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -417,6 +418,76 @@ class ScriptStateLintTest {
    private static String rules(String script) {
       return ScriptStateLint.detect(script).stream()
          .map(f -> f.rule() + ":" + f.name()).collect(Collectors.joining(","));
+   }
+
+   /**
+    * Testing #77123 (review r2 m-1): the finding says whether a top-level write of the name
+    * can store a script object, which is what the pool keeps only within one batch.
+    */
+   static Stream<Arguments> objectValues() {
+      return Stream.of(
+         Arguments.of("var a = a || []; a.push(1); a.length", true),
+         Arguments.of("var o = o || {}; o.n = 1; o", true),
+         Arguments.of("var d; if(!d) { d = new Date(); } d", true),
+         Arguments.of("var f = f || function(x) { return x; }; f(1)", true),
+         Arguments.of("var g = g || (x => x); g(1)", true),
+         Arguments.of("var c; c ||= []; c", true),
+         Arguments.of("var acc = (acc || 0) + field['x']; acc", false),
+         Arguments.of("var s = (s || '') + field['a'][0]; s", false),
+         Arguments.of("var m = Math.max(m || 0, field['x']); m", false),
+         Arguments.of("var t = (t || 0) + field['arr'][1]; t", false)
+      );
+   }
+
+   @ParameterizedTest
+   @MethodSource("objectValues")
+   void findingTellsAnObjectValue(String script, boolean object) {
+      List<ScriptStateLint.Finding> f = ScriptStateLint.detect(script);
+      assertEquals(1, f.size(), script);
+      assertEquals("R1", f.get(0).rule(), script);
+      assertEquals(object, f.get(0).objectValue(), script);
+   }
+
+   /**
+    * A var the table owns: a primitive accumulator never warns; an object one warns only with
+    * the pool on, with the batch explanation; a name the table does not own (a let/const of it
+    * in another formula) and an undeclared global (R2) still warn.
+    */
+   @Test
+   void ownedVarsOfAColumn() {
+      DefaultTableLens tbl = new DefaultTableLens(new Object[][] { { "x" }, { 1 } });
+      String acc = "var acc = (acc || 0) + field['x']; acc";
+      String list = "var list = list || []; list.push(field['x']); list.length";
+
+      ScriptStateLint.checkColumn(acc, new Object(), tbl, 1, "C", "T", null, Set.of("acc"), false);
+      ScriptStateLint.checkColumn(acc, new Object(), tbl, 1, "C", "T", null, Set.of("acc"), true);
+      ScriptStateLint.checkColumn(list, new Object(), tbl, 1, "C", "T", null, Set.of("list"),
+                                  false);
+      assertEquals(0, warnings().size(), () -> "warnings: " + appender.list);
+
+      ScriptStateLint.checkColumn(list, new Object(), tbl, 1, "C", "T", null, Set.of("list"),
+                                  true);
+      assertEquals(1, warnings().size());
+      String msg = warnings().get(0).getFormattedMessage();
+      assertTrue(msg.contains("assigns it an object, array, Date or function"), msg);
+      assertTrue(msg.contains("kept only within one batch"), msg);
+      assertTrue(msg.contains("A number, string or boolean is always kept"), msg);
+      assertFalse(msg.contains("not reset between tables"), msg);
+
+      String notOwned = "var k = (k || 0) + 1; k";
+      ScriptStateLint.checkColumn(notOwned, new Object(), tbl, 1, "C", "T", null, Set.of(),
+                                  false);
+      assertEquals(2, warnings().size());
+      msg = warnings().get(1).getFormattedMessage();
+      assertTrue(msg.contains("with let or const"), msg);
+      assertTrue(msg.contains("not reset between tables"), msg);
+
+      String global = "total = (total || 0) + field['x']; total";
+      ScriptStateLint.checkColumn(global, new Object(), tbl, 1, "C", "T", null, Set.of("total"),
+                                  false);
+      assertEquals(3, warnings().size());
+      msg = warnings().get(2).getFormattedMessage();
+      assertTrue(msg.contains("rule R2"), msg);
    }
 
    private List<ILoggingEvent> warnings() {

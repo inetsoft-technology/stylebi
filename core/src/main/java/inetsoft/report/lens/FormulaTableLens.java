@@ -35,8 +35,10 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import inetsoft.util.stall.LockStallException;
 import inetsoft.util.stall.WaitRecord;
 import inetsoft.util.stall.WaitRegistry;
@@ -48,6 +50,7 @@ import java.io.*;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -372,6 +375,12 @@ public class FormulaTableLens extends AbstractTableLens
             String contextName = report != null && report.getContextName() != null
                ? "Report: " + report.getContextName() : null;
             boolean builtinDate = false;
+            // the vars the row table below owns: a read-before-write of one of them is a
+            // supported accumulator, not a state hazard for the lint (Testing #77123). Without
+            // a scope the row scope is not in the chain, so it owns nothing (main's behaviour)
+            Set<String> owned = scope == null ? null
+               : GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas));
+            boolean pooled = senv instanceof WorksheetScriptEnv;
 
             for(int i = 0; i < scripts.length; i++) {
                String colName = getColName(i + ncols);
@@ -382,7 +391,7 @@ public class FormulaTableLens extends AbstractTableLens
                   scripts[i] = compile(formulas[i], senv, contextName, colName,
                                        ncols + i, tableName, mergeables == null || mergeables[i]);
                   ScriptStateLint.checkColumn(formulas[i], scripts[i], this, hrows, colName,
-                                              tableName, contextName);
+                                              tableName, contextName, owned, pooled);
                }
                // allow other scripts to proceed if one script failed. (58626)
                catch(ExpressionFailedException ex) {
@@ -502,6 +511,16 @@ public class FormulaTableLens extends AbstractTableLens
       finally {
          // the lock is released even if closing the span throws
          try {
+            // a complete row table runs no formula until it is computed again in a new
+            // row scope: don't keep a context alive by its vars' objects (Testing #77123)
+            // read the field once: invalidate() can null it meanwhile (it takes the monitor,
+            // not the lens lock), and an NPE here would replace the batch's result
+            TableRow2 completedRow = tableRow;
+
+            if(!more && !stalled && !failed && completedRow != null) {
+               completedRow.thisScope.releaseOwnedObjects();
+            }
+
             span.close();
          }
          finally {
@@ -1191,6 +1210,17 @@ public class FormulaTableLens extends AbstractTableLens
       senv = null;
       table.dispose();
 
+      // a disposed table that was read in part keeps no context alive by its vars' objects;
+      // only if no batch runs now (Testing #77123)
+      if(tableRow != null && !lock.isHeldByCurrentThread() && lock.tryLock()) {
+         try {
+            tableRow.thisScope.releaseOwnedObjects();
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+
       if(rows != null) {
          rows.dispose();
          rows = null;
@@ -1218,6 +1248,9 @@ public class FormulaTableLens extends AbstractTableLens
       public TableRow2(XTable table, int row) {
          super(table, row);
          thisScope = new TableRowScope(this, "field");
+         // the formulas' top-level vars live for this row table (Testing #77123)
+         thisScope.setOwnedVars(
+            GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas)));
       }
 
       // set the array to hold the results
