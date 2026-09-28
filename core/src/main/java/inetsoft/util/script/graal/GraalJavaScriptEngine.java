@@ -1920,7 +1920,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                }
 
                Value result = context.eval((Source) script);
-               return ScriptValueConverter.toHostResult(result);
+               Object hostResult = ScriptValueConverter.toHostResult(result);
+               // still inside the timeout guard, and only on normal completion (bug #77123)
+               execCompleted(execMark);
+               return hostResult;
             }
          }
          catch(PolyglotException ex) {
@@ -2011,6 +2014,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    protected void exitExecContext(Object token) {
       WsExecContext.resume(token);
+   }
+
+   /**
+    * Called when an exec completed normally, inside its timeout guard, with the token of
+    * {@link #enterExecContext}. A pooled engine re-snapshots the Java-held views of its
+    * script's values here (bug #77123); this engine does nothing.
+    */
+   protected void execCompleted(Object token) {
    }
 
    /**
