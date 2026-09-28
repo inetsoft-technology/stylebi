@@ -183,21 +183,37 @@ class UserTreeServiceThemeUpdateTest {
    }
 
    // review finding IMPORTANT-1: the permission check is on the group in the path, so the theme
-   // rename must be scoped by that group's organization, not by the organization in the body
+   // rename must be scoped by that group's organization, not touch a same-named group elsewhere
    @Test
-   void editGroup_bodyOrgDiffersFromPathOrg_themeRenameScopedToPathGroupOrg() throws Exception {
+   void editGroup_sameNamedGroupInOtherOrg_themeRenameScopedToPathGroupOrg() throws Exception {
       CustomTheme aTheme = theme("aTheme", ORG);
       aTheme.getGroups().add("sales");
       CustomTheme bTheme = theme("bTheme", "organizationB");
       bTheme.getGroups().add("sales");
-      CustomThemesManager themesManager = mock(CustomThemesManager.class);
-      CustomThemesManagerMocks.applyUpdates(themesManager);
-      when(themesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(aTheme, bTheme)));
-      doNothing().when(identityService).setIdentity(any(), any(), any(), any());
-      UserTreeService renameService = new UserTreeService(
-         providerService, systemAdminService, identityService, null, securityEngine,
-         new IdentityThemeService(themesManager), null, null, mock(DataCycleManager.class), null,
-         null, mock(IndexedStorage.class), null, null, null, null, null);
+      UserTreeService renameService = groupRenameService(aTheme, bTheme);
+      IdentityID pathGroup = new IdentityID("sales", ORG);
+      when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
+      EditGroupPaneModel model = EditGroupPaneModel.builder()
+         .name("sales2")
+         .oldName("sales")
+         .organization(ORG)
+         .build();
+
+      renameService.editGroup("Primary", pathGroup, model, principal);
+
+      assertEquals(List.of("sales2"), aTheme.getGroups());
+      assertEquals(List.of("sales"), bTheme.getGroups(), "org B's sales must keep its theme");
+   }
+
+   // #77080: the body must name the authorized path group, so a body with another org is
+   // rejected before any theme is renamed
+   @Test
+   void editGroup_bodyOrgDiffersFromPathOrg_rejectedAndThemesUntouched() throws Exception {
+      CustomTheme aTheme = theme("aTheme", ORG);
+      aTheme.getGroups().add("sales");
+      CustomTheme bTheme = theme("bTheme", "organizationB");
+      bTheme.getGroups().add("sales");
+      UserTreeService renameService = groupRenameService(aTheme, bTheme);
       IdentityID pathGroup = new IdentityID("sales", ORG);
       when(provider.getGroup(pathGroup)).thenReturn(new FSGroup(pathGroup));
       EditGroupPaneModel model = EditGroupPaneModel.builder()
@@ -206,10 +222,22 @@ class UserTreeServiceThemeUpdateTest {
          .organization("organizationB")
          .build();
 
-      renameService.editGroup("Primary", pathGroup, model, principal);
+      assertThrows(java.lang.SecurityException.class,
+                   () -> renameService.editGroup("Primary", pathGroup, model, principal));
 
-      assertEquals(List.of("sales2"), aTheme.getGroups());
-      assertEquals(List.of("sales"), bTheme.getGroups(), "org B's sales must keep its theme");
+      assertEquals(List.of("sales"), aTheme.getGroups());
+      assertEquals(List.of("sales"), bTheme.getGroups());
+   }
+
+   private UserTreeService groupRenameService(CustomTheme... themes) throws Exception {
+      CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
+      when(themesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(themes)));
+      doNothing().when(identityService).setIdentity(any(), any(), any(), any());
+      return new UserTreeService(
+         providerService, systemAdminService, identityService, null, securityEngine,
+         new IdentityThemeService(themesManager), null, null, mock(DataCycleManager.class), null,
+         null, mock(IndexedStorage.class), null, null, null, null, null);
    }
 
    private static EditRolePaneModel roleModel(String oldName, String name, String orgID) {
