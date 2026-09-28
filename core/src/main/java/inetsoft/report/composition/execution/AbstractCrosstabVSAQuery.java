@@ -1340,7 +1340,10 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
       AssetQuerySandbox wbox = box.getAssetQuerySandbox();
       AssetQueryScope scope = wbox.getScope();
-      int mdl = getScriptMode();
+      int mdl = isMetadata() || getViewsheet().getViewsheetInfo().isMetadata() ?
+         AssetQuerySandbox.DESIGN_MODE :
+         box.getMode() == AbstractSheet.SHEET_RUNTIME_MODE ?
+         AbstractSheet.SHEET_RUNTIME_MODE : AssetQuerySandbox.LIVE_MODE;
 
       if(wbox.isScriptPoolMode()) {
          // this query's own mode (bug #76960)
@@ -1987,13 +1990,24 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
    }
 
    /**
-    * The mode this query's worksheet scripts run in.
+    * The mode {@link VSAQuery#getTableLens} runs this query's worksheet table in, which is
+    * the mode its formula steps give the worksheet scripts (bug #77123).
     */
-   private int getScriptMode() {
-      return isMetadata() || getViewsheet().getViewsheetInfo().isMetadata() ?
-         AssetQuerySandbox.DESIGN_MODE :
-         box.getMode() == AbstractSheet.SHEET_RUNTIME_MODE ?
-         AbstractSheet.SHEET_RUNTIME_MODE : AssetQuerySandbox.LIVE_MODE;
+   private int getQueryMode() {
+      if(isMetadata()) {
+         // bound to a vs assembly, the meta uses live data
+         return getAssembly() instanceof DataVSAssembly data && data.getSourceInfo() != null &&
+            data.getSourceInfo().getType() == SourceInfo.VS_ASSEMBLY ?
+            AssetQuerySandbox.LIVE_MODE : AssetQuerySandbox.DESIGN_MODE;
+      }
+      else if(box.getMode() == AbstractSheet.SHEET_RUNTIME_MODE) {
+         return AssetQuerySandbox.RUNTIME_MODE;
+      }
+      else if(getViewsheet().getViewsheetInfo().isMetadata()) {
+         return AssetQuerySandbox.DESIGN_MODE;
+      }
+
+      return AssetQuerySandbox.LIVE_MODE;
    }
 
    /**
@@ -2118,7 +2132,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          if(wbox.isScriptPoolMode()) {
             // in pool mode the shared scope is never given a query's mode (bug #76960), so
             // the calc field gets a view with this query's own mode (bug #77123)
-            scope = scope.queryView(wbox.getVariableTable(), getScriptMode());
+            scope = scope.queryView(wbox.getVariableTable(), getQueryMode());
          }
 
          form = new CalcFieldFormula(expression, names, forms, cols, wbox.getScriptEnv(), scope);

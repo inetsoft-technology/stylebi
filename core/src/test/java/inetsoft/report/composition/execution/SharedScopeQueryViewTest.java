@@ -19,15 +19,21 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
+import inetsoft.report.script.TableArray;
 import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.test.*;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XCondition;
 import inetsoft.uql.asset.AssetCondition;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.ExpressionValue;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -89,13 +95,68 @@ class SharedScopeQueryViewTest {
 
    @Test
    void poolModeWorksheetNamedTableStillWinsOverTheViewItself() throws Exception {
+      // a table named worksheet (3 rows, header included) resolves to the table, exactly as
+      // on the shared scope; the view itself has no length
+      for(boolean pool : new boolean[] { false, true }) {
+         Harness h = new Harness(pool);
+         h.ws.addAssembly(new EmbeddedTableAssembly(h.ws, "worksheet"));
+         DefaultTableLens table = new DefaultTableLens(new Object[][] {{"b"}, {1}, {2}});
+         doReturn(table).when(h.box).getTableLens(eq("worksheet"), anyInt(), any());
+         assertEquals(3, ((Number) h.formulaColumn("worksheet.length")).intValue(),
+                      "pool " + pool);
+      }
+
       Harness h = new Harness(true);
       h.ws.addAssembly(new EmbeddedTableAssembly(h.ws, "worksheet"));
-      Object value = h.formulaColumn("worksheet == null ? 'none' : 'table'");
-      assertEquals("table", value);
-      // a table named worksheet resolves to the table, exactly as on the shared scope
       AssetQueryScope view = h.box.getScope().queryView(h.vars, QUERY_MODE);
-      assertNotSame(view, view.getMember("worksheet"));
+      assertInstanceOf(TableArray.class, view.getMember("worksheet"));
+   }
+
+   @Test
+   void poolModeWorksheetStoredMemberStillWinsOverTheViewItself() throws Exception {
+      Harness h = new Harness(true);
+      AssetQueryScope shared = h.box.getScope();
+      shared.putMember("worksheet", "stored");
+      AssetQueryScope view = shared.queryView(h.vars, QUERY_MODE);
+      // as on the shared scope, a member stored under the name wins over the env global
+      assertEquals("stored", shared.getMember("worksheet"));
+      assertEquals("stored", view.getMember("worksheet"));
+      assertTrue(view.hasMember("worksheet"));
+   }
+
+   @Test
+   void poolModeWorksheetInTheParentChainStillWinsOverTheViewItself() throws Exception {
+      Harness h = new Harness(true);
+      AssetQueryScope shared = h.box.getScope();
+      // a viewsheet scope whose assembly is named worksheet
+      ScriptScope vscope = Mockito.mock(ScriptScope.class);
+      doReturn(true).when(vscope).hasMember("worksheet");
+      doReturn("vsAssembly").when(vscope).getMember("worksheet");
+      shared.setParentScope(vscope);
+      AssetQueryScope view = shared.queryView(h.vars, QUERY_MODE);
+      assertEquals("vsAssembly", shared.getMember("worksheet"));
+      assertEquals("vsAssembly", view.getMember("worksheet"));
+      assertTrue(view.hasMember("worksheet"));
+   }
+
+   @Test
+   void poolModeWorksheetOtherwiseIsTheViewItself() throws Exception {
+      Harness h = new Harness(true);
+      AssetQueryScope view = h.box.getScope().queryView(h.vars, QUERY_MODE);
+      assertSame(view, view.getMember("worksheet"));
+      assertTrue(view.hasMember("worksheet"));
+      // the shared scope leaves the name to the env global
+      assertNull(h.box.getScope().getMember("worksheet"));
+   }
+
+   @Test
+   void poolModeVsPreRuntimeConditionReadsTablesInTheQueryMode() throws Exception {
+      assertEquals(List.of(QUERY_MODE), vsPreRuntimeCondition(true));
+   }
+
+   @Test
+   void poolOffVsPreRuntimeConditionIsUnchanged() throws Exception {
+      assertEquals(List.of(QUERY_MODE), vsPreRuntimeCondition(false));
    }
 
    @Test
@@ -149,6 +210,40 @@ class SharedScopeQueryViewTest {
       }
 
       assertFalse(h.modes.isEmpty(), "the script did not read T1");
+      return h.modes;
+   }
+
+   /**
+    * Evaluate a JS value in a VS table's pre-runtime condition that reads T1, the way
+    * VSAQuery.getTableLens does before it runs the query (VSAQuery.executeExpressions), and
+    * return the modes T1 was read in.
+    */
+   private static List<Integer> vsPreRuntimeCondition(boolean pool) throws Exception {
+      Harness h = new Harness(pool);
+      h.formulaStep();
+
+      AssetCondition cond = new AssetCondition();
+      cond.setOperation(XCondition.EQUAL_TO);
+      cond.setType(XSchema.INTEGER);
+      ExpressionValue value = new ExpressionValue();
+      value.setExpression("T1.length");
+      value.setType(ExpressionValue.JAVASCRIPT);
+      cond.addValue(value);
+      ConditionList conds = new ConditionList();
+      conds.append(new ConditionItem(new AttributeRef("a"), cond, 0));
+      EmbeddedTableAssembly t2 = new EmbeddedTableAssembly(h.ws, "T2");
+      t2.setPreRuntimeConditionList(conds);
+
+      ViewsheetSandbox vbox = Mockito.mock(ViewsheetSandbox.class);
+      doReturn(h.box).when(vbox).getAssetQuerySandbox();
+
+      Method executeExpressions = VSAQuery.class.getDeclaredMethod(
+         "executeExpressions", TableAssembly.class, ViewsheetSandbox.class, int.class);
+      executeExpressions.setAccessible(true);
+      executeExpressions.invoke(null, t2, vbox, QUERY_MODE);
+
+      // the script's value replaced the expression
+      assertEquals(4, ((Number) cond.getValue(0)).intValue());
       return h.modes;
    }
 
