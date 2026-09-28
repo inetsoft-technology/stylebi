@@ -37,8 +37,8 @@ import java.lang.reflect.Method;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Print layout reads a table's card inset through the PDF exporter's resolver, the one C1's
- * PDF export reads.
+ * Print layout reads a table's card inset through the PDF exporter's resolver, the one the PDF
+ * export reads.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
