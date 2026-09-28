@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.exceptions.misusing.UnfinishedStubbingException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -642,15 +643,15 @@ public class ScheduleManagerTest {
       when(provider.getOrganizationIDs()).thenReturn(orgs);
       when(provider.getRole(any())).thenAnswer(inv -> new Role(inv.<IdentityID>getArgument(0)));
       when(provider.getGroup(any())).thenAnswer(inv -> new Group(inv.<IdentityID>getArgument(0)));
-      doReturn(orgs).when(securityEngine).getOrganizations();
-      doReturn(provider).when(securityEngine).getSecurityProvider();
+      stubSecurityEngineSafely(() -> doReturn(orgs).when(securityEngine).getOrganizations());
+      stubSecurityEngineSafely(() -> doReturn(provider).when(securityEngine).getSecurityProvider());
 
       try {
          body.run();
       }
       finally {
-         doCallRealMethod().when(securityEngine).getOrganizations();
-         doCallRealMethod().when(securityEngine).getSecurityProvider();
+         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getOrganizations());
+         stubSecurityEngineSafely(() -> doCallRealMethod().when(securityEngine).getSecurityProvider());
 
          for(String org : orgs) {
             Iterator<ScheduleTask> i = scheduleManager.getOrgTaskMap(org).values().iterator();
@@ -661,6 +662,50 @@ public class ScheduleManagerTest {
                if(task != null && task.getName().startsWith("r77100_")) {
                   i.remove();
                }
+            }
+         }
+      }
+   }
+
+   /**
+    * Re-stubs the shared, Spring-singleton {@code securityEngine} mock, retrying on
+    * {@link UnfinishedStubbingException}.
+    *
+    * <p>{@code securityEngine} is the same instance returned application-wide by
+    * {@code SecurityEngine.getSecurity()} (it is registered with {@code ConfigurationContext} by
+    * {@code ConfigurationContextInitializer}), so production background threads legitimately call
+    * into it concurrently with this test — most notably a per-store {@code BlobStorageEvent}
+    * listener thread that {@code seedTask()}/{@code identityRemoved()} inside {@code body.run()}
+    * wake up asynchronously by writing to the schedule task store. Mockito's mock invocation
+    * dispatch is not safe against a stubbing registration on one thread (this one, in
+    * {@link #withRoleFixture}) interleaving with an ordinary invocation on another, and the two
+    * can race hard enough to corrupt the mock's stubbing state, surfacing later as an
+    * {@link UnfinishedStubbingException} in a completely unrelated test method (Bug #77168,
+    * fix-round-2: this raced roughly 1 in 5-8 runs in isolation, and was rare enough in the full
+    * ~8500-test module suite to pass most runs but fail CI once). The corruption is transient —
+    * the next stubbing call that does not race succeeds cleanly — so retry a few times with a
+    * short backoff rather than trying to synchronize with a production executor this test has no
+    * handle on.
+    */
+   private static void stubSecurityEngineSafely(Runnable stubbingCall) {
+      final int maxAttempts = 5;
+
+      for(int attempt = 1; ; attempt++) {
+         try {
+            stubbingCall.run();
+            return;
+         }
+         catch(UnfinishedStubbingException e) {
+            if(attempt >= maxAttempts) {
+               throw e;
+            }
+
+            try {
+               Thread.sleep(20L);
+            }
+            catch(InterruptedException ie) {
+               Thread.currentThread().interrupt();
+               throw e;
             }
          }
       }
