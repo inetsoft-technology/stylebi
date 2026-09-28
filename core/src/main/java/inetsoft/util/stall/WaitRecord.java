@@ -256,6 +256,21 @@ public final class WaitRecord implements AutoCloseable {
       return thread;
    }
 
+   /**
+    * Get the threads this wait is currently for (e.g. a lock owner), sampled fresh from the
+    * wait's blocker supplier. Never throws: an error, or a {@code null} result, is treated as
+    * no blockers, matching this class's own "never fail the waiter" convention.
+    */
+   public Thread[] getBlockers() {
+      try {
+         Thread[] result = blockers.get();
+         return result == null ? NO_THREADS : result;
+      }
+      catch(Throwable ex) {
+         return NO_THREADS;
+      }
+   }
+
    public long getStartNanos() {
       return startNanos;
    }
@@ -371,6 +386,7 @@ public final class WaitRecord implements AutoCloseable {
     * The record of a wait that is not watched ({@code stall.watchdog.mode=off}).
     */
    static final WaitRecord NOOP = new WaitRecord();
+   private static final Thread[] NO_THREADS = new Thread[0];
    private static final Logger LOG = LoggerFactory.getLogger(WaitRecord.class);
 
    // the outer wait of the same thread, restored when this one is closed
