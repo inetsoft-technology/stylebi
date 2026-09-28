@@ -90,6 +90,8 @@ public class MVService {
          return CreateMVResponse.builder().complete(true).build();
       }
       else if(createMVMap.get(createId) == null) {
+         // refuse a foreign analysis on the request thread, before the background job starts
+         support.getAnalysisResult(analysisId, principal);
          createMVMap.put(createId, CreateMVResponse.builder().complete(false).build());
          ThreadPool.addOnDemand(() -> {
             Principal oPrincipal = ThreadContext.getPrincipal();
@@ -142,7 +144,7 @@ public class MVService {
          }
 
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-         List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId);
+         List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId, principal);
          dataCycleManager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
 
          if(principal instanceof XPrincipal) {
@@ -386,7 +388,7 @@ public class MVService {
    public AnalyzeMVResponse checkAnalyzeStatus(String analysisId, Principal principal)
       throws Exception
    {
-      return checkAnalyzeStatus(new MVSupportService.AnalysisResult(analysisId), principal);
+      return checkAnalyzeStatus(support.getAnalysisResult(analysisId, principal), principal);
    }
 
    public AnalyzeMVResponse checkAnalyzeStatus(MVSupportService.AnalysisResult analysisResult,
