@@ -25,7 +25,12 @@ import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ColumnOptionDialogModel;
+import inetsoft.web.composer.model.vs.ComboBoxEditorModel;
+import inetsoft.web.composer.model.vs.DateEditorModel;
+import inetsoft.web.composer.model.vs.SelectionListDialogModel;
+import inetsoft.web.composer.model.vs.SelectionListEditorModel;
 import inetsoft.web.composer.model.vs.TextEditorModel;
 import inetsoft.web.viewsheet.service.VSInputService;
 import inetsoft.web.wiz.dispatch.CapturingCommandDispatcher;
@@ -173,10 +178,174 @@ class ColumnOptionServiceTest {
       assertFalse(captor.getValue().isEnableColumnEditing());
    }
 
+   // ── #1: non-form table refused ──────────────────────────────────────────
+
+   /**
+    * The native Composer only shows "Column Options" for a Form table
+    * ({@code SimpleTableModel}'s {@code form = info.isForm()}); a non-form table's write did
+    * not survive to the next read even before this guard (discarded, or clobbered by a later
+    * form-flip) -- refusing up front, named, replaces that silent no-op.
+    */
+   @Test
+   void refusesSetOnANonFormTable() throws Exception {
+      Harness h = harnessWith(columns("STATE"), false);
+      TextEditorModel editor = new TextEditorModel();
+      editor.setPattern("^[A-Z]{2}$");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", h.user, "Table1", 0, true, "Text", editor, ""));
+
+      assertTrue(e.getMessage().contains("not a Form table"), e.getMessage());
+      verifyNoInteractions(h.inputs);
+   }
+
+   /** Disabling column editing is itself a write too -- refused the same way. */
+   @Test
+   void refusesDisablingColumnEditingOnANonFormTable() throws Exception {
+      Harness h = harnessWith(columns("STATE"), false);
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", h.user, "Table1", 0, false, null, null, ""));
+
+      assertTrue(e.getMessage().contains("not a Form table"), e.getMessage());
+      verifyNoInteractions(h.inputs);
+   }
+
+   /** get_column_options is a read -- not gated on form status. */
+   @Test
+   void allowsGetOnANonFormTable() throws Exception {
+      Harness h = harnessWith(columns("STATE"), false);
+
+      h.service.get("tok", h.user, "Table1", 0);
+
+      verify(h.inputs).getColumnOptionDialogModel("rt1", "Table1", 0, h.user);
+   }
+
+   // ── #2: unparseable Date min/max refused ────────────────────────────────
+
+   /**
+    * {@code DateColumnOption.validate()} swallows an unparseable bound's {@code ParseException}
+    * into an unconditional {@code return false} -- rejecting every value forever once stored.
+    * Reusing {@code Tool.parseDate} itself here (the same parser {@code validate()} runs) closes
+    * this without over-rejecting a format {@code Tool.parseDate} genuinely accepts.
+    */
+   @Test
+   void refusesAnUnparseableDateMinimum() throws Exception {
+      Harness h = harnessWith(columns("ORDER_DATE"));
+      DateEditorModel editor = new DateEditorModel();
+      editor.setMinimum("not-a-date");
+      editor.setMaximum("2030-12-31");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", h.user, "Table1", 0, true, "Date", editor, ""));
+
+      assertTrue(e.getMessage().contains("minimum"), e.getMessage());
+      assertTrue(e.getMessage().contains("not-a-date"), e.getMessage());
+      verifyNoInteractions(h.inputs);
+   }
+
+   @Test
+   void refusesAnUnparseableDateMaximum() throws Exception {
+      Harness h = harnessWith(columns("ORDER_DATE"));
+      DateEditorModel editor = new DateEditorModel();
+      editor.setMaximum("also-not-a-date");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", h.user, "Table1", 0, true, "Date", editor, ""));
+
+      assertTrue(e.getMessage().contains("maximum"), e.getMessage());
+      verifyNoInteractions(h.inputs);
+   }
+
+   @Test
+   void acceptsAParsableDateBound() throws Exception {
+      Harness h = harnessWith(columns("ORDER_DATE"));
+      DateEditorModel editor = new DateEditorModel();
+      editor.setMinimum("2026-01-01");
+      editor.setMaximum("2026-12-31");
+
+      h.service.set("tok", h.user, "Table1", 0, true, "Date", editor, "");
+
+      verify(h.inputs).setColumnOptionDialogModel(eq("rt1"), eq("Table1"), eq(0),
+         any(), eq(h.user), eq(h.dispatcher), eq(""));
+   }
+
+   @Test
+   void blankDateBoundsAreNotParsed() throws Exception {
+      Harness h = harnessWith(columns("ORDER_DATE"));
+      DateEditorModel editor = new DateEditorModel();
+
+      h.service.set("tok", h.user, "Table1", 0, true, "Date", editor, "");
+
+      verify(h.inputs).setColumnOptionDialogModel(eq("rt1"), eq("Table1"), eq(0),
+         any(), eq(h.user), eq(h.dispatcher), eq(""));
+   }
+
+   // ── #5: unresolvable ComboBox query source refused ──────────────────────
+
+   @Test
+   void refusesAnUnresolvableComboBoxQueryTable() throws Exception {
+      Harness h = harnessWith(columns("CUSTOMER_ID"));
+      when(h.vsColumnHandler.getTableColumns(any(), eq("NoSuchTable123"), eq(h.user)))
+         .thenReturn(new ColumnSelection());
+      ComboBoxEditorModel editor = comboBoxQuery("NoSuchTable123", "COL", "COL");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", h.user, "Table1", 0, true, "ComboBox", editor, ""));
+
+      assertTrue(e.getMessage().contains("NoSuchTable123"), e.getMessage());
+      verifyNoInteractions(h.inputs);
+   }
+
+   @Test
+   void refusesAComboBoxQueryColumnNotOnTheResolvedTable() throws Exception {
+      Harness h = harnessWith(columns("CUSTOMER_ID"));
+      when(h.vsColumnHandler.getTableColumns(any(), eq("CUSTOMERS"), eq(h.user)))
+         .thenReturn(columns("CUSTOMER_ID", "COMPANY_NAME"));
+      ComboBoxEditorModel editor = comboBoxQuery("CUSTOMERS", "NoSuchColumn", "CUSTOMER_ID");
+
+      Exception e = assertThrows(IllegalArgumentException.class,
+         () -> h.service.set("tok", h.user, "Table1", 0, true, "ComboBox", editor, ""));
+
+      assertTrue(e.getMessage().contains("NoSuchColumn"), e.getMessage());
+      verifyNoInteractions(h.inputs);
+   }
+
+   @Test
+   void acceptsAResolvableComboBoxQuerySource() throws Exception {
+      Harness h = harnessWith(columns("CUSTOMER_ID"));
+      when(h.vsColumnHandler.getTableColumns(any(), eq("CUSTOMERS"), eq(h.user)))
+         .thenReturn(columns("CUSTOMER_ID", "COMPANY_NAME"));
+      ComboBoxEditorModel editor = comboBoxQuery("CUSTOMERS", "COMPANY_NAME", "CUSTOMER_ID");
+
+      h.service.set("tok", h.user, "Table1", 0, true, "ComboBox", editor, "");
+
+      verify(h.inputs).setColumnOptionDialogModel(eq("rt1"), eq("Table1"), eq(0),
+         any(), eq(h.user), eq(h.dispatcher), eq(""));
+   }
+
+   /**
+    * embedded:false, query:false is reachable through the real Composer dialog too (the two
+    * checkboxes are independent, not a radio group requiring one of them) -- not refused.
+    */
+   @Test
+   void acceptsAComboBoxWithNeitherEmbeddedNorQuery() throws Exception {
+      Harness h = harnessWith(columns("CUSTOMER_ID"));
+      ComboBoxEditorModel editor = new ComboBoxEditorModel();
+      editor.setEmbedded(false);
+      editor.setQuery(false);
+
+      h.service.set("tok", h.user, "Table1", 0, true, "ComboBox", editor, "");
+
+      verify(h.inputs).setColumnOptionDialogModel(eq("rt1"), eq("Table1"), eq(0),
+         any(), eq(h.user), eq(h.dispatcher), eq(""));
+   }
+
    // ── fixtures ──────────────────────────────────────────────────────────────
 
    private record Harness(ColumnOptionService service, VSInputService inputs,
-                          CapturingCommandDispatcher dispatcher, Principal user) {}
+                          VSColumnHandler vsColumnHandler, CapturingCommandDispatcher dispatcher,
+                          Principal user) {}
 
    private static ColumnSelection columns(String... names) {
       ColumnSelection selection = new ColumnSelection();
@@ -188,16 +357,36 @@ class ColumnOptionServiceTest {
       return selection;
    }
 
-   private static TableVSAssembly tableWith(ColumnSelection visible) {
+   private static ComboBoxEditorModel comboBoxQuery(String table, String column, String value) {
+      ComboBoxEditorModel editor = new ComboBoxEditorModel();
+      editor.setEmbedded(false);
+      editor.setQuery(true);
+      SelectionListEditorModel source = new SelectionListEditorModel();
+      source.setTable(table);
+      source.setColumn(column);
+      source.setValue(value);
+      SelectionListDialogModel dialog = new SelectionListDialogModel();
+      dialog.setSelectionListEditorModel(source);
+      editor.setSelectionListDialogModel(dialog);
+      return editor;
+   }
+
+   private static TableVSAssembly tableWith(ColumnSelection visible, boolean form) {
       TableVSAssembly assembly = mock(TableVSAssembly.class);
       TableVSAssemblyInfo info = mock(TableVSAssemblyInfo.class);
       when(assembly.getVSAssemblyInfo()).thenReturn(info);
       when(info.getVisibleColumns()).thenReturn(visible);
+      when(info.isForm()).thenReturn(form);
       return assembly;
    }
 
    private static Harness harnessWith(ColumnSelection visible) throws Exception {
-      return harnessWith(tableWith(visible), visible);
+      return harnessWith(tableWith(visible, true), visible);
+   }
+
+   /** {@code form} controls {@code TableVSAssemblyInfo.isForm()} -- default fixture is true. */
+   private static Harness harnessWith(ColumnSelection visible, boolean form) throws Exception {
+      return harnessWith(tableWith(visible, form), visible);
    }
 
    private static Harness harnessWith(VSAssembly assembly, ColumnSelection visible) throws Exception {
@@ -208,6 +397,7 @@ class ColumnOptionServiceTest {
       when(rvs.getViewsheet()).thenReturn(vs);
 
       VSInputService inputs = mock(VSInputService.class);
+      VSColumnHandler vsColumnHandler = mock(VSColumnHandler.class);
       CapturingCommandDispatcher dispatcher = mock(CapturingCommandDispatcher.class);
       ViewsheetSessionService sessions = mock(ViewsheetSessionService.class);
       Principal user = principal();
@@ -223,7 +413,8 @@ class ColumnOptionServiceTest {
          return read.run(rvs, "rt1", dispatcher);
       }).when(sessions).read(anyString(), any(Principal.class), any());
 
-      return new Harness(new ColumnOptionService(sessions, inputs), inputs, dispatcher, user);
+      return new Harness(new ColumnOptionService(sessions, inputs, vsColumnHandler), inputs,
+         vsColumnHandler, dispatcher, user);
    }
 
    private static Principal principal() {
