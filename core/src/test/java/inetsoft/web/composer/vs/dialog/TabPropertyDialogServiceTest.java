@@ -378,6 +378,74 @@ class TabPropertyDialogServiceTest {
                    "after the full method call");
    }
 
+   /**
+    * Bug #77179 (review round 1): a design-time script (e.g. onInit {@code Tab1.bottomTabs =
+    * true}) leaves an rValue. The review asked whether the dialog, which repositions for the
+    * new dValue and then clears the pending-reposition flag, could leave positions laid out
+    * for top tabs while that rValue still makes {@code isBottomTabs()} true (so Composer
+    * Preview would not reposition). It cannot: {@code setBottomTabsValue} goes through
+    * {@code DynamicValue.setDValue}, which drops the rValue whenever the dValue changes, and
+    * the dialog only repositions when the dValue changed -- so after the dialog the effective
+    * value is the dValue the positions were laid out for, and clearing the flag is correct.
+    * Preview's onInit then re-asserts {@code true} at runtime as a real change and repositions.
+    */
+   @Test
+   void testBug77179DialogDValueChangeDropsScriptRValueSoFlagClearIsCorrect() throws Exception {
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+      // bottom-tabs layout designed via the dialog, plus a design script asserting true
+      tabInfo.setBottomTabsValue(true);
+      tabInfo.setPixelOffset(new Point(10, 400));
+      child.getVSAssemblyInfo().setPixelOffset(new Point(10, 200));
+      tabInfo.setBottomTabs(true);
+      tabInfo.markPositionNeedsSync();
+
+      // designer unticks "bottom tabs": dValue true -> false, position untouched
+      TabPropertyDialogModel model = buildModel("Tab1", false, 10, 400, 200, 30);
+
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
+
+      TabVSAssemblyInfo captured = captureEditedInfo();
+      assertFalse(captured.getBottomTabsValue());
+      // the script rValue did not survive the dValue change ...
+      assertFalse(captured.isBottomTabs(),
+                  "setBottomTabsValue must drop the script rValue when the dValue changes");
+      // ... so the top-tabs reposition matches the effective value and nothing is owed
+      assertEquals(170, captured.getPixelOffset().y);
+      assertFalse(captured.isPositionNeedsSync());
+   }
+
+   /**
+    * Bug #77179: when the dialog's reposition does match the effective value (no rValue, or an
+    * rValue equal to the new dValue), any earlier pending flag is satisfied and is cleared.
+    */
+   @Test
+   void testBug77179DialogClearsFlagWhenPositionsMatchEffectiveValue() throws Exception {
+      TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getVSAssemblyInfo();
+      tabInfo.setBottomTabsValue(true);
+      tabInfo.setPixelOffset(new Point(10, 400));
+      child.getVSAssemblyInfo().setPixelOffset(new Point(10, 200));
+      // design script asserted false (the value the dialog is about to switch to)
+      tabInfo.setBottomTabs(false);
+      tabInfo.markPositionNeedsSync();
+
+      TabPropertyDialogModel model = buildModel("Tab1", false, 10, 400, 200, 30);
+
+      service.setTabPropertyDialogModel("vs1", "Tab1", model, "", null, commandDispatcher);
+
+      TabVSAssemblyInfo captured = captureEditedInfo();
+      assertFalse(captured.isBottomTabs());
+      assertEquals(170, captured.getPixelOffset().y);
+      assertFalse(captured.isPositionNeedsSync());
+   }
+
+   private TabVSAssemblyInfo captureEditedInfo() throws Exception {
+      ArgumentCaptor<TabVSAssemblyInfo> captor = ArgumentCaptor.forClass(TabVSAssemblyInfo.class);
+      verify(vsObjectPropertyService).editObjectProperty(
+         any(RuntimeViewsheet.class), captor.capture(), anyString(), anyString(),
+         anyString(), nullable(Principal.class), any(CommandDispatcher.class));
+      return captor.getValue();
+   }
+
    // -------------------------------------------------------------------------
    // Helpers
    // -------------------------------------------------------------------------

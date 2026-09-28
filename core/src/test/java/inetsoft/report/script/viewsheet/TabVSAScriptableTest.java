@@ -635,6 +635,34 @@ public class TabVSAScriptableTest {
       assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
    }
 
+   @Test
+   void testBug77179DesignScriptRevertingToDesignValueClearsFlag() {
+      TextVSAssembly child = addChild(viewsheet, "Text1", 60, 100);
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1"});
+      tabVSAssemblyInfo.setPixelOffset(new Point(0, 30));
+      tabVSAssemblyInfo.setPixelSize(new Dimension(180, 30));
+      when(viewsheetSandbox.isRuntime()).thenReturn(false);
+
+      // design onInit sets true (positions are laid out for the dValue false): owed
+      tabVSAScriptable.setBottomTabs(true);
+      assertTrue(tabVSAssemblyInfo.isPositionNeedsSync());
+
+      // the designer edits the script back to the design value: nothing is owed any more,
+      // so Preview must not sweep (and possibly move) a layout that already matches
+      tabVSAScriptable.setBottomTabs(false);
+      assertFalse(tabVSAssemblyInfo.isBottomTabs());
+      assertFalse(tabVSAssemblyInfo.isPositionNeedsSync());
+
+      // re-asserting a value that differs from the design value keeps it owed
+      tabVSAScriptable.setBottomTabs(true);
+      tabVSAScriptable.setBottomTabs(true);
+      assertTrue(tabVSAssemblyInfo.isPositionNeedsSync());
+
+      // design geometry never moves
+      assertEquals(30, tabVSAssemblyInfo.getPixelOffset().y);
+      assertEquals(60, child.getVSAssemblyInfo().getPixelOffset().y);
+   }
+
    private static Element parseXml(String xml) throws Exception {
       DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
       factory.setFeature("http://xml.org/sax/features/external-general-entities", false);

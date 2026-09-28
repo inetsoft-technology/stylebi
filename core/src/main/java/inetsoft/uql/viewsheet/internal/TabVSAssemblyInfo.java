@@ -807,8 +807,28 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * True if bottomTabs' rValue was restored (e.g. from a bookmark) without a matching
-    * reposition of the tab bar and its children's pixel position.
+    * Design-time counterpart of {@link #restoreBottomTabs}/{@link #markPositionNeedsSync()}:
+    * in a design (non-runtime) viewsheet the pixel positions are laid out for the design value
+    * ({@link #getBottomTabsValue()}) -- the property dialog repositions for it and design-time
+    * scripts never move anything -- so a reposition is owed exactly when the effective value
+    * ({@link #isBottomTabs()}, which a design-time script's rValue overrides) differs from it.
+    * Sets or clears {@link #isPositionNeedsSync()} accordingly. Used by
+    * {@link inetsoft.report.script.viewsheet.TabVSAScriptable#setBottomTabs} in a design
+    * sandbox, so the flag carried into Composer Preview is neither lost nor stale (Bug #77179).
+    * (The tab property dialog can simply clear the flag after its reposition: changing the
+    * dValue via {@link #setBottomTabsValue} drops any rValue, so the effective value is then
+    * the design value it repositioned for.)
+    */
+   public void updateDesignPositionNeedsSync() {
+      positionNeedsSync = isBottomTabs() != getBottomTabsValue();
+   }
+
+   /**
+    * True if the tab bar and its children's pixel positions may not match {@link
+    * #isBottomTabs()}: the bottomTabs rValue was changed without a matching reposition, either
+    * by a restore that changed it (e.g. from a bookmark, see {@link #restoreBottomTabs}) or at
+    * design time, where a script's rValue differs from the design value the positions were laid
+    * out for (see {@link #markPositionNeedsSync()} and {@link #updateDesignPositionNeedsSync()}).
     */
    public boolean isPositionNeedsSync() {
       return positionNeedsSync;
@@ -841,7 +861,9 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    private boolean roundBottomCornersOnly;
    // runtime-only: not written to asset/bookmark XML (see writeAttributes/parseAttributes),
    // not touched by resetRuntimeValues() -- must survive across a refresh so the reposition
-   // owed by a bookmark restore isn't lost before the tab's script re-runs.
+   // owed by a bookmark restore isn't lost before the tab's script re-runs. Also set at design
+   // time when a script's rValue differs from the design value (updateDesignPositionNeedsSync),
+   // and carried by the viewsheet clone into Composer Preview.
    private transient boolean positionNeedsSync;
 
    public static final TableDataPath ACTIVE_TAB_PATH =
