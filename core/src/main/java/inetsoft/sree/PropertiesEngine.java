@@ -124,12 +124,57 @@ public class PropertiesEngine {
     * a thrown exception degrades to the same logged, non-fatal outcome as a retry that simply
     * returns {@code false}.</p>
     *
+    * <p>The same rethrow can also happen one step earlier, from the fetch itself
+    * ({@code keyValueStorageManager.getStorage(STORAGE_ID)} constructing a brand-new
+    * {@code LocalKeyValueStorage} whose very first, unconditional load attempt throws) rather
+    * than from the retry (Bug #77177 review round 3). Unlike the retry case, there is no
+    * {@code storage} object at all to fall back on if the fetch itself throws, so the two
+    * situations are handled differently:</p>
+    * <ul>
+    *    <li>If there is no previous instance to fall back on ({@link #kvStorage} is {@code null}),
+    *    this can only be {@link #initEngine()}'s very first call — {@code @PostConstruct}
+    *    guarantees it completes, one way or another, before any other method can ever be invoked
+    *    on this singleton bean. The exception is left to propagate, exactly as it already would
+    *    have before this method existed: this fails Spring bean creation, matching Bug #76975's
+    *    cold-start fail-fast intent rather than regressing it.</li>
+    *    <li>If a previous instance already exists (even a closed one — an eviction-triggered
+    *    re-fetch whose replacement construction fails), the exception is caught, logged, and the
+    *    previous (stale/closed) instance is returned for this call instead of throwing — the same
+    *    "must not throw at runtime" principle as the retry case. The next call here will attempt
+    *    the same (still expensive) construction again, since {@code isClosed()} is still
+    *    {@code true} for the previous instance; this is not new or specific to this fix, it is the
+    *    same trade-off every other caller of {@link KeyValueStorageManager#getStorage(String)}
+    *    (e.g. {@link inetsoft.report.LibManager}, {@code DeviceRegistry}) already accepts, since
+    *    the manager's own Caffeine {@code get(id, loader)} caches no failure either.</li>
+    * </ul>
+    *
     * @return the live key-value storage instance.
     */
    private synchronized KeyValueStorage<String> getStorage() {
       if(kvStorage == null || kvStorage.isClosed()) {
-         KeyValueStorage<String> storage = keyValueStorageManager.getStorage(STORAGE_ID);
-         storage.addListener(changeListener);
+         KeyValueStorage<String> previous = kvStorage;
+         KeyValueStorage<String> storage;
+
+         try {
+            storage = keyValueStorageManager.getStorage(STORAGE_ID);
+            storage.addListener(changeListener);
+         }
+         catch(Exception e) {
+            if(previous == null) {
+               // true cold start (initEngine()'s very first call): there is nothing to fall
+               // back on, so this must propagate and fail the @PostConstruct bean creation,
+               // exactly as it would have before this method existed (Bug #76975)
+               throw e;
+            }
+
+            // a runtime self-heal after the previous instance was evicted/closed: keep serving
+            // the previous, stale instance rather than throwing out of an arbitrary
+            // setProperty()/remove()/getProperty() call (Bug #77177 review round 3)
+            LOG.warn(
+               "Failed to fetch a replacement for the property storage {}; continuing with " +
+               "the previous instance until a later access succeeds", STORAGE_ID, e);
+            return previous;
+         }
 
          try {
             if(!storage.isLoaded() && !storage.retryLoad()) {
