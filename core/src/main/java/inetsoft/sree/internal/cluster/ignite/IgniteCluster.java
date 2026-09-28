@@ -626,6 +626,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public String getLocalNodeId() {
+      return ignite.cluster().localNode().id().toString();
+   }
+
+   @Override
+   public Set<String> getClusterNodeIds() {
+      return ignite.cluster().nodes().stream()
+         .map(n -> n.id().toString())
+         .collect(Collectors.toSet());
+   }
+
+   @Override
    public Set<String> getServerClusterNodes() {
       return ignite.cluster()
          .forPredicate((node) -> !Boolean.TRUE.equals(node.attribute("scheduler")))

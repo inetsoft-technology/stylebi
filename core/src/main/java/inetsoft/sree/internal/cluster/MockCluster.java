@@ -72,6 +72,16 @@ public class MockCluster implements Cluster {
    }
 
    @Override
+   public String getLocalNodeId() {
+      return localNodeId;
+   }
+
+   @Override
+   public Set<String> getClusterNodeIds() {
+      return Set.of(getLocalNodeId());
+   }
+
+   @Override
    public boolean isClusterReady() {
       return true;
    }
@@ -692,6 +702,7 @@ public class MockCluster implements Cluster {
       // no-op
    }
 
+   private final String localNodeId = UUID.randomUUID().toString();
    private final ConcurrentMap<String, Map<String, Object>> clusterNodeProperties =
       new ConcurrentHashMap<>();
    private final ConcurrentMap<String, Lock> locks = new ConcurrentHashMap<>();

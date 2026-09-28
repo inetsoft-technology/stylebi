@@ -35,8 +35,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -838,8 +840,7 @@ public class ClusterJobStore implements JobStore, Serializable {
       Set<JobKey> acquiredJobKeysForNoConcurrentExec = new HashSet<>();
       // the cluster topology, read once per pass and only if a held trigger is found
       boolean topologyRead = false;
-      Set<String> liveMembers = null;
-      String localMember = null;
+      Set<String> liveNodes = null;
 
       // ordering triggers to try to ensure firetime order
       List<TriggerWrapper> orderedTriggers = triggersByKey.values().stream()
@@ -884,17 +885,20 @@ public class ClusterJobStore implements JobStore, Serializable {
             // trigger from ever firing again
             if(tw.getState() == ACQUIRED || tw.getState() == BLOCKED) {
                if(!topologyRead) {
-                  liveMembers = getLiveMembers();
-                  localMember = getLocalMember();
+                  liveNodes = getLiveNodes();
                   topologyRead = true;
                }
 
-               if(isOrphaned(tw, liveMembers, localMember, getJvmToken(),
-                             getOrphanedRunHold(tw), System.currentTimeMillis()))
+               final TriggerWrapper held = tw;
+
+               if(isOrphaned(held, liveNodes, () -> getOrphanedRunHold(held),
+                             System.currentTimeMillis()))
                {
-                  LOG.warn("Releasing trigger {} held {} by {} (store {}) since {}, that owner " +
-                              "is no longer running", tw.key, tw.getState(), tw.getOwnerMember(),
-                           tw.getOwnerStore(), tw.getOwnedSince());
+                  LOG.warn("Releasing trigger {} held {} by node {} ({}, store {}) since {}, " +
+                              "that node is no longer in the cluster", tw.key, tw.getState(),
+                           tw.getOwnerNode(), tw.getOwnerMember(), tw.getOwnerStore(),
+                           tw.getOwnedSince() == null ? null :
+                              Instant.ofEpochMilli(tw.getOwnedSince()));
                   tw = newTriggerWrapper(tw, WAITING);
                   storeTriggerWrapper(tw);
                }
@@ -947,7 +951,7 @@ public class ClusterJobStore implements JobStore, Serializable {
             OperableTrigger trig = (OperableTrigger) tw.trigger.clone();
             trig.setFireInstanceId(getFiredTriggerRecordId());
             storeTriggerWrapper(newOwnedTriggerWrapper(
-               trig, ACQUIRED, getLocalMember(), getJvmToken(), fireInstanceIdPrefix));
+               trig, ACQUIRED, getLocalNodeId(), getLocalMember(), fireInstanceIdPrefix));
 
             result.add(trig);
 
@@ -1043,7 +1047,7 @@ public class ClusterJobStore implements JobStore, Serializable {
             else if(job.isConcurrentExectionDisallowed()) {
                // keep the trigger from being acquired again until its execution completes
                tw = newOwnedTriggerWrapper(
-                  trigger, BLOCKED, getLocalMember(), getJvmToken(), fireInstanceIdPrefix);
+                  trigger, BLOCKED, getLocalNodeId(), getLocalMember(), fireInstanceIdPrefix);
             }
             else {
                tw = newTriggerWrapper(trigger, WAITING);
@@ -1253,33 +1257,30 @@ public class ClusterJobStore implements JobStore, Serializable {
 
    /**
     * Checks if an ACQUIRED or BLOCKED entry is held by an owner that can no longer complete or
-    * release it (Bug #77245): the owner's member left the cluster, or the member is this node but
-    * the entry was written by an earlier JVM on the same address and port. An entry written by
-    * another store of this JVM (a scheduler stopped and started in process) is not orphaned, since
-    * the old store's run may still be executing and its completion releases the entry. An entry
-    * with no recorded owner (written by an older version) is never orphaned.
+    * release it (Bug #77245): the cluster node that took the hold is no longer in the cluster. A
+    * node id is unique across hosts and changes whenever the JVM (and so its Ignite node) is
+    * restarted, but not when the scheduler is stopped and started in the same JVM, whose old run
+    * may still be executing and whose completion releases the entry. An entry with no recorded
+    * owner (an older version, or an error state) is never orphaned, nor is any entry when the
+    * topology cannot be read.
     *
+    * @param liveNodes       the ids of the nodes in the cluster, including clients, or null if
+    *                        unknown.
     * @param orphanedRunHold how long after the owner took the hold its run may still be executing
     *                        although the owner is gone, 0 if the run cannot outlive its owner.
+    *                        Only evaluated if the owner is gone.
     */
-   static boolean isOrphaned(TriggerWrapper tw, Set<String> liveMembers, String localMember,
-                             String jvmToken, long orphanedRunHold, long now)
+   static boolean isOrphaned(TriggerWrapper tw, Set<String> liveNodes,
+                             LongSupplier orphanedRunHold, long now)
    {
-      String member = tw.getOwnerMember();
+      String node = tw.getOwnerNode();
 
-      if(member == null || tw.getOwnerJvm() == null || liveMembers == null) {
+      if(node == null || liveNodes == null || liveNodes.contains(node)) {
          return false;
       }
 
-      boolean ownerGone = !liveMembers.contains(member) ||
-         member.equals(localMember) && !tw.getOwnerJvm().equals(jvmToken);
-
-      if(!ownerGone) {
-         return false;
-      }
-
-      return orphanedRunHold <= 0 || tw.getOwnedSince() != null &&
-         now - tw.getOwnedSince() >= orphanedRunHold;
+      long hold = orphanedRunHold.getAsLong();
+      return hold <= 0 || tw.getOwnedSince() != null && now - tw.getOwnedSince() >= hold;
    }
 
    /**
@@ -1290,7 +1291,7 @@ public class ClusterJobStore implements JobStore, Serializable {
     * waited with plus a margin for the container launch. An acquired trigger has not launched
     * anything, and any other job runs in the owner's JVM and dies with it.
     */
-   private long getOrphanedRunHold(TriggerWrapper tw) {
+   long getOrphanedRunHold(TriggerWrapper tw) {
       if(tw.getState() != BLOCKED) {
          return 0;
       }
@@ -1308,25 +1309,35 @@ public class ClusterJobStore implements JobStore, Serializable {
    }
 
    /**
-    * Gets the members currently in the cluster, including client nodes, or null if the topology
-    * cannot be read.
+    * Gets the ids of the nodes currently in the cluster, including client nodes, or null if the
+    * topology cannot be read or does not contain this node (it is disconnected or the view is not
+    * consistent), in which case nothing is released.
     */
-   Set<String> getLiveMembers() {
+   Set<String> getLiveNodes() {
       try {
-         return Cluster.getInstance().getClusterNodes(true);
+         Set<String> nodes = Cluster.getInstance().getClusterNodeIds();
+         String localNode = getLocalNodeId();
+
+         if(nodes == null || !nodes.contains(localNode)) {
+            LOG.debug("The cluster nodes {} do not contain this node {}, not checking for " +
+                         "released triggers", nodes, localNode);
+            return null;
+         }
+
+         return nodes;
       }
       catch(RuntimeException ex) {
-         LOG.warn("Failed to get the cluster members to check for released triggers", ex);
+         LOG.warn("Failed to get the cluster nodes to check for released triggers", ex);
          return null;
       }
    }
 
-   String getLocalMember() {
-      return Cluster.getInstance().getLocalMember();
+   String getLocalNodeId() {
+      return Cluster.getInstance().getLocalNodeId();
    }
 
-   String getJvmToken() {
-      return JVM_TOKEN;
+   String getLocalMember() {
+      return Cluster.getInstance().getLocalMember();
    }
 
    private boolean applyMisfire(TriggerWrapper tw) throws JobPersistenceException {
@@ -1536,9 +1547,6 @@ public class ClusterJobStore implements JobStore, Serializable {
    // the instance id is "AUTO" on every node, so a random part keeps fire instance ids unique
    // across the cluster, which the ownership check in isAcquiredBy() relies on
    private final String fireInstanceIdPrefix = UUID.randomUUID() + "-";
-   // identifies this JVM in the owner of a held trigger, so that a JVM restarted on the same
-   // address and port can tell the holds of the previous JVM from those of its own stores
-   private static final String JVM_TOKEN = UUID.randomUUID().toString();
    private static final long CLOUD_RUN_LAUNCH_MARGIN = TimeUnit.MINUTES.toMillis(5);
    private static final Logger LOG = LoggerFactory.getLogger(ClusterJobStore.class);
 }

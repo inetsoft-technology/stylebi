@@ -36,12 +36,13 @@ public class TriggerWrapper implements Serializable {
 
    private TriggerState state;
 
-   // Bug #77245, the holder of an ACQUIRED or BLOCKED entry: the cluster member, the JVM and the
-   // store that acquired or fired it, and when. Null for every other state and for entries written
-   // by a version that did not record an owner.
-   private final String ownerMember;
+   // Bug #77245, the holder of an ACQUIRED or BLOCKED entry: the id of the cluster node that
+   // acquired or fired it (a new id every time a node joins, unique across hosts), its member name
+   // and store (for logging only), and when. Null for every other state and for entries written by
+   // a version that did not record an owner.
+   private final String ownerNode;
 
-   private final String ownerJvm;
+   private final String ownerMember;
 
    private final String ownerStore;
 
@@ -61,8 +62,8 @@ public class TriggerWrapper implements Serializable {
       this(trigger, state, null, null, null);
    }
 
-   private TriggerWrapper(OperableTrigger trigger, TriggerState state, String ownerMember,
-                          String ownerJvm, String ownerStore)
+   private TriggerWrapper(OperableTrigger trigger, TriggerState state, String ownerNode,
+                          String ownerMember, String ownerStore)
    {
       if(trigger == null) {
          throw new IllegalArgumentException("Trigger cannot be null!");
@@ -81,10 +82,10 @@ public class TriggerWrapper implements Serializable {
          acquiredAt = null;
       }
 
+      this.ownerNode = ownerNode;
       this.ownerMember = ownerMember;
-      this.ownerJvm = ownerJvm;
       this.ownerStore = ownerStore;
-      this.ownedSince = ownerMember == null ? null : System.currentTimeMillis();
+      this.ownedSince = ownerNode == null ? null : System.currentTimeMillis();
    }
 
    public static TriggerWrapper newTriggerWrapper(OperableTrigger trigger) {
@@ -104,15 +105,15 @@ public class TriggerWrapper implements Serializable {
    }
 
    /**
-    * Creates a wrapper for an ACQUIRED or BLOCKED entry that records which member, JVM and store
-    * holds it (Bug #77245). The other factories record no owner, so every other transition clears
-    * it.
+    * Creates a wrapper for an ACQUIRED or BLOCKED entry that records which cluster node (and, for
+    * logging, which member and store) holds it (Bug #77245). The other factories record no owner,
+    * so every other transition clears it.
     */
    public static TriggerWrapper newOwnedTriggerWrapper(OperableTrigger trigger,
-                                                       TriggerState state, String ownerMember,
-                                                       String ownerJvm, String ownerStore)
+                                                       TriggerState state, String ownerNode,
+                                                       String ownerMember, String ownerStore)
    {
-      return new TriggerWrapper(trigger, state, ownerMember, ownerJvm, ownerStore);
+      return new TriggerWrapper(trigger, state, ownerNode, ownerMember, ownerStore);
    }
 
    @Override
@@ -145,12 +146,12 @@ public class TriggerWrapper implements Serializable {
       return acquiredAt;
    }
 
-   public String getOwnerMember() {
-      return ownerMember;
+   public String getOwnerNode() {
+      return ownerNode;
    }
 
-   public String getOwnerJvm() {
-      return ownerJvm;
+   public String getOwnerMember() {
+      return ownerMember;
    }
 
    public String getOwnerStore() {
@@ -169,8 +170,8 @@ public class TriggerWrapper implements Serializable {
          + ", nextFireTime=" + getNextFireTime()
          + ", endTime=" + getEndTime()
          + ", acquiredAt=" + getAcquiredAt()
+         + ", ownerNode=" + ownerNode
          + ", ownerMember=" + ownerMember
-         + ", ownerJvm=" + ownerJvm
          + ", ownerStore=" + ownerStore
          + ", ownedSince=" + ownedSince
          + '}';

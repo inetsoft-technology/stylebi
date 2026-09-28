@@ -57,9 +57,10 @@ import static org.mockito.Mockito.*;
  * other conditions from firing; and a trigger acquired by a node that then stopped or died must
  * still run, exactly once, on another node.
  *
- * <p>Bug #77245: a hold whose owner can no longer complete it (its node left the cluster, or its
- * JVM was replaced on the same member) must be released by another node's next acquire pass,
- * but never while its run may still be executing.
+ * <p>Bug #77245: a hold whose owner can no longer complete it (its cluster node left the
+ * cluster, including a node restarted on the same member name, which rejoins with a new node id)
+ * must be released by another node's next acquire pass, but never while its run may still be
+ * executing, and never because another live node shares its member name.
  *
  * <p>Two real Quartz schedulers built like {@code Scheduler.initialize0()} share one cluster whose
  * replicated maps keep and hand out serialized copies, like Ignite's. Timings are the production
@@ -247,7 +248,7 @@ class ClusterJobStoreTriggerReleaseTest {
       assertNotEquals(runner, executions.get(1).schedulerId, "caught up on the dead node:" + trace);
       assertDistinctFireTimes(executions, trace);
       assertEquals(TriggerState.BLOCKED, held.getState(), "live run was released: " + held);
-      assertEquals(executions.get(1).schedulerId, held.getOwnerMember(), "wrong owner: " + held);
+      assertEquals(executions.get(1).schedulerId, held.getOwnerNode(), "wrong owner: " + held);
    }
 
    /**
@@ -266,7 +267,105 @@ class ClusterJobStoreTriggerReleaseTest {
 
       assertEquals(1, executions.size(), "live run was released:" + trace(executions));
       assertEquals(TriggerState.BLOCKED, held.getState(), "live run was released: " + held);
-      assertEquals(runner, held.getOwnerMember(), "wrong owner: " + held);
+      assertEquals(runner, held.getOwnerNode(), "wrong owner: " + held);
+   }
+
+   /**
+    * Bug #77245: two live nodes on different hosts can have the same member name (containers
+    * with the same bridge IP and discovery port behind NAT) while Ignite clusters them by node id.
+    * Neither may release the other's hold.
+    */
+   @Test
+   void runOfALiveNodeWithTheSameMemberNameIsNotReleased() throws Exception {
+      cluster = new IgniteLikeCluster();
+      installContext(cluster);
+      startScheduler("node-A", "node-A", "172.18.0.3:5701", 1);
+      startScheduler("node-B", "node-B", "172.18.0.3:5701", 1);
+      IntervalTrigger trigger = scheduleHungRecurringTrigger(SlowTaskJob.class);
+      String runner = awaitFirstRun();
+
+      Thread.sleep(4 * INTERVAL + MAX_IDLE);
+
+      List<Execution> executions = executions();
+      TriggerWrapper held = storedTrigger(trigger);
+
+      assertEquals(1, executions.size(), "live run was released:" + trace(executions));
+      assertEquals(1, recorder().maxRunning.get(), "runs overlapped:" + trace(executions));
+      assertEquals(TriggerState.BLOCKED, held.getState(), "live run was released: " + held);
+      assertEquals(runner, held.getOwnerNode(), "wrong owner: " + held);
+   }
+
+   /**
+    * Bug #77245: a node acquired a trigger and died before firing it. The ACQUIRED hold must be
+    * released by another node, which fires the trigger once.
+    */
+   @Test
+   void acquiredTriggerOfADeadNodeIsReleasedAndFiredOnce() throws Exception {
+      startSchedulers(1, "node-B");
+      // outside the acquire horizon, so node-B cannot acquire it before the hold is replaced
+      long start = (System.currentTimeMillis() / 1000 + 3 * IDLE_WAIT / 1000 + 1) * 1000;
+      JobDetail job = createJob();
+      TimeConditionTriggerImpl trigger = runOnceTrigger(job, 1, start, 500);
+      schedulers.get(0).scheduleJob(job, Collections.singleton(trigger), true);
+
+      DistributedMap<TriggerKey, TriggerWrapper> triggersByKey =
+         cluster.getReplicatedMap("jobstore.triggersByKey");
+      TriggerWrapper stored = triggersByKey.get(trigger.getKey());
+      OperableTrigger acquired = (OperableTrigger) stored.trigger.clone();
+      acquired.setFireInstanceId("dead-store-1");
+      // node-A is not in the cluster: it acquired the trigger and died
+      triggersByKey.put(trigger.getKey(), TriggerWrapper.newOwnedTriggerWrapper(
+         acquired, TriggerState.ACQUIRED, "node-A", "node-A", "dead-store-"));
+
+      await().atMost(Duration.ofMillis(start + MAX_IDLE + 500 - System.currentTimeMillis()))
+         .until(() -> !recorder().executions.isEmpty());
+      Thread.sleep(MAX_IDLE);
+
+      List<Execution> executions = executions();
+      String trace = trace(executions);
+      assertEquals(1, executions.size(), "not fired exactly once:" + trace);
+      assertEquals("node-B", executions.get(0).schedulerId, "not fired by the live node:" + trace);
+      assertEquals(start, executions.get(0).scheduledFireTime, "wrong fire time:" + trace);
+   }
+
+   /**
+    * Bug #77245: a cloud runner job's hold is kept for the effective task timeout plus the
+    * 5-minute launch margin, and not a moment less; any other hold needs no wait.
+    */
+   @Test
+   void cloudJobHoldIsTheTaskTimeoutPlusTheLaunchMargin() throws Exception {
+      startSchedulers(1, "node-A");
+      ClusterJobStore store = stores.get("node-A");
+      long start = (System.currentTimeMillis() / 1000 + 3600) * 1000;
+      JobDetail cloudJob = createJob(SlowCloudJob.class);
+      IntervalTrigger trigger = recurringTrigger(cloudJob, 1, start);
+      schedulers.get(0).scheduleJob(cloudJob, Collections.singleton(trigger), true);
+
+      TriggerWrapper stored = storedTrigger(trigger);
+      TriggerWrapper blocked = TriggerWrapper.newOwnedTriggerWrapper(
+         stored.trigger, TriggerState.BLOCKED, "gone", "gone", "gone-");
+      TriggerWrapper acquired = TriggerWrapper.newOwnedTriggerWrapper(
+         stored.trigger, TriggerState.ACQUIRED, "gone", "gone", "gone-");
+      long timeout = ScheduleTask.getTaskTimeout();
+      timeout = timeout > 0 ? timeout : ScheduleTask.DEFAULT_TASK_TIMEOUT;
+      long hold = store.getOrphanedRunHold(blocked);
+      long since = blocked.getOwnedSince();
+      Set<String> live = Set.of("node-A");
+
+      assertEquals(timeout + TimeUnit.MINUTES.toMillis(5), hold, "cloud hold");
+      assertEquals(0, store.getOrphanedRunHold(acquired), "nothing launched before firing");
+      assertFalse(ClusterJobStore.isOrphaned(blocked, live, () -> hold, since + hold - 1),
+                  "released before the task timeout plus the launch margin");
+      assertTrue(ClusterJobStore.isOrphaned(blocked, live, () -> hold, since + hold),
+                 "not released after the task timeout plus the launch margin");
+
+      schedulers.get(0).deleteJob(cloudJob.getKey());
+      JobDetail localJob = createJob(SlowTaskJob.class);
+      IntervalTrigger localTrigger = recurringTrigger(localJob, 1, start);
+      schedulers.get(0).scheduleJob(localJob, Collections.singleton(localTrigger), true);
+      TriggerWrapper localBlocked = TriggerWrapper.newOwnedTriggerWrapper(
+         storedTrigger(localTrigger).trigger, TriggerState.BLOCKED, "gone", "gone", "gone-");
+      assertEquals(0, store.getOrphanedRunHold(localBlocked), "an in-JVM run dies with its node");
    }
 
    /**
@@ -280,7 +379,8 @@ class ClusterJobStoreTriggerReleaseTest {
       IntervalTrigger trigger = scheduleHungRecurringTrigger(SlowTaskJob.class);
       awaitFirstRun();
       schedulers.get(0).shutdown(false);
-      startScheduler("node-A2", "node-A", null, 1);
+      // the same Ignite node, so the same node id and member
+      startScheduler("node-A2", "node-A", "node-A", 1);
 
       Thread.sleep(3 * INTERVAL + MAX_IDLE);
 
@@ -301,17 +401,18 @@ class ClusterJobStoreTriggerReleaseTest {
    }
 
    /**
-    * Bug #77245: the node dies mid-run and comes back on the same address and port, i.e. as the
-    * same cluster member but in a new JVM. The new JVM must release the previous JVM's hold and
-    * fire the missed fire times exactly once.
+    * Bug #77245: the node dies mid-run and comes back on the same address and port, i.e. with
+    * the same member name, but in a new JVM, so as a new cluster node with a new id. The old
+    * node id left the cluster, so its hold must be released and the missed fire times fired
+    * exactly once.
     */
    @Test
    void runOfAPreviousJvmOnTheSameMemberIsReleasedAndCaughtUpOnce() throws Exception {
       startSchedulers(1, "node-A");
       scheduleHungRecurringTrigger(SlowTaskJob.class);
       awaitFirstRun();
-      killNode("node-A", false);
-      startScheduler("node-A2", "node-A", "restarted-jvm", 1);
+      killNode("node-A", true);
+      startScheduler("node-A2", "node-A2", "node-A", 1);
 
       await().atMost(Duration.ofMillis(MAX_IDLE + INTERVAL))
          .until(() -> recorder().executions.size() >= 2);
@@ -354,29 +455,40 @@ class ClusterJobStoreTriggerReleaseTest {
          .forJob("orphan-rule-job", "ClusterJobStoreTriggerReleaseTest")
          .build();
       TriggerWrapper held = TriggerWrapper.newOwnedTriggerWrapper(
-         trigger, TriggerState.BLOCKED, "node-A", "jvm-1", "store-1-");
+         trigger, TriggerState.BLOCKED, "id-A", "172.18.0.3:5701", "store-1-");
+      TriggerWrapper acquired = TriggerWrapper.newOwnedTriggerWrapper(
+         trigger, TriggerState.ACQUIRED, "id-A", "172.18.0.3:5701", "store-1-");
       long since = held.getOwnedSince();
-      Set<String> both = Set.of("node-A", "node-B");
-      Set<String> onlyB = Set.of("node-B");
+      Set<String> both = Set.of("id-A", "id-B");
+      Set<String> onlyB = Set.of("id-B");
 
-      assertFalse(ClusterJobStore.isOrphaned(held, both, "node-B", "jvm-2", 0, since),
-                  "owner in the cluster");
-      assertTrue(ClusterJobStore.isOrphaned(held, onlyB, "node-B", "jvm-2", 0, since),
+      assertFalse(ClusterJobStore.isOrphaned(held, both, () -> 0, since), "owner in the cluster");
+      assertTrue(ClusterJobStore.isOrphaned(held, onlyB, () -> 0, since),
                  "owner left the cluster");
-      assertFalse(ClusterJobStore.isOrphaned(held, both, "node-A", "jvm-1", 0, since),
-                  "another store of the same JVM");
-      assertTrue(ClusterJobStore.isOrphaned(held, both, "node-A", "jvm-2", 0, since),
-                 "a previous JVM on the same member");
-      assertFalse(ClusterJobStore.isOrphaned(held, null, "node-B", "jvm-2", 0, since),
-                  "topology unknown");
-      assertFalse(ClusterJobStore.isOrphaned(held, onlyB, "node-B", "jvm-2", 1000, since + 999),
+      assertTrue(ClusterJobStore.isOrphaned(acquired, onlyB, () -> 0, since),
+                 "acquired by an owner that left the cluster");
+      assertFalse(ClusterJobStore.isOrphaned(acquired, both, () -> 0, since),
+                  "acquired by an owner in the cluster");
+      assertFalse(ClusterJobStore.isOrphaned(held, null, () -> 0, since), "topology unknown");
+      assertFalse(ClusterJobStore.isOrphaned(held, onlyB, () -> 1000, since + 999),
                   "run may still be executing");
-      assertTrue(ClusterJobStore.isOrphaned(held, onlyB, "node-B", "jvm-2", 1000, since + 1000),
+      assertTrue(ClusterJobStore.isOrphaned(held, onlyB, () -> 1000, since + 1000),
                  "run can no longer be executing");
+      assertFalse(ClusterJobStore.isOrphaned(held, both, () -> {
+         throw new AssertionError("hold computed for a live owner");
+      }, since), "hold computed for a live owner");
 
       TriggerWrapper legacy = TriggerWrapper.newTriggerWrapper(trigger, TriggerState.BLOCKED);
-      assertFalse(ClusterJobStore.isOrphaned(legacy, onlyB, "node-B", "jvm-2", 0, since),
+      assertFalse(ClusterJobStore.isOrphaned(legacy, onlyB, () -> 0, since),
                   "no recorded owner");
+
+      // the completion error instructions store BLOCKED from the held entry: no owner is kept,
+      // so the error state is never released when the node that ran it dies
+      TriggerWrapper errored = TriggerWrapper.newTriggerWrapper(held, TriggerState.BLOCKED);
+      assertNull(errored.getOwnerNode(), "error state kept the owner: " + errored);
+      assertNull(errored.getOwnedSince(), "error state kept the owner: " + errored);
+      assertFalse(ClusterJobStore.isOrphaned(errored, onlyB, () -> 0, since),
+                  "error state released");
    }
 
    private IntervalTrigger scheduleHungRecurringTrigger(Class<? extends Job> jobClass)
@@ -408,7 +520,7 @@ class ClusterJobStoreTriggerReleaseTest {
          .shutdown(false);
 
       if(leaves) {
-         cluster.members.remove(store.getLocalMember());
+         cluster.nodeIds.remove(store.getLocalNodeId());
       }
    }
 
@@ -497,23 +609,23 @@ class ClusterJobStoreTriggerReleaseTest {
       installContext(cluster);
 
       for(String instanceId : instanceIds) {
-         startScheduler(instanceId, instanceId, null, threads);
+         startScheduler(instanceId, instanceId, instanceId, threads);
       }
    }
 
    /**
-    * Starts a scheduler whose store runs on the given cluster member, in the JVM identified by
-    * the given token (null for this JVM's own token), and adds the member to the cluster.
+    * Starts a scheduler whose store runs on the cluster node with the given id and member name,
+    * and adds the node to the cluster.
     */
-   private org.quartz.Scheduler startScheduler(String instanceId, String member, String jvmToken,
+   private org.quartz.Scheduler startScheduler(String instanceId, String nodeId, String member,
                                                int threads)
       throws Exception
    {
       String name = "inetsoft-" + instanceId + "-" + recorderId;
       DirectSchedulerFactory factory = DirectSchedulerFactory.getInstance();
-      StoppingJobStore jobStore = new StoppingJobStore(member, jvmToken);
+      StoppingJobStore jobStore = new StoppingJobStore(nodeId, member);
       stores.put(instanceId, jobStore);
-      cluster.members.add(member);
+      cluster.nodeIds.add(nodeId);
 
       jobStore.setMisfireThreshold(MISFIRE_THRESHOLD);
       factory.createScheduler(
@@ -587,24 +699,24 @@ class ClusterJobStoreTriggerReleaseTest {
    }
 
    /**
-    * A store on its own cluster member, whose node may be going away. Once stopping, the
+    * A store on its own cluster node, which may be going away. Once stopping, the
     * scheduler's own release of acquired triggers is ignored (Quartz can miss it on halt), and a
     * dying node's store releases nothing on shutdown either.
     */
    private static final class StoppingJobStore extends ClusterJobStore {
-      StoppingJobStore(String member, String jvmToken) {
+      StoppingJobStore(String nodeId, String member) {
+         this.nodeId = nodeId;
          this.member = member;
-         this.jvmToken = jvmToken;
+      }
+
+      @Override
+      String getLocalNodeId() {
+         return nodeId;
       }
 
       @Override
       String getLocalMember() {
          return member;
-      }
-
-      @Override
-      String getJvmToken() {
-         return jvmToken == null ? super.getJvmToken() : jvmToken;
       }
 
       @Override
@@ -623,13 +735,13 @@ class ClusterJobStoreTriggerReleaseTest {
 
       volatile boolean stopping;
       volatile boolean dies;
+      private final String nodeId;
       private final String member;
-      private final String jvmToken;
    }
 
    /**
     * A MockCluster whose replicated maps keep and hand out serialized copies, like an Ignite
-    * replicated cache, and whose topology is the members the test put in it.
+    * replicated cache, and whose topology is the nodes the test put in it.
     */
    private static final class IgniteLikeCluster extends MockCluster {
       @Override
@@ -638,11 +750,11 @@ class ClusterJobStoreTriggerReleaseTest {
       }
 
       @Override
-      public Set<String> getClusterNodes(boolean includeClients) {
-         return new HashSet<>(members);
+      public Set<String> getClusterNodeIds() {
+         return new HashSet<>(nodeIds);
       }
 
-      final Set<String> members = ConcurrentHashMap.newKeySet();
+      final Set<String> nodeIds = ConcurrentHashMap.newKeySet();
    }
 
    private static final class CopyingMap<K, V> extends AbstractMap<K, V>
