@@ -18,15 +18,12 @@
 package inetsoft.util.script.graal.pool;
 
 import org.graalvm.polyglot.Context;
-import org.graalvm.polyglot.PolyglotException;
-import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.Source;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.ref.ReferenceQueue;
-import java.lang.ref.WeakReference;
-
-import java.util.*;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
@@ -37,117 +34,41 @@ public final class WsExecContext {
    private WsExecContext() {
    }
 
-   static Slot enter(Slot slot) {
+   /**
+    * @param script the script the exec runs, named by the copy-mutation warning (bug #77123).
+    */
+   static Slot enter(Slot slot, Object script) {
       if(!everEntered) {
          everEntered = true;
       }
 
       Slot previous = CURRENT.get();
 
-      // the outermost exec of this slot on this thread opens the frame its live views are
-      // bound to (bug #77123); pushed before the mark, so a failed push leaves no mark
+      // the outermost exec of this slot on this thread opens the origin its argument copies
+      // record; set before the mark, so a failed allocation leaves neither (bug #77123)
       if(previous != slot) {
-         FRAMES.get().push(new Frame(slot));
+         ORIGIN.set(new Origin(script, ORIGIN.get()));
       }
 
       CURRENT.set(slot);
       return previous;
    }
 
-   /**
-    * The exec entered with {@code previous} completed normally, still inside its timeout
-    * guard (bug #77123): if it is the outermost exec of {@code slot} on this thread, close its
-    * frame and re-snapshot each live view from its guest value, so a Java object that kept one
-    * sees the script's final state. The re-snapshot reads the guest (a getter may run), which
-    * is why it runs here and not in {@link #exit}: a timeout still interrupts it. A view whose
-    * re-snapshot fails keeps its call-time copy; an interrupt, cancel or Error is rethrown
-    * after every view is dropped, so the exec fails visibly.
-    */
-   static void complete(Slot previous, Slot slot) {
-      if(previous == slot || CURRENT.get() != slot) {
-         return;
-      }
-
-      Frame frame = FRAMES.get().peek();
-
-      if(frame == null || frame.slot != slot || !frame.open) {
-         return;
-      }
-
-      // from here on every view of the frame is copy-only, and a view created by guest code
-      // that runs during the re-snapshot is born detached (never registered)
-      frame.open = false;
-      Throwable fatal = null;
-
-      for(LiveView view : frame.views()) {
-         if(fatal != null) {
-            drop(view);
-            continue;
-         }
-
-         Throwable failure = null;
-
-         try {
-            view.resnapshot();
-         }
-         catch(Throwable ex) {
-            failure = ex;
-         }
-         finally {
-            drop(view);
-         }
-
-         if(failure != null) {
-            if(isFatal(failure)) {
-               fatal = failure;
-            }
-            else {
-               String msg = "A Java-held copy of a worksheet script value keeps its state " +
-                  "as last passed: its final state could not be read";
-
-               // once at WARN, then DEBUG (a per-row formula exec would flood the log)
-               if(!warnedResnapshot) {
-                  warnedResnapshot = true;
-                  LOG.warn(msg + " (further cases are logged at DEBUG)", failure);
-               }
-               else {
-                  LOG.debug(msg, failure);
-               }
-            }
-         }
-      }
-
-      frame.clear();
-
-      if(fatal instanceof RuntimeException ex) {
-         throw ex;
-      }
-
-      if(fatal instanceof Error err) {
-         throw err;
-      }
-   }
-
    static void exit(Slot previous) {
       try {
-         Slot current = CURRENT.get();
+         // the exec that opened an origin closes it (enter opened one iff previous != slot)
+         if(CURRENT.get() != previous) {
+            Origin origin = ORIGIN.get();
 
-         // the exec that opened a frame: drop every view still bound to it without running
-         // guest code (an exec that ended by exception, timeout or cancel never completed),
-         // so each keeps its call-time copy and no guest value outlives the exec (bug #77123)
-         if(current != null && current != previous) {
-            ArrayDeque<Frame> frames = FRAMES.get();
-            Frame frame = frames.peek();
+            if(origin != null) {
+               Origin outer = origin.close();
 
-            if(frame != null && frame.slot == current) {
-               frames.pop();
-               frame.open = false;
-
-               for(LiveView view : frame.views()) {
-                  drop(view);
+               if(outer == null) {
+                  ORIGIN.remove();
                }
-
-               frame.clear();
+               else {
+                  ORIGIN.set(outer);
+               }
             }
          }
       }
@@ -162,151 +83,43 @@ public final class WsExecContext {
    }
 
    /**
-    * @return the open frame of the pooled context executing on this thread, the frame new
-    *         live views are bound to; {@code null} when there is none (no pooled exec, or its
-    *         frame is being detached), so a view made now is a plain copy.
+    * @return the origin of the outermost exec of the pooled context executing on this thread,
+    *         recorded by the host copies of its Java arguments, or {@code null}.
     */
-   static Frame openFrame() {
-      Slot slot = CURRENT.get();
-
-      if(slot == null) {
-         return null;
-      }
-
-      Frame frame = FRAMES.get().peek();
-      return frame != null && frame.open && frame.slot == slot ? frame : null;
+   static Origin currentOrigin() {
+      return everEntered && CURRENT.get() != null ? ORIGIN.get() : null;
    }
 
    /**
-    * @return whether {@code frame} is open and its slot is executing on this, its own, thread:
-    *         the only place its live views touch their guest values.
+    * Java changed a host copy of a script value passed to it (bug #77123, C1): if it did so on
+    * the script's thread while the exec that passed it runs, the script would have seen the
+    * change with the pool off but does not see it here, so count it and warn once per script.
+    *
+    * @return whether the copy need not report again: it was counted, or its exec ended.
     */
-   static boolean isLive(Frame frame) {
-      return frame.thread == Thread.currentThread() && frame.open && CURRENT.get() == frame.slot;
-   }
-
-   /**
-    * @return whether {@code frame} (of a view, null once the view is dropped) is still open,
-    *         on any thread: its exec runs, so a copy-mode write would be lost (bug #77123).
-    */
-   static boolean isOpen(Frame frame) {
-      return frame != null && frame.open;
-   }
-
-   private static void drop(LiveView view) {
-      try {
-         view.drop();
-      }
-      catch(Throwable ex) {
-         // a field write; never let it stop the other views from being dropped
-      }
-   }
-
-   private static boolean isFatal(Throwable ex) {
-      return ex instanceof Error || ex instanceof PolyglotException pe &&
-         (pe.isCancelled() || pe.isInterrupted() || pe.isResourceExhausted() || pe.isExit());
-   }
-
-   /**
-    * The live views of the outermost exec of one slot on one thread (bug #77123), one per
-    * guest value (keyed by Value identity), so repeated passes or reads of the same array or
-    * object reuse one view. The views are held weakly: one that Java (or the script) no
-    * longer reaches is collected, its entry purged, and it needs no end-of-exec copy, so a
-    * loop handing Java a new array per call keeps no more views than Java keeps. Used by its
-    * thread only, except {@link #open}.
-    */
-   static final class Frame {
-      Frame(Slot slot) {
-         this.slot = slot;
-      }
-
-      LiveView get(Value guest) {
-         Ref ref = views == null ? null : views.get(guest);
-         return ref == null ? null : ref.get();
-      }
-
-      /**
-       * @return whether {@code view} was registered; never on a closed frame, whose views
-       *         must be plain copies (review N1).
-       */
-      boolean register(Value guest, LiveView view) {
-         if(!open) {
-            return false;
-         }
-
-         if(views == null) {
-            views = new HashMap<>();
-            queue = new ReferenceQueue<>();
-         }
-         else {
-            purge();
-         }
-
-         views.put(guest, new Ref(guest, view, queue));
+   static boolean copyMutated(Origin origin) {
+      if(!origin.open) {
          return true;
       }
 
-      /**
-       * @return the number of views registered and not yet found collected, for tests.
-       */
-      int size() {
-         if(views == null) {
-            return 0;
-         }
-
-         purge();
-         return views.size();
+      if(origin.thread != Thread.currentThread()) {
+         return false;
       }
 
-      // the views still reachable; no guest code runs (WeakReference.get only)
-      private List<LiveView> views() {
-         if(views == null) {
-            return List.of();
-         }
+      PoolMetrics.copyMutated();
+      Object script = origin.script;
+      String text = script instanceof Source source ? String.valueOf(source.getCharacters())
+         : String.valueOf(script);
 
-         List<LiveView> list = new ArrayList<>(views.size());
-
-         for(Ref ref : views.values()) {
-            LiveView view = ref.get();
-
-            if(view != null) {
-               list.add(view);
-            }
-         }
-
-         return list;
-      }
-
-      private void purge() {
-         for(Object ref; (ref = queue.poll()) != null; ) {
-            Ref r = (Ref) ref;
-            views.remove(r.key, r);
+      // once per script text; past the cap only the counter records further scripts
+      if(WARNED.size() < MAX_WARNED && WARNED.add(text.hashCode())) {
+         if(LOG.isWarnEnabled()) {
+            LOG.warn(COPY_MUTATION_MESSAGE + " Script: {}",
+                     text.length() > 200 ? text.substring(0, 200) + "..." : text);
          }
       }
 
-      private void clear() {
-         views = null;
-         queue = null;
-      }
-
-      final Slot slot;
-      final Thread thread = Thread.currentThread();
-      // read by other threads (a copy-mode write is refused while it is open)
-      volatile boolean open = true;
-      private Map<Value, Ref> views;
-      private ReferenceQueue<LiveView> queue;
-   }
-
-   /**
-    * A frame's weak hold on one view, with its key so a collected view's entry is purged.
-    */
-   private static final class Ref extends WeakReference<LiveView> {
-      Ref(Value key, LiveView view, ReferenceQueue<LiveView> queue) {
-         super(view, queue);
-         this.key = key;
-      }
-
-      final Value key;
+      return true;
    }
 
    /**
@@ -368,18 +181,44 @@ public final class WsExecContext {
    }
 
    /**
-    * The innermost open frame of this thread, for tests.
+    * The outermost exec of one slot on one thread, as the host copies of its Java arguments
+    * record it (bug #77123). It holds nothing once closed, so a copy Java keeps pins no
+    * script, thread or outer exec.
     */
-   static Frame currentFrame() {
-      return FRAMES.get().peek();
+   static final class Origin {
+      Origin(Object script, Origin outer) {
+         this.script = script;
+         this.outer = outer;
+      }
+
+      private Origin close() {
+         Origin o = outer;
+         open = false;
+         outer = null;
+         script = null;
+         thread = null;
+         return o;
+      }
+
+      private volatile boolean open = true;
+      private volatile Thread thread = Thread.currentThread();
+      private volatile Object script;
+      private Origin outer;
    }
 
+   static final String COPY_MUTATION_MESSAGE =
+      "A Java method changed a worksheet script array or object passed to it (for example " +
+      "java.util.Collections.sort or an out parameter) while the script ran. With " +
+      "script.ws.contextPool=true, Java gets a copy, so the script does not see the change. " +
+      "Return the changed value from the Java method and assign it in the script instead. " +
+      "This is logged once per script.";
+
    private static final ThreadLocal<Slot> CURRENT = new ThreadLocal<>();
-   private static final ThreadLocal<ArrayDeque<Frame>> FRAMES =
-      ThreadLocal.withInitial(ArrayDeque::new);
+   private static final ThreadLocal<Origin> ORIGIN = new ThreadLocal<>();
    private static final Logger LOG = LoggerFactory.getLogger(WsExecContext.class);
+   // hashes of the scripts warned about, bounded
+   private static final Set<Integer> WARNED = ConcurrentHashMap.newKeySet();
+   static final int MAX_WARNED = 512;
    // set on the first pooled exec in this JVM, by its thread before its CURRENT entry
    private static volatile boolean everEntered;
-   // the first end-of-exec copy that failed was logged at WARN
-   private static volatile boolean warnedResnapshot;
 }

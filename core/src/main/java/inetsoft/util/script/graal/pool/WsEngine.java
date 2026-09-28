@@ -113,17 +113,8 @@ final class WsEngine extends GraalJavaScriptEngine {
     * per-context host state; restored on exit so nesting is correct.
     */
    @Override
-   protected Object enterExecContext() {
-      return WsExecContext.enter(slot);
-   }
-
-   /**
-    * The outermost exec of this slot completed normally: its Java-held views take the
-    * script's final state, still under the exec's timeout guard (bug #77123).
-    */
-   @Override
-   protected void execCompleted(Object token) {
-      WsExecContext.complete((Slot) token, slot);
+   protected Object enterExecContext(Object script) {
+      return WsExecContext.enter(slot, script);
    }
 
    @Override

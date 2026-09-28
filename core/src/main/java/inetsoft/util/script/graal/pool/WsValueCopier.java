@@ -233,6 +233,7 @@ public final class WsValueCopier {
          copy.put(key, interopElement(v.getMember(key)));
       }
 
+      copy.origin(WsExecContext.currentOrigin());
       return copy;
    }
 
@@ -243,6 +244,7 @@ public final class WsValueCopier {
          copy.add(interopElement(v.getArrayElement(i)));
       }
 
+      copy.origin(WsExecContext.currentOrigin());
       return copy;
    }
 
@@ -256,52 +258,37 @@ public final class WsValueCopier {
          return null;
       }
 
-      // a primitive is never foreign, a function, a date or an object: skip those checks
-      // (the hot path of copies and of live-view reads, bug #77123)
-      if(v.isNumber() || v.isString() || v.isBoolean()) {
-         return v.as(Object.class);
-      }
-
-      // a foreign reference nested in an own object or array: the owner's live value, as main
+      // a foreign reference nested in an own object or array: the owner's live view, as main
       // gave for the element, never the ForeignRef proxy itself
       if(isForeignRef(v)) {
          return foreignAs(v, Object.class);
       }
 
-      // not an own guest value (a host object, a proxy): as Graal boxes it
-      if(!isOwnGuest(v)) {
-         return v.as(Object.class);
-      }
-
-      // an own guest value, classified once (the same outcomes as isFunction, isNonPlainObject,
-      // isDate, isArray and isPlainObject, each of which re-checks isOwnGuest)
-      if(v.canExecute()) {
+      if(isFunction(v) || isNonPlainObject(v)) {
          throw reject(v);
       }
 
-      boolean array = v.hasArrayElements();
-
-      if(!array && v.isDate()) {
-         return v.isInstant() ? toDate(v) : v.as(Object.class);
+      if(isDate(v)) {
+         return toDate(v);
       }
 
-      if(!array && !(v.hasMembers() && isObjectMeta(v))) {
-         throw reject(v);
+      if(isArray(v) || isPlainObject(v)) {
+         int[] depth = DEPTH.get();
+
+         if(++depth[0] > MAX_DEPTH) {
+            depth[0]--;
+            throw new ScriptException(DEPTH_MESSAGE);
+         }
+
+         try {
+            return isArray(v) ? copyList(v) : copyMap(v);
+         }
+         finally {
+            depth[0]--;
+         }
       }
 
-      int[] depth = DEPTH.get();
-
-      if(++depth[0] > MAX_DEPTH) {
-         depth[0]--;
-         throw new ScriptException(DEPTH_MESSAGE);
-      }
-
-      try {
-         return array ? copyList(v) : copyMap(v);
-      }
-      finally {
-         depth[0]--;
-      }
+      return v.as(Object.class);
    }
 
    static ScriptException reject(Value v) {

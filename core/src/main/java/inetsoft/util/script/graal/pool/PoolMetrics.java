@@ -163,6 +163,22 @@ public final class PoolMetrics {
    }
 
    /**
+    * Count a host copy of a worksheet script value that Java changed on the script's thread
+    * while the script ran (bug #77123, C1): the script does not see that change.
+    */
+   static void copyMutated() {
+      NODE_COPY_MUTATIONS.incrementAndGet();
+   }
+
+   /**
+    * @return the host copies of script values passed to Java that Java changed on the
+    *         script's thread during the script run, which the script did not see (C1).
+    */
+   public static long nodeCopyMutations() {
+      return NODE_COPY_MUTATIONS.get();
+   }
+
+   /**
     * @return the execs of this node whose timeout interrupt could not stop them.
     */
    public static long nodeInterruptTimeouts() {
@@ -196,10 +212,10 @@ public final class PoolMetrics {
       long execs = NODE_EXECS.get();
       return String.format(
          "slots=%d, maxSandboxSlots=%d, creations=%d, evictions=%d, doomedCloses=%d, " +
-         "execs=%d, cleans=%d, cleansPerExec=%.4f, stateHazards=%d", NODE_SLOTS.get(),
-         NODE_MAX_SANDBOX_SLOTS.get(), NODE_CREATIONS.get(), NODE_EVICTIONS.get(),
-         NODE_DOOMED_CLOSES.get(), execs, cleans, ratio(cleans, execs),
-         ScriptStateLint.nodeStateHazardScripts());
+         "execs=%d, cleans=%d, cleansPerExec=%.4f, stateHazards=%d, copyMutations=%d",
+         NODE_SLOTS.get(), NODE_MAX_SANDBOX_SLOTS.get(), NODE_CREATIONS.get(),
+         NODE_EVICTIONS.get(), NODE_DOOMED_CLOSES.get(), execs, cleans, ratio(cleans, execs),
+         ScriptStateLint.nodeStateHazardScripts(), NODE_COPY_MUTATIONS.get());
    }
 
    /**
@@ -238,6 +254,7 @@ public final class PoolMetrics {
    private static final AtomicLong NODE_EXECS = new AtomicLong();
    private static final AtomicLong NODE_INTERRUPT_TIMEOUTS = new AtomicLong();
    private static final AtomicLong NODE_LEAKED_CLAIMS = new AtomicLong();
+   private static final AtomicLong NODE_COPY_MUTATIONS = new AtomicLong();
    // read by the lock-stall probe, which must not read properties (bug #76967)
    private static volatile int nodeSlotWarnThreshold = Integer.MAX_VALUE;
    private final AtomicInteger size = new AtomicInteger();
