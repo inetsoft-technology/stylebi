@@ -27,9 +27,11 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class AutoAliasTest {
 
    private AutoAlias autoAlias;

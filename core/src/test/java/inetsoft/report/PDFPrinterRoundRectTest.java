@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import java.awt.geom.RoundRectangle2D;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Regression tests for PDFPrinter.doRoundRect to ensure rounded rectangles
  * are not incorrectly rendered as ellipses.
  */
+@Tag("core")
 class PDFPrinterRoundRectTest {
 
    /**

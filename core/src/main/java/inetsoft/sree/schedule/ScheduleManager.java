@@ -1059,9 +1059,20 @@ public class ScheduleManager {
     * Method will be invoked when a user is removed.
     */
    public synchronized void identityRemoved(Identity identity, EditableAuthenticationProvider eprovider) {
-      Set<ScheduleTask> changedTasks = new HashSet<>();
       int type = identity.getType();
       IdentityID identityID = identity.getIdentityID();
+
+      if(type == Identity.ROLE) {
+         roleRemoved(identityID);
+
+         for(ScheduleExt ext : extensions) {
+            ext.identityRemoved(identity);
+         }
+
+         return;
+      }
+
+      Set<ScheduleTask> changedTasks = new HashSet<>();
       String orgID;
 
       switch(identity.getType()) {
@@ -1116,6 +1127,48 @@ public class ScheduleManager {
 
       for(ScheduleExt ext : extensions) {
          ext.identityRemoved(identity);
+      }
+   }
+
+   /**
+    * Clears the "execute as" of tasks that run as the removed role. An org role is only
+    * referenced by tasks in its own org; a global role (null org) may be referenced in any org.
+    * Notifications are left alone: a role is never a notification recipient, and a bare token
+    * with the role's name denotes a user of that name.
+    */
+   private void roleRemoved(IdentityID identityID) {
+      String[] orgIDs = identityID.orgID != null ?
+         new String[] { identityID.orgID } : getSecurityEngine().getOrganizations();
+
+      for(String orgID : orgIDs) {
+         if(orgID == null) {
+            continue;
+         }
+
+         Set<ScheduleTask> changedTasks = new HashSet<>();
+
+         for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
+            if(task == null) {
+               continue;
+            }
+
+            Identity iden = task.getIdentity();
+
+            if(iden != null && iden.getType() == Identity.ROLE &&
+               identityID.equals(iden.getIdentityID()))
+            {
+               task.setIdentity(null);
+               changedTasks.add(task);
+            }
+         }
+
+         try {
+            save(changedTasks, orgID);
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to save schedule task file after " +
+                  "identity was removed: " + identityID, ex);
+         }
       }
    }
 

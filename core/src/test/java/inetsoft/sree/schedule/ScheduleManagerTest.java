@@ -24,6 +24,8 @@ import inetsoft.sree.security.*;
 import inetsoft.test.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
+import inetsoft.uql.util.DefaultIdentity;
+import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.util.Tool;
@@ -67,6 +69,9 @@ import static org.mockito.Mockito.*;
 public class ScheduleManagerTest {
    @Autowired
    ScheduleManager scheduleManager;
+
+   @Autowired
+   SecurityEngine securityEngine;
 
    private IdentityID identityID_admin;
    private IdentityID identityID_tuser0;
@@ -487,6 +492,209 @@ public class ScheduleManagerTest {
 
       // the read-only impact check must not delete the owned task
       assertNotNull(scheduleManager.getScheduleTask("tuser0~;~host-org:impact_owned"));
+   }
+
+   /**
+    * Bug #77100: removing an org role must clear the "execute as" in the role's own org, and
+    * must not strip same-named bare notification tokens (they denote users) in any org.
+    */
+   @Test
+   void identityRemoved_orgRoleScansRoleOrgAndKeepsNotifications() throws Exception {
+      IdentityID roleX1 = new IdentityID("roleX", "org1");
+      IdentityID roleXHost = new IdentityID("roleX", "host-org");
+
+      withRoleFixture(() -> {
+         ScheduleTask org1Task = seedTask("r77100_org1", new IdentityID("u1", "org1"),
+                                          new Role(roleX1), "roleX,a@b.com", "org1");
+         ScheduleTask hostTask = seedTask("r77100_host", identityID_admin,
+                                          new Role(roleXHost), "roleX,c@d.com", "host-org");
+
+         scheduleManager.identityRemoved(new DefaultIdentity(roleX1, Identity.ROLE),
+                                         mock(EditableAuthenticationProvider.class));
+
+         ScheduleTask org1After = scheduleManager.getScheduleTask(org1Task.getTaskId(), "org1");
+         assertNull(org1After.getIdentity());
+         assertEquals("roleX,a@b.com", getNotifications(org1After));
+
+         // the same-named role in host-org and the host-org user token are untouched
+         ScheduleTask hostAfter = scheduleManager.getScheduleTask(hostTask.getTaskId(), "host-org");
+         assertNotNull(hostAfter.getIdentity());
+         assertEquals(roleXHost, hostAfter.getIdentity().getIdentityID());
+         assertEquals("roleX,c@d.com", getNotifications(hostAfter));
+      });
+   }
+
+   /**
+    * Bug #77100: removing a global role clears exact (name, null) "execute as" references in every
+    * org, leaves same-named org roles alone, and never creates a task map for a null org.
+    */
+   @Test
+   void identityRemoved_globalRoleClearsExecuteAsInEveryOrg() throws Exception {
+      IdentityID roleG = new IdentityID("roleG", null);
+      IdentityID roleG2 = new IdentityID("roleG", "org2");
+
+      withRoleFixture(() -> {
+         ScheduleTask hostTask = seedTask("r77100_ghost", identityID_admin,
+                                          new Role(roleG), "roleG,c@d.com", "host-org");
+         ScheduleTask org2Task = seedTask("r77100_gorg2", new IdentityID("u2", "org2"),
+                                          new Role(roleG), "roleG,x@y.com", "org2");
+         ScheduleTask org2OrgRoleTask = seedTask("r77100_gorg2r", new IdentityID("u2", "org2"),
+                                                 new Role(roleG2), null, "org2");
+
+         scheduleManager.identityRemoved(new DefaultIdentity(roleG, Identity.ROLE),
+                                         mock(EditableAuthenticationProvider.class));
+
+         ScheduleTask hostAfter = scheduleManager.getScheduleTask(hostTask.getTaskId(), "host-org");
+         assertNull(hostAfter.getIdentity());
+         assertEquals("roleG,c@d.com", getNotifications(hostAfter));
+
+         ScheduleTask org2After = scheduleManager.getScheduleTask(org2Task.getTaskId(), "org2");
+         assertNull(org2After.getIdentity());
+         assertEquals("roleG,x@y.com", getNotifications(org2After));
+
+         ScheduleTask org2RoleAfter =
+            scheduleManager.getScheduleTask(org2OrgRoleTask.getTaskId(), "org2");
+         assertNotNull(org2RoleAfter.getIdentity());
+         assertEquals(roleG2, org2RoleAfter.getIdentity().getIdentityID());
+
+         assertFalse(getTaskMapKeys().contains(null), "no task map for a null org");
+      });
+   }
+
+   /**
+    * Bug #77100: a host-org role is still cleared in host-org, and not in another org.
+    */
+   @Test
+   void identityRemoved_hostOrgRoleScansHostOrg() throws Exception {
+      IdentityID roleHHost = new IdentityID("roleH", "host-org");
+      IdentityID roleH1 = new IdentityID("roleH", "org1");
+
+      withRoleFixture(() -> {
+         ScheduleTask hostTask = seedTask("r77100_hhost", identityID_admin,
+                                          new Role(roleHHost), null, "host-org");
+         ScheduleTask org1Task = seedTask("r77100_horg1", new IdentityID("u1", "org1"),
+                                          new Role(roleH1), null, "org1");
+
+         scheduleManager.identityRemoved(new DefaultIdentity(roleHHost, Identity.ROLE),
+                                         mock(EditableAuthenticationProvider.class));
+
+         assertNull(scheduleManager.getScheduleTask(hostTask.getTaskId(), "host-org").getIdentity());
+         ScheduleTask org1After = scheduleManager.getScheduleTask(org1Task.getTaskId(), "org1");
+         assertNotNull(org1After.getIdentity());
+         assertEquals(roleH1, org1After.getIdentity().getIdentityID());
+      });
+   }
+
+   /**
+    * Bug #77100 guard: user and group removal keep their existing behavior (own org scanned,
+    * owned tasks deleted, "execute as" cleared). The notification cleanup is type aware since
+    * Bug #77111 and is covered by its tests.
+    */
+   @Test
+   void identityRemoved_userAndGroupUnchanged() throws Exception {
+      IdentityID gX = new IdentityID("gX", "org1");
+      IdentityID u9 = new IdentityID("u9", "org1");
+
+      withRoleFixture(() -> {
+         ScheduleTask groupTask = seedTask("r77100_grp", new IdentityID("u1", "org1"),
+                                           new Group(gX), "gX,e@f.com", "org1");
+         ScheduleTask ownedTask = seedTask("r77100_own", u9, null, null, "org1");
+
+         EditableAuthenticationProvider provider = mock(EditableAuthenticationProvider.class);
+         when(provider.getGroup(gX)).thenReturn(new Group(gX));
+         when(provider.getUser(u9)).thenReturn(new User(u9));
+
+         scheduleManager.identityRemoved(new DefaultIdentity(gX, Identity.GROUP), provider);
+         ScheduleTask groupAfter = scheduleManager.getScheduleTask(groupTask.getTaskId(), "org1");
+         assertNull(groupAfter.getIdentity());
+
+         scheduleManager.identityRemoved(new DefaultIdentity(u9, Identity.USER), provider);
+         assertNull(scheduleManager.getScheduleTask(ownedTask.getTaskId(), "org1"));
+      });
+   }
+
+   /**
+    * Bug #77100 guard: the role branch returns early, but schedule extensions must still be
+    * notified of the removed role.
+    */
+   @Test
+   void identityRemoved_roleStillNotifiesExtensions() throws Exception {
+      ScheduleExt ext = mock(ScheduleExt.class);
+      Identity role = new DefaultIdentity(new IdentityID("roleE", "org1"), Identity.ROLE);
+      scheduleManager.addScheduleExt(ext);
+
+      try {
+         scheduleManager.identityRemoved(role, mock(EditableAuthenticationProvider.class));
+         verify(ext).identityRemoved(role);
+      }
+      finally {
+         scheduleManager.getExtensions().remove(ext);
+      }
+   }
+
+   /**
+    * Runs the body with orgs host-org/org1/org2 and a provider that still resolves the roles and
+    * groups, so a stale "execute as" survives a reload instead of re-resolving to null.
+    */
+   private void withRoleFixture(ThrowingRunnable body) throws Exception {
+      String[] orgs = { "host-org", "org1", "org2" };
+      SecurityProvider provider = mock(SecurityProvider.class);
+      when(provider.getOrganizationIDs()).thenReturn(orgs);
+      when(provider.getRole(any())).thenAnswer(inv -> new Role(inv.<IdentityID>getArgument(0)));
+      when(provider.getGroup(any())).thenAnswer(inv -> new Group(inv.<IdentityID>getArgument(0)));
+      doReturn(orgs).when(securityEngine).getOrganizations();
+      doReturn(provider).when(securityEngine).getSecurityProvider();
+
+      try {
+         body.run();
+      }
+      finally {
+         doCallRealMethod().when(securityEngine).getOrganizations();
+         doCallRealMethod().when(securityEngine).getSecurityProvider();
+
+         for(String org : orgs) {
+            Iterator<ScheduleTask> i = scheduleManager.getOrgTaskMap(org).values().iterator();
+
+            while(i.hasNext()) {
+               ScheduleTask task = i.next();
+
+               if(task != null && task.getName().startsWith("r77100_")) {
+                  i.remove();
+               }
+            }
+         }
+      }
+   }
+
+   private ScheduleTask seedTask(String name, IdentityID owner, Identity executeAs,
+                                 String notifications, String orgID) throws Exception
+   {
+      ScheduleTask task = createScheduleTask(name);
+      task.setOwner(owner);
+      task.setIdentity(executeAs);
+
+      if(notifications != null) {
+         ((AbstractAction) task.getAction(0)).setNotifications(notifications);
+      }
+
+      scheduleManager.save(List.of(task), orgID);
+      return task;
+   }
+
+   private static String getNotifications(ScheduleTask task) {
+      return ((AbstractAction) task.getAction(0)).getNotifications();
+   }
+
+   @SuppressWarnings("unchecked")
+   private Set<String> getTaskMapKeys() throws Exception {
+      java.lang.reflect.Field field = ScheduleManager.class.getDeclaredField("taskMap");
+      field.setAccessible(true);
+      return new HashSet<>(((Map<String, ?>) field.get(scheduleManager)).keySet());
+   }
+
+   @FunctionalInterface
+   private interface ThrowingRunnable {
+      void run() throws Exception;
    }
 
    private ScheduleTask createScheduleTask(String taskName) {

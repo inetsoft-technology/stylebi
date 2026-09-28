@@ -83,6 +83,28 @@ public class LensStallTest {
       assertNotNull(stall.getDumpPath(), "the stall wrote a thread dump");
    }
 
+   // Bug #77123: the failure a reader gets from a real stall is what the error handlers show
+   // to users, so no link of its cause chain may name the dump's server directory
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   public void readerFailureNamesTheDumpFileOnly(Kind kind) throws Exception {
+      gated = new GatedTable(30);
+      Future<List<List<Object>>> reader = pool.submit(() -> drain(build(kind, gated)));
+
+      Throwable failure = failureOf(reader, 15);
+      LockStallException stall = stallIn(failure);
+      assertNotNull(stall.getDumpPath(), "the stall wrote a thread dump");
+      File dump = new File(stall.getDumpPath());
+      assertTrue(dump.isAbsolute(), "getDumpPath() keeps the full path for the server log");
+      String dir = dump.getParentFile().getAbsolutePath();
+      assertTrue(stall.getMessage().contains(dump.getName()), stall.getMessage());
+
+      for(Throwable t = failure; t != null; t = t.getCause()) {
+         assertFalse(String.valueOf(t.getMessage()).contains(dir), t.getMessage());
+         assertFalse(t.toString().contains(dir), t.toString());
+      }
+   }
+
    @ParameterizedTest
    @EnumSource(value = Kind.class, names = { "DISTINCT", "SELF_JOIN", "SET" })
    public void workerStallIsNotTheEndOfTheTable(Kind kind) throws Exception {

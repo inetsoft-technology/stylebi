@@ -19,6 +19,7 @@ package inetsoft.report.filter;
 
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * isNull() returns true only when no double values have been added.
  * Object, float, long, int, short are stored in separate lists from double.
  */
+@Tag("core")
 public class PthPercentileFormulaTest {
 
    // -----------------------------------------------------------------------

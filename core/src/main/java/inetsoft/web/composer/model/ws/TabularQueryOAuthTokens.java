@@ -17,9 +17,11 @@
  */
 package inetsoft.web.composer.model.ws;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.uql.tabular.TabularView;
+import inetsoft.web.viewsheet.AllowNulls;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -28,13 +30,17 @@ import java.util.Map;
 @Value.Immutable
 @JsonSerialize(as = ImmutableTabularQueryOAuthTokens.class)
 @JsonDeserialize(as = ImmutableTabularQueryOAuthTokens.class)
+// The browser OAuth flow posts the whole authorization result, which carries extra fields such as
+// "complete", and the password-grant flow omits issued/properties. Mirror DataSourceOAuthTokens.
+@JsonIgnoreProperties(ignoreUnknown = true)
 public interface TabularQueryOAuthTokens {
-   String accessToken();
-   String refreshToken();
-   String issued();
+   @Nullable String accessToken();
+   @Nullable String refreshToken();
+   @Nullable String issued();
    @Nullable String expiration();
-   String scope();
-   Map<String, String> properties();
+   @Nullable String scope();
+   @AllowNulls
+   Map<String, Object> properties();
    TabularView view();
    String method();
 

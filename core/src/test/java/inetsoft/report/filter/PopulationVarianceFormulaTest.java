@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li>{1, 2, 3, 4, 5}: mean=3, sum sq dev=10, population var = 10/5 = 2.0</li>
  * </ul>
  */
+@Tag("core")
 public class PopulationVarianceFormulaTest {
 
    private PopulationVarianceFormula formula;
