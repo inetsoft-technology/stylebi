@@ -336,6 +336,143 @@ public class FormulaLensLockStallTest {
                    "the formula values survive the swaps around the resumed read");
    }
 
+   /**
+    * After an end-of-table read stalled, the next end-of-table read that succeeds completes
+    * the lens's row table (bug #77123): the stall leaves it open only until a batch reaches
+    * the end, and the values are right without any swap.
+    */
+   @Test
+   public void endOfTableReadAfterAStallCompletesTheLens() throws Exception {
+      final int n = 40;
+      Sandbox s = harness.control();
+      List<List<Object>> expected = harness.await(
+         harness.submit(() -> drain(s.formula(new DefaultTableLens(rows(n)),
+                                              "f", "field['value'] + 1"))),
+         ACTIVE_CAP, "control");
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      java.util.Set<Integer> failed = java.util.concurrent.ConcurrentHashMap.newKeySet();
+      TableLens base = new DefaultTableLens(rows(n)) {
+         @Override
+         public Object getObject(int r, int c) {
+            if(r == 15 && c == 1 && failed.add(r)) {
+               throw original;
+            }
+
+            return super.getObject(r, c);
+         }
+      };
+      FormulaTableLens lens = harness.track(s.formula(base, "f", "field['value'] + 1"));
+
+      assertSame(original, StallTestSupport.failureOf(
+         harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP));
+      assertFalse(rowTable(lens).isCompleted());
+
+      assertFalse(harness.await(harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP,
+                                "end-of-table read after the stall"));
+      assertTrue(rowTable(lens).isCompleted(),
+                 "a batch that reaches the end after the stall completes the row table");
+      assertEquals(n + 1, lens.getRowCount());
+      assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                           "read after the resumed end-of-table read"));
+   }
+
+   /**
+    * The base read in the batch loop condition stalls, outside the row's own catch: the
+    * reader gets that stall as it is, the row table is left open, and a resumed read with
+    * swaps around it gives every formula value (bug #77123).
+    */
+   @Test
+   public void baseStallInTheLoopConditionReachesTheReader() throws Exception {
+      final int n = 40;
+      Sandbox s = harness.control();
+      List<List<Object>> expected = harness.await(
+         harness.submit(() -> drain(s.formula(new DefaultTableLens(rows(n)),
+                                              "f", "field['value'] + 1"))),
+         ACTIVE_CAP, "control");
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      java.util.Set<Integer> failed = java.util.concurrent.ConcurrentHashMap.newKeySet();
+      // the first moreRows(15) stalls, as a stalled async base lens would; later ones do not
+      TableLens base = new DefaultTableLens(rows(n)) {
+         @Override
+         public boolean moreRows(int r) {
+            if(r == 15 && failed.add(r)) {
+               throw original;
+            }
+
+            return super.moreRows(r);
+         }
+      };
+      FormulaTableLens lens = harness.track(s.formula(base, "f", "field['value'] + 1"));
+
+      Throwable failure = StallTestSupport.failureOf(
+         harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP);
+      assertSame(original, failure, "the base read's stall must reach the reader unchanged");
+      assertFalse(failed.isEmpty(), "the base read in the loop condition never stalled");
+      assertFalse(rowTable(lens).isCompleted(),
+                  "a batch that stalled in the base read must not complete the row table");
+
+      swapRowTable(lens);
+      harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP, "resumed read");
+      swapRowTable(lens);
+
+      assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                           "read after the swaps"));
+   }
+
+   /**
+    * Alert mode (the default) never fails a wait: an end-of-table read that waits on the
+    * lens lock for longer than the limit is only alerted, then completes the lens as before
+    * (bug #77123 changes nothing without a thrown stall).
+    */
+   @Test
+   public void alertModeEndOfTableReadCompletesTheLens() throws Exception {
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir));
+      final int n = 40;
+      Sandbox s = harness.control();
+      List<List<Object>> expected = harness.await(
+         harness.submit(() -> drain(s.formula(new DefaultTableLens(rows(n)),
+                                              "f", "field['value'] + 1"))),
+         ACTIVE_CAP, "control");
+      FormulaTableLens lens = harness.track(
+         s.formula(new DefaultTableLens(rows(n)), "f", "field['value'] + 1"));
+      ReentrantLock lensLock = lensLock(lens);
+      CountDownLatch held = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      Future<Object> owner = harness.submit(() -> {
+         lensLock.lock();
+
+         try {
+            held.countDown();
+            release.await();
+         }
+         finally {
+            lensLock.unlock();
+         }
+
+         return null;
+      });
+      assertTrue(held.await(10, TimeUnit.SECONDS), "the owner never took the lens lock");
+      int dumps = WaitRegistry.global().getDumper().getDumpCount();
+      Future<Boolean> reader = harness.submit(() -> lens.moreRows(TableLens.EOT));
+
+      try {
+         // past the 1 s limit: the wait is alerted, not failed
+         StallTestSupport.awaitTrue(
+            () -> WaitRegistry.global().getDumper().getDumpCount() > dumps, 15,
+            "the lens-lock wait was never alerted");
+         assertFalse(reader.isDone(), "the reader must still be waiting, got a result");
+      }
+      finally {
+         release.countDown();
+      }
+
+      harness.await(owner, ACTIVE_CAP, "lens lock owner");
+      assertFalse(harness.await(reader, ACTIVE_CAP, "alerted reader"));
+      assertTrue(rowTable(lens).isCompleted(), "the alerted read completes the row table");
+      assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                           "read after the alerted read"));
+   }
+
    private static inetsoft.uql.table.XSwappableTable rowTable(FormulaTableLens lens)
       throws Exception
    {
