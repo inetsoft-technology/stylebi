@@ -25,10 +25,12 @@ import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.util.ColumnCache;
 import inetsoft.web.binding.drm.ColumnRefModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.ws.BasicSQLQueryModel;
 import inetsoft.web.composer.model.ws.SQLQueryDialogModel;
@@ -70,8 +72,11 @@ import static org.mockito.Mockito.*;
  *    <li>S9 POST /api/composer/ws/sql-query-dialog/query/update</li>
  *    <li>S10 STOMP /events/ws/dialog/sql-query-dialog-model (setModel)</li>
  *    <li>Q1 POST /api/data/datasource/query/data-source-tree</li>
+ *    <li>V1 POST /api/data/vpm/sql-query-dialog/data-source-tree</li>
+ *    <li>V2 POST /api/data/vpm/sql-query-dialog/table-columns</li>
+ *    <li>V3 POST /api/data/vpm/sql-query-dialog/browse-data</li>
  * </ul>
- * The S5/S2 allow cases cover the VPM subquery editor, whose users hold READ.
+ * The S5/S2 and V1-V3 allow cases cover the VPM subquery editor, whose users hold READ.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
@@ -90,6 +95,7 @@ class SQLQueryDialogPermissionTest {
    private ViewsheetService wsEngine;
    private SQLQueryDialogService service;
    private SQLQueryDialogController controller;
+   private VPMController vpmController;
    private final Principal principal = () -> "bob";
 
    @BeforeEach
@@ -108,6 +114,10 @@ class SQLQueryDialogPermissionTest {
       controller.setXRepository(repository);
       controller.setSecurityEngine(securityEngine);
       controller.setQueryManagerService(queryManager);
+      vpmController = new VPMController(
+         mock(DataRefModelFactoryService.class), mock(DatabaseTreeService.class),
+         dataSourceService, repository, securityEngine, mock(DependencyHandler.class),
+         mock(RenameTransformHandler.class), mock(ColumnCache.class), queryManager);
 
       when(securityEngine.checkPermission(
          any(Principal.class), eq(ResourceType.PHYSICAL_TABLE), eq("*"), eq(ResourceAction.ACCESS)))
@@ -554,5 +564,113 @@ class SQLQueryDialogPermissionTest {
          verify(assetRepository).getEntries(same(expanded), same(principal),
                                             eq(ResourceAction.READ), any());
       }
+   }
+
+   // ---- V1-V3: VPM subquery editor endpoints ----
+
+   @Test
+   void v1VpmTreeTopLevelDeniedWithoutRead() throws Exception {
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
+         assertDenied(() -> vpmController.getDataSourceTreeNode(DENIED, null, principal));
+         verifyReadChecked(DENIED);
+         verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @Test
+   void v1VpmTreeExpandedEntryDeniedWhenPrefixDiffersFromParam() throws Exception {
+      AssetEntry expanded = queryEntry(AssetEntry.Type.PHYSICAL_FOLDER, DENIED + "/TABLE", DENIED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
+         assertDenied(() -> vpmController.getDataSourceTreeNode(ALLOWED, expanded, principal));
+         verifyReadChecked(ALLOWED);
+         verifyReadChecked(DENIED);
+         verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @Test
+   void v1VpmTreeExpandedEntryAllowedWithRead() throws Exception {
+      AssetEntry expanded = queryEntry(AssetEntry.Type.PHYSICAL_FOLDER, ALLOWED + "/TABLE", ALLOWED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+         when(assetRepository.getEntries(same(expanded), same(principal), eq(ResourceAction.READ),
+                                         any())).thenReturn(new AssetEntry[0]);
+
+         TreeNodeModel tree = vpmController.getDataSourceTreeNode(ALLOWED, expanded, principal);
+         assertNotNull(tree);
+         assertTrue(tree.children().isEmpty());
+         verify(assetRepository).getEntries(same(expanded), same(principal),
+                                            eq(ResourceAction.READ), any());
+      }
+   }
+
+   @Test
+   void v2VpmTableColumnsDeniedOnEntryPrefix() throws Exception {
+      AssetEntry table = queryEntry(AssetEntry.Type.PHYSICAL_TABLE, DENIED + "/T", DENIED);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
+         assertDenied(() -> vpmController.getTableColumns(table, principal));
+         verifyReadChecked(DENIED);
+         verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @Test
+   void v2VpmTableColumnsDeniedWithoutPrefix() throws Exception {
+      AssetEntry table = queryEntry(AssetEntry.Type.PHYSICAL_TABLE, ALLOWED + "/T", null);
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+
+         assertDenied(() -> vpmController.getTableColumns(table, principal));
+         verifyNoInteractions(assetRepository);
+      }
+   }
+
+   @Test
+   void v2VpmTableColumnsAllowedWithRead() throws Exception {
+      AssetEntry table = queryEntry(AssetEntry.Type.PHYSICAL_TABLE, ALLOWED + "/T", ALLOWED);
+      AssetEntry[] columns = new AssetEntry[0];
+
+      try(MockedStatic<AssetUtil> assetUtil = mockStatic(AssetUtil.class)) {
+         AssetRepository assetRepository = mock(AssetRepository.class);
+         assetUtil.when(() -> AssetUtil.getAssetRepository(false)).thenReturn(assetRepository);
+         when(assetRepository.getEntries(table, principal, ResourceAction.READ)).thenReturn(columns);
+
+         assertSame(columns, vpmController.getTableColumns(table, principal));
+         verifyReadChecked(ALLOWED);
+      }
+   }
+
+   @Test
+   void v3VpmBrowseDataDeniedWithoutRead() throws Exception {
+      assertDenied(() -> vpmController.browseData(DENIED, mock(ColumnRefModel.class), principal));
+      verifyReadChecked(DENIED);
+      verifyNothingLoaded();
+   }
+
+   @Test
+   void v3VpmBrowseDataAllowedWithRead() throws Exception {
+      // the data ref is built after the check, so reaching it proves the check passed
+      ColumnRefModel dataRefModel = mock(ColumnRefModel.class);
+      IllegalStateException reached = new IllegalStateException("past the permission check");
+      when(dataRefModel.createDataRef()).thenThrow(reached);
+
+      assertSame(reached, assertThrows(IllegalStateException.class,
+         () -> vpmController.browseData(ALLOWED, dataRefModel, principal)));
+      verifyReadChecked(ALLOWED);
    }
 }
