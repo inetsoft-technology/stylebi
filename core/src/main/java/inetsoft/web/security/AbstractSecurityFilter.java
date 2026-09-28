@@ -338,6 +338,15 @@ public abstract class AbstractSecurityFilter
                .forEach(p -> authenticationService.logout(p, p.getUser().getIPAddress(), ""));
          }
 
+         // Bind the principal to its HTTP session before the license manager takes its copy.
+         // In a cluster the license map serializes the principal on put, and only a copy that
+         // carries the session id reads the distributed lastAccess kept current by
+         // RequestPrincipalFilter. An unbound copy stays frozen at the login time and the sweep
+         // above logs out active users (Bug #77029). setAttribute() below repeats this as a no-op.
+         if(principal instanceof DestinationUserNameProviderPrincipal dunpp) {
+            dunpp.setHttpSessionId(session.getId());
+         }
+
          if(sessionIdToReplace != null) {
             authenticationService.addSession(principal, sessionIdToReplace);
          }
