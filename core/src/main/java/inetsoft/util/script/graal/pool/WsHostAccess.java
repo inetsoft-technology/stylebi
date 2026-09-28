@@ -26,10 +26,8 @@ import java.util.Map;
 
 /**
  * The HostAccess of pooled worksheet contexts (bug #76960, spec §6.8, §14.4, §14.12): the
- * common script policy plus views for Java method arguments typed Object/Map/List, live only
- * on the owner thread while the passing exec runs and host copies everywhere else (bug
- * #77123, {@link LiveView}), so what a worksheet script hands a Java method never stays bound
- * to its context after the exec and is safe to read from any thread. One static instance:
+ * common script policy plus copies for Java method arguments typed Object/Map/List, so what a
+ * worksheet script hands a Java method never stays bound to its context. One static instance:
  * every Context on SHARED_WS_ENGINE must use the identical HostAccess (proto check 2).
  */
 final class WsHostAccess {
@@ -63,17 +61,17 @@ final class WsHostAccess {
       .<Value, Object>targetTypeMapping(Value.class, Object.class, WsValueCopier::isNonPlainObject,
                                         WsHostAccess::rejected)
       .<Value, Object>targetTypeMapping(Value.class, Object.class, WsValueCopier::isPlainObject,
-                                        LiveView::map)
+                                        WsValueCopier::copyMap)
       .<Value, Object>targetTypeMapping(Value.class, Object.class, WsValueCopier::isArray,
-                                        LiveView::list)
+                                        WsValueCopier::copyList)
       .<Value, Map>targetTypeMapping(Value.class, Map.class, WsValueCopier::isPlainObject,
-                                     LiveView::map)
+                                     WsValueCopier::copyMap)
       .<Value, Map>targetTypeMapping(Value.class, Map.class,
                                      v -> WsValueCopier.isArray(v) || WsValueCopier.isFunction(v) ||
                                         WsValueCopier.isNonPlainObject(v),
                                      WsHostAccess::rejected)
       .<Value, List>targetTypeMapping(Value.class, List.class, WsValueCopier::isArray,
-                                      LiveView::list)
+                                      WsValueCopier::copyList)
       .<Value, List>targetTypeMapping(Value.class, List.class,
                                       v -> WsValueCopier.isFunction(v) ||
                                          WsValueCopier.isNonPlainObject(v),

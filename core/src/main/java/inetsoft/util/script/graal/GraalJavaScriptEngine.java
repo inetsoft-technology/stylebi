@@ -1878,7 +1878,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    public Object exec(Object script, Object scope, Object rscope) throws Exception {
       lock.lock();
       // marks which pooled worksheet context, if any, is executing (bug #76960)
-      Object execMark = enterExecContext();
+      Object execMark = enterExecContext(script);
 
       try {
          // FIX A: guard against null context before initialization
@@ -1923,10 +1923,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
                }
 
                Value result = context.eval((Source) script);
-               Object hostResult = ScriptValueConverter.toHostResult(result);
-               // still inside the timeout guard, and only on normal completion (bug #77123)
-               execCompleted(execMark);
-               return hostResult;
+               return ScriptValueConverter.toHostResult(result);
             }
          }
          catch(PolyglotException ex) {
@@ -2006,9 +2003,11 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * pooled exec: a nested exec of this engine must never see the host-boundary conversions of
     * the outer worksheet context. With the pool off no mark is ever set and this is a no-op.
     *
+    * @param script the script about to run; a pooled engine names it in its diagnostics.
+    *
     * @return the token {@link #exitExecContext} restores.
     */
-   protected Object enterExecContext() {
+   protected Object enterExecContext(Object script) {
       return WsExecContext.suspend();
    }
 
@@ -2017,14 +2016,6 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     */
    protected void exitExecContext(Object token) {
       WsExecContext.resume(token);
-   }
-
-   /**
-    * Called when an exec completed normally, inside its timeout guard, with the token of
-    * {@link #enterExecContext}. A pooled engine re-snapshots the Java-held views of its
-    * script's values here (bug #77123); this engine does nothing.
-    */
-   protected void execCompleted(Object token) {
    }
 
    /**
