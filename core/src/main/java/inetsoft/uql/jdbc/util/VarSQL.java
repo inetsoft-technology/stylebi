@@ -43,12 +43,17 @@ public class VarSQL {
     *   <li>{@link #SQL} (default): SQL quote-doubling of the enclosing quote
     *   character, plus backslash doubling only when
     *   {@link #setBackslashIsEscapeChar} is set (Bug #76822).</li>
-    *   <li>{@link #JSON}: backslash escaping for JSON / Mongo Extended JSON
-    *   query text (as parsed by bson's {@code JsonReader}) — a backslash,
-    *   single quote and double quote in the value are each prefixed with a
-    *   backslash. SQL-style quote doubling is not an escape there, and no
-    *   other character is escaped because bson rejects unknown escape
-    *   sequences (Bug #76864).</li>
+    *   <li>{@link #JSON}: fail-closed unicode-escape encoding for JSON /
+    *   Mongo Extended JSON query text (as parsed by bson's
+    *   {@code JsonReader}): every ASCII character other than
+    *   {@code [A-Za-z0-9 _]}, and the first character of a {@code String}
+    *   value, is written as <code>&#92;uXXXX</code>; non-ASCII characters
+    *   pass through. Inside a {@code '...'} / {@code "..."} string bson
+    *   decodes this to exactly the input value (Bug #76864). If the template
+    *   desynchronises this class's SQL-oriented lexer from bson's (e.g. a
+    *   placeholder or an unpaired quote inside a {@code /regex/} literal), a
+    *   value in bson structural context fails to parse instead of adding keys
+    *   or becoming a different bson type (Bug #77105).</li>
     * </ul>
     */
    public enum LiteralEscapeStyle { SQL, JSON }
@@ -212,7 +217,20 @@ public class VarSQL {
                      // since only the value itself is escaped, not the
                      // surrounding literal text
                      if(val != null) {
-                        sql.append(escapeQuotedLiteralValue(val.toString(), (char) inQuote));
+                        // JSON style: a Number/Boolean/Date is emitted as is,
+                        // like toSQLConstant does, so it keeps its type even
+                        // if bson is not really inside this quote; any other
+                        // value is encoded as a String (Bug #77105)
+                        String text = val.toString();
+
+                        if(literalEscapeStyle == LiteralEscapeStyle.JSON &&
+                           isJsonSafeScalar(val, text))
+                        {
+                           sql.append(text);
+                        }
+                        else {
+                           sql.append(escapeQuotedLiteralValue(text, (char) inQuote, true));
+                        }
                      }
                   }
                   // if value is an array, replace with ?,?,?,...
@@ -342,10 +360,16 @@ public class VarSQL {
     * (Postgres with standard_conforming_strings, Oracle, SQL Server, DB2,
     * etc.), doubling it unconditionally would corrupt any value containing a
     * genuine literal backslash.
+    * <p>
+    * In {@link LiteralEscapeStyle#JSON} style the value is instead encoded by
+    * {@link #escapeJsonStringValue}; {@code stringValue} (JSON style only,
+    * ignored for SQL style) turns on its first-character rule.
     */
-   private String escapeQuotedLiteralValue(String value, char quoteChar) {
+   private String escapeQuotedLiteralValue(String value, char quoteChar,
+                                           boolean stringValue)
+   {
       if(literalEscapeStyle == LiteralEscapeStyle.JSON) {
-         return escapeJsonStringValue(value);
+         return escapeJsonStringValue(value, stringValue);
       }
 
       StringBuilder escaped = new StringBuilder(value.length());
@@ -364,26 +388,95 @@ public class VarSQL {
    }
 
    /**
-    * Escape a value spliced into a JSON (Mongo Extended JSON) string literal
-    * delimited by either {@code '} or {@code "}: backslash-escapes the
-    * backslash and both quote characters, and nothing else, so the result is
-    * valid for either delimiter and only uses escape sequences bson accepts.
+    * Escape a value spliced into JSON (Mongo Extended JSON) query text at a
+    * position this class's lexer believes is (or wraps to be) inside a
+    * {@code '...'} or {@code "..."} string literal.
+    * <p>
+    * Every ASCII character other than {@code [A-Za-z0-9 _]} is written as
+    * <code>&#92;uXXXX</code>, and so is the first character when
+    * {@code encodeFirst} is set (String values). Non-ASCII characters pass
+    * through. Inside a bson string literal of either delimiter this decodes to
+    * exactly the input value, and the encoded text has no quote, {@code /},
+    * structural punctuation or bare backslash, so it cannot end a string or
+    * {@code /regex/} literal bson is really in.
+    * <p>
+    * This lexer does not match bson's ({@code /regex/} literals, SQL comments
+    * and backslash handling differ), so a template can make it believe a
+    * placeholder is quoted when bson is in structural context (Bug #77105).
+    * Such a String value then starts with a bare <code>&#92;u</code> and fails
+    * to parse, instead of adding keys or turning into a MinKey, Infinity,
+    * null, boolean or number literal. Inside a regex literal bson keeps the
+    * <code>&#92;uXXXX</code> text as-is, which the MongoDB server rejects for
+    * punctuation; {@code {$regex: '...$(name)...'}} is the supported way to
+    * parameterise a regex.
+    * <p>
+    * Axis covered: template positions (quoted placeholder; unquoted scalar,
+    * array scalar and {@code in} list via {@link #toSQLConstant}) &times;
+    * value types. String values (and any other object) get the full encoding
+    * including the first character. Number, Boolean and Date values do not
+    * reach this method in JSON style (see {@link #isJsonSafeScalar}): they
+    * are emitted unescaped, as {@link #toSQLConstant} does, so they keep
+    * their type in either lexer state.
+    * <p>
+    * An empty String encodes to nothing. In a desync template at a bare array
+    * element position ({@code [$(p)]}) bson then reads one element fewer; no
+    * key or type is added.
+    * <p>
+    * This does not make a value safe inside server-side JavaScript
+    * ({@code $where}, {@code $function.body}, {@code $accumulator},
+    * mapReduce): bson decodes the value exactly and it then becomes JS source.
     */
-   private static String escapeJsonStringValue(String value) {
-      StringBuilder escaped = new StringBuilder(value.length());
+   private static String escapeJsonStringValue(String value, boolean encodeFirst) {
+      StringBuilder escaped = new StringBuilder(value.length() * 2);
 
       for(int i = 0; i < value.length(); i++) {
          char c = value.charAt(i);
+         boolean plain = c >= 128 || c == ' ' || c == '_' || (c >= '0' && c <= '9') ||
+            (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
 
-         if(c == '\\' || c == '\'' || c == '"') {
-            escaped.append('\\');
+         if(plain && !(encodeFirst && i == 0)) {
+            escaped.append(c);
          }
-
-         escaped.append(c);
+         else {
+            escaped.append('\\').append('u')
+               .append(HEX[(c >> 12) & 0xf]).append(HEX[(c >> 8) & 0xf])
+               .append(HEX[(c >> 4) & 0xf]).append(HEX[c & 0xf]);
+         }
       }
 
       return escaped.toString();
    }
+
+   /**
+    * True if a non-String value can be spliced into JSON query text without
+    * encoding: a Number, Boolean or Date whose text only uses
+    * {@code [A-Za-z0-9 .:+-]} (e.g. {@code -3}, {@code 1.5}, {@code 1E+5},
+    * {@code Infinity}, {@code true}, {@code 2024-01-02 03:04:05.0}). Such text
+    * has no quote, {@code /} or backslash, so it cannot end a string or
+    * {@code /regex/} literal bson is in, and no {@code , { } [ ]}, so it cannot
+    * add keys or elements; inside a real bson string it decodes unchanged.
+    * This matches {@link #toSQLConstant}, which emits these values unescaped
+    * too (Bug #77105).
+    */
+   private static boolean isJsonSafeScalar(Object val, String text) {
+      if(!(val instanceof Number || val instanceof Boolean || val instanceof java.util.Date)) {
+         return false;
+      }
+
+      for(int i = 0; i < text.length(); i++) {
+         char c = text.charAt(i);
+
+         if(!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+            c == ' ' || c == '.' || c == ':' || c == '+' || c == '-'))
+         {
+            return false;
+         }
+      }
+
+      return true;
+   }
+
+   private static final char[] HEX = "0123456789abcdef".toCharArray();
 
    /**
     * Convert to SQL constant values (e.g. quoted string, date/time).
@@ -397,7 +490,7 @@ public class VarSQL {
       else if(val instanceof String) {
          // the value supplies the whole literal here, so it must be escaped
          // or it could close the literal early (Bug #76864)
-         return "'" + escapeQuotedLiteralValue(val.toString(), '\'') + "'";
+         return "'" + escapeQuotedLiteralValue(val.toString(), '\'', true) + "'";
       }
 
       return val + "";
