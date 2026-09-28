@@ -215,13 +215,15 @@ class ChartRegionPropertyServiceTest {
       when(dimension.getName()).thenReturn("STATE");
       AxisDescriptor persistedDescriptor = mock(AxisDescriptor.class);
       when(persistedDescriptor.isNoNull()).thenReturn(true);
+      when(persistedDescriptor.isTruncate()).thenReturn(true);
       when(dimension.getAxisDescriptor()).thenReturn(persistedDescriptor);
 
       Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dimension }));
       // A fresh model, misclassified linear:true by the area-index-0 mechanism (as every real
-      // request reconstructs), so the constructor's own `if(!linear) {setIgnoreNull(...)}` branch
-      // never ran and the pane's ignoreNull is stuck at the bean's Java default (false) --
-      // exactly what a real server response would look like for this axis before this fix.
+      // request reconstructs), so the constructor's own `if(!linear) {setIgnoreNull(...);
+      // setTruncate(...)}` branch never ran and the pane's ignoreNull/truncate are stuck at the
+      // bean's Java default (false) -- exactly what a real server response would look like for
+      // this axis before this fix.
       AxisPropertyDialogModel model = axisModel();
       model.setLinear(true);
       when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
@@ -237,10 +239,18 @@ class ChartRegionPropertyServiceTest {
          .findFirst()
          .map(p -> p.get("value"))
          .orElse(null);
+      Object truncate = props.stream()
+         .filter(p -> "truncate".equals(p.get("name")))
+         .findFirst()
+         .map(p -> p.get("value"))
+         .orElse(null);
 
       assertEquals(true, ignoreNull,
                    "list() must backfill ignoreNull from the real, already-persisted " +
                    "AxisDescriptor, not report the wrongly-constructed model's stale default");
+      assertEquals(true, truncate,
+                   "list() must backfill truncate from the real, already-persisted " +
+                   "AxisDescriptor too, not just ignoreNull");
    }
 
    /**
