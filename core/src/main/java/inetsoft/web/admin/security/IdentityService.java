@@ -195,21 +195,7 @@ public class IdentityService {
                resourceType = ResourceType.SECURITY_ROLE;
             }
 
-            try {
-               if(!securityEngine.checkPermission(principal, resourceType, identityModel.identityID().convertToKey(),
-                                                  ResourceAction.ADMIN))
-               {
-                  failedIdentities.add(identityModel.identityID());
-                  continue;
-               }
-            }
-            catch(Exception ignore) {
-               failedIdentities.add(identityModel.identityID());
-               continue;
-            }
-
-            // only a site admin may delete an identity that grants system administrator
-            if(isSystemAdminTargetDenied(identityId, type, principal)) {
+            if(isIdentityDeleteDenied(principal, resourceType, identityId, type)) {
                failedIdentities.add(identityModel.identityID());
                continue;
             }
@@ -238,9 +224,7 @@ public class IdentityService {
                   }
                }
 
-               if(isSelfAndEMUser(principal, identityId, type) ||
-                  isSelfRole(provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName())), identityId, type))
-               {
+               if(isSelfDelete(principal, identityId, type, provider)) {
                   warnings.add(catalog.getString("em.security.delself"));
                   continue;
                }
@@ -2499,6 +2483,10 @@ public class IdentityService {
          }
       }
 
+      // a dropped group or role is deleted, so it must pass the same checks as deleteIdentities().
+      // Called after the validation, so a rejected save leaves no message behind on the thread.
+      keepUndeletableGroupsAndRoles(oldOrg.getId(), memberNames, eprovider, principal);
+
       newOrg.setMembers(memberNames.toArray(new String[0]));
       newOrg.setActive(model.status());
 
@@ -2700,6 +2688,101 @@ public class IdentityService {
       }
 
       return identityID.equals(IdentityID.getIdentityIDFromKey(principal.getName()));
+   }
+
+   /**
+    * Determines if the principal is refused the deletion of a user, group or role because it has
+    * no admin permission on it, or because it grants system administrator and the principal is
+    * not a site administrator. Shared by deleteIdentities() and the organization member update,
+    * so that dropping a member from an organization is checked the same as deleting it.
+    */
+   private boolean isIdentityDeleteDenied(Principal principal, ResourceType resourceType,
+                                          IdentityID identityId, int type)
+   {
+      try {
+         if(!securityEngine.checkPermission(principal, resourceType, identityId.convertToKey(),
+                                            ResourceAction.ADMIN))
+         {
+            return true;
+         }
+      }
+      catch(Exception ignore) {
+         return true;
+      }
+
+      // only a site admin may delete an identity that grants system administrator
+      return isSystemAdminTargetDenied(identityId, type, principal);
+   }
+
+   /**
+    * Determines if the principal is deleting its own user or a role its user holds.
+    */
+   private boolean isSelfDelete(Principal principal, IdentityID identityId, int type,
+                                AuthenticationProvider provider)
+   {
+      return isSelfAndEMUser(principal, identityId, type) ||
+         isSelfRole(provider.getUser(IdentityID.getIdentityIDFromKey(principal.getName())),
+                    identityId, type);
+   }
+
+   /**
+    * Keeps the groups and roles dropped from an organization's member list that the principal
+    * may not delete, by adding them back to the member names, so that the member update neither
+    * deletes them nor leaves them out of the organization's members. The organization's groups
+    * and roles are read from the provider, the same set the member update deletes from, because
+    * the stored member list of an organization is not kept up to date.
+    */
+   private void keepUndeletableGroupsAndRoles(String orgID, List<String> memberNames,
+                                              EditableAuthenticationProvider eprovider,
+                                              Principal principal)
+   {
+      List<IdentityModel> dropped = new ArrayList<>();
+      Arrays.stream(eprovider.getGroups())
+         .filter(g -> Tool.equals(orgID, g.orgID) && !memberNames.contains(g.name))
+         .forEach(g -> dropped.add(
+            IdentityModel.builder().identityID(g).type(Identity.GROUP).build()));
+      Arrays.stream(eprovider.getRoles())
+         .filter(r -> Tool.equals(orgID, r.orgID) && !memberNames.contains(r.name))
+         .forEach(r -> dropped.add(
+            IdentityModel.builder().identityID(r).type(Identity.ROLE).build()));
+      Catalog catalog = Catalog.getCatalog(principal);
+      List<String> unauthorized = new ArrayList<>();
+
+      for(IdentityModel member : dropped) {
+         IdentityID id = member.identityID();
+         int type = member.type();
+         ResourceType resourceType = type == Identity.GROUP ?
+            ResourceType.SECURITY_GROUP : ResourceType.SECURITY_ROLE;
+
+         if(isIdentityDeleteDenied(principal, resourceType, id, type)) {
+            if(isSystemAdminTargetDenied(id, type, principal)) {
+               Tool.addUserMessage(
+                  catalog.getString("em.security.orgAdmin.identityPermissionDenied"));
+            }
+            else {
+               unauthorized.add(id.getName());
+            }
+         }
+         else if(principal != null && isSelfDelete(principal, id, type, eprovider)) {
+            Tool.addUserMessage(catalog.getString("em.security.delself"));
+         }
+         else {
+            continue;
+         }
+
+         if(!memberNames.contains(id.getName())) {
+            memberNames.add(id.getName());
+         }
+      }
+
+      if(!unauthorized.isEmpty()) {
+         String warning = String.format(
+            "Unauthorized access to resource(s) \"%s\" by user %s.",
+            String.join(", ", unauthorized), principal != null ? principal.getName() : null);
+         LOG.warn(warning);
+         Tool.addUserMessage(catalog.getString("em.common.security.no.permission",
+                                               String.join(", ", unauthorized)));
+      }
    }
 
    /**
