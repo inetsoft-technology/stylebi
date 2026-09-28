@@ -2539,20 +2539,22 @@ public class IdentityService {
          }
       }
 
+      String theme = getEligibleOrgTheme(model.theme(), oldOrg.getTheme(), oldOrg.getId());
+
       if(fromOrg != null && Tool.equals(fromOrg.getId(), newOrg.getId()) &&
          fromOrg instanceof FSOrganization)
       {
          ((FSOrganization) fromOrg).setLocale(localeString);
-         updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, fromOrgID);
-         ((FSOrganization) fromOrg).setTheme(model.theme());
+         updateCustomThemeOrganization(fromOrg.getTheme(), theme, fromOrgID, fromOrgID);
+         ((FSOrganization) fromOrg).setTheme(theme);
          eprovider.setOrganization(fromOrgID, fromOrg);
 
          return fromOrg;
       }
 
       newOrg.setLocale(localeString);
-      updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, newOrg.getId());
-      newOrg.setTheme(model.theme());
+      updateCustomThemeOrganization(fromOrg.getTheme(), theme, fromOrgID, newOrg.getId());
+      newOrg.setTheme(theme);
       String syncOldName = model.oldName();
       syncIdentity(eprovider, newOrg, new IdentityID(syncOldName, oldID));
 
@@ -2593,6 +2595,39 @@ public class IdentityService {
          case Identity.ROLE -> eprovider.getRole(identityID) != null;
          default -> false;
       };
+   }
+
+   /**
+    * Gets the theme to store as the default of an organization. Only a global theme or a theme
+    * owned by the organization may be used, any other requested theme is ignored and the
+    * organization keeps its current theme. An empty theme clears the organization default.
+    *
+    * @param theme        the requested theme id.
+    * @param currentTheme the current theme id of the organization.
+    * @param orgID        the current id of the organization.
+    *
+    * @return the theme id to store.
+    */
+   private String getEligibleOrgTheme(String theme, String currentTheme, String orgID) {
+      if(Tool.isEmptyString(theme)) {
+         return null;
+      }
+
+      if(Tool.equals(theme, currentTheme)) {
+         return currentTheme;
+      }
+
+      boolean eligible = customThemesManager.getCustomThemes().stream()
+         .anyMatch(t -> Tool.equals(t.getId(), theme) &&
+            (Tool.isEmptyString(t.getOrgID()) || Tool.equals(t.getOrgID(), orgID)));
+
+      if(!eligible) {
+         LOG.warn("Ignoring theme {} for organization {} because it is not a global theme or " +
+                     "a theme of the organization", theme, orgID);
+         return currentTheme;
+      }
+
+      return theme;
    }
 
    private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
