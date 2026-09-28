@@ -40,6 +40,7 @@ import inetsoft.web.composer.model.vs.TableStylePaneModel;
 import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.service.VSInputService;
+import inetsoft.web.viewsheet.service.VSOutputService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -118,9 +119,11 @@ public class AssemblyPropertyService {
                                   OvalPropertyDialogService ovalService,
                                   RectanglePropertyDialogService rectangleService,
                                   SelectionContainerPropertyDialogService containerService,
-                                  SubmitPropertyDialogService submitService)
+                                  SubmitPropertyDialogService submitService,
+                                  VSOutputService outputService)
    {
       this.sessions = sessions;
+      this.outputService = outputService;
       Map<String, Binding> map = new LinkedHashMap<>();
       map.put("gauge", new Binding(gaugeService, "getGaugePropertyDialogModel",
                                    "setGaugePropertyDialogModel"));
@@ -311,6 +314,10 @@ public class AssemblyPropertyService {
             model = deriveEmbeddedFromStaticList(model, resolved.values());
          }
 
+         if(PropertyAliases.isDataOutputType(type)) {
+            model = deriveColumnTypeFromRealColumn(model, rvs, user, resolved.values());
+         }
+
          if("chart".equals(type)) {
             markTargetsUnchanged(model);
          }
@@ -455,6 +462,58 @@ public class AssemblyPropertyService {
          }
 
          model = PropertyPath.set(model, embeddedPath, true);
+      }
+
+      return model;
+   }
+
+   /**
+    * Re-derives {@code dataOutputPaneModel.columnType} from the real column metadata of
+    * {@code dataOutputPaneModel.table}/{@code .column} whenever this patch changes either one
+    * (bug #77028). Mirrors what the native Composer's own {@code data-output-pane.component.ts}
+    * ({@code selectColumn()}) does client-side in the browser, synchronously, before the whole
+    * {@code DataOutputPaneModel} is ever posted: it reads the newly-picked column's type off the
+    * same column list this method's own {@link VSOutputService#getOutputTableColumns} call
+    * backs ({@code TABLE_COLUMNS_URI}). Without this, {@code AssemblyPropertyService.set}'s
+    * read-modify-write leaves {@code columnType} at whatever the pre-existing GET populated it
+    * as -- the OLD column's type -- because {@link PropertyAliases#dataOutput} has no alias for
+    * {@code columnType} at all, and Gauge/Text/Image's own apply methods persist that stale value
+    * verbatim (only overriding it when the chosen aggregate formula itself has a fixed data type,
+    * e.g. {@code Count}).
+    *
+    * <p>A caller who sets {@code dataOutputPaneModel.columnType} explicitly in the same patch
+    * (the raw-dotted-path escape hatch) is always left alone -- the same "forgiving where intent
+    * is unambiguous, never overriding an explicit value" rule {@link #impliedSibling} already
+    * follows.
+    */
+   private Object deriveColumnTypeFromRealColumn(Object model, RuntimeViewsheet rvs,
+                                                  Principal user, Collection<String> resolvedPaths)
+      throws Exception
+   {
+      boolean bindingChanged = resolvedPaths.contains("dataOutputPaneModel.table") ||
+         resolvedPaths.contains("dataOutputPaneModel.column");
+
+      if(!bindingChanged || resolvedPaths.contains("dataOutputPaneModel.columnType")) {
+         return model;
+      }
+
+      Object table = PropertyPath.get(model, "dataOutputPaneModel.table");
+      Object column = PropertyPath.get(model, "dataOutputPaneModel.column");
+
+      if(!(table instanceof String tableName) || !(column instanceof String columnName) ||
+         tableName.isEmpty() || columnName.isEmpty())
+      {
+         return model;
+      }
+
+      ColumnSelection columns = outputService.getOutputTableColumns(rvs, tableName, true, user);
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef ref = columns.getAttribute(i);
+
+         if(columnName.equals(ref.getName())) {
+            return PropertyPath.set(model, "dataOutputPaneModel.columnType", ref.getDataType());
+         }
       }
 
       return model;
@@ -1233,5 +1292,6 @@ public class AssemblyPropertyService {
 
 
    private final ViewsheetSessionService sessions;
+   private final VSOutputService outputService;
    private final Map<String, Binding> bindings;
 }

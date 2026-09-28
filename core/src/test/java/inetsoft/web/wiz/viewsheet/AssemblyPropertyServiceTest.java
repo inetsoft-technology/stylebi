@@ -19,10 +19,13 @@ package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.*;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XConstants;
+import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DefaultVariableAssembly;
 import inetsoft.uql.asset.EmbeddedTableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
@@ -49,6 +52,7 @@ import inetsoft.web.composer.model.vs.TipCustomizeDialogModel;
 import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.web.viewsheet.service.VSOutputService;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -2220,6 +2224,76 @@ class AssemblyPropertyServiceTest {
                                            Map.of(GROUP_SELECTED_IMAGE_PATH, ""), ""));
    }
 
+   /**
+    * Bug #77028: switching a Gauge's {@code column} to one with a different real type must
+    * re-derive {@code dataOutputPaneModel.columnType} from that column's actual data type --
+    * mirroring what the native Composer's own {@code data-output-pane.component.ts} does
+    * client-side (see {@code AssemblyPropertyService.deriveColumnTypeFromRealColumn}'s own doc
+    * comment). Before this fix, the write left {@code columnType} at the OLD column's type
+    * (STRING here), which {@code GaugePropertyDialogService.setGaugePropertyDialogModel} would
+    * then persist verbatim into {@code ScalarBindingInfo.columnType}.
+    */
+   @Test
+   void rederivesColumnTypeWhenColumnChanges() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getDataOutputPaneModel().setTable("Table1");
+      model.getDataOutputPaneModel().setColumn("OldStringCol");
+      model.getDataOutputPaneModel().setColumnType(XSchema.STRING);
+
+      GaugePropertyDialogService gaugeService = mock(GaugePropertyDialogService.class);
+      VSOutputService outputService = mock(VSOutputService.class);
+      when(outputService.getOutputTableColumns(any(), eq("Table1"), eq(true), any()))
+         .thenReturn(columnsWithType("OldStringCol", XSchema.STRING,
+                                     "NewNumCol", XSchema.INTEGER));
+
+      AssemblyPropertyService service =
+         serviceWithGauge(mock(GaugeVSAssembly.class), model, gaugeService, outputService);
+
+      service.set("tok", principal(), "Gauge1", Map.of("column", "NewNumCol"), "");
+
+      ArgumentCaptor<GaugePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(GaugePropertyDialogModel.class);
+      verify(gaugeService).setGaugePropertyDialogModel(anyString(), anyString(), captor.capture(),
+                                                       any(), any(), any());
+      assertEquals(XSchema.INTEGER, captor.getValue().getDataOutputPaneModel().getColumnType(),
+                  "columnType must reflect the newly-picked column's real type, not the old one");
+   }
+
+   /**
+    * A caller who sets {@code dataOutputPaneModel.columnType} explicitly, in the same patch as
+    * {@code column}, must always win -- the same "forgiving where intent is unambiguous, never
+    * override an explicit value" rule {@code impliedSibling} already follows.
+    */
+   @Test
+   void doesNotOverrideAnExplicitColumnType() throws Exception {
+      GaugePropertyDialogModel model = new GaugePropertyDialogModel();
+      model.getDataOutputPaneModel().setTable("Table1");
+      model.getDataOutputPaneModel().setColumn("OldStringCol");
+      model.getDataOutputPaneModel().setColumnType(XSchema.STRING);
+
+      GaugePropertyDialogService gaugeService = mock(GaugePropertyDialogService.class);
+      VSOutputService outputService = mock(VSOutputService.class);
+      when(outputService.getOutputTableColumns(any(), eq("Table1"), eq(true), any()))
+         .thenReturn(columnsWithType("OldStringCol", XSchema.STRING,
+                                     "NewNumCol", XSchema.INTEGER));
+
+      AssemblyPropertyService service =
+         serviceWithGauge(mock(GaugeVSAssembly.class), model, gaugeService, outputService);
+
+      Map<String, Object> patch = new LinkedHashMap<>();
+      patch.put("column", "NewNumCol");
+      patch.put("dataOutputPaneModel.columnType", XSchema.DOUBLE);
+      service.set("tok", principal(), "Gauge1", patch, "");
+
+      ArgumentCaptor<GaugePropertyDialogModel> captor =
+         ArgumentCaptor.forClass(GaugePropertyDialogModel.class);
+      verify(gaugeService).setGaugePropertyDialogModel(anyString(), anyString(), captor.capture(),
+                                                       any(), any(), any());
+      assertEquals(XSchema.DOUBLE, captor.getValue().getDataOutputPaneModel().getColumnType(),
+                  "an explicit columnType in the same patch must not be overridden");
+      verify(outputService, never()).getOutputTableColumns(any(), any(), anyBoolean(), any());
+   }
+
    private void assertRefusedAsUnknownGroupContainerImage(String value) {
       AssemblyPropertyService service =
          serviceWith(mock(GroupContainerVSAssembly.class), groupContainerModelWithTree());
@@ -2324,6 +2398,42 @@ class AssemblyPropertyServiceTest {
       return serviceWith(assembly, model, null, null, imageService);
    }
 
+   /**
+    * Bug #77028: lets a test both capture the written {@code GaugePropertyDialogModel} (via a
+    * caller-supplied {@code gaugeService} mock, the same shape {@link #serviceWithImage} already
+    * uses) and stub {@code outputService.getOutputTableColumns} to return a real column list, so
+    * the {@code columnType} re-derivation has real column metadata to look up.
+    */
+   private static AssemblyPropertyService serviceWithGauge(
+      VSAssembly assembly, GaugePropertyDialogModel model,
+      GaugePropertyDialogService gaugeService, VSOutputService outputService)
+   {
+      try {
+         when(gaugeService.getGaugePropertyDialogModel(anyString(), anyString(),
+                                                       any(Principal.class)))
+            .thenReturn(model);
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+
+      return serviceWith(assembly, model, null, null, mock(ImagePropertyDialogService.class),
+                         gaugeService, outputService);
+   }
+
+   /** A {@code ColumnSelection} of alternating (name, dataType) pairs, for {@link #serviceWithGauge}. */
+   private static ColumnSelection columnsWithType(String... nameThenType) {
+      ColumnSelection selection = new ColumnSelection();
+
+      for(int i = 0; i < nameThenType.length; i += 2) {
+         ColumnRef ref = new ColumnRef(new AttributeRef(null, nameThenType[i]));
+         ref.setDataType(nameThenType[i + 1]);
+         selection.addAttribute(ref);
+      }
+
+      return selection;
+   }
+
    private static AssemblyPropertyService serviceWithCalcTable(
       VSAssembly assembly, CalcTablePropertyDialogModel model)
    {
@@ -2341,6 +2451,15 @@ class AssemblyPropertyServiceTest {
    private static AssemblyPropertyService serviceWith(
       VSAssembly assembly, Object model, Object inputModel,
       Worksheet baseWorksheet, ImagePropertyDialogService imageService)
+   {
+      return serviceWith(assembly, model, inputModel, baseWorksheet, imageService,
+                         mock(GaugePropertyDialogService.class), mock(VSOutputService.class));
+   }
+
+   private static AssemblyPropertyService serviceWith(
+      VSAssembly assembly, Object model, Object inputModel,
+      Worksheet baseWorksheet, ImagePropertyDialogService imageService,
+      GaugePropertyDialogService gauge, VSOutputService outputService)
    {
       Viewsheet vs = mock(Viewsheet.class);
       when(vs.getAssembly(anyString())).thenReturn(assembly);
@@ -2362,8 +2481,6 @@ class AssemblyPropertyServiceTest {
       catch(Exception e) {
          throw new IllegalStateException(e);
       }
-
-      GaugePropertyDialogService gauge = mock(GaugePropertyDialogService.class);
 
       if(model instanceof GaugePropertyDialogModel gaugeModel) {
          try {
@@ -2528,7 +2645,8 @@ class AssemblyPropertyServiceTest {
          mock(LinePropertyDialogService.class), mock(OvalPropertyDialogService.class),
          mock(RectanglePropertyDialogService.class),
          mock(SelectionContainerPropertyDialogService.class),
-         mock(SubmitPropertyDialogService.class));
+         mock(SubmitPropertyDialogService.class),
+         outputService);
    }
 
    private static Principal principal() {

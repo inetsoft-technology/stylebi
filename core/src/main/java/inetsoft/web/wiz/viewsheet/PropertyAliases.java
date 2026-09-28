@@ -121,7 +121,15 @@ public final class PropertyAliases {
       "crosstab", Set.of("shadow", "editable", "container", "crosstabInfoNull",
                          "sortOthersLastEnabled", "dateComparisonSupport", "cellHeight",
                          "scaleVertical"),
-      "calctable", Set.of("cellHeight", "scaleVertical"));
+      "calctable", Set.of("cellHeight", "scaleVertical"),
+      // groupcontainer (bug #77028): `enabled` here resolves to
+      // groupContainerGeneralPane.generalPropPane.enabled (GeneralPropPaneModel.enabled) -- live
+      // for most dataGeneral()/outputGeneral() types, but GroupContainerPropertyDialogService's
+      // apply method (setGroupContainerPropertyDialogModel) never reads it back, and its own
+      // getGroupContainerPropertyDialogModel() explicitly sets showEnabledGroup(false), so the
+      // native Composer UI never even renders the Enabled checkbox for this type
+      // (general-prop-pane.component.html gates the whole control on *ngIf="showEnabledGroup").
+      "groupcontainer", Set.of("enabled"));
 
    /**
     * textinput/combobox/slider/spinner/checkbox/radiobutton's {@code dataInputPaneModel.variable}
@@ -152,16 +160,33 @@ public final class PropertyAliases {
       Set.of("checkbox", "combobox", "radiobutton");
 
    /**
+    * The three types registered through the shared {@link #dataOutput} helper -- used by
+    * {@code AssemblyPropertyService} to scope its {@code columnType} re-derivation (bug #77028) to
+    * exactly the types that share {@code dataOutputPaneModel}.
+    */
+   private static final Set<String> DATA_OUTPUT_TYPES = Set.of("gauge", "text", "image");
+
+   /**
     * {@code refresh} is aliased through the shared {@link #basicGeneral} helper because it is
     * genuinely applied for the input assemblies (checkbox/combobox/radiobutton/slider/spinner/
     * textinput, via {@code VSInputService}) and for submit (via
-    * {@code SubmitPropertyDialogService}). It is not applied at all for these four types --
-    * their apply methods never call {@code basicGeneralPaneModel.isRefresh()}. Refused here by
-    * type rather than removed from the shared helper, which would also remove it from the types
-    * where it is real.
+    * {@code SubmitPropertyDialogService}). It is not applied at all for the remaining types
+    * reached through {@link #basicGeneral} (via {@link #outputGeneral}/{@link #dataGeneral}) or
+    * the direct {@link #groupContainer} call -- their apply methods never call
+    * {@code basicGeneralPaneModel.isRefresh()} back. Confirmed by exhaustive grep for
+    * {@code isRefresh()}/{@code setRefresh(}/{@code getRefreshValue} across
+    * {@code core/src/main/java}: the only hits are the seven live types above (six routed through
+    * {@code VSInputService}, plus submit via {@code SubmitPropertyDialogService}). Independently
+    * confirmed by the native Composer UI itself never rendering the Refresh checkbox for any of
+    * these types -- {@code basic-general-pane.component.html}'s Refresh control is gated on
+    * {@code BasicGeneralPaneModel.showRefreshCheckbox}, which only the seven live types' own
+    * model classes ever set {@code true} (bug #77028). Refused here by type rather than removed
+    * from the shared helper, which would also remove it from the types where it is real.
     */
    private static final Set<String> REFRESH_DEAD_TYPES =
-      Set.of("table", "crosstab", "text", "selectionlist");
+      Set.of("table", "crosstab", "text", "selectionlist", "chart", "gauge", "image",
+             "selectiontree", "timeslider", "calendar", "tab", "calctable", "groupcontainer",
+             "selectioncontainer");
 
    /**
     * Human-readable captions for the handful of aliases whose own name carries no lexical
@@ -241,6 +266,11 @@ public final class PropertyAliases {
    /** Whether {@code assemblyType} is one of the three types {@link #listInput} registers. */
    public static boolean isListInputType(String assemblyType) {
       return LIST_INPUT_TYPES.contains(normalize(assemblyType));
+   }
+
+   /** Whether {@code assemblyType} is one of the three types {@link #dataOutput} registers. */
+   public static boolean isDataOutputType(String assemblyType) {
+      return DATA_OUTPUT_TYPES.contains(normalize(assemblyType));
    }
 
    /**
