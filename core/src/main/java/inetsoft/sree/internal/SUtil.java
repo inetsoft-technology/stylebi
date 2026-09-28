@@ -64,6 +64,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -3634,12 +3635,22 @@ public class SUtil {
    }
 
    public static String getOrganizationId(String indexedStorageId) {
+      return getOrganizationId(indexedStorageId, SecurityEngine::getSecurity);
+   }
+
+   /**
+    * Gets the organization of an indexed storage, getting the security engine from the given
+    * supplier, which is only called for an indexed storage.
+    */
+   public static String getOrganizationId(String indexedStorageId,
+                                          Supplier<SecurityEngine> securityEngine)
+   {
       if(indexedStorageId == null || !indexedStorageId.endsWith("__indexedStorage")) {
          return null;
       }
 
       String lowcase_orgID = indexedStorageId.substring(0, indexedStorageId.length() - 16);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      SecurityProvider provider = securityEngine.get().getSecurityProvider();
       String[] ids = provider.getOrganizationIDs();
 
       return Arrays.stream(ids)

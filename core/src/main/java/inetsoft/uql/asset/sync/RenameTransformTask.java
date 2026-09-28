@@ -51,7 +51,7 @@ public class RenameTransformTask
       queue.add(info);
       getEngine().put(getId(), DependencyStorageService.QUEUE_KEY, queue);
       LOG.debug("Rename transform task added to queue: {}", info.getTaskId());
-      Future<?> renameTransform = Cluster.getInstance().submit("renameTransform", new Rename(info));
+      Future<?> renameTransform = getCluster().submit("renameTransform", new Rename(info));
 
       if(waitDone) {
          try {
@@ -74,7 +74,7 @@ public class RenameTransformTask
 
       @Override
       public void run() {
-         Cluster.getInstance().submit( "dependencyStorage", new Remove(info));
+         getServiceBean(Cluster.class).submit( "dependencyStorage", new Remove(info));
          LOG.debug("Rename transform task started: {}", info.getTaskId());
 
          try {

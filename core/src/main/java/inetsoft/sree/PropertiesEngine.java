@@ -75,7 +75,19 @@ public class PropertiesEngine {
       addPropertyChangeListener(
          QueryCacheSettings.TIMEOUT_PROPERTY,
          evt -> QueryCacheSettings.applyTimeout((String) evt.getNewValue()));
-      kvStorage = keyValueStorageManager.getStorage("sreeProperties");
+      KeyValueStorage<String> storage = keyValueStorageManager.getStorage(STORAGE_ID);
+
+      // the security settings and the encryption keys are stored here. Starting with a store
+      // whose load failed would start the node with security off, and a key generated for the
+      // empty store would replace the stored one, so retry the load once and fail if it still
+      // does not complete (Bug #76975)
+      if(!storage.isLoaded() && !storage.retryLoad()) {
+         throw new IllegalStateException(
+            "Failed to load the property storage " + STORAGE_ID + ", the server cannot start " +
+            "without its properties");
+      }
+
+      kvStorage = storage;
    }
 
    @PreDestroy
@@ -1412,5 +1424,6 @@ public class PropertiesEngine {
       "inetsoft.storage.aws.com.amazonaws", LogLevel.WARN,
       "inetsoft.storage.aws.org.apache", LogLevel.WARN,
       "org.apache.ignite", LogLevel.WARN);
+   private static final String STORAGE_ID = "sreeProperties";
    private static final Logger LOG = LoggerFactory.getLogger(PropertiesEngine.class);
 }

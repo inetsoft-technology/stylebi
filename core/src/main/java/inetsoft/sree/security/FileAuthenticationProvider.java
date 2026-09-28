@@ -1005,7 +1005,16 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       @Override
       protected void validate(Map<String, FSUser> map) {
-         LicenseManager manager = LicenseManager.getInstance();
+         // the named-user count may load the license under the license strategy's lock, and the
+         // license load reads SreeEnv. While main creates PropertiesEngine it holds the singleton
+         // lock, and then takes the license lock when it creates SecurityEngine, so this check
+         // would deadlock with it. Main loads the license before SecurityEngine is created, and
+         // the check only logs a warning, so skip it until then (Bug #76975)
+         if(!ConfigurationContext.getContext().isSingletonAvailable(SecurityEngine.class)) {
+            return;
+         }
+
+         LicenseManager manager = getServiceBean(LicenseManager.class);
          int namedUserCount =
             manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
 
