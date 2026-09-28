@@ -2469,7 +2469,7 @@ In the HTML exports, check where the vertical scrollbar gutter lands. If a scrol
 
 - [ ] **Step 6: Check the other densities**
 
-Re-import `dpx-fixture.zip` with `viewsheet.density` set to `compact`, and again with `dense`. Export `DPX Modern` to PDF and HTML in match layout, and confirm each table's inset matches the chart's: 12px and 8px.
+Re-import `dpx-fixture.zip` with `viewsheet.density` set to `compact`, and again with `dense`. A table's padding is seeded when it is created or modernized, not re-resolved at load, so a re-import alone keeps 16px: run the dashboard's Revert, then Modernize, which reseeds at the current density. Export `DPX Modern` to PDF and HTML in match layout, and confirm each table's inset matches the chart's: 12px and 8px. The step-by-step version is MC-6 in `2026-09-28-density-padding-export-c1-manual-checks.md`.
 
 - [ ] **Step 7: Report**
 
