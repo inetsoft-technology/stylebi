@@ -175,7 +175,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
 
          if(heights != null && heights.length > i - 1) {
             height += lens.getRowHeightWithPadding(lens.getWrappedHeight(i - 1, true),
-                                                   i - 1);
+                                                   i - 1, info);
          }
          else {
             height += getCellHeight(vs, info, i, lens);
@@ -612,12 +612,12 @@ public abstract class VSTableDataHelper extends ExporterHelper {
    {
       // get cell height from table lens.
       if(lens == null || lens.getRowHeights() == null || r >= lens.getRowHeights().length) {
-         return lens != null ? (int) lens.getRowHeightWithPadding(AssetUtil.defh, r) :
+         return lens != null ? (int) lens.getRowHeightWithPadding(AssetUtil.defh, r, info) :
             AssetUtil.defh;
       }
 
       int h = lens.getWrappedHeight(r, true);
-      return (int) lens.getRowHeightWithPadding(Double.isNaN(h) ? AssetUtil.defh : h, r);
+      return (int) lens.getRowHeightWithPadding(Double.isNaN(h) ? AssetUtil.defh : h, r, info);
    }
 
    /**
@@ -952,7 +952,7 @@ public abstract class VSTableDataHelper extends ExporterHelper {
             }
          }
 
-         height += (int) lens.getRowHeightWithPadding(rowH, i);
+         height += (int) lens.getRowHeightWithPadding(rowH, i, info);
       }
 
       return Math.min(height, info.getPixelSize().height);

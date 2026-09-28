@@ -32,6 +32,7 @@ import { NumberStepperComponent } from "../../widget/number-stepper/number-stepp
 export class PaddingPane implements OnInit {
    @Input() model: PaddingPaneModel;
    @Input() form: UntypedFormGroup = new UntypedFormGroup({});
+   @Input() label: string = "_#(js:Padding)";
    showFollowDefault: boolean;
 
    initForm(): void {

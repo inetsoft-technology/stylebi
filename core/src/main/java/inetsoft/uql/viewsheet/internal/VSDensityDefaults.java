@@ -21,18 +21,22 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 
+import java.awt.Insets;
+
 /**
  * Resolves the default row/header/control height for viewsheet assemblies from the org-scoped
  * modern-visualization density mode. Applied only where the assembly still carries the legacy
  * default; user-set heights always win and must be checked by the caller.
  *
  * The height matrix matches the browser-DOM density tokens in _viz-tokens.scss so the live
- * model, export, and non-assembly DOM surfaces agree. Dense equals AssetUtil.defh for row/header/
- * title height, so enabling modern at the default mode reflows nothing for a data-surface type
- * whose legacy default is AssetUtil.defh. A marked calendar is the exception - its legacy title
- * lane has always been taller, so it shrinks to the dense height. Control height is the one
- * exception to dense parity by design: a standalone form input reads as cramped at the tightest
- * data-row height, so it steps up even at dense (see controlHeight()).
+ * model, export, and non-assembly DOM surfaces agree. The row and header matrices are RENDERED
+ * heights; a table stores them less its seeded cell padding, which is added back at render (see
+ * rowHeight(VizContext, TableDataVSAssemblyInfo)). Dense equals AssetUtil.defh for row and title
+ * height, so enabling modern at the default mode reflows nothing for a data-surface type whose
+ * legacy default is AssetUtil.defh. A marked calendar is the exception - its legacy title lane
+ * has always been taller, so it shrinks to the dense height. Control height is the one exception
+ * to dense parity by design: a standalone form input reads as cramped at the tightest data-row
+ * height, so it steps up even at dense (see controlHeight()).
  */
 public final class VSDensityDefaults {
    private VSDensityDefaults() {
@@ -99,6 +103,7 @@ public final class VSDensityDefaults {
 
    /**
     * Default data-row height for the context's mode, or the legacy default when it is not modern.
+    * The rendered height; a table stores rowHeight(VizContext, TableDataVSAssemblyInfo) instead.
     */
    public static int rowHeight(VizContext ctx) {
       return ctx.modern ? rowHeightForMode(ctx.density) : AssetUtil.defh;
@@ -109,6 +114,27 @@ public final class VSDensityDefaults {
     */
    public static int headerRowHeight(VizContext ctx) {
       return ctx.modern ? headerRowHeightForMode(ctx.density) : AssetUtil.defh;
+   }
+
+   /**
+    * The data-row height a table stores: the rendered height less its DEFAULT-tier cell padding,
+    * which render adds back - so a padding seeded under another tier still renders this one.
+    */
+   public static int rowHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
+      return rowHeight(ctx) - defaultCellPaddingHeight(ctx, info);
+   }
+
+   /**
+    * The header-row height a table stores for the context's mode, on the same terms as
+    * rowHeight(VizContext, TableDataVSAssemblyInfo).
+    */
+   public static int headerRowHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
+      return headerRowHeight(ctx) - defaultCellPaddingHeight(ctx, info);
+   }
+
+   private static int defaultCellPaddingHeight(VizContext ctx, TableDataVSAssemblyInfo info) {
+      Insets padding = !ctx.modern || info == null ? null : info.getDefaultCellPadding();
+      return padding == null ? 0 : padding.top + padding.bottom;
    }
 
    /**
@@ -174,7 +200,7 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * Data-row height for a density mode. Unrecognized modes fall back to dense.
+    * Rendered data-row height for a density mode. Unrecognized modes fall back to dense.
     */
    static int rowHeightForMode(String mode) {
       switch(mode) {
@@ -188,7 +214,7 @@ public final class VSDensityDefaults {
    }
 
    /**
-    * Header-row height for a density mode. Unrecognized modes fall back to dense.
+    * Rendered header-row height for a density mode. Unrecognized modes fall back to dense.
     */
    static int headerRowHeightForMode(String mode) {
       switch(mode) {
@@ -226,6 +252,84 @@ public final class VSDensityDefaults {
          return 28;
       default:
          return 24;
+      }
+   }
+
+   /**
+    * The chart's card inset for the context's mode, or the legacy inset when not modern. The
+    * legacy branch matters as much as the modern one: Revert calls the seed with an unmarked
+    * context and needs the legacy value written, not left alone.
+    */
+   public static Insets chartPadding(VizContext ctx) {
+      return ctx.modern ? chartPaddingForMode(ctx.density) : new Insets(10, 10, 10, 10);
+   }
+
+   /**
+    * A table's card inset for the context's mode. Legacy is zero on all four edges - a table has
+    * never drawn a card inset, so that is the value Revert has to restore.
+    *
+    * Only tests call this today; the table card inset is the next slice of this work and will
+    * seed from here once it lands.
+    */
+   public static Insets tablePadding(VizContext ctx) {
+      return ctx.modern ? tablePaddingForMode(ctx.density) : new Insets(0, 0, 0, 0);
+   }
+
+   /**
+    * A table cell's content padding, or null when not modern. Null rather than a zero Insets
+    * because null is what the cell pipeline already reads as "nothing defined here", falling
+    * through to the 1px/2px in vs-table-cell.component.scss and to no inset at all in export.
+    */
+   public static Insets cellPadding(VizContext ctx) {
+      return ctx.modern ? cellPaddingForMode(ctx.density) : null;
+   }
+
+   /**
+    * Card inset for a density mode, uniform on all four edges. Unrecognized modes fall back to
+    * dense. Compact holds the value the flat modern inset shipped at, so the org default mode
+    * reflows nothing. A fresh Insets every call: the type is mutable.
+    */
+   static Insets chartPaddingForMode(String mode) {
+      int inset;
+
+      switch(mode) {
+      case COMFORTABLE:
+         inset = 16;
+         break;
+      case COMPACT:
+         inset = 12;
+         break;
+      default:
+         inset = 8;
+      }
+
+      return new Insets(inset, inset, inset, inset);
+   }
+
+   /**
+    * A table's card inset for a density mode. Deliberately the chart's matrix rather than a
+    * second one: a table card and a chart card beside it are the same object with different
+    * contents, and two matrices would drift.
+    *
+    * Only tests call this today; the table card inset arrives in the next slice of this work.
+    */
+   static Insets tablePaddingForMode(String mode) {
+      return chartPaddingForMode(mode);
+   }
+
+   /**
+    * Cell content padding for a density mode. The two axes carry different values because they
+    * do different work - vertical sets the scan rhythm, horizontal the column rhythm.
+    * Unrecognized modes fall back to dense. A fresh Insets every call.
+    */
+   static Insets cellPaddingForMode(String mode) {
+      switch(mode) {
+      case COMFORTABLE:
+         return new Insets(6, 8, 6, 8);
+      case COMPACT:
+         return new Insets(4, 6, 4, 6);
+      default:
+         return new Insets(3, 4, 3, 4);
       }
    }
 

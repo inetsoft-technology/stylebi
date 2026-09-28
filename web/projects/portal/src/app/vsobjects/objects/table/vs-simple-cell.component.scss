@@ -23,4 +23,11 @@
   height: 100%;
   padding: 0 2px 0 2px;
   text-decoration: inherit;
+
+  // a defined padding is an inline style that wins over the 2px above; clip to the content box so
+  // text cannot bleed back into the inset
+  &.cell-padding-defined {
+    overflow: clip;
+    overflow-clip-margin: content-box;
+  }
 }

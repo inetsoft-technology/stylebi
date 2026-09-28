@@ -28,6 +28,7 @@ import inetsoft.report.composition.RegionTableLens;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.*;
+import inetsoft.report.filter.DefaultTableFilter;
 import inetsoft.report.gui.viewsheet.*;
 import inetsoft.report.gui.viewsheet.cylinder.VSCylinder;
 import inetsoft.report.gui.viewsheet.gauge.VSGauge;
@@ -986,8 +987,8 @@ public class VsToReportConverter {
 
    /**
     * Keep shrunk tables in a bottom-tabs container flush with the tab strip.
-    * Uses an unpadded height calc because the print-layout cell renderer
-    * doesn't add the padding {@code lens.getRowHeightWithPadding} adds.
+    * {@link #calculateRowHeights} now pads the heights it hands the renderer,
+    * so the predicted height is the padded one.
     */
    private void applyShrunkBottomTabsShift(List<Assembly> assemblies) {
       if(assemblies == null) {
@@ -1055,8 +1056,10 @@ public class VsToReportConverter {
       int height = info.isTitleVisible() ? Math.round(info.getTitleHeight() * scalefont) : 0;
       int[] rowHeights = calculateRowHeights(info, lens);
 
-      for(int h : rowHeights) {
-         height += h > 0 ? h : Math.round(AssetUtil.defh * scalefont);
+      for(int i = 0; i < rowHeights.length; i++) {
+         int h = rowHeights[i];
+         height += h > 0 ? h :
+            (int) Math.round(lens.getRowHeightWithPadding(AssetUtil.defh * scalefont, i, info));
       }
 
       return height;
@@ -1067,12 +1070,13 @@ public class VsToReportConverter {
     * {@link #computePrintLayoutTableHeight} so the rendered height equals the
     * predicted height after layoutSize is tightened.
     */
-   private void forceFixedHeightsForShrunkTable(int[] rowHs) {
-      int defaultRowH = Math.round(AssetUtil.defh * scalefont);
-
+   private void forceFixedHeightsForShrunkTable(int[] rowHs, VSTableLens lens,
+                                                 TableDataVSAssemblyInfo info)
+   {
       for(int i = 0; i < rowHs.length; i++) {
          if(rowHs[i] < 0) {
-            rowHs[i] = defaultRowH;
+            rowHs[i] =
+               (int) Math.round(lens.getRowHeightWithPadding(AssetUtil.defh * scalefont, i, info));
          }
       }
    }
@@ -1131,7 +1135,10 @@ public class VsToReportConverter {
          return;
       }
 
-      TableElementDef tableelem = new TableElementDef(report, lens);
+      // the report engine's only cell-inset channel is TableLens.getInsets, which holds no
+      // assembly info; wrap the lens so the same resolver the browser reads answers there too
+      TableElementDef tableelem =
+         new TableElementDef(report, new CellInsetTableLens(lens, info));
       tableelem.setKeepRowHeightOnPrint(info.isKeepRowHeightOnPrint());
       // use Manual Column Widths to keep the column width.
       tableelem.setEmbedWidth(true);
@@ -1171,7 +1178,7 @@ public class VsToReportConverter {
       int[] rowHs = calculateRowHeights(info, lens);
 
       if(info.isShrink() && TabVSAssemblyInfo.isInBottomTabs(assembly)) {
-         forceFixedHeightsForShrunkTable(rowHs);
+         forceFixedHeightsForShrunkTable(rowHs, lens, info);
       }
 
       tableelem.setFixedHeights(rowHs);
@@ -1239,6 +1246,13 @@ public class VsToReportConverter {
                hs[i] = Math.round(hs[i] * scalefont);
             }
          }
+      }
+
+      // stored heights are what the browser adds the cell padding to. A fixed height is final to
+      // the report renderer - calculateRowHeight returns it untouched - so it has to arrive
+      // padded. Unscaled, to match the inset TablePaintable insets the cell by
+      for(int i = 0; i < hs.length; i++) {
+         hs[i] = (int) lens.getRowHeightWithPadding(hs[i], i, info);
       }
 
       return hs;
@@ -3249,6 +3263,41 @@ public class VsToReportConverter {
       }
 
       return psize;
+   }
+
+   /**
+    * Answers {@code TableLens.getInsets} - the report engine's cell-inset channel - with the
+    * value {@link VSTableLens#getCellInsets} gives the browser, so the seeded density padding
+    * reaches print layout through the channel the renderer already reads.
+    *
+    * Nothing is made additive to a column: {@link #addTable} hands the element fixed widths, and
+    * TableElementDef.calcColWidth skips both its inset and its padding arithmetic for any column
+    * whose fixed width is set.
+    */
+   static final class CellInsetTableLens extends DefaultTableFilter {
+      CellInsetTableLens(VSTableLens lens, TableDataVSAssemblyInfo info) {
+         super(lens);
+         this.info = info;
+      }
+
+      @Override
+      public Insets getInsets(int r, int c) {
+         return ((VSTableLens) getTable()).getCellInsets(r, c, info);
+      }
+
+      // forward to the wrapped lens so TableElementDef.setTable's REPORT_NAME/REPORT_TYPE
+      // stamp lands on the same VSTableLens instance it always did, not on this wrapper
+      @Override
+      public void setProperty(String key, Object value) {
+         getTable().setProperty(key, value);
+      }
+
+      @Override
+      public Object getProperty(String key) {
+         return getTable().getProperty(key);
+      }
+
+      private final TableDataVSAssemblyInfo info;
    }
 
    private final LibManagerProvider libManagerProvider;

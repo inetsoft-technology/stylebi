@@ -81,12 +81,12 @@ public final class VSObjectChromeDefaults {
    }
 
    /**
-    * The modern card inset, seeded at creation. A fresh object every call: Insets is mutable and the
-    * constant must not escape by reference.
+    * The modern card inset, seeded at creation and re-seeded on a density change. Delegates to
+    * the density matrix rather than holding a constant: the inset is a density-derived size, and
+    * VSDensityDefaults is where those live. A fresh object every call, as the type is mutable.
     */
-   public static Insets modernChartPadding() {
-      return new Insets(MODERN_CARD_INSET, MODERN_CARD_INSET, MODERN_CARD_INSET,
-                        MODERN_CARD_INSET);
+   public static Insets modernChartPadding(VizContext ctx) {
+      return VSDensityDefaults.chartPaddingForMode(ctx.density);
    }
 
    /**
@@ -126,9 +126,6 @@ public final class VSObjectChromeDefaults {
    // the chart's creation-default padding (ChartVSAssemblyInfo.setDefaultFormat), which is what the
    // card inset resolver treats as "no opinion"
    private static final Insets LEGACY_CHART_PADDING = new Insets(10, 10, 10, 10);
-   // modern card inset, px; = --inet-space-5. One value governs all four edges: the title lane, the
-   // axis title and the legend column add no edge padding of their own.
-   private static final int MODERN_CARD_INSET = 12;
 
    // modern selection teal, mirroring --inet-viz-selected-border-modern/-dark in _viz-tokens.scss
    private static final Color ACTIVE_INDICATOR = new Color(0xBFDDE5);

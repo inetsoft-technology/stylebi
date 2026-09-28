@@ -18,7 +18,12 @@
 @if (cell.cellLabel != '' && width > 0) {
   <div class="simple-cell-container"
     [style.width.px]="width - hBorderWidth"
-    [style.height.px]="height - vBorderWidth">
+    [style.height.px]="height - vBorderWidth"
+    [style.padding-top.px]="cell.vsFormatModel?.padding?.top"
+    [style.padding-left.px]="cell.vsFormatModel?.padding?.left"
+    [style.padding-bottom.px]="cell.vsFormatModel?.padding?.bottom"
+    [style.padding-right.px]="cell.vsFormatModel?.padding?.right"
+    [class.cell-padding-defined]="!!cell.vsFormatModel?.padding">
     {{cell.cellLabel}}
   </div>
 }

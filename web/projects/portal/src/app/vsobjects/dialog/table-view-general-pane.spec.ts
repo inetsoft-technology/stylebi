@@ -44,6 +44,7 @@ import { TreeNodeComponent } from "../../widget/tree/tree-node.component";
 import { TreeSearchPipe } from "../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../widget/tree/tree.component";
 import { GeneralPropPaneModel } from "../model/general-prop-pane-model";
+import { PaddingPaneModel } from "../model/padding-pane-model";
 import { SizePositionPaneModel } from "../model/size-position-pane-model";
 import { TableViewGeneralPaneModel } from "../model/table-view-general-pane-model";
 import { TitlePropPaneModel } from "../model/title-prop-pane-model";
@@ -91,6 +92,12 @@ let createModel: () => TableViewGeneralPaneModel = () => {
          width: 0,
          height: 0,
          container: false
+      },
+      cellPaddingPaneModel: <PaddingPaneModel> {
+         top: 0,
+         left: 0,
+         bottom: 0,
+         right: 0
       }
    };
 };

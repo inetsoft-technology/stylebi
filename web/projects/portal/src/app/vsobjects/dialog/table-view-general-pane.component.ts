@@ -24,6 +24,7 @@ import { SizePositionPane } from "./size-position-pane.component";
 import { TableStylePane } from "../../widget/table-style/table-style-pane.component";
 import { TitlePropPane } from "./title-prop-pane.component";
 import { GeneralPropPane } from "./general-prop-pane.component";
+import { PaddingPane } from "./padding-pane.component";
 
 
 import { NumberStepperComponent } from "../../widget/number-stepper/number-stepper.component";
@@ -36,6 +37,7 @@ import { NumberStepperComponent } from "../../widget/number-stepper/number-stepp
     FormsModule,
     ReactiveFormsModule,
     TableStylePane,
+    PaddingPane,
     SizePositionPane, NumberStepperComponent]
 })
 export class TableViewGeneralPane implements OnInit {
