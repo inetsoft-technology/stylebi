@@ -145,6 +145,10 @@ public class ChartRegionPropertyService {
             sessionToken, user, assembly, key, field, properties);
       }
 
+      if("legend".equals(name)) {
+         requireSymbolSizeInRange(properties);
+      }
+
       if(properties.containsKey("rotation")) {
          properties.put("rotation", canonicalRotation(name, properties.get("rotation")));
       }
@@ -450,6 +454,50 @@ public class ChartRegionPropertyService {
       throw new IllegalArgumentException(
          "'rotation' on a chart " + region + " accepts only " + allowedDescription +
          "; '" + rotation + "' is not one of them.");
+   }
+
+   /** {@code LegendDescriptor.setSymbolSize}'s own clamp range (bug #77027 item 6). */
+   private static final int LEGEND_SYMBOL_SIZE_MIN = 6;
+   private static final int LEGEND_SYMBOL_SIZE_MAX = 50;
+
+   /**
+    * Refuses a legend {@code symbolSize} outside {@code [6, 50]} rather than letting it reach
+    * {@code LegendDescriptor.setSymbolSize}, which unconditionally clamps to that range with no
+    * indication (round r1: the lead's dispatched decision is a loud refusal here, not a
+    * warn-and-proceed shape -- the plugin's own client-side check mirrors this, and this
+    * server-side guard is what makes the refusal apply no matter which caller reaches this
+    * method, not only the wiz plugin). Same pattern as {@link #canonicalRotation}: parse, and
+    * name the accepted range in the refusal rather than letting a raw parse failure or a silent
+    * clamp through.
+    */
+   private static void requireSymbolSizeInRange(Map<String, Object> properties) {
+      if(!properties.containsKey("symbolSize")) {
+         return;
+      }
+
+      Object value = properties.get("symbolSize");
+      Integer parsed = null;
+
+      if(value instanceof Number number) {
+         parsed = number.intValue();
+      }
+      else if(value != null) {
+         try {
+            parsed = Integer.parseInt(String.valueOf(value).trim());
+         }
+         catch(NumberFormatException ignore) {
+            // falls through to the refusal below -- a non-numeric symbolSize gets the same
+            // "here is the accepted range" message, not a raw NumberFormatException
+         }
+      }
+
+      if(parsed == null || parsed < LEGEND_SYMBOL_SIZE_MIN || parsed > LEGEND_SYMBOL_SIZE_MAX) {
+         throw new IllegalArgumentException(
+            "'symbolSize' must be a whole number between " + LEGEND_SYMBOL_SIZE_MIN + " and " +
+            LEGEND_SYMBOL_SIZE_MAX + " inclusive; '" + value + "' is not. Outside that range, " +
+            "LegendDescriptor.setSymbolSize silently clamps it instead of refusing, which this " +
+            "check exists to prevent.");
+      }
    }
 
    /**

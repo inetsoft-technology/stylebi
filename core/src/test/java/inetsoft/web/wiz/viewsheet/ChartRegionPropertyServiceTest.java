@@ -18,6 +18,7 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.graph.*;
@@ -231,6 +232,59 @@ class ChartRegionPropertyServiceTest {
       verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
                                                    any(), any(), anyString(), any(Principal.class),
                                                    any());
+   }
+
+   /**
+    * Bug #77027 item 2, round r1 (reviewer B2): the success half of the compound condition --
+    * a genuinely non-linear, TIME-SERIES date axis must still accept {@code increment}, not just
+    * be refused when it is neither linear nor time-series. Exercises the whole
+    * {@code requireLinearOrTimeSeriesAxisForIncrement} branch this bug's own guard added
+    * (matched ref -> {@code XDimensionRef} -> {@code isTimeSeries()} ->
+    * {@code GraphUtil.isTimeSeriesVisible}), which the item-2 refusal test alone never touches.
+    */
+   @Test
+   void stillAcceptsIncrementOnANonLinearTimeSeriesDateAxis() throws Exception {
+      VSChartDimensionRef dateDimension = mock(VSChartDimensionRef.class);
+      when(dateDimension.getFullName()).thenReturn("Year(ORDER_DATE)");
+      when(dateDimension.getName()).thenReturn("ORDER_DATE");
+      when(dateDimension.getDataType()).thenReturn(XSchema.DATE);
+      when(dateDimension.isTimeSeries()).thenReturn(true);
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { dateDimension }));
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("increment", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /**
+    * The non-time-series companion: a plain (non-date) dimension on the very same shelf shape
+    * must still be refused, so this new success case is not accidentally widening the guard to
+    * accept every dimension axis.
+    */
+   @Test
+   void stillRefusesIncrementOnANonTimeSeriesDimensionOfTheSameShelfShape() {
+      VSChartDimensionRef plainDimension = mock(VSChartDimensionRef.class);
+      when(plainDimension.getFullName()).thenReturn("STATE");
+      when(plainDimension.getName()).thenReturn("STATE");
+      when(plainDimension.getDataType()).thenReturn(XSchema.STRING);
+      when(plainDimension.isTimeSeries()).thenReturn(false);
+
+      Harness h = harness(mixedShelfViewsheet(new ChartRef[] { plainDimension }));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("increment", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"));
+      verifyNoInteractions(h.regions);
    }
 
    /**
@@ -967,6 +1021,89 @@ class ChartRegionPropertyServiceTest {
       verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
                                                             any(), anyString(),
                                                             any(Principal.class), any());
+   }
+
+   /**
+    * Bug #77027 item 6, round r1 (reviewer B1): {@code LegendDescriptor.setSymbolSize}
+    * unconditionally clamps to {@code [6, 50]} with no indication -- refused loudly here rather
+    * than let the value reach that clamp, per the lead's dispatched decision. Server-side so the
+    * refusal applies to every caller, not only the wiz plugin's own client-side check.
+    */
+   @Test
+   void refusesSymbolSizeAboveTheSupportedRange() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("symbolSize", 100), ""));
+
+      assertTrue(thrown.getMessage().contains("symbolSize"));
+      assertTrue(thrown.getMessage().contains("50"));
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   @Test
+   void refusesSymbolSizeBelowTheSupportedRange() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("symbolSize", 1), ""));
+
+      assertTrue(thrown.getMessage().contains("6"));
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void refusesANonNumericSymbolSize() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("symbolSize", "big"), ""));
+
+      assertTrue(thrown.getMessage().contains("symbolSize"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** Item 3's raw-path escape hatch must hit this refusal too, not just the plain alias form. */
+   @Test
+   void refusesARawPathSymbolSizeOutsideTheSupportedRange() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("legendFormatGeneralPaneModel.symbolSize", 100), ""));
+
+      assertTrue(thrown.getMessage().contains("50"));
+      verifyNoInteractions(h.regions);
+   }
+
+   @Test
+   void stillAcceptsSymbolSizeWithinTheSupportedRange() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("symbolSize", 20), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals(20, captor.getValue().getLegendFormatGeneralPaneModel().getSymbolSize());
    }
 
    /**
