@@ -493,7 +493,9 @@ public class IdentityService {
 
    /**
     * A global role can be held by the users, groups and roles of every organization, which the
-    * provider only cleans up in the removed role's own organization.
+    * provider only cleans up in the removed role's own organization. This is done here rather than
+    * in the provider's removeRole, which also runs on a rename and would drop the members that a
+    * rename carries over. Only the editable FS* identities are updated.
     */
    private void removeGlobalRoleFromMembers(EditableAuthenticationProvider eprovider,
                                             IdentityID roleId)
@@ -501,8 +503,8 @@ public class IdentityService {
       for(IdentityID userId : eprovider.getUsers()) {
          User user = eprovider.getUser(userId);
 
-         if(user instanceof FSUser && Arrays.asList(user.getRoles()).contains(roleId)) {
-            ((FSUser) user).setRoles(Tool.remove(user.getRoles(), roleId));
+         if(user instanceof FSUser fsUser && Arrays.asList(user.getRoles()).contains(roleId)) {
+            fsUser.setRoles(Tool.remove(user.getRoles(), roleId));
             eprovider.setUser(userId, user);
          }
       }
@@ -510,8 +512,8 @@ public class IdentityService {
       for(IdentityID groupId : eprovider.getGroups()) {
          Group group = eprovider.getGroup(groupId);
 
-         if(group instanceof FSGroup && Arrays.asList(group.getRoles()).contains(roleId)) {
-            ((FSGroup) group).setRoles(Tool.remove(group.getRoles(), roleId));
+         if(group instanceof FSGroup fsGroup && Arrays.asList(group.getRoles()).contains(roleId)) {
+            fsGroup.setRoles(Tool.remove(group.getRoles(), roleId));
             eprovider.setGroup(groupId, group);
          }
       }
@@ -519,10 +521,10 @@ public class IdentityService {
       for(IdentityID otherId : eprovider.getRoles()) {
          Role role = eprovider.getRole(otherId);
 
-         if(role instanceof FSRole && !otherId.equals(roleId) &&
+         if(role instanceof FSRole fsRole && !otherId.equals(roleId) &&
             Arrays.asList(role.getRoles()).contains(roleId))
          {
-            ((FSRole) role).setRoles(Tool.remove(role.getRoles(), roleId));
+            fsRole.setRoles(Tool.remove(role.getRoles(), roleId));
             eprovider.setRole(otherId, role);
          }
       }
