@@ -236,12 +236,24 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
             }
 
             // each base row maps at most one row, so the base rows through this bound are
-            // read by the loop below anyway; a pooled worksheet filter asks for them in one
-            // read, so a formula lens below computes them as one bounded batch, not as a
-            // sequential scan it reads ahead of (context-pool regression D1)
-            if(row >= rowmap.size() && isPreReadBase() && !cancelled) {
-               long bound = (long) baseRow + (row - rowmap.size());
-               table.moreRows((int) Math.min(bound, Integer.MAX_VALUE));
+            // read by the loop below anyway; a pooled worksheet filter asks for them in
+            // bounded reads of at most preRead rows, so a formula lens below computes them as
+            // bounded batches, not as a sequential scan it reads ahead of (context-pool
+            // regression D1). A row-by-row population (bound == baseRow) skips it
+            int preRead = getPreReadRows();
+
+            long bound = row >= rowmap.size() && preRead > 0
+               ? Math.min((long) baseRow + (row - rowmap.size()), Integer.MAX_VALUE) : baseRow;
+
+            if(bound > baseRow) {
+               // each read asks for the next preRead base rows, the last one through bound
+               for(long read = baseRow - 1; read < bound && !cancelled; ) {
+                  read = Math.min(read + preRead, bound);
+
+                  if(!table.moreRows((int) read)) {
+                     break;
+                  }
+               }
             }
 
             while(row >= rowmap.size() && (more = table.moreRows(baseRow)) && !cancelled)
@@ -268,12 +280,12 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    }
 
    /**
-    * @return whether a population in {@link #moreRows} first asks the base table, in one
-    * read, for every base row it is sure to read; {@code false} (the default) keeps the
-    * row-by-row loop alone.
+    * @return above 0 if a population in {@link #moreRows} first asks the base table for every
+    * base row it is sure to read, in reads of at most this many rows; 0 (the default) keeps
+    * the row-by-row loop alone.
     */
-   protected boolean isPreReadBase() {
-      return false;
+   protected int getPreReadRows() {
+      return 0;
    }
 
    /**

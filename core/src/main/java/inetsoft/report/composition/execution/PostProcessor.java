@@ -32,6 +32,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptSpan;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -267,6 +268,12 @@ public class PostProcessor {
          // fixed per sandbox (bug #76960): a pool-mode sandbox's envs have no execution lock,
          // and a script population batch runs under one claimed span instead
          this.poolMode = box != null && box.isScriptPoolMode();
+         // a pooled population reads its base in reads of at most maxBatchRows rows, so a
+         // formula lens below holds its lock for no longer than one pooled batch (D1)
+         int maxBatch = senv instanceof WorksheetScriptEnv wenv
+            ? wenv.getConfig().maxBatchRows() : 0;
+         this.preReadRows = poolMode && needsScriptLock
+            ? (maxBatch > 0 ? maxBatch : Integer.MAX_VALUE) : 0;
       }
 
       /**
@@ -343,8 +350,8 @@ public class PostProcessor {
        * answered without any claim; otherwise one lazy claimed span covers the population,
        * so the formula lens batches it crosses share one context and one clean. The filter
        * does not read ahead of the requested row: the formula lens below batches on its own
-       * (context-pool regression D1), and {@link #isPreReadBase} asks it for the rows the
-       * population needs in one read. No lock is taken besides this filter's own monitor,
+       * (context-pool regression D1), and {@link #getPreReadRows} asks it for the rows the
+       * population needs in bounded reads. No lock is taken besides this filter's own monitor,
        * which the population takes anyway, after the span is opened as before.
        */
       private boolean moreRowsPooled(int row, ScriptEnv senv) {
@@ -365,13 +372,13 @@ public class PostProcessor {
 
       /**
        * A pooled filter that can reach a script asks its base for the rows a population
-       * needs in one read, so a formula lens below sees one bounded request and computes
-       * what pool off would, not a sequential scan it batches ahead of (context-pool
-       * regression D1).
+       * needs in bounded reads of at most maxBatchRows rows, so a formula lens below sees
+       * bounded requests and computes what pool off would, not a sequential scan it batches
+       * ahead of (context-pool regression D1).
        */
       @Override
-      protected boolean isPreReadBase() {
-         return poolMode && needsScriptLock;
+      protected int getPreReadRows() {
+         return preReadRows;
       }
 
       /**
@@ -512,6 +519,8 @@ public class PostProcessor {
       private final transient WeakReference<ScriptEnv> senv;
       private final boolean needsScriptLock;
       private final boolean poolMode;
+      // 0 unless a pooled population can reach a script, see getPreReadRows()
+      private final int preReadRows;
 
       @Override
       public final int getColBorder(int r, int c) {

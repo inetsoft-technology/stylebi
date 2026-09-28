@@ -59,7 +59,7 @@ import static org.mockito.Mockito.when;
  * reading its first pages, directly or through a viewsheet table bound to it, runs the
  * expression for about the rows pool off runs it for. Before the fix the pooled open ran it
  * for 1795 rows where pool off ran it for 1001; a row-by-row reader of N rows now evaluates
- * at most about 2N (here 1277), the accepted sequential cost.
+ * at most about 2N + 10 (here 1277), the accepted sequential cost.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class, SwapperTestConfiguration.class, LibManagerTestConfiguration.class, PluginsTestConfiguration.class, PooledWorksheetOpenReadAheadTest.TestConfig.class }, initializers = ConfigurationContextInitializer.class)
@@ -101,7 +101,6 @@ class PooledWorksheetOpenReadAheadTest {
    void openingAWorksheetTableRunsItsExpressionForAboutThePoolOffRows() throws Exception {
       int off = open(false, false);
       int on = open(true, false);
-      System.out.println("D1 worksheet open + 3 pages: pool off " + off + ", pool on " + on);
       assertTrue(off > 0 && off <= 1100, "pool off ran the expression " + off + " times");
       assertTrue(on <= off * 13 / 10, "pool on ran the expression " + on + " times, pool off " + off);
    }
@@ -110,7 +109,6 @@ class PooledWorksheetOpenReadAheadTest {
    void aViewsheetTableRunsItsWorksheetExpressionForAboutThePoolOffRows() throws Exception {
       int off = open(false, true);
       int on = open(true, true);
-      System.out.println("D1 viewsheet table + 3 pages: pool off " + off + ", pool on " + on);
       assertTrue(off > 0 && off <= 1100, "pool off ran the expression " + off + " times");
       assertTrue(on <= off * 13 / 10, "pool on ran the expression " + on + " times, pool off " + off);
    }

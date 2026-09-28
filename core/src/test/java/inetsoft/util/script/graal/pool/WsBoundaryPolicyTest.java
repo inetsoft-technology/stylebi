@@ -63,7 +63,7 @@ class WsBoundaryPolicyTest {
                                         "kept only within one batch",
                                         "count the row twice",
                                         // context-pool regression D1, the pool-off first batch
-                                        "evaluates what pool off would", "about 2N",
+                                        "evaluates what pool off would", "2N + 10",
                                         "undeclared", "object-valued var",
                                         "turns script batching off" })
       {

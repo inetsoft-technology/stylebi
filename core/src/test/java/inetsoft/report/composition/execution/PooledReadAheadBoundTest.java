@@ -24,6 +24,7 @@ import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.test.*;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
+import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.PoolTestSupport;
 import inetsoft.util.script.graal.pool.SlotClaim;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
@@ -79,24 +80,21 @@ public class PooledReadAheadBoundTest {
    public void filterOverFormulaMoreRowsReadsNearPoolOff() {
       int off = baseRead(false, true, ONCE_100);
       int on = baseRead(true, true, ONCE_100);
-      System.out.println("D1 CF2(FTL) moreRows(100): pool off " + off + ", pool on " + on);
-      assertTrue(on <= 125, "pool on read base row " + on + ", pool off " + off);
+      assertTrue(on <= off, "pool on read base row " + on + ", pool off " + off);
    }
 
    @Test
    public void filterOverFormulaPagesReadNearPoolOff() {
       int off = baseRead(false, true, PAGES);
       int on = baseRead(true, true, PAGES);
-      System.out.println("D1 CF2(FTL) 10 pages of 100: pool off " + off + ", pool on " + on);
-      assertTrue(on <= 1030, "pool on read base row " + on + ", pool off " + off);
+      assertTrue(on <= off, "pool on read base row " + on + ", pool off " + off);
    }
 
    @Test
    public void filterOverFormulaJumpReadsNearPoolOff() {
       int off = baseRead(false, true, JUMP);
       int on = baseRead(true, true, JUMP);
-      System.out.println("D1 CF2(FTL) moreRows(5000), (5100): pool off " + off + ", pool on " + on);
-      assertTrue(on <= 5125, "pool on read base row " + on + ", pool off " + off);
+      assertTrue(on <= off, "pool on read base row " + on + ", pool off " + off);
    }
 
    /**
@@ -116,8 +114,6 @@ public class PooledReadAheadBoundTest {
       for(boolean filter : new boolean[] { false, true }) {
          int off = baseRead(false, filter, read);
          int on = baseRead(true, filter, read);
-         System.out.println("D1 jump 5000 then rows 5001..5100, filter " + filter +
-                               ": pool off " + off + ", pool on " + on);
          assertTrue(on <= off + 25, "filter " + filter + ": pool on read base row " + on +
                        ", pool off " + off);
       }
@@ -125,12 +121,11 @@ public class PooledReadAheadBoundTest {
 
    /**
     * The filter's own read-ahead no longer compounds with the formula lens's sequential
-    * growth (a row-by-row reader of N rows evaluates at most about 2N).
+    * growth (a row-by-row reader of N rows evaluates at most about 2N + 10).
     */
    @Test
    public void filterOverFormulaRowByRowReadStaysNearTwiceTheRows() {
       int on = baseRead(true, true, SEQ_100);
-      System.out.println("D1 CF2(FTL) row by row 1..100: pool on " + on);
       assertTrue(on <= 200, "pool on read base row " + on);
    }
 
@@ -168,9 +163,95 @@ public class PooledReadAheadBoundTest {
          counter = new Counter();
          Chain filtered = new Chain(pool, true, COUNTING, counter);
          ONCE_100.accept(filtered.top);
-         System.out.println("D1 CF2(FTL) moreRows(100) script runs: pool " + pool + " " +
-                               counter.hits.get());
-         assertTrue(counter.hits.get() <= 125, "filter, pool " + pool + ": " + counter.hits);
+         assertTrue(counter.hits.get() <= 110, "filter, pool " + pool + ": " + counter.hits);
+      }
+   }
+
+   /**
+    * Review r1 finding 1: a bounded read followed by a re-read of its rows with moreRows(r)
+    * (the usual paged loop) is not a sequential read. Re-reading the last computed row must
+    * not start the next pooled batch, so no row past the page is computed.
+    */
+   @Test
+   public void reReadingAPageComputesNoRowPastIt() {
+      for(boolean filter : new boolean[] { false, true }) {
+         for(Consumer<TableLens> read : List.of(REPROBE_FIRST_PAGE, REPROBE_DEEP_PAGE)) {
+            int off = baseRead(false, filter, read);
+            int on = baseRead(true, filter, read);
+            assertTrue(on <= off, "filter " + filter + ": pool on read base row " + on +
+                          ", pool off " + off);
+
+            if(!filter) {
+               assertEquals(read == REPROBE_FIRST_PAGE ? 100 : 5000, on, "bare formula");
+            }
+         }
+      }
+   }
+
+   /**
+    * Review r1 finding 1, the visible consequence: a formula that fails on the first row past
+    * what pool off reads for a page re-read with moreRows(r) fails neither pool off nor on.
+    */
+   @Test
+   public void formulaErrorJustPastAReReadPageDoesNotFail() {
+      for(boolean filter : new boolean[] { false, true }) {
+         for(Consumer<TableLens> read : List.of(REPROBE_FIRST_PAGE, REPROBE_DEEP_PAGE)) {
+            int errorRow = baseRead(false, filter, read) + 1;
+            String expr = "if(field['id'] == " + errorRow + ") { throw 'row " + errorRow +
+               "'; } field['value'] + 1";
+
+            for(boolean pool : new boolean[] { false, true }) {
+               Chain chain = new Chain(pool, filter, expr);
+               assertDoesNotThrow(() -> read.accept(chain.top),
+                                  "pool " + pool + ", filter " + filter + ", row " + errorRow);
+            }
+         }
+      }
+   }
+
+   /**
+    * Review r1 finding 2: a far or EOT population of a pooled filter asks the formula lens
+    * below for its rows in reads of at most maxBatchRows rows, so one lens-lock hold covers
+    * no more than one pooled batch; every row is still mapped, with the right values.
+    */
+   @Test
+   public void farFilterPopulationReadsTheFormulaInBoundedBatches() {
+      PoolConfig def = PoolConfig.defaults();
+      PoolConfig config = new PoolConfig(def.idleMillis(), def.cleanThreshold(),
+                                         def.warnSlotsPerSandbox(), def.warnSlotsPerNode(),
+                                         def.batchRows(), 1000);
+      WorksheetScriptEnv env = PoolTestSupport.env(config, java.util.Map.of());
+      int rows = 5000;
+      long[] deepest = new long[1];
+      long[] largestJump = new long[1];
+      FormulaTableLens formula = new FormulaTableLens(
+         PooledBatchClaimTest.table(rows), new String[] {"f"},
+         new String[] {"field['value'] + 1"}, env, null)
+      {
+         @Override
+         public boolean moreRows(int row) {
+            // an EOT read is one unbounded batch
+            long target = row == EOT ? Integer.MAX_VALUE : row;
+            largestJump[0] = Math.max(largestJump[0], target - deepest[0]);
+            deepest[0] = Math.max(deepest[0], target);
+            return super.moreRows(row);
+         }
+      };
+      TableLens filter = PostProcessor.filter(formula, allRows(), poolBox(env));
+
+      try {
+         assertFalse(filter.moreRows(Integer.MAX_VALUE));
+         assertTrue(largestJump[0] <= 1000, "largest single read " + largestJump[0]);
+         assertEquals(rows + 1, filter.getRowCount());
+
+         for(int r = 1; r <= rows; r++) {
+            assertEquals((r % 30) + 1, ((Number) filter.getObject(r, 3)).intValue(), "row " + r);
+         }
+
+         assertEquals(0, SlotClaim.openClaims());
+      }
+      finally {
+         env.retire();
       }
    }
 
@@ -239,6 +320,14 @@ public class PooledReadAheadBoundTest {
       }
       finally {
          env.retire();
+      }
+   }
+
+   private static void reprobe(TableLens lens, int start, int end) {
+      lens.moreRows(end);
+
+      for(int r = start; r <= end && lens.moreRows(r); r++) {
+         lens.getObject(r, 3);
       }
    }
 
@@ -337,6 +426,9 @@ public class PooledReadAheadBoundTest {
          }
       }
    };
+   // the usual paged loop: a bounded read, then each row checked with moreRows(r)
+   private static final Consumer<TableLens> REPROBE_FIRST_PAGE = lens -> reprobe(lens, 1, 100);
+   private static final Consumer<TableLens> REPROBE_DEEP_PAGE = lens -> reprobe(lens, 4901, 5000);
    private static final Consumer<TableLens> JUMP = lens -> {
       lens.moreRows(5000);
       lens.moreRows(5100);
