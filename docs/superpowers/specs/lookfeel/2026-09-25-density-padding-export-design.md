@@ -299,6 +299,16 @@ named last. C1 changed none of `VsToReportConverter`, `TableElementDef`, `TableP
   - `printFixedContainer` (`report/internal/StyleCore:935`) gives it the element's x and width, and
     lets it grow to the page bottom.
   - The elements below are pushed down by the bottoms of the paintables it adds.
+- **Flow control.** The print layout's Table Flow Control dialog offers two settings per table:
+  - **Fit Page Width** is `TABLE_FIT_PAGE`, the default (`uql/viewsheet/vslayout/VSAssemblyLayout:251`).
+    `buildColumnWidth` scales the columns to the element's width.
+  - **Fit Contents** is `TABLE_FIT_CONTENT` (`web/projects/portal/src/app/composer/data/vs/table-layout-property-dialog-model.ts:19-20`,
+    under the community root). The columns keep their widths, and `layout()` cuts the table at the
+    element's width. Each further column segment repeats the header columns and stacks below the
+    previous one in the same area (`report/internal/TableElementDef:1740-1758`) while it fits, and
+    continues on the next page when it does not.
+  - Whichever is chosen, `addTable` switches to Fit Page Width when the columns are narrower than the
+    element (`uql/viewsheet/internal/VsToReportConverter:1144-1146`).
 - **Each page region** is a `TablePaintable`.
   - Its cells start at `printBox.x + 1` (`report/internal/TablePaintable:656`).
   - `paintBorder` (`:1412`) draws the left and right borders at the band's print width, down to the
@@ -364,14 +374,14 @@ hidden. With a non-zero inset:
 ### 8.5 `TableElementDef`
 
 - **The field.** `cardInset` is a plain field: null by default, beside `borders` and `bcolors`
-  (`report/internal/TableElementDef:2674-2675`). Its setter stores a copy.
+  (`report/internal/TableElementDef:2674-2675`). Its setter and getter each copy it.
   - It is not in `TableElementInfo`, so a report's XML never carries it.
-  - `clone()` (`:2484`) shares it, which is safe because it is never written in place.
+  - `clone()` (`:2484`) shares it, which is safe because no caller can write it in place.
   - It is not named padding: `getPadding()` (`:496`) is the cell padding.
 - **The grid area.** `calcRemainingArea` (`:1021`) returns its area at x + L, W − L − R wide. That area
   feeds:
-  - `buildColumnWidth` (`:1359`), so `TABLE_FIT_PAGE` scales the columns to the grid;
-  - the horizontal cut;
+  - `buildColumnWidth` (`:1359`), so Fit Page Width scales the columns to the grid;
+  - the Fit Contents column cut;
   - `TABLE_FIT_CONTENT_PAGE`'s last-column adjustment.
 
   The next-page area (`:1565-1571`) is inset the same way.
@@ -379,8 +389,11 @@ hidden. With a non-zero inset:
   - Both row-fit loops (`:1640`, `:1656`) add B before comparing, once they reach the last row. So a
     last row that fits without B, but not with it, moves to the next page with its band.
   - `fitNext` (`:854`) adds B for the last region, the one `TablePaintable` flags `lastregion`.
-  - A horizontally split table's earlier segments of its last rows reserve B without drawing it.
-    They draw no bottom border today either.
+- **Fit Contents segments.** The cut falls at the grid width, W − L − R. The segments stack with no
+  inset between them, the same as a continuation page. So a table wrapped into segments reads as one
+  card: the left and right borders run down every segment, and B and the bottom border come once,
+  after the last. The earlier segments of the last rows reserve B in the row-fit loops without
+  drawing it. They draw no bottom border today either.
 
 ### 8.6 `TablePaintable`
 
@@ -470,7 +483,9 @@ inset, which is why C2 is its own PR.
      - a hidden title gives a card-top box T tall that carries the top border;
      - `PDFVSExporter` hands the converter its resolver.
    - **`TableElementDef`:**
-     - the columns are laid out in the grid area;
+     - under Fit Page Width, the columns are scaled to the grid width;
+     - under Fit Contents, the column cut falls at the grid width, and only the last segment is the
+       last region;
      - a last row that fits without B, but not with it, moves to the next region;
      - `fitNext` counts B.
 
@@ -504,9 +519,9 @@ inset, which is why C2 is its own PR.
    - **C2's own baselines, before any C2 code.** The baseline print layouts hold TableView1,
      TableView2, TableView4, Crosstab1, TableView7 and Tab1. So:
      - add Chart1 (the reference inset), TableView5 (title hidden) and TableView3 (wide) to both
-       print copies. The fixture's layouts use `TABLE_FIT_PAGE` (`tableLayout="1"`), so TableView3's
-       columns are scaled into the grid rather than split across pages, and a horizontal split stays
-       outside the manual checks;
+       print copies. Every table in the fixture's layouts is on Fit Page Width
+       (`tableLayout="1"`). Set TableView3 to Fit Contents, and give it a box narrower than its eight
+       columns, so they wrap into stacked segments and exercise the column cut;
      - take the conditions off their tables, because a conditioned table prints unreliably (F5,
        §10);
      - recapture the legacy and modern print PDFs at the branch point. C1 left print output
@@ -516,6 +531,8 @@ inset, which is why C2 is its own PR.
      - the border and background sit at the card edge;
      - at a page break, the last row, its B band and the bottom border land on the same page;
      - a continuation page has no top band and no top border;
+     - TableView3's Fit Contents segments read as one card: the side borders are continuous, there
+       is no band between segments, and B comes once, after the last segment;
      - a padded title-hidden table has its top border;
      - no row or column is clipped;
      - the legacy print PDF keeps its page count, every word's position and every vector drawing.
