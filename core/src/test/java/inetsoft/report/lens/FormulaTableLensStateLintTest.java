@@ -122,6 +122,115 @@ class FormulaTableLensStateLintTest {
       assertEquals(0, warnings(inPlace).size());
    }
 
+   /**
+    * One accumulator formula over 10,000 rows, re-executed 10 times on each of 5 lenses (50
+    * executions), pool off and on: one WARN line per formula text, and the text is lexed once.
+    */
+   @Test
+   void accumulatorDoesNotFloodAcrossRowsReExecutionsAndLenses() {
+      TabularSheet report = new TabularSheet(Mockito.mock(LibManagerProvider.class),
+                                             Mockito.mock(Cluster.class));
+      ScriptEnv pooled = PoolTestSupport.env();
+
+      for(boolean pool : new boolean[] { false, true }) {
+         String formula = unique("var acc = (acc || 0) + field['x']; acc");
+         long scripts = ScriptStateLint.nodeStateHazardScripts();
+         long checks = ScriptStateLint.nodeStateLintChecks();
+         int before = appender.list.size();
+
+         for(int l = 0; l < 5; l++) {
+            FormulaTableLens lens = pool
+               ? new FormulaTableLens(table(10_000), new String[] { "RunningX" },
+                                      new String[] { formula }, pooled, null)
+               : new FormulaTableLens(table(10_000), new String[] { "RunningX" },
+                                      new String[] { formula }, report);
+            lens.setTableName("Flood" + l);
+
+            for(int e = 0; e < 10; e++) {
+               if(e > 0) {
+                  lens.invalidate(); // recompiles, so the hook runs again
+               }
+
+               readAll(lens);
+            }
+         }
+
+         assertEquals(1, warnings(formula).size(), "pool " + pool);
+         assertEquals(1, appender.list.size() - before, () -> "pool " + pool + ": " + appender.list);
+         assertEquals(scripts + 1, ScriptStateLint.nodeStateHazardScripts());
+         assertEquals(checks + 1, ScriptStateLint.nodeStateLintChecks());
+      }
+   }
+
+   /**
+    * A failure inside the check (here the column resolution it uses throws) is swallowed: the
+    * column still computes every row, and nothing is logged at WARN.
+    */
+   @Test
+   void failureInsideCheckDoesNotAffectTheColumn() {
+      TabularSheet report = new TabularSheet(Mockito.mock(LibManagerProvider.class),
+                                             Mockito.mock(Cluster.class));
+      String formula = unique("var u = u; field['x'] * 2");
+      long errors = ScriptStateLint.nodeStateLintErrors();
+      boolean[] thrown = { false };
+      DefaultTableLens base = new DefaultTableLens(table(ROWS)) {
+         @Override
+         public String getColumnIdentifier(int col) {
+            for(StackTraceElement e : Thread.currentThread().getStackTrace()) {
+               if(e.getClassName().equals(ScriptStateLint.class.getName())) {
+                  thrown[0] = true;
+                  throw new IllegalStateException("injected");
+               }
+            }
+
+            return super.getColumnIdentifier(col);
+         }
+      };
+
+      FormulaTableLens lens = new FormulaTableLens(base, new String[] { "Double" },
+                                                   new String[] { formula }, report);
+      readAll(lens);
+
+      assertTrue(thrown[0], "the check did not reach the column resolution");
+      assertEquals(errors + 1, ScriptStateLint.nodeStateLintErrors());
+      assertEquals(0, warnings(formula).size());
+
+      for(int r = 1; r <= ROWS; r++) {
+         assertEquals(r * 2, ((Number) lens.getObject(r, 1)).intValue(), "row " + r);
+      }
+   }
+
+   /**
+    * A bare name the row resolves to a column (table prefix, other case) is not script state:
+    * no WARN, and the in-place per-row idioms really do compute per row from the column.
+    */
+   @Test
+   void qualifiedAndCaseInsensitiveColumnNamesDoNotWarn() {
+      TabularSheet report = new TabularSheet(Mockito.mock(LibManagerProvider.class),
+                                             Mockito.mock(Cluster.class));
+      String upper = unique("var company = company.toUpperCase(); company");
+      String clamp = unique("if(Sales < 0) Sales = 0; Sales");
+      DefaultTableLens base = new DefaultTableLens(new Object[][] {
+         { "Customers.Company", "SALES" },
+         { "acme", -5 },
+         { "globex", 7 },
+      });
+
+      // a host scope, as the worksheet queries pass: bare column names resolve on it
+      FormulaTableLens lens = new FormulaTableLens(base, new String[] { "Upper", "Clamped" },
+                                                   new String[] { upper, clamp },
+                                                   report.getScriptEnv(),
+                                                   new PoolTestSupport.MapScope());
+      readAll(lens);
+
+      assertEquals(0, warnings(upper).size(), () -> "warnings: " + appender.list);
+      assertEquals(0, warnings(clamp).size(), () -> "warnings: " + appender.list);
+      assertEquals("ACME", lens.getObject(1, 2));
+      assertEquals("GLOBEX", lens.getObject(2, 2));
+      assertEquals(0, ((Number) lens.getObject(1, 3)).intValue());
+      assertEquals(7, ((Number) lens.getObject(2, 3)).intValue());
+   }
+
    private static void readAll(FormulaTableLens lens) {
       for(int r = 0; lens.moreRows(r); r++) {
          lens.getObject(r, lens.getColCount() - 1);
