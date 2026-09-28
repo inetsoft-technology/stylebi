@@ -20,6 +20,7 @@ package inetsoft.sree.security;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
+import org.awaitility.core.ConditionTimeoutException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.annotation.DirtiesContext;
@@ -28,6 +29,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import static org.awaitility.Awaitility.await;
@@ -203,18 +205,43 @@ public class FileAuthenticationProviderCacheCoherenceTest {
                   "User promoted to site admin on node A is not an admin on node B");
    }
 
+   @Test
+   void changeWhileStorageClosedReachesOtherInstance() {
+      IdentityID user = new IdentityID("reopenUser", ORG);
+      IdentityID role = new IdentityID("reopenRole", ORG);
+      nodeA.addRole(new FSRole(role));
+      FSUser fsUser = new FSUser(user);
+      fsUser.setRoles(new IdentityID[]{ role });
+      nodeA.addUser(fsUser);
+
+      assertTrue(hasRole(nodeB, user, role), "precondition: role cached on node B");
+
+      // another consumer of the shared storage closes it, so node B's listener is detached and
+      // misses the change below until node B re-opens the storage
+      FileAuthenticationProvider other = new FileAuthenticationProvider();
+      other.getUser(user);
+      other.tearDown();
+
+      FSUser updated = new FSUser(user);
+      updated.setRoles(new IdentityID[0]);
+      nodeA.setUser(user, updated);
+
+      awaitAssert(() -> !hasRole(nodeB, user, role),
+                  "Role removed on node A while node B held a closed storage is still granted on node B");
+   }
+
    private static boolean hasRole(FileAuthenticationProvider provider, IdentityID user,
                                   IdentityID role)
    {
       return Arrays.asList(provider.getRoles(user)).contains(role);
    }
 
-   private static void awaitAssert(java.util.concurrent.Callable<Boolean> condition, String message) {
+   private static void awaitAssert(Callable<Boolean> condition, String message) {
       try {
          await().atMost(5L, TimeUnit.SECONDS).pollInterval(50L, TimeUnit.MILLISECONDS)
             .until(condition);
       }
-      catch(org.awaitility.core.ConditionTimeoutException e) {
+      catch(ConditionTimeoutException e) {
          fail(message);
       }
    }
