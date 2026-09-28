@@ -39,10 +39,7 @@ class TestTagCoverageTest {
     * Test classes that are known to be untagged. Every entry must still be untagged; remove an
     * entry as soon as the class is tagged.
     */
-   private static final Set<String> KNOWN_UNTAGGED = Set.of(
-      // product regression, see Redmine #77133; remove when fixed
-      "inetsoft.web.composer.vs.dialog.CalendarPropertyDialogServiceTest"
-   );
+   private static final Set<String> KNOWN_UNTAGGED = Set.of();
 
    @Test
    void everyTestClassHasATag() throws Exception {
