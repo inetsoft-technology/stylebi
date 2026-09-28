@@ -126,14 +126,21 @@ public class CalendarDisplayService {
          }
 
          if(plan.setRange()) {
-            // This one does NOT clear the dates -- it applies the event's dates -- so the current
-            // selection is echoed back rather than dropped.
+            // This one does NOT clear the dates -- it force-applies the event's dates -- so the
+            // current selection is sent back, reshaped for the new mode the way the Composer does
+            // it. Read afresh: the toggles above replace the assembly's info (with the dates
+            // cleared), so 'info' no longer holds what the calendar has.
+            CalendarVSAssemblyInfo current = (CalendarVSAssemblyInfo)
+               requireCalendar(rvs, assemblyName).getVSAssemblyInfo();
+            String[] dates = reshapeForRangeToggle(current.getDates(), plan.rangeValue());
+            describeReshape(current.getDates(), dates, plan.sideEffects());
+
             calendars.toggleRangeComparison(
                runtimeId, assemblyName,
                ImmutableToggleRangeComparisonEvent.builder()
                   .period(plan.rangeValue())
                   .currentDate1(date1).currentDate2(date2)
-                  .dates(info.getDates()).build(),
+                  .dates(dates).build(),
                linkUri, user, dispatcher);
          }
       });
@@ -208,6 +215,10 @@ public class CalendarDisplayService {
 
          validateDateCount(dual, period, dates.size(), assemblyName);
 
+         String[] requested = dates.toArray(new String[0]);
+         validateInRange(requested, info.checkDates(requested), info.getRange(),
+                         assemblyName);
+
          String[] previous = info.getDates();
 
          result.put("assembly", assemblyName);
@@ -249,6 +260,137 @@ public class CalendarDisplayService {
             "first two dates as the range's start and end — got " + count + ". Pass at most 2 " +
             "dates, or use an even-length array with rangeComparison on for period-comparison " +
             "mode.");
+      }
+   }
+
+   /**
+    * Refuses dates the calendar cannot select. {@code CalendarVSAssemblyInfo.setDates} moves every
+    * date outside the selectable range (the data's range, narrowed by the design-time min/max) onto
+    * the nearest end of it without saying so, so a request for 2030 on a calendar whose data ends
+    * in 2025 would quietly filter to the last day of 2025. The Composer greys those cells out and
+    * cannot select them.
+    *
+    * @param requested the dates as asked for.
+    * @param checked   the same dates after {@code checkDates}, which returns an entry unchanged
+    *                  exactly when it is in range.
+    * @param range     the selectable range, for the message.
+    */
+   static void validateInRange(String[] requested, String[] checked, String[] range,
+                               String assemblyName)
+   {
+      if(checked == null || checked.length != requested.length) {
+         return;
+      }
+
+      List<String> outside = new ArrayList<>();
+
+      for(int i = 0; i < requested.length; i++) {
+         if(!Objects.equals(requested[i], checked[i])) {
+            outside.add(describeDate(requested[i]));
+         }
+      }
+
+      if(!outside.isEmpty()) {
+         String bounds = range == null || range.length != 2 ? "its selectable range" :
+            "its selectable range (" + describeRangeEnd(range[0]) + " to " +
+            describeRangeEnd(range[1]) + ")";
+
+         throw new IllegalArgumentException(
+            "'" + assemblyName + "' cannot select " + String.join(", ", outside) + ": " +
+            (outside.size() == 1 ? "it is" : "they are") + " outside " + bounds + ", which " +
+            "covers the bound column's data and any min/max set on the calendar. The calendar " +
+            "would silently move " + (outside.size() == 1 ? "it" : "them") + " to the nearest " +
+            "end of that range instead.");
+      }
+   }
+
+   /**
+    * A day or month token ({@code d2025-10-1}, {@code m2025-10}; 0-based month) as the ISO date a
+    * caller passes; any other token as it is.
+    */
+   static String describeDate(String token) {
+      if(token != null && token.length() > 1 &&
+         (token.charAt(0) == 'd' && token.split("-").length == 3 ||
+          token.charAt(0) == 'm' && token.split("-").length == 2))
+      {
+         return describeRangeEnd(token.substring(1));
+      }
+
+      return token;
+   }
+
+   /**
+    * {@code CalendarVSAssemblyInfo.getRange()} holds {@code year-month-day} with a 0-based month;
+    * shown as an ISO date so it reads the same as the dates a caller passes.
+    */
+   private static String describeRangeEnd(String end) {
+      if(end == null) {
+         return "open";
+      }
+
+      String[] parts = end.split("-");
+
+      try {
+         if(parts.length == 3) {
+            return String.format("%04d-%02d-%02d", Integer.parseInt(parts[0]),
+                                 Integer.parseInt(parts[1]) + 1, Integer.parseInt(parts[2]));
+         }
+         else if(parts.length == 2) {
+            return String.format("%04d-%02d", Integer.parseInt(parts[0]),
+                                 Integer.parseInt(parts[1]) + 1);
+         }
+      }
+      catch(NumberFormatException ignore) {
+      }
+
+      return end;
+   }
+
+   /**
+    * Reshapes a double calendar's dates for the other side of the range-comparison toggle, the way
+    * {@code vs-calendar.component.ts toggleRangeComparison} does before sending them —
+    * {@code toggleRangeComparison} force-applies whatever it is given, and a count that does not
+    * fit the new mode makes {@code CalendarVSAssembly.getConditionList} throw, which leaves the
+    * dependent assemblies unfiltered.
+    *
+    * <ul>
+    *   <li>period → range: the Composer keeps the first calendar's first date and the second
+    *       calendar's last, so the range runs from the start of the first period to the end of the
+    *       second.</li>
+    *   <li>range → period: two dates become one period each, as the Composer does. A lone date
+    *       cannot be split into two periods without the Composer's navigation state (it copies the
+    *       day into the other calendar's displayed month), so the dates are cleared.</li>
+    * </ul>
+    *
+    * @param toPeriod true when range comparison is being turned on.
+    */
+   static String[] reshapeForRangeToggle(String[] dates, boolean toPeriod) {
+      if(dates == null || dates.length == 0) {
+         return new String[0];
+      }
+
+      if(toPeriod) {
+         return dates.length % 2 == 0 && dates.length <= 2 ? dates : new String[0];
+      }
+
+      return dates.length <= 2 ? dates : new String[] { dates[0], dates[dates.length - 1] };
+   }
+
+   private static void describeReshape(String[] before, String[] after, List<String> sideEffects) {
+      int count = before == null ? 0 : before.length;
+
+      if(count == after.length) {
+         return;
+      }
+
+      if(after.length == 0) {
+         // same wording as plan()'s, which the plugin keys its disclosure on
+         sideEffects.add("the selected dates were cleared");
+      }
+      else {
+         sideEffects.add("the " + count + " period-comparison dates were reduced to a range " +
+                         "from " + describeDate(after[0]) + " to " +
+                         describeDate(after[after.length - 1]));
       }
    }
 
