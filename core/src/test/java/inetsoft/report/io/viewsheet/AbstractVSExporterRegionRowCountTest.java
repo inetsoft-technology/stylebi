@@ -26,14 +26,18 @@ import inetsoft.test.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
+import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mockito;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
@@ -122,9 +126,16 @@ import static org.mockito.Mockito.when;
  * failed again. The bug #53192 exemption is now applied to crosstabs only
  * (bug #53192 was a date-comparison crosstab); every other table counts every
  * row toward the design-height budget, because the exporters still write
- * those rows. The calc-table tests below cover the blank-density axis, and
- * {@link #genuinelyBlankCrosstabRowIsStillExemptFromTheHeightClamp} guards the
- * crosstab exemption.</p>
+ * those rows. The calc-table tests below cover the blank-density axis,
+ * {@link #blankRowInPlainTableCountsTowardTheHeightClamp} covers plain tables,
+ * and {@link #genuinelyBlankCrosstabRowIsStillExemptFromTheHeightClamp} guards
+ * the crosstab exemption.</p>
+ *
+ * <p>So the round-1 and round-2 rules described above ({@code checkDisplayRow()},
+ * {@code isMergedContinuationCell()}, {@code findSignificantColumns()}) now run
+ * for crosstabs only. The three bug #76829 fixtures are parameterized over
+ * {@link Kind}: the {@code CROSSTAB} run keeps those helpers covered, and the
+ * {@code CALC} run checks that calc tables count every row.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -147,20 +158,26 @@ class AbstractVSExporterRegionRowCountTest {
     * 2nd/3rd row of every 3-row group &mdash; a vertically merged group-label
     * column, exactly as bug #76829's asset defines it (`expansion="2"` +
     * `mergeCells="true"`, `mergeRowGrp="Worker_Type"`).
+    *
+    * <p>Runs for both table kinds. For a calc table every row counts (bug
+    * #77237). For a crosstab, {@code checkDisplayRow()} is still consulted, so
+    * this guards round 1's {@code isMergedContinuationCell()} rule: without it
+    * the 8 continuation rows would be exempted and the result would be 14.</p>
     */
-   @Test
-   void blankMergeContinuationRowsAreCountedTowardTheHeightClamp() {
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void blankMergeContinuationRowsAreCountedTowardTheHeightClamp(Kind kind) {
       TableLens data = tableWithGroupLabelColumn(/* blankOnContinuation */ true);
-      TestExporter exporter = exporter();
+      TestExporter exporter = exporter(kind);
 
       int regionRowCount = exporter.regionRowCount(data);
 
       assertEquals(12, regionRowCount,
-         "checkDisplayRow() must recognize the blank Worker_Type cells on rows "
-         + "2-3 of each group as merge-continuation rows (covered by a span "
-         + "anchored at the group's first row), not hidden/filtered rows, so it "
-         + "counts them toward the height budget and the 248px design-height "
-         + "clamp trips normally: 2 header + 10 data rows");
+         kind + ": the blank Worker_Type cells on rows 2-3 of each group are "
+         + "merge-continuation cells (covered by a span anchored at the group's "
+         + "first row), not hidden/filtered rows, so they count toward the height "
+         + "budget and the 248px design-height clamp trips normally: "
+         + "2 header + 10 data rows");
       assertTrue(regionRowCount < TOTAL_ROWS,
          "the clamp must actually clamp, not return the full unclamped row count");
 
@@ -180,10 +197,11 @@ class AbstractVSExporterRegionRowCountTest {
     * {@code getRegionRowCount()} correctly clamps to what fits in 248px
     * (12: 2 header + 10 data rows).
     */
-   @Test
-   void populatedGroupLabelColumnLetsTheHeightClampWork() {
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void populatedGroupLabelColumnLetsTheHeightClampWork(Kind kind) {
       TableLens data = tableWithGroupLabelColumn(/* blankOnContinuation */ false);
-      TestExporter exporter = exporter();
+      TestExporter exporter = exporter(kind);
 
       int regionRowCount = exporter.regionRowCount(data);
 
@@ -268,6 +286,34 @@ class AbstractVSExporterRegionRowCountTest {
       assertEquals(6, new TestExporter(table).regionRowCount(data),
          "a blank calc-table row takes real vertical space, so it must count "
          + "toward the height budget: 1 header + 5 data rows");
+   }
+
+   /**
+    * Bug #77237, plain table: the fix exempts only crosstabs, so a plain
+    * {@code TableVSAssembly} (and {@code EmbeddedTableVSAssembly}, its
+    * subclass) with a blank row must also count every row. This fails against
+    * a narrower discriminator such as {@code !(table instanceof
+    * CalcTableVSAssembly)}. Plain tables have 1 header row (hrow = 1), so the
+    * shape and expectation match the calc-table spacer test: 1 header + 5 = 6.
+    */
+   @Test
+   void blankRowInPlainTableCountsTowardTheHeightClamp() {
+      TableLens data = oneColumnTableWithBlankRow();
+
+      TableVSAssemblyInfo info = Mockito.mock(TableVSAssemblyInfo.class);
+      when(info.isTitleVisible()).thenReturn(false);
+
+      TableVSAssembly table = Mockito.mock(TableVSAssembly.class);
+      when(table.getInfo()).thenReturn(info);
+      when(table.getVSAssemblyInfo()).thenReturn(info);
+      when(table.getPixelSize()).thenReturn(new Dimension(PIXEL_WIDTH, 120));
+      when(table.getName()).thenReturn("PlainTable");
+      Viewsheet vs = viewsheet();
+      when(table.getViewsheet()).thenReturn(vs);
+
+      assertEquals(6, new TestExporter(table).regionRowCount(data),
+         "a blank plain-table row is still written, so it must count toward the "
+         + "height budget: 1 header + 5 data rows");
    }
 
    /**
@@ -362,9 +408,15 @@ class AbstractVSExporterRegionRowCountTest {
     * always-blank column, so it could not catch that {@code checkDisplayRow()}
     * still returned {@code false} for every row on account of column 3 alone,
     * regardless of whether column 0's merge-continuation logic was fixed.</p>
+    *
+    * <p>Runs for both table kinds. For a crosstab it guards round 2's
+    * {@code findSignificantColumns()} rule (and round 1's merge rule for col 0):
+    * without either, every data row would be exempted and the result would be
+    * 14. For a calc table every row counts regardless (bug #77237).</p>
     */
-   @Test
-   void alwaysBlankGapColumnDoesNotDefeatTheHeightClamp() {
+   @ParameterizedTest
+   @EnumSource(Kind.class)
+   void alwaysBlankGapColumnDoesNotDefeatTheHeightClamp(Kind kind) {
       Object[][] rows = new Object[TOTAL_ROWS][5];
       rows[0] = new Object[]{ "", "", "Location", "", "Year" };
       rows[1] = new Object[]{ "", "Status", "", "", "" };
@@ -391,15 +443,14 @@ class AbstractVSExporterRegionRowCountTest {
       }
 
       TableLens data = new VSTableLens(raw);
-      TestExporter exporter = exporter();
+      TestExporter exporter = exporter(kind);
 
       int regionRowCount = exporter.regionRowCount(data);
 
       assertEquals(12, regionRowCount,
-         "the always-undefined 'gap' column (index 3, no cellBinding anywhere in "
-         + "the real asset) must not, on its own, keep defeating checkDisplayRow()'s "
-         + "clamp via the any-blank-column-exempts-the-row rule -- with it correctly "
-         + "excluded (it carries no per-row signal, blank in every row) the clamp "
+         kind + ": the always-undefined 'gap' column (index 3, no cellBinding "
+         + "anywhere in the real asset) carries no per-row signal (blank in every "
+         + "row), so it must not exempt any row from the height budget; the clamp "
          + "trips normally at 2 header + 10 data rows, same as the 2-column fixture");
    }
 
@@ -498,7 +549,38 @@ class AbstractVSExporterRegionRowCountTest {
       return new VSTableLens(raw);
    }
 
+   /** The table kinds the bug #76829 fixtures run against. */
+   enum Kind { CALC, CROSSTAB }
+
    private static TestExporter exporter() {
+      return exporter(Kind.CALC);
+   }
+
+   /**
+    * A 248px-high table with 2 header rows of the given kind. The crosstab
+    * mock has 2 runtime column headers, so {@code hrow == 2}, matching the calc
+    * table's {@code getHeaderRowCount() == 2}.
+    */
+   private static TestExporter exporter(Kind kind) {
+      if(kind == Kind.CROSSTAB) {
+         CrosstabVSAssemblyInfo info = Mockito.mock(CrosstabVSAssemblyInfo.class);
+         when(info.isTitleVisible()).thenReturn(false);
+
+         VSCrosstabInfo crosstabInfo = Mockito.mock(VSCrosstabInfo.class);
+         when(crosstabInfo.getRuntimeColHeaders()).thenReturn(new DataRef[HEADER_ROWS]);
+
+         CrosstabVSAssembly table = Mockito.mock(CrosstabVSAssembly.class);
+         when(table.getInfo()).thenReturn(info);
+         when(table.getVSAssemblyInfo()).thenReturn(info);
+         when(table.getVSCrosstabInfo()).thenReturn(crosstabInfo);
+         when(table.getPixelSize()).thenReturn(new Dimension(PIXEL_WIDTH, PIXEL_HEIGHT));
+         when(table.getName()).thenReturn("Crosstab1");
+         Viewsheet vs = viewsheet();
+         when(table.getViewsheet()).thenReturn(vs);
+
+         return new TestExporter(table);
+      }
+
       CalcTableVSAssemblyInfo info = Mockito.mock(CalcTableVSAssemblyInfo.class);
       when(info.getHeaderRowCount()).thenReturn(HEADER_ROWS);
       when(info.isTitleVisible()).thenReturn(false);
