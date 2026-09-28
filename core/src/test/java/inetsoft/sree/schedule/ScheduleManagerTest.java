@@ -37,9 +37,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.w3c.dom.Document;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -48,7 +52,8 @@ import static org.mockito.Mockito.*;
  * Tier: [integration] — real ScheduleManager bean, SecurityEngine, and in-memory task maps.
  *
  * Intent vs implementation suspects: none confirmed at this time.
- * Regression: checkIdentityRenamedWithSystemTaskCondition (Bug #74651).
+ * Regression: checkIdentityRenamedWithSystemTaskCondition (Bug #74651),
+ *             assetRenamed_mvActionWithNullEntry_skipsItAndRenamesOthers (Bug #77214).
  *
  * Intentionally out of scope (RepletEngine-only or unused):
  * repletRemoved, assetRemoved, assetRenamed, archiveRenamed.
@@ -407,6 +412,47 @@ public class ScheduleManagerTest {
       scheduleManager.renameSheetInSchedule(wsOEntry, wsNEntry);
       BatchAction batchAction1 =  (BatchAction)scheduleManager.getScheduleTask("admin~;~host-org:vstk1").getAction(1);
       assertEquals("ws1_1", batchAction1.getQueryEntry().toString());
+   }
+
+   /**
+    * Bug #77214: an MV action parsed from task XML without an MVDef (e.g. an imported or legacy
+    * task file) has a null entry. assetRenamed must skip it instead of throwing an NPE, and must
+    * still rename and save the other matching actions.
+    */
+   @Test
+   void assetRenamed_mvActionWithNullEntry_skipsItAndRenamesOthers() throws Exception {
+      Document doc = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+         .parse(new ByteArrayInputStream("<Action type=\"MV\"/>".getBytes(StandardCharsets.UTF_8)));
+      MVAction mvAction = new MVAction();
+      mvAction.parseXML(doc.getDocumentElement());
+      assertNull(mvAction.getEntry());
+
+      AssetEntry wsOEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1^host-org");
+      AssetEntry wsNEntry = AssetEntry.createAssetEntry("1^2^__NULL__^ws1_1^host-org");
+      BatchAction batchAction = new BatchAction();
+      batchAction.setQueryEntry(wsOEntry);
+
+      // actions are visited from the last index down, so the MV action is reached first
+      ScheduleTask task = createScheduleTask("mvtk1");
+      task.addAction(batchAction);
+      task.addAction(mvAction);
+      String taskId = "admin~;~host-org:mvtk1";
+      scheduleManager.setScheduleTask(taskId, task, admin);
+
+      try {
+         assertDoesNotThrow(() -> scheduleManager.assetRenamed(wsOEntry, wsNEntry, "host-org"));
+
+         scheduleManager.removeTaskCacheOfOrg("host-org");
+         ScheduleTask reloaded = scheduleManager.getScheduleTask(taskId);
+         assertEquals(3, reloaded.getActionCount());
+         assertEquals(wsNEntry, ((BatchAction) reloaded.getAction(1)).getQueryEntry());
+         assertNull(((MVAction) reloaded.getAction(2)).getEntry());
+      }
+      finally {
+         // clearAllTask() was observed not to remove this task; remove it explicitly so its
+         // BatchAction (null task id) does not leak into checkIdentityRenamed
+         scheduleManager.removeScheduleTask(taskId, admin, false);
+      }
    }
 
    /**
