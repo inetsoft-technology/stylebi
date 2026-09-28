@@ -18,7 +18,7 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { Subject, Subscription } from "rxjs";
-import { concatMap, tap } from "rxjs/operators";
+import { concatMap, filter, tap } from "rxjs/operators";
 import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { ContextHelp } from "../../../context-help";
@@ -91,6 +91,9 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
                   this.model = null;
                }
             }),
+            // the file log viewer is not shown when fluentd logging is used, and the file log
+            // endpoints are not available to organization administrators in that mode
+            filter(links => !links.fluentdLogging),
             concatMap(() => this.http.get<LogMonitoringModel>(GET_LOGVIEWER_MODEL_URL))
          )
          .subscribe({
