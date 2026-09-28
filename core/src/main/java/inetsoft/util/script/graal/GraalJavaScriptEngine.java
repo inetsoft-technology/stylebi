@@ -69,6 +69,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // ensureScopeProxy). (#75685)
    private ScriptScope calcScope;
 
+   // Bug #77181: the HOST_GLOBALS_VAR guest object of the current context, and the
+   // names already added to it (so a repeated put() costs one Java set lookup).
+   // Rebuilt on (re)init; guarded by lock.
+   private Value hostGlobals;
+   private final Set<String> hostGlobalNames = new java.util.HashSet<>();
+
    // These config props are read on the per-script hot path (exec runs hundreds
    // of thousands of times for data-driven worksheet formula columns), and a raw
    // SreeEnv lookup per call is a measurable cost. SreeEnv.Value caches the value
@@ -88,6 +94,15 @@ public class GraalJavaScriptEngine implements AutoCloseable {
    // Holds each top-level statement's value in the multi-statement completion
    // wrapper (#75688). Same collision-avoidance rationale as RESULT_VAR.
    private static final String VALUE_VAR = "__inetsoft_script_value__";
+   // Bug #77181: the global holding the names this engine itself defines (JS
+   // builtins, init-installed globals, put() names), which the plain-path reset
+   // of a rewritten initializer-less let/const must never touch.
+   private static final String HOST_GLOBALS_VAR = "__inetsoft_host_globals__";
+   // Names the #77181 reset never emits, whatever the runtime set says: the
+   // engine's own wrapper globals (resetting __scope__ breaks every later script).
+   private static final Set<String> NEVER_RESET = Set.of(
+      "__scope__", HOST_GLOBALS_VAR, RESULT_VAR, VALUE_VAR, HOIST_ERR_VAR,
+      "globalThis", "undefined", "NaN", "Infinity", "eval", "arguments");
 
    // Bug #75625: matches the `this` keyword as an identifier token. Used to decide
    // whether a script body needs the (slower) direct-eval wrapper that binds
@@ -142,6 +157,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
 
          classFilter = ScriptHostAccess.classFilter();
          scopeProxy = null; // rebound against the new context on next exec
+         hostGlobals = null; // rebuilt against the new context by installHostGlobals
 
          context = Context.newBuilder("js")
             .engine(polyglotEngine())
@@ -158,9 +174,56 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          resetErrorCounts();
 
          initScope(vars);
+         installHostGlobals();
       }
       finally {
          lock.unlock();
+      }
+   }
+
+   /**
+    * Bug #77181: snapshot every own property of the global (JS builtins such as
+    * {@code Math}, the LegacyJavaShim roots, global functions, {@code CALC},
+    * library functions, the init vars and any subclass globals) into the
+    * {@link #HOST_GLOBALS_VAR} object, which {@link #put} and
+    * {@link #markHostGlobal} extend at run time. The plain-path reset of a
+    * rewritten initializer-less {@code let}/{@code const} (see
+    * {@link #buildLexicalReset}) skips every name in it, so a script never wipes
+    * a global the engine itself defined. Taken after {@link #initScope}, so
+    * script-created globals (the stale values the reset exists to clear) are
+    * never in it. Caller holds {@code lock}.
+    */
+   private void installHostGlobals() {
+      hostGlobalNames.clear();
+      hostGlobals = null;
+
+      try {
+         context.eval(Source.newBuilder("js",
+            "(function(g){var h=Object.create(null),k=Object.getOwnPropertyNames(g);" +
+            "for(var i=0;i<k.length;i++){h[k[i]]=true;}h['" + HOST_GLOBALS_VAR + "']=true;" +
+            "Object.defineProperty(g,'" + HOST_GLOBALS_VAR +
+            "',{value:h,writable:false,enumerable:false,configurable:true});})(globalThis)",
+            "<host-globals>").buildLiteral());
+         hostGlobals = context.getBindings("js").getMember(HOST_GLOBALS_VAR);
+      }
+      catch(PolyglotException ex) {
+         // without the set every reset is skipped (the emitted guard checks it)
+         LOG.warn("Failed to install the host global names", ex);
+      }
+   }
+
+   /**
+    * Bug #77181: record {@code name} as a global the engine defines, so the
+    * plain-path reset of a rewritten initializer-less {@code let}/{@code const}
+    * never clears it. Called by {@link #put} and by the pooled worksheet context
+    * when it sets an env variable directly. The caller holds {@code lock}
+    * ({@link #put}) or is the owning thread of the pooled slot whose context
+    * this is ({@code Slot.applyOwn}, which runs under the slot's claim rather
+    * than {@code lock}); no other thread may call it.
+    */
+   protected final void markHostGlobal(String name) {
+      if(hostGlobals != null && name != null && hostGlobalNames.add(name)) {
+         hostGlobals.putMember(name, true);
       }
    }
 
@@ -726,6 +789,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // path nor the #75596 hoist carries across scripts. Rewrite top-level
       // `const`/`let` to `var` before the split and the hoist scan so every path
       // below sees a `var`.
+      String lexicalBody = body;
       body = rewriteTopLevelLexicalDeclarations(body);
 
       // Bug #75688: Rhino preserved the "last non-empty" statement-list
@@ -779,8 +843,20 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // without the declaration hoist). Block-vs-object completion semantics
       // (e.g. a bare `{a:1}`) are identical to the eval form because the body is
       // still evaluated in statement position, not wrapped in `return (...)`.
+      //
+      // Bug #77181: on this path a rewritten top-level `let r;` is a global
+      // `var r` of the Context, and a `var` with no initializer never resets it,
+      // so a formula run per row (FormulaTableLens, calc tables, calc fields) or
+      // a later script declaring the same name reads the previous run's value,
+      // where a native `let r;` would start `undefined`. Reset those names at the
+      // start of each run, outside the `with` (so a same-named scope member is
+      // never written) and on the first line (so error line numbers keep their
+      // offset). The split and `this` paths below run the body in a wrapper
+      // function whose `var`s are fresh per run, so they need no reset.
       if(!THIS_REF.matcher(body).find()) {
-         return Source.newBuilder("js", "with(__scope__){\n" + body + "\n}", "<cmd>")
+         return Source.newBuilder("js",
+            buildLexicalReset(collectInitializerlessLexicalNames(lexicalBody)) +
+               "with(__scope__){\n" + body + "\n}", "<cmd>")
             .buildLiteral();
       }
 
@@ -949,7 +1025,23 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     *       lose TDZ and immutability;</li>
     *   <li>{@code class} is left unchanged: it was a SyntaxError in Rhino, and
     *       {@code var K = class K {}} would change how a following line that
-    *       begins with {@code (} or {@code [} parses.</li>
+    *       begins with {@code (} or {@code [} parses;</li>
+    *   <li>Bug #77181: on the plain {@code with(__scope__)} path of
+    *       {@link #compile}, a rewritten declarator with no initializer
+    *       ({@code let r;}, {@code let a, b;}, the {@code r} of
+    *       {@code let x = 1, r;}) is reset to {@code undefined} at the start of
+    *       every run, as a native {@code let} would start. So such a declaration
+    *       also clears a same-named global that an earlier script set (an onInit
+    *       {@code var total = 5}, then {@code let total;} in another script,
+    *       leaves {@code total} undefined for scripts after it), as
+    *       {@code let total = 1} already overwrote it. A global the engine
+    *       itself defines (JS builtins, init-installed globals, {@link #put}
+    *       names) is never reset: for such a name the declaration keeps its
+    *       pre-#77181 behavior, a value assigned to it persists to later runs,
+    *       as the assignment itself already replaces the engine's global. A
+    *       declaration after which the name list cannot be read with certainty
+    *       (see {@link #collectInitializerlessLexicalNames}) is not reset
+    *       either.</li>
     * </ul>
     */
    private static String rewriteTopLevelLexicalDeclarations(String body) {
@@ -969,6 +1061,322 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       }
 
       return sb.toString();
+   }
+
+   /**
+    * Bug #77181: the names declared without an initializer by the top-level
+    * {@code let}/{@code const} declarations that
+    * {@link #rewriteTopLevelLexicalDeclarations} rewrites in {@code body} (the
+    * body before the rewrite; the rewrite keeps offsets). Covers
+    * {@code let r;}, {@code let r, s;}, {@code let x = f(1, 2), r;}, each of
+    * several declarations, and a declaration ended by a line break (ASI).
+    *
+    * <p>The name list is read token by token after the keyword. A name is taken
+    * only where it is certainly a binding with no initializer: right after the
+    * keyword or after a depth-0 {@code ,} of the same list, and followed by
+    * {@code ,}, {@code ;}, the end of the body, or a line break (ASI: a binding
+    * name cannot be continued by anything else). An initializer is skipped with
+    * its strings, templates, regexes, comments and nested brackets, up to its
+    * depth-0 {@code ,} or {@code ;}. Wherever the list cannot be read with
+    * certainty (a line break inside an initializer not followed by {@code ,},
+    * an unexpected token, a reserved word, an engine-internal name) the rest
+    * of that declaration is skipped: a missed name only keeps the old
+    * behavior, while a collected name that is not declared would clear a live
+    * global.
+    */
+   private static Set<String> collectInitializerlessLexicalNames(String body) {
+      List<Integer> decls = new ArrayList<>();
+      scanTopLevel(body, null, decls);
+      Set<String> names = new LinkedHashSet<>();
+
+      for(int pos : decls) {
+         collectDeclaratorNames(body, pos + (body.startsWith("const", pos) ? 5 : 3), names);
+      }
+
+      return names;
+   }
+
+   /**
+    * Read the declarator list starting at {@code i} (just past a
+    * {@code let}/{@code const} keyword) and add each initializer-less binding
+    * name to {@code names}; see {@link #collectInitializerlessLexicalNames}.
+    */
+   private static void collectDeclaratorNames(String body, int i, Set<String> names) {
+      int n = body.length();
+
+      while(true) {
+         int j = skipWhitespaceAndComments(body, i);
+
+         if(j >= n) {
+            return;
+         }
+
+         char c = body.charAt(j);
+         int afterBinding;
+
+         if(isIdentStart(c)) {
+            int k = j + 1;
+
+            while(k < n && isIdentPart(body.charAt(k))) {
+               k++;
+            }
+
+            String name = body.substring(j, k);
+
+            // a unicode escape or other unusual identifier char: not certain
+            if(k < n && body.charAt(k) == '\\' || RESERVED_WORDS.contains(name) ||
+               NEVER_RESET.contains(name))
+            {
+               return;
+            }
+
+            int m = skipWhitespaceAndComments(body, k);
+
+            if(m >= n) {
+               names.add(name);
+               return;
+            }
+
+            char d = body.charAt(m);
+
+            if(d == ',') {
+               names.add(name);
+               i = m + 1;
+               continue;
+            }
+
+            if(d == ';') {
+               names.add(name);
+               return;
+            }
+
+            if(isAssign(body, m)) {
+               afterBinding = m + 1;
+            }
+            // `let r\n(a > 5) && ...`: the declaration ends at the line break
+            else if(containsLineBreak(body, k, m)) {
+               names.add(name);
+               return;
+            }
+            else {
+               return;
+            }
+         }
+         else if(c == '[' || c == '{') {
+            // a destructuring pattern always has an initializer; skip both
+            int k = skipBalanced(body, j);
+            int m = k < 0 ? n : skipWhitespaceAndComments(body, k);
+
+            if(m >= n || !isAssign(body, m)) {
+               return;
+            }
+
+            afterBinding = m + 1;
+         }
+         else {
+            return;
+         }
+
+         int comma = skipInitializer(body, afterBinding);
+
+         if(comma < 0) {
+            return;
+         }
+
+         i = comma + 1;
+      }
+   }
+
+   /** Whether a plain {@code =} (not {@code ==}/{@code ===}/{@code =>}) is at {@code i}. */
+   private static boolean isAssign(String s, int i) {
+      return s.charAt(i) == '=' &&
+         (i + 1 >= s.length() || s.charAt(i + 1) != '=' && s.charAt(i + 1) != '>');
+   }
+
+   /** Whether {@code s[from, to)} contains a line break. */
+   private static boolean containsLineBreak(String s, int from, int to) {
+      for(int i = from; i < to; i++) {
+         if(isLineBreak(s.charAt(i))) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Skip the bracketed pattern opening at {@code open} ({@code [} or
+    * {@code {}), with its strings, templates and comments; returns the index
+    * just past the matching close, or -1 if it is not closed.
+    */
+   private static int skipBalanced(String s, int open) {
+      int n = s.length();
+      int depth = 0;
+      int i = open;
+
+      while(i < n) {
+         char c = s.charAt(i);
+
+         if(c == '/' && i + 1 < n && (s.charAt(i + 1) == '/' || s.charAt(i + 1) == '*')) {
+            i = skipWhitespaceAndComments(s, i);
+            continue;
+         }
+
+         if(c == '"' || c == '\'') {
+            i = skipStringLiteral(s, i + 1, c);
+            continue;
+         }
+
+         if(c == '`') {
+            i = skipTemplateLiteral(s, i + 1);
+            continue;
+         }
+
+         if(c == '(' || c == '[' || c == '{') {
+            depth++;
+         }
+         else if(c == ')' || c == ']' || c == '}') {
+            if(--depth == 0) {
+               return i + 1;
+            }
+         }
+
+         i++;
+      }
+
+      return -1;
+   }
+
+   /**
+    * Skip a declarator's initializer expression starting at {@code i} (just
+    * past its {@code =}). Returns the index of the depth-0 {@code ,} that
+    * starts the next declarator, or -1 when the declaration ends here (a
+    * depth-0 {@code ;}, the end of the body) or cannot be read with certainty
+    * (a depth-0 line break not followed by {@code ,}, where the expression may
+    * either continue or end by ASI; an unbalanced close).
+    */
+   private static int skipInitializer(String s, int i) {
+      int n = s.length();
+      int depth = 0;
+      char prevSig = '=';
+      String prevWord = null;   // previous identifier/keyword token, else null
+      // as in scanTopLevel: per open bracket, whether it is the `(` of an
+      // if/while/for/with head, whose `)` is followed by a statement, so a `/`
+      // there starts a regex (e.g. inside a function expression initializer)
+      java.util.Deque<Boolean> brackets = new java.util.ArrayDeque<>();
+      boolean afterHead = false;
+
+      while(i < n) {
+         char c = s.charAt(i);
+
+         if(Character.isWhitespace(c) ||
+            c == '/' && i + 1 < n && (s.charAt(i + 1) == '/' || s.charAt(i + 1) == '*'))
+         {
+            int m = skipWhitespaceAndComments(s, i);
+
+            if(depth == 0 && containsLineBreak(s, i, m)) {
+               return m < n && s.charAt(m) == ',' ? m : -1;
+            }
+
+            i = m;
+            continue;
+         }
+
+         if(c == '/' && (afterHead || regexAllowed(s, i, prevSig))) {
+            int end = scanRegexEnd(s, i);
+
+            if(end > 0) {
+               i = end;
+               prevSig = ')';
+               prevWord = null;
+               afterHead = false;
+               continue;
+            }
+         }
+
+         if(c == '"' || c == '\'') {
+            i = skipStringLiteral(s, i + 1, c);
+            prevSig = ')';
+            prevWord = null;
+            afterHead = false;
+            continue;
+         }
+
+         if(c == '`') {
+            i = skipTemplateLiteral(s, i + 1);
+            prevSig = ')';
+            prevWord = null;
+            afterHead = false;
+            continue;
+         }
+
+         if(isIdentStart(c)) {
+            int start = i;
+
+            while(i < n && isIdentPart(s.charAt(i))) {
+               i++;
+            }
+
+            prevWord = prevSig == '.' ? null : s.substring(start, i);
+            prevSig = s.charAt(i - 1);
+            afterHead = false;
+            continue;
+         }
+
+         boolean closedHead = false;
+
+         if(c == '(' || c == '[' || c == '{') {
+            depth++;
+            brackets.push(c == '(' && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
+         }
+         else if(c == ')' || c == ']' || c == '}') {
+            if(depth == 0) {
+               return -1;
+            }
+
+            depth--;
+            closedHead = brackets.pop() && c == ')';
+         }
+         else if(depth == 0 && c == ',') {
+            return i;
+         }
+         else if(depth == 0 && c == ';') {
+            return -1;
+         }
+
+         prevSig = c;
+         prevWord = null;
+         afterHead = closedHead;
+         i++;
+      }
+
+      return -1;
+   }
+
+   /**
+    * Bug #77181: the first-line prefix of the plain {@code with(__scope__)}
+    * Source that resets each of {@code names} (the initializer-less rewritten
+    * declarations of the body, see {@link #collectInitializerlessLexicalNames})
+    * to {@code undefined} before the body runs, skipping every name in the
+    * {@link #HOST_GLOBALS_VAR} set (a global the engine defines). The prefix is
+    * outside the {@code with}, so it assigns the body's hoisted global
+    * {@code var}, never a same-named member of the scope. It has no line break,
+    * so error line numbers do not move. Empty when there is nothing to reset.
+    */
+   private static String buildLexicalReset(Set<String> names) {
+      if(names.isEmpty()) {
+         return "";
+      }
+
+      StringBuilder sb = new StringBuilder();
+      sb.append("if(typeof ").append(HOST_GLOBALS_VAR).append("==='object'){");
+
+      for(String name : names) {
+         sb.append("if(!").append(HOST_GLOBALS_VAR).append('.').append(name).append(')')
+            .append(name).append("=void 0;");
+      }
+
+      return sb.append('}').toString();
    }
 
    /**
@@ -2165,6 +2573,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          return true;   // start of input
       }
 
+      // `i++ / 2`: a postfix `++`/`--` ends a value, so a `/` after it is
+      // division (a regex literal can never follow one)
+      if((prevSig == '+' || prevSig == '-') && afterPostfixIncDec(s, slashIndex)) {
+         return false;
+      }
+
       if(isIdentPart(prevSig)) {
          // end of an identifier/number: a regex only follows a keyword
          return REGEX_PRECEDING_KEYWORDS.contains(precedingWord(s, slashIndex));
@@ -2173,6 +2587,47 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // a value-ender (), ], and — via prevSig=')' — a prior string/regex/template)
       // means the '/' is division; anything else is a regex position.
       return prevSig != ')' && prevSig != ']';
+   }
+
+   /**
+    * Whether the last token before the {@code /} at {@code slashIndex} (skipping
+    * whitespace) is a postfix {@code ++}/{@code --}: the operator's two chars are
+    * adjacent and follow a value end (an identifier/number char, {@code )} or
+    * {@code ]}) on the same line, as in {@code i++}, {@code a[0]--} or
+    * {@code f()++}. Two unary pluses ({@code a + +/re/}) and {@code a+++/re/}
+    * ({@code a++ +}) are not matched. A comment between the operator and the
+    * {@code /} is not skipped, which keeps the regex reading.
+    */
+   private static boolean afterPostfixIncDec(String s, int slashIndex) {
+      int j = slashIndex - 1;
+
+      while(j >= 0 && Character.isWhitespace(s.charAt(j))) {
+         j--;
+      }
+
+      if(j < 2) {
+         return false;
+      }
+
+      char op = s.charAt(j);
+
+      if(op != '+' && op != '-' || s.charAt(j - 1) != op) {
+         return false;
+      }
+
+      int k = j - 2;
+
+      // `i ++`: the operand is on the same line (after a line break `++` is prefix)
+      while(k >= 0 && Character.isWhitespace(s.charAt(k)) && !isLineBreak(s.charAt(k))) {
+         k--;
+      }
+
+      if(k < 0) {
+         return false;
+      }
+
+      char v = s.charAt(k);
+      return isIdentPart(v) || v == ')' || v == ']';
    }
 
    /** The identifier/keyword ending just before {@code end} (skipping whitespace). */
@@ -2296,6 +2751,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       try {
          if(context != null) {
             context.getBindings("js").putMember(name, ScriptValueConverter.toGuest(value));
+            markHostGlobal(name);
          }
       }
       finally {
