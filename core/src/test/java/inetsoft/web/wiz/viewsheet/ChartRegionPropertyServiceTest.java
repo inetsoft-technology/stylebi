@@ -1207,6 +1207,32 @@ class ChartRegionPropertyServiceTest {
    }
 
    /**
+    * Regression for bug #77041: {@code set_chart_region_properties} is a third caller into the
+    * shared {@code PropertyPath.coerce} (alongside set_viewsheet_properties/
+    * set_assembly_properties) -- this exercises a plain {@code int} field
+    * ({@code legendFormatGeneralPaneModel.style}, unrelated to symbolSize's own dedicated
+    * range guard) through this service specifically, confirming coerce's whole-number check
+    * applies here too rather than silently truncating {@code 2.5} to {@code 2}.
+    */
+   @Test
+   void refusesANonIntegralRawPathNumberOnThisServiceToo() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("legendFormatGeneralPaneModel.style", 2.5), ""));
+
+      assertTrue(thrown.getMessage().contains("legendFormatGeneralPaneModel.style"));
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   /**
     * The legend's {@code title} property must land on {@code titleValue} — the field
     * {@code legend-format-general-pane.component.html} actually binds
     * ({@code [(value)]="model.titleValue"}; {@code title} is only the read-only {@code origValue}

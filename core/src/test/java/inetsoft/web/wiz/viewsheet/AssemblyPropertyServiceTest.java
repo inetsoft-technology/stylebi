@@ -1605,6 +1605,26 @@ class AssemblyPropertyServiceTest {
       assertEquals(XConstants.SORT_SPECIFIC, model.getSelectionGeneralPaneModel().getSortType());
    }
 
+   /**
+    * Regression for bug #77041: {@code canonicalIntEnum} parses a numeric {@code sortType}
+    * before {@code PropertyPath.coerce} ever runs, so coerce's own whole-number guard never sees
+    * this path -- {@code sortType: 1.9} used to truncate to {@code 1} (an in-domain value,
+    * {@code XConstants.SORT_ASC}) and silently succeed. Demonstrated live against a real
+    * StyleBI build 2026-09-27 (docs/teams .../bug-77041/02-refute.md, finding P2-A) before this
+    * fix; must be refused the same as an out-of-domain or non-numeric sortType.
+    */
+   @Test
+   void refusesAFractionalSortTypeThatWouldTruncateOntoAnInDomainValue() {
+      SelectionListPropertyDialogModel model = new SelectionListPropertyDialogModel();
+      AssemblyPropertyService service =
+         serviceWithSelectionList(mock(SelectionListVSAssembly.class), model);
+
+      Exception thrown = assertThrows(IllegalArgumentException.class,
+         () -> service.set("tok", principal(), "Selection1", Map.of("sortType", 1.9), ""));
+
+      assertTrue(thrown.getMessage().contains("1.9"));
+   }
+
    // ── rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel.rangeType (bug #76936) ─────────
    //
    // rangeType is a closed int-enum too (TimeInfo.YEAR/MONTH/NUMBER/MEMBER/DAY/HOUR/MINUTE/

@@ -276,11 +276,13 @@ public final class PropertyPath {
 
       try {
          if(target == int.class || target == Integer.class) {
-            return (int) Double.parseDouble(text);
+            return (int) requireWhole(Double.parseDouble(text), Integer.MIN_VALUE,
+                                      Integer.MAX_VALUE, value, target, path);
          }
 
          if(target == long.class || target == Long.class) {
-            return (long) Double.parseDouble(text);
+            return (long) requireWhole(Double.parseDouble(text), Long.MIN_VALUE, Long.MAX_VALUE,
+                                       value, target, path);
          }
 
          if(target == double.class || target == Double.class) {
@@ -357,6 +359,32 @@ public final class PropertyPath {
 
       throw new IllegalArgumentException(
          "'" + path + "' expects " + simpleName(target) + ", which '" + value + "' is not.");
+   }
+
+   /**
+    * Refuses a value that would otherwise be silently truncated or clamped onto an int/long
+    * setter -- a non-integral fractional part ({@code 5000.7} narrowing to {@code 5000}) or a
+    * magnitude outside the target's own range ({@code 1e12} clamping to
+    * {@code Integer.MAX_VALUE}). Both landed on a plausible-looking number with no error before
+    * this check existed (bug #77041). An integral value however it is spelled -- a JSON integer,
+    * an integral JSON double like {@code 5000.0}, or a numeric string -- passes unchanged, since
+    * {@code Double.parseDouble} already normalizes all three to the same {@code double} before
+    * this runs. {@code double}/{@code float} targets never call this: they have no narrower
+    * range to clamp into and are meant to hold a fraction.
+    */
+   private static double requireWhole(double parsed, double min, double max, Object value,
+                                      Class<?> target, String path)
+   {
+      if(Double.isNaN(parsed) || Double.isInfinite(parsed) || parsed != Math.rint(parsed) ||
+         parsed < min || parsed > max)
+      {
+         throw new IllegalArgumentException(
+            "'" + path + "' is a " + simpleName(target) + "; '" + value + "' would be silently " +
+            "truncated or clamped rather than set as given -- it has a fractional part, or is " +
+            "out of range. Pass a whole number that fits.");
+      }
+
+      return parsed;
    }
 
    /**

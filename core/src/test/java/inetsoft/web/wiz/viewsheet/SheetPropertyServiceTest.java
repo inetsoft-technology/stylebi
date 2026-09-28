@@ -122,6 +122,41 @@ class SheetPropertyServiceTest {
       verify(sessions, times(1)).mutate(anyString(), any(Principal.class), any());
    }
 
+   /**
+    * Regression for bug #77041: {@code maxRows: 5000.7} used to be silently truncated onto
+    * {@code 5000} through PropertyPath.coerce's int branch, reporting success for a value the
+    * caller never asked for.
+    */
+   @Test
+   void refusesANonIntegralMaxRowsRatherThanTruncating() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(modelWith(20, "old"));
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> service.set("tok", principal(), Map.of("maxRows", 5000.7), ""));
+
+      assertTrue(thrown.getMessage().contains("maxRows"));
+      verify(dialog, never()).setViewsheetInfo(anyString(), any(), any(Principal.class), any(),
+                                               anyString(), any());
+   }
+
+   /**
+    * Regression for bug #77041: {@code maxRows: 1e12} used to be silently clamped onto
+    * {@code Integer.MAX_VALUE} through PropertyPath.coerce's int branch.
+    */
+   @Test
+   void refusesAnOutOfRangeMaxRowsRatherThanClamping() throws Exception {
+      ViewsheetPropertyDialogService dialog = mock(ViewsheetPropertyDialogService.class);
+      when(dialog.getViewsheetInfo(anyString(), any(Principal.class))).thenReturn(modelWith(20, "old"));
+      SheetPropertyService service = new SheetPropertyService(sessionsMock(), dialog);
+
+      assertThrows(
+         IllegalArgumentException.class,
+         () -> service.set("tok", principal(), Map.of("maxRows", 1e12), ""));
+   }
+
    /*
     * There was a test here proving that set() rebuilds the root when the written field is a
     * top-level Immutables scalar, driven through the "width" alias.
