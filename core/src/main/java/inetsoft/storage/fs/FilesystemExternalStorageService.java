@@ -132,7 +132,7 @@ public class FilesystemExternalStorageService implements ExternalStorageService 
          fileSystemService.rename(folder, newFolder);
       }
       catch(Exception e) {
-         Tool.addUserMessage("Failed to rename folder " + ofolder + " to " + nfolder + ":" + e.getMessage());
+         throw new IOException("Failed to rename folder " + ofolder + " to " + nfolder, e);
       }
    }
 

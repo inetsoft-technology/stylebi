@@ -230,6 +230,45 @@ class IdentityServiceOrganizationIdTest {
       }
    }
 
+   // the filesystem storage throws a failed rename instead of adding the raw exception text,
+   // which contains server paths, as a user message
+   @Test
+   void updateTaskSaveFiles_filesystemRenameFails_showsOnlyTheLocalizedMessage() throws Exception {
+      useSaveLocations("reports");
+      Path base = Files.createDirectories(tempDir.resolve("base"));
+      Files.createDirectories(base.resolve("orgA/alice"));
+      Files.createDirectories(base.resolve("reports/orgA/alice"));
+      ReflectionTestUtils.setField(service, "externalStorageService",
+                                   new FilesystemExternalStorageService(base));
+      Tool.clearUserMessage();
+
+      try(MockedStatic<FileSystemService> fsStatic = mockStatic(FileSystemService.class)) {
+         FileSystemService fs = mock(FileSystemService.class);
+         when(fs.getFile(anyString())).thenAnswer(i -> new File((String) i.getArgument(0)));
+         when(fs.rename(any(), any())).thenAnswer(i -> {
+            File from = i.getArgument(0);
+
+            if(from.toPath().equals(base.resolve("orgA"))) {
+               throw new RuntimeException("Failed to rename file \"" + from + "\".");
+            }
+
+            return from.renameTo(i.getArgument(1));
+         });
+         fsStatic.when(FileSystemService::getInstance).thenReturn(fs);
+
+         service.updateTaskSaveFiles(new FSOrganization("orgA"), new FSOrganization("orgB"));
+
+         assertTrue(Files.exists(base.resolve("reports/orgB/alice")));
+         UserMessage message = Tool.getUserMessage();
+         assertNotNull(message);
+         assertEquals(Catalog.getCatalog().getString("em.organization.renameIssue"),
+                      message.getMessage());
+      }
+      finally {
+         Tool.clearUserMessage();
+      }
+   }
+
    @Test
    void updateTaskSaveFiles_filesystem_movesOnlyTheOrganizationFiles() throws Exception {
       useSaveLocations("reports");
