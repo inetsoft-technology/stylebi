@@ -76,6 +76,30 @@ class PrintLayoutCardTopTest {
    }
 
    @Test
+   void aBorderlessObjectKeepsTheCardTopAndTheTableBorderless() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      fixture.info.getFormat().getUserDefinedFormat().setBorders(new Insets(NONE, NONE, NONE, NONE));
+      List<ReportElement> elements = fixture.addTable();
+      TextBoxElementDef top = (TextBoxElementDef) elements.get(0);
+      TableElementDef table = (TableElementDef) elements.get(2);
+
+      assertEquals(new Insets(NONE, NONE, NONE, NONE), top.getBorders());
+      assertEquals(new Insets(NONE, NONE, NONE, NONE), table.getBorders());
+   }
+
+   @Test
+   void anAsymmetricObjectBorderReachesTheCardTopAndTheTableUnmutated() throws Exception {
+      PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(16, 16, 16, 16);
+      fixture.info.getFormat().getUserDefinedFormat().setBorders(new Insets(THIN, NONE, THIN, NONE));
+      List<ReportElement> elements = fixture.addTable();
+      TextBoxElementDef top = (TextBoxElementDef) elements.get(0);
+      TableElementDef table = (TableElementDef) elements.get(2);
+
+      assertEquals(new Insets(THIN, NONE, NONE, NONE), top.getBorders());
+      assertEquals(new Insets(THIN, NONE, THIN, NONE), table.getBorders());
+   }
+
+   @Test
    void anAsymmetricInsetMovesOnlyItsOwnEdges() throws Exception {
       PrintLayoutConverterFixture fixture = new PrintLayoutConverterFixture().inset(8, 24, 4, 0);
       List<ReportElement> elements = fixture.addTable();

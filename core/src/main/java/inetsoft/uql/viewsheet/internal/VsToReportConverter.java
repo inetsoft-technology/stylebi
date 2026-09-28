@@ -1510,13 +1510,17 @@ public class VsToReportConverter {
       int titleH = getTitleHeight(assembly, true);
       int laneH = info.isTitleVisible() ? titleH : 0;
       Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, inset.top + laneH);
-      TextBoxElementDef top = addTextBoxElement0(
-         info, new TableDataPath(-1, TableDataPath.OBJECT), "", topBounds, sectionName);
+      // built directly, not through addTextBoxElement0: that path's applyFormat call would
+      // rewrite the object's live border Insets in place (isTitle = false there)
+      TextBoxElementDef top = new TextBoxElementDef(report, new DefaultTextLens(""));
+      applyFormat(top, info.getFormat(), null, info, true);
       VSCompositeFormat objfmt = info.getFormat();
       Insets borders = objfmt == null ? null : objfmt.getBorders();
       // the table element below continues the sides and closes the bottom
       setBoxBorders(top, borders == null ? new Insets(0, 0, 0, 0) :
          new Insets(borders.top, borders.left, StyleConstants.NO_BORDER, borders.right));
+      top.setZIndex(info.getZIndex());
+      addElement0(topBounds, top, sectionName);
 
       if(info.isTitleVisible()) {
          addCardTitle(assembly, new Rectangle(bounds.x + inset.left, bounds.y + inset.top,
