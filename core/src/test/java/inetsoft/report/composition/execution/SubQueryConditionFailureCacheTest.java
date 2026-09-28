@@ -69,6 +69,15 @@ class SubQueryConditionFailureCacheTest {
       }
    }
 
+   /**
+    * The data keys are content based, so without this a test could read rows another test
+    * cached (kept for 15 s) instead of running its own query.
+    */
+   @BeforeEach
+   void setUp() {
+      AssetDataCache.getCache().clearCache();
+   }
+
    @AfterEach
    void tearDown() {
       FAIL.set(false);
