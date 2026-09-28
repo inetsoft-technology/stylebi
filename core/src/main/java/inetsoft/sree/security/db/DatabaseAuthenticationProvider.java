@@ -183,7 +183,49 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       // build from the stored id, not the argument: a case-insensitive match must not
       // echo the caller's case into the user's name/org id (Bug #77081)
       return new User(userName, getEmails(userName),
-                      getUserGroups(userName, caseSensitive), getRoles(userName), "", "");
+                      getStoredUserGroups(userName), getRoles(userName), "", "");
+   }
+
+   /**
+    * Gets the groups of a stored user. A group member row always matches the stored id
+    * exactly. When user names are not case sensitive, a member row that is not itself a
+    * stored user also matches if it resolves to this user by the same rule as
+    * {@link #getStoredUserID(IdentityID)}, i.e. this user is the only stored id that matches
+    * it ignoring case (e.g. member <tt>Carol</tt> for stored user <tt>carol</tt>). A member row
+    * naming a different stored user (e.g. <tt>BOB</tt>) never matches <tt>bob</tt>, and a
+    * member row that matches several stored ids ignoring case matches none of them
+    * (Bug #77132).
+    */
+   private String[] getStoredUserGroups(IdentityID storedID) {
+      if(caseSensitive) {
+         return getUserGroups(storedID);
+      }
+
+      // read the user list once. Matching ignoring case is an equivalence, so the stored ids
+      // that match a member row ignoring case are exactly the ones that match storedID; the
+      // row resolves uniquely to storedID only if storedID has no other stored case variant
+      Set<IdentityID> storedUsers = new HashSet<>(Arrays.asList(getUsers()));
+      boolean hasVariant = storedUsers.stream()
+         .anyMatch(u -> !storedID.equals(u) && storedID.equalsIgnoreCase(u));
+      List<String> result = new ArrayList<>();
+
+      for(IdentityID group : getGroups()) {
+         if(!Objects.equals(group.orgID, storedID.orgID)) {
+            continue;
+         }
+
+         for(IdentityID member : getUsers(group)) {
+            if(storedID.equals(member) || !hasVariant && !storedUsers.contains(member) &&
+               Objects.equals(storedID.orgID, member.orgID) &&
+               storedID.name != null && storedID.name.equalsIgnoreCase(member.name))
+            {
+               result.add(group.name);
+               break;
+            }
+         }
+      }
+
+      return result.toArray(new String[0]);
    }
 
    private boolean isAmbiguousUserID(IdentityID userIdentity) {
