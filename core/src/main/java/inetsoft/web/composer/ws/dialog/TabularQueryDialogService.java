@@ -77,6 +77,8 @@ public class TabularQueryDialogService extends WorksheetControllerService {
 
          if(query.getDataSource() != null) {
             dataSource = query.getDataSource().getFullName();
+            // refreshView runs connector code against the bound source
+            checkDataSourceReadPermission(securityEngine, dataSource, principal);
          }
 
          List<String> records = getThreadRecords(runtimeId, tableName, principal);

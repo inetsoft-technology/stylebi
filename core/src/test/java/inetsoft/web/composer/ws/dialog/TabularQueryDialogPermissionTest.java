@@ -388,6 +388,52 @@ class TabularQueryDialogPermissionTest {
       }
    }
 
+   // ---- getModel on an existing table: refreshView runs connector code ----
+
+   @Test
+   void getModelExistingTableDeniedWithoutRead() throws Exception {
+      grantRead(false);
+      ExistingTable t = existingTable();
+
+      try(ServiceFixture f = new ServiceFixture(t.ws())) {
+         assertThrows(java.lang.SecurityException.class,
+                      () -> f.service.getModel("rid", "T1", null, principal));
+         verifyReadChecked(DS);
+         tabularUtil.verify(
+            () -> TabularUtil.refreshView(any(), any(), any(), any()), never());
+         verifyNoInteractions(f.repository);
+      }
+   }
+
+   @Test
+   void getModelExistingTableAllowedWithRead() throws Exception {
+      grantRead(true);
+      ExistingTable t = existingTable();
+
+      try(ServiceFixture f = new ServiceFixture(t.ws())) {
+         when(f.repository.getDataSourceFullNames()).thenReturn(new String[0]);
+         TabularQueryDialogModel model = f.service.getModel("rid", "T1", null, principal);
+         assertEquals(DS, model.getDataSource());
+         verifyReadChecked(DS);
+         tabularUtil.verify(
+            () -> TabularUtil.refreshView(any(), same(t.query()), any(), same(principal)));
+      }
+   }
+
+   @Test
+   void getModelExistingTableWithoutSourceIsNotDenied() throws Exception {
+      ExistingTable t = existingTable();
+      when(t.query().getDataSource()).thenReturn(null);
+
+      try(ServiceFixture f = new ServiceFixture(t.ws())) {
+         when(f.repository.getDataSourceFullNames()).thenReturn(new String[0]);
+         f.service.getModel("rid", "T1", null, principal);
+         verifyNoInteractions(securityEngine);
+         tabularUtil.verify(
+            () -> TabularUtil.refreshView(any(), same(t.query()), any(), same(principal)));
+      }
+   }
+
    // ---- Tester additions (04-verify) ----
 
    /**
