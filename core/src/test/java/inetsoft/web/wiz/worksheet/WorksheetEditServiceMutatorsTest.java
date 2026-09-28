@@ -9064,6 +9064,71 @@ class WorksheetEditServiceMutatorsTest {
          "the refused removal must not have been applied to L");
    }
 
+   // Human review round 2 (bug #77005), finding 1 [Blocking]: collectExpressionReferences only
+   // recognized wiz's own field['name'] bracket syntax -- it never matched the classic
+   // Table.Column dot-notation cross-table reference RenameColumnController's own propagation
+   // already detects via getExpressionDependeds/ScriptIterator, reopening the exact silent-
+   // breakage failure mode this PR exists to close for any worksheet whose join/composed table's
+   // expression was authored with dot-notation instead of bracket notation.
+   @Test
+   void removeColumnRefusesWhenAJoinTablesExpressionReferencesItByDotNotation() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "price");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("J", "total", "L.amount + R.price", "double", false));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("J"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("total"), ex.getMessage());
+      assertNotNull(left.getColumnSelection(false).getAttribute("amount"),
+         "the refused removal must not have been applied to L");
+   }
+
+   // Human review round 2 (bug #77005), finding 2 [Secondary, confirmed reachable]:
+   // WorksheetMutationSupport#resolveAggregateOrGroupField returns a bare GroupRef (not a plain
+   // ColumnRef) for a post/ranking condition field that names a GROUP BY column rather than an
+   // aggregate -- confirmed reachable via buildRankingConditionItem, which calls that same
+   // resolver and stores its result directly as the ConditionItem's own attribute. Unwrapping only
+   // AggregateRef (as before this round) misses this shape entirely.
+   @Test
+   void removeColumnRefusesWhenADownstreamMirrorsRankingConditionReferencesAGroupByColumn()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "region", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP", groups("region"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+      // Ranking directly by the GROUP column itself (no 'of' aggregate) -- this is what makes
+      // buildRankingConditionItem's resolveAggregateOrGroupField return a bare GroupRef rather
+      // than an AggregateRef.
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("DEP",
+            new WorksheetMutationSupport.RankingSpec("region", 3, "TOP_N", false)));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "region")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("ranking condition"), ex.getMessage());
+      assertNotNull(left.getColumnSelection(false).getAttribute("region"),
+         "the refused removal must not have been applied to L");
+   }
+
    @Test
    void removeColumnAllowsRemovingAColumnReferencedByADownstreamConditionWhenConfirmed()
       throws Exception
