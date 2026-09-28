@@ -508,7 +508,7 @@ public class UserTreeService {
          return EditGroupPaneModel.builder()
             .name(identity.getName())
             .organization(currOrgID)
-            .identityNames(Arrays.stream(provider.getGroups()).toList())
+            .identityNames(getOrgGroups(provider, currOrgID))
             .members(new ArrayList<>())
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
@@ -747,7 +747,6 @@ public class UserTreeService {
             }
          }
 
-         IdentityID[] identityIds = provider.getGroups();
          String state = IdentityInfoRecord.STATE_ACTIVE;
          actionRecord.setObjectName(identity.getName());
          identityInfoRecord = SUtil.getIdentityInfoRecord(identity.getIdentityID(),
@@ -766,7 +765,7 @@ public class UserTreeService {
             .alias("")
             .email("")
             .organization(currOrgID)
-            .identityNames(Arrays.stream(identityIds).toList())
+            .identityNames(getOrgGroups(provider, currOrgID))
             .members(new ArrayList<>())
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
@@ -865,7 +864,7 @@ public class UserTreeService {
          .alias(user.getAlias())
          .email(emails != null ? String.join(",", emails) : "")
          .locale(locale == null ? "" : locale)
-         .identityNames(Arrays.stream(currentProvider.getGroups()).toList())
+         .identityNames(getOrgGroups(currentProvider, org))
          .members(info.getMembers())
          .roles(Arrays.asList(info.getRoles()))
          .permittedIdentities(filterOtherOrgs(grantedUsers))
@@ -975,7 +974,6 @@ public class UserTreeService {
          }
 
          List<IdentityModel> defMembers = new ArrayList<IdentityModel>();
-         IdentityID[] identityNames = provider.getGroups();
          String state = IdentityInfoRecord.STATE_NONE;
          actionRecord.setObjectName(identity.getId());
          String creatorOrgId = pId.getOrgID();
@@ -996,7 +994,7 @@ public class UserTreeService {
          return EditOrganizationPaneModel.builder()
             .name(identity.getName())
             .id(identity.getId())
-            .identityNames(Arrays.stream(identityNames).toList())
+            .identityNames(getOrgGroups(provider, newOrgKey.orgID))
             .members(defMembers)
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
@@ -1117,7 +1115,7 @@ public class UserTreeService {
          .id(orgID.orgID)
          .status(organization.isActive())
          .locale(locale == null ? "" : locale)
-         .identityNames(Arrays.stream(currentProvider.getGroups()).toList())
+         .identityNames(getOrgGroups(currentProvider, orgID.orgID))
          .members(members)
          .roles(new ArrayList<>())
          .permittedIdentities(filterOtherOrgs(grantedOrganizations))
@@ -1155,6 +1153,28 @@ public class UserTreeService {
          .root(true)
          .currentUserName(pId.name)
          .build();
+   }
+
+   /**
+    * Gets the groups of the given organization. {@link AuthenticationProvider#getGroups()}
+    * returns the groups of every organization, so in multi-tenant mode it must be scoped
+    * before being sent to the client. Groups without an organization are kept, as in
+    * {@link #filterOtherOrgs(List)}.
+    */
+   static List<IdentityID> getOrgGroups(AuthenticationProvider provider, String orgID) {
+      IdentityID[] groups = provider.getGroups();
+
+      if(groups == null) {
+         return new ArrayList<>();
+      }
+
+      if(!SUtil.isMultiTenant()) {
+         return Arrays.stream(groups).toList();
+      }
+
+      return Arrays.stream(groups)
+         .filter(g -> g != null && (g.orgID == null || Tool.equals(g.orgID, orgID)))
+         .toList();
    }
 
    public List<IdentityModel> filterOtherOrgs(List<IdentityModel> pList) {
