@@ -270,9 +270,10 @@ class DashboardRegistryConcurrencyTest {
    void registryManagerRename_whileDashboardManagerGetsARegistry_doesNotDeadlock()
       throws Exception
    {
-      IdentityID user = new IdentityID("dashcc_rename", currentOrg());
+      String org = currentOrg();
+      IdentityID user = new IdentityID("dashcc_rename", org);
       DashboardRegistry userRegistry = registryManager.getRegistry(user);
-      userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(currentOrg(), null));
+      userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
 
       CountDownLatch holdingD = new CountDownLatch(1);
       CountDownLatch renameBlocked = new CountDownLatch(1);
@@ -287,8 +288,9 @@ class DashboardRegistryConcurrencyTest {
       });
       await(holdingD);
 
+      // org is captured from the main thread; the renamer thread has no org context of its own
       Thread renamer = start("M.renameDashboard",
-                             () -> registryManager.renameDashboard("d1__GLOBAL", "d2__GLOBAL"));
+                             () -> registryManager.renameDashboard("d1__GLOBAL", "d2__GLOBAL", org));
       awaitBlockedBy(renamer, lister);
       renameBlocked.countDown();
 
@@ -312,7 +314,7 @@ class DashboardRegistryConcurrencyTest {
       synchronized(dashboardManager) {
          // the snapshot contains the user registry, the rename then waits for D
          renamer = start("M.renameDashboard",
-                         () -> registryManager.renameDashboard("d1__GLOBAL", "d2__GLOBAL"));
+                         () -> registryManager.renameDashboard("d1__GLOBAL", "d2__GLOBAL", org));
          awaitBlockedBy(renamer, Thread.currentThread());
 
          // the file no longer has the old name, and the registry is re-loaded from it
