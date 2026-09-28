@@ -94,6 +94,21 @@ public class HolderBuiltJoinCycleTest {
    }
 
    /**
+    * The incident's topology: the guest builds a hash join whose left input is another hash
+    * join over formula inputs, so the outer {@code JoinTable} pre-drain reads the inner join
+    * on the guest. The inputs are past the pre-drain, so both joins' scans compute formula
+    * rows and need E.
+    */
+   @Test
+   public void guestBuildsNestedHashJoin() throws Exception {
+      harness.forceHashJoin();
+      // joined on the unique id column, column 2 of the inner join is the left input's id
+      runGuest(s -> join(join(s.formula(new SlowTable(BIG_ROWS, Slow.NONE)),
+                              s.formula(new SlowTable(BIG_ROWS, Slow.NONE)), 2),
+                         s.formula(new SlowTable(BIG_ROWS, Slow.NONE)), 2));
+   }
+
+   /**
     * {@code MergeJoinTable} built by a guest, with join keys computed by {@code exec()}.
     * Cycle before the fix: the guest holds E and waits in {@code JoinTable.moreRows}; the
     * JoinThread's sort waits for E in {@code GraalJavaScriptEngine.exec}.
