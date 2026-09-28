@@ -85,6 +85,32 @@ class PrintTableCardGridTest {
    }
 
    @Test
+   void calcHeaderWidthShrinksAgainstTheGrid() {
+      // header total 380 sits between the 368 grid and 400 - 1, so only a grid-aware check
+      // shrinks it
+      List<TablePaintable> regions = new PrintTableFixture().inset(16, 16, 16)
+         .widths(380, 100, 100).headerCols(1).layout(ReportSheet.TABLE_FIT_CONTENT).regions();
+
+      assertEquals(368 * 5 / 6f, regions.get(0).getColWidth(0), 0.01,
+                   "the header column shrinks to 5/6 of the 368 grid");
+
+      for(TablePaintable region : regions) {
+         for(int c = 1; c < 3; c++) {
+            assertTrue(region.getColWidth(c) > 0, "data column " + c + " has width left");
+         }
+      }
+   }
+
+   @Test
+   void withoutAnInsetCalcHeaderWidthUsesTheFullPage() {
+      List<TablePaintable> regions = new PrintTableFixture()
+         .widths(380, 100, 100).headerCols(1).layout(ReportSheet.TABLE_FIT_CONTENT).regions();
+
+      assertEquals(380, regions.get(0).getColWidth(0), 0.01,
+                   "380 is under 400 - 1, so today's code does not shrink it");
+   }
+
+   @Test
    @Timeout(60)
    void aCardNarrowerThanItsInsetStillPrints() {
       // 250 + 250 of side inset leaves the 400 card no grid at all

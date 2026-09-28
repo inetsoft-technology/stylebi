@@ -31,6 +31,11 @@ final class PrintTableFixture {
       return this;
    }
 
+   PrintTableFixture headerCols(int headerCols) {
+      this.headerCols = headerCols;
+      return this;
+   }
+
    PrintTableFixture noCellBorders() {
       this.cellBorders = false;
       return this;
@@ -134,6 +139,7 @@ final class PrintTableFixture {
 
       DefaultTableLens lens = new DefaultTableLens(data);
       lens.setHeaderRowCount(1);
+      lens.setHeaderColCount(headerCols);
 
       if(!cellBorders) {
          lens.setRowBorder(StyleConstants.NO_BORDER);
@@ -168,6 +174,7 @@ final class PrintTableFixture {
 
    static final int ROW_H = 20;
    private int rows = 10;
+   private int headerCols = 0;
    private int[] widths = { 100, 100, 100 };
    private int layout = ReportSheet.TABLE_FIT_PAGE;
    private boolean cellBorders = true;

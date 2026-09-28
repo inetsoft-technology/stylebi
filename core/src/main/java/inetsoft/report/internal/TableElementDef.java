@@ -1206,16 +1206,19 @@ public class TableElementDef extends BaseElement
    private float calcHeaderWidth(ReportSheet report, final int ncolumn,
                                  final int headerc) {
       float hwidth = 0;
+      // a card inset narrows the grid the header shares with the data columns
+      float gridW = cardInset == null ? report.printBox.width :
+         Math.max(0, report.printBox.width - cardInset.left - cardInset.right);
 
       for(int j = 0; j < ncolumn && j < headerc; j++) {
          // calculate header column width
          hwidth += colWidth[j];
       }
 
-      // if header fills up the entire page, shrink the header
-      if(hwidth >= report.printBox.width - 1) {
+      // if header fills up the entire grid, shrink the header
+      if(hwidth >= gridW - 1) {
          // reserve 1/6 for content
-         float hw = report.printBox.width * 5 / 6.0f;
+         float hw = gridW * 5 / 6.0f;
          float headerW2 = 0;
 
          for(int k = 0; k < headerc; k++) {
@@ -1229,11 +1232,11 @@ public class TableElementDef extends BaseElement
             "Header columns are wider than page. Shrink header column width.");
       }
 
-      // if the page is not wide enough to fit a single content cell
+      // if the grid is not wide enough to fit a single content cell
       // shrink the column width
       for(int j = headerc; j < ncolumn; j++) {
-         if(hwidth + colWidth[j] > report.printBox.width) {
-            colWidth[j] = report.printBox.width - hwidth;
+         if(hwidth + colWidth[j] > gridW) {
+            colWidth[j] = gridW - hwidth;
          }
       }
 
