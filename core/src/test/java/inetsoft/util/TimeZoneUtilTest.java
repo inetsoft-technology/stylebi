@@ -20,9 +20,11 @@ package inetsoft.util;
 import org.junit.jupiter.api.Test;
 
 import java.util.TimeZone;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class TimeZoneUtilTest {
 
    // Helper: build a TimeZone from an ID and invoke getTimeZoneID

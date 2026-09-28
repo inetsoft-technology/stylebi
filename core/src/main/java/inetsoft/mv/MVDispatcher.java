@@ -181,6 +181,12 @@ public class MVDispatcher {
             }
 
             int ninterval = nrange / threads;
+            // all the dispatchers share def and its columns, the range of a shared
+            // column is reset once for this build instead of once per dispatcher,
+            // which would wipe the range the other dispatchers already accumulated
+            // (Bug #77154)
+            Set<MVColumn> resetColumns =
+               Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
 
             for(int i = 0; i < dispatcherCnt; i++) {
                VariableTable vars = new VariableTable();
@@ -253,6 +259,7 @@ public class MVDispatcher {
                dispatcher.number = this.number;
                dispatcher.isDate = this.isDate;
                dispatcher.isDateTime = this.isDateTime;
+               dispatcher.resetColumns = resetColumns;
                dispatchers[i] = dispatcher;
                pool.add(dispatcher);
             }
@@ -648,7 +655,7 @@ public class MVDispatcher {
       boolean aggregated = MVCreatorUtil.isAggregated(def);
 
       if(def != null) {
-         return new MVBuilder(data, def, aggregated);
+         return new MVBuilder(data, def, aggregated, null, resetColumns);
       }
 
       return new MVBuilder(data, dims, measures, aggregated);
@@ -825,6 +832,9 @@ public class MVDispatcher {
    protected AssetQuerySandbox box;
    protected boolean isDate = false;
    protected DataRef number = null;
+   // the columns already reset by the builders of a parallel mv build, shared by
+   // all its dispatchers, null to always reset (see MVBuilder)
+   protected Set<MVColumn> resetColumns = null;
    private transient XTable data;
    private transient int[] dims;
    private transient int[] measures;

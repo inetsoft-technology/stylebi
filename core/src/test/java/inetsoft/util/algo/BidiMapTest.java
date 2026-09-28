@@ -22,9 +22,11 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class BidiMapTest {
 
    private BidiMap<String, Integer> map;

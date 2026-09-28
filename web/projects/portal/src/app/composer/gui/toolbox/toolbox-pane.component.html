@@ -19,7 +19,6 @@
 <div [style.height.px]="useVirtualScroll ? virtualMid : ''">
   <composer-binding-tree [viewsheet]="focusedViewsheet" [useVirtualScroll]="useVirtualScroll"
                          [grayedOutFields]="grayedOutFields" [virtualScrollTreeDatasource]="virtualScrollTreeDatasource"
-                         (bindingTreeChanged)="treeNodesLoaded($event)"
                          (nodeCollapsed)="collapseNode($event)" (nodeExpanded)="expandNode($event)">
   </composer-binding-tree>
   <tree [nodeSelectable]="false" [draggable]="true" [root]="toolbox"

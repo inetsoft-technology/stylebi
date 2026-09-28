@@ -255,6 +255,82 @@ describe("SaveViewsheetDialog — ngOnInit Untitled- clearing", () => {
       const comp = await renderComponent(model);
       expect(comp.model.name).toBe("Sales Dashboard");
    });
+
+   // 🔁 Regression (Bug #76714): the form control used to be built from "Untitled-N" (valid) before
+   //    model.name was cleared, so the OK button's [disabled] flipped false -> true inside the first
+   //    change-detection pass and dev-mode checkNoChanges threw NG0100.
+   it("should not throw NG0100 and should disable OK on the first pass for an 'Untitled-' name", async () => {
+      const { fixture } = await render(SaveViewsheetDialog, {
+         schemas: [NO_ERRORS_SCHEMA],
+         detectChangesOnRender: false,
+         autoDetectChanges: false,
+         importOverrides: [
+            { replace: AssetTreeComponent, with: AssetTreeComponentStub },
+            { replace: ViewsheetOptionsPane, with: ViewsheetOptionsPaneStub },
+            { replace: ModalHeaderComponent, with: ModalHeaderComponentStub },
+         ],
+         providers: [
+            { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
+            { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },
+         ],
+         componentProperties: { model: makeModel("Untitled-1"), runtimeId: "vs-123" },
+      });
+
+      fixture.detectChanges(false);
+      expect(() => fixture.checkNoChanges()).not.toThrow();
+
+      const okButton: HTMLButtonElement = fixture.nativeElement.querySelector(".modal-footer .btn-primary");
+      expect(okButton.disabled).toBe(true);
+      expect(fixture.componentInstance.form.valid).toBe(false);
+   });
+
+   // Bug #76714 follow-up: after the reorder, typing a valid name must still enable OK, and an
+   // existing name must still enable OK from the very first pass (Save As on a named dashboard).
+   async function renderManualCd(name: string) {
+      const { fixture } = await render(SaveViewsheetDialog, {
+         schemas: [NO_ERRORS_SCHEMA],
+         detectChangesOnRender: false,
+         autoDetectChanges: false,
+         importOverrides: [
+            { replace: AssetTreeComponent, with: AssetTreeComponentStub },
+            { replace: ViewsheetOptionsPane, with: ViewsheetOptionsPaneStub },
+            { replace: ModalHeaderComponent, with: ModalHeaderComponentStub },
+         ],
+         providers: [
+            { provide: ModelService, useValue: MODEL_SERVICE_MOCK },
+            { provide: NgbModal, useValue: MODAL_SERVICE_MOCK },
+         ],
+         componentProperties: { model: makeModel(name), runtimeId: "vs-123" },
+      });
+      return fixture;
+   }
+
+   it("should enable OK after typing a valid name into a cleared 'Untitled-' dialog", async () => {
+      const fixture = await renderManualCd("Untitled-1");
+      fixture.detectChanges(false);
+      fixture.checkNoChanges();
+
+      const input: HTMLInputElement = fixture.nativeElement.querySelector("input#name");
+      input.value = "New1";
+      input.dispatchEvent(new Event("input"));
+      fixture.detectChanges(false);
+      expect(() => fixture.checkNoChanges()).not.toThrow();
+
+      const okButton: HTMLButtonElement = fixture.nativeElement.querySelector(".modal-footer .btn-primary");
+      expect(fixture.componentInstance.model.name).toBe("New1");
+      expect(fixture.componentInstance.form.valid).toBe(true);
+      expect(okButton.disabled).toBe(false);
+   });
+
+   it("should keep an existing name and enable OK on the first pass without NG0100", async () => {
+      const fixture = await renderManualCd("Sales");
+      fixture.detectChanges(false);
+      expect(() => fixture.checkNoChanges()).not.toThrow();
+
+      const okButton: HTMLButtonElement = fixture.nativeElement.querySelector(".modal-footer .btn-primary");
+      expect(fixture.componentInstance.model.name).toBe("Sales");
+      expect(okButton.disabled).toBe(false);
+   });
 });
 
 // ---------------------------------------------------------------------------

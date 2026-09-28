@@ -20,12 +20,14 @@ package inetsoft.graph.visual;
 import org.junit.jupiter.api.Test;
 
 import java.awt.geom.Rectangle2D;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for BarVO.computeFullBarBounds geometry.
  */
+@Tag("core")
 class BarVOStackRoundingTest {
 
    // -----------------------------------------------------------------------

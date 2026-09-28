@@ -24,6 +24,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Enumeration;
+import inetsoft.test.BaseTestConfiguration;
+import inetsoft.test.ConfigurationContextInitializer;
+import inetsoft.test.SreeHome;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,6 +44,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * directly to {@code XPrincipal.getRoles()}, which avoids any dependency on
  * the security engine / Spring context.
  */
+@ExtendWith(SpringExtension.class)
+@ContextConfiguration(classes = { BaseTestConfiguration.class }, initializers = ConfigurationContextInitializer.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@SreeHome
+@Tag("core")
 class HiddenColumnsTest {
 
    private HiddenColumns hiddenColumns;

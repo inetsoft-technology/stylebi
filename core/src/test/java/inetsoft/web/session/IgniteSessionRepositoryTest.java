@@ -71,6 +71,21 @@ package inetsoft.web.session;
  * would reintroduce exactly the false-positive cross-node logout this investigation is about -- see
  * logout()'s javadoc.
  *
+ * Redmine #77178 -- websocket close-code regression, root-caused to the SAME raw-MapSession defect
+ * described above, but on the EVENT side rather than the logout() side: entryRemoved()'s "not
+ * expired" branch published its SessionDeletedEvent from the raw MapSession (deliberately, mirroring
+ * its inert logout() call -- but the event has no such cross-node-false-logout risk, since
+ * publishing it force-closes nothing by itself), and entryExpired() published its SessionExpiredEvent
+ * from the raw `session` one line after wrapping a correctly-attributed IgniteSession for its own
+ * logout() call just above (an oversight, not a deliberate choice, unlike entryRemoved()'s branch).
+ * Either way, the published event's getPrincipalCookie()/getLoggedOutAttribute() always resolved
+ * null, which SessionConnectionService cannot distinguish from a genuinely anonymous session --
+ * whichever of this null-attributed event and the correctly-attributed sibling event (from
+ * deleteById()/invalidateSession()) is processed first decides the websocket close code. The fix:
+ * publish both events from a properly-wrapped IgniteSession (entryRemoved()'s branch builds one
+ * purely for the event; entryExpired() reuses the wrapper it already built for logout()) without
+ * changing either method's logout()/deregistration behavior at all.
+ *
  * The tests below are structural/unit-level only, against a fully in-memory MockCluster (no real
  * Ignite, no real multi-node timing) -- they prove the claims above, not the live GKE incident.
  */
@@ -98,6 +113,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import javax.cache.Cache;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -207,6 +223,48 @@ class IgniteSessionRepositoryTest {
    }
 
    /**
+    * Bug #77178: entryRemoved()'s "not expired" branch deliberately keeps logout() inert (see the
+    * test above), but the SessionDeletedEvent it publishes is consumed downstream (e.g.
+    * SessionConnectionService, to pick a websocket close code) and must NOT be equally inert --
+    * before this fix, the event was built directly from the raw MapSession, so its
+    * getPrincipalCookie()/getLoggedOutAttribute() always resolved null, indistinguishable from a
+    * genuinely anonymous session. This asserts the published event now resolves the real
+    * principal via a properly-wrapped IgniteSession, while the sibling test above confirms
+    * logout() itself is unaffected (still inert) by this change.
+    */
+   @Test
+   void entryRemoved_notExpiredBranch_publishesEventWithResolvedPrincipal() {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+      String id = session.getId();
+
+      AtomicReference<SessionDeletedEvent> captured = new AtomicReference<>();
+      cluster.addMessageListener(event -> {
+         if(event.getMessage() instanceof SessionDeletedEvent deletedEvent) {
+            captured.set(deletedEvent);
+         }
+      });
+
+      // Same removal shape as the sibling test: a direct cache-level remove, no explicit event
+      // of its own, for a session that is NOT expired -- this is what triggers entryRemoved()'s
+      // "not expired" branch.
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      boolean removed = rawSessions.remove(id);
+      assertTrue(removed, "the raw cache entry should have existed");
+
+      SessionDeletedEvent event = captured.get();
+      assertNotNull(event, "entryRemoved()'s \"not expired\" branch should publish a SessionDeletedEvent");
+      assertSame(principal, event.getPrincipalCookie(),
+                 "the published event must resolve the real principal, not null from the raw " +
+                 "MapSession (bug #77178)");
+   }
+
+   /**
     * Fix round 2, gap 1: deleteById() (the internal findById()->deleteById() dispatch for a
     * per-node-observed-expired session) previously relied on the same node's own entryExpired()
     * reaction to deregister the principal -- which, pre-fix, was just as inert as
@@ -267,6 +325,53 @@ class IgniteSessionRepositoryTest {
 
       verify(authenticationService)
          .logout(same(principal), eq("127.0.0.1"), eq(SessionRecord.LOGOFF_SESSION_TIMEOUT));
+   }
+
+   /**
+    * Bug #77178: entryExpired() already wrapped the raw MapSession in an IgniteSession for its
+    * logout() call (fix round 2 of #76953, see the test above), but one line later it published
+    * the SessionExpiredEvent using the unwrapped raw `session` instead of reusing that wrapper --
+    * an apparent oversight, not a deliberate choice (unlike entryRemoved()'s "not expired"
+    * branch). That meant every SessionExpiredEvent this method published, for both dispatch
+    * shapes (routed via entryRemoved()'s isExpired() re-check, and genuine native Ignite TTL
+    * dispatch reproduced here), always resolved a null principal downstream, regardless of
+    * logout() itself working correctly. This asserts the published event now resolves the real
+    * principal too.
+    */
+   @Test
+   void entryExpired_nativeTtlDispatch_publishesEventWithResolvedPrincipal() {
+      SRPrincipal principal = mockPrincipal("admin", "127.0.0.1");
+      when(securityEngine.isActiveUser(principal)).thenReturn(true);
+
+      IgniteSessionRepository.IgniteSession session = repository.createSession();
+      session.setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+      repository.save(session);
+      String id = session.getId();
+
+      @SuppressWarnings("unchecked")
+      Cache<String, org.springframework.session.MapSession> rawSessions =
+         cluster.getCache(IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, true, null);
+      org.springframework.session.MapSession rawSession = rawSessions.get(id);
+      assertNotNull(rawSession, "raw MapSession backing the cache entry should exist");
+
+      AtomicReference<SessionExpiredEvent> captured = new AtomicReference<>();
+      cluster.addMessageListener(evt -> {
+         if(evt.getMessage() instanceof SessionExpiredEvent expiredEvent) {
+            captured.set(expiredEvent);
+         }
+      });
+
+      inetsoft.sree.internal.cluster.EntryEvent<String, org.springframework.session.MapSession>
+         event = new inetsoft.sree.internal.cluster.EntryEvent<>(
+            IgniteSessionRepository.DEFAULT_SESSION_MAP_NAME, id, rawSession, null);
+
+      repository.entryExpired(event);
+
+      SessionExpiredEvent expiredEvent = captured.get();
+      assertNotNull(expiredEvent, "entryExpired() should publish a SessionExpiredEvent");
+      assertSame(principal, expiredEvent.getPrincipalCookie(),
+                 "the published event must resolve the real principal, not null from the raw " +
+                 "MapSession (bug #77178)");
    }
 
    private static SRPrincipal mockPrincipal(String name, String ip) {

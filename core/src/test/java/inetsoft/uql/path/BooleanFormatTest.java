@@ -24,9 +24,11 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.text.ParsePosition;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class BooleanFormatTest {
 
    private BooleanFormat format;

@@ -49,6 +49,11 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       // Defensively discard any stale deferred callbacks left by a previous message
       // on this pooled thread (in case afterMessageHandled was never invoked for it).
       SafeSimpSessionScope.getAndClearDeferredCallbacks();
+      // Bug #77135: user messages are a thread-local on this pooled inbound thread. Drop any
+      // left by a previous STOMP message (possibly another user/org) so they cannot reach this
+      // message's CommandDispatcher. Covers every @MessageMapping/@SubscribeMapping, not only
+      // those inside EventAspect's pointcut.
+      Tool.clearUserMessage();
       MessageAttributes attributes = new MessageAttributes(message);
       MessageContextHolder.setMessageAttributes(attributes);
       Principal principal = attributes.getHeaderAccessor().getUser();
@@ -89,6 +94,11 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       ThreadContext.setPrincipal(null);
       ThreadContext.setLocale(null);
       ThreadContext.setProfiling(null);
+
+      // Bug #77135: anything still queued here was not delivered by this message's handler
+      // (all advice and return-value handling ran before afterMessageHandled), so discard it
+      // rather than leave it for the next message on this pooled thread.
+      Tool.clearUserMessage();
 
       // Run any destruction callbacks deferred by SafeSimpSessionScope (beans created after
       // WebSocket session completion). Running them here ensures @PreDestroy is called even when
