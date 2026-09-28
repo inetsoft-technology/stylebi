@@ -139,13 +139,14 @@ public class DashboardRegistryManager {
     * A registry without the dashboard is neither loaded nor cached.
     * <p>
     * It must be called before the global dashboard is renamed, so that an old user file is
-    * ported against the old name, and without holding the dashboard manager or a registry
-    * lock, the scan should not block the dashboard manager.
+    * ported against the old name. It must be called without holding the dashboard manager or
+    * a registry lock, so that the scan doesn't block the dashboard manager.
     *
     * @param orgID the organization of the global dashboard.
     * @param oname the name of the global dashboard.
     *
-    * @return the users whose registry has the dashboard.
+    * @return the users whose registry has the dashboard, including the users whose registry is
+    *         already cached, so that the rename re-loads a registry evicted in the meantime.
     */
    Collection<IdentityID> loadUserCopies(String orgID, String oname) {
       if(orgID == null || oname == null) {
@@ -165,14 +166,22 @@ public class DashboardRegistryManager {
 
          String userName = path.substring(prefix.length(), path.length() - suffix.length());
 
-         if(userName.indexOf('/') >= 0 || registries.containsKey(getRegistryKey(userName, orgID)))
-         {
-            // not a user registry, or cached and renamed from the cache
+         if(userName.indexOf('/') >= 0) {
+            // not a user registry
             continue;
          }
 
-         if(fileHasCopy(path, oname)) {
-            IdentityID user = new IdentityID(userName, orgID);
+         IdentityID user = new IdentityID(userName, orgID);
+         DashboardRegistry cached = registries.get(getRegistryKey(userName, orgID));
+
+         if(cached != null) {
+            // not loaded again, but still returned, the registry may be evicted, e.g. by a
+            // logout, before the rename
+            if(isUserCopy(cached, orgID, oname)) {
+               users.add(user);
+            }
+         }
+         else if(fileHasCopy(path, oname)) {
             getRegistry(user, orgID, true);
             users.add(user);
          }
@@ -205,8 +214,17 @@ public class DashboardRegistryManager {
          NodeList nodes = Tool.getChildNodesByTagName(root, "node");
 
          for(int i = 0; i < nodes.getLength(); i++) {
-            String name = Tool.getValue(
-               Tool.getChildNodeByTagName((Element) nodes.item(i), "name"));
+            Element node = (Element) nodes.item(i);
+            Element dashboard = Tool.getChildNodeByTagName(node, "dashboard");
+
+            // ignored when the file is loaded
+            if(dashboard != null && "inetsoft.sree.web.dashboard.PortletDashboard".equals(
+               Tool.getAttribute(dashboard, "class")))
+            {
+               continue;
+            }
+
+            String name = Tool.getValue(Tool.getChildNodeByTagName(node, "name"));
 
             if(oname.equals(name) || needsPort && oname.equals(name + "__GLOBAL")) {
                return true;

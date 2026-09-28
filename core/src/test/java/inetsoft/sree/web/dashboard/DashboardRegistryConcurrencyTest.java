@@ -686,6 +686,39 @@ class DashboardRegistryConcurrencyTest {
    }
 
    @Test
+   void globalRename_userCopyCachedAtScanEvictedBeforeRename_stillRenamed() throws Exception {
+      String org = currentOrg();
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
+      IdentityID user = new IdentityID("dashcc_cached_evicted", org);
+      DashboardRegistry userRegistry = registryManager.getRegistry(user);
+      userRegistry.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      userRegistry.save();
+      Thread renamer;
+
+      synchronized(dashboardManager) {
+         // the scan finds the registry cached, the rename then waits for D
+         renamer = start("R_g.renameDashboard",
+                         () -> global.renameDashboard("d1__GLOBAL", "d2__GLOBAL"));
+         awaitBlockedBy(renamer, Thread.currentThread());
+         assertSame(userRegistry, registryCache().get(org + "__" + user.name),
+                    "precondition: the user registry is still the cached instance");
+
+         // e.g. the user logs out between the scan and the rename
+         registryManager.clear(user);
+         assertFalse(registryCache().containsKey(org + "__" + user.name));
+      }
+
+      assertCompletes(renamer);
+      assertEquals(List.of("d2__GLOBAL"), namesInFile(userPath(org, user.name)),
+                   "a copy cached at the scan and evicted before the rename must follow it");
+      registryManager.clear(user);
+      assertArrayEquals(new String[] { "d2__GLOBAL" },
+                        registryManager.getRegistry(user).getDashboardNames());
+   }
+
+   @Test
    void globalRename_orgIdWithTheHostOrgAndSeparatorAsPrefix_untouched() throws Exception {
       String host = currentOrg();
       // the cache key of org B user bob, "<host>__b__bob", starts with "<host>__"
