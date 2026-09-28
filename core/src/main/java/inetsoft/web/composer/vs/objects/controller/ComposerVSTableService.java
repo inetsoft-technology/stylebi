@@ -991,8 +991,9 @@ public class ComposerVSTableService {
          return hint;
       }
 
+      box.get().lockRead();
+
       try {
-         box.get().lockRead();
          Viewsheet vs = rvs.getViewsheet();
          String tableName = event.getName();
          TableDataVSAssembly table = (TableDataVSAssembly) vs.getAssembly(tableName);

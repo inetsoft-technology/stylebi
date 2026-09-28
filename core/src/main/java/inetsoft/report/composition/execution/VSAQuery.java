@@ -577,6 +577,10 @@ public abstract class VSAQuery {
          try {
             box.updateAssembly(chart);
          }
+         catch(LockRestoreException e) {
+            // the sandbox lock was lost, not a chart error (runtime query path, 77153)
+            throw e;
+         }
          catch(Exception e) {
             LOG.warn("Failed to update chart assembly: " + chart.getAssemblyEntry(), e);
          }
