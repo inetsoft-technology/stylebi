@@ -31,8 +31,11 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.GraalJavaScriptEnv;
+import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -44,6 +47,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -153,12 +158,14 @@ public class SubQueryConditionWorksheetCycleTest {
          assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
          return drain(table).size();
       });
-      awaitIn(populator, "DistinctTableLens", "moreRows", KNOWN_CAP);
+      awaitIn(populator, KNOWN_CAP, "DistinctTableLens.moreRows");
 
       // X's formula reads A by name, holding the engine lock
       Started<Integer> script = harness.start(
          () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
-      awaitIn(script, "AbstractConditionFilter", "moreRows", KNOWN_CAP);
+      // without the fix it blocks on A's filter; with it, it waits for the engine lock in X's
+      // formula lens before it reaches A
+      awaitIn(script, KNOWN_CAP, "AbstractConditionFilter.moreRows", "LendableReentrantLock.lock");
       worker.release();
 
       assertEquals(2, harness.await(script.future, KNOWN_CAP, "formula reading A by name"));
@@ -205,7 +212,7 @@ public class SubQueryConditionWorksheetCycleTest {
 
       // M is populated on a thread holding no lock; it may have to wait for the engine lock
       Started<Integer> populator = harness.start(() -> drain(mirror).size());
-      awaitIn(populator, "LendableReentrantLock", "lock", KNOWN_CAP);
+      awaitIn(populator, KNOWN_CAP, "LendableReentrantLock.lock");
       gate.release();
 
       assertEquals(2, harness.await(script.future, KNOWN_CAP, "formula reading M by name"));
@@ -259,11 +266,106 @@ public class SubQueryConditionWorksheetCycleTest {
 
       // another reader of A populates it further and re-reads the sub table
       Started<Integer> populator = harness.start(() -> drain(filter).size());
-      awaitIn(populator, "LendableReentrantLock", "lock", KNOWN_CAP);
+      awaitIn(populator, KNOWN_CAP, "LendableReentrantLock.lock");
       gate.release();
 
       int rows = harness.await(formula.future, KNOWN_CAP, "M's formula reading A");
       assertEquals(rows, (int) harness.await(populator.future, KNOWN_CAP, "reader of A"));
+   }
+
+   /**
+    * Review round 1 of the fix, B1: the populator of A is a script thread of another engine,
+    * e.g. a viewsheet onLoad script reading A (a viewsheet scope has its own env). Once A's
+    * filter takes the worksheet engine lock first, that thread holds it while it waits for the
+    * sub table's distinct worker, and a thread inside {@code exec} cannot lend it
+    * ({@code canLendScriptLocks}), so the worker, which needs the lock in the formula lens,
+    * never finishes. Before the fix the thread held no worksheet engine lock and the worker
+    * finished.
+    */
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   public void foreignEngineScriptThreadPopulatesFilteredTable(boolean correlated)
+      throws Exception
+   {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 20, null);
+      EmbeddedTableAssembly b = embedded(ws, "B", SUB_ROWS, worker);
+      expression(b, "bx", "field['id'] * 1");
+      subQueryCondition(ws, a, b, correlated);
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+      TableLens table = harness.await(harness.submit(
+         () -> box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building A");
+      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
+
+      Started<Integer> script = harness.start(() -> asForeignScript(() -> drain(table).size()));
+      awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
+      worker.release();
+
+      assertTrue(harness.await(script.future, KNOWN_CAP, "script of another engine reading A") > 1);
+   }
+
+   /**
+    * The same shape without a sub-query: the condition filter of a mirror M of a distinct
+    * table D with a script expression column has D's {@code DistinctTableLens} in its base
+    * chain, so it takes the worksheet engine lock first on main too, and a script thread of
+    * another engine reading M waits for D's worker holding that lock.
+    */
+   @Test
+   @Tag("known-deadlock")
+   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
+   public void foreignEngineScriptThreadPopulatesFilterOverDistinct() throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly d = embedded(ws, "D", SUB_ROWS, worker);
+      expression(d, "dx", "field['id'] * 1");
+      d.setDistinct(true);
+      MirrorTableAssembly m = new MirrorTableAssembly(ws, "M", d);
+      ws.addAssembly(m);
+      m.update();
+      AssetCondition positive = new AssetCondition();
+      positive.setOperation(XCondition.GREATER_THAN);
+      positive.setType(XSchema.INTEGER);
+      positive.addValue(0);
+      ConditionList list = new ConditionList();
+      list.append(new ConditionItem(m.getColumnSelection(false).getAttribute("id"), positive, 0));
+      m.setPreConditionList(list);
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+      TableLens mirror = harness.await(harness.submit(
+         () -> box.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building M");
+      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
+
+      Started<Integer> script = harness.start(() -> asForeignScript(() -> drain(mirror).size()));
+      awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
+      worker.release();
+
+      assertEquals(SUB_ROWS + 1,
+                   (int) harness.await(script.future, KNOWN_CAP, "script of another engine reading M"));
+   }
+
+   /**
+    * Run {@code task} as a script of another engine does, inside {@code exec}: holding the
+    * execution lock of its own env (a viewsheet scope's env is never pooled) and flagged as a
+    * script thread. This is what {@code LockCycleHarness.Sandbox.asGuest} does, with an env
+    * that is not the worksheet sandbox's.
+    */
+   private <T> T asForeignScript(Callable<T> task) throws Exception {
+      GraalJavaScriptEnv env = new GraalJavaScriptEnv();
+      env.init();
+      Lock foreign = env.getExecutionLock();
+      assertNotSame(lock, foreign);
+      foreign.lock();
+      JavaScriptEngine.pushExecScriptable(mock(ScriptScope.class));
+
+      try {
+         return task.call();
+      }
+      finally {
+         JavaScriptEngine.popExecScriptable();
+         foreign.unlock();
+      }
    }
 
    /**
@@ -308,10 +410,11 @@ public class SubQueryConditionWorksheetCycleTest {
    }
 
    /**
-    * Wait until {@code started}'s thread is parked in {@code cls.method}, or {@code capSeconds}
-    * passed (with the fix the thread may never get there).
+    * Wait until {@code started}'s thread is parked in one of {@code frames}
+    * ({@code SimpleClassName.method}), or has finished, or {@code capSeconds} passed (with the
+    * fix the thread may never get there).
     */
-   private static void awaitIn(Started<?> started, String cls, String method, long capSeconds)
+   private static void awaitIn(Started<?> started, long capSeconds, String... frames)
       throws InterruptedException
    {
       long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(capSeconds);
@@ -321,9 +424,11 @@ public class SubQueryConditionWorksheetCycleTest {
 
          if(thread != null && thread.getState() != Thread.State.RUNNABLE) {
             for(StackTraceElement element : thread.getStackTrace()) {
-               if(element.getClassName().endsWith("." + cls) &&
-                  element.getMethodName().equals(method))
-               {
+               String cls = element.getClassName();
+               String frame = cls.substring(cls.lastIndexOf('.') + 1) + "." +
+                  element.getMethodName();
+
+               if(Arrays.asList(frames).contains(frame)) {
                   return;
                }
             }
@@ -400,11 +505,7 @@ public class SubQueryConditionWorksheetCycleTest {
    }
 
    /**
-    * Parks the first lens worker that asks for row {@code row} of the data while holding no
-    * script lock, i.e. the formula lens's prefetch before it takes the engine lock.
-    */
-   /**
-    * Called by {@link GatedData#moreRows}.
+    * Called by {@link GatedData}.
     */
    private interface Hook {
       void onMoreRows(int row);
@@ -413,6 +514,10 @@ public class SubQueryConditionWorksheetCycleTest {
       }
    }
 
+   /**
+    * Parks the first lens worker that asks for row {@code row} of the data while holding no
+    * script lock, i.e. the formula lens's prefetch before it takes the engine lock.
+    */
    private static final class WorkerGate implements Hook {
       WorkerGate(int row) {
          this.row = row;
