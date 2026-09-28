@@ -19,6 +19,7 @@ package inetsoft.util.script.graal;
 
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyExecutable;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import java.util.*;
 import java.util.function.Predicate;
@@ -327,10 +328,35 @@ public class BindingRootProxy implements ProxyObject {
       return a == null ? new Object[0] : a;
    }
 
+   /**
+    * The member the declaration hoist asks whether a name is a var an {@link OwnedVarScope}
+    * of the current chain owns, {@code __scope__.__inetsoft_owned_var__("n")}: such a var
+    * stays in its owner and is never copied to the global scope (Testing #77123).
+    */
+   public static final String OWNED_VAR_PROBE = "__inetsoft_owned_var__";
+   private final ProxyExecutable ownedVarProbe =
+      args -> args.length > 0 && args[0].isString() && ownsVar(args[0].asString());
+
+   private boolean ownsVar(String name) {
+      for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+         if(s instanceof OwnedVarScope o && o.ownsVar(name)) {
+            return true;
+         }
+      }
+
+      return execScopeSupplier.get() instanceof OwnedVarScope o && o.ownsVar(name);
+   }
+
    @Override public Object getMember(String key) {
+      if(OWNED_VAR_PROBE.equals(key)) {
+         return ownedVarProbe;
+      }
+
       return ScriptValueConverter.toGuest(resolve(key));
    }
-   @Override public boolean hasMember(String key) { return resolves(key); }
+   @Override public boolean hasMember(String key) {
+      return OWNED_VAR_PROBE.equals(key) || resolves(key);
+   }
    @Override public Object getMemberKeys() { return enumerate().toArray(new String[0]); }
    @Override public void putMember(String key, Value value) {
       // a write can create a new name on a chain scope, so the "is name in chain?"
@@ -344,7 +370,13 @@ public class BindingRootProxy implements ProxyObject {
       // `global` would shadow a parent/exec-scope variable, so a read from the
       // owning scope (Java side or another script) would see a stale value.
       // Each write converts with toHostStored: the owning scope keeps the value (#76960).
+      // A var an OwnedVarScope owns is stored there as the guest value (Testing #77123).
       for(ScriptScope s = global; s != null; s = s.getParentScope()) {
+         if(s instanceof OwnedVarScope o && o.ownsVar(key)) {
+            o.putOwnedVar(key, value);
+            return;
+         }
+
          if(s.hasMember(key)) {
             s.putMember(key, ScriptValueConverter.toHostStored(value));
             return;
@@ -352,6 +384,11 @@ public class BindingRootProxy implements ProxyObject {
       }
 
       ScriptScope exec = execScopeSupplier.get();
+
+      if(exec instanceof OwnedVarScope o && o.ownsVar(key)) {
+         o.putOwnedVar(key, value);
+         return;
+      }
 
       if(exec != null && exec.hasMember(key)) {
          exec.putMember(key, ScriptValueConverter.toHostStored(value));

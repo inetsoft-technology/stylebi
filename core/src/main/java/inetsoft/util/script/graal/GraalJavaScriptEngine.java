@@ -27,7 +27,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -2186,6 +2189,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Rhino behavior being restored here and is not a new regression, but the
     * blast radius is wider than the transient-wrapper-frame behavior #75550
     * introduced.
+    * <p>
+    * A var that an {@link OwnedVarScope} of the executing chain owns (a formula
+    * table's var, Testing #77123) is not copied: {@code typeof} reads it from its
+    * owner through {@code with(__scope__)}, and a copy would leak it to other tables
+    * and later scripts. The owner check is made at run time, since a compiled
+    * script is cached and shared by every scope that runs it.
     */
    private static String buildDeclarationHoist(String body) {
       Set<String> names = collectTopLevelDeclarations(body);
@@ -2197,12 +2206,129 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       StringBuilder sb = new StringBuilder();
 
       for(String name : names) {
-         sb.append("try{if(typeof ").append(name).append("!==\"undefined\"){globalThis[")
+         sb.append("try{if(typeof ").append(name).append("!==\"undefined\"&&!__scope__.")
+            .append(BindingRootProxy.OWNED_VAR_PROBE).append("(")
+            .append(toJsStringLiteral(name)).append(")){globalThis[")
             .append(toJsStringLiteral(name)).append("]=").append(name)
             .append(";}}catch(").append(HOIST_ERR_VAR).append("){}");
       }
 
       return sb.toString();
+   }
+
+   /**
+    * The var names a formula table owns for its formulas (Testing #77123): the union of
+    * the names each script declares with {@code var} outside any function body (in a block
+    * and in a {@code for(var ...)} head too, as {@code var} is function scoped), minus every
+    * name any of the scripts declares with a top-level {@code let} or {@code const}. Such a
+    * declaration is rewritten to a per-run {@code var} (#76980, #77181) that must stay per
+    * run, even if another formula of the table declares a {@code var} of the same name.
+    *
+    * <p>A lexical scan on the shared tokenizing of {@link #stripStringsAndComments}, like
+    * the other declaration scanners. A missed name keeps the per-script behavior; a name
+    * collected from a method-shorthand body (no {@code function} keyword) becomes owned by
+    * the table, shadowing a same-named global for that table only.
+    *
+    * @param scripts the scripts, null elements are skipped.
+    */
+   public static Set<String> collectOwnedVarNames(Collection<String> scripts) {
+      Set<String> names = new LinkedHashSet<>();
+      Set<String> lexical = new LinkedHashSet<>();
+
+      for(String script : scripts) {
+         if(script != null && !script.isEmpty()) {
+            collectOwnedVarNames(script, names);
+            collectTopLevelLexicalNames(script, lexical);
+         }
+      }
+
+      names.removeAll(lexical);
+      return names;
+   }
+
+   /**
+    * Add the names {@code script} declares with {@code var} outside any function body.
+    */
+   private static void collectOwnedVarNames(String script, Set<String> names) {
+      String src = stripStringsAndComments(script);
+      // per open brace, whether it opens a function body
+      Deque<Boolean> braces = new ArrayDeque<>();
+      int fdepth = 0;
+      boolean pendingFn = false;
+      int n = src.length();
+      int i = 0;
+      char prev = 0;
+
+      while(i < n) {
+         char c = src.charAt(i);
+
+         if(isIdentStart(c)) {
+            int start = i;
+            i++;
+
+            while(i < n && isIdentPart(src.charAt(i))) {
+               i++;
+            }
+
+            String word = src.substring(start, i);
+
+            // ignore keywords used as member names (obj.var / obj.function)
+            if(prev != '.') {
+               if(word.equals("var") && fdepth == 0) {
+                  i = collectVarNames(src, i, names);
+               }
+               else if(word.equals("function")) {
+                  pendingFn = true;
+               }
+            }
+
+            prev = src.charAt(i - 1);
+            continue;
+         }
+
+         // an arrow function with a block body
+         if(c == '=' && i + 1 < n && src.charAt(i + 1) == '>') {
+            int j = skipWhitespace(src, i + 2);
+
+            if(j < n && src.charAt(j) == '{') {
+               pendingFn = true;
+            }
+         }
+         else if(c == '{') {
+            braces.push(pendingFn);
+            fdepth += pendingFn ? 1 : 0;
+            pendingFn = false;
+         }
+         else if(c == '}' && !braces.isEmpty()) {
+            fdepth -= braces.pop() ? 1 : 0;
+         }
+
+         if(!Character.isWhitespace(c)) {
+            prev = c;
+         }
+
+         i++;
+      }
+   }
+
+   /**
+    * Add the names of the top-level {@code let}/{@code const} declarations of
+    * {@code script}, the ones {@link #rewriteTopLevelLexicalDeclarations} rewrites.
+    */
+   private static void collectTopLevelLexicalNames(String script, Set<String> names) {
+      List<Integer> decls = new ArrayList<>();
+      scanTopLevel(script, null, decls);
+
+      if(decls.isEmpty()) {
+         return;
+      }
+
+      // offsets are kept, so the declaration positions hold in the stripped source
+      String src = stripStringsAndComments(script);
+
+      for(int pos : decls) {
+         collectVarNames(src, pos + (script.startsWith("const", pos) ? 5 : 3), names);
+      }
    }
 
    /**

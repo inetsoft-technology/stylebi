@@ -35,6 +35,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.script.graal.GraalJavaScriptEngine;
 import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.stall.LockStallException;
@@ -502,6 +503,12 @@ public class FormulaTableLens extends AbstractTableLens
       finally {
          // the lock is released even if closing the span throws
          try {
+            // a complete row table runs no formula until it is computed again in a new
+            // row scope: don't keep a context alive by its vars' objects (Testing #77123)
+            if(!more && !stalled && !failed && tableRow != null) {
+               tableRow.thisScope.releaseOwnedObjects();
+            }
+
             span.close();
          }
          finally {
@@ -1218,6 +1225,9 @@ public class FormulaTableLens extends AbstractTableLens
       public TableRow2(XTable table, int row) {
          super(table, row);
          thisScope = new TableRowScope(this, "field");
+         // the formulas' top-level vars live for this row table (Testing #77123)
+         thisScope.setOwnedVars(
+            GraalJavaScriptEngine.collectOwnedVarNames(Arrays.asList(formulas)));
       }
 
       // set the array to hold the results

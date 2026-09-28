@@ -265,7 +265,7 @@ public final class WsExecContext {
    /**
     * @return the Context of the pooled context executing on this thread, or {@code null}.
     */
-   static Context currentContext() {
+   public static Context currentContext() {
       if(!everEntered) {
          return null;
       }
