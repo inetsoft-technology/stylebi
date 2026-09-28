@@ -186,6 +186,125 @@ class OrgLifecycleScopedPropertiesIntegrationTest {
                   "the log.level. suffix's case must survive storage under the org-scoped key");
    }
 
+   // -- Bug #77238: copyScopedProperties()/clearScopedProperties() matched the org-property
+   //    prefix "inetsoft.org.<id>" without the trailing ".", so an org id that is a prefix of
+   //    another org id aliased it. Renaming qq7 -> qq7b made clear wipe the just-copied qq7b keys;
+   //    renaming or cloning pa -> zz9 also moved/copied org pa1's keys into a fabricated
+   //    "zz91" namespace. These run against the real SreeEnv/PropertiesEngine. --
+
+   @Test
+   void rename_newIdExtendsOldId_propertiesSurvive() throws Exception {
+      String qq7 = scopedKey("b77238qq7");
+      String qq7b = scopedKey("b77238qq7b");
+
+      try {
+         SreeEnv.setProperty(qq7, "111");
+
+         renameScopedProperties("b77238qq7", "b77238qq7b", true);
+
+         assertEquals("111", SreeEnv.getProperty(qq7b),
+                      "renaming to an id that extends the old id must keep the org's properties");
+         assertNull(SreeEnv.getProperty(qq7), "old org's key must be migrated away");
+      }
+      finally {
+         removeKeys(qq7, qq7b);
+      }
+   }
+
+   @Test
+   void rename_oldIdIsPrefixOfAnotherOrgId_otherOrgUntouched() throws Exception {
+      String pa = scopedKey("b77238pa");
+      String pa1 = scopedKey("b77238pa1");
+      String zz9 = scopedKey("b77238zz9");
+      String zz91 = scopedKey("b77238zz91");
+
+      try {
+         SreeEnv.setProperty(pa, "10");
+         SreeEnv.setProperty(pa1, "4242");
+
+         renameScopedProperties("b77238pa", "b77238zz9", true);
+
+         assertEquals("10", SreeEnv.getProperty(zz9), "renamed org must hold the migrated value");
+         assertNull(SreeEnv.getProperty(pa), "old org's key must be migrated away");
+         assertEquals("4242", SreeEnv.getProperty(pa1),
+                      "an org whose id merely starts with the renamed id must keep its properties");
+         assertNull(SreeEnv.getProperty(zz91),
+                    "the other org's properties must not leak into a fabricated org namespace");
+      }
+      finally {
+         removeKeys(pa, pa1, zz9, zz91);
+      }
+   }
+
+   @Test
+   void clone_oldIdIsPrefixOfAnotherOrgId_noStrayKeys() throws Exception {
+      String pa = scopedKey("b77238cpa");
+      String pa1 = scopedKey("b77238cpa1");
+      String zz9 = scopedKey("b77238czz9");
+      String zz91 = scopedKey("b77238czz91");
+
+      try {
+         SreeEnv.setProperty(pa, "10");
+         SreeEnv.setProperty(pa1, "4242");
+
+         renameScopedProperties("b77238cpa", "b77238czz9", false);
+
+         assertEquals("10", SreeEnv.getProperty(zz9), "clone must copy the source org's value");
+         assertEquals("10", SreeEnv.getProperty(pa), "clone must keep the source org's value");
+         assertEquals("4242", SreeEnv.getProperty(pa1), "clone must not touch the other org");
+         assertNull(SreeEnv.getProperty(zz91),
+                    "clone must not copy another org's properties into a fabricated namespace");
+      }
+      finally {
+         removeKeys(pa, pa1, zz9, zz91);
+      }
+   }
+
+   @Test
+   void rename_unrelatedIds_control() throws Exception {
+      String from = scopedKey("b77238h2s9");
+      String to = scopedKey("b77238qq7x");
+
+      try {
+         SreeEnv.setProperty(from, "55");
+
+         renameScopedProperties("b77238h2s9", "b77238qq7x", true);
+
+         assertEquals("55", SreeEnv.getProperty(to));
+         assertNull(SreeEnv.getProperty(from));
+      }
+      finally {
+         removeKeys(from, to);
+      }
+   }
+
+   private static String scopedKey(String orgId) {
+      return "inetsoft.org." + orgId + ".max.row.count";
+   }
+
+   // Mirrors copyOrganizationInternal(): copyScopedProperties() always, then
+   // clearScopedProperties() on a rename (replace=true).
+   private static void renameScopedProperties(String fromOrgId, String toOrgId, boolean replace)
+      throws Exception
+   {
+      AbstractEditableAuthenticationProviderStaticDepTest.StubProvider provider =
+         new AbstractEditableAuthenticationProviderStaticDepTest.StubProvider();
+      Method m = AbstractEditableAuthenticationProvider.class.getDeclaredMethod(
+         "copyScopedProperties", String.class, String.class, boolean.class);
+      m.setAccessible(true);
+      m.invoke(provider, fromOrgId, toOrgId, replace);
+
+      if(replace) {
+         provider.clearScopedProperties(fromOrgId);
+      }
+   }
+
+   private static void removeKeys(String... keys) {
+      for(String key : keys) {
+         SreeEnv.remove(key);
+      }
+   }
+
    private static void actAs(String orgId) {
       ThreadContext.setContextPrincipal(new SRPrincipal(new IdentityID("tester", orgId),
          new IdentityID[0], new String[0], orgId, 1L));
