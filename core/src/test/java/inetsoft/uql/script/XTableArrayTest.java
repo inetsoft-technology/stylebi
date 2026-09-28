@@ -17,9 +17,11 @@
  */
 package inetsoft.uql.script;
 
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.graal.ScriptScope;
+import inetsoft.util.stall.LockStallException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -141,5 +143,56 @@ class XTableArrayTest {
    void testToString() {
       when(mockTable.toString()).thenReturn("MockTable");
       assertEquals("MockTable", xTableArray.toString());
+   }
+
+   /**
+    * A table whose row reads past the header fail with {@code failure}, as a stalled
+    * worksheet lens (e.g. a FormulaTableLens row lock) would in FAIL stall mode.
+    */
+   private static XTable failingTable(RuntimeException failure) {
+      return new DefaultTableLens(new Object[][] {
+         { "col1", "col2" },
+         { "a", 1 },
+         { "b", 3 }
+      }) {
+         @Override
+         public boolean moreRows(int row) {
+            if(row > 0) {
+               throw failure;
+            }
+
+            return super.moreRows(row);
+         }
+      };
+   }
+
+   @Test
+   void stalledColumnReadThrowsTheStallFromGetMemberAndHasMember() {
+      // #77123: a stalled table has no value, and it is not an absent member either.
+      // GraalJS asks hasMember first, so it must throw too, or getMember is never called.
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      XTableArray arr = new XTableArray(failingTable(stall));
+
+      assertSame(stall, assertThrows(LockStallException.class, () -> arr.getMember("col1")));
+      assertSame(stall, assertThrows(LockStallException.class, () -> arr.hasMember("col1")));
+   }
+
+   @Test
+   void wrappedStalledColumnReadThrowsTheStall() {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      XTableArray arr =
+         new XTableArray(failingTable(new IllegalStateException("wrapped", stall)));
+
+      assertSame(stall, assertThrows(LockStallException.class, () -> arr.getMember("col1")));
+      assertSame(stall, assertThrows(LockStallException.class, () -> arr.hasMember("col1")));
+   }
+
+   @Test
+   void failedColumnReadStillReadsAsAbsent() {
+      // a failure that is not a stall keeps the old behavior: null / absent
+      XTableArray arr = new XTableArray(failingTable(new IllegalStateException("broken")));
+
+      assertNull(arr.getMember("col1"));
+      assertFalse(arr.hasMember("col1"));
    }
 }

@@ -208,7 +208,9 @@ class TableArrayTest {
       LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
       TableArray arr = new TableArray(failingTable(stall));
 
-      assertThrows(LockStallException.class, () -> arr.getMember("*"));
+      LockStallException thrown =
+         assertThrows(LockStallException.class, () -> arr.getMember("*"));
+      assertSame(stall, thrown);
    }
 
    @Test
