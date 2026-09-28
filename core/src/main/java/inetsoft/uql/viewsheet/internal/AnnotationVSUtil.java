@@ -1808,6 +1808,11 @@ public final class AnnotationVSUtil {
                   rvs, assembly, data, area, dispatcher, coreLifecycleService, false,
                   false);
             }
+            catch(LockRestoreException ex) {
+               // not a chart area that isn't ready: the sandbox lock this thread's callers
+               // hold was lost, so they must not go on as if it were held (77227)
+               throw ex;
+            }
             catch(Exception ex) {
                // chart area maybe not ready, just ignore it, we will
                // re-position the annotation in GetChartAreaEvent
