@@ -20,6 +20,8 @@ package inetsoft.util.script.graal.pool;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyArray;
 
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.Stream;
@@ -27,10 +29,12 @@ import java.util.stream.Stream;
 /**
  * A {@link LiveView} of a worksheet script's array passed to a Java method (bug #77123). It is
  * a List for Java and reads back into a script as an array. In copy mode every read works on
- * one captured copy, so a reader on another thread never mixes the call-time copy with the
- * final one.
+ * one captured copy, so a reader on another thread never mixes two copies; while the exec is
+ * open that copy is read-only (see {@link LiveView}).
  */
-final class LiveList extends AbstractList<Object> implements LiveView, ProxyArray, RandomAccess {
+final class LiveList extends AbstractList<Object>
+   implements LiveView, ProxyArray, RandomAccess, Serializable
+{
    LiveList(Value guest, CopyList copy, WsExecContext.Frame frame) {
       this.guest = guest;
       this.copy = copy;
@@ -45,12 +49,35 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
 
       if(v != null) {
          copy = WsValueCopier.copyList(v);
+         stale = false;
       }
+   }
+
+   @Override
+   public void refresh() {
+      if(live()) {
+         copy = WsValueCopier.copyList(guest);
+         stale = false;
+      }
+   }
+
+   @Override
+   public void rebind(Object copied) {
+      if(copied instanceof CopyList list && list != copy) {
+         copy = list;
+         stale = false;
+      }
+   }
+
+   @Override
+   public Object currentCopy() {
+      return copy;
    }
 
    @Override
    public void drop() {
       guest = null;
+      frame = null;
    }
 
    @Override
@@ -59,24 +86,73 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
    }
 
    private boolean live() {
-      return guest != null && WsExecContext.isLive(frame);
+      WsExecContext.Frame f = frame;
+      return guest != null && f != null && WsExecContext.isLive(f);
+   }
+
+   /**
+    * @return the copy for a read in copy mode: read-only while the exec is open, and an error
+    *         then if it could not follow a live write.
+    */
+   private List<Object> readCopy() {
+      CopyList c = copy;
+
+      if(WsExecContext.isOpen(frame)) {
+         if(stale) {
+            throw LiveView.busy();
+         }
+
+         return Collections.unmodifiableList(c);
+      }
+
+      return c;
+   }
+
+   /**
+    * @return the copy for a write in copy mode: only once the exec that made the view ended.
+    */
+   private CopyList writeCopy() {
+      if(WsExecContext.isOpen(frame)) {
+         throw LiveView.busy();
+      }
+
+      return copy;
+   }
+
+   /**
+    * Apply a live write to the copy too, so other threads see it; a copy that cannot follow
+    * (it fell behind the guest) is marked stale, and reading it then fails.
+    */
+   private void mirror(Consumer<CopyList> write) {
+      try {
+         write.accept(copy);
+      }
+      catch(RuntimeException ex) {
+         stale = true;
+      }
+   }
+
+   private Object liveElement(int index) {
+      CopyList c = copy;
+      Object copied = !stale && index < c.size() ? c.get(index) : null;
+      return LiveView.element(guest.getArrayElement(index), frame, copied);
    }
 
    // --- List: live on the owner thread, else the copy ---
 
    @Override
    public int size() {
-      return live() ? (int) guest.getArraySize() : copy.size();
+      return live() ? (int) guest.getArraySize() : readCopy().size();
    }
 
    @Override
    public Object get(int index) {
       if(live()) {
          Objects.checkIndex(index, (int) guest.getArraySize());
-         return LiveView.element(guest.getArrayElement(index), frame);
+         return liveElement(index);
       }
 
-      return copy.get(index);
+      return readCopy().get(index);
    }
 
    @Override
@@ -84,10 +160,11 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
       if(live()) {
          Object previous = get(index);
          guest.setArrayElement(index, LiveView.toGuest(element));
+         mirror(c -> c.set(index, LiveView.toCopy(element)));
          return previous;
       }
 
-      return copy.set(index, element);
+      return writeCopy().set(index, element);
    }
 
    @Override
@@ -103,11 +180,12 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
             guest.invokeMember("splice", index, 0, LiveView.toGuest(element));
          }
 
+         mirror(c -> c.add(index, LiveView.toCopy(element)));
          modCount++;
          return;
       }
 
-      copy.add(index, element);
+      writeCopy().add(index, element);
    }
 
    @Override
@@ -115,54 +193,56 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
       if(live()) {
          Object previous = get(index);
          guest.invokeMember("splice", index, 1);
+         mirror(c -> c.remove(index));
          modCount++;
          return previous;
       }
 
-      return copy.remove(index);
+      return writeCopy().remove(index);
    }
 
    @Override
    public void clear() {
       if(live()) {
          guest.invokeMember("splice", 0, guest.getArraySize());
+         mirror(ArrayList::clear);
          modCount++;
          return;
       }
 
-      copy.clear();
+      writeCopy().clear();
    }
 
    // bulk reads and writes in copy mode: one captured copy (refute amendment 5)
 
    @Override
    public Iterator<Object> iterator() {
-      return live() ? super.iterator() : copy.iterator();
+      return live() ? super.iterator() : readCopy().iterator();
    }
 
    @Override
    public ListIterator<Object> listIterator() {
-      return live() ? super.listIterator() : copy.listIterator();
+      return live() ? super.listIterator() : readCopy().listIterator();
    }
 
    @Override
    public ListIterator<Object> listIterator(int index) {
-      return live() ? super.listIterator(index) : copy.listIterator(index);
+      return live() ? super.listIterator(index) : readCopy().listIterator(index);
    }
 
    @Override
    public List<Object> subList(int fromIndex, int toIndex) {
-      return live() ? super.subList(fromIndex, toIndex) : copy.subList(fromIndex, toIndex);
+      return live() ? super.subList(fromIndex, toIndex) : readCopy().subList(fromIndex, toIndex);
    }
 
    @Override
    public Object[] toArray() {
-      return live() ? super.toArray() : copy.toArray();
+      return live() ? super.toArray() : readCopy().toArray();
    }
 
    @Override
    public <T> T[] toArray(T[] a) {
-      return live() ? super.toArray(a) : copy.toArray(a);
+      return live() ? super.toArray(a) : readCopy().toArray(a);
    }
 
    @Override
@@ -171,43 +251,48 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
          super.forEach(action);
       }
       else {
-         copy.forEach(action);
+         readCopy().forEach(action);
       }
    }
 
    @Override
    public Spliterator<Object> spliterator() {
-      return live() ? super.spliterator() : copy.spliterator();
+      return live() ? super.spliterator() : readCopy().spliterator();
    }
 
    @Override
    public Stream<Object> stream() {
-      return live() ? super.stream() : copy.stream();
+      return live() ? super.stream() : readCopy().stream();
+   }
+
+   @Override
+   public Stream<Object> parallelStream() {
+      return live() ? super.parallelStream() : readCopy().parallelStream();
    }
 
    @Override
    public boolean contains(Object o) {
-      return live() ? super.contains(o) : copy.contains(o);
+      return live() ? super.contains(o) : readCopy().contains(o);
    }
 
    @Override
    public int indexOf(Object o) {
-      return live() ? super.indexOf(o) : copy.indexOf(o);
+      return live() ? super.indexOf(o) : readCopy().indexOf(o);
    }
 
    @Override
    public int lastIndexOf(Object o) {
-      return live() ? super.lastIndexOf(o) : copy.lastIndexOf(o);
+      return live() ? super.lastIndexOf(o) : readCopy().lastIndexOf(o);
    }
 
    @Override
    public boolean containsAll(Collection<?> c) {
-      return live() ? super.containsAll(c) : copy.containsAll(c);
+      return live() ? super.containsAll(c) : readCopy().containsAll(c);
    }
 
    @Override
    public boolean removeIf(Predicate<? super Object> filter) {
-      return live() ? super.removeIf(filter) : copy.removeIf(filter);
+      return live() ? super.removeIf(filter) : writeCopy().removeIf(filter);
    }
 
    @Override
@@ -216,7 +301,7 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
          super.replaceAll(operator);
       }
       else {
-         copy.replaceAll(operator);
+         writeCopy().replaceAll(operator);
       }
    }
 
@@ -226,23 +311,23 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
          super.sort(c);
       }
       else {
-         copy.sort(c);
+         writeCopy().sort(c);
       }
    }
 
    @Override
    public boolean equals(Object o) {
-      return o == this || (live() ? super.equals(o) : copy.equals(o));
+      return o == this || (live() ? super.equals(o) : readCopy().equals(o));
    }
 
    @Override
    public int hashCode() {
-      return live() ? super.hashCode() : copy.hashCode();
+      return live() ? super.hashCode() : readCopy().hashCode();
    }
 
    @Override
    public String toString() {
-      return live() ? super.toString() : copy.toString();
+      return live() ? super.toString() : readCopy().toString();
    }
 
    // --- ProxyArray: the view read back into a script ---
@@ -256,10 +341,22 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
    public void set(long index, Value value) {
       if(live()) {
          guest.setArrayElement(index, LiveView.toGuest(value));
+         int i = (int) index;
+
+         mirror(c -> {
+            Object e = LiveView.toCopy(value);
+
+            while(c.size() <= i) {
+               c.add(null);
+            }
+
+            c.set(i, e);
+         });
+
          return;
       }
 
-      copy.set(index, value);
+      writeCopy().set(index, value);
    }
 
    @Override
@@ -274,6 +371,14 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
    }
 
    /**
+    * Serialized as its current state, a {@link CopyList}, as today's copy was.
+    */
+   @Serial
+   private Object writeReplace() {
+      return live() ? WsValueCopier.copyList(guest) : copy;
+   }
+
+   /**
     * @return whether this view still holds its guest value, for tests.
     */
    boolean attached() {
@@ -281,8 +386,12 @@ final class LiveList extends AbstractList<Object> implements LiveView, ProxyArra
    }
 
    // the guest value: set at creation, dropped by its frame; only the owner thread uses it
-   private Value guest;
-   // replaced once, by the owner thread at exec completion; read by any thread
-   private volatile CopyList copy;
-   private final WsExecContext.Frame frame;
+   private transient Value guest;
+   // re-made by the owner thread at each pass and at exec completion, and written by the
+   // owner's live writes; read by any thread
+   private transient volatile CopyList copy;
+   // the copy could not follow a live write: reading it while the exec is open fails
+   private transient volatile boolean stale;
+   // dropped with the guest value, so a kept view pins no slot, context or thread
+   private transient volatile WsExecContext.Frame frame;
 }

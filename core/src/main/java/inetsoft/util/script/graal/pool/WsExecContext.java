@@ -23,6 +23,9 @@ import org.graalvm.polyglot.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
+
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -99,8 +102,17 @@ public final class WsExecContext {
                fatal = failure;
             }
             else {
-               LOG.debug("A Java-held copy of a worksheet script value keeps its call-time " +
-                            "state: its final state could not be read", failure);
+               String msg = "A Java-held copy of a worksheet script value keeps its state " +
+                  "as last passed: its final state could not be read";
+
+               // once at WARN, then DEBUG (a per-row formula exec would flood the log)
+               if(!warnedResnapshot) {
+                  warnedResnapshot = true;
+                  LOG.warn(msg + " (further cases are logged at DEBUG)", failure);
+               }
+               else {
+                  LOG.debug(msg, failure);
+               }
             }
          }
       }
@@ -173,6 +185,14 @@ public final class WsExecContext {
       return frame.thread == Thread.currentThread() && frame.open && CURRENT.get() == frame.slot;
    }
 
+   /**
+    * @return whether {@code frame} (of a view, null once the view is dropped) is still open,
+    *         on any thread: its exec runs, so a copy-mode write would be lost (bug #77123).
+    */
+   static boolean isOpen(Frame frame) {
+      return frame != null && frame.open;
+   }
+
    private static void drop(LiveView view) {
       try {
          view.drop();
@@ -190,7 +210,10 @@ public final class WsExecContext {
    /**
     * The live views of the outermost exec of one slot on one thread (bug #77123), one per
     * guest value (keyed by Value identity), so repeated passes or reads of the same array or
-    * object reuse one view. Used by its thread only.
+    * object reuse one view. The views are held weakly: one that Java (or the script) no
+    * longer reaches is collected, its entry purged, and it needs no end-of-exec copy, so a
+    * loop handing Java a new array per call keeps no more views than Java keeps. Used by its
+    * thread only, except {@link #open}.
     */
    static final class Frame {
       Frame(Slot slot) {
@@ -198,37 +221,92 @@ public final class WsExecContext {
       }
 
       LiveView get(Value guest) {
-         return views == null ? null : views.get(guest);
+         Ref ref = views == null ? null : views.get(guest);
+         return ref == null ? null : ref.get();
       }
 
-      <T extends LiveView> T register(Value guest, T view) {
-         if(open) {
-            if(views == null) {
-               views = new HashMap<>();
-            }
-
-            views.put(guest, view);
+      /**
+       * @return whether {@code view} was registered; never on a closed frame, whose views
+       *         must be plain copies (review N1).
+       */
+      boolean register(Value guest, LiveView view) {
+         if(!open) {
+            return false;
          }
 
-         return view;
+         if(views == null) {
+            views = new HashMap<>();
+            queue = new ReferenceQueue<>();
+         }
+         else {
+            purge();
+         }
+
+         views.put(guest, new Ref(guest, view, queue));
+         return true;
       }
 
+      /**
+       * @return the number of views registered and not yet found collected, for tests.
+       */
       int size() {
-         return views == null ? 0 : views.size();
+         if(views == null) {
+            return 0;
+         }
+
+         purge();
+         return views.size();
       }
 
-      private Collection<LiveView> views() {
-         return views == null ? List.of() : new ArrayList<>(views.values());
+      // the views still reachable; no guest code runs (WeakReference.get only)
+      private List<LiveView> views() {
+         if(views == null) {
+            return List.of();
+         }
+
+         List<LiveView> list = new ArrayList<>(views.size());
+
+         for(Ref ref : views.values()) {
+            LiveView view = ref.get();
+
+            if(view != null) {
+               list.add(view);
+            }
+         }
+
+         return list;
+      }
+
+      private void purge() {
+         for(Object ref; (ref = queue.poll()) != null; ) {
+            Ref r = (Ref) ref;
+            views.remove(r.key, r);
+         }
       }
 
       private void clear() {
          views = null;
+         queue = null;
       }
 
       final Slot slot;
       final Thread thread = Thread.currentThread();
-      boolean open = true;
-      private Map<Value, LiveView> views;
+      // read by other threads (a copy-mode write is refused while it is open)
+      volatile boolean open = true;
+      private Map<Value, Ref> views;
+      private ReferenceQueue<LiveView> queue;
+   }
+
+   /**
+    * A frame's weak hold on one view, with its key so a collected view's entry is purged.
+    */
+   private static final class Ref extends WeakReference<LiveView> {
+      Ref(Value key, LiveView view, ReferenceQueue<LiveView> queue) {
+         super(view, queue);
+         this.key = key;
+      }
+
+      final Value key;
    }
 
    /**
@@ -302,4 +380,6 @@ public final class WsExecContext {
    private static final Logger LOG = LoggerFactory.getLogger(WsExecContext.class);
    // set on the first pooled exec in this JVM, by its thread before its CURRENT entry
    private static volatile boolean everEntered;
+   // the first end-of-exec copy that failed was logged at WARN
+   private static volatile boolean warnedResnapshot;
 }

@@ -100,7 +100,8 @@ class WsHostLiveArgumentTest {
 
    /**
     * G11, List and Map variants: another thread reads the kept values while the originating
-    * context is busy and gets host copies (as first passed), with no Multi threaded access;
+    * context is busy and gets host copies (as last passed, plus Java's writes), with no Multi
+    * threaded access;
     * after the exec they are the script's final state.
     */
    @Test
@@ -120,8 +121,10 @@ class WsHostLiveArgumentTest {
          List<?> list = (List<?>) taker.last;
          Map<?, ?> map = (Map<?, ?>) second.last;
          assertEquals(3, list.size());
-         assertEquals(List.of(3, 1, 2), new ArrayList<>(list), "the copy as first passed");
-         assertEquals("[3, 1, 2]", list.toString());
+         // the script passed a again to the Java sort, which wrote through the same view:
+         // the copy is the value as last passed plus Java's writes (review I1)
+         assertEquals(List.of(1, 2, 3), new ArrayList<>(list), "last pass + the Java sort");
+         assertEquals("[1, 2, 3]", list.toString());
          assertEquals(Map.of("a", 1), new HashMap<>(map));
          assertEquals(1, map.get("a"));
          cb.release.countDown();

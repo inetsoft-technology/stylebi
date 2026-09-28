@@ -76,10 +76,13 @@ class WsLiveViewInvariantTest {
    @Test
    void aFrameHoldsOneViewPerGuestValue() throws Exception {
       WorksheetScriptEnv env = withHelper();
-      assertEquals(52.0, run(env,
+      // the element views are held weakly, so a GC may have purged some of them
+      double views = ((Number) run(env,
          "var a = []; for (var i = 0; i < 50; i++) a.push({v: i}); var b = [1, 2, 3]; " +
-         "for (var k = 0; k < 200; k++) { h.sumV(a); h.size(b); h.keep(a); } h.frameViews()"),
-         "1 view of a, 50 of its elements, 1 of b");
+         "for (var k = 0; k < 200; k++) { h.sumV(a); h.size(b); h.keep(a); } h.frameViews()"))
+         .doubleValue();
+      assertTrue(views >= 2 && views <= 52, "at most 1 view of a, 50 of its elements, 1 of b: " +
+         views);
       assertSame(helper.args.get(0), helper.args.get(1 + 1), "a re-pass reuses the view");
    }
 
