@@ -20,9 +20,11 @@ package inetsoft.mv.data;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class CompactStringTest {
 
    private static CompactString of(String s) {

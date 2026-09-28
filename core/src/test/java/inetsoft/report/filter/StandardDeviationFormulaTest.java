@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li>{1, 3}: sample variance=2, stddev=sqrt(2)≈1.4142</li>
  * </ul>
  */
+@Tag("core")
 public class StandardDeviationFormulaTest {
 
    private StandardDeviationFormula formula;

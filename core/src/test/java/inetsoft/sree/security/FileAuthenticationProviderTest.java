@@ -702,6 +702,111 @@ public class FileAuthenticationProviderTest {
                   "Organization members should not contain removed user");
    }
 
+   // Bug #77164: removing or renaming a role must not drop a group that happens to share its name
+   @Test
+   void testRemoveRole_keepsSameNamedGroup() {
+      setUpRoleGroupNameClash(new IdentityID[0]);
+
+      provider.removeRole(CLASH_ROLE);
+
+      assertUserKeepsClashGroup();
+   }
+
+   // Bug #77164
+   @Test
+   void testRemoveRole_userHoldsRole_removesRoleKeepsSameNamedGroup() {
+      setUpRoleGroupNameClash(new IdentityID[]{ CLASH_ROLE });
+
+      provider.removeRole(CLASH_ROLE);
+
+      assertFalse(Arrays.asList(provider.getUser(CLASH_USER).getRoles()).contains(CLASH_ROLE),
+                  "Removed role should be dropped from the user");
+      assertUserKeepsClashGroup();
+   }
+
+   // Bug #77164: role rename in the order IdentityService.syncIdentity performs it
+   @Test
+   void testRenameRole_syncIdentityOrder_keepsSameNamedGroup() {
+      setUpRoleGroupNameClash(new IdentityID[0]);
+      IdentityID renamed = new IdentityID("sales2", CLASH_ORG);
+
+      provider.setRole(renamed, new FSRole(renamed));
+      provider.removeRole(CLASH_ROLE);
+
+      assertUserKeepsClashGroup();
+   }
+
+   // Bug #77164
+   @Test
+   void testSetRole_userAlreadyHoldsNewId_keepsSameNamedGroup() {
+      IdentityID renamed = new IdentityID("sales2", CLASH_ORG);
+      setUpRoleGroupNameClash(new IdentityID[]{ CLASH_ROLE, renamed });
+
+      provider.setRole(CLASH_ROLE, new FSRole(renamed));
+
+      assertUserKeepsClashGroup();
+   }
+
+   // Bug #77164 guard: the reverse direction must keep a same-named role
+   @Test
+   void testRemoveGroup_keepsSameNamedRole() {
+      setUpRoleGroupNameClash(new IdentityID[]{ CLASH_ROLE });
+
+      provider.removeGroup(CLASH_GROUP);
+
+      assertFalse(Arrays.asList(provider.getUser(CLASH_USER).getGroups()).contains("sales"),
+                  "Removed group should be dropped from the user");
+      assertTrue(Arrays.asList(provider.getUser(CLASH_USER).getRoles()).contains(CLASH_ROLE),
+                 "Same-named role should be kept after removeGroup");
+   }
+
+   // Bug #77164 guard
+   @Test
+   void testRenameGroup_keepsSameNamedRole() {
+      setUpRoleGroupNameClash(new IdentityID[]{ CLASH_ROLE });
+
+      provider.setGroup(CLASH_GROUP, new FSGroup(new IdentityID("sales2", CLASH_ORG)));
+
+      assertTrue(Arrays.asList(provider.getUser(CLASH_USER).getGroups()).contains("sales2"),
+                 "User's group reference should follow the rename");
+      assertTrue(Arrays.asList(provider.getUser(CLASH_USER).getRoles()).contains(CLASH_ROLE),
+                 "Same-named role should be kept after group rename");
+   }
+
+   // Org CLASH_ORG with role "sales" and group "sales"; the group grants role "groupPerm", and
+   // CLASH_USER is a member of the group with the given direct roles.
+   private void setUpRoleGroupNameClash(IdentityID[] userRoles) {
+      FSOrganization org = new FSOrganization(CLASH_ORG);
+      org.setName(CLASH_ORG);
+      org.setMembers(new String[]{ "u1", "sales" });
+      provider.addOrganization(org);
+
+      provider.addRole(new FSRole(CLASH_ROLE));
+      provider.addRole(new FSRole(CLASH_GROUP_ROLE));
+
+      FSGroup group = new FSGroup(CLASH_GROUP);
+      group.setRoles(new IdentityID[]{ CLASH_GROUP_ROLE });
+      provider.addGroup(group);
+
+      FSUser user = new FSUser(CLASH_USER);
+      user.setGroups(new String[]{ "sales" });
+      user.setRoles(userRoles);
+      provider.addUser(user);
+   }
+
+   private void assertUserKeepsClashGroup() {
+      assertTrue(Arrays.asList(provider.getUser(CLASH_USER).getGroups()).contains("sales"),
+                 "Same-named group membership should be kept");
+      assertTrue(Arrays.asList(provider.getRoles(CLASH_USER)).contains(CLASH_GROUP_ROLE),
+                 "Role inherited through the same-named group should be kept");
+   }
+
+   private static final String CLASH_ORG = "orgB";
+   private static final IdentityID CLASH_USER = new IdentityID("u1", CLASH_ORG);
+   private static final IdentityID CLASH_ROLE = new IdentityID("sales", CLASH_ORG);
+   private static final IdentityID CLASH_GROUP = new IdentityID("sales", CLASH_ORG);
+   private static final IdentityID CLASH_GROUP_ROLE = new IdentityID("groupPerm", CLASH_ORG);
+
    @SuppressWarnings("unchecked")
    private KeyValueStorage<?> captureStorage(String fieldName) throws Exception {
       Field f = FileAuthenticationProvider.class.getDeclaredField(fieldName);

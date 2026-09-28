@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.awt.geom.Point2D;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * yi <= 1 to 1 before taking the log, so the fitted curve is only
  * meaningful for positive y data.</p>
  */
+@Tag("core")
 class ExponentialLineEquationTest {
 
    private ExponentialLineEquation equation;

@@ -20,6 +20,7 @@ package inetsoft.graph.guide.form;
 import org.junit.jupiter.api.Test;
 
 import java.awt.geom.Point2D;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * (degree 1) subclass returns exactly two points (endpoints); {@code Quadratic}
  * (degree 2) and {@code Cubic} (degree 3) return ~101 points.</p>
  */
+@Tag("core")
 class PolynomialLineEquationTest {
 
    // ==========================================================================

@@ -189,7 +189,8 @@ public final class WaitRecord implements AutoCloseable {
             LOG.warn("{}: {}, thread dump: {}", label, reason, path);
          }
          else {
-            LOG.error(failure.getMessage());
+            // the message names the dump's file name only, the log gets its full path
+            LOG.error("{}, thread dump: {}", failure.getMessage(), path == null ? "none" : path);
          }
 
          throw failure;

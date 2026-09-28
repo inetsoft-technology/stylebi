@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * as valid values (no special-casing), except for addValue(short) which ignores
  * Tool.NULL_SHORT.
  */
+@Tag("core")
 public class NoneFormulaTest {
 
    private NoneFormula formula;

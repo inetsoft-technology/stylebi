@@ -464,9 +464,12 @@ public class IdentityService {
       boolean isChild = childrenIDs.contains(childId);
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
-      if(!isChild && parentID.getOrgID() == null && !Tool.equals(currentOrgID, childId.getOrgID()))
-      {
-         isChild = list.contains(oldParentID);
+      if(parentID.getOrgID() == null && !Tool.equals(currentOrgID, childId.getOrgID())) {
+         // other organizations' members of a global role keep their membership unless a site
+         // administrator changes it, a rename only carries it over to the new role id
+         if(!isChild || !isCrossOrgEditAllowed(principal)) {
+            isChild = list.contains(oldParentID);
+         }
       }
 
       boolean changed = isParent != isChild;
@@ -1657,6 +1660,11 @@ public class IdentityService {
             return;
          }
 
+         if(type == Identity.ORGANIZATION) {
+            OrganizationIdRules.checkRename(((Organization) identity).getId(),
+                                            ((EditOrganizationPaneModel) model).id());
+         }
+
          SecurityEngine.touch();
          EditableAuthenticationProvider eprovider = (EditableAuthenticationProvider) provider;
          IdentityID[] pusers = provider.getUsers();
@@ -2156,6 +2164,15 @@ public class IdentityService {
       IdentityID newOrgID = new IdentityID(model.name(), model.organization());
       IdentityID oldOrgID = new IdentityID(model.oldName(), model.organization());
 
+      if(model.organization() != null &&
+         !model.organization().equals(OrganizationManager.getInstance().getCurrentOrgID()) &&
+         !isCrossOrgEditAllowed(principal))
+      {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to edit role \"" + oldOrgID + "\" of another organization by user " +
+            principal);
+      }
+
       FSRole role = new FSRole(newOrgID, model.description());
       role.setDefaultRole(model.defaultRole());
       role.setSysAdmin(model.isSysAdmin());
@@ -2173,7 +2190,9 @@ public class IdentityService {
       for(IdentityID pgroupID : pgroups) {
          FSGroup pgroup = (FSGroup) eprovider.getGroup(pgroupID);
 
-         if(pgroup == null || !OrganizationManager.getInstance().getCurrentOrgID().equals(pgroup.getOrganizationID())) {
+         if(pgroup == null || (role.getOrganizationID() != null &&
+            !Tool.equals(pgroup.getOrganizationID(), role.getOrganizationID())))
+         {
             continue;
          }
 
@@ -2204,7 +2223,7 @@ public class IdentityService {
 
          FSUser puser = (FSUser) eprovider.getUser(puserName);
 
-         if(puser == null || (model.organization() != null && !OrganizationManager.getInstance().getCurrentOrgID().equals(puser.getOrganizationID()))) {
+         if(puser == null) {
             continue;
          }
 
@@ -2243,6 +2262,15 @@ public class IdentityService {
       }
 
       return role;
+   }
+
+   /**
+    * Determines if the caller may change the role membership of identities outside of its current
+    * organization, which only a site administrator may do.
+    */
+   private boolean isCrossOrgEditAllowed(Principal principal) {
+      return !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal);
    }
 
    private Identity setOrganizationInfo(FSOrganization oldOrg, EditOrganizationPaneModel model,
@@ -2988,6 +3016,15 @@ public class IdentityService {
       String norg = norganization.getId();
 
       if(Tool.equals(oorg, norg)) {
+         return;
+      }
+
+      // a reserved id names a system folder of external storage (or collides with the base
+      // path), so moving it would move system data along with, or into, the organization files
+      if(OrganizationIdRules.isReserved(oorg) || OrganizationIdRules.isReserved(norg)) {
+         LOG.warn(
+            "Did not move the external storage files of organization {} to {}, the organization " +
+            "ID is reserved. Move the organization files manually.", oorg, norg);
          return;
       }
 
