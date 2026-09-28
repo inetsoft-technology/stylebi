@@ -24,6 +24,9 @@ import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.table.XTableFragment;
+import inetsoft.util.script.ExpressionFailedException;
+import inetsoft.util.script.graal.pool.PoolTestSupport;
+import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import inetsoft.util.stall.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -198,6 +201,143 @@ public class FormulaTableLensErrorCompletionTest {
       assertSurvivesSwaps(20);
    }
 
+   /**
+    * After a failed end-of-table read and a refused swap, the resumed read that reaches the
+    * end completes the row table, so it is swappable again (not left open for good), and the
+    * values survive the swap after it.
+    */
+   @Test
+   public void resumedReadAfterAFailureMakesTheRowTableSwappableAgain() throws Exception {
+      List<List<Object>> expected = control(BAD);
+      FormulaTableLens lens = harness.track(
+         harness.control().formula(new DefaultTableLens(rows(N)), "f", BAD));
+
+      assertNotNull(StallTestSupport.failureOf(
+         harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP));
+      assertEquals(0, swapRowTable(lens), "the open row table of a failed batch is not swapped");
+
+      assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                           "resumed read"));
+      assertTrue(rowTable(lens).isCompleted(), "the resumed read completes the row table");
+      assertEquals(1, swapRowTable(lens), "the completed row table is swappable again");
+      assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                           "read after the swap"));
+   }
+
+   /**
+    * More rows than one row table fragment: a script error in the first or in the last
+    * fragment, with swaps around the resumed read, loses no value.
+    */
+   @Test
+   public void multiFragmentScriptErrorSurvivesSwaps() throws Exception {
+      for(int failedRow : new int[] { FAILED_ROW, BIG - 500 }) {
+         List<List<Object>> expected = control(BIG, failedRow);
+         FormulaTableLens lens = harness.track(
+            harness.control().formula(new DefaultTableLens(rows(BIG)), "f", badAt(failedRow)));
+
+         assertNotNull(StallTestSupport.failureOf(
+            harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP));
+         assertFalse(rowTable(lens).isCompleted(), "failed row " + failedRow);
+
+         swapRowTable(lens);
+         harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP, "resumed read");
+         assertTrue(rowTable(lens).isCompleted(), "failed row " + failedRow);
+         swapRowTable(lens);
+
+         assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                              "read after the swaps"), "failed row " + failedRow);
+      }
+   }
+
+   /**
+    * Unchanged: the end-of-table read of a cancelled lens still completes the row table.
+    */
+   @Test
+   public void cancelledEndOfTableReadStillCompletesTheLens() throws Exception {
+      FormulaTableLens lens = harness.track(
+         harness.control().formula(new DefaultTableLens(rows(N)), "f", GOOD));
+
+      assertTrue(harness.await(harness.submit(() -> lens.moreRows(20)), ACTIVE_CAP,
+                               "in-range read"));
+      assertFalse(rowTable(lens).isCompleted());
+      lens.cancel();
+      assertTrue(lens.isCancelled());
+
+      assertFalse(harness.await(harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP,
+                                "end-of-table read"));
+      assertTrue(rowTable(lens).isCompleted(), "a cancelled batch still completes the lens");
+   }
+
+   /**
+    * The pool on ({@code script.ws.contextPool=true}): the same script error leaves the row
+    * table open, and the values survive the swaps around the resumed read.
+    */
+   @Test
+   public void poolOnScriptErrorDoesNotCompleteTheLens() throws Exception {
+      WorksheetScriptEnv env = PoolTestSupport.env();
+
+      try {
+         List<List<Object>> expected = harness.await(harness.submit(() -> drain(
+            new FormulaTableLens(new DefaultTableLens(rows(N)), new String[] { "f" },
+                                 new String[] { GOOD }, env, null))), ACTIVE_CAP, "control");
+         expected.get(FAILED_ROW).set(2, null);
+         FormulaTableLens lens = harness.track(new FormulaTableLens(
+            new DefaultTableLens(rows(N)), new String[] { "f" }, new String[] { BAD }, env, null));
+
+         Throwable failure = StallTestSupport.failureOf(
+            harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP);
+         assertInstanceOf(ExpressionFailedException.class, failure);
+         assertFalse(rowTable(lens).isCompleted(),
+                     "a pooled batch that failed must not complete the row table");
+
+         swapRowTable(lens);
+         harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP, "resumed read");
+         assertTrue(rowTable(lens).isCompleted());
+         swapRowTable(lens);
+
+         assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                              "read after the swaps"));
+      }
+      finally {
+         env.retire();
+      }
+   }
+
+   /**
+    * Unchanged: the script error reaches the caller as an ExpressionFailedException carrying
+    * the script's own error, and an Error out of the base reaches it as the same object.
+    */
+   @Test
+   public void failureReachesTheCallerUnchanged() throws Exception {
+      FormulaTableLens lens = harness.track(
+         harness.control().formula(new DefaultTableLens(rows(N)), "f", BAD));
+      Throwable failure = StallTestSupport.failureOf(
+         harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP);
+
+      assertInstanceOf(ExpressionFailedException.class, failure);
+      assertTrue(String.valueOf(failure.getMessage()).contains("bad row")
+                    || String.valueOf(failure.getCause()).contains("bad row"),
+                 "the script's own error is kept: " + failure);
+
+      AssertionError original = new AssertionError("base failed");
+      Set<Integer> thrown = ConcurrentHashMap.newKeySet();
+      TableLens base = new DefaultTableLens(rows(N)) {
+         @Override
+         public boolean moreRows(int r) {
+            if(r == 15 && thrown.add(r)) {
+               throw original;
+            }
+
+            return super.moreRows(r);
+         }
+      };
+      FormulaTableLens lens2 = harness.track(harness.control().formula(base, "f", GOOD));
+
+      assertSame(original, StallTestSupport.failureOf(
+         harness.submit(() -> lens2.moreRows(TableLens.EOT)), ACTIVE_CAP));
+      assertFalse(rowTable(lens2).isCompleted(), "an Error ends the batch as a failure too");
+   }
+
    private void assertSurvivesSwaps(int firstRead) throws Exception {
       List<List<Object>> expected = control(BAD);
       FormulaTableLens lens = harness.track(
@@ -235,6 +375,22 @@ public class FormulaTableLensErrorCompletionTest {
       return expected;
    }
 
+   /**
+    * The rows of an {@code n}-row lens whose script fails for {@code failedRow} only.
+    */
+   private List<List<Object>> control(int n, int failedRow) throws Exception {
+      Sandbox s = harness.control();
+      List<List<Object>> expected = harness.await(
+         harness.submit(() -> drain(s.formula(new DefaultTableLens(rows(n)), "f", GOOD))),
+         ACTIVE_CAP, "control");
+      expected.get(failedRow).set(2, null);
+      return expected;
+   }
+
+   private static String badAt(int row) {
+      return "if(field['value'] == " + row + ") throw new Error('bad row'); field['value'] + 1";
+   }
+
    private static XSwappableTable rowTable(FormulaTableLens lens) throws Exception {
       Field field = FormulaTableLens.class.getDeclaredField("rows");
       field.setAccessible(true);
@@ -245,15 +401,18 @@ public class FormulaTableLensErrorCompletionTest {
     * Swap every swappable fragment of the lens's row table, as the swapper does under
     * memory pressure.
     */
-   private static void swapRowTable(FormulaTableLens lens) throws Exception {
+   private static int swapRowTable(FormulaTableLens lens) throws Exception {
       Field field = XSwappableTable.class.getDeclaredField("tables");
       field.setAccessible(true);
+      int swapped = 0;
 
       for(Object fragment : (Object[]) field.get(rowTable(lens))) {
-         if(fragment != null) {
-            ((XTableFragment) fragment).swap(false);
+         if(fragment != null && ((XTableFragment) fragment).swap(false)) {
+            swapped++;
          }
       }
+
+      return swapped;
    }
 
    private static Object[][] rows(int n) {
@@ -269,6 +428,8 @@ public class FormulaTableLensErrorCompletionTest {
 
    private static final int N = 40;
    private static final int FAILED_ROW = 15;
+   // more rows than one row table fragment (8192 rows)
+   private static final int BIG = 9000;
    // the script fails for exactly one data row, as a data-dependent error does
    private static final String BAD =
       "if(field['value'] == " + FAILED_ROW + ") throw new Error('bad row'); field['value'] + 1";
