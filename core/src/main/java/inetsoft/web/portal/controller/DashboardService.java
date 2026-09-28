@@ -25,6 +25,9 @@ import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.util.MessageException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
@@ -41,9 +44,19 @@ public class DashboardService {
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public DashboardModelInfo getDashboardModelInfo(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       AssetEntry entry = AssetEntry.createAssetEntry(runtimeId);
+      Viewsheet vs;
 
-      Viewsheet vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
-         entry, principal, false, AssetContent.CONTEXT);
+      // Bug #77261: the stored identifier keeps its own orgID, so the READ check is what rejects
+      // another org's viewsheet. A denial is treated the same as a missing sheet (default flags)
+      // so that it neither drops the dashboard from the list nor fails the request.
+      try {
+         vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
+            entry, principal, true, AssetContent.CONTEXT);
+      }
+      catch(MessageException e) {
+         LOG.debug("Dashboard viewsheet is not readable: {}", runtimeId, e);
+         return null;
+      }
 
       if(vs != null) {
          ViewsheetInfo info = vs.getViewsheetInfo();
@@ -55,6 +68,7 @@ public class DashboardService {
    }
 
    private final ViewsheetService viewsheetService;
+   private static final Logger LOG = LoggerFactory.getLogger(DashboardService.class);
 
 
    public static final class DashboardModelInfo implements Serializable {
