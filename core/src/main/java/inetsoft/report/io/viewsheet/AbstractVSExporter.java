@@ -1054,13 +1054,20 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
 
          int displayRowCount = 0;
-         boolean[] significantColumns = findSignificantColumns(data, hLineCount);
+         // fix bug#77237 The bug#53192 blank-row exemption below applies to crosstabs only
+         // (bug#53192 was a date-comparison crosstab). In freehand (calc), plain and embedded
+         // tables a blank cell is ordinary data (a formula returning '', a sparse column, a
+         // spacer row) and the row is still written, so every row counts toward the design
+         // height budget; exempting it lets the export overflow into the assemblies below.
+         boolean exemptBlankRows = table instanceof CrosstabVSAssembly;
+         boolean[] significantColumns =
+            exemptBlankRows ? findSignificantColumns(data, hLineCount) : null;
 
          for(int i = hLineCount; i < data.getRowCount(); i++) {
             // fix bug#53192 If the current line contains a null value, the line should not be displayed when export,
             // so the total line height should not accumulate the current line height.
             // When calculating the number of display rows, should add the current row.
-            if(!checkDisplayRow(data, i, significantColumns)) {
+            if(exemptBlankRows && !checkDisplayRow(data, i, significantColumns)) {
                displayRowCount++;
 
                continue;
