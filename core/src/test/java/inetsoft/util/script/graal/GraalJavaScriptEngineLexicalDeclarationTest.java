@@ -474,6 +474,46 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       assertEquals(Arrays.asList("E", "E", "E"), outE);
    }
 
+   // review r1: an undeclared global after a `i++ / 2` initializer is not reset
+   @Test void globalAfterPostfixDivisionNotReset() throws Exception {
+      run("i = 1; a = 2; c = 5; d = 6");
+      run("let x = i++ / 2; bar = a / 1, c; x");
+      run("let y = i-- / 2; bar = a / 1, d; y");
+      assertEquals(5.0, num("c"));
+      assertEquals(6.0, num("d"));
+   }
+
+   // review r1: the top-level lexer reads `/` after a postfix `++`/`--` as
+   // division too, so a later `let` is still seen (and rewritten)
+   @Test void letAfterPostfixDivisionRewritten() throws Exception {
+      String body = "x = i++ / 2; let r; b = r / 1";
+      assertNotEquals(body, rewrite(body));
+      assertEquals(2.0, num("var i = 3; var x = i++ / 2; let r; r = x * 4 / 3; if(false) {} r"));
+      assertEquals(2.0, num("var j = 3; var y = j-- / 2; let q; q = y * 4 / 3; if(false) {} q"));
+   }
+
+   // minor r1: a put() made while the span holds the context goes straight
+   // through Slot.applyOwn (not the init snapshot or replay); the hostGlobal
+   // hook there must still keep the let/const reset off it
+   @Test void pooledPutInsideSpanNotReset() throws Exception {
+      inetsoft.util.script.graal.pool.WorksheetScriptEnv env =
+         inetsoft.util.script.graal.pool.PoolTestSupport.env();
+      Object e = env.compile("let inspan; inspan");
+      List<Object> out = new ArrayList<>();
+      MapScope row = new MapScope();
+
+      try(var span = env.openSpan()) {
+         env.exec(e, row, row, null);   // claims the context for this thread
+         env.put("inspan", "I");
+
+         for(int k = 0; k < 3; k++) {
+            out.add(env.exec(e, row, row, null));
+         }
+      }
+
+      assertEquals(Arrays.asList("I", "I", "I"), out);
+   }
+
    // the extractor: which names it takes, and where it declines
    @ParameterizedTest
    @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
@@ -495,6 +535,16 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       "for(let i; ;) {}                        | \"\"",
       "var r;                                  | \"\"",
       "let __scope__;                          | \"\"",
+      // review r1: a `/` after a postfix `++`/`--` is division, not a regex
+      // start, so `/ 2; bar = a /` is not swallowed and `c` is not collected
+      "let x = i++ / 2; bar = a / 1, c;        | \"\"",
+      "let x = i-- / 2; bar = a / 1, c;        | \"\"",
+      "let x = a[0]++ / 2; bar = a / 1, c;     | \"\"",
+      "let x = f() -- / 2; bar = a / 1, c;     | \"\"",
+      "let x = i++ / 2, r;                     | r",
+      // and a `/` after an if/while/for/with head's `)` is a regex, as in scanTopLevel
+      "let x = function(){ if(a) /[)]/.test(s), q; };  | \"\"",
+      "let x = function(){ if(a) /[)]/.test(s) }, r;   | r",
    })
    void initializerlessNames(String body, String expected) throws Exception {
       java.lang.reflect.Method m = GraalJavaScriptEngine.class

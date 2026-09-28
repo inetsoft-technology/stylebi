@@ -216,7 +216,10 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * Bug #77181: record {@code name} as a global the engine defines, so the
     * plain-path reset of a rewritten initializer-less {@code let}/{@code const}
     * never clears it. Called by {@link #put} and by the pooled worksheet context
-    * when it sets an env variable directly. Caller holds {@code lock}.
+    * when it sets an env variable directly. The caller holds {@code lock}
+    * ({@link #put}) or is the owning thread of the pooled slot whose context
+    * this is ({@code Slot.applyOwn}, which runs under the slot's claim rather
+    * than {@code lock}); no other thread may call it.
     */
    protected final void markHostGlobal(String name) {
       if(hostGlobals != null && name != null && hostGlobalNames.add(name)) {
@@ -1256,6 +1259,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       int n = s.length();
       int depth = 0;
       char prevSig = '=';
+      String prevWord = null;   // previous identifier/keyword token, else null
+      // as in scanTopLevel: per open bracket, whether it is the `(` of an
+      // if/while/for/with head, whose `)` is followed by a statement, so a `/`
+      // there starts a regex (e.g. inside a function expression initializer)
+      java.util.Deque<Boolean> brackets = new java.util.ArrayDeque<>();
+      boolean afterHead = false;
 
       while(i < n) {
          char c = s.charAt(i);
@@ -1273,12 +1282,14 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             continue;
          }
 
-         if(c == '/' && regexAllowed(s, i, prevSig)) {
+         if(c == '/' && (afterHead || regexAllowed(s, i, prevSig))) {
             int end = scanRegexEnd(s, i);
 
             if(end > 0) {
                i = end;
                prevSig = ')';
+               prevWord = null;
+               afterHead = false;
                continue;
             }
          }
@@ -1286,26 +1297,37 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          if(c == '"' || c == '\'') {
             i = skipStringLiteral(s, i + 1, c);
             prevSig = ')';
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
          if(c == '`') {
             i = skipTemplateLiteral(s, i + 1);
             prevSig = ')';
+            prevWord = null;
+            afterHead = false;
             continue;
          }
 
          if(isIdentStart(c)) {
+            int start = i;
+
             while(i < n && isIdentPart(s.charAt(i))) {
                i++;
             }
 
+            prevWord = prevSig == '.' ? null : s.substring(start, i);
             prevSig = s.charAt(i - 1);
+            afterHead = false;
             continue;
          }
 
+         boolean closedHead = false;
+
          if(c == '(' || c == '[' || c == '{') {
             depth++;
+            brackets.push(c == '(' && prevWord != null && CONTROL_HEAD_KEYWORDS.contains(prevWord));
          }
          else if(c == ')' || c == ']' || c == '}') {
             if(depth == 0) {
@@ -1313,6 +1335,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
             }
 
             depth--;
+            closedHead = brackets.pop() && c == ')';
          }
          else if(depth == 0 && c == ',') {
             return i;
@@ -1322,6 +1345,8 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          }
 
          prevSig = c;
+         prevWord = null;
+         afterHead = closedHead;
          i++;
       }
 
@@ -2548,6 +2573,12 @@ public class GraalJavaScriptEngine implements AutoCloseable {
          return true;   // start of input
       }
 
+      // `i++ / 2`: a postfix `++`/`--` ends a value, so a `/` after it is
+      // division (a regex literal can never follow one)
+      if((prevSig == '+' || prevSig == '-') && afterPostfixIncDec(s, slashIndex)) {
+         return false;
+      }
+
       if(isIdentPart(prevSig)) {
          // end of an identifier/number: a regex only follows a keyword
          return REGEX_PRECEDING_KEYWORDS.contains(precedingWord(s, slashIndex));
@@ -2556,6 +2587,47 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       // a value-ender (), ], and — via prevSig=')' — a prior string/regex/template)
       // means the '/' is division; anything else is a regex position.
       return prevSig != ')' && prevSig != ']';
+   }
+
+   /**
+    * Whether the last token before the {@code /} at {@code slashIndex} (skipping
+    * whitespace) is a postfix {@code ++}/{@code --}: the operator's two chars are
+    * adjacent and follow a value end (an identifier/number char, {@code )} or
+    * {@code ]}) on the same line, as in {@code i++}, {@code a[0]--} or
+    * {@code f()++}. Two unary pluses ({@code a + +/re/}) and {@code a+++/re/}
+    * ({@code a++ +}) are not matched. A comment between the operator and the
+    * {@code /} is not skipped, which keeps the regex reading.
+    */
+   private static boolean afterPostfixIncDec(String s, int slashIndex) {
+      int j = slashIndex - 1;
+
+      while(j >= 0 && Character.isWhitespace(s.charAt(j))) {
+         j--;
+      }
+
+      if(j < 2) {
+         return false;
+      }
+
+      char op = s.charAt(j);
+
+      if(op != '+' && op != '-' || s.charAt(j - 1) != op) {
+         return false;
+      }
+
+      int k = j - 2;
+
+      // `i ++`: the operand is on the same line (after a line break `++` is prefix)
+      while(k >= 0 && Character.isWhitespace(s.charAt(k)) && !isLineBreak(s.charAt(k))) {
+         k--;
+      }
+
+      if(k < 0) {
+         return false;
+      }
+
+      char v = s.charAt(k);
+      return isIdentPart(v) || v == ')' || v == ']';
    }
 
    /** The identifier/keyword ending just before {@code end} (skipping whitespace). */
