@@ -40,6 +40,7 @@ import { TreeTool } from "../../../common/util/tree-tool";
 import { VirtualScrollTreeDatasource } from "../../../widget/tree/virtual-scroll-tree-datasource";
 import { TreeComponent } from "../../../widget/tree/tree.component";
 import { ComposerBindingTree } from "./composer-binding-tree.component";
+import { BindingTreeService } from "../../../binding/widget/binding-tree/binding-tree.service";
 
 @Component({
     selector: "composer-toolbox-pane",
@@ -56,6 +57,7 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
    useVirtualScroll: boolean = true;
    toolbox: TreeNodeModel = toolbox;
    private vScrollSubscription = Subscription.EMPTY;
+   private bindingTreeSubscription = Subscription.EMPTY;
    private combinationTreeRoot: TreeNodeModel;
    private doNotShowNodes: TreeNodeModel[] = [];
    virtualTop = 0;
@@ -65,7 +67,8 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
 
    constructor(private cd: ChangeDetectorRef,
                private zone: NgZone,
-               private domService: DomService){
+               private domService: DomService,
+               private treeService: BindingTreeService){
    }
 
    ngOnInit() {
@@ -77,6 +80,11 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
       }
 
       TreeTool.expandAllNodes(this.toolbox);
+
+      // Consume the (replaying) binding tree here rather than via the child's output, so that
+      // useVirtualScroll is settled before this view is first checked (avoids NG0100).
+      this.bindingTreeSubscription = this.treeService.bindingTreeChanged()
+         .subscribe((root) => this.treeNodesLoaded(root));
    }
 
    ngOnChanges(changes: SimpleChanges) {
@@ -102,6 +110,8 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
       if(this.vScrollSubscription) {
          this.vScrollSubscription.unsubscribe();
       }
+
+      this.bindingTreeSubscription.unsubscribe();
    }
 
    nodeDrag(event: DragEvent): void {
