@@ -53,7 +53,9 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
     * has its own parameters, mode and table scriptables, so queries of one sandbox that run
     * scripts at the same time do not overwrite each other's; every other member is this
     * shared scope's. A view's parent chain is the shared scope's: {@link #setParentScope}
-    * on a view has no effect.
+    * on a view has no effect. A view answers {@code worksheet} with itself (unless a table has
+    * that name), so {@code worksheet['T1']} and {@code worksheet.parameter} in a script run on
+    * the view see its mode and parameters, not the shared scope's (bug #77123).
     */
    public AssetQueryScope queryView(VariableTable vars, int mode) {
       return new AssetQueryScope(this, vars, mode);
@@ -135,6 +137,10 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
          LOG.error("Failed to get property from asset query: " + id, ex);
       }
 
+      if(shared != null && WORKSHEET.equals(id)) {
+         return this;
+      }
+
       Object value = members.get(id);
 
       if(value == null && shared != null && !PARAMETER.equals(id)) {
@@ -165,6 +171,10 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
       }
       catch(Exception ex) {
          // ignore
+      }
+
+      if(shared != null && WORKSHEET.equals(id)) {
+         return true;
       }
 
       if(members.containsKey(id) || shared != null && !PARAMETER.equals(id) && shared.members.containsKey(id)) {
@@ -318,6 +328,8 @@ public class AssetQueryScope implements DynamicScope, Cloneable {
    // stands for a member stored as null, which a ConcurrentHashMap cannot hold
    private static final Object NULL_VALUE = new Object();
    private static final String PARAMETER = "parameter";
+   // the env global a view shadows with itself (bug #77123)
+   private static final String WORKSHEET = "worksheet";
    private final AssetQueryScope shared; // null unless this is a per-query view
    private int mode;
    private AssetQuerySandbox box;

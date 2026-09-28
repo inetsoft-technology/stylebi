@@ -1340,10 +1340,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
       AssetQuerySandbox wbox = box.getAssetQuerySandbox();
       AssetQueryScope scope = wbox.getScope();
-      int mdl = isMetadata() || getViewsheet().getViewsheetInfo().isMetadata() ?
-         AssetQuerySandbox.DESIGN_MODE :
-         box.getMode() == AbstractSheet.SHEET_RUNTIME_MODE ?
-         AbstractSheet.SHEET_RUNTIME_MODE : AssetQuerySandbox.LIVE_MODE;
+      int mdl = getScriptMode();
 
       if(wbox.isScriptPoolMode()) {
          // this query's own mode (bug #76960)
@@ -1990,6 +1987,16 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
    }
 
    /**
+    * The mode this query's worksheet scripts run in.
+    */
+   private int getScriptMode() {
+      return isMetadata() || getViewsheet().getViewsheetInfo().isMetadata() ?
+         AssetQuerySandbox.DESIGN_MODE :
+         box.getMode() == AbstractSheet.SHEET_RUNTIME_MODE ?
+         AbstractSheet.SHEET_RUNTIME_MODE : AssetQuerySandbox.LIVE_MODE;
+   }
+
+   /**
     * Get the formula object.
     * @param aggregate the specified aggregate.
     * @return the associated formula object of the aggregate formula.
@@ -2105,9 +2112,16 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             cols[i] = colidx.get(i);
          }
 
-         form = new CalcFieldFormula(expression, names, forms, cols,
-            box.getAssetQuerySandbox().getScriptEnv(),
-            box.getAssetQuerySandbox().getScope());
+         AssetQuerySandbox wbox = box.getAssetQuerySandbox();
+         AssetQueryScope scope = wbox.getScope();
+
+         if(wbox.isScriptPoolMode()) {
+            // in pool mode the shared scope is never given a query's mode (bug #76960), so
+            // the calc field gets a view with this query's own mode (bug #77123)
+            scope = scope.queryView(wbox.getVariableTable(), getScriptMode());
+         }
+
+         form = new CalcFieldFormula(expression, names, forms, cols, wbox.getScriptEnv(), scope);
       }
 
       if(form == null) {
