@@ -80,6 +80,9 @@ public class PropertiesEngine {
 
    @PreDestroy
    public void shutdown() throws Exception {
+      // the debouncer still runs a pending change task after it is closed, so the task checks
+      // this flag and does not reload a closed engine (Bug #77201)
+      closed = true;
       debouncer.close();
    }
 
@@ -1352,22 +1355,26 @@ public class PropertiesEngine {
 
       @Override
       public void run() {
-         PropertiesEngine instance = PropertiesEngine.getInstance();
-         String security = instance.getProperty("security.provider");
-         String license = instance.getProperty("license.key");
+         // the change was already stored, so an engine that has shut down in the meantime drops
+         // the reload. The task reloads the engine that scheduled it, not getInstance(), which
+         // may already resolve the engine of another application context (Bug #77201)
+         if(closed) {
+            return;
+         }
+
+         String security = getProperty("security.provider");
+         String license = getProperty("license.key");
 
          // the change listener stays attached during the reload, so that no change stored in
          // the meantime is missed (Bug #76954)
-         instance.init(true);
+         init(true);
 
-         if(instance.getProperty("license.key") == null ||
-            "".equals(instance.getProperty("license.key")))
-         {
-            instance.setProperty("license.key", license);
+         if(getProperty("license.key") == null || "".equals(getProperty("license.key"))) {
+            setProperty("license.key", license);
          }
 
          ApplicationPropertiesChangedEvent event = new ApplicationPropertiesChangedEvent(
-            this, !Tool.equals(instance.getProperty("security.provider"), security));
+            this, !Tool.equals(getProperty("security.provider"), security));
          eventPublisher.publishEvent(event);
       }
 
@@ -1387,6 +1394,8 @@ public class PropertiesEngine {
    private Properties defaultProperties;
    private final Lock propertiesLock = new ReentrantLock();
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
+   // set on shutdown and read by the change task on the debouncer thread
+   private volatile boolean closed;
    private final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
    private final Map<String, Font> fontMap = new ConcurrentHashMap<>();
    private final Map<String, String> propertyNameCaseCache = new ConcurrentHashMap<>();
