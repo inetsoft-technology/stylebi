@@ -145,10 +145,11 @@ public class ExcelVSUtil {
     */
    public static int[] calculateColumnWidths(Viewsheet vs,
       TableDataVSAssemblyInfo info, VSTableLens lens, boolean isFillColumns,
-      boolean matchLayout, boolean needDistributeWidth)
+      boolean matchLayout, boolean needDistributeWidth, int insetW)
    {
       int totalWidth = 0;
-      int totalPixelW = info.getPixelSize().width;
+      // the grid inside the card inset, which the last column fills
+      int totalPixelW = Math.max(0, info.getPixelSize().width - insetW);
       int lensColumnCount = lens == null ? 0 : lens.getColCount();
       int[] ws = new int[lensColumnCount];
       int[] widths = lens == null ? new int[0] : lens.getColumnWidths();
@@ -159,7 +160,7 @@ public class ExcelVSUtil {
          double w = info.getColumnWidth2(i, lens);
 
          if(Double.isNaN(w) && widths != null && i < widths.length) {
-            w = widths[i];
+            w = lens.getColumnWidthInGrid(i, info, insetW);
 
             // @by ankitmathur, 4-09-2015, track the column which is truncated
             // due to the size of the Assembly.
@@ -307,7 +308,7 @@ public class ExcelVSUtil {
             double w = info.getColumnWidth2(i, lens);
 
             if(Double.isNaN(w) && widths != null && i < widths.length) {
-               w = widths[i];
+               w = lens.getColumnWidthInGrid(i, info, insetW);
             }
             else if(Double.isNaN(w)) {
                w = DEFAULT_COLWIDTH;

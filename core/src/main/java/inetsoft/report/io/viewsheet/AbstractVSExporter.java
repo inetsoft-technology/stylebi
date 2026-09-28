@@ -331,7 +331,8 @@ public abstract class AbstractVSExporter implements VSExporter {
             }
 
             lens.initTableGrid((TableDataVSAssemblyInfo) tableAssembly.getVSAssemblyInfo());
-            VSTableDataHelper.applyShrunkBottomTabsShift(tableAssembly, lens);
+            VSTableDataHelper.applyShrunkBottomTabsShift(
+               tableAssembly, lens, getTableCardInset(tableAssembly.getTableDataVSAssemblyInfo()));
          }
          catch(Exception ex) {
             LOG.debug("Failed to apply bottom-tabs shrink shift for {}",
@@ -969,7 +970,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          TableDataVSAssemblyInfo info =
             (TableDataVSAssemblyInfo) table.getVSAssemblyInfo();
 
-         int totalWidth = table.getPixelSize().width;
+         Insets inset = getTableCardInset(info);
+         int totalWidth = table.getPixelSize().width - inset.left - inset.right;
          int w = 0;
          int idx = 0;
 
@@ -1047,7 +1049,8 @@ public abstract class AbstractVSExporter implements VSExporter {
             headerHeight += dh;
          }
 
-         int tableRowsHeight = size.height - headerHeight;
+         Insets inset = getTableCardInset(info);
+         int tableRowsHeight = size.height - headerHeight - inset.top - inset.bottom;
 
          if(info.isTitleVisible()) {
             tableRowsHeight -= info.getTitleHeight();
@@ -1098,8 +1101,9 @@ public abstract class AbstractVSExporter implements VSExporter {
          // @by klause:
          // if the first detail row height is 0, the other detail row height
          // is alse 0, so the region row number is header line count row number.
+         // a card shorter than its inset, title and header fits no rows
          return displayRowHeight == 0 ? hLineCount :
-            (int) Math.round((double) h / displayRowHeight) + hLineCount + displayRowCount;
+            Math.max(0, (int) Math.round((double) h / displayRowHeight) + hLineCount + displayRowCount);
       }
       else {
          data.moreRows(Integer.MAX_VALUE);
@@ -1924,6 +1928,20 @@ public abstract class AbstractVSExporter implements VSExporter {
    }
 
    /**
+    * Whether this format insets a table's grid from its card edge. A spreadsheet's fixed row
+    * grid cannot represent an 8-16px inset, and CSV has no geometry.
+    */
+   protected boolean insetsTableCard() {
+      return true;
+   }
+
+   @Override
+   public Insets getTableCardInset(TableDataVSAssemblyInfo info) {
+      Insets padding = info == null || !insetsTableCard() ? null : info.getPadding();
+      return padding == null ? new Insets(0, 0, 0, 0) : (Insets) padding.clone();
+   }
+
+   /**
     * Put the legacy near-black back on a dark-marked format's DEFAULT tier, in place. The export
     * copy is cloned upstream, so this mutates nothing persisted. A USER or CSS colour outranks the
     * DEFAULT tier and is therefore untouched by construction.
@@ -2665,7 +2683,9 @@ public abstract class AbstractVSExporter implements VSExporter {
          expandedHeight = Math.max(expandedHeight, total);
       }
 
-      return expandedHeight;
+      Insets inset = getTableCardInset(info);
+      // the card holds the rows plus its inset
+      return expandedHeight + inset.top + inset.bottom;
    }
 
    private int getCellHeight(int r, VSTableLens lens, TableDataVSAssemblyInfo info) {
@@ -2818,7 +2838,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          i++;
       }
 
-      return expandedWidth;
+      Insets inset = getTableCardInset(tinfo);
+      return expandedWidth + inset.left + inset.right;
    }
 
    /**
@@ -2952,6 +2973,8 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       VSTableLens lens = (VSTableLens) table;
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) obj.getInfo();
+      Insets inset = getTableCardInset(info);
+      int insetW = inset.left + inset.right;
       int[] ws = new int[lens.getColCount()];
       int[] widths = lens.getColumnWidths();
       int totalWidth = 0;
@@ -2965,7 +2988,7 @@ public abstract class AbstractVSExporter implements VSExporter {
          }
 
          if(widths != null && i < widths.length) {
-            w = widths[i];
+            w = lens.getColumnWidthInGrid(i, info, insetW);
          }
 
          w = lens.getColumnWidthWithPadding(w, i);
@@ -2973,9 +2996,8 @@ public abstract class AbstractVSExporter implements VSExporter {
          totalWidth += w;
       }
 
-      // if the expand table's total columns width is still less than the
-      // assembly size, keep original assembly width
-      if(ow >= totalWidth) {
+      // the columns fill the grid inside the card inset
+      if(ow - insetW >= totalWidth) {
          return ow;
       }
 

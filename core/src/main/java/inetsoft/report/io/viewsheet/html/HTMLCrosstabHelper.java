@@ -90,13 +90,18 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
       table.append(";box-sizing:content-box;z-index:");
       table.append(info.getZIndex());
       table.append("'>");
+
+      if(hasCardInset()) {
+         table.append(getGridBoxStart(bounds));
+      }
+
       table.append(vHelper.getTitle(info));
 
       try {
          writer.write(table.toString());
          appendTableStyle(writer, info, lens);
-         appendTableData(writer, (int) bounds.getHeight() - titleH, info, lens);
-         writer.append("</div>");
+         appendTableData(writer, getGridHeight(bounds) - titleH, info, lens);
+         writer.append(hasCardInset() ? "</div></div>" : "</div>");
       }
       catch(Exception e) {
          LOG.error("Failed to write table: " + assembly, e);
@@ -137,19 +142,23 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
 
       // get user set column widths
       for(int i = 0; i < colCount; i++) {
-         double w =  widths != null && i < widths.length ? widths[i] : info.getColumnWidth(i);
+         double w = widths != null && i < widths.length ?
+            lens.getColumnWidthInGrid(i, info, cardInset.left + cardInset.right) :
+            info.getColumnWidth(i);
          columnWidths[i] = (int) lens.getColumnWidthWithPadding(
             Double.isNaN(w) ? AssetUtil.defw : (int) w, i);
          totalWidth += columnWidths[i];
       }
 
+      double gridW = bounds.getWidth() - cardInset.left - cardInset.right;
+
       // fill the last column, same as the front-end logic in BaseTableService
-      if(totalWidth < bounds.getWidth()) {
+      if(totalWidth < gridW) {
          for(int i = columnWidths.length - 1; i >= 0; i--) {
             if(columnWidths[i] > 0) {
-               double diff = bounds.getWidth() - totalWidth;
+               double diff = gridW - totalWidth;
                columnWidths[columnWidths.length - 1] += diff;
-               totalWidth = (int) bounds.getWidth();
+               totalWidth = (int) gridW;
                break;
             }
          }

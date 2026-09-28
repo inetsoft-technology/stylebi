@@ -61,6 +61,11 @@ public class CSVVSExporter extends AbstractVSExporter implements EncryptedCompre
    }
 
    @Override
+   protected boolean insetsTableCard() {
+      return false;
+   }
+
+   @Override
    public int getFileFormatType() {
       return FileFormatInfo.EXPORT_TYPE_CSV;
    }

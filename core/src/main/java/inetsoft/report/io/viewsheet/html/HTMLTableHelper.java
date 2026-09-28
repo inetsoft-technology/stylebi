@@ -87,9 +87,14 @@ public class HTMLTableHelper extends HTMLTableDataHelper {
       table.append(";");
       table.append(vHelper.getCSSStyles(bounds, fmt, true));
       table.append("'>");
+
+      if(hasCardInset()) {
+         table.append(getGridBoxStart(bounds));
+      }
+
       table.append(vHelper.getTitle(info));
-      appendTableData(table, info, (int) bounds.getHeight() - titleH, (int) bounds.getWidth(), lens);
-      table.append("</div>");
+      appendTableData(table, info, getGridHeight(bounds) - titleH, getGridWidth(bounds), lens);
+      table.append(hasCardInset() ? "</div></div>" : "</div>");
 
       try {
          writer.write(table.toString());

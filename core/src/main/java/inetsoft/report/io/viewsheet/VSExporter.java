@@ -20,8 +20,10 @@ package inetsoft.report.io.viewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.util.XPortalHelper;
 
+import java.awt.Insets;
 import java.io.IOException;
 
 /**
@@ -72,6 +74,14 @@ public interface VSExporter {
     * @return <tt>true</tt> if matches layout, <tt>false</tt> otherwise.
     */
    boolean isMatchLayout();
+
+   /**
+    * The inset between a table's card edge and its grid in this format: the table's padding,
+    * or zero where the format cannot represent one. Never null; the caller owns the copy.
+    */
+   default Insets getTableCardInset(TableDataVSAssemblyInfo info) {
+      return new Insets(0, 0, 0, 0);
+   }
 
    /**
     * Set whether matches layout.

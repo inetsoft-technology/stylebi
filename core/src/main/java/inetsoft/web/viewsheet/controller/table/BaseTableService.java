@@ -1248,13 +1248,8 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
             if(noWidth && i == colCount - 1 && i < lens.getColumnWidths().length &&
                lens.getColumnWidths()[i] > 0 && !Double.isNaN(lens.getColumnWidths()[i]))
             {
-               double lensW = lens.getColumnWidths()[i];
-
                // the lens fills its last column to the card; take back what it put in the inset
-               if(insetW > 0) {
-                  lensW = Math.max(AssetUtil.defw, lensW - insetW);
-               }
-
+               double lensW = lens.getColumnWidthInGrid(i, tinfo, (int) insetW);
                width = lens.getColumnWidthWithPadding(lensW, i);
             }
             else {

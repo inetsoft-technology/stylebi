@@ -549,6 +549,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
    protected void writeTable(TableVSAssembly assembly, VSTableLens lens) {
       HTMLTableHelper thelper = new HTMLTableHelper(
          helper, assembly.getViewsheet(), assembly);
+      thelper.setCardInset(getTableCardInset(assembly.getTableDataVSAssemblyInfo()));
       thelper.write(writer, assembly, lens);
    }
 
@@ -559,6 +560,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
    protected void writeCrosstab(CrosstabVSAssembly assembly, VSTableLens lens) {
       HTMLCrosstabHelper thelper = new HTMLCrosstabHelper(
          helper, assembly.getViewsheet(), assembly);
+      thelper.setCardInset(getTableCardInset(assembly.getTableDataVSAssemblyInfo()));
       thelper.write(writer, assembly, lens);
    }
 
@@ -569,6 +571,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
    protected void writeCalcTable(CalcTableVSAssembly assembly, VSTableLens lens) {
       HTMLCrosstabHelper thelper = new HTMLCrosstabHelper(
          helper, assembly.getViewsheet(), assembly);
+      thelper.setCardInset(getTableCardInset(assembly.getTableDataVSAssemblyInfo()));
       thelper.write(writer, assembly, lens);
    }
 
