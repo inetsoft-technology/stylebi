@@ -619,11 +619,30 @@ public class PropertiesEngine {
 
          String home = ConfigurationContext.getContext().getHome();
 
-         // getStorage() replaces a stale/closed instance before it is used below; the listener
-         // is (re-)added unconditionally here too (harmless if already present, a Set add), so
-         // that a storage instance swapped in by something other than getStorage()'s own
-         // refetch (e.g. a test double) still gets the listener attached on every reload.
+         // getStorage() replaces a stale/closed instance before it is used below -- except when
+         // the replacement fetch itself fails and a previous instance exists, in which case it
+         // falls back to returning that previous, still-closed instance rather than throwing
+         // (Bug #77177 review round 3), so a runtime point read/write degrades gracefully instead
+         // of crashing an arbitrary setProperty()/remove()/getProperty() call. That fallback is
+         // safe for get()/put()-style access (close() never tears down the underlying map), but
+         // not here: loadFromStorage() below enumerates via stream()/keys(), which are gated only
+         // by isClosed() (not by isLoaded()) and return an empty stream with no exception on a
+         // closed instance -- exactly the original #77177 mechanism. Silently proceeding would
+         // wipe/incomplete internalProperties the same way the bug this PR exists to fix did, so
+         // refuse the reload instead and let the catch block below -- which already exists
+         // specifically to keep the previous properties on a failed reload (Bug #76979) -- handle
+         // it (Bug #77177 review round 4).
          KeyValueStorage<String> storage = getStorage();
+
+         if(storage.isClosed()) {
+            throw new IllegalStateException(
+               "The property storage " + STORAGE_ID + " could not be refreshed and remains " +
+               "closed; skipping this reload to avoid publishing an incomplete property set");
+         }
+
+         // the listener is (re-)added unconditionally here too (harmless if already present, a
+         // Set add), so that a storage instance swapped in by something other than getStorage()'s
+         // own refetch (e.g. a test double) still gets the listener attached on every reload.
          storage.addListener(changeListener);
          loadFromStorage(prop, storage);
 

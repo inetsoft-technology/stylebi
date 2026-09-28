@@ -74,6 +74,12 @@ import static org.mockito.Mockito.*;
  * internal mechanism produced the exception, and round 2's own reasoning (`09-review-r2.md`
  * section 3.1) already establishes, by direct source reading, that {@code LocalKeyValueStorage}'s
  * construction really can throw a bare {@code RuntimeException} this way in production.</p>
+ *
+ * <p>Round 4 added {@link #initReloadKeepsThePreviousPropertiesWhenTheFallbackInstanceIsClosed()}:
+ * review round 4 found that round 3's own fallback (returning the previous, closed instance
+ * instead of throwing) reintroduced Bug #77177's original mechanism for {@code init()}'s reload
+ * path specifically, since that is the one caller that enumerates the storage rather than just
+ * reading/writing individual keys.</p>
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class },
@@ -175,6 +181,62 @@ class PropertiesEngineStorageFetchFailureTest {
       assertSame(failure, thrown,
                  "the raw fetch exception should propagate unwrapped -- getStorage() has " +
                  "nothing to fall back on and nothing to wrap it with at true cold start");
+   }
+
+   /**
+    * Review round 4's finding: {@code getStorage()}'s round-3 fallback (return the previous,
+    * still-closed instance rather than throwing) is safe for a point read/write, but {@code init()}
+    * also calls {@code getStorage()} and then unconditionally enumerated it via
+    * {@code loadFromStorage()} -- which calls {@code stream()}/{@code keys()}, gated only by
+    * {@code isClosed()}, not {@code isLoaded()}. Proceeding with a closed fallback instance there
+    * silently wipes {@code internalProperties}, reopening the exact "silently wiped properties"
+    * mechanism this whole bug exists to fix, just reached through a new trigger (a failed
+    * self-heal fetch during a reload) instead of the original one (a bare eviction during a
+    * reload). This test mirrors the reviewer's own falsifying repro: save a property through the
+    * real storage, then force a reload (matching what {@code ChangeTask.run()} does on every
+    * debounced property change) while {@code kvStorage} is closed and its replacement fetch fails
+    * -- the property must survive, via {@code init()}'s own existing Bug #76979 "keep the previous
+    * properties on a failed reload" guard.
+    */
+   @Test
+   void initReloadKeepsThePreviousPropertiesWhenTheFallbackInstanceIsClosed() throws Exception {
+      String key = "test77177.reloadSurvives." + System.nanoTime();
+
+      try {
+         // written through the real, still-working storage before anything is swapped in
+         engine.setProperty(key, "should-survive-a-degraded-reload");
+         engine.save();
+         assertEquals("should-survive-a-degraded-reload", engine.getProperty(key),
+                      "sanity check: the property must be set before the reload is forced");
+
+         // simulates an eviction having closed the previously-held instance
+         ClosedStorage previous = new ClosedStorage();
+         setKvStorage(previous);
+
+         KeyValueStorageManager spyManager = spy(originalManager);
+         doThrow(new RuntimeException("simulated genuinely broken storage engine"))
+            .when(spyManager).getStorage(STORAGE_ID);
+         setManagerField(spyManager);
+
+         // exactly what ChangeTask.run() does on a debounced property-change reload
+         assertDoesNotThrow(() -> engine.init(true),
+                             "a reload with no usable storage must not throw out past init(), " +
+                             "it must be absorbed by init()'s own failed-reload handling");
+
+         assertEquals("should-survive-a-degraded-reload", engine.getProperty(key),
+                      "a reload that could not refresh a closed storage instance wiped a " +
+                      "previously-saved property instead of keeping it (Bug #76979)");
+      }
+      finally {
+         // clean up the real, persisted key regardless of how the test went, using the real
+         // manager/storage restored below (tearDown() would otherwise leave it behind)
+         setManagerField(originalManager);
+         setKvStorage(null);
+         engine.clear();
+         engine.init();
+         engine.remove(key);
+         engine.save();
+      }
    }
 
    @SuppressWarnings("unchecked")
