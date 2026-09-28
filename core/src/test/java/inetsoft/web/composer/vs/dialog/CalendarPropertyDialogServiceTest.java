@@ -88,6 +88,20 @@ class CalendarPropertyDialogServiceTest {
    }
 
    @Test
+   void bottomTabsPositionAdjustedOnSwitchToCalendar() throws Exception {
+      // change show type from dropdown to calendar, fixCalendarSize() resizes the calendar
+      CalendarVSAssemblyInfo result =
+         save(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, true,
+              CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, 20);
+      assertEquals(CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT,
+                   result.getPixelSize().height);
+      // position should be: tabTop(420) - calendar height
+      assertEquals(420 - CalendarVSAssemblyInfo.DEFAULT_CALENDAR_HEIGHT,
+                   result.getPixelOffset().y);
+      assertEquals(CalendarVSAssemblyInfo.CALENDAR_SHOW_TYPE, result.getShowType());
+   }
+
+   @Test
    void positionUnchangedWhenTabsNotAtBottom() throws Exception {
       CalendarVSAssemblyInfo result =
          save(CalendarVSAssemblyInfo.DROPDOWN_SHOW_TYPE, false,
