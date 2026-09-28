@@ -21,12 +21,30 @@ import java.io.Serializable;
 
 public class CancelCloudJob implements Serializable {
    public CancelCloudJob(String taskName) {
+      this(taskName, null);
+   }
+
+   /**
+    * @param executionId the id of the execution to cancel, or {@code null} to cancel every
+    *                    execution of the task.
+    */
+   public CancelCloudJob(String taskName, String executionId) {
       this.taskName = taskName;
+      this.executionId = executionId;
    }
 
    public String getTaskName() {
       return taskName;
    }
 
+   /**
+    * Gets the id of the execution to cancel. It is {@code null} when the sender does not know the
+    * id, in which case every execution of the task is cancelled.
+    */
+   public String getExecutionId() {
+      return executionId;
+   }
+
    private final String taskName;
+   private final String executionId;
 }
