@@ -1311,6 +1311,47 @@ public class DataCycleManager
          }
       }
 
+      /**
+       * Value-based equality over the fields used when the cycle task runs (notification
+       * flags, recipients, threshold, name, org). The audit fields (created/modified and
+       * their users) are excluded so that a change to them alone does not force the cycle
+       * task to be re-registered with the scheduler.
+       */
+      @Override
+      public boolean equals(Object obj) {
+         if(this == obj) {
+            return true;
+         }
+
+         if(obj == null || getClass() != obj.getClass()) {
+            return false;
+         }
+
+         CycleInfo that = (CycleInfo) obj;
+         return startNotify == that.startNotify &&
+            endNotify == that.endNotify &&
+            failureNotify == that.failureNotify &&
+            exceedNotify == that.exceedNotify &&
+            threshold == that.threshold &&
+            Objects.equals(startEmail, that.startEmail) &&
+            Objects.equals(endEmail, that.endEmail) &&
+            Objects.equals(failureEmail, that.failureEmail) &&
+            Objects.equals(exceedEmail, that.exceedEmail) &&
+            Objects.equals(name, that.name) &&
+            Objects.equals(orgId, that.orgId);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(startNotify, startEmail, endNotify, endEmail, failureNotify,
+                             failureEmail, exceedNotify, exceedEmail, threshold, name, orgId);
+      }
+
+      // pinned to the default value computed before equals/hashCode were added, so that
+      // CycleInfo instances serialized by earlier builds (e.g. inside a ScheduleTask in a
+      // Quartz JobDataMap) can still be deserialized
+      private static final long serialVersionUID = 7512519551353610073L;
+
       private boolean startNotify;
       private String startEmail;
       private boolean endNotify;

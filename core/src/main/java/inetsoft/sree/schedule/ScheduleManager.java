@@ -245,7 +245,11 @@ public class ScheduleManager {
                ScheduleTask oldTask = oldExtensionTasks.remove(key);
                extensionTasks.put(key, task);
 
-               if(!scheduler && !task.equals(oldTask)) {
+               // ScheduleTask.equals() ignores cycleInfo, so compare it explicitly to
+               // push notification changes of data cycle tasks to the scheduler
+               if(!scheduler && (!task.equals(oldTask) ||
+                  !Objects.equals(task.getCycleInfo(), oldTask.getCycleInfo())))
+               {
                   try {
                      scheduleClient.taskAdded(task);
                   }
