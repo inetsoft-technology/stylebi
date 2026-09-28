@@ -257,13 +257,13 @@ public class DashboardRegistryManager {
 
                   try {
                      if(nKey == null) {
+                        // no new org, the registry is removed, don't write its file back
                         dataSpace.delete(null, oldPath);
                      }
                      else {
                         registry.modifyOrgId(nOID);
+                        registry.save();
                      }
-
-                     registry.save();
                   }
                   catch(Exception ex) {
                      LOG.error(ex.getMessage(), ex);

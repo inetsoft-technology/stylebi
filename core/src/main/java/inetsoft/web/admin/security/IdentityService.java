@@ -606,7 +606,28 @@ public class IdentityService {
       else if(identity.getType() == Identity.ORGANIZATION) {
          if(oID == null) {
             Organization oOrg = eprovider.getOrganization(identityId.orgID);
-            dashboardRegistryManager.clear(identityId);
+            String deletedOrgID = identityId.orgID;
+
+            // Evict the org's cached dashboard registries. The org identity's key
+            // (orgId__orgName) matches neither the global registry (orgId__ADMIN__) nor the
+            // user registries (orgId__user), so each one is cleared by its own key. The users
+            // are listed before the organization is removed from the provider.
+            if(deletedOrgID != null) {
+               dashboardRegistryManager.clear(new IdentityID(null, deletedOrgID));
+
+               try {
+                  for(IdentityID user : eprovider.getUsers()) {
+                     if(user != null && deletedOrgID.equals(user.orgID)) {
+                        dashboardRegistryManager.clear(user);
+                     }
+                  }
+               }
+               catch(Exception ex) {
+                  LOG.warn("Failed to clear the dashboard registries of the users of {}",
+                           deletedOrgID, ex);
+               }
+            }
+
             clearDataSourceMetadata();
 
             if(oOrg != null) {
