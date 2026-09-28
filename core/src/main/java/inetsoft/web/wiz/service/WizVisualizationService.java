@@ -326,9 +326,20 @@ public class WizVisualizationService {
       // materialized "Range@<measure>" range field) so the cloned chart's calc-field-backed bindings
       // still resolve when the saved viz is reopened. Without this the new single-assembly viewsheet
       // has no such calc field and reopen fails with ColumnNotFoundException: Range@<col>.
-      if(assembly instanceof DataVSAssembly dataAsm && dataAsm.getSourceInfo() != null) {
-         String calcSrc = dataAsm.getSourceInfo().getSource();
-         CalculateRef[] srcCalcs = calcSrc != null ? sourceVs.getCalcFields(calcSrc) : null;
+      // Output (Gauge/Text/Image), input and selection assemblies bind through BindingInfo rather
+      // than SourceInfo; getTableName() returns the same key their calc fields are stored under.
+      // DataVSAssembly is also bindable, so it must be checked first to keep its SourceInfo path.
+      String calcSrc = null;
+
+      if(assembly instanceof DataVSAssembly dataAsm) {
+         calcSrc = dataAsm.getSourceInfo() != null ? dataAsm.getSourceInfo().getSource() : null;
+      }
+      else {
+         calcSrc = assembly.getTableName();
+      }
+
+      if(calcSrc != null && !calcSrc.isBlank()) {
+         CalculateRef[] srcCalcs = sourceVs.getCalcFields(calcSrc);
 
          if(srcCalcs != null) {
             for(CalculateRef calc : srcCalcs) {

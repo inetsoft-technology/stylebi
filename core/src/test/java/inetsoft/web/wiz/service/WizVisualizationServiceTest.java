@@ -28,8 +28,14 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.AssetContent;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.CalendarVSAssembly;
 import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.GaugeVSAssembly;
+import inetsoft.uql.viewsheet.OutputVSAssembly;
+import inetsoft.uql.viewsheet.ScalarBindingInfo;
 import inetsoft.uql.viewsheet.SelectionListVSAssembly;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
@@ -173,6 +179,99 @@ class WizVisualizationServiceTest {
          any(AssetEntry.class), eq(principal), eq(true), any(AssetContent.class));
       verify(viewsheetService).setViewsheet(
          any(Viewsheet.class), any(AssetEntry.class), eq(principal), eq(true), eq(true));
+   }
+
+   // ── saveVisualization carries forward calc fields for the saved assembly's table (#77143) ────
+   //
+   // The calc-field copy used to run only for DataVSAssembly (SourceInfo), so a Text/Gauge bound
+   // through a ScalarBindingInfo to a table with calc fields was saved without them, and a binding
+   // to one of those calc fields no longer resolved on reopen.
+
+   @Test
+   void savingATextCarriesOverTheCalcFieldsOfItsBoundTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      TextVSAssembly text = new TextVSAssembly(sourceVs, "Text1");
+      bindScalar(text, "Query1");
+      sourceVs.addAssembly(text);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Text1");
+
+      CalculateRef[] calcs = newVs.getCalcFields("Query1");
+      assertNotNull(calcs, "the Text's table calc fields must be carried into the saved viewsheet");
+      assertEquals("Margin", calcs[0].getName());
+   }
+
+   @Test
+   void savingAGaugeCarriesOverTheCalcFieldsOfItsBoundTable() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      GaugeVSAssembly gauge = new GaugeVSAssembly(sourceVs, "Gauge1");
+      bindScalar(gauge, "Query1");
+      sourceVs.addAssembly(gauge);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Gauge1");
+
+      assertNotNull(newVs.getCalcFields("Query1"),
+                    "the Gauge's table calc fields must be carried into the saved viewsheet");
+   }
+
+   /** The pre-existing DataVSAssembly (SourceInfo) path must keep copying. */
+   @Test
+   void savingAChartStillCarriesOverTheCalcFieldsOfItsSource() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.ASSET, null, "Query1"));
+      sourceVs.addAssembly(chart);
+      sourceVs.addCalcField("Query1", calc("Range@PRICE", "field['PRICE']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Chart1");
+
+      assertNotNull(newVs.getCalcFields("Query1"));
+   }
+
+   private static void bindScalar(OutputVSAssembly assembly, String table) {
+      ScalarBindingInfo binding = new ScalarBindingInfo();
+      binding.setTableName(table);
+      binding.setColumnValue("Margin");
+      assembly.setScalarBindingInfo(binding);
+   }
+
+   private static CalculateRef calc(String name, String expression) {
+      ExpressionRef inner = new ExpressionRef();
+      inner.setName(name);
+      inner.setExpression(expression);
+
+      CalculateRef ref = new CalculateRef(true);
+      ref.setDataRef(inner);
+      return ref;
+   }
+
+   private Viewsheet saveAndCapture(Viewsheet sourceVs, String assemblyName) throws Exception {
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      AssetRepository assetRepository = mock(AssetRepository.class);
+      WizVisualizationService service = createService(viewsheetService, assetRepository);
+
+      AssetEntry insideEntry = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.VIEWSHEET,
+         WizVisualizationService.VISUALIZATION_COMPONENTS_FOLDER_PATH + "/vs1", null);
+
+      WizVisualizationSaveEvent event = new WizVisualizationSaveEvent();
+      event.setSourceViewsheetIdentifier(insideEntry.toIdentifier());
+      event.setAssemblyName(assemblyName);
+
+      Principal principal = mock(Principal.class);
+      when(principal.getName()).thenReturn("admin" + IdentityID.KEY_DELIMITER + "host-org");
+      when(assetRepository.getSheet(
+         any(AssetEntry.class), eq(principal), eq(true), any(AssetContent.class)))
+         .thenReturn(sourceVs);
+
+      service.saveVisualization(event, principal);
+
+      var captor = ArgumentCaptor.forClass(Viewsheet.class);
+      verify(viewsheetService).setViewsheet(
+         captor.capture(), any(AssetEntry.class), eq(principal), eq(true), eq(true));
+      return captor.getValue();
    }
 
    // ── saveVisualization carries forward filter-control assemblies (07-fix-r3.md) ───────────────
