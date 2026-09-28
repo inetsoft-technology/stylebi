@@ -5476,6 +5476,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   cache = false;
                   throw cex2;
                }
+               catch(Exception ex) {
+                  // a table whose query failed with a lock stall must not leave a cached NULL,
+                  // the next read would take it for no table instead of building it again (#77123)
+                  if(LockStallException.find(ex) != null) {
+                     cache = false;
+                  }
+
+                  throw ex;
+               }
                finally {
                   // Inside a script this thread proceeds without a sandbox lock it cannot get
                   // (see lockRead()), so a writer may have been changing the sandbox while the
