@@ -33,7 +33,9 @@ package inetsoft.sree.security;
  * they do not depend on setOrganizationInfo()'s "members changed" guard.
  */
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRegistryManager;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.support.SecurityTestDataBuilder;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.test.BaseTestConfiguration;
@@ -44,6 +46,7 @@ import inetsoft.util.ThreadContext;
 import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.security.IdentityModel;
 import inetsoft.web.admin.security.IdentityService;
+import inetsoft.web.admin.security.user.EditOrganizationPaneModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.context.ContextConfiguration;
@@ -71,6 +74,10 @@ class OrgEditFromOtherCurrentOrgTest {
    private static final String RENAMED_ORG_ID = "oefc_renamed";
    private static final String RENAMED_ORG_NAME = "OefcRenamed";
    private static final String RESOURCE = "/oefc/vs1";
+   private static final String CASE_ORG_ID = "OefcCase";
+   private static final String CASE_ORG_NAME = "OefcCaseName";
+   private static final String CASE_RENAMED_ORG_ID = "OEFCCASE";
+   private static final String SITE_ADMIN = "oefcSiteAdmin";
 
    private SecurityTestDataBuilder builder;
    private FileAuthenticationProvider fileProvider;
@@ -92,6 +99,13 @@ class OrgEditFromOtherCurrentOrgTest {
          .addUser("u1", MIXED_ORG_ID, "password")
          .addGroup("g1", MIXED_ORG_ID)
          .addRole("r1", MIXED_ORG_ID)
+         .addOrg(CASE_ORG_NAME, CASE_ORG_ID)
+         .addUser("u1", CASE_ORG_ID, "password")
+         .addGroup("g1", CASE_ORG_ID)
+         .addRole("r1", CASE_ORG_ID)
+         .addSysAdminRole("oefcSiteAdmins", HOST_ORG_ID)
+         .addUser(SITE_ADMIN, HOST_ORG_ID, "password")
+         .addUserToRole(SITE_ADMIN, "oefcSiteAdmins", HOST_ORG_ID)
          .grantPermission(ResourceType.VIEWSHEET, RESOURCE, ResourceAction.READ,
                           "u1", Identity.USER, EDITED_ORG_ID)
          .setup();
@@ -113,6 +127,9 @@ class OrgEditFromOtherCurrentOrgTest {
          fileProvider.removeUser(new IdentityID("u1", RENAMED_ORG_ID));
          fileProvider.removeGroup(new IdentityID("g1", RENAMED_ORG_ID));
          fileProvider.removeRole(new IdentityID("r1", RENAMED_ORG_ID));
+         fileProvider.removeUser(new IdentityID("u1", CASE_RENAMED_ORG_ID));
+         fileProvider.removeGroup(new IdentityID("g1", CASE_RENAMED_ORG_ID));
+         fileProvider.removeRole(new IdentityID("r1", CASE_RENAMED_ORG_ID));
       }
 
       SecurityEngine.getSecurity().getAuthorizationChain().ifPresent(
@@ -208,6 +225,60 @@ class OrgEditFromOtherCurrentOrgTest {
                     "a listed role must be kept");
    }
 
+   // (e) the reporter's scenario through the public entry point setIdentity(): a site admin whose
+   // current org is another org saves the edited org unchanged, listing its existing members
+   @Test
+   void setIdentity_siteAdminInOtherCurrentOrg_nonRenameEdit_listedMembersKept() throws Exception {
+      SRPrincipal siteAdmin = builder.principalOf(SITE_ADMIN, HOST_ORG_ID);
+      ThreadContext.setContextPrincipal(siteAdmin);
+      FSOrganization oldOrg = (FSOrganization) fileProvider.getOrganization(EDITED_ORG_ID);
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .id(EDITED_ORG_ID)
+         .name(EDITED_ORG_NAME)
+         .oldName(EDITED_ORG_NAME)
+         .members(List.of(
+            member("u1", EDITED_ORG_ID, Identity.USER), member("u2", EDITED_ORG_ID, Identity.USER),
+            member("g1", EDITED_ORG_ID, Identity.GROUP), member("r1", EDITED_ORG_ID, Identity.ROLE)))
+         .status(true)
+         .build();
+
+      createIdentityService().setIdentity(oldOrg, model, fileProvider, siteAdmin);
+
+      assertMembersExist(EDITED_ORG_ID, "u1", "u2");
+      assertNotNull(fileProvider.getGroup(new IdentityID("g1", EDITED_ORG_ID)),
+                    "a listed group must not be deleted by a non-rename edit");
+      assertNotNull(fileProvider.getRole(new IdentityID("r1", EDITED_ORG_ID)),
+                    "a listed role must not be deleted by a non-rename edit");
+      assertNotNull(fileProvider.getOrganization(EDITED_ORG_ID), "the edited org must be kept");
+   }
+
+   // (f) a rename that only changes the case of the id is a real rename: the members are moved to
+   // the new id, not left behind under the old one (an ignore-case compare would orphan them)
+   @Test
+   void rename_caseOnlyIdChange_membersMovedToNewId() {
+      setCurrentOrg(CASE_ORG_ID);
+
+      updateOrganizationMembers(org(CASE_RENAMED_ORG_ID, CASE_ORG_NAME, "u1", "g1", "r1"),
+                                CASE_ORG_ID);
+
+      assertNotNull(fileProvider.getUser(new IdentityID("u1", CASE_RENAMED_ORG_ID)),
+                    "the user must be moved to the new-case org id");
+      assertNull(fileProvider.getUser(new IdentityID("u1", CASE_ORG_ID)),
+                 "the user must not be left under the old-case org id");
+      assertNotNull(fileProvider.getGroup(new IdentityID("g1", CASE_RENAMED_ORG_ID)),
+                    "the group must be moved to the new-case org id");
+      assertNull(fileProvider.getGroup(new IdentityID("g1", CASE_ORG_ID)),
+                 "the group must not be left under the old-case org id");
+      assertNotNull(fileProvider.getRole(new IdentityID("r1", CASE_RENAMED_ORG_ID)),
+                    "the role must be moved to the new-case org id");
+      assertNull(fileProvider.getRole(new IdentityID("r1", CASE_ORG_ID)),
+                 "the role must not be left under the old-case org id");
+   }
+
+   private static IdentityModel member(String name, String orgId, int type) {
+      return IdentityModel.builder().identityID(new IdentityID(name, orgId)).type(type).build();
+   }
+
    private void updateOrganizationMembers(FSOrganization org, String oldOrgID) {
       // memberModels only drives creation of brand-new members; all members here already exist
       ReflectionTestUtils.invokeMethod(createIdentityService(), "updateOrganizationMembers",
@@ -236,8 +307,8 @@ class OrgEditFromOtherCurrentOrgTest {
    private IdentityService createIdentityService() {
       return new IdentityService(
          SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
-         null, null, null, mock(FavoritesService.class), null, null, null, null,
-         null, null, null, null, Optional.empty(), null, null, null,
+         null, null, null, mock(FavoritesService.class), mock(Cluster.class), null, null, null,
+         null, mock(LicenseManager.class), null, null, Optional.empty(), null, null, null,
          dashboardRegistryManager, null, null, null, null, null, null, null, null,
          repletRegistryManager, Optional.empty());
    }
