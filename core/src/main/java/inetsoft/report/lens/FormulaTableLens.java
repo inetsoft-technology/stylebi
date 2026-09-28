@@ -1617,7 +1617,9 @@ public class FormulaTableLens extends AbstractTableLens
     * scripts for no more rows than pool off (context-pool regression D1). While each batch
     * starts at the first row not yet computed (a sequential read), batches double from there,
     * up to maxBatchRows (never below batchRows, see PoolConfig), so a row-by-row reader of N
-    * rows computes at most about 2N + 10. 0 off the pool, where batchRows is 0.
+    * rows computes at most about 2N + 10. A batch computes its read-ahead plus the row that
+    * asked for it, as pool off does, so a capped batch is maxBatchRows + 1 rows. 0 off the
+    * pool, where batchRows is 0.
     *
     * @param next the first row not yet computed.
     */
@@ -1626,7 +1628,9 @@ public class FormulaTableLens extends AbstractTableLens
          return 0;
       }
 
-      if(poolBatch > 0 && r <= next) {
+      // next == hrows: no row computed, as after invalidate(), so a reset lens starts over like
+      // a fresh one (review r2 minor A)
+      if(poolBatch > 0 && r <= next && next > hrows) {
          int max = Math.max(span.batchRows(), span.maxBatchRows());
          poolBatch = poolBatch >= max / 2 ? max : poolBatch * 2;
          return poolBatch;

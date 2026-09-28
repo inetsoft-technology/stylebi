@@ -168,6 +168,39 @@ public class PooledReadAheadBoundTest {
    }
 
    /**
+    * Review r2 minor A: invalidate() (a selection change, for one) empties the row table, and
+    * the first read after it is a first read, not the next step of the ramp a long scan grew
+    * before the reset. A reset lens runs its scripts for the rows a fresh lens would, not up
+    * to maxBatchRows.
+    */
+   @Test
+   public void firstReadAfterInvalidateReadsLikeAFreshLens() {
+      for(boolean pool : new boolean[] { false, true }) {
+         Counter fresh = new Counter();
+         SEQ_100.accept(new Chain(pool, false, COUNTING, fresh).top);
+
+         Counter counter = new Counter();
+         Chain chain = new Chain(pool, false, COUNTING, counter);
+
+         for(int r = 1; r <= 5000 && chain.top.moreRows(r); r++) {
+            chain.top.getObject(r, 3);
+         }
+
+         ((FormulaTableLens) chain.top).invalidate();
+         int before = counter.hits.get();
+         assertTrue(chain.top.moreRows(1));
+         assertTrue(counter.hits.get() - before <= 11,
+                    "pool " + pool + ": first read after invalidate ran " +
+                       (counter.hits.get() - before));
+
+         SEQ_100.accept(chain.top);
+         assertEquals(fresh.hits.get(), counter.hits.get() - before,
+                      "pool " + pool + ": 100 rows after invalidate");
+         assertTrue(counter.hits.get() - before <= 2 * 100 + 10, "pool " + pool);
+      }
+   }
+
+   /**
     * Review r1 finding 1: a bounded read followed by a re-read of its rows with moreRows(r)
     * (the usual paged loop) is not a sequential read. Re-reading the last computed row must
     * not start the next pooled batch, so no row past the page is computed.
