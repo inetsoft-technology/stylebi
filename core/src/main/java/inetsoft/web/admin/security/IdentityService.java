@@ -911,11 +911,29 @@ public class IdentityService {
          .filter(newRole -> Arrays.stream(roles).noneMatch(oldRole -> oldRole.getName().equals(newRole.identityID().getName())))
          .map(IdentityModel::identityID)
          .toArray(IdentityID[]::new);
-      boolean orgIdChange = !OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId());
-      boolean orgNameChanged = !Tool.equals(orgIdChange, oldOrgID);
+      // compare with the edited organization's old id, not the current organization, which differs
+      // when a site admin updates another organization (REST, shell), otherwise every kept member
+      // is "moved" to its own id, i.e. written and removed
+      boolean orgIdChange = !Tool.equals(oldOrgID, identity.getId());
 
       AuthorizationChain authoc = ((AuthorizationChain) securityProvider.getAuthorizationProvider());
       List<IdentityID> droppedUsers = new ArrayList<>();
+
+      // delete the dropped groups and roles before any member moves to a new organization id, the
+      // provider only removes a deleted group or role from the identities of its own organization
+      for(IdentityID group : groups) {
+         if(!members.contains(group.getName())) {
+            //group is tied to org, delete if removed as member
+            removeDroppedMember(eprovider, group, Identity.GROUP, oldOrgID);
+         }
+      }
+
+      for(IdentityID role : roles) {
+         if(!members.contains(role.getName())) {
+            //role is tied to org, delete if removed as member
+            removeDroppedMember(eprovider, role, Identity.ROLE, oldOrgID);
+         }
+      }
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
@@ -932,11 +950,9 @@ public class IdentityService {
                }
             }
 
-            if(orgIdChange || orgNameChanged) {
-               //Update replet registry here.
-               repletRegistryManager.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
-               dashboardRegistryManager.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
-            }
+            //Update replet registry here.
+            repletRegistryManager.changeOrgID(oldID, oldOrgID, identity.getId(), false);
+            dashboardRegistryManager.migrateRegistry(oldID, securityProvider.getOrganization(oldOrgID), identity);
 
             // Re-scope the user's own permission grants to the new organization, symmetric with
             // updateRoleForOrg()/updateGroupForOrg(). Without this, permissions granted directly
@@ -944,7 +960,7 @@ public class IdentityService {
             // the org id changes, because the role/group re-scoping relocates the permission keys
             // to the new org without carrying the user grantee over. (Bug #75721)
             updateIdentityPermissions(Identity.USER, oldID, user.getIdentityID(),
-               OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
+               oldOrgID, identity.getId(), true);
 
             eprovider.setUser(user.getIdentityID(), user);
             eprovider.removeUser(oldID);
@@ -982,22 +998,23 @@ public class IdentityService {
       }
 
       for(int i = 0; i < groups.length; i++) {
+         // the dropped groups are already deleted
+         if(!members.contains(groups[i].getName())) {
+            continue;
+         }
+
          FSGroup group = (FSGroup) eprovider.getGroup(groups[i]);
 
-         if(orgID.equals(group.getOrganizationID())) {
-            if(!members.contains(group.getName())) {
-               //group is tied to org, delete if removed as member
-               removeDroppedMember(eprovider, group.getIdentityID(), Identity.GROUP, oldOrgID);
-            }
-            //else if name change or id change, update permissions
-            else if(orgIdChange) {
+         if(Tool.equals(oldOrgID, group.getOrganizationID())) {
+            //if name change or id change, update permissions
+            if(orgIdChange) {
                //clone new group with correct name
-               updateGroupForOrg(identity, group, orgID, eprovider, authoc);
+               updateGroupForOrg(identity, group, orgID, oldOrgID, eprovider, authoc);
             }
          }
          else if(members.contains(group.getName())) {
             //clone new group with correct name
-            updateGroupForOrg(identity, group, orgID, eprovider, authoc);
+            updateGroupForOrg(identity, group, orgID, oldOrgID, eprovider, authoc);
          }
       }
 
@@ -1012,19 +1029,20 @@ public class IdentityService {
       }
 
       for(int i = 0; i < roles.length; i++) {
+         // the dropped roles are already deleted
+         if(!members.contains(roles[i].getName())) {
+            continue;
+         }
+
          FSRole role = (FSRole) eprovider.getRole(roles[i]);
 
-         if(orgID.equals(role.getOrganizationID())) {
-            if(!members.contains(role.getName())) {
-               //role is tied to org, delete if removed as member
-               removeDroppedMember(eprovider, role.getIdentityID(), Identity.ROLE, oldOrgID);
-            }
-            else if(orgIdChange) {
-               updateRoleForOrg(identity, role, orgID, eprovider, authoc);
+         if(Tool.equals(oldOrgID, role.getOrganizationID())) {
+            if(orgIdChange) {
+               updateRoleForOrg(identity, role, orgID, oldOrgID, eprovider, authoc);
             }
          }
          else if(members.contains(role.getName())) {
-            updateRoleForOrg(identity, role, orgID, eprovider, authoc);
+            updateRoleForOrg(identity, role, orgID, oldOrgID, eprovider, authoc);
          }
       }
 
@@ -1039,12 +1057,12 @@ public class IdentityService {
       }
    }
 
-   private void updateRoleForOrg(Organization identity, FSRole role, String orgID,
+   private void updateRoleForOrg(Organization identity, FSRole role, String orgID, String oldOrgID,
                                  EditableAuthenticationProvider eprovider, AuthorizationChain authoc)
    {
       boolean authUpdated = false;
 
-      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId())) {
+      if(!Tool.equals(oldOrgID, identity.getId())) {
          //clone new role with correct name
          IdentityID newName = new IdentityID(role.getName(), orgID);
          FSRole newRole = new FSRole(newName, role.getRoles());
@@ -1057,7 +1075,7 @@ public class IdentityService {
             //update role in permissions
             updateIdentitiesContainingRole(role.getIdentityID(), newName, orgID, eprovider);
             authUpdated = true;
-            updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), newName, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
+            updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), newName, oldOrgID, identity.getId(), true);
             eprovider.setRole(newName, newRole);
             eprovider.removeRole(role.getIdentityID());
          }
@@ -1066,16 +1084,17 @@ public class IdentityService {
          }
       }
 
-      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId()) && !authUpdated) {
-         updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), role.getIdentityID(), OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
+      if(!Tool.equals(oldOrgID, identity.getId()) && !authUpdated) {
+         updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), role.getIdentityID(), oldOrgID, identity.getId(), false);
       }
    }
 
    private void updateGroupForOrg(Organization identity, Group group, String orgName,
-                                  EditableAuthenticationProvider eprovider, AuthorizationChain authoc) {
+                                  String oldOrgID, EditableAuthenticationProvider eprovider,
+                                  AuthorizationChain authoc) {
       //if name change
       boolean authUpdated = false;
-      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId())) {
+      if(!Tool.equals(oldOrgID, identity.getId())) {
          IdentityID newName = new IdentityID(group.getIdentityID().name, orgName);
          FSGroup newGroup = new FSGroup(newName, group.getLocale(),
                                         group.getGroups(), group.getRoles());
@@ -1086,7 +1105,7 @@ public class IdentityService {
             authUpdated = true;
             updateIdentityPermissions(
                Identity.GROUP, group.getIdentityID(), newName,
-               OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
+               oldOrgID, identity.getId(), true);
             eprovider.removeGroup(group.getIdentityID(), false);
          }
          else {
@@ -1094,10 +1113,10 @@ public class IdentityService {
          }
       }
 
-      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId()) && !authUpdated) {
+      if(!Tool.equals(oldOrgID, identity.getId()) && !authUpdated) {
          updateIdentityPermissions(
             Identity.GROUP, group.getIdentityID(), group.getIdentityID(),
-            OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
+            oldOrgID, identity.getId(), false);
 
       }
 
@@ -2490,7 +2509,9 @@ public class IdentityService {
       newOrg.setMembers(memberNames.toArray(new String[0]));
       newOrg.setActive(model.status());
 
-      String oldID = eprovider.getOrgIdFromName(model.oldName());
+      // the old organization is the one being edited, a name lookup can resolve another
+      // organization with the same display name
+      String oldID = oldOrg.getId();
       oldID = oldID != null ? oldID : id;
       Organization fromOrg = eprovider.getOrganization(oldID);
       String fromOrgID = fromOrg != null ? fromOrg.getId() : null;
@@ -2533,8 +2554,7 @@ public class IdentityService {
       updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, newOrg.getId());
       newOrg.setTheme(model.theme());
       String syncOldName = model.oldName();
-      String syncOldOrgID = eprovider.getOrgIdFromName(syncOldName);
-      syncIdentity(eprovider, newOrg, new IdentityID(syncOldName, syncOldOrgID));
+      syncIdentity(eprovider, newOrg, new IdentityID(syncOldName, oldID));
 
       return newOrg;
    }
