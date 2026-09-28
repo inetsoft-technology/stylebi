@@ -113,6 +113,17 @@ public class PropertiesEngine {
     * instance stays in this degraded state until it is eventually replaced by a fresh one (the
     * next eviction-triggered close(), or a test double swapped in directly).</p>
     *
+    * <p>{@code retryLoad()} is not always exception-free: {@code LocalKeyValueStorage.load()}
+    * deliberately rethrows the cause of the load task's {@code ExecutionException} when it is a
+    * {@code RuntimeException}, rather than swallowing it like a timeout or interruption, so a
+    * genuinely broken storage engine still fails loudly at cold start
+    * ({@link #initEngine()}'s own {@code isLoaded()} check below). At runtime that same
+    * unguarded exception would otherwise propagate straight out of this method into an ordinary
+    * {@code setProperty()}/{@code remove()}/{@code getProperty()} call, which is exactly the
+    * "must not throw" guarantee this method exists to provide — so the retry is wrapped here and
+    * a thrown exception degrades to the same logged, non-fatal outcome as a retry that simply
+    * returns {@code false}.</p>
+    *
     * @return the live key-value storage instance.
     */
    private synchronized KeyValueStorage<String> getStorage() {
@@ -120,11 +131,24 @@ public class PropertiesEngine {
          KeyValueStorage<String> storage = keyValueStorageManager.getStorage(STORAGE_ID);
          storage.addListener(changeListener);
 
-         if(!storage.isLoaded() && !storage.retryLoad()) {
+         try {
+            if(!storage.isLoaded() && !storage.retryLoad()) {
+               LOG.warn(
+                  "The property storage {} has not finished loading after a retry; properties " +
+                  "read from it may be temporarily incomplete until it is next replaced by a " +
+                  "successfully loaded instance", STORAGE_ID);
+            }
+         }
+         catch(Exception e) {
+            // retryLoad() can rethrow a RuntimeException from a genuinely broken storage engine
+            // (LocalKeyValueStorage.load()); at cold start that is meant to fail the node, but a
+            // runtime self-heal reached from an arbitrary setProperty()/remove()/getProperty()
+            // call must not throw, so it is only logged, the same as a retry that just returns
+            // false (Bug #77177 review round 2)
             LOG.warn(
-               "The property storage {} has not finished loading after a retry; properties " +
-               "read from it may be temporarily incomplete until it is next replaced by a " +
-               "successfully loaded instance", STORAGE_ID);
+               "Failed to retry loading the property storage {}; properties read from it may " +
+               "be temporarily incomplete until it is next replaced by a successfully loaded " +
+               "instance", STORAGE_ID, e);
          }
 
          kvStorage = storage;

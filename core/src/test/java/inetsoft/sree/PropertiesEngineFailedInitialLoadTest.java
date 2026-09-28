@@ -187,6 +187,74 @@ class PropertiesEngineFailedInitialLoadTest {
    }
 
    /**
+    * Review round 2's finding: {@code LocalKeyValueStorage.load()} deliberately rethrows a
+    * {@code RuntimeException} cause instead of swallowing it, so {@code retryLoad()} is not
+    * guaranteed exception-free. {@code getStorage()} must catch that and degrade to the same
+    * logged, non-fatal outcome as a retry that simply returns {@code false} -- a runtime caller
+    * must not see the exception, and the still-not-loaded instance must still be adopted rather
+    * than discarded (matching the "warn, don't throw" design for a runtime self-heal).
+    */
+   @Test
+   void getStorageCatchesAThrowingRetryAndWarnsButDoesNotThrowAtRuntime() throws Exception {
+      ThrowingStorage storage = new ThrowingStorage();
+      injectFreshlyFetchedStorage(storage);
+
+      Logger logger = (Logger) LoggerFactory.getLogger(PropertiesEngine.class);
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.addAppender(appender);
+
+      String value;
+
+      try {
+         value = assertDoesNotThrow(
+            () -> engine.getPropertyFromStorage("test77177.retryThrows." + System.nanoTime()),
+            "a RuntimeException from retryLoad() must not escape getStorage() at runtime");
+      }
+      finally {
+         logger.detachAppender(appender);
+      }
+
+      assertNull(value, "the empty double has no properties to return");
+      assertEquals(1, storage.retryCount(),
+                   "getStorage() must attempt the retry exactly once even though it throws");
+      assertTrue(
+         appender.list.stream().anyMatch(
+            e -> e.getLevel() == Level.WARN &&
+               e.getFormattedMessage().contains("Failed to retry loading")),
+         "expected a WARN log for the caught retryLoad() exception: " + appender.list);
+      assertSame(storage, getKvStorage(),
+                 "the instance must still be adopted even though its retry threw");
+
+      // a second call must not attempt another retry -- same "at most once per fetch" scoping
+      // as a retry that returns false rather than throwing
+      engine.getPropertyFromStorage("test77177.retryThrows2." + System.nanoTime());
+      assertEquals(1, storage.retryCount(),
+                   "getStorage() retried again after the first attempt threw, but the retry " +
+                   "must be scoped to the fetch branch only, exactly like the non-throwing case");
+   }
+
+   /**
+    * The cold-start path must also survive a throwing retry: {@code initEngine()}'s own
+    * {@code isLoaded()} read never throws (it is a plain field read), so cold start still fails
+    * closed with {@code IllegalStateException} rather than an unrelated exception escaping from
+    * inside {@code getStorage()}.
+    */
+   @Test
+   void initEngineStillFailsClosedWithIllegalStateExceptionWhenTheRetryThrows() throws Exception {
+      ThrowingStorage storage = new ThrowingStorage();
+      injectFreshlyFetchedStorage(storage);
+
+      IllegalStateException ex = assertThrows(IllegalStateException.class, engine::initEngine,
+         "cold start must still fail closed with its own exception, not the retry's, when the " +
+         "load throws");
+      assertEquals(1, storage.retryCount());
+      assertNull(ex.getCause(),
+                 "initEngine()'s IllegalStateException should not chain the swallowed retry " +
+                 "exception; getStorage() already logged and swallowed it");
+   }
+
+   /**
     * Puts a freshly-constructed double where {@code getStorage()}'s fetch branch will find it:
     * primes {@link KeyValueStorageManager}'s cache for {@code STORAGE_ID} with the double (so the
     * manager returns it instead of constructing a real {@code LocalKeyValueStorage}), and clears
@@ -253,6 +321,33 @@ class PropertiesEngineFailedInitialLoadTest {
 
       private final boolean recoversOnRetry;
       private volatile boolean loaded;
+      private final AtomicInteger retryCount = new AtomicInteger();
+   }
+
+   /**
+    * A {@link KeyValueStorage} double standing in for a freshly-constructed
+    * {@code LocalKeyValueStorage} whose {@code load()} failed with a genuine
+    * {@code RuntimeException} cause -- the case {@code LocalKeyValueStorage.load()} deliberately
+    * rethrows rather than swallowing (review round 2's finding). {@code isClosed()} stays
+    * {@code false} (inherited from {@link InMemoryKeyValueStorage}); {@code isLoaded()} stays
+    * {@code false}; {@code retryLoad()} throws instead of returning.
+    */
+   private static final class ThrowingStorage extends InMemoryKeyValueStorage<String> {
+      @Override
+      public boolean isLoaded() {
+         return false;
+      }
+
+      @Override
+      public boolean retryLoad() {
+         retryCount.incrementAndGet();
+         throw new RuntimeException("simulated genuinely broken storage engine");
+      }
+
+      int retryCount() {
+         return retryCount.get();
+      }
+
       private final AtomicInteger retryCount = new AtomicInteger();
    }
 
