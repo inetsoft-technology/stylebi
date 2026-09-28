@@ -162,6 +162,99 @@ class ChartRegionPropertyServiceTest {
    }
 
    /**
+    * Bug #77027 item 1: the model {@code regions.getAxisPropertyDialogModel} returns can itself
+    * already be mis-flagged {@code linear: true} for a genuinely non-linear (dimension-bound)
+    * axis -- the area-index-0 mechanism this test simulates directly. Before the fix, {@code
+    * set()} left that flag untouched, so {@code ignoreNull} would land on the pane's own bean
+    * field (this test's write does reach that far) but {@code
+    * AxisPropertyDialogModel.updateAxisPropertyDialogModel}'s real {@code if(this.linear)} branch
+    * -- exercised only by the model itself, not by this mocked-service test -- would then never
+    * read it back out into the real {@code AxisDescriptor}. Fixed by independently re-deriving
+    * {@code linear} off the actual binding and correcting the model before it is ever written to.
+    */
+   @Test
+   void correctsAMisclassifiedLinearFlagBeforeWriting() throws Exception {
+      Harness h = harness();
+      AxisPropertyDialogModel model = axisModel();
+      model.setLinear(true); // simulates the area-index-0 misclassification for a dimension axis
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(model);
+
+      h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                    Map.of("ignoreNull", true), "");
+
+      ArgumentCaptor<AxisPropertyDialogModel> captor =
+         ArgumentCaptor.forClass(AxisPropertyDialogModel.class);
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertFalse(captor.getValue().getLinear(),
+                  "linear must be corrected off the real binding before the write, or " +
+                  "ignoreNull/truncate never reach updateAxisPropertyDialogModel's non-linear " +
+                  "branch");
+      assertTrue(captor.getValue().getAxisLinePaneModel().isIgnoreNull());
+   }
+
+   /**
+    * Bug #77027 item 2: {@code increment} is neither refused nor covered by
+    * {@code LINEAR_ONLY_AXIS_KEYS} -- it applies to a linear axis OR a non-linear time-series
+    * date axis, so on a genuinely non-linear, non-time-series dimension axis it used to be
+    * silently accepted and dropped, exactly the shape {@code LINEAR_ONLY_AXIS_KEYS} exists to
+    * prevent for its own key set.
+    */
+   @Test
+   void refusesIncrementOnANonLinearNonTimeSeriesDimensionAxis() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("increment", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("increment"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /** The genuinely linear y-axis must still accept {@code increment}, unaffected by item 2's
+    * new guard. */
+   @Test
+   void stillAcceptsIncrementOnAMeasureAxis() throws Exception {
+      Harness h = harness();
+      when(h.regions.getAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(), anyString(), any(Principal.class)))
+         .thenReturn(axisModel());
+
+      h.service.set("tok", principal(), "Chart1", "axis", "y", null,
+                    Map.of("increment", "5"), "");
+
+      verify(h.regions).setAxisPropertyDialogModel(anyString(), anyString(), anyString(), anyInt(),
+                                                   any(), any(), anyString(), any(Principal.class),
+                                                   any());
+   }
+
+   /**
+    * Bug #77027 item 3: a raw dotted-path key that happens to alias exactly onto a linear-only
+    * property used to bypass {@code requireLinearAxisForLinearOnlyKeys} entirely -- the guard
+    * only ever checked bare alias names, never the raw path form {@code set()}'s own resolve loop
+    * has always accepted as an escape hatch. Reproduces the exact G3-8 corruption
+    * ({@code minimum} written to a categorical axis) using the raw-path spelling instead of the
+    * alias.
+    */
+   @Test
+   void refusesARawPathThatAliasesOntoALinearOnlyKey() {
+      Harness h = harness();
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "axis", "x", null,
+                             Map.of("axisLinePaneModel.minimum", "5"), ""));
+
+      assertTrue(thrown.getMessage().contains("minimum"));
+      verifyNoInteractions(h.regions);
+   }
+
+   /**
     * A repair-review catch, live 2026-09-02: the first cut of the linearity check asked "does
     * ANY field on this shelf happen to be a measure" instead of resolving the specific field this
     * call addresses. On a shelf carrying both a dimension and a measure of the same axis type —
@@ -798,7 +891,7 @@ class ChartRegionPropertyServiceTest {
          .thenReturn(legendModel());
 
       h.service.set("tok", principal(), "Chart1", "legend", "0", null,
-                    Map.of("visible", false), "");
+                    Map.of("titleVisible", false), "");
 
       ArgumentCaptor<LegendFormatDialogModel> captor =
          ArgumentCaptor.forClass(LegendFormatDialogModel.class);
@@ -806,6 +899,74 @@ class ChartRegionPropertyServiceTest {
                                                    captor.capture(), anyString(),
                                                    any(Principal.class), any());
       assertFalse(captor.getValue().getLegendFormatGeneralPaneModel().isVisible());
+   }
+
+   /**
+    * Bug #77027 item 4: the legend's own {@code visible} property only ever toggled the legend's
+    * TITLE caption ({@code LegendDescriptor.isTitleVisible()}), never the whole legend -- and
+    * collided with {@code set_chart_element_visibility}'s own, differently-scoped {@code visible}
+    * that really does hide the whole legend. Renamed to {@code titleVisible}; the old name must
+    * fail loud naming the replacement and the real whole-legend tool, not silently keep working
+    * under a misleading name.
+    */
+   @Test
+   void refusesTheOldLegendVisibleNameNamingTheReplacement() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("visible", false), ""));
+
+      assertTrue(thrown.getMessage().contains("titleVisible"));
+      assertTrue(thrown.getMessage().contains("set_chart_element_visibility"));
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
+   }
+
+   /**
+    * Bug #77027 item 5: {@code fillColor} was a historical misnomer -- it only ever maps to
+    * {@code LegendsDescriptor.setBorderColor}, there is no separate fill-color concept on that
+    * class. Renamed to {@code borderColor}; the old name must fail loud naming the replacement.
+    */
+   @Test
+   void writesLegendBorderColorUnderItsRenamedKey() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                    Map.of("borderColor", "#ff0000"), "");
+
+      ArgumentCaptor<LegendFormatDialogModel> captor =
+         ArgumentCaptor.forClass(LegendFormatDialogModel.class);
+      verify(h.regions).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                   captor.capture(), anyString(),
+                                                   any(Principal.class), any());
+      assertEquals("#ff0000", captor.getValue().getLegendFormatGeneralPaneModel().getFillColor());
+   }
+
+   @Test
+   void refusesTheOldLegendFillColorNameNamingTheReplacement() throws Exception {
+      Harness h = harness();
+      when(h.regions.getLegendFormatDialogModel(anyString(), anyString(), anyString(), anyString(),
+                                                any(Principal.class)))
+         .thenReturn(legendModel());
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", "legend", "0", null,
+                             Map.of("fillColor", "#ff0000"), ""));
+
+      assertTrue(thrown.getMessage().contains("borderColor"));
+      verify(h.regions, never()).setLegendFormatDialogModel(anyString(), anyString(), anyInt(),
+                                                            any(), anyString(),
+                                                            any(Principal.class), any());
    }
 
    /**
@@ -1031,6 +1192,12 @@ class ChartRegionPropertyServiceTest {
 
       assertTrue(thrown.getMessage().contains("hidden"));
       assertTrue(thrown.getMessage().contains("set_chart_element_visibility"));
+      // Bug #77027 item 8: the message used to suggest showing this ONE title with a target --
+      // dead end, ChartElementService.titleFields refuses that for anything but "chart". The
+      // fixed message names only the real remedy: show every title (no target).
+      assertFalse(thrown.getMessage().contains("target: 'y'"),
+                  "must not promise a single-title-target remedy that CES itself refuses");
+      assertTrue(thrown.getMessage().contains("visible: true"));
       verifyNoInteractions(h.regions);
    }
 
