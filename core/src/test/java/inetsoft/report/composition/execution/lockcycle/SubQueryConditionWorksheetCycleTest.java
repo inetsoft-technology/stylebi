@@ -17,8 +17,11 @@
  */
 package inetsoft.report.composition.execution.lockcycle;
 
+import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.*;
+import inetsoft.report.filter.ConditionFilter;
+import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -38,6 +41,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.lang.reflect.Field;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -192,6 +196,92 @@ public class SubQueryConditionWorksheetCycleTest {
    }
 
    /**
+    * A correlated sub-query over a sub table that is the formula lens itself, which is what a
+    * SQL-bound sub table becomes when its DISTINCT is pushed into the SQL (an embedded sub
+    * table cannot be merged, so the case unwraps the product's {@code DistinctTableLens}
+    * after building). Each row whose main value changes reads the sub table again, and the
+    * end-of-table probe takes the engine lock even though the formula lens is complete. No
+    * script reads A by name: the engine lock holder is the formula lens of a mirror M of A
+    * with an expression column, which reads A's rows while it computes.
+    */
+   @Test
+   public void mirrorFormulaOverCorrelatedFilter() throws Exception {
+      Gate gate = harness.gate();
+      Worksheet ws = new Worksheet();
+      // more rows than building M computes, so A is still being populated afterwards
+      EmbeddedTableAssembly a = embedded(ws, "A", SUB_ROWS, new Hook() {
+         @Override
+         public void onMoreRows(int row) {
+         }
+
+         @Override
+         public void onGetObject(int row) {
+            // M's formula is reading A while it holds the engine lock
+            if(JavaScriptEngine.holdsScriptLock()) {
+               gate.onRead();
+            }
+         }
+      });
+      EmbeddedTableAssembly b = embedded(ws, "B", 10, null);
+      expression(b, "bx", "field['grp'] * 1");
+      // grp one of (B.bx where B.grp = A.grp): keeps every row
+      subQueryCondition(ws, a, b, true, "grp");
+      MirrorTableAssembly m = new MirrorTableAssembly(ws, "M", a);
+      ws.addAssembly(m);
+      m.update();
+      expression(m, "mx", "field['id'] * 2");
+      box = new AssetQuerySandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+      TableLens mirror = harness.await(harness.submit(
+         () -> box.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building M");
+      TableLens filter = unwrapDistinctSubTable(mirror);
+
+      // M's formula holds the engine lock and is parked reading A
+      Started<Integer> formula = harness.startGated(gate, () -> drain(mirror).size());
+      assertTrue(gate.awaitEntered(KNOWN_CAP), "M's formula did not read A");
+
+      // another reader of A populates it further and re-reads the sub table
+      Started<Integer> populator = harness.start(() -> drain(filter).size());
+      awaitIn(populator, "LendableReentrantLock", "lock", KNOWN_CAP);
+      gate.release();
+
+      int rows = harness.await(formula.future, KNOWN_CAP, "M's formula reading A");
+      assertEquals(rows, (int) harness.await(populator.future, KNOWN_CAP, "reader of A"));
+   }
+
+   /**
+    * Find A's condition filter in M's chain and make its sub-query read the formula lens
+    * under the sub table's {@code DistinctTableLens} directly.
+    */
+   private static TableLens unwrapDistinctSubTable(TableLens mirror) throws Exception {
+      XTable table = mirror;
+
+      while(!table.getClass().getName().endsWith("ConditionFilter2")) {
+         table = ((TableFilter) table).getTable();
+      }
+
+      Field conditions = ConditionFilter.class.getDeclaredField("conditions");
+      conditions.setAccessible(true);
+      Field sarr = AssetConditionGroup.class.getDeclaredField("sarr");
+      sarr.setAccessible(true);
+      Field subField = AssetCondition.class.getDeclaredField("sub");
+      subField.setAccessible(true);
+      Field stableField = SubQueryValue.class.getDeclaredField("stable");
+      stableField.setAccessible(true);
+      AssetCondition condition =
+         ((AssetCondition[]) sarr.get(conditions.get(table)))[0];
+      SubQueryValue sub = (SubQueryValue) subField.get(condition);
+      XTable stable = (XTable) stableField.get(sub);
+
+      while(!(stable instanceof FormulaTableLens)) {
+         stable = ((TableFilter) stable).getTable();
+      }
+
+      sub.initSubTable(stable);
+      return (TableLens) table;
+   }
+
+   /**
     * Wait until {@code started}'s thread is parked in {@code cls.method}, or {@code capSeconds}
     * passed (with the fix the thread may never get there).
     */
@@ -254,6 +344,16 @@ public class SubQueryConditionWorksheetCycleTest {
    private static void subQueryCondition(Worksheet ws, TableAssembly a, TableAssembly b,
                                          boolean correlated)
    {
+      subQueryCondition(ws, a, b, correlated, "id");
+   }
+
+   /**
+    * Add the pre-condition {@code A.<column> one of (B.bx)}, correlated on {@code grp} if
+    * asked.
+    */
+   private static void subQueryCondition(Worksheet ws, TableAssembly a, TableAssembly b,
+                                         boolean correlated, String column)
+   {
       SubQueryValue sub = new SubQueryValue();
       sub.setQuery(b.getName());
       sub.setAttribute(b.getColumnSelection(false).getAttribute("bx"));
@@ -269,7 +369,7 @@ public class SubQueryConditionWorksheetCycleTest {
       condition.setType(XSchema.INTEGER);
       condition.addValue(sub);
       ConditionList list = new ConditionList();
-      list.append(new ConditionItem(a.getColumnSelection(false).getAttribute("id"), condition, 0));
+      list.append(new ConditionItem(a.getColumnSelection(false).getAttribute(column), condition, 0));
       a.setPreConditionList(list);
    }
 
@@ -282,6 +382,9 @@ public class SubQueryConditionWorksheetCycleTest {
     */
    private interface Hook {
       void onMoreRows(int row);
+
+      default void onGetObject(int row) {
+      }
    }
 
    private static final class WorkerGate implements Hook {
@@ -333,6 +436,15 @@ public class SubQueryConditionWorksheetCycleTest {
       public boolean moreRows(int row) {
          gate.onMoreRows(row);
          return super.moreRows(row);
+      }
+
+      @Override
+      public Object getObject(int r, int c) {
+         if(r > 0) {
+            gate.onGetObject(r);
+         }
+
+         return super.getObject(r, c);
       }
 
       private final Hook gate;
