@@ -38,6 +38,22 @@ public class VarSQL {
    public enum SQLType { STATEMENT, PROC, STRING }
 
    /**
+    * How a value spliced into a quoted string literal is escaped.
+    * <ul>
+    *   <li>{@link #SQL} (default): SQL quote-doubling of the enclosing quote
+    *   character, plus backslash doubling only when
+    *   {@link #setBackslashIsEscapeChar} is set (Bug #76822).</li>
+    *   <li>{@link #JSON}: backslash escaping for JSON / Mongo Extended JSON
+    *   query text (as parsed by bson's {@code JsonReader}) — a backslash,
+    *   single quote and double quote in the value are each prefixed with a
+    *   backslash. SQL-style quote doubling is not an escape there, and no
+    *   other character is escaped because bson rejects unknown escape
+    *   sequences (Bug #76864).</li>
+    * </ul>
+    */
+   public enum LiteralEscapeStyle { SQL, JSON }
+
+   /**
     * Set the SQL string type.
     */
    public void setSQLType(SQLType type) {
@@ -56,6 +72,20 @@ public class VarSQL {
     */
    public void setBackslashIsEscapeChar(boolean backslashIsEscapeChar) {
       this.backslashIsEscapeChar = backslashIsEscapeChar;
+   }
+
+   /**
+    * Set how string values spliced into the text as literals are escaped —
+    * both a value filling a quoted {@code '$(name)'} / {@code "$(name)"}
+    * placeholder and the {@code '...'} literal produced for an unquoted
+    * placeholder in {@link SQLType#STRING} mode. Defaults to
+    * {@link LiteralEscapeStyle#SQL}. Callers that splice into JSON query text
+    * (e.g. tabular connector properties with {@code @Property(sql=true)})
+    * must use {@link LiteralEscapeStyle#JSON}.
+    */
+   public void setLiteralEscapeStyle(LiteralEscapeStyle literalEscapeStyle) {
+      this.literalEscapeStyle = literalEscapeStyle == null ?
+         LiteralEscapeStyle.SQL : literalEscapeStyle;
    }
 
    /**
@@ -314,6 +344,10 @@ public class VarSQL {
     * genuine literal backslash.
     */
    private String escapeQuotedLiteralValue(String value, char quoteChar) {
+      if(literalEscapeStyle == LiteralEscapeStyle.JSON) {
+         return escapeJsonStringValue(value);
+      }
+
       StringBuilder escaped = new StringBuilder(value.length());
 
       for(int i = 0; i < value.length(); i++) {
@@ -321,6 +355,28 @@ public class VarSQL {
 
          if(c == quoteChar || (backslashIsEscapeChar && c == '\\')) {
             escaped.append(c);
+         }
+
+         escaped.append(c);
+      }
+
+      return escaped.toString();
+   }
+
+   /**
+    * Escape a value spliced into a JSON (Mongo Extended JSON) string literal
+    * delimited by either {@code '} or {@code "}: backslash-escapes the
+    * backslash and both quote characters, and nothing else, so the result is
+    * valid for either delimiter and only uses escape sequences bson accepts.
+    */
+   private static String escapeJsonStringValue(String value) {
+      StringBuilder escaped = new StringBuilder(value.length());
+
+      for(int i = 0; i < value.length(); i++) {
+         char c = value.charAt(i);
+
+         if(c == '\\' || c == '\'' || c == '"') {
+            escaped.append('\\');
          }
 
          escaped.append(c);
@@ -339,7 +395,9 @@ public class VarSQL {
          return AbstractCondition.getValueSQLString(val);
       }
       else if(val instanceof String) {
-         return "'" + val.toString() + "'";
+         // the value supplies the whole literal here, so it must be escaped
+         // or it could close the literal early (Bug #76864)
+         return "'" + escapeQuotedLiteralValue(val.toString(), '\'') + "'";
       }
 
       return val + "";
@@ -347,6 +405,7 @@ public class VarSQL {
 
    private SQLType sqlType = SQLType.STATEMENT;
    private boolean backslashIsEscapeChar = false;
+   private LiteralEscapeStyle literalEscapeStyle = LiteralEscapeStyle.SQL;
    private List<Object> params = new ArrayList();
    private List<String> names = new ArrayList();
    private static final Logger LOG = LoggerFactory.getLogger(VarSQL.class);

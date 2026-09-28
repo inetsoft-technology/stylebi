@@ -180,6 +180,104 @@ public class VarSQLTest {
       assertEquals("SELECT * FROM CUSTOMERS WHERE COMPANY_NAME = 'ACME'", result);
    }
 
+   // ---------------------------------------------------------------------
+   // Bug #76864 — SQLType.STRING (tabular / Mongo JSON query text) path.
+   // Values are spliced as literals, so they must be escaped JSON-style:
+   // \ -> \\, ' -> \', " -> \" (SQL quote doubling is not an escape in bson).
+   // ---------------------------------------------------------------------
+
+   private static VarSQL jsonStringVarSql() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STRING);
+      varSql.setLiteralEscapeStyle(VarSQL.LiteralEscapeStyle.JSON);
+      return varSql;
+   }
+
+   private static String replaceJson(String template, String name, Object value) {
+      VariableTable vars = new VariableTable();
+      vars.put(name, value);
+      return jsonStringVarSql().replaceVariables(template, vars);
+   }
+
+   @Test
+   void jsonUnquoted_apostropheValue_isBackslashEscaped() {
+      assertEquals("{name:  'O\\'Brien' }", replaceJson("{name: $(p)}", "p", "O'Brien"));
+   }
+
+   @Test
+   void jsonUnquoted_injectionPayload_staysInsideLiteral() {
+      assertEquals("{name:  'x\\', admin: \\'1' }",
+                   replaceJson("{name: $(p)}", "p", "x', admin: '1"));
+   }
+
+   @Test
+   void jsonUnquoted_trailingBackslash_isDoubled() {
+      assertEquals("{name:  'x\\\\' , b: 1}", replaceJson("{name: $(p), b: 1}", "p", "x\\"));
+   }
+
+   @Test
+   void jsonUnquoted_doubleQuote_isEscaped() {
+      assertEquals("{name:  'a\\\"b' }", replaceJson("{name: $(p)}", "p", "a\"b"));
+   }
+
+   @Test
+   void jsonUnquoted_arrayInList_escapesEveryElement() {
+      assertEquals("name in ( 'O\\'Brien' , 'x\\\\' )",
+                   replaceJson("name in $(p)", "p", new String[] { "O'Brien", "x\\" }));
+   }
+
+   @Test
+   void jsonUnquoted_arrayScalarContext_escapesFirstElement() {
+      assertEquals("{name:  'O\\'Brien' }",
+                   replaceJson("{name: $(p)}", "p", new String[] { "O'Brien", "y" }));
+   }
+
+   @Test
+   void jsonSingleQuoted_apostropheAndBackslash_areBackslashEscaped() {
+      assertEquals("{name: 'O\\'Brien', b: 'x\\\\'}", jsonStringVarSql().replaceVariables(
+         "{name: '$(p)', b: '$(q)'}", vars("p", "O'Brien", "q", "x\\")));
+   }
+
+   @Test
+   void jsonDoubleQuoted_doubleQuoteAndBackslash_areBackslashEscaped() {
+      assertEquals("{name: \"a\\\"b\", b: \"x\\\\\"}", jsonStringVarSql().replaceVariables(
+         "{name: \"$(p)\", b: \"$(q)\"}", vars("p", "a\"b", "q", "x\\")));
+   }
+
+   @Test
+   void jsonUnquoted_numberAndPlainString_unchanged() {
+      assertEquals("{n:  42 }", replaceJson("{n: $(p)}", "p", 42));
+      assertEquals("{s:  'plain' }", replaceJson("{s: $(p)}", "p", "plain"));
+   }
+
+   @Test
+   void jsonEmbedPlaceholder_staysRaw() {
+      assertEquals("{a: 'x', b: 1}", replaceJson("{$(@frag), b: 1}", "frag", "a: 'x'"));
+   }
+
+   /**
+    * JDBC (default SQL escape style) quoted path must keep #76822's
+    * quote doubling, never JSON backslash escaping.
+    */
+   @Test
+   void sqlStyleDefault_quotedPlaceholder_stillQuoteDoubles() {
+      VarSQL varSql = new VarSQL();
+      varSql.setSQLType(VarSQL.SQLType.STATEMENT);
+
+      assertEquals("WHERE A = 'O''Brien' AND B = 'C:\\x'", varSql.replaceVariables(
+         "WHERE A = '$(p)' AND B = '$(q)'", vars("p", "O'Brien", "q", "C:\\x")));
+   }
+
+   private static VariableTable vars(Object... kv) {
+      VariableTable vars = new VariableTable();
+
+      for(int i = 0; i < kv.length; i += 2) {
+         vars.put((String) kv[i], kv[i + 1]);
+      }
+
+      return vars;
+   }
+
    private static int countOccurrences(String haystack, String needle) {
       int count = 0;
       int idx = 0;

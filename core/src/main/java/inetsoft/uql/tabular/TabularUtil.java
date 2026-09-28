@@ -247,6 +247,10 @@ public class TabularUtil {
 
                      VarSQL varsql = new VarSQL();
                      varsql.setSQLType(VarSQL.SQLType.STRING);
+                     // sql=true tabular properties hold JSON query text (the
+                     // Mongo query), so spliced string values must use JSON
+                     // backslash escaping, not SQL quote doubling (Bug #76864)
+                     varsql.setLiteralEscapeStyle(VarSQL.LiteralEscapeStyle.JSON);
                      val = varsql.replaceVariables((String) val, vars);
                   }
                   else {
