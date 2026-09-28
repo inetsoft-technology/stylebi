@@ -27,9 +27,11 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.lang.management.*;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
@@ -78,11 +80,13 @@ class ScheduleManagerLockOrderTest {
       when(ext.getTasks(ORG_ID)).thenReturn(List.of());
       manager.addScheduleExt(ext);
 
+      AtomicReference<Throwable> saveError = new AtomicReference<>();
       Thread saveThread = new Thread(() -> {
          try {
             manager.save(List.of(task), ORG_ID);
          }
-         catch(Exception ignore) {
+         catch(Throwable e) {
+            saveError.set(e);
          }
       }, "77195-save");
       Thread reloadThread = new Thread(() -> manager.reloadExtensions(ORG_ID), "77195-reload");
@@ -94,10 +98,12 @@ class ScheduleManagerLockOrderTest {
       assertTrue(saveInMonitor.await(5, TimeUnit.SECONDS), "save() did not reach setEnable()");
       reloadThread.start();
 
+      ThreadMXBean threads = ManagementFactory.getThreadMXBean();
       long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
 
-      while(reloadThread.getState() != Thread.State.BLOCKED &&
-         reloadThread.getState() != Thread.State.TERMINATED && System.nanoTime() < deadline)
+      // wait until reloadExtensions() either finished or is blocked on the monitor held by save()
+      while(!isTerminatedOrBlockedBy(threads, reloadThread, saveThread) &&
+         System.nanoTime() < deadline)
       {
          Thread.onSpinWait();
       }
@@ -107,12 +113,31 @@ class ScheduleManagerLockOrderTest {
       reloadThread.join(5000);
       saveThread.join(5000);
 
-      ThreadMXBean threads = ManagementFactory.getThreadMXBean();
-      long[] deadlocked = threads.findDeadlockedThreads();
-      assertNull(deadlocked, () -> "lock-order deadlock:\n" + describe(threads, deadlocked));
+      // findDeadlockedThreads() is JVM-wide, only consider the threads started by this test
+      long[] ours = { saveThread.threadId(), reloadThread.threadId() };
+      long[] all = threads.findDeadlockedThreads();
+      long[] deadlocked = all == null ? new long[0] :
+         Arrays.stream(all).filter(id -> id == ours[0] || id == ours[1]).toArray();
+      assertEquals(0, deadlocked.length,
+                   () -> "lock-order deadlock:\n" + describe(threads, deadlocked));
       assertFalse(reloadThread.isAlive(), "reloadExtensions() did not finish");
       assertFalse(saveThread.isAlive(), "save() did not finish");
+      assertNull(saveError.get(), "save() failed");
       verify(ext).setEnable(TASK_ID, ORG_ID, true);
+      // one reload from the reload thread and one from save()
+      verify(ext, times(2)).getTasks(ORG_ID);
+   }
+
+   private static boolean isTerminatedOrBlockedBy(ThreadMXBean threads, Thread thread,
+                                                  Thread owner)
+   {
+      if(thread.getState() == Thread.State.TERMINATED) {
+         return true;
+      }
+
+      ThreadInfo info = threads.getThreadInfo(thread.threadId());
+      return info != null && info.getThreadState() == Thread.State.BLOCKED &&
+         info.getLockOwnerId() == owner.threadId();
    }
 
    private static String describe(ThreadMXBean threads, long[] ids) {
