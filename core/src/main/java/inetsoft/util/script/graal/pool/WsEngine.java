@@ -117,6 +117,15 @@ final class WsEngine extends GraalJavaScriptEngine {
       return WsExecContext.enter(slot);
    }
 
+   /**
+    * The outermost exec of this slot completed normally: its Java-held views take the
+    * script's final state, still under the exec's timeout guard (bug #77123).
+    */
+   @Override
+   protected void execCompleted(Object token) {
+      WsExecContext.complete((Slot) token, slot);
+   }
+
    @Override
    protected void exitExecContext(Object token) {
       WsExecContext.exit((Slot) token);

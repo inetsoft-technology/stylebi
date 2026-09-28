@@ -43,6 +43,9 @@ class WsBoundaryPolicyTest {
 
       for(String topic : new String[] { "var", "Collections", "identity", "{a=1}",
                                         "function", "callback", "Date.equals", "out",
+                                        "typed Object, Map or List", "cleaned globals",
+                                        "quietly undefined", "final state",
+                                        "changes made there are lost",
                                         "viewsheet object", "Map, Set, RegExp, Promise",
                                         "Object[]", "map copy", "parameter.",
                                         "variable table", "lock", ".maxBatchRows (8192)",

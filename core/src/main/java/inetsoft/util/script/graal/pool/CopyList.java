@@ -24,7 +24,9 @@ import java.util.ArrayList;
 
 /**
  * A host copy of a worksheet script's array passed to a Java method (bug #76960, spec §14.12
- * A3). It is an ordinary List for Java, and reads back into a script as an array.
+ * A3): the copy behind a {@link LiveList}, or the argument itself when it is made with no open
+ * exec frame (bug #77123). It is an ordinary List for Java, and reads back into a script as an
+ * array.
  */
 public final class CopyList extends ArrayList<Object> implements ProxyArray {
    @Override
