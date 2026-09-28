@@ -1280,7 +1280,12 @@ public class UserTreeService {
          // cannot edit Default Organization name
          throw new MessageException(Catalog.getCatalog().getString("em.security.writeDefaultOrgName"));
       }
-      else if(!oldOrg.getId().equalsIgnoreCase(model.id()) &&
+      // the "is the id changing" trigger must be case-SENSITIVE to match the migration cascade
+      // in IdentityService.setOrganizationInfo, which is gated on !Tool.equals(). A case-only
+      // rename (e.g. "host-org" -> "HOST-ORG") is a real rename to that cascade, so it must be
+      // subjected to this refusal too. The inner comparisons stay case-insensitive: organization
+      // ids are case-insensitive to physical storage, whose buckets are keyed by toLowerCase().
+      else if(!Tool.equals(oldOrg.getId(), model.id()) &&
               (Organization.getDefaultOrganizationID().equalsIgnoreCase(oldOrg.getId()) ||
                Organization.getSelfOrganizationID().equalsIgnoreCase(oldOrg.getId()))) {
          throw new MessageException(Catalog.getCatalog().getString("em.security.writeDefaultOrgId"));

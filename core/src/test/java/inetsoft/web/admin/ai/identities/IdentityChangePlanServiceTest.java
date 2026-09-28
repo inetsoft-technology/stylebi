@@ -530,6 +530,58 @@ class IdentityChangePlanServiceTest {
       assertTrue(ex.getMessage().contains("already the id of another organization"));
    }
 
+   // Regression for the guardrail/cascade case-sensitivity mismatch: the "is the id changing"
+   // trigger here used equalsIgnoreCase, so a case-only rename skipped BOTH guards entirely --
+   // yet IdentityService.setOrganizationInfo gates its migration cascade on case-sensitive
+   // !Tool.equals(), so it ran the full cascade (registry migration, dataspace relocation,
+   // copyOrganization permission migration) on the default organization anyway.
+   @Test void resolveUpdateRefusesCaseOnlyRenameOfTheDefaultOrganizationId() throws Exception {
+      String defaultId = Organization.getDefaultOrganizationID();
+      when(securityService.getOrganization(eq(defaultId), eq(user)))
+         .thenReturn(existingOrganization(defaultId));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId(defaultId.toUpperCase());
+      IdentityChangeRequest change = updateOrganization(defaultId, spec);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("spec.id"));
+      assertTrue(ex.getMessage().contains("default organization"));
+   }
+
+   @Test void resolveUpdateRefusesCaseOnlyRenameOfTheSelfOrganizationId() throws Exception {
+      String selfId = Organization.getSelfOrganizationID();
+      when(securityService.getOrganization(eq(selfId), eq(user)))
+         .thenReturn(existingOrganization(selfId));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId(selfId.toLowerCase());
+      IdentityChangeRequest change = updateOrganization(selfId, spec);
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+         () -> service.resolve(request("task", List.of(change)), user));
+      assertTrue(ex.getMessage().contains("spec.id"));
+      assertTrue(ex.getMessage().contains("self organization"));
+   }
+
+   // The counter-test to the two above: tightening the trigger must not start refusing a
+   // case-only rename of an ORDINARY organization. That stays supported (see bug #75776 and
+   // AbstractEditableAuthenticationProvider's sameStorageBucket handling); it is now simply
+   // subjected to the same guards as any other id change, both of which it passes.
+   @Test void resolveUpdateAllowsCaseOnlyRenameOfAnOrdinaryOrganizationId() throws Exception {
+      when(securityService.getOrganization(eq("org1"), eq(user)))
+         .thenReturn(existingOrganization("org1"));
+      // now reached, where the case-insensitive trigger used to short-circuit past it
+      when(securityService.getOrganizations(eq(user))).thenReturn(organizationList("org1", "org2"));
+      IdentitySpec spec = new IdentitySpec();
+      spec.setId("ORG1");
+      IdentityChangeRequest change = updateOrganization("org1", spec);
+
+      ResolvedPlan plan = service.resolve(request("task", List.of(change)), user);
+
+      assertEquals(1, plan.changes().size());
+      assertTrue(plan.changes().get(0).proposedValue().contains("id=ORG1"));
+   }
+
    @Test void resolveUpdateStillEnforcesTheDiscriminatorConfusionDefense() {
       IdentitySpec spec = new IdentitySpec();
       spec.setParentGroups(List.of("Admins"));

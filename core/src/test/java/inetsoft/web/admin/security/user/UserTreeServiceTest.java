@@ -38,7 +38,9 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.util.Catalog;
 import inetsoft.util.IndexedStorage;
+import inetsoft.util.MessageException;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.general.LocalizationSettingsService;
@@ -58,11 +60,13 @@ import java.util.Properties;
 import java.util.concurrent.Callable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
@@ -103,7 +107,7 @@ class UserTreeServiceTest {
 
       organizationManagerStatic = mockStatic(OrganizationManager.class,
                                              withSettings().strictness(org.mockito.quality.Strictness.LENIENT));
-      OrganizationManager orgManager = mock(OrganizationManager.class, withSettings().lenient());
+      orgManager = mock(OrganizationManager.class, withSettings().lenient());
       organizationManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
       currentOrg = new String[]{ "org-a" };
       when(orgManager.getCurrentOrgID()).thenAnswer(inv -> currentOrg[0]);
@@ -180,6 +184,66 @@ class UserTreeServiceTest {
       assertEquals("v", result.properties().get(0).value());
    }
 
+   // ── reserved organization id rename, case-only (guardrail/cascade mismatch) ──────
+   //
+   // The reserved-org-id refusal gated "is the id changing" with equalsIgnoreCase, while the
+   // migration cascade it is supposed to protect (IdentityService.setOrganizationInfo) gates on
+   // case-sensitive !Tool.equals(). A case-only rename of the default organization therefore read
+   // as "unchanged" here and skipped this refusal, yet still ran the full cascade -- dashboard
+   // registry migration, replet registry re-scope, dataspace relocation and copyOrganization
+   // permission migration -- on the one organization whose id must never change.
+   @Test
+   void editOrganization_caseOnlyRenameOfDefaultOrgId_refused() {
+      String defaultId = Organization.getDefaultOrganizationID();
+      String defaultName = Organization.getDefaultOrganizationName();
+      stubOrganizationForEdit(defaultId, defaultName);
+
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .id(defaultId.toUpperCase())
+         .name(defaultName)
+         .oldName(defaultName)
+         .status(true)
+         .build();
+
+      MessageException thrown = assertThrows(
+         MessageException.class, () -> service.editOrganization(model, "provider1", principal));
+      assertEquals(Catalog.getCatalog().getString("em.security.writeDefaultOrgId"),
+                   thrown.getMessage());
+   }
+
+   // The counter-test: tightening the trigger must not start refusing a case-only rename of an
+   // ORDINARY organization, which stays supported (bug #75776).
+   @Test
+   void editOrganization_caseOnlyRenameOfOrdinaryOrgId_allowed() throws Exception {
+      stubOrganizationForEdit("org-b", "Org B");
+
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .id("ORG-B")
+         .name("Org B")
+         .oldName("Org B")
+         .status(true)
+         .build();
+
+      service.editOrganization(model, "provider1", principal);
+
+      // reached the end of the method rather than being refused by the reserved-id guard
+      verify(identityService).setIdentityPermissions(
+         any(), any(), eq(ResourceType.SECURITY_ORGANIZATION), eq(principal), any(), eq("ORG-B"));
+   }
+
+   /** Wires up the collaborators editOrganization touches before reaching the reserved-id guard. */
+   private void stubOrganizationForEdit(String orgId, String orgName) {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(systemAdminService.hasSysAdmin(any())).thenReturn(true);
+      when(systemAdminService.hasOrgAdmin(any())).thenReturn(true);
+      when(currentProvider.getOrganizationId(orgName)).thenReturn(orgId);
+      when(currentProvider.getOrganization(orgId))
+         .thenReturn(new FSOrganization(orgName, orgId, new String[0], null));
+      // so the duplicate-id scan is a clean no-op and cannot mask the guard under test
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[0]);
+      when(securityProvider.getOrganizationNames()).thenReturn(new String[0]);
+   }
+
    private AuthenticationProviderService authenticationProviderService;
    private SystemAdminService systemAdminService;
    private IdentityService identityService;
@@ -203,6 +267,7 @@ class UserTreeServiceTest {
    private Principal principal;
    private UserTreeService service;
    private String[] currentOrg;
+   private OrganizationManager orgManager;
 
    private MockedStatic<OrganizationManager> organizationManagerStatic;
    private MockedStatic<SreeEnv> sreeEnvStatic;
