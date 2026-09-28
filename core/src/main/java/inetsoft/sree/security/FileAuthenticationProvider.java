@@ -62,6 +62,15 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          organizationStorage = KeyValueStorageManager.getInstance().getStorage(
             "defaultSecurityOrganizations",
             new LoadOrganizationsTask("defaultSecurityOrganizations"));
+
+         // the caches are local to this instance, keep them in sync with the replicated storage
+         // so changes made on other cluster nodes are seen here. Changes made while a closed
+         // storage was held are not replayed, so drop anything cached from before.
+         userStorage.addListener(userCacheListener);
+         groupStorage.addListener(groupCacheListener);
+         roleStorage.addListener(roleCacheListener);
+         userGroupCache.invalidateAll();
+         userRoleCache.invalidateAll();
       }
    }
 
@@ -380,6 +389,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          synchronized(this) {
             if(userStorage != null) {
                try {
+                  userStorage.removeListener(userCacheListener);
                   userStorage.close();
                }
                catch(Exception e) {
@@ -391,6 +401,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             if(groupStorage != null) {
                try {
+                  groupStorage.removeListener(groupCacheListener);
                   groupStorage.close();
                }
                catch(Exception e) {
@@ -402,6 +413,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             if(roleStorage != null) {
                try {
+                  roleStorage.removeListener(roleCacheListener);
                   roleStorage.close();
                }
                catch(Exception e) {
@@ -545,6 +557,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       try {
          userStorage.remove(userIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
+         userGroupCache.invalidateAll();
+         userRoleCache.invalidateAll();
          processAuthenticationChange(userIdentity, null, null, null, Identity.USER, true);
       }
       catch(Exception e) {
@@ -978,9 +992,39 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       .expireAfterAccess(1L, TimeUnit.HOURS)
       .maximumSize(500L)
       .build(this::doGetRoles);
+   private final KeyValueStorage.Listener<FSUser> userCacheListener = new CacheListener<>();
+   private final KeyValueStorage.Listener<FSGroup> groupCacheListener = new CacheListener<>();
+   private final KeyValueStorage.Listener<FSRole> roleCacheListener = new CacheListener<>();
    private final Lock lock = new ReentrantLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(FileAuthenticationProvider.class);
+
+   /**
+    * Clears the user group and role caches when the user, group or role storage changes. It is
+    * called on storage event threads, so it must only invalidate the caches and never call back
+    * into this provider or the security engine.
+    */
+   private final class CacheListener<T> implements KeyValueStorage.Listener<T> {
+      @Override
+      public void entryAdded(KeyValueStorage.Event<T> event) {
+         invalidateCaches();
+      }
+
+      @Override
+      public void entryUpdated(KeyValueStorage.Event<T> event) {
+         invalidateCaches();
+      }
+
+      @Override
+      public void entryRemoved(KeyValueStorage.Event<T> event) {
+         invalidateCaches();
+      }
+
+      private void invalidateCaches() {
+         userGroupCache.invalidateAll();
+         userRoleCache.invalidateAll();
+      }
+   }
 
    private static final class LoadUsersTask extends LoadKeyValueTask<FSUser> {
       public LoadUsersTask(String id) {
