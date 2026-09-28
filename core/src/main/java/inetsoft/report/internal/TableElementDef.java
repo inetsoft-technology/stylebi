@@ -869,6 +869,11 @@ public class TableElementDef extends BaseElement
             h += rowHeight[reg.y + i];
          }
 
+         // the last region carries the card's bottom inset
+         if(cardInset != null && currentRegion == regions.size() - 1) {
+            h += cardInset.bottom;
+         }
+
          // @by larryl, if only one pixel difference, allow it to accomodate
          // possible rounding errors
          return avail + 1 >= h ? 1 : -1;
@@ -1041,6 +1046,11 @@ public class TableElementDef extends BaseElement
          area.x += cardInset.left;
          area.width = Math.max(0, area.width - cardInset.left - cardInset.right);
       }
+   }
+
+   // the card's bottom inset travels with the table's last row
+   private int getLastRowInset(int row) {
+      return cardInset != null && row == rowHeight.length - 1 ? cardInset.bottom : 0;
    }
 
    /**
@@ -1641,6 +1651,7 @@ public class TableElementDef extends BaseElement
 
             for(int i = lu.y; i < reg.y + reg.height; i++) {
                h += rowHeight[i];
+               h += getLastRowInset(i);
                // only add page break element after the whole row is printed,
                // which looks better, especially for page break after group.
                // ignore page break at design time. (50182)
@@ -1660,6 +1671,7 @@ public class TableElementDef extends BaseElement
 
             for(int i = lu.y; i < rowHeight.length; i++) {
                h += rowHeight[i];
+               h += getLastRowInset(i);
                 pgbreak = (lens.getRowBorder(i, 0) & TableLens.BREAK_BORDER) != 0 && !singlePage &&
                   !false;
 
