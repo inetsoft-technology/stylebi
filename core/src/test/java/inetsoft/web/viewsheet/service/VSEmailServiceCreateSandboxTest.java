@@ -17,7 +17,14 @@
  */
 package inetsoft.web.viewsheet.service;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.io.viewsheet.AbstractVSExporter;
+import inetsoft.report.io.viewsheet.VSExporter;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.util.FileSystemService;
 import inetsoft.test.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -29,14 +36,25 @@ import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.awt.*;
+import java.io.File;
 import java.lang.reflect.Field;
+import java.nio.file.Path;
+import java.security.Principal;
+import java.util.*;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Bug #77180: {@link VSEmailService#createSandbox} builds the sandbox used to email a bookmark.
@@ -206,6 +224,69 @@ class VSEmailServiceCreateSandboxTest {
       finally {
          box.dispose();
       }
+   }
+
+   @ParameterizedTest
+   @ValueSource(ints = { FileFormatInfo.EXPORT_TYPE_PNG, FileFormatInfo.EXPORT_TYPE_PDF })
+   void emailViewsheet_passesLiveVariableTableToCreateSandbox(int formatType, @TempDir Path dir)
+      throws Exception
+   {
+      // Bug #77246: both bookmark call sites (PNG with several bookmarks written as separate
+      // files, and exportViewsheet() for every other format) must hand the live sandbox's
+      // variable table to createSandbox. The sentinel stops the export after the first call.
+      VariableTable liveVars = new VariableTable();
+      liveVars.put("region77246", "East");
+      ViewsheetSandbox liveBox = mock(ViewsheetSandbox.class);
+      when(liveBox.getVariableTable()).thenReturn(liveVars);
+
+      Viewsheet vs = newBookmark(new Worksheet());
+      RuntimeViewsheet rvs = mock(RuntimeViewsheet.class);
+      when(rvs.getViewsheet()).thenReturn(vs);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(liveBox));
+      when(rvs.getEntry()).thenReturn(vs.getEntry());
+      when(rvs.getOriginalBookmark(anyString())).thenReturn(vs);
+
+      FileSystemService fs = mock(FileSystemService.class);
+      when(fs.getCacheFile(anyString()))
+         .thenAnswer(inv -> dir.resolve((String) inv.getArgument(0)).toFile());
+
+      List<VariableTable> passed = new ArrayList<>();
+      VSEmailService service = new VSEmailService(fs) {
+         @Override
+         protected ViewsheetSandbox createSandbox(Viewsheet bookmark, int mode,
+                                                  Principal principal, AssetEntry entry,
+                                                  VariableTable vars)
+         {
+            passed.add(vars);
+            throw new IllegalStateException("sentinel77246");
+         }
+      };
+
+      // PNG needs more than one bookmark to take the separate-files branch.
+      String[] bookmarks = { "b1", "b2" };
+
+      // The attachment file name is localized through the repository registry, and the real
+      // exporters need Batik and the theme bean, none of which this harness starts.
+      try(MockedStatic<SUtil> sutil = mockStatic(SUtil.class, CALLS_REAL_METHODS);
+          MockedStatic<PortalThemesManager> themes = mockStatic(PortalThemesManager.class);
+          MockedStatic<AbstractVSExporter> exporters =
+             mockStatic(AbstractVSExporter.class, CALLS_REAL_METHODS))
+      {
+         sutil.when(() -> SUtil.localize(anyString(), any(), anyBoolean(), any()))
+            .thenReturn("vs77246");
+         themes.when(PortalThemesManager::getColorTheme).thenReturn(null);
+         exporters.when(() -> AbstractVSExporter.getVSExporter(
+               anyInt(), any(), any(), anyBoolean(), any()))
+            .thenReturn(mock(VSExporter.class));
+         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+            service.emailViewsheet(rvs, formatType, bookmarks, false, false, false, "a@b.c",
+                                   null, null, "s", "b", false, null, null));
+         assertEquals("sentinel77246", ex.getMessage());
+      }
+
+      assertEquals(1, passed.size(), "createSandbox(..., liveVars) must be the overload called");
+      assertSame(liveVars, passed.get(0),
+         "the email bookmark sandbox must receive the live sandbox's variable table");
    }
 
    private static ViewsheetSandbox createSandbox(Viewsheet bookmark) throws Exception {
