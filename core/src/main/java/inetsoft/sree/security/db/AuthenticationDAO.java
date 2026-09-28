@@ -142,8 +142,9 @@ class AuthenticationDAO {
     * credential, the name is ambiguous, for example because a case-insensitive collation matches
     * both "bob" and "BOB", or "acme" and "ACME" as organization IDs. The roles and emails queries
     * would then return the rows of all those users, so they must not be used for this user. This
-    * uses the same criteria as {@link #selectUserRow}: a single row, or rows that only repeat the
-    * same user and credential, are not ambiguous.
+    * is stricter than {@link #selectUserRow}, which can pick the exact-name row: the roles and
+    * emails queries cannot pick a row, so any rows that differ in user name or credential are
+    * ambiguous. A single row, or rows that only repeat the same user and credential, are not.
     *
     * @return {@code true} if the roles and emails of the user must not be loaded.
     */
