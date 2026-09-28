@@ -116,6 +116,10 @@ public final class FieldRefFactory {
          // applyAggregateDefaults().
          applyAggregateDefaults(ref, model, rvs, source, field.column());
 
+         if(field.secondaryColumn() != null) {
+            ref.setSecondaryColumnValue(field.secondaryColumn());
+         }
+
          if(field.calculateInfo() != null) {
             ref.setCalculateInfo(field.calculateInfo());
          }
