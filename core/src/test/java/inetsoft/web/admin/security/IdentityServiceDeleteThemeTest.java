@@ -81,6 +81,9 @@ class IdentityServiceDeleteThemeTest {
       provider = mock(EditableAuthenticationProvider.class);
       when(provider.getProviderName()).thenReturn(PROVIDER);
       when(provider.getUsers(any(IdentityID.class))).thenReturn(new IdentityID[0]);
+      when(provider.getUsers()).thenReturn(new IdentityID[0]);
+      when(provider.getGroups()).thenReturn(new IdentityID[0]);
+      when(provider.getRoles()).thenReturn(new IdentityID[0]);
 
       AuthenticationChain chain = mock(AuthenticationChain.class);
       when(chain.getProviders()).thenReturn(List.of(provider));
