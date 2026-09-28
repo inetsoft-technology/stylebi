@@ -140,6 +140,10 @@ public final class FieldRefFactory {
          ref.setOrder(XConstants.SORT_SPECIFIC);
       }
 
+      if(field.timeSeries() != null) {
+         ref.setTimeSeries(field.timeSeries());
+      }
+
       return ref;
    }
 

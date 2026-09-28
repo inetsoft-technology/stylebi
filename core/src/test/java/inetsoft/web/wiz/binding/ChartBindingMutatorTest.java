@@ -770,6 +770,76 @@ class ChartBindingMutatorTest {
          "Sales's secondaryY must survive despite shifting to a new index");
    }
 
+   // ── dimension timeSeries on the chart shelf write path (bug #77021) ─────────────────────
+   //
+   // toChartRef's dimension branch never applied field.timeSeries() at all -- a brand-new
+   // dimension always read back false regardless of what was requested. Separately,
+   // preserveDimensionState copied a matched previous ref's timeSeries unconditionally, with no
+   // field.timeSeries() == null guard -- so even once toChartRef applies an explicit request,
+   // rebinding the same dimension would have that request immediately clobbered by whatever the
+   // matched previous ref already had. Both are fixed together here, mirroring the null-guarded
+   // pattern preserveAggregateState already gets right for calculateInfo/secondaryY above.
+
+   private static FieldRef dimensionWithTimeSeries(String column, String dateLevel,
+                                                    Boolean timeSeries)
+   {
+      return new FieldRef(column, "dimension", null, dateLevel, null, null, null, null, null, null,
+                          null, null, timeSeries);
+   }
+
+   @Test
+   void settingTimeSeriesTrueOnANewChartDimensionAppliesIt() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "quarter", true)));
+
+      assertTrue(((ChartDimensionRefModel) model.getXFields().get(0)).isTimeSeries(),
+         "an explicit timeSeries on a brand-new chart dimension must be applied, not dropped");
+   }
+
+   @Test
+   void settingTimeSeriesTrueOnANewChartDimensionAppliesItOnTheGroupShelfToo() {
+      ChartBindingModel model = new ChartBindingModel();
+
+      ChartBindingMutator.setShelf(model, "group",
+         List.of(dimensionWithTimeSeries("Order Date", "quarter", true)));
+
+      assertTrue(((ChartDimensionRefModel) model.getGroupFields().get(0)).isTimeSeries(),
+         "timeSeries is shelf-agnostic -- must be applied on group too, not just x");
+   }
+
+   @Test
+   void resubmittingAChartDimensionWithNoTimeSeriesKeyPreservesItsPriorState() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "quarter", true)));
+
+      // The same column + date level so it matches the previous ref, with 'timeSeries' entirely
+      // omitted (null) this time.
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(new FieldRef("Order Date", "dimension", null, "quarter", null)));
+
+      assertTrue(((ChartDimensionRefModel) model.getXFields().get(0)).isTimeSeries(),
+         "a write that omits 'timeSeries' must preserve the shelf position's prior state, not " +
+         "reset it to false");
+   }
+
+   @Test
+   void explicitlySettingTimeSeriesFalseOnAChartDimensionClearsAPreviouslySetFlag() {
+      ChartBindingModel model = new ChartBindingModel();
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "quarter", true)));
+
+      // The falsifiable case from the diagnosis: an explicit 'false' on rebind must not be
+      // clobbered by preserveDimensionState's carry-forward of the matched previous ref's 'true'.
+      ChartBindingMutator.setShelf(model, "x",
+         List.of(dimensionWithTimeSeries("Order Date", "quarter", false)));
+
+      assertFalse(((ChartDimensionRefModel) model.getXFields().get(0)).isTimeSeries(),
+         "an explicit false must clear a previously-true timeSeries, not be treated as omitted");
+   }
+
    // ── measure per-measure visual frames survive a shelf rewrite (bug #76904) ───────────────
    //
    // set_visual_frame/reset_visual_frame (ChartAestheticMutator.assignAggregateFrame) write
