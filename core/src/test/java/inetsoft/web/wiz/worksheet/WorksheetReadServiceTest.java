@@ -708,6 +708,258 @@ class WorksheetReadServiceTest {
    }
 
    // -------------------------------------------------------------------------
+   // Bug #77003 (WSC-005): negation reported for every operator, not just the three
+   // (=/ONE_OF/NULL) whose negation operationName() already encodes into the operator string.
+   // -------------------------------------------------------------------------
+
+   @Test
+   void filterConditionSurfacesNegatedForAnOperatorThatDoesNotEncodeItInOperation() {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t,
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "BETWEEN", List.of("1", "10"), true, null),
+            null, 0)),
+         false);
+
+      WorksheetModel.FilterModel condition = tableNamed(read(ws), "T").preConditions().get(0);
+
+      assertEquals("BETWEEN", condition.operation(),
+         "BETWEEN's own operator string never encodes negation either way");
+      assertTrue(condition.negated(),
+         "a negated BETWEEN must be distinguishable from a non-negated one via 'negated'");
+   }
+
+   @Test
+   void filterConditionNegatedIsFalseWhenNotNegated() {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t,
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "BETWEEN", List.of("1", "10"), false, null),
+            null, 0)),
+         false);
+
+      WorksheetModel.FilterModel condition = tableNamed(read(ws), "T").preConditions().get(0);
+      assertFalse(condition.negated());
+   }
+
+   @Test
+   void filterConditionSurfacesNegatedRedundantlyForOperatorsThatAlreadyEncodeIt() {
+      // EQUAL_TO's own operator string already becomes "!=" when negated -- 'negated' must still
+      // independently report true (harmless redundancy, not a double-negation), per FilterModel's
+      // own javadoc.
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "a");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t,
+         List.of(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "a", "!=", List.of("5"), false, null),
+            null, 0)),
+         false);
+
+      WorksheetModel.FilterModel condition = tableNamed(read(ws), "T").preConditions().get(0);
+      assertEquals("!=", condition.operation());
+      assertTrue(condition.negated());
+   }
+
+   // -------------------------------------------------------------------------
+   // Bug #77003 (WSC-006): nesting level (both a condition item's own level and the PRECEDING
+   // junction's own level) reported so (A=1 OR A=7) AND B=2 and A=1 OR (A=7 AND B=2) read back
+   // distinguishably, and each resubmits back into the SAME filter -- see FilterModel's own
+   // javadoc for the level/junctionLevel reconstruction rule this exercises.
+   // -------------------------------------------------------------------------
+
+   /** Reconstructs set_conditions' flat, alternating ConditionNode list from a readback, exactly
+    *  the way FilterModel's own javadoc describes: a junction node (level = junctionLevel) before
+    *  the condition node it precedes (level = level), for every FilterModel entry in order. */
+   private static List<WorksheetMutationSupport.ConditionNode> toConditionNodes(
+      List<WorksheetModel.FilterModel> conditions)
+   {
+      List<WorksheetMutationSupport.ConditionNode> nodes = new java.util.ArrayList<>();
+
+      for(WorksheetModel.FilterModel fm : conditions) {
+         if(fm.junction() != null) {
+            nodes.add(new WorksheetMutationSupport.ConditionNode(null,
+               new WorksheetMutationSupport.JunctionSpec(fm.junction(), fm.junctionLevel()),
+               fm.junctionLevel()));
+         }
+
+         List<WorksheetMutationSupport.ConditionValueSpec> valueSpecs = fm.valueSpecs() == null
+            ? null
+            : fm.valueSpecs().stream()
+               .map(vs -> new WorksheetMutationSupport.ConditionValueSpec(
+                  vs.valueType(), vs.field(), vs.expression(), vs.expressionType(), vs.index()))
+               .toList();
+
+         nodes.add(new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               fm.field(), fm.operation(), fm.values(), fm.negated(), null, valueSpecs),
+            null, fm.level()));
+      }
+
+      return nodes;
+   }
+
+   @Test
+   void filterConditionReportsDistinctLevelsForOrInsideAnd() {
+      // (A=1 OR A=7) AND B=2
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "A", "B");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t, List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("1"), false, null),
+            null, 1),
+         new WorksheetMutationSupport.ConditionNode(
+            null, new WorksheetMutationSupport.JunctionSpec("OR", 1), 1),
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("7"), false, null),
+            null, 1),
+         new WorksheetMutationSupport.ConditionNode(
+            null, new WorksheetMutationSupport.JunctionSpec("AND", 0), 0),
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("B", "=", List.of("2"), false, null),
+            null, 0)
+      ), false);
+
+      List<WorksheetModel.FilterModel> conditions = tableNamed(read(ws), "T").preConditions();
+      assertEquals(3, conditions.size());
+
+      assertEquals(1, conditions.get(0).level());
+      assertNull(conditions.get(0).junction());
+      assertNull(conditions.get(0).junctionLevel());
+
+      assertEquals(1, conditions.get(1).level());
+      assertEquals("OR", conditions.get(1).junction());
+      assertEquals(1, conditions.get(1).junctionLevel());
+
+      assertEquals(0, conditions.get(2).level());
+      assertEquals("AND", conditions.get(2).junction());
+      assertEquals(0, conditions.get(2).junctionLevel());
+   }
+
+   @Test
+   void filterConditionReportsDistinctLevelsForAndInsideOrAndDiffersFromOrInsideAnd() {
+      // A=1 OR (A=7 AND B=2)
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "A", "B");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t, List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("1"), false, null),
+            null, 0),
+         new WorksheetMutationSupport.ConditionNode(
+            null, new WorksheetMutationSupport.JunctionSpec("OR", 0), 0),
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("7"), false, null),
+            null, 1),
+         new WorksheetMutationSupport.ConditionNode(
+            null, new WorksheetMutationSupport.JunctionSpec("AND", 1), 1),
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("B", "=", List.of("2"), false, null),
+            null, 1)
+      ), false);
+
+      List<WorksheetModel.FilterModel> conditions = tableNamed(read(ws), "T").preConditions();
+      assertEquals(3, conditions.size());
+
+      assertEquals(0, conditions.get(0).level());
+      assertNull(conditions.get(0).junction());
+
+      assertEquals(1, conditions.get(1).level());
+      assertEquals("OR", conditions.get(1).junction());
+      assertEquals(0, conditions.get(1).junctionLevel());
+
+      assertEquals(1, conditions.get(2).level());
+      assertEquals("AND", conditions.get(2).junction());
+      assertEquals(1, conditions.get(2).junctionLevel());
+
+      // Distinguishable from (A=1 OR A=7) AND B=2's readback above: same field/operation/values/
+      // junction sequence, but the second condition's own level (1 vs 1... the OR's junctionLevel
+      // is the tell: 0 here vs 1 there) differs -- the two shapes are not observationally
+      // identical the way they were before this fix.
+   }
+
+   @Test
+   void filterConditionRoundTripsOrInsideAndBackIntoTheSameFilter() {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "A", "B");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t, List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("1"), false, null),
+            null, 1),
+         new WorksheetMutationSupport.ConditionNode(
+            null, new WorksheetMutationSupport.JunctionSpec("OR", 1), 1),
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("7"), false, null),
+            null, 1),
+         new WorksheetMutationSupport.ConditionNode(
+            null, new WorksheetMutationSupport.JunctionSpec("AND", 0), 0),
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("B", "=", List.of("2"), false, null),
+            null, 0)
+      ), false);
+
+      List<WorksheetModel.FilterModel> original = tableNamed(read(ws), "T").preConditions();
+
+      // Resubmit the readback (reconstructed the way a caller feeding it back into
+      // set_conditions' flat 'conditions' array would) onto a second, fresh table.
+      TableAssembly t2 = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T2", "A", "B");
+      ws.addAssembly(t2);
+      WorksheetMutationSupport.setConditions(t2, toConditionNodes(original), false);
+
+      List<WorksheetModel.FilterModel> resubmitted = tableNamed(read(ws), "T2").preConditions();
+      assertEquals(original, resubmitted,
+         "resubmitting the readback must reproduce the exact same filter, level for level");
+   }
+
+   @Test
+   void filterConditionRoundTripsAndInsideOrBackIntoTheSameFilter() {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "A", "B");
+      ws.addAssembly(t);
+
+      WorksheetMutationSupport.setConditions(t, List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("1"), false, null),
+            null, 0),
+         new WorksheetMutationSupport.ConditionNode(
+            null, new WorksheetMutationSupport.JunctionSpec("OR", 0), 0),
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("7"), false, null),
+            null, 1),
+         new WorksheetMutationSupport.ConditionNode(
+            null, new WorksheetMutationSupport.JunctionSpec("AND", 1), 1),
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("B", "=", List.of("2"), false, null),
+            null, 1)
+      ), false);
+
+      List<WorksheetModel.FilterModel> original = tableNamed(read(ws), "T").preConditions();
+
+      TableAssembly t2 = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T2", "A", "B");
+      ws.addAssembly(t2);
+      WorksheetMutationSupport.setConditions(t2, toConditionNodes(original), false);
+
+      List<WorksheetModel.FilterModel> resubmitted = tableNamed(read(ws), "T2").preConditions();
+      assertEquals(original, resubmitted,
+         "resubmitting the readback must reproduce the exact same filter, level for level");
+   }
+
+   // -------------------------------------------------------------------------
    // Variable choices (WBS-030 / bug #76502): read_worksheet_model never surfaced a variable's
    // "Values" picker -- readVariable() only read alias/type/default, never choices/values/
    // tableName/labelAttribute/valueAttribute/displayStyle. These round-trip through the real

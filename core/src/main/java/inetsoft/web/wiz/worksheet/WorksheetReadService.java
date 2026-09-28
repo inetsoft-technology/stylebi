@@ -747,11 +747,18 @@ public class WorksheetReadService {
       List<WorksheetModel.FilterModel> result = new ArrayList<>();
       int size = wrapper.getConditionSize();
       String pendingJunction = null;
+      // Bug #77003 (WSC-006): the PRECEDING junction's own level (WorksheetMutationSupport.
+      // JunctionSpec.level on the write side) -- a condition list always alternates condition/
+      // junction/condition/... nodes, so this plus the condition item's own level (below) is
+      // enough to reconstruct the exact write-side ConditionNode sequence; see FilterModel's
+      // own javadoc for the worked (A=1 OR A=7) AND B=2 vs. A=1 OR (A=7 AND B=2) example.
+      Integer pendingJunctionLevel = null;
 
       for(int i = 0; i < size; i++) {
          if(wrapper.isJunctionOperator(i)) {
             JunctionOperator jop = wrapper.getJunctionOperator(i);
             pendingJunction = jop.getJunction() == JunctionOperator.AND ? "AND" : "OR";
+            pendingJunctionLevel = jop.getLevel();
          }
          else if(wrapper.isConditionItem(i)) {
             ConditionItem item = wrapper.getConditionItem(i);
@@ -768,10 +775,16 @@ public class WorksheetReadService {
             List<String> values = extractValues(xc);
             String choiceQuery = extractChoiceQuery(xc);
             List<WorksheetModel.ValueSpecModel> valueSpecs = extractValueSpecs(xc);
+            // Bug #77003 (WSC-005): reported for EVERY operator, not just the three
+            // (=/ONE_OF/NULL) whose negation operationName() already encodes into the
+            // operator string itself -- see FilterModel's own javadoc.
+            boolean negated = xc != null && xc.isNegated();
 
             result.add(new WorksheetModel.FilterModel(
-               field, operation, values, pendingJunction, choiceQuery, valueSpecs));
+               field, operation, values, pendingJunction, choiceQuery, valueSpecs, negated,
+               item.getLevel(), pendingJunctionLevel));
             pendingJunction = null;
+            pendingJunctionLevel = null;
          }
       }
 

@@ -255,6 +255,35 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
     *                    reference or expression), indexed to match its position in
     *                    {@code values}; {@code null}/omitted when every value is a plain
     *                    literal or {@code $(name)} variable (Bug #76922)
+    * @param negated     whether this condition is negated ({@code xc.isNegated()}), reported
+    *                    for EVERY operator -- not just the three ({@code =}/{@code ONE_OF}/
+    *                    {@code NULL}) whose negation is already encoded into {@code operation}
+    *                    itself ({@code "!="}/{@code "NOT_ONE_OF"}/{@code "NOT_NULL"}). A
+    *                    negated {@code BETWEEN}/{@code >}/{@code STARTING_WITH}/
+    *                    {@code CONTAINS}/{@code LIKE} condition previously reported the SAME
+    *                    {@code operation} string as its non-negated counterpart, with no way to
+    *                    tell them apart from this model alone (Bug #77003 WSC-005). Feed this
+    *                    straight back into {@code set_conditions}/{@code set_post_conditions}'s
+    *                    own {@code negated} parameter on resubmit -- redundant but harmless for
+    *                    the three operators that already encode it in {@code operation} too.
+    * @param level       this condition item's own nesting level (0 = root), matching
+    *                    {@code WorksheetMutationSupport.ConditionNode}'s write-side
+    *                    {@code level} for a condition node 1:1 (Bug #77003 WSC-006).
+    * @param junctionLevel the PRECEDING junction's own nesting level, present iff
+    *                    {@code junction} is non-null -- matching
+    *                    {@code WorksheetMutationSupport.JunctionSpec}'s write-side {@code level}
+    *                    for a junction node 1:1. A condition list always alternates condition/
+    *                    junction/condition/... nodes, so {@code junctionLevel} (junction node)
+    *                    followed by {@code level} (this condition's own node) is enough to
+    *                    reconstruct the exact write-side {@code ConditionNode} sequence -- e.g.
+    *                    {@code (A=1 OR A=7) AND B=2} reads back as
+    *                    {@code [level=1,A=1] [junction=OR,junctionLevel=1,level=1,A=7]
+    *                    [junction=AND,junctionLevel=0,level=0,B=2]}, distinguishable from
+    *                    {@code A=1 OR (A=7 AND B=2)}'s
+    *                    {@code [level=0,A=1] [junction=OR,junctionLevel=0,level=1,A=7]
+    *                    [junction=AND,junctionLevel=1,level=1,B=2]} -- and resubmitting each as
+    *                    {@code set_conditions}' flat {@code conditions} array (one entry per
+    *                    node, {@code level} field on each) reproduces the original filter.
     */
    @JsonInclude(JsonInclude.Include.NON_NULL)
    public record FilterModel(
@@ -263,7 +292,10 @@ public record WorksheetModel(List<TableModel> tables, List<VariableModel> variab
       List<String> values,
       String junction,
       String choiceQuery,
-      List<ValueSpecModel> valueSpecs
+      List<ValueSpecModel> valueSpecs,
+      boolean negated,
+      int level,
+      Integer junctionLevel
    ) {}
 
    /**

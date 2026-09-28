@@ -8206,6 +8206,217 @@ class WorksheetEditServiceMutatorsTest {
       assertTrue(t.getPreConditionList() == null || t.getPreConditionList().isEmpty());
    }
 
+   // =========================================================================
+   // Bug #77003 (WSC-002/003): valueSpecs index-based replace + unreplaced-field-reference
+   // loud-fail heuristic. "condition (1)" from the lead's convergence call: a unit test on the
+   // exact reported fixture -- a table T (columns A, B; the RED regression case's CSV import)
+   // mirrored into M, exercising the mirror's own source-table-qualified column name ("T.B",
+   // see AssetUtil#getOuterAttribute) as the leftover literal, not a hand-picked string.
+   // =========================================================================
+
+   private static TableAssembly intColumnsTable(Worksheet ws, String name, String... cols) {
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, name, cols);
+
+      // MirrorTableAssembly#updateColumnSelection re-qualifies from the source's PUBLIC selection
+      // (getColumnSelection(true)), not the private one -- both must carry the type for it to
+      // survive onto a mirror.
+      for(String col : cols) {
+         ((ColumnRef) t.getColumnSelection(false).getAttribute(col)).setDataType(XSchema.INTEGER);
+
+         DataRef pub = t.getColumnSelection(true).getAttribute(col);
+
+         if(pub instanceof ColumnRef pubRef) {
+            pubRef.setDataType(XSchema.INTEGER);
+         }
+      }
+
+      return t;
+   }
+
+   @Test
+   void setConditionsRejectsUnreplacedMirrorQualifiedFieldReferenceLiteral() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = intColumnsTable(ws, "T", "A", "B");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+
+      // Sanity check on the fixture itself: a Mirror re-qualifies its source column's own name
+      // with the source table (AssetUtil#getOuterAttribute) -- if this ever stops being true,
+      // the rest of this test would silently stop reproducing the bug report's actual shape.
+      assertNotNull(mirror.getColumnSelection(false).getAttribute("T.B"),
+         "a Mirror's column selection must re-qualify a source column's name with the source " +
+         "table -- if this assertion fails, this fixture no longer matches WSC-003's original " +
+         "repro and the rest of this test proves nothing");
+
+      // Simulates the most direct way a readback's lossy display text can reach
+      // buildConditionList unclaimed: a caller resubmits `values: ["T.B"]` with no valueSpecs at
+      // all (e.g. having dropped the valueSpecs array by mistake, or the field being compared to
+      // is on a table outside this condition's own scope).
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec(
+                  "A", "=", List.of("T.B"), false, null),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("T.B"),
+         "must point the caller at the offending value: " + ex.getMessage());
+      assertTrue(mirror.getPreConditionList() == null || mirror.getPreConditionList().isEmpty(),
+         "the rejected condition must not have been applied");
+   }
+
+   /**
+    * The EXACT resubmit shape wsc-003.test.js sends: the readback's `values` entry kept verbatim,
+    * plus a `valueSpecs` entry naming the ORIGINALLY AUTHORED field ("B", not the qualified "T.B"
+    * display text) with NO `index` at all. Since a null index still appends (backward
+    * compatibility for a pre-#77003 caller), the literal at position 0 is never claimed by the
+    * valueSpec and must still be caught by the loud-fail check -- this is what proves the fix
+    * closes the gap even when the caller does not think to add `index`.
+    */
+   @Test
+   void setConditionsRejectsUnindexedValueSpecLeavingLiteralUnreplaced() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = intColumnsTable(ws, "T", "A", "B");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+
+      IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+         svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+            new WorksheetMutationSupport.ConditionNode(
+               new WorksheetMutationSupport.ConditionSpec(
+                  "A", "=", List.of("T.B"), false, null,
+                  List.of(new WorksheetMutationSupport.ConditionValueSpec(
+                     "field", "B", null, null))),
+               null, 0)))));
+
+      assertTrue(ex.getMessage().contains("T.B"), ex.getMessage());
+   }
+
+   /**
+    * The FIXED resubmit shape: the same readback, but with the `valueSpecs` entry's `index: 0`
+    * preserved -- proving the index REPLACES the literal in place instead of appending a second
+    * value alongside it, so the resulting condition has exactly one value (the real field
+    * reference), not two.
+    */
+   @Test
+   void setConditionsValueSpecIndexReplacesLiteralInPlace() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = intColumnsTable(ws, "T", "A", "B");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+      MirrorTableAssembly mirror = (MirrorTableAssembly) ws.getAssembly("M");
+
+      svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "A", "=", List.of("T.B"), false, null,
+               List.of(new WorksheetMutationSupport.ConditionValueSpec(
+                  "field", "B", null, null, 0))),
+            null, 0))));
+
+      Condition c = (Condition) ((ConditionItem) mirror.getPreConditionList().getConditionList()
+         .getItem(0)).getXCondition();
+      assertEquals(1, c.getValueCount(),
+         "the indexed valueSpec must REPLACE values[0], not append alongside it");
+      assertInstanceOf(DataRef.class, c.getValue(0),
+         "the surviving value must be the real field reference, got: " + c.getValue(0));
+      assertEquals("B", ((DataRef) c.getValue(0)).getAttribute());
+   }
+
+   @Test
+   void setConditionsDoesNotFlagLiteralOnAStringColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      // Default column type from TestWorksheets is STRING -- the loud-fail heuristic must never
+      // fire there, since a string column's literal can never be silently coerced to a numeric
+      // zero the way #77003 describes.
+      TableAssembly t = TestWorksheets.nonEmbeddedTableWithColumns(ws, "T", "A", "B");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("M", "T"));
+
+      // Must not throw.
+      svc.apply("TOK", agent, ed -> ed.setConditions("M", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("T.B"), false, null),
+            null, 0))));
+
+      Condition c = (Condition) ((ConditionItem) ((TableAssembly) ws.getAssembly("M"))
+         .getPreConditionList().getConditionList().getItem(0)).getXCondition();
+      assertEquals("T.B", c.getValue(0), "an ordinary string literal must be left alone");
+   }
+
+   @Test
+   void setConditionsDoesNotFlagAnOrdinaryNumericLiteral() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = intColumnsTable(ws, "T", "A");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Must not throw: "42" parses fine as the column's own INTEGER type.
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec("A", "=", List.of("42"), false, null),
+            null, 0))));
+
+      assertEquals(42, firstCondition(t).getValue(0));
+   }
+
+   /**
+    * A numeric literal that fails to parse AND does not name any real column anywhere in the
+    * worksheet is NOT flagged (no exception) -- the heuristic only targets values that look like
+    * a specific un-replaced field reference, not "any bad numeric literal".
+    *
+    * <p>Confirmed independently while writing this fix: {@link Condition#getValue}
+    * (Condition.java:317-326) itself lazily re-parses a stored {@code String} value through
+    * {@code AbstractCondition.getObject(getType(), val)} on EVERY read -- for an INTEGER-typed
+    * condition this already silently returns {@code 0} for any unparseable string, immediately,
+    * with no XML round-trip or later mutation required (the original diagnosis's "some later
+    * round-trip triggers it" framing was closer than needed: this is not a round-trip effect
+    * at all, it is {@code getValue}'s own permanent per-read behavior). This is real,
+    * independently-verified, pre-existing StyleBI behavior for EVERY unparseable-numeric literal,
+    * not specific to a field-reference-shaped one -- flagging every such literal (not just ones
+    * that also happen to name a real column) is out of this bug's scope (see 03-fix.md's
+    * "root-cause correction" note) and would risk rejecting a caller's typo'd-but-harmless filter
+    * that previously "worked" (returned 0 rows, not an error). This test pins the STORED value
+    * (via the same private-field-reflection-free route {@code addValue} used) rather than the
+    * always-0 {@code getValue()} read, so a future change to that unrelated read-time behavior
+    * does not make this test spuriously fail.
+    */
+   @Test
+   void setConditionsDoesNotFlagAnUnparseableLiteralThatMatchesNoColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      TableAssembly t = intColumnsTable(ws, "T", "A");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      // Must not throw: "not_a_real_column" isn't parseable as INTEGER, but it also doesn't
+      // resolve to any real column on T or anywhere else in the worksheet.
+      svc.apply("TOK", agent, ed -> ed.setConditions("T", List.of(
+         new WorksheetMutationSupport.ConditionNode(
+            new WorksheetMutationSupport.ConditionSpec(
+               "A", "=", List.of("not_a_real_column"), false, null),
+            null, 0))));
+
+      assertEquals(1, firstCondition(t).getValueCount());
+      // getValue(0) itself would already read back as 0 here -- Condition#getValue's own
+      // pre-existing, always-on lazy re-parse for an unparseable numeric literal, unrelated to
+      // and unchanged by this fix. See this test's own javadoc.
+   }
+
    @Test
    void setConditionsExpressionValueSpecBuildsExpressionValue() throws Exception {
       Worksheet ws = new Worksheet();
