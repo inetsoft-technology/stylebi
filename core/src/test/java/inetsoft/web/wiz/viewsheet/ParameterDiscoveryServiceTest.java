@@ -47,6 +47,7 @@ class ParameterDiscoveryServiceTest {
       assertEquals("string", model.type());
       assertFalse(model.boundToInputAssembly());
       assertNull(model.choices());
+      assertNull(model.values());
       assertNull(model.currentValue());
    }
 
@@ -60,6 +61,54 @@ class ParameterDiscoveryServiceTest {
 
       assertEquals(List.of("East", "West"), model.choices());
       assertEquals(List.of("East"), model.currentValue());
+   }
+
+   @Test
+   void mapsValuesIndexPairedWithChoices() {
+      // The bug-77040 case: an embedded picker whose real values ("2"/"4") differ from its
+      // display labels ("Jane Doe"/"John Smith") -- collect_parameters must expose both, paired
+      // by index, so a caller can submit the real value instead of the label.
+      UserVariable var = new UserVariable("empVar");
+      var.setTypeNode(new StringType());
+      // UserVariable.setValues/setChoices sort by default (sortValue==true), which needs a live
+      // Spring context (Tool.compare -> SreeEnv) this pure-logic test does not have -- disabled
+      // here since sort order is irrelevant to what toModel reports.
+      var.setSortValue(false);
+      var.setChoices(new Object[]{"Jane Doe", "John Smith"});
+      var.setValues(new Object[]{"2", "4"});
+
+      ParameterModel model = ParameterDiscoveryService.toModel(var, false, null);
+
+      assertEquals(List.of("Jane Doe", "John Smith"), model.choices());
+      assertEquals(List.of("2", "4"), model.values());
+   }
+
+   @Test
+   void omitsValuesWhenLengthDoesNotMatchChoices() {
+      // A mismatched length can't be correlated by position -- report null rather than a
+      // misleading pairing.
+      UserVariable var = new UserVariable("region");
+      var.setTypeNode(new StringType());
+      var.setSortValue(false);
+      var.setChoices(new Object[]{"East", "West"});
+      var.setValues(new Object[]{"1"});
+
+      ParameterModel model = ParameterDiscoveryService.toModel(var, false, null);
+
+      assertNull(model.values());
+   }
+
+   @Test
+   void omitsValuesWhenChoicesAbsent() {
+      UserVariable var = new UserVariable("stateVar");
+      var.setTypeNode(new StringType());
+      var.setSortValue(false);
+      var.setValues(new Object[]{"AZ"});
+
+      ParameterModel model = ParameterDiscoveryService.toModel(var, false, null);
+
+      assertNull(model.choices());
+      assertNull(model.values());
    }
 
    @Test
