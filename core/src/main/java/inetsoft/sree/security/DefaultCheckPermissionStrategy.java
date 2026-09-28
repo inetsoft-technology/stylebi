@@ -56,9 +56,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       // Bug #77061, delegated grants (org node, Users/Groups roots, org self grant) only cover
       // identities of the org they belong to, never a user/group/role/org of another org
       boolean targetOutOfOrg = isTargetOutOfOrg(principal, type, resource);
+      // Bug #77075, org-wide delegated grants (org node, Groups root, org self grant) never
+      // cover a group that grants system administrator, directly or through an ancestor group
+      boolean adminGrantingGroup = type == ResourceType.SECURITY_GROUP &&
+         !Tool.isEmptyString(resource) &&
+         grantsSystemAdmin(IdentityID.getIdentityIDFromKey(resource));
 
       //check admin permissions at org level
-      if(isSecurityIdentity(type) && !targetOutOfOrg &&
+      if(isSecurityIdentity(type) && !targetOutOfOrg && !adminGrantingGroup &&
          isNotGlobalRole(type, IdentityID.getIdentityIDFromKey(resource)) &&
          provider.getPermission(ResourceType.SECURITY_ORGANIZATION, curOrgID) != null)
       {
@@ -167,7 +172,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             return true;
          }
       }
-      else if(type.equals(ResourceType.SECURITY_GROUP) && !targetOutOfOrg) {
+      else if(type.equals(ResourceType.SECURITY_GROUP) && !targetOutOfOrg && !adminGrantingGroup) {
          IdentityID rootGroup = new IdentityID("Groups", OrganizationManager.getInstance().getCurrentOrgID());
          Permission rootGroupPerm = provider.getPermission(type, rootGroup);
 
@@ -394,6 +399,15 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          while(!queue.isEmpty()) {
             Resource current = queue.removeFirst();
+
+            // Bug #77075, the Groups root (and the org node above it) is an org-wide grant,
+            // which doesn't reach a group that grants system administrator
+            if(adminGrantingGroup && current.getType() == ResourceType.SECURITY_GROUP &&
+               new IdentityID("Groups", organization).convertToKey().equals(current.getPath()))
+            {
+               continue;
+            }
+
             perm = provider.getPermission(current.getType(), current.getPath(), orgID);
             useParent = (perm == null) || !perm.hasOrgEditedGrantAll(orgID);
 
@@ -445,7 +459,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
                   }
                }
 
-               if(!roleOutOfOrgAdminScope) {
+               if(!roleOutOfOrgAdminScope && !adminGrantingGroup) {
                   // the org's self grant is keyed by (org name, org id), the same as
                   // checkOrgAdminPermission() and the writers in SecurityService
                   String orgName = provider.getOrgNameFromID(organization);
@@ -727,10 +741,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             return true;
          }
 
-         IdentityID[] groupRoles = currProvider.getGroup(resourceID) != null ?
-            currProvider.getGroup(resourceID).getRoles() : new IdentityID[0];
-         isSiteAdmin = Arrays.stream(currProvider.getAllRoles(groupRoles))
-            .anyMatch(currProvider::isSystemAdministratorRole);
+         // Bug #77075, a group also grants system administrator through its ancestor groups
+         isSiteAdmin = grantsSystemAdmin(currProvider, resourceID);
 
          return !isSiteAdmin && currProvider.getGroup(resourceID) != null &&
             orgID.equals(currProvider.getGroup(resourceID).getOrganizationID());
@@ -784,6 +796,33 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       default:
          return isOrgAdmin && ActionPermissionService.isOrgAdminAction(type, resource);
       }
+   }
+
+   private boolean grantsSystemAdmin(IdentityID groupID) {
+      return grantsSystemAdmin(provider, groupID);
+   }
+
+   /**
+    * Check if a group, or one of its ancestor groups, holds a role that is or inherits a system
+    * administrator role, so that membership in the group grants system administrator.
+    */
+   private static boolean grantsSystemAdmin(AuthenticationProvider provider, IdentityID groupID) {
+      if(groupID == null || provider.getGroup(groupID) == null) {
+         return false;
+      }
+
+      List<IdentityID> roles = new ArrayList<>();
+
+      for(IdentityID id : provider.getAllGroups(new IdentityID[] { groupID })) {
+         Group group = provider.getGroup(id);
+
+         if(group != null && group.getRoles() != null) {
+            roles.addAll(Arrays.asList(group.getRoles()));
+         }
+      }
+
+      return Arrays.stream(provider.getAllRoles(roles.toArray(new IdentityID[0])))
+         .anyMatch(r -> r != null && provider.isSystemAdministratorRole(r));
    }
 
    private AuthenticationProvider getCurrentProvider(Principal principal) {

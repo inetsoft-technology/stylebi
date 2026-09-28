@@ -1175,6 +1175,107 @@ class DefaultCheckPermissionStrategyTest {
       );
    }
 
+   // ─────────────────────────────────────────────────────────────────
+   // Bug #77075: org-wide delegation must not reach groups that grant system administrator
+   // ─────────────────────────────────────────────────────────────────
+
+   static final String ADMINS_GROUP = new IdentityID("admins", TEST_ORG).convertToKey();
+   static final String ADMINS_CHILD_GROUP = new IdentityID("adminsChild", TEST_ORG).convertToKey();
+   static final String PLAIN_GROUP = new IdentityID("plain", TEST_ORG).convertToKey();
+
+   // "admins" holds a system administrator role and "adminsChild" is a child of "admins", so
+   // membership in either grants system administrator. Org node, Groups root and org self
+   // grant holders, as well as org admins, got ADMIN over them (Bug #77075).
+   @ParameterizedTest(name = "{0} {1} -> {2}")
+   @MethodSource("adminGrantingGroupCases")
+   void orgWideDelegationDoesNotReachAdminGrantingGroup(DelegatedGrant grant, String group,
+                                                        boolean expected)
+   {
+      stubAdminGrantingGroups();
+      boolean orgAdminRole = grant == null;
+
+      if(orgAdminRole) {
+         stubOrgAdmin(true);
+      }
+
+      assertEquals(expected, checkDelegated(grant, ResourceType.SECURITY_GROUP, group, false),
+                   (orgAdminRole ? "org admin role" : grant + " grant") + " checking " + group);
+   }
+
+   static Stream<Arguments> adminGrantingGroupCases() {
+      List<Arguments> cases = new ArrayList<>();
+      // null is the org admin role, without a delegated grant
+      DelegatedGrant[] grants = { null, DelegatedGrant.ORG_NODE, DelegatedGrant.GROUPS_ROOT,
+                                  DelegatedGrant.GROUPS_ROOT_BFS, DelegatedGrant.ORG_SELF_GRANT };
+
+      for(DelegatedGrant grant : grants) {
+         cases.add(Arguments.of(grant, ADMINS_GROUP, false));
+         cases.add(Arguments.of(grant, ADMINS_CHILD_GROUP, false));
+         cases.add(Arguments.of(grant, PLAIN_GROUP, true));
+      }
+
+      return cases.stream();
+   }
+
+   // A system administrator role or a site admin still manages admin-granting groups.
+   @ParameterizedTest(name = "site admin {0}, {1}")
+   @MethodSource("adminGrantingGroupAdminCases")
+   void sysAdminStillManagesAdminGrantingGroup(boolean siteAdmin, String group) {
+      stubAdminGrantingGroups();
+
+      if(!siteAdmin) {
+         when(mockProvider.isSystemAdministratorRole(eq(new IdentityID(TEST_ROLE, TEST_ORG))))
+            .thenReturn(true);
+      }
+
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_GROUP, group, siteAdmin),
+                 (siteAdmin ? "site admin" : "sysadmin role") + " checking " + group);
+   }
+
+   static Stream<Arguments> adminGrantingGroupAdminCases() {
+      return Stream.of(
+         Arguments.of(true, ADMINS_GROUP),
+         Arguments.of(true, ADMINS_CHILD_GROUP),
+         Arguments.of(false, ADMINS_GROUP),
+         Arguments.of(false, ADMINS_CHILD_GROUP)
+      );
+   }
+
+   // An explicit grant on the admin-granting group itself (made by a site admin) still applies
+   // to the group and, through the group parent traversal, to its child groups.
+   @Test
+   void explicitGrantOnAdminGrantingGroupStillApplies() {
+      stubAdminGrantingGroups();
+      when(mockProvider.getPermission(eq(ResourceType.SECURITY_GROUP), eq(ADMINS_GROUP), eq(TEST_ORG)))
+         .thenReturn(grantedPermission(TEST_USER, TEST_ORG, ResourceAction.ADMIN, false));
+
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_GROUP, ADMINS_GROUP, false),
+                 "explicit grant on admins");
+      assertTrue(checkDelegated(null, ResourceType.SECURITY_GROUP, ADMINS_CHILD_GROUP, false),
+                 "explicit grant on admins, inherited by adminsChild");
+   }
+
+   // admins (holding the sysadmin role sysRole) -> adminsChild, and plain, all in TEST_ORG
+   private void stubAdminGrantingGroups() {
+      IdentityID sysRole = new IdentityID("sysRole", TEST_ORG);
+      when(mockProvider.isSystemAdministratorRole(eq(sysRole))).thenReturn(true);
+
+      stubGroup(ADMINS_GROUP, new IdentityID[]{ sysRole });
+      stubGroup(ADMINS_CHILD_GROUP, new IdentityID[0], "admins");
+      stubGroup(PLAIN_GROUP, new IdentityID[0]);
+      IdentityID admins = IdentityID.getIdentityIDFromKey(ADMINS_GROUP);
+      IdentityID adminsChild = IdentityID.getIdentityIDFromKey(ADMINS_CHILD_GROUP);
+      lenient().when(mockProvider.getAllGroups(any(IdentityID[].class))).thenAnswer(inv -> {
+         IdentityID[] groups = inv.getArgument(0);
+
+         if(groups.length == 1 && adminsChild.equals(groups[0])) {
+            return new IdentityID[]{ adminsChild, admins };
+         }
+
+         return groups;
+      });
+   }
+
    // TEST_ORG is named ownOrgName, OTHER_ORG is named "Org B"
    private void stubOrganizations(String ownOrgName) {
       lenient().when(mockProvider.getOrganizationIDs()).thenReturn(new String[]{ TEST_ORG, OTHER_ORG });
@@ -1258,13 +1359,18 @@ class DefaultCheckPermissionStrategyTest {
    }
 
    private void stubGroup(String key) {
+      stubGroup(key, new IdentityID[0]);
+   }
+
+   private void stubGroup(String key, IdentityID[] roles, String... parents) {
       IdentityID id = IdentityID.getIdentityIDFromKey(key);
       Group group = mock(Group.class);
       lenient().when(group.getIdentityID()).thenReturn(id);
       lenient().when(group.getOrganizationID()).thenReturn(id.getOrgID());
-      lenient().when(group.getRoles()).thenReturn(new IdentityID[0]);
+      lenient().when(group.getRoles()).thenReturn(roles);
+      lenient().when(group.getGroups()).thenReturn(parents);
       lenient().when(mockProvider.getGroup(eq(id))).thenReturn(group);
-      lenient().when(mockProvider.getGroupParentGroups(eq(id))).thenReturn(new String[0]);
+      lenient().when(mockProvider.getGroupParentGroups(eq(id))).thenReturn(parents);
    }
 
    private void stubRole(String key) {
