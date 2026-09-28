@@ -394,6 +394,12 @@ public class DashboardRegistry {
     */
    public void renameDashboard(String oname, String name) {
       DashboardManager manager = DashboardManager.getManager();
+      DashboardRegistryManager registryManager = DashboardRegistryManager.getInstance();
+      String orgID = getOrgID();
+      // find the stored user copies of a global dashboard before locking the dashboard manager,
+      // so the storage scan doesn't block it, and before the rename, so old files are ported
+      Collection<IdentityID> userCopies = isGlobal() && getDashboard(oname) != null ?
+         registryManager.loadUserCopies(orgID, oname) : Collections.emptyList();
 
       manager.runLocked(() -> {
          try {
@@ -404,7 +410,8 @@ public class DashboardRegistry {
             }
 
             if(isGlobal()) {
-               DashboardRegistryManager.getInstance().renameDashboard(oname, name);
+               // only the user registries of this registry's own org
+               registryManager.renameDashboard(orgID, oname, name, userCopies);
                SecurityProvider provider = securityEngine.getSecurityProvider();
 
                if(!provider.isVirtual()) {
