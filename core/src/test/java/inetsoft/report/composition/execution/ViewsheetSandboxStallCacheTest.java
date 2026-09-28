@@ -80,6 +80,71 @@ class ViewsheetSandboxStallCacheTest {
       }
    }
 
+   /**
+    * A failure that is not a stall is cached exactly as before: the cached value is the NULL
+    * marker, and the next read returns null from the cache without running the query again.
+    */
+   @Test
+   void nonStallFailureIsCachedAsNullAndNotRunAgain() throws Exception {
+      ViewsheetSandbox box = sandbox();
+      VSAQuery query = Mockito.mock(VSAQuery.class);
+      Mockito.when(query.getData()).thenThrow(new RuntimeException("boom")).thenReturn(42);
+
+      try(MockedStatic<VSAQuery> st = mockQuery(query)) {
+         assertThrows(RuntimeException.class, () -> box.getData("Text1"));
+         assertEquals("__null__", dmap(box).get("Text1", DataMap.NORMAL));
+         assertNull(box.getData("Text1"));
+         Mockito.verify(query, Mockito.times(1)).getData();
+      }
+   }
+
+   /**
+    * A stall thrown directly (not wrapped) is not cached either.
+    */
+   @Test
+   void getDataDoesNotCacheADirectStall() throws Exception {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      ViewsheetSandbox box = sandbox();
+      VSAQuery query = Mockito.mock(VSAQuery.class);
+      Mockito.when(query.getData()).thenThrow(stall).thenReturn(42);
+
+      try(MockedStatic<VSAQuery> st = mockQuery(query)) {
+         assertSame(stall, assertThrows(LockStallException.class, () -> box.getData("Text1")));
+         assertNull(dmap(box).get("Text1", DataMap.NORMAL));
+         assertEquals(42, box.getData("Text1"));
+         // the good result is cached: no further runs
+         assertEquals(42, box.getData("Text1"));
+         Mockito.verify(query, Mockito.times(2)).getData();
+      }
+   }
+
+   /**
+    * A query that keeps stalling runs once per read, no more: each read fails with the stall
+    * and nothing is cached, and the first read after the stall is gone caches the result.
+    */
+   @Test
+   void persistentStallRunsTheQueryOncePerRead() throws Exception {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      ViewsheetSandbox box = sandbox();
+      VSAQuery query = Mockito.mock(VSAQuery.class);
+      Mockito.when(query.getData())
+         .thenThrow(stall, stall, stall, stall, stall)
+         .thenReturn(7);
+
+      try(MockedStatic<VSAQuery> st = mockQuery(query)) {
+         for(int i = 1; i <= 5; i++) {
+            assertSame(stall, assertThrows(LockStallException.class,
+                                           () -> box.getData("Text1")));
+            Mockito.verify(query, Mockito.times(i)).getData();
+            assertNull(dmap(box).get("Text1", DataMap.NORMAL));
+         }
+
+         assertEquals(7, box.getData("Text1"));
+         assertEquals(7, box.getData("Text1"));
+         Mockito.verify(query, Mockito.times(6)).getData();
+      }
+   }
+
    private static ViewsheetSandbox sandbox() {
       Viewsheet vs = new Viewsheet();
       vs.addAssembly(new TextVSAssembly(vs, "Text1"));

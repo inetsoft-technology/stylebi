@@ -158,6 +158,34 @@ class TableDataVSAScriptableStallTest {
       assertEquals(2, table.getMember("row"));
    }
 
+   /**
+    * After stalled re-fetches of a cleared table, the first good fetch is read and clears the
+    * dirty flag: later reads use it and do not fetch again (no endless re-fetch).
+    */
+   @Test
+   void goodFetchAfterStalledRefetchesClearsTheDirtyFlag() throws Exception {
+      LockStallException stall = new LockStallException("test.site", "worker", 1234, null);
+      when(box.getVSTableLens("Table1", false))
+         .thenReturn(new VSTableLens(lens()))
+         .thenThrow(stall)
+         .thenThrow(new RuntimeException("wrapped", stall))
+         .thenReturn(new VSTableLens(new DefaultTableLens(new Object[][] {
+            { "a", "b" }, { 1, 2 } })));
+      when(box.getTableData("Table1")).thenReturn(lens());
+      TableVSAScriptable table = new TableVSAScriptable(box);
+      table.setAssembly("Table1");
+
+      assertEquals(3, table.getMember("row"));
+      table.clearCache();
+
+      assertSame(stall, assertThrows(LockStallException.class, () -> table.getMember("row")));
+      assertSame(stall, assertThrows(LockStallException.class, () -> table.getMember("row")));
+      assertEquals(2, table.getMember("row"));
+      assertEquals(2, table.getMember("row"));
+      assertEquals(2, table.getMember("row"));
+      verify(box, times(4)).getVSTableLens("Table1", false);
+   }
+
    private static DefaultTableLens lens() {
       return new DefaultTableLens(new Object[][] { { "a", "b" }, { 1, 2 }, { 3, 4 } });
    }
