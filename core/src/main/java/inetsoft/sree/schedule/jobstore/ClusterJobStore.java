@@ -21,6 +21,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.cloudrunner.ScheduleTaskCloudJob;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
@@ -34,12 +35,15 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static inetsoft.sree.schedule.jobstore.TriggerState.*;
+import static inetsoft.sree.schedule.jobstore.TriggerWrapper.newOwnedTriggerWrapper;
 import static inetsoft.sree.schedule.jobstore.TriggerWrapper.newTriggerWrapper;
 
 public class ClusterJobStore implements JobStore, Serializable {
@@ -834,6 +838,9 @@ public class ClusterJobStore implements JobStore, Serializable {
 
       List<OperableTrigger> result = new ArrayList<>();
       Set<JobKey> acquiredJobKeysForNoConcurrentExec = new HashSet<>();
+      // the cluster topology, read once per pass and only if a held trigger is found
+      boolean topologyRead = false;
+      Set<String> liveNodes = null;
 
       // ordering triggers to try to ensure firetime order
       List<TriggerWrapper> orderedTriggers = triggersByKey.values().stream()
@@ -873,6 +880,29 @@ public class ClusterJobStore implements JobStore, Serializable {
                tw = triggersByKey.get(tw.key);
             }
             */
+
+            // Bug #77245, a hold whose owner can no longer complete or release it would keep the
+            // trigger from ever firing again
+            if(tw.getState() == ACQUIRED || tw.getState() == BLOCKED) {
+               if(!topologyRead) {
+                  liveNodes = getLiveNodes();
+                  topologyRead = true;
+               }
+
+               final TriggerWrapper held = tw;
+
+               if(isOrphaned(held, liveNodes, () -> getOrphanedRunHold(held),
+                             System.currentTimeMillis()))
+               {
+                  LOG.warn("Releasing trigger {} held {} by node {} ({}, store {}) since {}, " +
+                              "that node is no longer in the cluster", tw.key, tw.getState(),
+                           tw.getOwnerNode(), tw.getOwnerMember(), tw.getOwnerStore(),
+                           tw.getOwnedSince() == null ? null :
+                              Instant.ofEpochMilli(tw.getOwnedSince()));
+                  tw = newTriggerWrapper(tw, WAITING);
+                  storeTriggerWrapper(tw);
+               }
+            }
 
             if(tw.getState() != NORMAL && tw.getState() != WAITING) {
                continue;
@@ -920,7 +950,8 @@ public class ClusterJobStore implements JobStore, Serializable {
 
             OperableTrigger trig = (OperableTrigger) tw.trigger.clone();
             trig.setFireInstanceId(getFiredTriggerRecordId());
-            storeTriggerWrapper(newTriggerWrapper(trig, ACQUIRED));
+            storeTriggerWrapper(newOwnedTriggerWrapper(
+               trig, ACQUIRED, getLocalNodeId(), getLocalMember(), fireInstanceIdPrefix));
 
             result.add(trig);
 
@@ -1015,7 +1046,8 @@ public class ClusterJobStore implements JobStore, Serializable {
             }
             else if(job.isConcurrentExectionDisallowed()) {
                // keep the trigger from being acquired again until its execution completes
-               tw = newTriggerWrapper(trigger, BLOCKED);
+               tw = newOwnedTriggerWrapper(
+                  trigger, BLOCKED, getLocalNodeId(), getLocalMember(), fireInstanceIdPrefix);
             }
             else {
                tw = newTriggerWrapper(trigger, WAITING);
@@ -1221,6 +1253,91 @@ public class ClusterJobStore implements JobStore, Serializable {
    private static boolean isAcquiredBy(TriggerWrapper tw, OperableTrigger trigger) {
       return tw.getState() == ACQUIRED && trigger.getFireInstanceId() != null &&
          trigger.getFireInstanceId().equals(tw.trigger.getFireInstanceId());
+   }
+
+   /**
+    * Checks if an ACQUIRED or BLOCKED entry is held by an owner that can no longer complete or
+    * release it (Bug #77245): the cluster node that took the hold is no longer in the cluster. A
+    * node id is unique across hosts and changes whenever the JVM (and so its Ignite node) is
+    * restarted, but not when the scheduler is stopped and started in the same JVM, whose old run
+    * may still be executing and whose completion releases the entry. An entry with no recorded
+    * owner (an older version, or an error state) is never orphaned, nor is any entry when the
+    * topology cannot be read.
+    *
+    * @param liveNodes       the ids of the nodes in the cluster, including clients, or null if
+    *                        unknown.
+    * @param orphanedRunHold how long after the owner took the hold its run may still be executing
+    *                        although the owner is gone, 0 if the run cannot outlive its owner.
+    *                        Only evaluated if the owner is gone.
+    */
+   static boolean isOrphaned(TriggerWrapper tw, Set<String> liveNodes,
+                             LongSupplier orphanedRunHold, long now)
+   {
+      String node = tw.getOwnerNode();
+
+      if(node == null || liveNodes == null || liveNodes.contains(node)) {
+         return false;
+      }
+
+      long hold = orphanedRunHold.getAsLong();
+      return hold <= 0 || tw.getOwnedSince() != null && now - tw.getOwnedSince() >= hold;
+   }
+
+   /**
+    * Gets how long an orphaned hold must be kept after it was taken because its run may still be
+    * executing without its owner. A cloud runner job runs the task in a container that the owner
+    * launched and that is not stopped when the owner dies. Its platform stops it at the task timeout
+    * (Kubernetes, Azure and Google cloud runners), so the hold is kept for the timeout the owner
+    * waited with plus a margin for the container launch. An acquired trigger has not launched
+    * anything, and any other job runs in the owner's JVM and dies with it.
+    */
+   long getOrphanedRunHold(TriggerWrapper tw) {
+      if(tw.getState() != BLOCKED) {
+         return 0;
+      }
+
+      JobDetail job = jobsByKey.get(tw.jobKey);
+
+      if(job == null || !ScheduleTaskCloudJob.class.isAssignableFrom(job.getJobClass())) {
+         return 0;
+      }
+
+      // same effective timeout as ScheduleTaskCloudJob.execute()
+      long timeout = ScheduleTask.getTaskTimeout();
+      timeout = timeout > 0 ? timeout : ScheduleTask.DEFAULT_TASK_TIMEOUT;
+      return timeout + CLOUD_RUN_LAUNCH_MARGIN;
+   }
+
+   /**
+    * Gets the ids of the nodes currently in the cluster, including client nodes, or null if the
+    * topology cannot be read or does not contain this node (it is disconnected or the view is not
+    * consistent), in which case nothing is released.
+    */
+   Set<String> getLiveNodes() {
+      try {
+         Set<String> nodes = Cluster.getInstance().getClusterNodeIds();
+         String localNode = getLocalNodeId();
+
+         if(nodes == null || !nodes.contains(localNode)) {
+            LOG.debug("The cluster nodes {} do not contain this node {}, not checking for " +
+                         "released triggers", nodes, localNode);
+            return null;
+         }
+
+         return nodes;
+      }
+      catch(RuntimeException ex) {
+         LOG.warn("Failed to get the cluster nodes to check for released triggers", ex);
+         return null;
+      }
+   }
+
+   String getLocalNodeId() {
+      return Cluster.getInstance().getLocalNodeId();
+   }
+
+   String getLocalMember() {
+      return Cluster.getInstance().getLocalMember();
    }
 
    private boolean applyMisfire(TriggerWrapper tw) throws JobPersistenceException {
@@ -1430,6 +1547,7 @@ public class ClusterJobStore implements JobStore, Serializable {
    // the instance id is "AUTO" on every node, so a random part keeps fire instance ids unique
    // across the cluster, which the ownership check in isAcquiredBy() relies on
    private final String fireInstanceIdPrefix = UUID.randomUUID() + "-";
+   private static final long CLOUD_RUN_LAUNCH_MARGIN = TimeUnit.MINUTES.toMillis(5);
    private static final Logger LOG = LoggerFactory.getLogger(ClusterJobStore.class);
 }
 

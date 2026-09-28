@@ -36,6 +36,18 @@ public class TriggerWrapper implements Serializable {
 
    private TriggerState state;
 
+   // Bug #77245, the holder of an ACQUIRED or BLOCKED entry: the id of the cluster node that
+   // acquired or fired it (a new id every time a node joins, unique across hosts), its member name
+   // and store (for logging only), and when. Null for every other state and for entries written by
+   // a version that did not record an owner.
+   private final String ownerNode;
+
+   private final String ownerMember;
+
+   private final String ownerStore;
+
+   private final Long ownedSince;
+
    public Long getNextFireTime() {
       return trigger == null || trigger.getNextFireTime() == null
          ? null : trigger.getNextFireTime().getTime();
@@ -47,6 +59,12 @@ public class TriggerWrapper implements Serializable {
    }
 
    private TriggerWrapper(OperableTrigger trigger, TriggerState state) {
+      this(trigger, state, null, null, null);
+   }
+
+   private TriggerWrapper(OperableTrigger trigger, TriggerState state, String ownerNode,
+                          String ownerMember, String ownerStore)
+   {
       if(trigger == null) {
          throw new IllegalArgumentException("Trigger cannot be null!");
       }
@@ -63,6 +81,11 @@ public class TriggerWrapper implements Serializable {
       else {
          acquiredAt = null;
       }
+
+      this.ownerNode = ownerNode;
+      this.ownerMember = ownerMember;
+      this.ownerStore = ownerStore;
+      this.ownedSince = ownerNode == null ? null : System.currentTimeMillis();
    }
 
    public static TriggerWrapper newTriggerWrapper(OperableTrigger trigger) {
@@ -79,6 +102,18 @@ public class TriggerWrapper implements Serializable {
                                                   TriggerState state)
    {
       return new TriggerWrapper(trigger, state);
+   }
+
+   /**
+    * Creates a wrapper for an ACQUIRED or BLOCKED entry that records which cluster node (and, for
+    * logging, which member and store) holds it (Bug #77245). The other factories record no owner,
+    * so every other transition clears it.
+    */
+   public static TriggerWrapper newOwnedTriggerWrapper(OperableTrigger trigger,
+                                                       TriggerState state, String ownerNode,
+                                                       String ownerMember, String ownerStore)
+   {
+      return new TriggerWrapper(trigger, state, ownerNode, ownerMember, ownerStore);
    }
 
    @Override
@@ -111,6 +146,22 @@ public class TriggerWrapper implements Serializable {
       return acquiredAt;
    }
 
+   public String getOwnerNode() {
+      return ownerNode;
+   }
+
+   public String getOwnerMember() {
+      return ownerMember;
+   }
+
+   public String getOwnerStore() {
+      return ownerStore;
+   }
+
+   public Long getOwnedSince() {
+      return ownedSince;
+   }
+
    @Override
    public String toString() {
       return "TriggerWrapper{"
@@ -119,6 +170,10 @@ public class TriggerWrapper implements Serializable {
          + ", nextFireTime=" + getNextFireTime()
          + ", endTime=" + getEndTime()
          + ", acquiredAt=" + getAcquiredAt()
+         + ", ownerNode=" + ownerNode
+         + ", ownerMember=" + ownerMember
+         + ", ownerStore=" + ownerStore
+         + ", ownedSince=" + ownedSince
          + '}';
    }
 }
