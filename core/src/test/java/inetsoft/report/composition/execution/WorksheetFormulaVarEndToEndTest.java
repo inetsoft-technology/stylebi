@@ -17,6 +17,10 @@
  */
 package inetsoft.report.composition.execution;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.mv.MVManager;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.graph.VSDataSet;
@@ -34,6 +38,7 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.script.ScriptEnv;
+import inetsoft.util.script.ScriptStateLint;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import inetsoft.util.script.graal.pool.WorksheetScriptEnv;
 import org.junit.jupiter.api.*;
@@ -41,6 +46,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -358,6 +364,61 @@ class WorksheetFormulaVarEndToEndTest {
                fail(f + ": row " + r + " is " + v[r] + ", expected " + expected.applyAsDouble(r));
             }
          }
+      }
+   }
+
+   /**
+    * The script-state lint as a worksheet runs it (the sandbox's scope and script env): a var
+    * accumulator its table owns is not reported in either pool mode, an owned var that holds
+    * an array is reported once with the pool on only (kept only within one batch there), and
+    * an undeclared global accumulator is still reported in both modes.
+    */
+   @Test
+   void theStateLintWarnsOnlyAboutStateTheTableDoesNotKeep() throws Exception {
+      Logger logger = (Logger) LoggerFactory.getLogger(ScriptStateLint.LOGGER_NAME);
+      Level level = logger.getLevel();
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      logger.setLevel(Level.WARN);
+      logger.addAppender(appender);
+      // a distinct text per run: the lint checks a text once per node
+      String tag = " /*" + UUID.randomUUID() + "*/";
+
+      try {
+         String acc = "var acc=(acc||0)+field['value'];acc" + tag;
+         String list = "var a = a || []; a.push(field['id']); a.length" + tag;
+
+         for(boolean pool : new boolean[] { false, true }) {
+            assertCounts(pages(box(ws("A", acc), pool).getTableLens("A", RUNTIME), "out"),
+                         "pool " + pool);
+            assertEquals(0, appender.list.size(), () -> "pool " + pool + ": " + appender.list);
+         }
+
+         assertCounts(pages(box(ws("A", list), false).getTableLens("A", RUNTIME), "out"), list);
+         assertEquals(0, appender.list.size(), () -> "pool off: " + appender.list);
+
+         for(int k = 0; k < 2; k++) {
+            pages(box(ws("A", list), true).getTableLens("A", RUNTIME), "out");
+         }
+
+         assertEquals(1, appender.list.size(), () -> "pool on: " + appender.list);
+         String msg = appender.list.get(0).getFormattedMessage();
+         assertTrue(msg.contains("reads variable \"a\"") &&
+                    msg.contains("assigns it an object") && msg.contains("within one batch"),
+                    msg);
+
+         for(boolean pool : new boolean[] { false, true }) {
+            appender.list.clear();
+            String global = "runSum = (typeof runSum == 'undefined' ? 0 : runSum) + " +
+               "field['value']; runSum /*" + pool + tag.substring(3);
+            pages(box(ws("A", global), pool).getTableLens("A", RUNTIME), "out");
+            assertEquals(1, appender.list.size(), () -> "pool " + pool + ": " + appender.list);
+            assertTrue(appender.list.get(0).getFormattedMessage().contains("rule R2"));
+         }
+      }
+      finally {
+         logger.detachAppender(appender);
+         logger.setLevel(level);
       }
    }
 
