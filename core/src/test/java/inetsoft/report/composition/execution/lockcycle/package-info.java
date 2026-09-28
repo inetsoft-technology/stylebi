@@ -45,7 +45,8 @@
  * <li>{@code SubQueryConditionCycleTest}: #76965 (fixed by #77158), sub-query condition tables
  * under the filter's monitor.</li>
  * <li>{@code SubQueryConditionWorksheetCycleTest}: #77158, the #76965 cycle on worksheets the
- * product builds (a sub table with a script expression column), and a condition filter over one.</li>
+ * product builds (a sub table with a script expression column), and a condition filter over one;
+ * a script thread of another engine populating a lock-first filter over a running async worker.</li>
  * <li>{@code GuestReaderCycleTest}: true guest (in-{@code exec}) holders: #76918 shapes, unions,
  * guest variants of #76960 A/B and #76964, and a reader racing {@code invalidate()}.</li>
  * </ul>

@@ -35,7 +35,6 @@ import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -310,11 +309,10 @@ public class SubQueryConditionWorksheetCycleTest {
     * The same shape without a sub-query: the condition filter of a mirror M of a distinct
     * table D with a script expression column has D's {@code DistinctTableLens} in its base
     * chain, so it takes the worksheet engine lock first on main too, and a script thread of
-    * another engine reading M waits for D's worker holding that lock.
+    * another engine reading M waits for D's worker holding that lock. Deadlocked on main
+    * before #77158, which lends that lock to the worker from a script thread of another engine.
     */
    @Test
-   @Tag("known-deadlock")
-   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
    public void foreignEngineScriptThreadPopulatesFilterOverDistinct() throws Exception {
       worker = new WorkerGate(PARK_ROW);
       Worksheet ws = new Worksheet();
