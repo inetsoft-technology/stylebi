@@ -60,6 +60,11 @@ public final class ConditionVocabulary {
    /** Operators that take exactly two. */
    private static final Set<String> PAIRED = Set.of("between");
 
+   /** Operations that take exactly one value (Condition.evaluate reads only the first). */
+   private static final Set<Integer> SINGLE_VALUED = Set.of(
+      XCondition.EQUAL_TO, XCondition.LESS_THAN, XCondition.GREATER_THAN,
+      XCondition.STARTING_WITH, XCondition.CONTAINS, XCondition.LIKE, XCondition.DATE_IN);
+
    private ConditionVocabulary() {
    }
 
@@ -197,12 +202,12 @@ public final class ConditionVocabulary {
       }
 
       String operator = requireOperator(clause.operator(), index);
+      int operation = OPERATORS.get(operator);
       List<Object> values = clause.values() == null ? List.of() : clause.values();
-      requireValueArity(operator, values, index);
+      requireValueArity(operator, operation, values, index);
 
       ConditionModel condition = new ConditionModel();
       condition.setField(field);
-      int operation = OPERATORS.get(operator);
       condition.setOperation(operation);
       condition.setNegated(clause.negated());
       condition.setEqual(clause.equal());
@@ -215,9 +220,41 @@ public final class ConditionVocabulary {
       else {
          condition.setValues(values.stream().map(raw -> value(raw, index, fields, field))
                                 .toArray(ConditionValueModel[]::new));
+         requireSessionDataOperator(condition.getValues(), operator, operation, index);
       }
 
       return condition;
+   }
+
+   /**
+    * _ROLES_/_GROUPS_ expand to a list of names, which only ONE_OF matches against every entry --
+    * under EQUAL_TO the condition silently compares a single one. _USER_ is a single name. This
+    * mirrors the pairing the Composer's condition dialog offers (vs-condition-item-pane-provider).
+    */
+   private static void requireSessionDataOperator(ConditionValueModel[] values, String operator,
+                                                  int operation, int index)
+   {
+      for(ConditionValueModel value : values) {
+         if(!ConditionValueModel.SESSION_DATA.equals(value.getType())) {
+            continue;
+         }
+
+         String name = variableName(value.getValue());
+         boolean multi = "_ROLES_".equals(name) || "_GROUPS_".equals(name);
+
+         if(multi && operation != XCondition.ONE_OF) {
+            throw new IllegalArgumentException(
+               "Condition " + index + " compares against session_data '" + name + "' with '" +
+               operator + "', but " + name + " is a list of names and only one_of matches " +
+               "against all of them. Use operator one_of.");
+         }
+
+         if(!multi && operation != XCondition.EQUAL_TO && operation != XCondition.ONE_OF) {
+            throw new IllegalArgumentException(
+               "Condition " + index + " compares against session_data '" + name + "' with '" +
+               operator + "'; session_data values support only equals (or one_of).");
+         }
+      }
    }
 
    /**
@@ -243,6 +280,17 @@ public final class ConditionVocabulary {
       // null-valued condition that matches zero rows.
       if(raw instanceof String str && !str.isBlank()) {
          String dataType = targetField.getDataType();
+
+         // Tool.getData never returns null for a boolean -- anything but true/false (e.g. "yes")
+         // quietly becomes Boolean.FALSE -- so the null check below can't catch it. The
+         // Composer's boolean value editor only produces true/false.
+         if(XSchema.BOOLEAN.equals(dataType) &&
+            !"true".equalsIgnoreCase(str.trim()) && !"false".equalsIgnoreCase(str.trim()))
+         {
+            throw new IllegalArgumentException(
+               "Condition " + index + "'s value '" + str + "' is not a boolean for field '" +
+               targetField.getName() + "'. Use true or false.");
+         }
 
          if(!XSchema.STRING.equals(dataType) && Tool.getData(dataType, str) == null) {
             throw new IllegalArgumentException(
@@ -306,6 +354,17 @@ public final class ConditionVocabulary {
             Object languageRaw = map.get("language");
             String language = languageRaw == null ? "js" :
                String.valueOf(languageRaw).trim().toLowerCase();
+
+            // Anything other than "sql" used to be stored as JS, so a typo silently changed the
+            // expression's language.
+            if(!"js".equals(language) && !"javascript".equals(language) &&
+               !"sql".equals(language))
+            {
+               throw new IllegalArgumentException(
+                  "Condition " + index + "'s expression value has language '" + languageRaw +
+                  "'; language must be js or sql.");
+            }
+
             ExpressionValueModel exprModel = new ExpressionValueModel();
             exprModel.setExpression(expression);
             exprModel.setType("sql".equals(language) ?
@@ -420,7 +479,9 @@ public final class ConditionVocabulary {
     * {@code one_of} with none, is accepted by the model and then evaluates as something the
     * caller did not ask for.
     */
-   private static void requireValueArity(String operator, List<Object> values, int index) {
+   private static void requireValueArity(String operator, int operation, List<Object> values,
+                                         int index)
+   {
       if(VALUELESS.contains(operator)) {
          if(!values.isEmpty()) {
             throw new IllegalArgumentException(
@@ -439,6 +500,15 @@ public final class ConditionVocabulary {
          throw new IllegalArgumentException(
             "Condition " + index + " uses 'between', which needs exactly two values, got " +
             values.size() + ".");
+      }
+
+      // Condition.evaluate reads only the first value for these, so extra values would be
+      // silently ignored.
+      if(SINGLE_VALUED.contains(operation) && values.size() != 1) {
+         throw new IllegalArgumentException(
+            "Condition " + index + " uses '" + operator + "', which takes exactly one value, " +
+            "got " + values.size() + "." + (operation == XCondition.EQUAL_TO ?
+            " To match any of several values, use operator one_of." : ""));
       }
    }
 
