@@ -2498,9 +2498,31 @@ public final class WorksheetMutationSupport {
     * @param expressionType {@code "sql"} or {@code "js"}/{@code "javascript"} (case-insensitive);
     *                       defaults to {@code "sql"} when {@code null}, matching
     *                       {@link ExpressionValue}'s own SQL/JavaScript duality
+    * @param index          0-based position within the condition's own {@code values()} list this
+    *                       valueSpec REPLACES, mirroring {@code WorksheetModel.ValueSpecModel}'s
+    *                       own {@code index} field so a {@code read_worksheet_model}/
+    *                       {@code get_condition} readback round-trips straight back into a new
+    *                       {@code set_conditions}/{@code set_post_conditions}/
+    *                       {@code set_mv_conditions} call without having to first strip the
+    *                       readback's own lossy {@code values[index]} placeholder text (Bug
+    *                       #77003 WSC-002/003) -- see {@link #buildConditionList}'s replace-not-
+    *                       append handling. {@code null} (the pre-#77003 default, via the compact
+    *                       constructor below) keeps the original append-only behavior for a
+    *                       caller not resubmitting a readback.
     */
    public record ConditionValueSpec(String valueType, String field, String expression,
-                                    String expressionType) {}
+                                    String expressionType, Integer index) {
+      /**
+       * Compact form for a caller that isn't resubmitting a {@code values[index]}-indexed
+       * readback -- every pre-#77003 call site (this valueSpec is simply appended, matching the
+       * behavior before {@code index} existed).
+       */
+      public ConditionValueSpec(String valueType, String field, String expression,
+                                String expressionType)
+      {
+         this(valueType, field, expression, expressionType, null);
+      }
+   }
 
    /**
     * Converts one {@link ConditionValueSpec} into the object the engine stores, mirroring
@@ -2691,6 +2713,8 @@ public final class WorksheetMutationSupport {
                   c.setNegated(true);
                }
 
+               List<Object> resolvedValues = new ArrayList<>();
+
                if(spec.values() != null) {
                   for(String v : spec.values()) {
                      // Shared with addFilter rather than parsed a second time here. The local copy
@@ -2708,14 +2732,78 @@ public final class WorksheetMutationSupport {
                         uv.setChoiceQuery(spec.choiceQuery());
                      }
 
-                     c.addValue(value);
+                     resolvedValues.add(value);
                   }
                }
 
+               // Bug #77003 (WSC-002/003): valueSpecs is index-based REPLACE, not append. A
+               // read_worksheet_model/get_condition readback's valueSpecs[i].index names the SAME
+               // position as values[i]'s own lossy display-text fallback (see
+               // WorksheetReadService#extractValueSpecs) -- resubmitting both verbatim must let the
+               // real field/expression value win at that position instead of appending a second,
+               // duplicate value alongside a now-orphaned literal (previously: A=B read back as
+               // values=["<T>.B"] + valueSpecs=[{index:0,field:"<T>.B"}], and resubmitting both
+               // produced A IN ("<T>.B" coerced to 0, B) instead of A=B). A null index (a pre-#77003
+               // caller, or a hand-built valueSpecs with no readback behind it) keeps the original
+               // append-only behavior for backward compatibility.
                if(spec.valueSpecs() != null) {
                   for(ConditionValueSpec vs : spec.valueSpecs()) {
-                     c.addValue(conditionValue(t, post, vs));
+                     Object value = conditionValue(t, post, vs);
+                     Integer index = vs.index();
+
+                     if(index == null) {
+                        resolvedValues.add(value);
+                     }
+                     else if(index < 0 || index > resolvedValues.size()) {
+                        throw new IllegalArgumentException(
+                           "valueSpecs[...] index " + index + " is out of range for a condition " +
+                           "with " + resolvedValues.size() + " values() entries -- index must be " +
+                           "0.." + resolvedValues.size() + " (0-based; a value at 0.." +
+                           (resolvedValues.size() - 1) + " REPLACES that position, and " +
+                           resolvedValues.size() + " appends a new one).");
+                     }
+                     else if(index == resolvedValues.size()) {
+                        resolvedValues.add(value);
+                     }
+                     else {
+                        resolvedValues.set(index, value);
+                     }
                   }
+               }
+
+               // Bug #77003 (WSC-003): a values() literal that was never replaced by an indexed
+               // valueSpec, but looks like the lossy display text of a field reference (matches a
+               // real column on this table -- including a Mirror's own source-table-qualified name,
+               // see AssetUtil#getOuterAttribute -- or on another table assembly in the same
+               // worksheet, and does not itself parse as this condition's own numeric type), is
+               // refused loud instead of silently surviving into AssetCondition.addValue. Left
+               // there, EVERY subsequent read of this value -- not just some later round trip --
+               // would silently coerce it to 0 (or the type's other zero value) with no error at
+               // all: Condition.getValue(int) (Condition.java:317-326) itself re-parses a stored
+               // String through AbstractCondition.getObject(getType(), val) on every single call,
+               // permanently, the very first time anything reads this condition back (confirmed
+               // independently while implementing this fix -- no XML round-trip needed at all, see
+               // 03-fix.md's "root-cause correction" note). The only false-positive shape is a
+               // genuine literal that happens to also be a real column's name -- a narrower, loud,
+               // point-named failure, strictly better than the silent data corruption it replaces.
+               for(int i = 0; i < resolvedValues.size(); i++) {
+                  Object value = resolvedValues.get(i);
+
+                  if(value instanceof String s && looksLikeUnresolvedFieldReference(t, post, dtype, s))
+                  {
+                     throw new IllegalArgumentException(
+                        "Condition value \"" + s + "\" at values[" + i + "] looks like the " +
+                        "display text of a field reference (it matches a real column's name on " +
+                        "this worksheet), not a literal " + dtype + " value -- if this is meant " +
+                        "to compare against that column, provide it via valueSpecs (e.g. {index: " +
+                        i + ", valueType: \"field\", field: \"" + s + "\"}) instead of leaving it " +
+                        "in values[], which would otherwise be silently coerced to a default value " +
+                        "(e.g. 0) rather than compared against the column.");
+                  }
+               }
+
+               for(Object value : resolvedValues) {
+                  c.addValue(value);
                }
 
                cl.append(new ConditionItem(ref, c, node.level()));
@@ -3277,6 +3365,75 @@ public final class WorksheetMutationSupport {
       }
 
       return null;
+   }
+
+   /**
+    * Bug #77003 (WSC-003) loud-fail heuristic: is {@code value} the lossy display text {@code
+    * WorksheetReadService#extractValues} leaves behind for a field-reference valueSpec that a
+    * caller forgot to (re-)supply via {@code valueSpecs}?
+    *
+    * <p>Only ever considered for a numeric {@code dtype} -- the same set of types whose {@link
+    * inetsoft.uql.AbstractCondition#getObject} falls back to a zero value on a parse failure
+    * (Bug #77003's actual observed symptom). A value that already parses as a number under
+    * {@code dtype} is never flagged, so an ordinary numeric literal never false-positives here.
+    * DATE/TIME/TIME_INSTANT are deliberately out of scope for this check: {@code getObject}'s
+    * parse-failure behavior for those types was not independently verified for this fix, and
+    * mis-detecting a date literal as a field reference would be a worse regression than leaving
+    * that narrower case unguarded (see 03-fix.md for this scoping decision).
+    *
+    * <p>Tries {@code t}'s own column selection first -- this alone already covers a Mirror table,
+    * since {@link AssetUtil#getOuterAttribute} re-qualifies a mirrored column's name with its
+    * source table (e.g. a mirror of table {@code T}'s column {@code B} is named {@code "T.B"} on
+    * the mirror's own column selection, so {@code resolveFieldOrNull(t, "T.B", post)} matches
+    * directly). Falls back to scanning the rest of the worksheet by table name (split on the last
+    * {@code '.'}) for a deeper or differently-named case {@code t}'s own selection doesn't cover.
+    *
+    * @return {@code true} if {@code value} is not itself parseable as {@code dtype} but names a
+    *         real column somewhere in {@code t}'s worksheet
+    */
+   private static boolean looksLikeUnresolvedFieldReference(TableAssembly t, boolean post,
+                                                             String dtype, String value)
+   {
+      if(value == null || value.isBlank() || !isNumericConditionType(dtype) ||
+         parsesAsNumericLiteral(value))
+      {
+         return false;
+      }
+
+      if(resolveFieldOrNull(t, value, post) != null) {
+         return true;
+      }
+
+      int dot = value.lastIndexOf('.');
+
+      if(dot > 0 && dot < value.length() - 1 && t.getWorksheet() != null) {
+         String tableName = value.substring(0, dot);
+         String columnName = value.substring(dot + 1);
+
+         if(t.getWorksheet().getAssembly(tableName) instanceof TableAssembly other &&
+            resolveFieldOrNull(other, columnName, false) != null)
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isNumericConditionType(String dtype) {
+      return XSchema.INTEGER.equals(dtype) || XSchema.LONG.equals(dtype) ||
+         XSchema.SHORT.equals(dtype) || XSchema.BYTE.equals(dtype) ||
+         XSchema.FLOAT.equals(dtype) || XSchema.DOUBLE.equals(dtype);
+   }
+
+   private static boolean parsesAsNumericLiteral(String value) {
+      try {
+         Double.parseDouble(value);
+         return true;
+      }
+      catch(NumberFormatException ex) {
+         return false;
+      }
    }
 
    /**
