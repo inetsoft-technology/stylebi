@@ -39,6 +39,9 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
@@ -72,6 +75,7 @@ import org.springframework.web.servlet.ModelAndView;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
+import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -93,7 +97,10 @@ class CrossOrgSheetMetadataLeakTest {
    private static final String BOT_AGENT = "Slackbot-LinkExpanding 1.0";
 
    private static SecurityTestDataBuilder builder;
+   private static final String NO_READ_USER = "orgANoRead77261";
+
    private static SRPrincipal orgAUser;
+   private static SRPrincipal orgANoReadUser;
 
    @Autowired
    private BlobStorageManager blobStorageManager;
@@ -108,8 +115,10 @@ class CrossOrgSheetMetadataLeakTest {
          .addOrg("orga", ORG_A)
          .addOrg("orgb", ORG_B)
          .addUser("orgAUser77261", ORG_A, "password")
+         .addUser(NO_READ_USER, ORG_A, "password")
          .setup();
       orgAUser = builder.principalOf("orgAUser77261", ORG_A);
+      orgANoReadUser = builder.principalOf(NO_READ_USER, ORG_A);
    }
 
    @AfterAll
@@ -206,6 +215,29 @@ class CrossOrgSheetMetadataLeakTest {
       assertTrue(own.scaleToScreen);
    }
 
+   // Same org, READ denied by the ACL: all three sites must refuse, not only on an org mismatch.
+   // A fix that only compares orgs (still permission=false) fails this test.
+   @Test
+   void sameOrgWithoutRead_allSitesRefuse() throws Exception {
+      MVController mv = new MVController(mock(MVService.class),
+         mock(MVSupportService.class), mock(SecurityProvider.class), mock(SecurityEngine.class));
+      assertTrue(mv.mvAssetExists(ORG_A_VS, orgAUser), "control: READ user sees the asset");
+      assertFalse(mv.mvAssetExists(ORG_A_VS, orgANoReadUser),
+                  "a same-org user without READ must not learn the asset exists");
+
+      ThreadContext.setContextPrincipal(orgANoReadUser);
+      ModelAndView model = openGraph(ORG_A_VS);
+      assertEquals(defaultProperty("share.opengraph.title"), model.getModel().get("openGraphTitle"));
+      assertEquals(defaultProperty("share.opengraph.description"),
+                   model.getModel().get("openGraphDescription"));
+
+      ViewsheetService viewsheetService = mock(ViewsheetService.class);
+      when(viewsheetService.getAssetRepository()).thenReturn(engine);
+      DashboardService service = new DashboardService(viewsheetService);
+      assertNotNull(service.getDashboardModelInfo(ORG_A_VS, orgAUser), "control");
+      assertNull(service.getDashboardModelInfo(ORG_A_VS, orgANoReadUser));
+   }
+
    private ModelAndView openGraph(String identifier) {
       DataSpace dataSpace = mock(DataSpace.class);
       SecurityEngine securityEngine = mock(SecurityEngine.class, RETURNS_DEEP_STUBS);
@@ -234,6 +266,16 @@ class CrossOrgSheetMetadataLeakTest {
       StubAssetEngine(IndexedStorage storage) {
          super((LibManagerProvider) null, (Cluster) null);
          istore = storage;
+      }
+
+      // ACL: grant everything except to NO_READ_USER, so READ denial goes through the real
+      // checkAssetPermission0 path with the org held constant.
+      @Override
+      public boolean checkPermission(Principal principal, ResourceType type, String resource,
+                                     EnumSet<ResourceAction> action)
+      {
+         return principal == null || !NO_READ_USER.equals(IdentityID.getIdentityIDFromKey(
+            principal.getName()).getName());
       }
 
       @Override
