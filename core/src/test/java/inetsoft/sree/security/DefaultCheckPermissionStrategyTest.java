@@ -1029,7 +1029,10 @@ class DefaultCheckPermissionStrategyTest {
          Arguments.of(ResourceType.SECURITY_USER, OWN_USER, true),
          Arguments.of(ResourceType.SECURITY_GROUP, OWN_GROUP, true),
          Arguments.of(ResourceType.SECURITY_ROLE, OWN_ROLE, true),
-         Arguments.of(ResourceType.SECURITY_ORGANIZATION, TEST_ORG, true)
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION, TEST_ORG, true),
+         // the own org as a key, the form EM getOrganization passes (Bug #77216)
+         Arguments.of(ResourceType.SECURITY_ORGANIZATION,
+                      new IdentityID(TEST_ORG, TEST_ORG).convertToKey(), true)
       );
    }
 
