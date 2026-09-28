@@ -37,11 +37,11 @@ import static org.mockito.Mockito.*;
 class FavoritesServiceTest {
    @SuppressWarnings("unchecked")
    private final KeyValueStorage<FavoriteList> storage = mock(KeyValueStorage.class);
+   private final KeyValueStorageManager manager = mock(KeyValueStorageManager.class);
    private FavoritesService service;
 
    @BeforeEach
    void setUp() {
-      KeyValueStorageManager manager = mock(KeyValueStorageManager.class);
       doReturn(storage).when(manager).getStorage("emFavorites");
       lenient().when(storage.put(anyString(), any())).thenReturn(completed(null));
       lenient().when(storage.remove(anyString())).thenReturn(completed(null));
@@ -210,6 +210,71 @@ class FavoritesServiceTest {
       doReturn(failing()).when(storage).removeAll(anySet());
 
       assertDoesNotThrow(() -> service.removeFavorites("org1"));
+   }
+
+   // Bug #77244: the emFavorites store can be evicted and closed by KeyValueStorageManager
+   @Test
+   void closedStorage_isReFetchedFromManager() {
+      KeyValueStorage<FavoriteList> fresh = freshStorage();
+      FavoriteList stored = listOf(favorite("Users", "/settings/security/users"));
+      when(fresh.get("alice~;~org1")).thenReturn(stored);
+      when(storage.isClosed()).thenReturn(true);
+
+      assertSame(stored, service.getFavorites("alice~;~org1"));
+      verify(manager, times(2)).getStorage("emFavorites");
+      verify(storage, never()).get(anyString());
+   }
+
+   @Test
+   void closedStorage_removeFavoritesOrg_usesFreshStorage() {
+      KeyValueStorage<FavoriteList> fresh = freshStorage();
+      IdentityID alice = new IdentityID("alice", "org1");
+      IdentityID carol = new IdentityID("carol", "org2");
+      when(fresh.keys()).thenReturn(Stream.of(alice.convertToKey(), carol.convertToKey()));
+      when(storage.isClosed()).thenReturn(true);
+
+      service.removeFavorites("org1");
+
+      verify(fresh).removeAll(Set.of(alice.convertToKey()));
+      verify(storage, never()).keys();
+      verify(storage, never()).removeAll(anySet());
+   }
+
+   @Test
+   void removeFavoritesOrg_storageClosedAfterCheck_reCollectsKeysFromFreshStorage() {
+      KeyValueStorage<FavoriteList> fresh = freshStorage();
+      IdentityID alice = new IdentityID("alice", "org1");
+      IdentityID bob = new IdentityID("bob", "org1");
+      // open when getStorage() checks it, then evicted+closed before keys() runs, so keys()
+      // silently returns nothing
+      when(storage.isClosed()).thenReturn(false, true);
+      when(storage.keys()).thenReturn(Stream.empty());
+      when(fresh.keys()).thenReturn(Stream.of(alice.convertToKey(), bob.convertToKey()));
+
+      service.removeFavorites("org1");
+
+      verify(fresh).removeAll(Set.of(alice.convertToKey(), bob.convertToKey()));
+      verify(storage, never()).removeAll(anySet());
+   }
+
+   @Test
+   void removeFavoritesOrg_storageOpen_doesNotReFetch() {
+      IdentityID alice = new IdentityID("alice", "org1");
+      when(storage.keys()).thenReturn(Stream.of(alice.convertToKey()));
+
+      service.removeFavorites("org1");
+
+      verify(storage).removeAll(Set.of(alice.convertToKey()));
+      verify(manager, times(1)).getStorage("emFavorites");
+   }
+
+   @SuppressWarnings("unchecked")
+   private KeyValueStorage<FavoriteList> freshStorage() {
+      KeyValueStorage<FavoriteList> fresh = mock(KeyValueStorage.class);
+      lenient().doReturn(completed(null)).when(fresh).removeAll(anySet());
+      // the first call is initStorage() in setUp(), every later call returns the fresh store
+      doReturn(fresh).when(manager).getStorage("emFavorites");
+      return fresh;
    }
 
    private static CompletableFuture<FavoriteList> completed(FavoriteList value) {
