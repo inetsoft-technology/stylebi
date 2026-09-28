@@ -49,6 +49,8 @@
  * a script thread of another engine populating a lock-first filter over a running async worker;
  * and, known-deadlock and not fixed by #77158, a worksheet formula that is the first to populate
  * such a filter while the sub table's worker is running.</li>
+ * <li>{@code HolderBuiltJoinCycleTest}: #77215, Hash/MergeJoin built by a guest, and a worker
+ * probing a computed formula lens while the engine lock is held.</li>
  * <li>{@code GuestReaderCycleTest}: true guest (in-{@code exec}) holders: #76918 shapes, unions,
  * guest variants of #76960 A/B and #76964, and a reader racing {@code invalidate()}.</li>
  * </ul>

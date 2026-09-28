@@ -335,6 +335,9 @@ public class FormulaTableLens extends AbstractTableLens
       // the last row processed in this pass, see lockForRow()
       final int lastRow = Math.max(r, getProcessedRowCount() + hrows + advance);
       Lock execLock = lockForRow(r, lastRow);
+      // no row remains to compute, and none is computed without the engine lock
+      boolean computed = execLock == COMPUTED;
+      execLock = computed ? null : execLock;
       ScriptSpan span = ScriptSpan.NONE;
       // set when this batch ends in a lock stall: the rows past the stall are not computed,
       // so the row table is not complete even if the base has no more rows (bug #77123)
@@ -348,6 +351,10 @@ public class FormulaTableLens extends AbstractTableLens
 
          if(r < nrows) {
             return true;
+         }
+
+         if(computed) {
+            return more;
          }
 
 
@@ -539,11 +546,18 @@ public class FormulaTableLens extends AbstractTableLens
     * loaded before the engine lock is acquired, so the base (e.g. an async lens whose
     * worker needs the engine) is not waited for while holding it (bug #76935).
     *
+    * <p>If no row remains to compute, i.e. row {@code r} is computed or the base has no row
+    * past the computed rows, only this lens's lock is acquired. Such a read, e.g. the
+    * end-of-table probe that ends every scan, must not wait for the engine lock: a join
+    * worker probing a computed lens would wait for a thread that holds the engine lock and
+    * waits for the joined rows (bug #77215).
+    *
     * @param r the row to compute.
     * @param lastRow the last row computed in this pass.
     *
     * @return the acquired engine lock, which must be released after this lens's lock,
-    *         or {@code null} if none was acquired.
+    *         {@link #COMPUTED} if no row remains to compute, or {@code null} if no engine
+    *         lock was acquired.
     */
    private Lock lockForRow(int r, int lastRow) {
       ScriptEnv env = getScriptEnv();
@@ -558,7 +572,13 @@ public class FormulaTableLens extends AbstractTableLens
       Lock execLock = null;
 
       while(true) {
-         if(execLock == null && r >= getProcessedRowCount()) {
+         // the base is read before this lens's lock is acquired, see above. the formulas are
+         // compiled under the engine lock even for an empty base, which reports their errors
+         int nrows = getProcessedRowCount();
+         boolean computed = tableRow != null &&
+            (r < nrows + hrows || !table.moreRows(nrows + hrows));
+
+         if(execLock == null && !computed) {
             table.moreRows(lastRow);
             execLock = getScriptExecutionLock();
 
@@ -581,12 +601,20 @@ public class FormulaTableLens extends AbstractTableLens
             throw ex;
          }
 
-         // rows may have been reset by invalidate() after the check above, don't
-         // compute them without the engine lock
-         if(execLock != null || r < getProcessedRowCount() ||
-            getScriptExecutionLock() == null)
-         {
+         if(execLock != null) {
             return execLock;
+         }
+
+         // rows may have been computed, or reset by invalidate(), after the check above,
+         // don't compute them without the engine lock. the base was read at nrows above
+         int nrows2 = getProcessedRowCount();
+
+         if(computed && tableRow != null && (r < nrows2 + hrows || nrows2 == nrows)) {
+            return COMPUTED;
+         }
+
+         if(!computed && (r < nrows2 || getScriptExecutionLock() == null)) {
+            return null;
          }
 
          lock.unlock();
@@ -1685,6 +1713,8 @@ public class FormulaTableLens extends AbstractTableLens
    }
 
    private static final Thread[] NO_THREADS = new Thread[0];
+   // returned by lockForRow() if no row remains to compute, never locked
+   private static final Lock COMPUTED = new ReentrantLock();
 
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
