@@ -50,6 +50,7 @@ import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
+import inetsoft.util.stall.LockStallException;
 import inetsoft.web.viewsheet.service.SharedFilterService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -5744,6 +5745,15 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                // error should be shown to user
                throw ex;
             }
+         }
+         catch(Exception ex) {
+            // a query that failed with a lock stall must not leave a cached NULL, the next
+            // read would take it for no data instead of running the query again (#77123)
+            if(LockStallException.find(ex) != null) {
+               cache = false;
+            }
+
+            throw ex;
          }
          finally {
             // a query run without a sandbox lock it asked for (script thread, see lockRead(),
