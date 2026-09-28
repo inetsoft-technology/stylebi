@@ -245,6 +245,37 @@ class MVAnalysisOwnershipTest {
       assertEquals(1, controller.setCycle(ID, owner).exceptions().size());
    }
 
+   @Test
+   void controllerModelPlanAndSetCycleEndpointsRefuseForeignCaller() {
+      MVDef def = mock(MVDef.class);
+      when(def.getName()).thenReturn("mv1");
+      MVSupportService.MVStatus mvStatus = mock(MVSupportService.MVStatus.class);
+      when(mvStatus.getDefinition()).thenReturn(def);
+      backing.put(ID, stampedStatus(ORG_B, owner.getName(), List.of(mvStatus)));
+      MVService mvService = mock(MVService.class);
+      MVController controller = new MVController(
+         mvService, service, mock(inetsoft.sree.security.SecurityProvider.class),
+         mock(SecurityEngine.class));
+      CreateUpdateMVRequest request = mock(CreateUpdateMVRequest.class);
+      when(request.mvNames()).thenReturn(List.of("mv1"));
+      when(request.cycle()).thenReturn("cycle1");
+
+      assertThrows(IllegalStateException.class,
+                   () -> controller.getModel(false, false, ID, foreignOrgAdmin));
+      assertThrows(IllegalStateException.class,
+                   () -> controller.showPlan(ID, request, foreignOrgAdmin));
+      assertThrows(IllegalStateException.class,
+                   () -> controller.setCycle(ID, request, foreignOrgAdmin));
+      verify(mvManager, never()).add(any(MVDef.class), anyBoolean());
+      verifyNoInteractions(mvService);
+
+      // positive control: the owner's set-cycle writes and keeps the owner's access
+      controller.setCycle(ID, request, owner);
+      verify(mvManager).add(def, false);
+      assertEquals(owner.getName(), backing.get(ID).getOwner());
+      assertEquals(1, service.getMVStatusList(ID, owner).size());
+   }
+
    private static MVSupportService.AnalysisStatus stampedStatus(
       String orgId, String ownerName, List<MVSupportService.MVStatus> results)
    {
