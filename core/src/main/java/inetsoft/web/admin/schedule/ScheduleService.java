@@ -1285,8 +1285,9 @@ public class ScheduleService {
                   int oldFormat = pModel.oldFormat();
                   ServerPathInfo oldInfo = clone.get(oldFormat);
 
+                  // only keep the stored password for the server it was saved for
                   if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
-                     && !clone.isEmpty())
+                     && !clone.isEmpty() && isSameServer(pModel.path(), oldInfo))
                   {
                      password = oldInfo.getPassword();
                   }
@@ -1473,7 +1474,8 @@ public class ScheduleService {
 
          if(oldServerPath != null && newServerPathInfo != null &&
             Tool.equals(newServerPathInfo.getUsername(), oldServerPath.getUsername()) &&
-            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
+            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()) &&
+            isSameServer(newServerPathInfo.getPath(), oldServerPath))
          {
             newServerPathInfo.setPassword(oldServerPath.getPassword());
          }
@@ -2250,6 +2252,19 @@ public class ScheduleService {
       }
 
       return builder.build();
+   }
+
+   /**
+    * Determines if a path points to the same FTP or SFTP server as a stored path.
+    */
+   private static boolean isSameServer(String path, ServerPathInfo oldInfo) {
+      try {
+         return path != null && oldInfo.getPath() != null &&
+            FTPUtil.parseEndpoint(path).isSameServer(FTPUtil.parseEndpoint(oldInfo));
+      }
+      catch(Exception e) {
+         return false;
+      }
    }
 
    private NameLabelTuple createTaskTuple(ScheduleTask task) {

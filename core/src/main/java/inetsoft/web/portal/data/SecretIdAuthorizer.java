@@ -131,9 +131,11 @@ public class SecretIdAuthorizer {
    }
 
    /**
-    * Determines if a caller may reference secret ids that no data source uses yet.
+    * Determines if a caller may reference secret ids that no data source uses yet. This is the
+    * case when security is disabled, or the caller is a site administrator, or an organization
+    * administrator when multi-tenancy is off.
     */
-   private boolean canIntroduceSecretIds(Principal principal) {
+   public boolean canIntroduceSecretIds(Principal principal) {
       if(principal == null) {
          return false;
       }
