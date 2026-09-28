@@ -22,6 +22,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.filter.ConditionFilter;
 import inetsoft.report.lens.FormulaTableLens;
+import inetsoft.sree.SreeEnv;
 import inetsoft.test.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -30,6 +31,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.script.graal.pool.PoolConfig;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -92,6 +94,12 @@ public class SubQueryConditionWorksheetCycleTest {
    @BeforeEach
    public void setUp() {
       harness = new LockCycleHarness();
+
+      // the sandboxes of this class are real, so -Dlockcycle.pool reaches them through the
+      // property their env is chosen by
+      if(POOL) {
+         SreeEnv.setProperty(PoolConfig.ENABLED, "true");
+      }
    }
 
    @AfterEach
@@ -102,13 +110,22 @@ public class SubQueryConditionWorksheetCycleTest {
 
       harness.close();
 
-      if(box != null && lock != null && lock.tryLock()) {
+      // disposing takes the engine lock, which a deadlocked case leaves held forever; a
+      // pooled env has none
+      if(box != null && lock == null) {
+         box.dispose();
+      }
+      else if(box != null && lock.tryLock()) {
          try {
             box.dispose();
          }
          finally {
             lock.unlock();
          }
+      }
+
+      if(POOL) {
+         SreeEnv.remove(PoolConfig.ENABLED);
       }
    }
 
@@ -126,7 +143,7 @@ public class SubQueryConditionWorksheetCycleTest {
       EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
       expression(x, "alen", "A.length");
       subQueryCondition(ws, a, b, correlated);
-      box = new AssetQuerySandbox(ws);
+      box = sandbox(ws);
       lock = box.getScriptEnv().getExecutionLock();
 
       // A is built and populated on a thread holding no lock, as a viewsheet or data
@@ -176,7 +193,7 @@ public class SubQueryConditionWorksheetCycleTest {
       embedded(ws, "G", 1, (Hook) r -> gate.onRead());
       EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
       expression(x, "mlen", "G.length + M.length");
-      box = new AssetQuerySandbox(ws);
+      box = sandbox(ws);
       lock = box.getScriptEnv().getExecutionLock();
       TableLens mirror = harness.await(harness.submit(
          () -> box.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building M");
@@ -230,7 +247,7 @@ public class SubQueryConditionWorksheetCycleTest {
       ws.addAssembly(m);
       m.update();
       expression(m, "mx", "field['id'] * 2");
-      box = new AssetQuerySandbox(ws);
+      box = sandbox(ws);
       lock = box.getScriptEnv().getExecutionLock();
       TableLens mirror = harness.await(harness.submit(
          () -> box.getTableLens("M", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building M");
@@ -279,6 +296,15 @@ public class SubQueryConditionWorksheetCycleTest {
 
       sub.initSubTable(stable);
       return (TableLens) table;
+   }
+
+   /**
+    * A real sandbox of {@code ws}, on pooled script contexts with {@code -Dlockcycle.pool}.
+    */
+   private static AssetQuerySandbox sandbox(Worksheet ws) {
+      AssetQuerySandbox box = new AssetQuerySandbox(ws);
+      assertEquals(POOL, box.isScriptPoolMode());
+      return box;
    }
 
    /**
