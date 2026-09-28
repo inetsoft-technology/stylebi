@@ -709,10 +709,19 @@ public class UserTreeService {
       themeService.updateTheme(group.name, model.name(), group.orgID, CustomTheme::getGroups);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, groupOrgID);
-      IndexedStorage storage = indexedStorage;
-      DataCycleManager cycleManager = dataCycleManager;
-      storage.migrateStorageData(oldID.getName(), newID.getName());
-      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
+
+      if(!oldID.equals(newID)) {
+         IndexedStorage storage = indexedStorage;
+         DataCycleManager cycleManager = dataCycleManager;
+
+         // the migrations resolve the current org, which is not the group's org when a site
+         // admin edits a group of another org
+         OrganizationManager.runInOrgScope(groupOrgID, () -> {
+            storage.migrateStorageData(oldID.getName(), newID.getName());
+            cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
+            return null;
+         });
+      }
    }
 
    /**
@@ -1271,7 +1280,8 @@ public class UserTreeService {
       List<IdentityModel> permittedIdentities = getRenamedPermittedIdentities(
          model.permittedIdentities(), Identity.USER, oldID, newID);
       identityService.setIdentityPermissions(
-         oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities, "");
+         oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities,
+         model.organization());
       renameUserAsset(newID, oldID);
    }
 
@@ -1912,17 +1922,22 @@ public class UserTreeService {
       MVManager mvManager = this.mvManager;
       DataCycleManager cycleManager = this.dataCycleManager;
 
-      if(oldID != null && newID != null) {
-         // Move em favorites to the renamed user
-         favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
-      }
+      // the storage, MV and data cycle migrations resolve the current org, which is not the
+      // user's org when a site admin edits a user of another org
+      OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
+         if(oldID != null && newID != null) {
+            // Move em favorites to the renamed user
+            favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
+         }
 
-      storage.migrateStorageData(oldID.getName(), newID.getName());
-      mvManager.migrateUserAssetsMV(oldID, newID);
-      mvManager.updateMVUser(oldID, newID);
-      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
-      this.dependencyStorageService.migrateStorageData(oldID, newID);
-      recycleBin.renameUser(oldID, newID);
+         storage.migrateStorageData(oldID.getName(), newID.getName());
+         mvManager.migrateUserAssetsMV(oldID, newID);
+         mvManager.updateMVUser(oldID, newID);
+         cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
+         this.dependencyStorageService.migrateStorageData(oldID, newID);
+         recycleBin.renameUser(oldID, newID);
+         return null;
+      });
    }
 
    private SecurityProvider getSecurityProvider() {

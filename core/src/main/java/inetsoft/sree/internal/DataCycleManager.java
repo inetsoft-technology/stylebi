@@ -890,25 +890,48 @@ public class DataCycleManager
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       String suffix = isUser ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
 
+      boolean changed = false;
+
       for(String cycle : Collections.list(getDataCycles(orgId))) {
          CycleInfo cycleInfo = getCycleInfo(cycle, orgId);
 
-         updateEmailField(cycleInfo.endNotify, cycleInfo.endEmail, oldIdentity, newIdentity,
-                          suffix, cycleInfo::setEndEmail);
-         updateEmailField(cycleInfo.startNotify, cycleInfo.startEmail, oldIdentity, newIdentity,
-                          suffix, cycleInfo::setStartEmail);
-         updateEmailField(cycleInfo.exceedNotify, cycleInfo.exceedEmail, oldIdentity, newIdentity,
-                          suffix, cycleInfo::setExceedEmail);
-         updateEmailField(cycleInfo.failureNotify, cycleInfo.failureEmail, oldIdentity, newIdentity,
-                          suffix, cycleInfo::setFailureEmail);
+         if(cycleInfo == null) {
+            continue;
+         }
+
+         // non-short-circuit | so that every field is updated
+         boolean cycleChanged =
+            updateEmailField(cycleInfo.endNotify, cycleInfo.endEmail, oldIdentity, newIdentity,
+                             suffix, cycleInfo::setEndEmail) |
+            updateEmailField(cycleInfo.startNotify, cycleInfo.startEmail, oldIdentity, newIdentity,
+                             suffix, cycleInfo::setStartEmail) |
+            updateEmailField(cycleInfo.exceedNotify, cycleInfo.exceedEmail, oldIdentity,
+                             newIdentity, suffix, cycleInfo::setExceedEmail) |
+            updateEmailField(cycleInfo.failureNotify, cycleInfo.failureEmail, oldIdentity,
+                             newIdentity, suffix, cycleInfo::setFailureEmail);
+
+         // getCycleInfo() returns a copy read from storage, so write the change back
+         if(cycleChanged) {
+            setCycleInfo(cycle, orgId, cycleInfo);
+            changed = true;
+         }
       }
 
-      save();
+      if(changed) {
+         save();
+      }
    }
 
-   private void updateEmailField(boolean notify, String emailAddresses, String oldIdentity,
-                                 String newIdentity, String suffix, Consumer<String> setter)
+   /**
+    * Replaces the renamed identity in an email field.
+    *
+    * @return {@code true} if the field was changed.
+    */
+   private boolean updateEmailField(boolean notify, String emailAddresses, String oldIdentity,
+                                    String newIdentity, String suffix, Consumer<String> setter)
    {
+      boolean changed = false;
+
       if(notify && emailAddresses != null) {
          List<String> emailList = new ArrayList<>();
 
@@ -924,14 +947,20 @@ public class DataCycleManager
 
             if(emailName.equals(oldIdentity)) {
                emailList.add(newIdentity + suffix);
+               changed = true;
             }
             else {
                emailList.add(email);
             }
          }
 
-         setter.accept(String.join(",", emailList));
+         // an unmatched field keeps its original string (separators are not normalized to ",")
+         if(changed) {
+            setter.accept(String.join(",", emailList));
+         }
       }
+
+      return changed;
    }
 
    private void migrateCycleInfo(CycleInfo cycleInfo, Organization oorg, Organization norg) {

@@ -52,6 +52,9 @@ class UserTreeServiceEditGroupTest {
       orgManager = mock(OrganizationManager.class, withSettings().lenient());
       orgManagerStatic = mockStatic(OrganizationManager.class, withSettings().strictness(Strictness.LENIENT));
       orgManagerStatic.when(OrganizationManager::getInstance).thenReturn(orgManager);
+      // editGroup runs the rename migrations inside runInOrgScope
+      orgManagerStatic.when(() -> OrganizationManager.runInOrgScope(anyString(), any()))
+         .thenCallRealMethod();
       when(orgManager.getCurrentOrgID()).thenReturn(ORG_A);
       when(orgManager.isSiteAdmin(any(Principal.class))).thenReturn(true);
 
