@@ -654,6 +654,65 @@ class DashboardRegistryConcurrencyTest {
       assertNotNull(global.getDashboard("d2__GLOBAL"));
    }
 
+   @Test
+   void globalRename_userCopyEvictedBetweenScanAndRename_stillRenamed() throws Exception {
+      String org = currentOrg();
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(org, null));
+      global.save();
+      IdentityID user = new IdentityID("dashcc_evicted", org);
+      writeFile(userPath(org, user.name),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, org, "d1__GLOBAL"));
+      Thread renamer;
+
+      synchronized(dashboardManager) {
+         // the storage scan runs before D, the rename then waits for D
+         renamer = start("R_g.renameDashboard",
+                         () -> global.renameDashboard("d1__GLOBAL", "d2__GLOBAL"));
+         awaitBlockedBy(renamer, Thread.currentThread());
+         assertTrue(registryCache().containsKey(org + "__" + user.name),
+                    "precondition: the scan loaded the user copy");
+
+         // e.g. the user logs out between the scan and the rename
+         registryManager.clear(user);
+      }
+
+      assertCompletes(renamer);
+      assertEquals(List.of("d2__GLOBAL"), namesInFile(userPath(org, user.name)),
+                   "a copy evicted after the scan must still follow the rename");
+      registryManager.clear(user);
+      assertArrayEquals(new String[] { "d2__GLOBAL" },
+                        registryManager.getRegistry(user).getDashboardNames());
+   }
+
+   @Test
+   void globalRename_orgIdWithTheHostOrgAndSeparatorAsPrefix_untouched() throws Exception {
+      String host = currentOrg();
+      // the cache key of org B user bob, "<host>__b__bob", starts with "<host>__"
+      String orgB = host + "__b";
+      setupOrgs(orgB);
+      assertEquals(host, currentOrg(), "precondition: the caller is in the host org");
+
+      writeFile(userPath(orgB, "bob"),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, orgB, "d1__GLOBAL"));
+      writeFile(userPath(orgB, "carol"),
+                registryXml(FileVersions.DASHBOARD_REGISTRY, orgB, "d1__GLOBAL"));
+      DashboardRegistry bobRegistry = registryManager.getRegistry(new IdentityID("bob", orgB));
+      assertNotNull(bobRegistry.getDashboard("d1__GLOBAL"), "precondition: bob has the copy");
+
+      DashboardRegistry global = registryManager.getRegistry();
+      global.addDashboard("d1__GLOBAL", newVsDashboard(host, null));
+      global.save();
+      global.renameDashboard("d1__GLOBAL", "d2__GLOBAL");
+
+      assertArrayEquals(new String[] { "d1__GLOBAL" }, bobRegistry.getDashboardNames(),
+                        "the org filter must compare the org id, not a cache key prefix");
+      assertEquals(List.of("d1__GLOBAL"), namesInFile(userPath(orgB, "bob")));
+      assertEquals(List.of("d1__GLOBAL"), namesInFile(userPath(orgB, "carol")));
+      assertFalse(registryCache().containsKey(orgB + "__carol"),
+                  "an org B user registry must not be loaded by a host org rename");
+   }
+
    // ── fixture helpers ──
 
    private String currentOrg() {
