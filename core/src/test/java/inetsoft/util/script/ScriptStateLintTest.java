@@ -77,6 +77,18 @@ class ScriptStateLintTest {
          { "sum += field['x']\nsum", "R2:sum" },
          { "if(typeof seen == 'undefined') seen = {}; seen[field['k']] = 1; 1", "R2:seen" },
          { "seen ||= {}; seen", "R2:seen" },
+         // accumulators in a loop: the read is part of the first write (review r1 I1)
+         { "for(var i=0;i<3;i++){ total = (total||0) + i } total", "R2:total" },
+         { "var acc; for(var i=0;i<3;i++){ acc = (acc||0)+i } acc", "R1:acc" },
+         { "for(var i=0;i<3;i++) total += i; total", "R2:total" },
+         { "while(cond) { n++ }", "R2:n" },
+         { "for(var i=0;i<3;i++) { x = x + 1 } x", "R2:x" },
+         { "for(var i=0;i<3;i++) { x += 1 } x", "R2:x" },
+         { "var x; for(var i=0;i<3;i++) { x = x + 1 } x", "R1:x" },
+         { "var x; for(var i=0;i<3;i++) { x += 1 } x", "R1:x" },
+         { "var i = 0; do { n++; i++ } while(i < 3); n", "R2:n" },
+         { "for(var i=0;i<3;i++) { var t = (t || 0) + i } t", "R1:t" },
+         { "var s = ''; for(var k in field) { out = (out || '') + k } out", "R2:out" },
       }).map(c -> Arguments.of(c[0], c[1]));
    }
 
@@ -91,6 +103,9 @@ class ScriptStateLintTest {
          "var s = 0; for(var i = 0; i < 10; i++) { s += i; } s",
          "var arr = []; for(var i = 0; i < 3; i++) arr.push(i); arr.length",
          "var prev; for(var i = 0; i < 5; i++) { if(i > 0) use(prev); prev = i; }",
+         "for(var i = 0; i < 5; i++) { if(i > 0) use(prev); prev = i; }",
+         "var n = 0; while(n < 3) { n++ } n",
+         "var x = 0; for(var i = 0; i < 3; i++) { x = x + 1 } x",
          "var o = {total: 1, count: 2}; o.total + o.count",
          "field[-1]['RunningTotal'] + field['Sales']",
          "row == 0 ? field['Sales'] : field[-1]['Total'] + field['Sales']",
@@ -315,6 +330,56 @@ class ScriptStateLintTest {
       ScriptStateLint.checkColumn("var acc = acc.toUpperCase(); acc", new Object(), company, 1,
                                   "C4", "T", null);
       assertEquals(1, warnings().size());
+   }
+
+   /**
+    * Review r1 M1: a text whose findings were all host names on one table is checked again on
+    * a table where the name is not a column.
+    */
+   @Test
+   void textSuppressedByAColumnIsCheckedAgainElsewhere() {
+      String script = "var Sales = Sales * 2; Sales";
+      DefaultTableLens exact = new DefaultTableLens(new Object[][] { { "Sales" }, { 1 } });
+      ScriptStateLint.checkColumn(script, new Object(), exact, 1, "C", "T", null);
+      assertEquals(0, warnings().size());
+
+      DefaultTableLens other = new DefaultTableLens(new Object[][] { { "Amount" }, { 1 } });
+      ScriptStateLint.checkColumn(script, new Object(), other, 1, "C", "T2", null);
+      assertEquals(1, warnings().size());
+   }
+
+   /**
+    * Review r1 N3: a stack overflow inside the check never reaches the query.
+    */
+   @Test
+   void stackOverflowInsideCheckDoesNotPropagate() throws Exception {
+      StringBuilder buf = new StringBuilder("var acc = (acc || 0) + ");
+
+      for(int i = 0; i < 10000; i++) {
+         buf.append("`${");
+      }
+
+      for(int i = 0; i < 10000; i++) {
+         buf.append("}`");
+      }
+
+      String script = buf.toString();
+      assertTrue(script.length() <= ScriptStateLint.MAX_SCRIPT_LENGTH);
+      long errors = ScriptStateLint.nodeStateLintErrors();
+      Throwable[] thrown = new Throwable[1];
+      Thread thread = new Thread(null, () -> {
+         try {
+            ScriptStateLint.check(script, "a condition script", null, n -> false);
+         }
+         catch(Throwable ex) {
+            thrown[0] = ex;
+         }
+      }, "state-lint-small-stack", 64 * 1024);
+      thread.start();
+      thread.join();
+
+      assertNull(thrown[0], () -> "the check threw " + thrown[0]);
+      assertEquals(errors + 1, ScriptStateLint.nodeStateLintErrors());
    }
 
    @Test

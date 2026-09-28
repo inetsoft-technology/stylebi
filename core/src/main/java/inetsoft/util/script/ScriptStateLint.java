@@ -137,6 +137,11 @@ public final class ScriptStateLint {
       try {
          check0(script, where, column, hostOwned);
       }
+      catch(StackOverflowError ex) {
+         // a deeply nested script: never let the check affect the query
+         NODE_ERRORS.incrementAndGet();
+         LOG.debug("Failed to check script state", ex);
+      }
       catch(VirtualMachineError ex) {
          throw ex;
       }
@@ -173,15 +178,22 @@ public final class ScriptStateLint {
       }
 
       NODE_CHECKS.incrementAndGet();
+      List<Finding> raw = detect(script);
       List<Finding> findings = new ArrayList<>();
 
-      for(Finding finding : detect(script)) {
+      for(Finding finding : raw) {
          if(hostOwned == null || !hostOwned.test(finding.name())) {
             findings.add(finding);
          }
       }
 
       if(findings.isEmpty()) {
+         // the host owned every name here (e.g. a column); on another table or scope it
+         // may not, so check this text again next time (once per compile, never per row)
+         if(!raw.isEmpty()) {
+            CHECKED.remove(hash);
+         }
+
          return;
       }
 
@@ -458,6 +470,9 @@ public final class ScriptStateLint {
       Set<String> shadowed = new HashSet<>();        // nested let/const, catch params
       Set<String> writtenInFunc = new HashSet<>();
       Map<String, Integer> firstWrite = new HashMap<>();
+      // the token index where the first write starts (its name), so a read that is part of
+      // the first write itself (x = x + 1, x += 1, x++) is not taken for a loop-carried read
+      Map<String, Integer> firstWriteStart = new HashMap<>();
       Map<String, List<Integer>> reads = new LinkedHashMap<>();
       int declDepth = -1;
       boolean declExpectName = false;
@@ -534,10 +549,10 @@ public final class ScriptStateLint {
             }
 
             if(init) {
-               write(firstWrite, name, exprEnd(t, match, depth, i + 2, true));
+               write(firstWrite, firstWriteStart, name, i, exprEnd(t, match, depth, i + 2, true));
             }
             else if(forInOf) {
-               write(firstWrite, name, i);
+               write(firstWrite, firstWriteStart, name, i, i);
             }
 
             continue;
@@ -560,11 +575,11 @@ public final class ScriptStateLint {
          Tok next = i + 1 < n ? t.get(i + 1) : null;
 
          if(next != null && next.text.equals("=")) {
-            write(firstWrite, name, exprEnd(t, match, depth, i + 2, false));
+            write(firstWrite, firstWriteStart, name, i, exprEnd(t, match, depth, i + 2, false));
          }
          else if(next != null && COMPOUND.contains(next.text)) {
             read(reads, name, i);
-            write(firstWrite, name, i + 1);
+            write(firstWrite, firstWriteStart, name, i, i + 1);
          }
          else if(next != null && !next.nl && (next.text.equals("++") || next.text.equals("--")) ||
                  prev != null && prev.type == T.P &&
@@ -574,12 +589,12 @@ public final class ScriptStateLint {
                                     next.text.equals("?.") || next.text.equals("("))))
          {
             read(reads, name, i);
-            write(firstWrite, name, i + 1);
+            write(firstWrite, firstWriteStart, name, i, i + 1);
          }
          else if(next != null && (next.text.equals("in") || next.text.equals("of")) &&
                  prev != null && prev.text.equals("(") && i >= 2 && t.get(i - 2).text.equals("for"))
          {
-            write(firstWrite, name, i);
+            write(firstWrite, firstWriteStart, name, i, i);
          }
          else {
             read(reads, name, i);
@@ -598,10 +613,15 @@ public final class ScriptStateLint {
          }
 
          Integer w = firstWrite.get(name);
+         Integer ws = firstWriteStart.get(name);
          boolean decl = declared.contains(name);
 
          for(int pos : e.getValue()) {
-            if(w != null && (pos >= w || sameLoop(loops, pos, w))) {
+            // a read in the same loop as the first write runs after it from the second
+            // iteration on, unless it is a read inside that write (an accumulator)
+            boolean inFirstWrite = w != null && ws != null && pos >= ws && pos < w;
+
+            if(w != null && (pos >= w || !inFirstWrite && sameLoop(loops, pos, w))) {
                continue;
             }
 
@@ -630,13 +650,13 @@ public final class ScriptStateLint {
       while(i < n) {
          char c = s.charAt(i);
 
-         if(c == '\n' || c == '\r' || c == ' ' || c == ' ') {
+         if(c == '\n' || c == '\r' || c == '\u2028' || c == '\u2029') {
             nl = true;
             i++;
             continue;
          }
 
-         if(Character.isWhitespace(c) || c == ' ' || c == '﻿') {
+         if(Character.isWhitespace(c) || c == '\u00a0' || c == '\ufeff') {
             i++;
             continue;
          }
@@ -873,8 +893,15 @@ public final class ScriptStateLint {
       }
    }
 
-   private static void write(Map<String, Integer> w, String name, int pos) {
-      w.merge(name, pos, Math::min);
+   private static void write(Map<String, Integer> w, Map<String, Integer> ws, String name,
+                             int start, int pos)
+   {
+      Integer old = w.get(name);
+
+      if(old == null || pos < old) {
+         w.put(name, pos);
+         ws.put(name, start);
+      }
    }
 
    private static void read(Map<String, List<Integer>> r, String name, int pos) {
