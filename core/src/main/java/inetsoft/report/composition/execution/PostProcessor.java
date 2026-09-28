@@ -340,9 +340,11 @@ public class PostProcessor {
 
       /**
        * Pool mode (bug #76960, spec §5.3, §6.7, §14.8, §14.14): rows already mapped are
-       * answered without any claim; otherwise one lazy claimed span covers the population
-       * batch, which reads ahead at least batchRows base rows, so the formula lenses below
-       * share one context and one clean. No lock is taken besides this filter's own monitor,
+       * answered without any claim; otherwise one lazy claimed span covers the population,
+       * so the formula lens batches it crosses share one context and one clean. The filter
+       * does not read ahead of the requested row: the formula lens below batches on its own
+       * (context-pool regression D1), and {@link #isPreReadBase} asks it for the rows the
+       * population needs in one read. No lock is taken besides this filter's own monitor,
        * which the population takes anyway, after the span is opened as before.
        */
       private boolean moreRowsPooled(int row, ScriptEnv senv) {
@@ -352,44 +354,24 @@ public class PostProcessor {
 
          if(senv == null) {
             // no env to batch for: this filter cannot reach a script (needsScriptLock is
-            // false), no env existed when it was built, or the env was collected; so no
-            // read-ahead
-            synchronized(this) {
-               readAhead = 0;
-               return super.moreRows(row);
-            }
+            // false), no env existed when it was built, or the env was collected
+            return super.moreRows(row);
          }
 
          try(ScriptSpan span = senv.openSpan()) {
-            synchronized(this) {
-               readAhead = nextReadAhead(span, row);
-               return super.moreRows(row);
-            }
+            return super.moreRows(row);
          }
       }
 
       /**
-       * The read-ahead of the next pooled population, under this filter's monitor: batches
-       * start at batchRows and double, up to maxBatchRows, while the filter is read
-       * sequentially, that is while each population is asked for the first row not yet
-       * mapped; any other access starts over at batchRows (spec §14.14).
+       * A pooled filter that can reach a script asks its base for the rows a population
+       * needs in one read, so a formula lens below sees one bounded request and computes
+       * what pool off would, not a sequential scan it batches ahead of (context-pool
+       * regression D1).
        */
-      private int nextReadAhead(ScriptSpan span, int row) {
-         int min = span.batchRows();
-
-         if(min <= 0) {
-            return 0;
-         }
-
-         int max = Math.max(min, span.maxBatchRows());
-         int batch = readAhead > 0 && row == getMappedRowCount()
-            ? (readAhead >= max / 2 ? max : readAhead * 2) : min;
-         return Math.min(Math.max(batch, min), max);
-      }
-
       @Override
-      protected int getMinPopulationRows() {
-         return readAhead;
+      protected boolean isPreReadBase() {
+         return poolMode && needsScriptLock;
       }
 
       /**
@@ -530,9 +512,6 @@ public class PostProcessor {
       private final transient WeakReference<ScriptEnv> senv;
       private final boolean needsScriptLock;
       private final boolean poolMode;
-      // read-ahead of a pooled population batch; 0 until the first pooled batch, and always
-      // 0 off the pool. Written and read under this filter's monitor.
-      private int readAhead;
 
       @Override
       public final int getColBorder(int r, int c) {

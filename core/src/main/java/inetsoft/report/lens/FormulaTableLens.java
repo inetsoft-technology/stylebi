@@ -1606,24 +1606,30 @@ public class FormulaTableLens extends AbstractTableLens
    }
 
    /**
-    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}: batches
-    * start at batchRows and double, up to maxBatchRows, while this lens is read sequentially,
-    * that is while each batch starts at the first row not yet computed; any other access
-    * starts over at batchRows. 0 off the pool, where batchRows is 0.
+    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}. A first
+    * batch, or one that does not start at the first row not yet computed, is what pool off
+    * computes (0 here, so the caller's look-ahead applies), so a bounded or random read runs
+    * scripts for no more rows than pool off (context-pool regression D1). While each batch
+    * starts at the first row not yet computed (a sequential read), batches double from there,
+    * up to maxBatchRows, so a row-by-row reader of N rows computes at most about 2N. 0 off the
+    * pool, where batchRows is 0.
     *
     * @param next the first row not yet computed.
     */
    private int nextPoolBatch(ScriptSpan span, int r, int next) {
-      int min = span.batchRows();
-
-      if(min <= 0) {
+      if(span.batchRows() <= 0) {
          return 0;
       }
 
-      int max = Math.max(min, span.maxBatchRows());
-      int batch = poolBatch > 0 && r <= next ? (poolBatch >= max / 2 ? max : poolBatch * 2) : min;
-      poolBatch = Math.min(Math.max(batch, min), max);
-      return poolBatch;
+      if(poolBatch > 0 && r <= next) {
+         int max = Math.max(span.batchRows(), span.maxBatchRows());
+         poolBatch = poolBatch >= max / 2 ? max : poolBatch * 2;
+         return poolBatch;
+      }
+
+      // the pool-off look-ahead of moreRows()
+      poolBatch = Math.min(Math.max(r / 100, 10), 100);
+      return 0;
    }
 
    /**
@@ -1785,7 +1791,7 @@ public class FormulaTableLens extends AbstractTableLens
    private transient TableChangeListener listener = null;
    private transient TableIteratorScriptable iterator = null;
    private transient OwnedLock lock = new OwnedLock();
-   // the rows of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
+   // the look-ahead of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
    private transient int poolBatch;
    private transient boolean forceType = Drivers.getInstance().isDataCached();
    private transient String reportName;

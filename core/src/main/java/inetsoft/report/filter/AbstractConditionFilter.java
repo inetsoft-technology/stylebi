@@ -235,14 +235,16 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
                   rowmap + " in " + this, new Exception("Stack trace"));
             }
 
-            // a pooled worksheet filter reads ahead, so one claimed span covers a batch of
-            // rows (bug #76960, spec §14.8); without a minimum the floor never holds, which
-            // is the loop as before even if a reentrant invalidate() resets baseRow
-            int min = getMinPopulationRows();
-            int floor = min > 0 ? baseRow + min : Integer.MIN_VALUE;
+            // each base row maps at most one row, so the base rows through this bound are
+            // read by the loop below anyway; a pooled worksheet filter asks for them in one
+            // read, so a formula lens below computes them as one bounded batch, not as a
+            // sequential scan it reads ahead of (context-pool regression D1)
+            if(row >= rowmap.size() && isPreReadBase() && !cancelled) {
+               long bound = (long) baseRow + (row - rowmap.size());
+               table.moreRows((int) Math.min(bound, Integer.MAX_VALUE));
+            }
 
-            while((row >= rowmap.size() || baseRow < floor) &&
-                  (more = table.moreRows(baseRow)) && !cancelled)
+            while(row >= rowmap.size() && (more = table.moreRows(baseRow)) && !cancelled)
             {
                if(checkCondition(baseRow)) {
                   rowmap.add(baseRow);
@@ -266,11 +268,12 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
    }
 
    /**
-    * @return the minimum number of base rows one population in {@link #moreRows} maps, 0 for
-    * no minimum.
+    * @return whether a population in {@link #moreRows} first asks the base table, in one
+    * read, for every base row it is sure to read; {@code false} (the default) keeps the
+    * row-by-row loop alone.
     */
-   protected int getMinPopulationRows() {
-      return 0;
+   protected boolean isPreReadBase() {
+      return false;
    }
 
    /**

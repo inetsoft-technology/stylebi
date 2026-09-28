@@ -61,7 +61,11 @@ class WsBoundaryPolicyTest {
                                         "belongs to its table", "var r; if(c)",
                                         "try/catch", "Use let", "logs one warning",
                                         "kept only within one batch",
-                                        "count the row twice" })
+                                        "count the row twice",
+                                        // context-pool regression D1, the pool-off first batch
+                                        "evaluates what pool off would", "about 2N",
+                                        "undeclared", "object-valued var",
+                                        "turns script batching off" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }

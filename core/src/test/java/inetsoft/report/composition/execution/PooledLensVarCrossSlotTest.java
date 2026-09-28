@@ -72,7 +72,7 @@ class PooledLensVarCrossSlotTest {
       TableLens t = make("var acc = (acc || 0) + field['value']; acc");
       double[] v = new double[ROWS + 1];
       read(t, v, 1, 200);
-      // rows 1..FIRST_BATCH are the first batch; the next starts on another context
+      // the batches that computed rows 1..200 ran here; the next starts on another context
       PoolTestSupport.whileHeldElsewhere(env, () -> read(t, v, 201, 600));
       // and back on the first one
       read(t, v, 601, ROWS);
@@ -89,12 +89,19 @@ class PooledLensVarCrossSlotTest {
       TableLens t = make("var a = a || []; a.push(1); a.length");
       double[] v = new double[ROWS + 1];
       read(t, v, 1, 200);
-      // the first batch (rows 1..257) ran on this thread's context
-      int first = FIRST_BATCH;
 
       // the whole batch on another context: the array of the first context is not used
       // there, the formula starts a new one, which is then kept within that batch
       PoolTestSupport.whileHeldElsewhere(env, () -> read(t, v, 201, 600));
+      // the batches that computed rows 1..first ran on this thread's context, a sequential
+      // read's batches doubling from the pool-off look-ahead, so first is past 200
+      int first = 200;
+
+      while(v[first + 1] != 1.0) {
+         first++;
+      }
+
+      assertTrue(first < 600, "no batch on the other context");
 
       for(int r = 1; r <= first; r++) {
          assertEquals(r, v[r], "first batch row " + r);
@@ -151,9 +158,6 @@ class PooledLensVarCrossSlotTest {
    }
 
    private static final int ROWS = 1200;
-   // the rows of the first pooled batch of a sequential read: at least batchRows (256)
-   // past the header, so row 258 is the first row of the second batch
-   private static final int FIRST_BATCH = 257;
    private AssetQuerySandbox box;
    private WorksheetScriptEnv env;
    private Logger logger;

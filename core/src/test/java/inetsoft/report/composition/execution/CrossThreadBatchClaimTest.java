@@ -28,6 +28,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.util.List;
 import java.util.concurrent.*;
 
 import static inetsoft.report.composition.execution.PooledBatchClaimTest.*;
@@ -47,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class CrossThreadBatchClaimTest {
    /**
     * A lens populated on a worker thread (a join or summary worker) batches exactly as on the
-    * reader's own thread.
+    * reader's own thread: the same batch lengths, the accumulator counting through each.
     */
    @Test
    public void formulaReadOnAWorkerThreadKeepsItsBatch() throws Exception {
@@ -55,10 +56,13 @@ public class CrossThreadBatchClaimTest {
       ExecutorService worker = Executors.newSingleThreadExecutor();
 
       try {
+         List<Integer> own = runs(formula(table(1000), env, ACCUMULATOR), 1, 1000);
          FormulaTableLens formula = formula(table(1000), env, ACCUMULATOR);
-         int reset = worker.submit(() -> firstReset(formula)).get(60, TimeUnit.SECONDS);
+         List<Integer> runs =
+            worker.submit(() -> runs(formula, 1, 1000)).get(60, TimeUnit.SECONDS);
 
-         assertTrue(reset - 1 >= env.getConfig().batchRows(), "batch was " + (reset - 1));
+         assertEquals(List.of(11, 21, 41, 81), runs.subList(0, 4));
+         assertEquals(own, runs);
       }
       finally {
          worker.shutdownNow();
@@ -83,9 +87,9 @@ public class CrossThreadBatchClaimTest {
          FormulaTableLens outer = formula(
             table(1000), env, "other.read(field['id']); " + ACCUMULATOR);
 
-         int reset = firstReset(outer);
+         List<Integer> runs = runs(outer, 1, 1000);
 
-         assertTrue(reset - 1 >= env.getConfig().batchRows(), "batch was " + (reset - 1));
+         assertEquals(List.of(11, 21, 41, 81), runs.subList(0, 4));
          assertEquals(2000.0, ((Number) inner.getObject(1000, 3)).doubleValue(),
                       "the inner lens gets its own values");
       }
@@ -93,26 +97,6 @@ public class CrossThreadBatchClaimTest {
          worker.shutdownNow();
          env.retire();
       }
-   }
-
-   /**
-    * Read the accumulator in order until its first reset.
-    *
-    * @return the row it resets at; every row before it must count up from 1.
-    */
-   private static int firstReset(FormulaTableLens formula) {
-      for(int r = 1; formula.moreRows(r); r++) {
-         double value = ((Number) formula.getObject(r, 3)).doubleValue();
-
-         if(r > 1 && value == 1.0) {
-            return r;
-         }
-
-         assertEquals(r, value, "row " + r);
-      }
-
-      fail("the accumulator never reset");
-      return -1;
    }
 
    /**
