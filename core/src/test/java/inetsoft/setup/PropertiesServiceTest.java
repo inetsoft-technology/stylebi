@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * construct the service from that directory. We also inject the {@link TestKeyValueEngine}
  * directly via reflection as a fallback to ensure tests always run against the in-memory engine.
  */
+@Tag("core")
 class PropertiesServiceTest {
 
    @TempDir

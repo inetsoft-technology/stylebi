@@ -22,11 +22,13 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class TopologicalSortGraphTest {
 
    private TopologicalSortGraph<String> graph;

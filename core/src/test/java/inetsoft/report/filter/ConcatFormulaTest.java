@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.util.Tool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>getResult() returns null when cnt==0 and def==true (default), empty string when
  * def==false and cnt==0. Otherwise returns the comma-separated string.
  */
+@Tag("core")
 public class ConcatFormulaTest {
 
    private ConcatFormula formula;
