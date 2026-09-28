@@ -363,12 +363,18 @@ class ScheduleManagerExtensionTaskTest {
 
       Field extField = ScheduleManager.class.getDeclaredField("extensionTasks");
       extField.setAccessible(true);
+      // register the owner like reloadExtensions0() does. Without it the toggle falls back to
+      // DataCycleManager.containsTask(), which reads pregeneratedTasksMap, and the async storage
+      // refresh fired by the setUp() writes regenerates that map without these tasks
+      Field ownersField = ScheduleManager.class.getDeclaredField("extensionTaskOwners");
+      ownersField.setAccessible(true);
       Class<?> keyClass = Class.forName("inetsoft.sree.schedule.ScheduleManager$ExtTaskKey");
       Constructor<?> keyConstructor = keyClass.getDeclaredConstructor(String.class, String.class);
       keyConstructor.setAccessible(true);
       for(ScheduleTask task : tasks) {
-         ((Map) extField.get(scheduleManager))
-            .put(keyConstructor.newInstance(task.getTaskId(), ORG), task);
+         Object key = keyConstructor.newInstance(task.getTaskId(), ORG);
+         ((Map) extField.get(scheduleManager)).put(key, task);
+         ((Map) ownersField.get(scheduleManager)).put(key, dataCycleManager);
       }
 
       Field loadedField = ScheduleManager.class.getDeclaredField("extensionTasksLoadedOrgs");
