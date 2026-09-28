@@ -1082,7 +1082,11 @@ public class ScheduleTaskService {
       }
 
       IdentityID oldIdentityID = oldIdentity != null ? oldIdentity.getIdentityID() : null;
-      task.setOwner(getIdentityId(model.owner(), principal));
+      // an omitted owner means no change, never clear the owner of the task
+      if(!Tool.isEmptyString(model.owner())) {
+         task.setOwner(getIdentityId(model.owner(), principal));
+      }
+
       task.setLocale(getTaskLocale(model.locale()));
       task.setDescription(model.description());
       task.setTimeZone(model.timeZone());
@@ -1519,7 +1523,8 @@ public class ScheduleTaskService {
       }
 
       IdentityID caller = IdentityID.getIdentityIDFromKey(principal.getName());
-      IdentityID owner = getIdentityId(options.owner(), principal);
+      IdentityID owner = Tool.isEmptyString(options.owner()) ?
+         null : getIdentityId(options.owner(), principal);
 
       if(owner != null && !owner.equals(task.getOwner()) && !owner.equals(caller) &&
          !securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,

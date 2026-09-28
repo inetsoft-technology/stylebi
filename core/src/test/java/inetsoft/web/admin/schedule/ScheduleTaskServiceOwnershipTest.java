@@ -29,6 +29,9 @@ import inetsoft.web.admin.schedule.model.ScheduleTaskEditorModel;
 import inetsoft.web.admin.schedule.model.TaskOptionsPaneModel;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -246,6 +249,26 @@ class ScheduleTaskServiceOwnershipTest {
       runSaveIgnoringDownstreamFailures(model);
 
       verify(scheduleService).updateTaskName(any(), any(), eq(other), eq(principal));
+   }
+
+   @ParameterizedTest
+   @NullAndEmptySource
+   void saveTask_ownerOmitted_keepsExistingOwner(String owner) throws Exception {
+      // an omitted owner must not clear the owner of someone else's task
+      IdentityID other = new IdentityID("carol", CALLER_ORG);
+      ScheduleTask existing = new ScheduleTask("Task1");
+      existing.setOwner(other);
+      existing.setIdentity(new User(other));
+      when(scheduleManager.getScheduleTask(anyString())).thenReturn(existing);
+      when(organizationManager.isOrgAdmin(principal)).thenReturn(true);
+      denyAdmin();
+      ScheduleTaskEditorModel model = model(null, options(owner, "carol"));
+
+      runSaveIgnoringDownstreamFailures(model);
+
+      ArgumentCaptor<ScheduleTask> saved = ArgumentCaptor.forClass(ScheduleTask.class);
+      verify(scheduleService).saveTask(any(), saved.capture(), eq(principal));
+      assertEquals(other, saved.getValue().getOwner());
    }
 
    private void runSaveIgnoringDownstreamFailures(ScheduleTaskEditorModel model) {
