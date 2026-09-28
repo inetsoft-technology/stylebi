@@ -1879,6 +1879,330 @@ class DateComparisonServiceTest {
                  "reporting a stale end date beside endToday would read as the range's real end");
    }
 
+   // ── refusing an invalid comparison before it persists (DCG-030) ─────────────
+
+   /**
+    * A period pane model with StyleBI's own real, unblanked defaults ({@code
+    * StandardPeriodPaneModel}'s {@code preCount=2}/{@code dateLevel=YEAR}, {@code
+    * IntervalPaneModel}'s {@code level=ALL}) — unlike {@link #model()}, which deliberately blanks
+    * those two fields to isolate what a given call writes. Needed here because {@link
+    * #describePeriodsBackDefaulted}/{@link #describeLevelDefaulted} report the value actually in
+    * effect, and {@link #model()}'s blanked fields would make that value {@code null} instead of
+    * the real default.
+    */
+   private static DateComparisonPaneModel modelWithRealPeriodDefaults() {
+      StandardPeriodPaneModel standard = new StandardPeriodPaneModel();
+      standard.setEndDay(dynamic());
+      standard.setToDayAsEndDay(true);
+
+      PeriodPaneModel periods = new PeriodPaneModel();
+      periods.setStandardPeriodPaneModel(standard);
+
+      DateComparisonPaneModel model = mock(DateComparisonPaneModel.class, CALLS_REAL_METHODS);
+      when(model.getPeriodPaneModel()).thenReturn(periods);
+      when(model.getIntervalPaneModel()).thenReturn(new IntervalPaneModel());
+      return model;
+   }
+
+   /**
+    * DCG-030 2a: {@code level:"month"} + {@code interval:"yearToDate"} — the interval's YEAR bit
+    * needs a period at least at year granularity, but the period is only month. Previously this
+    * was accepted with {@code ok:true} and the false "no date-typed field is bound" reason;
+    * refused now, before {@code comparisonService.setDateComparison} ever runs.
+    */
+   @Test
+   void refusesAnIntervalCoarserThanThePeriodLevel() {
+      Harness h = harness(model());
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         1, "month", null, true, "yearToDate", null, null, null, null, true, true, null, null, null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", comparison, ""));
+
+      assertTrue(thrown.getMessage().contains("coarser"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("month"), thrown.getMessage());
+
+      try {
+         verify(h.comparisons(), never()).setDateComparison(
+            anyString(), anyString(), any(), any(), anyString(), any(Principal.class), any());
+      }
+      catch(Exception e) {
+         throw new IllegalStateException(e);
+      }
+   }
+
+   /**
+    * DCG-030 2b: a level change to {@code "month"} that leaves an earlier call's {@code
+    * "quarterToDate"} interval in place (this call doesn't touch {@code interval} at all) is just
+    * as coarser-than-period-level invalid as setting both in one call — refused, leaving the
+    * assembly's prior (valid) comparison alone rather than silently wiping it.
+    */
+   @Test
+   void refusesALevelChangeThatLeavesTheKeptIntervalCoarser() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+      h.service.set("tok", principal(), "Chart1", new DateComparisonService.Comparison(
+         1, "year", null, true, "quarterToDate", null, null, null, null, true, true, null, null,
+         null), "");
+
+      DateComparisonService.Comparison levelOnly = new DateComparisonService.Comparison(
+         null, "month", null, true, null, null, null, null, null, true, true, null, null, null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", levelOnly, ""));
+
+      assertTrue(thrown.getMessage().contains("coarser"), thrown.getMessage());
+   }
+
+   /** DCG-030 2c: a custom period whose start is after its end is refused, not silently applied. */
+   @Test
+   void refusesACustomPeriodWithStartAfterEnd() {
+      Harness h = harness(model());
+      DateComparisonService.Comparison comparison = customPeriods(
+         new DateComparisonService.CustomPeriod("2026-03-15", "2026-03-01"),
+         new DateComparisonService.CustomPeriod("2025-03-15", "2025-03-01"));
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", comparison, ""));
+
+      assertTrue(thrown.getMessage().contains("start"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("end"), thrown.getMessage());
+   }
+
+   /**
+    * DCG-030 2d: an {@code intervalEndDate} StyleBI cannot parse ("not-a-date") resolves to the
+    * same missing-end-anchor state as omitting it outright — refused rather than silently wiping
+    * an earlier, valid literal end anchor.
+    */
+   @Test
+   void refusesAnUnparseableIntervalEndDate() throws Exception {
+      DateComparisonPaneModel model = model();
+      Harness h = harness(model);
+      DateComparisonService.Comparison base = new DateComparisonService.Comparison(
+         4, "quarter", null, true, "quarterToDate", null, null, null, null, true, true, null,
+         "2026-01-10", null);
+      h.service.set("tok", principal(), "Chart1", base, "");
+
+      DateComparisonService.Comparison badEndDate = new DateComparisonService.Comparison(
+         4, "quarter", null, true, "quarterToDate", null, null, null, null, true, true, null,
+         "not-a-date", null);
+
+      Exception thrown = assertThrows(
+         IllegalArgumentException.class,
+         () -> h.service.set("tok", principal(), "Chart1", badEndDate, ""));
+
+      assertTrue(thrown.getMessage().contains("end anchor"), thrown.getMessage());
+   }
+
+   /** The exact sibling shapes to the four refused ones above, each a valid combination. */
+   @Test
+   void appliesAValidIntervalAndLevelCombination() throws Exception {
+      Harness h = harness(model());
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         1, "year", null, true, "quarterToDate", null, null, null, null, true, true, null, null,
+         null);
+
+      h.service.set("tok", principal(), "Chart1", comparison, "");
+
+      verify(h.comparisons()).setDateComparison(
+         anyString(), anyString(), any(), any(), anyString(), any(Principal.class), any());
+   }
+
+   /**
+    * A call that touches nothing period/interval-related must not be refused merely because the
+    * assembly's ALREADY-STORED comparison happens to be invalid (e.g. left over from before this
+    * guard existed) — that state is neither created nor asked to be fixed by this call.
+    */
+   @Test
+   void doesNotRefuseAnUnrelatedCallEvenWhenThePriorComparisonIsAlreadyInvalid() throws Exception {
+      DateComparisonPaneModel model = model();
+      model.getPeriodPaneModel().getStandardPeriodPaneModel().getDateLevel()
+         .setValue(String.valueOf(XConstants.MONTH_DATE_GROUP));
+      model.getIntervalPaneModel().getLevel()
+         .setValue(String.valueOf(DateComparisonInfo.YEAR_TO_DATE));
+      Harness h = harness(model);
+
+      Map<String, Object> result = h.service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertTrue(model.isUseFacet(), "the change that WAS asked for must still be applied");
+      verify(h.comparisons()).setDateComparison(
+         anyString(), anyString(), any(), any(), anyString(), any(Principal.class), any());
+   }
+
+   // ── reporting a silently-inactive date comparison, crosstab (DCG-031) ───────
+
+   /**
+    * Previously {@code describeDateComparisonInactive} returned immediately for anything that
+    * wasn't a {@code ChartVSAssembly}, so a crosstab whose comparison never actually applied
+    * (its {@code getDateComparisonRef()} stays null after {@code CrossBaseVSAssemblyInfo.update()}
+    * — see that method's own {@code resetRuntimeDateComparisonInfo()} call) got no disclosure at
+    * all: {@code ok:true} with nothing else, and {@code get_date_comparison} separately reading
+    * back {@code enabled:false}.
+    */
+   @Test
+   void reportsDateComparisonInactiveForACrosstabThatNeverApplied() throws Exception {
+      VSCrosstabInfo cinfo = mock(VSCrosstabInfo.class);
+      when(cinfo.getDateComparisonRef()).thenReturn(null);
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Crosstab1", comparison("2026-03-31", false), "");
+
+      assertEquals(true, result.get("dateComparisonInactive"));
+      String reason = (String) result.get("reason");
+      assertTrue(reason.contains("rows or columns"), reason);
+   }
+
+   /** A crosstab where the comparison actually applied must not be flagged inactive. */
+   @Test
+   void doesNotReportDateComparisonInactiveForACrosstabThatActuallyApplied() throws Exception {
+      VSCrosstabInfo cinfo = mock(VSCrosstabInfo.class);
+      when(cinfo.getDateComparisonRef()).thenReturn(mock(VSDataRef.class));
+
+      CrosstabVSAssembly assembly = mock(CrosstabVSAssembly.class);
+      when(assembly.getVSCrosstabInfo()).thenReturn(cinfo);
+      Harness h = harness(model(), assembly);
+
+      Map<String, Object> result =
+         h.service.set("tok", principal(), "Crosstab1", comparison("2026-03-31", false), "");
+
+      assertFalse(result.containsKey("dateComparisonInactive"));
+   }
+
+   // ── periodsBack/level/onlyShowMostRecentDate default disclosure (DCG-032) ──
+
+   @Test
+   void disclosesPeriodsBackDefaultedWhenOmittedOnAStandardPeriodCall() throws Exception {
+      DateComparisonPaneModel model = modelWithRealPeriodDefaults();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         null, "year", "2026-03-31", false, null, null, null, null, null, null, null);
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertEquals(true, result.get("periodsBackDefaulted"));
+      assertEquals(2, result.get("periodsBack"));
+   }
+
+   @Test
+   void doesNotDisclosePeriodsBackDefaultedWhenPassedExplicitly() throws Exception {
+      DateComparisonPaneModel model = modelWithRealPeriodDefaults();
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertFalse(result.containsKey("periodsBackDefaulted"));
+   }
+
+   @Test
+   void doesNotDisclosePeriodsBackDefaultedForACustomPeriod() throws Exception {
+      DateComparisonPaneModel model = modelWithRealPeriodDefaults();
+
+      Map<String, Object> result = harness(model).service.set("tok", principal(), "Chart1",
+         customPeriods(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")), "");
+
+      assertFalse(result.containsKey("periodsBackDefaulted"));
+   }
+
+   @Test
+   void doesNotDisclosePeriodsBackDefaultedWhenNoPeriodFieldWasTouched() throws Exception {
+      DateComparisonPaneModel model = modelWithRealPeriodDefaults();
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertFalse(result.containsKey("periodsBackDefaulted"));
+   }
+
+   @Test
+   void disclosesLevelDefaultedWhenOmittedOnAStandardPeriodCall() throws Exception {
+      DateComparisonPaneModel model = modelWithRealPeriodDefaults();
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, null, "2026-03-31", false, null, null, null, null, null, null, null);
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertEquals(true, result.get("levelDefaulted"));
+      assertEquals("year", result.get("level"));
+   }
+
+   @Test
+   void doesNotDiscloseLevelDefaultedWhenPassedExplicitly() throws Exception {
+      DateComparisonPaneModel model = modelWithRealPeriodDefaults();
+
+      Map<String, Object> result =
+         harness(model).service.set("tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertFalse(result.containsKey("levelDefaulted"));
+   }
+
+   @Test
+   void doesNotDiscloseLevelDefaultedForACustomPeriod() throws Exception {
+      DateComparisonPaneModel model = modelWithRealPeriodDefaults();
+
+      Map<String, Object> result = harness(model).service.set("tok", principal(), "Chart1",
+         customPeriods(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")), "");
+
+      assertFalse(result.containsKey("levelDefaulted"));
+   }
+
+   /**
+    * {@code onlyShowMostRecentDate} sits directly on {@code DateComparisonPaneModel}, not {@code
+    * StandardPeriodPaneModel} — unlike {@code periodsBack}/{@code level}, it applies to a custom
+    * period too and is disclosed whenever the caller leaves it unspecified, with no {@code
+    * setsPeriod} precondition at all.
+    */
+   @Test
+   void disclosesOnlyShowMostRecentDateDefaultedWhenOmitted() throws Exception {
+      // model()'s DateComparisonPaneModel is a Mockito mock: CALLS_REAL_METHODS runs the real
+      // getter body, but Mockito never runs the real constructor/field initializers backing it,
+      // so the field itself stays at Java's own false default rather than the source's `= true`
+      // unless stubbed explicitly here -- a fixture quirk, not the production default this test
+      // is pinning (a real, non-mocked DateComparisonPaneModel's field really does default true).
+      DateComparisonPaneModel model = model();
+      when(model.isOnlyShowMostRecentDate()).thenReturn(true);
+
+      Map<String, Object> result = harness(model).service.set(
+         "tok", principal(), "Chart1", comparison("2026-03-31", false), "");
+
+      assertEquals(true, result.get("onlyShowMostRecentDateDefaulted"));
+      assertEquals(true, result.get("onlyShowMostRecentDate"));
+   }
+
+   @Test
+   void doesNotDiscloseOnlyShowMostRecentDateDefaultedWhenPassedExplicitly() throws Exception {
+      DateComparisonService.Comparison comparison = new DateComparisonService.Comparison(
+         4, "year", "2026-03-31", false, null, null, false, null, null, null, null);
+
+      Map<String, Object> result =
+         harness(model()).service.set("tok", principal(), "Chart1", comparison, "");
+
+      assertFalse(result.containsKey("onlyShowMostRecentDateDefaulted"));
+   }
+
+   @Test
+   void disclosesOnlyShowMostRecentDateDefaultedEvenForACustomPeriod() throws Exception {
+      Map<String, Object> result = harness(model()).service.set("tok", principal(), "Chart1",
+         customPeriods(new DateComparisonService.CustomPeriod("2026-03-01", "2026-03-15")), "");
+
+      assertEquals(true, result.get("onlyShowMostRecentDateDefaulted"));
+   }
+
+   @Test
+   void disclosesOnlyShowMostRecentDateDefaultedEvenWhenNoPeriodFieldWasTouched() throws Exception {
+      Map<String, Object> result =
+         harness(model()).service.set("tok", principal(), "Chart1", facetOnly(), "");
+
+      assertEquals(true, result.get("onlyShowMostRecentDateDefaulted"));
+   }
+
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(DateComparisonService service, ViewsheetSessionService sessions,
