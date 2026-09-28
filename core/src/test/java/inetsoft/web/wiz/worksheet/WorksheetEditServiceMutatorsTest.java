@@ -8806,4 +8806,364 @@ class WorksheetEditServiceMutatorsTest {
 
       assertEquals(1, ((UnpivotTableAssembly) ws.getAssembly("U")).getHeaderColumns());
    }
+
+   // =========================================================================
+   // rename_column propagation into downstream mirrors (Bug #77005 / WBS-092/093/094)
+   //
+   // The native rename dialog (RenameColumnController) has always propagated a rename into
+   // every downstream mirror/join's own conditions, ranking, sort, aggregates and
+   // expression-column script text. The wiz Editor previously only mutated the renamed
+   // column's own ColumnRef in place, letting the shared post-mutation refreshAssemblies /
+   // AssetUtil#validateConditions cascade silently drop any downstream reference that could
+   // no longer resolve, with no warning of its own -- and never touching expression-column
+   // script text at all. renameColumn now reuses the same native propagation.
+   // =========================================================================
+
+   @Test
+   void renameColumnPropagatesIntoADownstreamMirrorsPreCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP", "amount", ">", "100"));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      ConditionList before = (ConditionList) dep.getPreConditionList();
+      assertEquals(1, before.getConditionSize(),
+         "sanity check: DEP's own pre-condition must exist before the L-side rename");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      ConditionList after = (ConditionList) dep.getPreConditionList();
+      assertEquals(1, after.getConditionSize(),
+         "the rename must not silently drop DEP's own pre-condition (Bug #77005 / WBS-092)");
+      assertEquals("revenue", after.getConditionItem(0).getAttribute().getAttribute(),
+         "DEP's own pre-condition must be rewritten to reference the new column name");
+   }
+
+   @Test
+   void renameColumnPropagatesIntoADownstreamMirrorsRankingCondition() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("DEP",
+            new WorksheetMutationSupport.RankingSpec("amount", 5, "TOP_N", false)));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      ConditionList before = (ConditionList) dep.getRankingConditionList();
+      assertEquals(1, before.getConditionSize(),
+         "sanity check: DEP's own ranking condition must exist before the L-side rename");
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      ConditionList after = (ConditionList) dep.getRankingConditionList();
+      assertEquals(1, after.getConditionSize(),
+         "the rename must not silently drop DEP's own ranking condition (Bug #77005 / WBS-093)");
+      assertEquals("revenue", after.getConditionItem(0).getAttribute().getAttribute(),
+         "DEP's own ranking condition must be rewritten to reference the new column name");
+   }
+
+   @Test
+   void renameColumnRewritesADownstreamMirrorsOwnExpressionColumn() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("DEP", "doubled", "field['amount'] * 2", "double", false));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      ColumnRef doubled = (ColumnRef) dep.getColumnSelection(false).getAttribute("doubled");
+      assertNotNull(doubled, "sanity check: DEP's own expression column must survive the rename");
+      String expr = ((ExpressionRef) doubled.getDataRef()).getExpression();
+      assertEquals("field['revenue'] * 2", expr,
+         "the rename must rewrite DEP's own expression column's script text (Bug #77005 / " +
+         "WBS-094) -- not just leave it referencing a column that no longer exists, which " +
+         "evaluates to null per row at query time");
+   }
+
+   // Round-1 review (bug #77005): the bracket-notation rewrite must be scoped to the exact
+   // field['<name>'] substring, never a bare-name String.replace -- otherwise an unrelated
+   // occurrence of the old name elsewhere in the SAME expression token (a string literal, or a
+   // differently-named column whose own identifier merely contains it) is silently corrupted too.
+
+   @Test
+   void renameColumnDoesNotCorruptAStringLiteralThatContainsTheOldColumnNameAsText() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "DEP", "labeled", "'the amount was: ' + field['amount']", "string", false));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      ColumnRef labeled = (ColumnRef) dep.getColumnSelection(false).getAttribute("labeled");
+      String expr = ((ExpressionRef) labeled.getDataRef()).getExpression();
+      assertEquals("'the amount was: ' + field['revenue']", expr,
+         "only the bracketed field reference must be rewritten -- the string literal's own text " +
+         "must survive untouched, not be corrupted into 'the revenue was: '");
+   }
+
+   @Test
+   void renameColumnDoesNotCorruptADifferentColumnWhoseNameContainsTheOldNameAsAPrefix()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed -> ed.addExpressionColumn(
+         "DEP", "combined", "field['amount'] + field['amountRate']", "double", false));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("L", "amount", "revenue"));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      ColumnRef combined = (ColumnRef) dep.getColumnSelection(false).getAttribute("combined");
+      String expr = ((ExpressionRef) combined.getDataRef()).getExpression();
+      assertEquals("field['revenue'] + field['amountRate']", expr,
+         "renaming 'amount' must not also rewrite an unrelated column reference whose own name " +
+         "merely contains 'amount' as a prefix, e.g. field['amountRate']");
+   }
+
+   @Test
+   void renameColumnKeepsASameTableGroupByIntact() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "region", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("T", groups("region"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+
+      svc.apply("TOK", agent, ed -> ed.renameColumn("T", "region", "market"));
+
+      assertEquals(1, t.getAggregateInfo().getGroupCount(),
+         "a same-table rename must not drop the table's own group-by (PWA-013)");
+      assertEquals("market", t.getAggregateInfo().getGroup(0).getName(),
+         "the group-by's own field must track the rename");
+   }
+
+   @Test
+   void renameColumnRefusesAliasConflictWithAnotherColumnOnTheSameTable() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly t = TestWorksheets.tableWithColumns(ws, "T", "id", "amount");
+      ws.addAssembly(t);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.renameColumn("T", "amount", "id")));
+
+      assertTrue(ex.getMessage().length() > 0, ex.getMessage());
+      assertNull(((ColumnRef) t.getColumnSelection(false).getAttribute("amount")).getAlias(),
+         "the refused rename must not have been applied");
+   }
+
+   // =========================================================================
+   // remove_column vs. downstream condition/ranking/expression/aggregate reference
+   // (Bug #77005 / WBS-093/094, following the #77001/WBS-088 precheck-and-refuse shape)
+   //
+   // Unlike rename_column, a removal has no rewrite target -- the column is simply gone.
+   // The shared post-mutation refreshAssemblies / AssetUtil#validateConditions cascade
+   // silently drops any downstream pre/post/ranking condition that can no longer resolve, and
+   // never touches a downstream expression column's raw script text at all (it just evaluates
+   // to null). This precheck-and-refuses instead, listing every affected downstream table and
+   // consumer kind, and requires confirmed:true to proceed.
+   // =========================================================================
+
+   @Test
+   void removeColumnRefusesWhenADownstreamMirrorsConditionReferencesItWithoutConfirmation()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP", "amount", ">", "100"));
+
+      MirrorTableAssembly dep = (MirrorTableAssembly) ws.getAssembly("DEP");
+      assertEquals(1, ((ConditionList) dep.getPreConditionList()).getConditionSize(),
+         "sanity check: DEP's own pre-condition must exist before the L-side removal");
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("pre-condition"), ex.getMessage());
+      assertTrue(ex.getMessage().toLowerCase().contains("confirmed"), ex.getMessage());
+      assertNotNull(left.getColumnSelection(false).getAttribute("amount"),
+         "the refused removal must not have been applied to L");
+      assertEquals(1, ((ConditionList) dep.getPreConditionList()).getConditionSize(),
+         "DEP's own pre-condition must not have been mutated by the refused L-side removal");
+   }
+
+   @Test
+   void removeColumnRefusesWhenADownstreamMirrorsRankingConditionReferencesIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("DEP",
+            new WorksheetMutationSupport.RankingSpec("amount", 5, "TOP_N", false)));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("ranking condition"), ex.getMessage());
+   }
+
+   @Test
+   void removeColumnRefusesWhenADownstreamMirrorsExpressionColumnReferencesIt() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("DEP", "doubled", "field['amount'] * 2", "double", false));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("doubled"), ex.getMessage());
+      assertNotNull(left.getColumnSelection(false).getAttribute("amount"),
+         "the refused removal must not have been applied to L");
+   }
+
+   // Human review round 2 (bug #77005), finding 1 [Blocking]: collectExpressionReferences only
+   // recognized wiz's own field['name'] bracket syntax -- it never matched the classic
+   // Table.Column dot-notation cross-table reference RenameColumnController's own propagation
+   // already detects via getExpressionDependeds/ScriptIterator, reopening the exact silent-
+   // breakage failure mode this PR exists to close for any worksheet whose join/composed table's
+   // expression was authored with dot-notation instead of bracket notation.
+   @Test
+   void removeColumnRefusesWhenAJoinTablesExpressionReferencesItByDotNotation() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      EmbeddedTableAssembly right = TestWorksheets.tableWithColumns(ws, "R", "id", "price");
+      ws.addAssembly(left);
+      ws.addAssembly(right);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addJoin("J", "L", "id", "R", "id", "INNER", null, null));
+      svc.apply("TOK", agent,
+         ed -> ed.addExpressionColumn("J", "total", "L.amount + R.price", "double", false));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount")));
+
+      assertTrue(ex.getMessage().contains("J"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("total"), ex.getMessage());
+      assertNotNull(left.getColumnSelection(false).getAttribute("amount"),
+         "the refused removal must not have been applied to L");
+   }
+
+   // Human review round 2 (bug #77005), finding 2 [Secondary, confirmed reachable]:
+   // WorksheetMutationSupport#resolveAggregateOrGroupField returns a bare GroupRef (not a plain
+   // ColumnRef) for a post/ranking condition field that names a GROUP BY column rather than an
+   // aggregate -- confirmed reachable via buildRankingConditionItem, which calls that same
+   // resolver and stores its result directly as the ConditionItem's own attribute. Unwrapping only
+   // AggregateRef (as before this round) misses this shape entirely.
+   @Test
+   void removeColumnRefusesWhenADownstreamMirrorsRankingConditionReferencesAGroupByColumn()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "region", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed ->
+         ed.setGroupAggregate("DEP", groups("region"),
+            List.of(new WorksheetMutationSupport.AggregateSpec("amount", "SUM", null))));
+      // Ranking directly by the GROUP column itself (no 'of' aggregate) -- this is what makes
+      // buildRankingConditionItem's resolveAggregateOrGroupField return a bare GroupRef rather
+      // than an AggregateRef.
+      svc.apply("TOK", agent, ed ->
+         ed.setRanking("DEP",
+            new WorksheetMutationSupport.RankingSpec("region", 3, "TOP_N", false)));
+
+      PairingException ex = assertThrows(PairingException.class,
+         () -> svc.apply("TOK", agent, ed -> ed.removeColumn("L", "region")));
+
+      assertTrue(ex.getMessage().contains("DEP"), ex.getMessage());
+      assertTrue(ex.getMessage().contains("ranking condition"), ex.getMessage());
+      assertNotNull(left.getColumnSelection(false).getAttribute("region"),
+         "the refused removal must not have been applied to L");
+   }
+
+   @Test
+   void removeColumnAllowsRemovingAColumnReferencedByADownstreamConditionWhenConfirmed()
+      throws Exception
+   {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left = TestWorksheets.tableWithColumns(ws, "L", "id", "amount");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP", "amount", ">", "100"));
+
+      svc.apply("TOK", agent, ed -> ed.removeColumn("L", "amount", true));
+
+      assertNull(left.getColumnSelection(false).getAttribute("amount"),
+         "the confirmed removal must actually be applied to L");
+   }
+
+   @Test
+   void removeColumnStillWorksOnAColumnWithNoDownstreamReferences() throws Exception {
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly left =
+         TestWorksheets.tableWithColumns(ws, "L", "id", "amount", "note");
+      ws.addAssembly(left);
+      Principal agent = TestPrincipals.user("alice", "host-org");
+      WorksheetEditService svc = service(rws(ws), "Worksheet/ws1", agent, "TOK");
+
+      svc.apply("TOK", agent, ed -> ed.addMirror("DEP", "L"));
+      svc.apply("TOK", agent, ed -> ed.addFilter("DEP", "amount", ">", "100"));
+
+      // "note" is referenced by nothing downstream -- must still be removable without
+      // confirmation.
+      svc.apply("TOK", agent, ed -> ed.removeColumn("L", "note"));
+
+      assertNull(left.getColumnSelection(false).getAttribute("note"));
+   }
 }

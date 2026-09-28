@@ -23,12 +23,17 @@ import inetsoft.report.composition.*;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.ConditionItem;
+import inetsoft.uql.ConditionList;
+import inetsoft.uql.ConditionListWrapper;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.ScriptIterator;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEventValidator;
@@ -424,6 +429,313 @@ public class WorksheetControllerService {
          }
          finally {
             visited.remove(assemblyName);
+         }
+      }
+   }
+
+   /**
+    * One entry per downstream assembly (transitively) whose own pre-condition, post-condition,
+    * ranking condition, or expression-column script text references a column being removed from
+    * {@code table} (Bug #77005 / WBS-093/094). Unlike {@link AggregateInputLossConflict}, which
+    * is scoped to {@link AggregateInfo}, this covers the consumer kinds that mechanism does not
+    * -- {@code remove_column} has no rewrite target to propagate a removal into the way
+    * {@code rename_column} does, so precheck-and-refuse (the same shape {@code
+    * set_column_visibility}, Bug #77001 / WBS-088, already uses for the aggregate/group-by axis)
+    * is the only safe model for it.
+    */
+   public record ColumnReferenceLossConflict(String dependentAssemblyName, List<String> references) {}
+
+   /**
+    * Finds every downstream assembly (transitively, not just direct dependents) whose own
+    * condition/ranking/expression references {@code ref}. See {@link ColumnReferenceLossConflict}.
+    */
+   public static List<ColumnReferenceLossConflict> findColumnReferenceLossConflicts(
+      Worksheet ws, TableAssembly table, ColumnRef ref)
+   {
+      LinkedHashMap<String, List<String>> refsByDependent = new LinkedHashMap<>();
+      findColumnReferenceLossConflicts(ws, table, ref, new HashSet<>(), refsByDependent);
+
+      List<ColumnReferenceLossConflict> conflicts = new ArrayList<>();
+
+      for(Map.Entry<String, List<String>> entry : refsByDependent.entrySet()) {
+         conflicts.add(new ColumnReferenceLossConflict(entry.getKey(), entry.getValue()));
+      }
+
+      return conflicts;
+   }
+
+   private static void findColumnReferenceLossConflicts(
+      Worksheet ws, TableAssembly assembly, ColumnRef ref, Set<String> visited,
+      LinkedHashMap<String, List<String>> refsByDependent)
+   {
+      AssemblyRef[] arr = ws.getDependings(assembly.getAssemblyEntry());
+
+      for(AssemblyRef assemblyRef : arr) {
+         String assemblyName = assemblyRef.getEntry().getName();
+
+         if(!visited.add(assemblyName)) {
+            continue;
+         }
+
+         try {
+            Assembly tmp = ws.getAssembly(assemblyName);
+
+            if(!(tmp instanceof TableAssembly)) {
+               continue;
+            }
+
+            TableAssembly dependent = (TableAssembly) tmp;
+            List<String> found = new ArrayList<>();
+
+            // Bug #77005 review round 2: a Table.Column dot-notation cross-table expression
+            // reference (e.g. "L.amount + R.price" on a join table) is independent of whether
+            // the column is part of dependent's OWN column selection -- StyleBI's scripting
+            // engine lets a script name ANOTHER worksheet table directly, bypassing the
+            // mapped-local-column machinery below entirely (that machinery only ever answers
+            // "what does DEPENDENT itself call this column", which a bare cross-table script
+            // reference never needs). Checked unconditionally, using assembly's own current
+            // name/identity at this recursion level (not the possibly-null mappedRef computed
+            // below), matching how RenameColumnController's own getExpressionDependeds-gated
+            // detection is scoped one recursion level at a time.
+            collectDotNotationExpressionReferences(assembly.getName(), ref, dependent, found);
+
+            DataRef outerRef = AssetUtil.getOuterAttribute(assemblyName, ref);
+            ColumnRef mappedRef =
+               AssetUtil.getColumnRefFromAttribute(dependent.getColumnSelection(), outerRef);
+
+            if(mappedRef != null) {
+               collectConditionReferences(
+                  dependent.getPreConditionList(), mappedRef, "pre-condition", found);
+               collectConditionReferences(
+                  dependent.getPostConditionList(), mappedRef, "post-condition", found);
+               collectConditionReferences(
+                  dependent.getRankingConditionList(), mappedRef, "ranking condition", found);
+               collectExpressionReferences(dependent, mappedRef, found);
+            }
+
+            if(!found.isEmpty()) {
+               List<String> existing =
+                  refsByDependent.computeIfAbsent(assemblyName, k -> new ArrayList<>());
+
+               for(String reference : found) {
+                  if(!existing.contains(reference)) {
+                     existing.add(reference);
+                  }
+               }
+            }
+
+            if(mappedRef != null) {
+               findColumnReferenceLossConflicts(ws, dependent, mappedRef, visited, refsByDependent);
+            }
+         }
+         finally {
+            visited.remove(assemblyName);
+         }
+      }
+   }
+
+   /**
+    * Appends {@code kind} to {@code references} if any item in {@code wrapper} references
+    * {@code ref} -- either directly as the condition's own attribute, or (Bug #77005 review round
+    * 2) as a {@link RankingCondition}'s own separate "rank by" field. Both are checked with the
+    * identical unwrap-and-match logic {@code RenameColumnController.renameMirrorConditionList}/
+    * {@code renameConditionValue} use: an {@link AggregateRef}-wrapped attribute (a HAVING/ranking
+    * condition on an aggregate table), or a bare {@link GroupRef} (a HAVING/ranking condition on a
+    * GROUP BY column -- {@code WorksheetMutationSupport#resolveAggregateOrGroupField} returns the
+    * {@code GroupRef} itself for this case), including its nested {@link DateRangeRef} case for a
+    * date-grouped column.
+    */
+   private static void collectConditionReferences(
+      ConditionListWrapper wrapper, ColumnRef ref, String kind, List<String> references)
+   {
+      if(!(wrapper instanceof ConditionList)) {
+         return;
+      }
+
+      ConditionList list = (ConditionList) wrapper;
+
+      for(int i = 0; i < list.getConditionSize(); i += 2) {
+         ConditionItem item = list.getConditionItem(i);
+
+         if(item == null) {
+            continue;
+         }
+
+         if(referencesColumn(item.getAttribute(), ref)) {
+            references.add(kind);
+            continue;
+         }
+
+         if(item.getXCondition() instanceof RankingCondition rankingCondition &&
+            referencesColumn(rankingCondition.getDataRef(), ref))
+         {
+            references.add(kind);
+         }
+      }
+   }
+
+   /**
+    * True if {@code candidate} references {@code ref} -- unwrapping an {@link AggregateRef} or a
+    * plain {@link GroupRef} the same way {@code RenameColumnController.renameMirrorConditionList}/
+    * {@code renameConditionValue} do (including the nested {@link DateRangeRef} case for a
+    * date-grouped column), rather than requiring {@code candidate} to be a bare {@link ColumnRef}.
+    */
+   private static boolean referencesColumn(DataRef candidate, ColumnRef ref) {
+      if(candidate instanceof AggregateRef aggregateRef) {
+         candidate = aggregateRef.getDataRef();
+      }
+
+      if(candidate instanceof ColumnRef && candidate.equals(ref)) {
+         return true;
+      }
+
+      if(candidate instanceof GroupRef groupRef) {
+         DataRef groupData = groupRef.getDataRef();
+
+         if(groupData instanceof ColumnRef groupCol &&
+            groupCol.getDataRef() instanceof DateRangeRef dateRange)
+         {
+            DataRef dateBase = dateRange.getDataRef();
+            return dateBase instanceof AttributeRef &&
+               Tool.equals(dateBase.getAttribute(), ref.getAttribute());
+         }
+
+         return groupRef.equals(ref);
+      }
+
+      return false;
+   }
+
+   /**
+    * Appends one entry per {@code dependent} expression column whose script text references
+    * {@code table} (named at the CURRENT recursion level, not necessarily the original table the
+    * removal targets) dot-notation style ({@code Table.Column}) -- the classic cross-table script
+    * reference {@link RenameColumnController#renameTableColumn} already detects via {@link
+    * AbstractTableAssembly#getExpressionDependeds}/{@link ScriptIterator} (Bug #77005 review round
+    * 2). Gated the identical way that detection is: {@code dependent} must itself report {@code
+    * table} as an expression dependency at all before its expressions are scanned token-by-token.
+    */
+   private static void collectDotNotationExpressionReferences(
+      String table, ColumnRef ref, TableAssembly dependent, List<String> references)
+   {
+      if(!(dependent instanceof AbstractTableAssembly)) {
+         return;
+      }
+
+      Set<AssemblyRef> expressionDeps = new HashSet<>();
+      ((AbstractTableAssembly) dependent).getExpressionDependeds(expressionDeps);
+      boolean dependsOnTable = expressionDeps.stream()
+         .map(AssemblyRef::getEntry)
+         .anyMatch(entry -> Tool.equals(entry.getName(), table));
+
+      if(!dependsOnTable) {
+         return;
+      }
+
+      // getName(), matching RenameColumnController#renameTableColumnExpression's own dot-notation
+      // token match (ocolumn.getName()) exactly -- a Table.Column script reference is a bare
+      // identifier, addressed by display name (alias if set, else attribute), not the bracket
+      // form's raw-attribute convention collectExpressionReferences uses.
+      String columnName = ref.getName();
+
+      if(columnName == null) {
+         return;
+      }
+
+      ColumnSelection columns = dependent.getColumnSelection();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef column = columns.getAttribute(i);
+
+         if(!(column instanceof ColumnRef)) {
+            continue;
+         }
+
+         DataRef inner = ((ColumnRef) column).getDataRef();
+
+         if(!(inner instanceof ExpressionRef)) {
+            continue;
+         }
+
+         String expr = ((ExpressionRef) inner).getExpression();
+
+         if(referencesTableColumnDotNotation(expr, table, columnName)) {
+            references.add("expression column '" + ((ColumnRef) column).getName() + "'");
+         }
+      }
+   }
+
+   /**
+    * True if {@code expr} contains a {@code table.columnName} dot-notation token sequence, using
+    * the identical {@link ScriptIterator} token-matching rule {@code RenameColumnController
+    * .renameTableColumnExpression}'s listener applies when actually rewriting one -- read-only
+    * here, since this only needs to detect presence, not rewrite.
+    */
+   private static boolean referencesTableColumnDotNotation(
+      String expr, String table, String columnName)
+   {
+      if(expr == null || expr.isEmpty()) {
+         return false;
+      }
+
+      boolean[] found = { false };
+      ScriptIterator.ScriptListener listener = (token, pref, cref) -> {
+         if(pref != null && Tool.equals(pref.val, table) && token.isRef() &&
+            token.val.equals(columnName) && (cref == null || !"[".equals(cref.val)))
+         {
+            found[0] = true;
+         }
+      };
+
+      ScriptIterator iterator = new ScriptIterator(expr);
+      iterator.addScriptListener(listener);
+      iterator.iterate();
+      return found[0];
+   }
+
+   /**
+    * Appends one entry per {@code dependent} expression column whose script text references
+    * {@code ref} under {@code dependent}'s own local column identity -- {@code field['<name>']},
+    * with no cross-table qualifier at all, the pattern wiz's own {@code add_expression_column}
+    * generates (Bug #77005 / WBS-094). This is a plain substring scan, not the {@link
+    * AbstractTableAssembly#getExpressionDependeds}/{@code ScriptIterator} machinery
+    * {@code RenameColumnController} uses for a cross-assembly {@code Table.Column} reference (see
+    * {@link #collectDotNotationExpressionReferences} for that case, added Bug #77005 review round
+    * 2) -- that machinery answers a different question ("does this script reference ANOTHER
+    * assembly by name") that a same-table local field access never triggers, so it would never
+    * flag this case at all.
+    */
+   private static void collectExpressionReferences(
+      TableAssembly dependent, ColumnRef ref, List<String> references)
+   {
+      // getAttribute(), not getName() -- field['amount'] addresses a column by its BARE
+      // attribute; getName() falls back to an entity-qualified "Table.amount" once no alias
+      // is set (AbstractDataRef#getName0), which never appears literally in that bracket form.
+      String name = ref.getAttribute();
+
+      if(name == null) {
+         return;
+      }
+
+      ColumnSelection columns = dependent.getColumnSelection();
+
+      for(int i = 0; i < columns.getAttributeCount(); i++) {
+         DataRef column = columns.getAttribute(i);
+
+         if(!(column instanceof ColumnRef)) {
+            continue;
+         }
+
+         DataRef inner = ((ColumnRef) column).getDataRef();
+
+         if(!(inner instanceof ExpressionRef)) {
+            continue;
+         }
+
+         String expr = ((ExpressionRef) inner).getExpression();
+
+         if(expr != null && expr.contains("['" + name + "']")) {
+            references.add("expression column '" + ((ColumnRef) column).getName() + "'");
          }
       }
    }
