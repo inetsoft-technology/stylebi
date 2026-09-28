@@ -941,7 +941,11 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
          result = true;
       }
 
-      if(!Tool.equals(rangeValues, cinfo.rangeValues)) {
+      // also compare the runtime ranges (like the colors below), since DynamicValue.equals()
+      // ignores a script-set value/count and the design values alone may be unchanged (#77205)
+      if(!Tool.equals(rangeValues, cinfo.rangeValues) ||
+         !Tool.equals(getRanges(), cinfo.getRanges()))
+      {
          rangeValues = cinfo.rangeValues;
          // keep the logical length in sync with the array reference it now describes (#76909)
          rangeCount = cinfo.rangeCount;
