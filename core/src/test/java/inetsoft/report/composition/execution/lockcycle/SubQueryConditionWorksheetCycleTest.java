@@ -35,6 +35,7 @@ import inetsoft.util.script.graal.GraalJavaScriptEnv;
 import inetsoft.util.script.graal.ScriptScope;
 import inetsoft.util.script.graal.pool.PoolConfig;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -303,6 +304,45 @@ public class SubQueryConditionWorksheetCycleTest {
       worker.release();
 
       assertTrue(harness.await(script.future, KNOWN_CAP, "script of another engine reading A") > 1);
+   }
+
+   /**
+    * {@link #formulaReadsFilteredTableByName} with the readers in the other order: A is built
+    * on a thread holding no lock, which starts the sub table's distinct worker, and then X's
+    * formula {@code A.length} is the first to populate A. That thread is inside {@code exec}
+    * on the worksheet engine, so A's filter re-enters the engine lock and waits for the
+    * worker holding it; lending it is correctly refused (the context is in use on this
+    * thread), and the worker needs it in the formula lens.
+    *
+    * <p>Pre-existing, and NOT fixed by #77158: it deadlocks on main and with the fix. Fixing
+    * it needs a waiter that does the work instead of waiting, or a sub table that does not
+    * start an unlocked worker while it is built (#76938 family).
+    */
+   @ParameterizedTest
+   @ValueSource(booleans = { false, true })
+   @Tag("known-deadlock")
+   @EnabledIfSystemProperty(named = "lockcycle.known", matches = "true")
+   public void formulaReadsFilteredTableFirst(boolean correlated) throws Exception {
+      worker = new WorkerGate(PARK_ROW);
+      Worksheet ws = new Worksheet();
+      EmbeddedTableAssembly a = embedded(ws, "A", 20, null);
+      EmbeddedTableAssembly b = embedded(ws, "B", SUB_ROWS, worker);
+      expression(b, "bx", "field['id'] * 1");
+      EmbeddedTableAssembly x = embedded(ws, "X", 1, null);
+      expression(x, "alen", "A.length");
+      subQueryCondition(ws, a, b, correlated);
+      box = sandbox(ws);
+      lock = box.getScriptEnv().getExecutionLock();
+      harness.await(harness.submit(
+         () -> box.getTableLens("A", AssetQuerySandbox.RUNTIME_MODE)), KNOWN_CAP, "building A");
+      assertTrue(worker.awaitParked(KNOWN_CAP), "the distinct worker did not reach row " + PARK_ROW);
+
+      Started<Integer> script = harness.start(
+         () -> drain(box.getTableLens("X", AssetQuerySandbox.RUNTIME_MODE)).size());
+      awaitIn(script, KNOWN_CAP, "DistinctTableLens.moreRows");
+      worker.release();
+
+      assertEquals(2, harness.await(script.future, KNOWN_CAP, "X's formula reading A first"));
    }
 
    /**
