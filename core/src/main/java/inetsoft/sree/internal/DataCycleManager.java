@@ -744,7 +744,7 @@ public class DataCycleManager
       Set<String> assetIds = storage.getKeys(key -> {
          AssetEntry entry = AssetEntry.createAssetEntry(key);
          return entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE;
-      });
+      }, orgId);
 
       for(String assetId : assetIds) {
          AssetEntry entry = AssetEntry.createAssetEntry(assetId);

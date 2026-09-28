@@ -36,16 +36,16 @@ package inetsoft.sree.internal;
  * sibling steps in the same methods that do. The realistic production caller (a site admin
  * renaming/deleting a *different* org from their own Host Organization context) therefore has
  * getDataCycleIds(oldOrgId) silently scan the ACTING ADMIN'S org bucket, not the org being
- * migrated/deleted -- if that bucket has no Data Cycles (the common case), the whole
- * migrate/clear call becomes a silent no-op: nothing is copied, nothing is deleted, no
- * exception or log. Reproduced at the unit level by scenarios 5f and 5h below. NOTE: manual UI
- * verification (2026-07-23) did NOT reproduce this loss in practice; root cause of the
- * discrepancy is unresolved, so this is pinned as current code behavior only, not filed as a
- * confirmed defect -- see matrix doc (org-lifecycle-resource-matrix.md, 三、3.3, 5f/5h) for detail.
- * Scenarios 5a/5b/5c below intentionally drive migrateDataCycles()/clearDataCycles() from
- * *within* the source org's context (matching the one caller shape that does work) so they can
- * independently verify the copy/rename/delete *content* logic on its own, without being
- * confounded by 5f's context bug.
+ * migrated/deleted. Bug #77194 fixed this: getDataCycleIds(orgId) now calls
+ * storage.getKeys(filter, orgId). Scenarios 5f and 5h assert the fixed behavior, and
+ * scenarios 5g/5i/5j cover cross-context delete, the two-org listing/count and the
+ * production org-copy order.
+ * (Manual UI verification on 2026-07-23 did not see a missing cycle because, in production,
+ * IdentityService.copyStorages() raw-copies the DATA_CYCLE entries before migrateDataCycles()
+ * runs; the visible symptom was the copied asset keeping the SOURCE org in its orgId/CycleInfo,
+ * or an NPE when the acting org had a cycle name the source lacked -- see 5j.)
+ * Scenarios 5a/5b/5c below drive migrateDataCycles()/clearDataCycles() from *within* the
+ * source org's context so they verify the copy/rename/delete *content* logic on its own.
  *
  * Scenario 5h goes one call-frame higher than 5f: instead of calling
  * DataCycleManager.migrateDataCycles() directly, it drives the same
@@ -83,8 +83,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.security.Principal;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -189,9 +191,8 @@ class DataCycleManagerOrgLifecycleTest {
       assertNotNull(readAsset(orgId, "CycleOne"), "precondition: first cycle must exist");
       assertNotNull(readAsset(orgId, "CycleTwo"), "precondition: second cycle must exist");
 
-      // clearDataCycles(orgId) itself suffers from the same current-org-context coupling as
-      // migrateDataCycles() (see 5f) -- drive it from within the target org's own context so
-      // this scenario isolates clearDataCycles()'s own deletion logic.
+      // driven from within the target org's own context so this scenario isolates
+      // clearDataCycles()'s own deletion logic (the cross-context case is 5g).
       OrganizationManager.runInOrgScope(orgId, () -> {
          dataCycleManager.clearDataCycles(orgId);
          return null;
@@ -284,7 +285,7 @@ class DataCycleManagerOrgLifecycleTest {
    //    contradiction). ──
 
    @Test
-   void migrateDataCycles_calledOutsideSourceOrgContext_silentlyMigratesNothing() throws Exception {
+   void migrateDataCycles_calledOutsideSourceOrgContext_migratesSourceCycle() throws Exception {
       String fromOrgId = "cycle_ctxbug_from";
       String toOrgId = "cycle_ctxbug_to";
 
@@ -305,14 +306,16 @@ class DataCycleManagerOrgLifecycleTest {
       // Organization session.
       dataCycleManager.migrateDataCycles(new Organization(fromOrgId), new Organization(toOrgId), false);
 
-      assertNull(readAsset(toOrgId, "CtxBugCycle"),
-                "getDataCycleIds(oorg.getId()) (DataCycleManager.java:741-756) resolves its "
-                + "storage.getKeys(filter) call via the CURRENT thread's org context, not the "
-                + "oorg.getId() parameter it was handed -- see this file's header comment for the "
-                + "manual-verification contradiction");
+      // Bug #77194: getDataCycleIds(oorg.getId()) must scan the SOURCE org's bucket
+      // (storage.getKeys(filter, orgId)), not the calling thread's current org.
+      DataCycleManager.DataCycleAsset migrated = readAsset(toOrgId, "CtxBugCycle");
+      assertNotNull(migrated,
+                   "the source org's cycle must be migrated even when the current org context "
+                   + "is not the source org (Bug #77194)");
+      assertEquals(toOrgId, migrated.getOrgId(),
+                  "the migrated asset's orgId must be rewritten to the target org");
       assertNotNull(readAsset(fromOrgId, "CtxBugCycle"),
-                   "the source asset is untouched -- this is a silent no-op, not a crash or a "
-                   + "partial/corrupting migration");
+                   "copy (replace=false) leaves the source asset untouched");
    }
 
    // ── scenario 5h (new, verifies 5f's finding through the real production entry point instead
@@ -335,7 +338,7 @@ class DataCycleManagerOrgLifecycleTest {
    //    this file's header comment for the manual-verification contradiction). ──
 
    @Test
-   void cloneOrganization_viaRealCopyOrganizationEntryPoint_newOrgSilentlyMissingSourceDataCycle()
+   void cloneOrganization_viaRealCopyOrganizationEntryPoint_newOrgGetsSourceDataCycle()
       throws Exception
    {
       String fromOrgId = "cycle_clone_from";
@@ -379,12 +382,140 @@ class DataCycleManagerOrgLifecycleTest {
          }
       }
 
-      assertNull(readAsset(toOrgId, "CloneCycle"),
-                "reproduced through the real EM entry point: cloning org0 into a brand-new org "
-                + "drops org0's Data Cycle at the unit level -- see this file's header comment "
-                + "for the manual-verification contradiction");
+      // Bug #77194: with IdentityService mocked there is no raw storage copy, so the only way
+      // the clone can get the cycle is migrateDataCycles() reading the source org's bucket.
+      DataCycleManager.DataCycleAsset cloned = readAsset(toOrgId, "CloneCycle");
+      assertNotNull(cloned,
+                   "cloning through the real EM entry point must give the new org the source "
+                   + "org's Data Cycle regardless of the acting org context (Bug #77194)");
+      assertEquals(toOrgId, cloned.getOrgId(),
+                  "the cloned asset's orgId must point at the new org");
       assertNotNull(readAsset(fromOrgId, "CloneCycle"),
-                   "the source org's own cycle is untouched -- silent no-op, not data corruption");
+                   "the source org's own cycle is untouched");
+   }
+
+   // ── scenario 5i (Bug #77194): with the current org = A, listing another org's cycles must read
+   //    that org's own bucket, and the all-org listing/count must be the true union. ──
+
+   @Test
+   void getDataCycles_otherOrgFromCurrentOrgContext_listsThatOrgsOwnCycles() throws Exception {
+      String orgA = "cycle_list_a";
+      String orgB = "cycle_list_b";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg("CycleListA", orgA)
+         .addOrg("CycleListB", orgB)
+         .setup();
+
+      int countBefore = OrganizationManager.runInOrgScope(orgA, dataCycleManager::getDataCycleCount);
+
+      seedDataCycle(orgA, "OnlyInA", "ivan");
+      seedDataCycle(orgB, "OnlyInB", "judy");
+
+      OrganizationManager.runInOrgScope(orgA, () -> {
+         assertEquals(List.of("OnlyInB"), Collections.list(dataCycleManager.getDataCycles(orgB)),
+                      "getDataCycles(B) must list B's own cycles, not the current org A's");
+         assertEquals(List.of("OnlyInA"), Collections.list(dataCycleManager.getDataCycles(orgA)),
+                      "getDataCycles(A) must list A's cycles");
+
+         List<DataCycleManager.DataCycleId> all = Collections.list(dataCycleManager.getDataCycles());
+         assertTrue(all.contains(new DataCycleManager.DataCycleId("OnlyInA", orgA)),
+                    "the all-org listing must contain A's cycle under A");
+         assertTrue(all.contains(new DataCycleManager.DataCycleId("OnlyInB", orgB)),
+                    "the all-org listing must contain B's cycle under B");
+         assertFalse(all.contains(new DataCycleManager.DataCycleId("OnlyInA", orgB)),
+                     "A's cycle must not be reported as belonging to B");
+         assertFalse(all.stream().anyMatch(id -> id.name().equals("OnlyInA") && !orgA.equals(id.orgId())),
+                     "A's cycle must be listed only under A, not under every org");
+
+         assertEquals(countBefore + 2, dataCycleManager.getDataCycleCount(),
+                      "getDataCycleCount() must count each org's own cycles once");
+         return null;
+      });
+   }
+
+   // ── scenario 5j (Bug #77194): org copy in the production order -- IdentityService.copyStorages()
+   //    raw-copies the source bucket (indexedStorage.copyStorageData) first, then
+   //    AbstractEditableAuthenticationProvider calls migrateDataCycles(src, dst, false). The acting
+   //    org (current context) has a cycle name the source lacks, which used to NPE at
+   //    migrateDataCycles() and leave the raw copy pointing at the source org. ──
+
+   @Test
+   void copyOrg_rawCopyThenMigrateOutsideSourceContext_rewritesCopiedCycleToTargetOrg()
+      throws Exception
+   {
+      String actingOrg = "cycle_rawcopy_acting";
+      String fromOrgId = "cycle_rawcopy_from";
+      String toOrgId = "cycle_rawcopy_to";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg("CycleRawCopyActing", actingOrg)
+         .addOrg("CycleRawCopyFrom", fromOrgId)
+         .addOrg("CycleRawCopyTo", toOrgId)
+         .setup();
+
+      seedDataCycle(actingOrg, "ActingOnlyCycle", "kate");
+      seedDataCycle(fromOrgId, "RawCopyCycle", "leo");
+
+      Organization fromOrg = new Organization(fromOrgId);
+      Organization toOrg = new Organization(toOrgId);
+
+      // step 1 of the production order: the raw per-org storage copy
+      indexedStorage.copyStorageData(fromOrg, toOrg, false);
+
+      DataCycleManager.DataCycleAsset rawCopy = readAsset(toOrgId, "RawCopyCycle");
+      assertNotNull(rawCopy, "precondition: the raw storage copy puts the cycle in the target org");
+      assertEquals(fromOrgId, rawCopy.getOrgId(),
+                   "precondition: the raw copy still carries the source org id");
+
+      // step 2: migrateDataCycles() from the acting admin's org, not the source org
+      assertDoesNotThrow(() -> OrganizationManager.runInOrgScope(actingOrg, () -> {
+         dataCycleManager.migrateDataCycles(fromOrg, toOrg, false);
+         return null;
+      }), "migrateDataCycles() must not fail when the acting org has cycle names the source lacks");
+
+      DataCycleManager.DataCycleAsset migrated = readAsset(toOrgId, "RawCopyCycle");
+      assertNotNull(migrated);
+      assertEquals(toOrgId, migrated.getOrgId(),
+                   "the copied asset's orgId must be rewritten to the target org");
+
+      DataCycleManager.CycleInfo info = migrated.getInfo();
+      assertNotNull(info);
+      String expectedIdentity = new IdentityID("leo", toOrgId).convertToKey();
+      assertEquals(toOrgId, info.getOrgId(), "the CycleInfo org must be rewritten to the target org");
+      assertEquals(expectedIdentity, info.getCreatedBy(),
+                   "createdBy must be re-keyed to the target org");
+      assertEquals(expectedIdentity, info.getLastModifiedBy(),
+                   "lastModifiedBy must be re-keyed to the target org");
+
+      assertNull(readAsset(toOrgId, "ActingOnlyCycle"),
+                 "the acting org's cycles must not leak into the target org");
+      assertEquals(fromOrgId, readAsset(fromOrgId, "RawCopyCycle").getOrgId(),
+                   "the source org's cycle is untouched by a copy");
+   }
+
+   // ── scenario 5g (Bug #77194): deleting another org's cycles from the acting org's context ──
+
+   @Test
+   void clearDataCycles_calledOutsideTargetOrgContext_removesTargetOrgCycles() throws Exception {
+      String actingOrg = "cycle_clear_acting";
+      String orgId = "cycle_clear_target";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg("CycleClearActing", actingOrg)
+         .addOrg("CycleClearTarget", orgId)
+         .setup();
+
+      seedDataCycle(actingOrg, "ActingCycle", "mike");
+      seedDataCycle(orgId, "TargetCycle", "nina");
+
+      OrganizationManager.runInOrgScope(actingOrg, () -> {
+         dataCycleManager.clearDataCycles(orgId);
+         return null;
+      });
+
+      assertNull(readAsset(orgId, "TargetCycle"), "the target org's cycle must be removed");
+      assertNotNull(readAsset(actingOrg, "ActingCycle"), "the acting org's cycle must be kept");
    }
 
    // ── fixture helpers ──
