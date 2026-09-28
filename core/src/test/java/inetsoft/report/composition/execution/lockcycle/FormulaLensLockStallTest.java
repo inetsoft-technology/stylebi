@@ -291,6 +291,74 @@ public class FormulaLensLockStallTest {
       assertSame(original, failure, "the reader must get the stall of the field read");
    }
 
+   /**
+    * A read to the end of the table (as a sort or a crosstab does) whose batch stalls
+    * part way must not mark the lens's row table complete (bug #77123): a completed row
+    * table is swappable, the resumed read then appends rows to a completed fragment, and
+    * after the fragment is swapped around the resumed read the appended state is lost and
+    * every formula cell reads null, with no error.
+    */
+   @Test
+   public void stalledEndOfTableReadDoesNotCompleteTheLens() throws Exception {
+      final int n = 40;
+      Sandbox s = harness.control();
+      List<List<Object>> expected = harness.await(
+         harness.submit(() -> drain(s.formula(new DefaultTableLens(rows(n)),
+                                              "f", "field['value'] + 1"))),
+         ACTIVE_CAP, "control");
+      LockStallException original = new LockStallException("nested.site", "worker", 1234, null);
+      java.util.Set<Integer> failed = java.util.concurrent.ConcurrentHashMap.newKeySet();
+      // the first read of row 15's value, the script's, stalls; later reads do not
+      TableLens base = new DefaultTableLens(rows(n)) {
+         @Override
+         public Object getObject(int r, int c) {
+            if(r == 15 && c == 1 && failed.add(r)) {
+               throw original;
+            }
+
+            return super.getObject(r, c);
+         }
+      };
+      FormulaTableLens lens = harness.track(s.formula(base, "f", "field['value'] + 1"));
+
+      Throwable failure = StallTestSupport.failureOf(
+         harness.submit(() -> lens.moreRows(TableLens.EOT)), ACTIVE_CAP);
+      assertSame(original, failure, "the end-of-table read must get the stall");
+      assertFalse(rowTable(lens).isCompleted(),
+                  "a batch that stalled must not complete the lens's row table");
+
+      swapRowTable(lens);
+      harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP, "resumed read");
+      swapRowTable(lens);
+
+      assertEquals(expected, harness.await(harness.submit(() -> drain(lens)), ACTIVE_CAP,
+                                           "read after the swaps"),
+                   "the formula values survive the swaps around the resumed read");
+   }
+
+   private static inetsoft.uql.table.XSwappableTable rowTable(FormulaTableLens lens)
+      throws Exception
+   {
+      Field field = FormulaTableLens.class.getDeclaredField("rows");
+      field.setAccessible(true);
+      return (inetsoft.uql.table.XSwappableTable) field.get(lens);
+   }
+
+   /**
+    * Swap every swappable fragment of the lens's row table, as the swapper does under
+    * memory pressure.
+    */
+   private static void swapRowTable(FormulaTableLens lens) throws Exception {
+      Field field = inetsoft.uql.table.XSwappableTable.class.getDeclaredField("tables");
+      field.setAccessible(true);
+
+      for(Object fragment : (Object[]) field.get(rowTable(lens))) {
+         if(fragment != null) {
+            ((inetsoft.uql.table.XTableFragment) fragment).swap(false);
+         }
+      }
+   }
+
    @Test
    public void uncontendedLensRegistersNothing() throws Exception {
       Sandbox s = harness.control();

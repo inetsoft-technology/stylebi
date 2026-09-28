@@ -336,6 +336,9 @@ public class FormulaTableLens extends AbstractTableLens
       final int lastRow = Math.max(r, getProcessedRowCount() + hrows + advance);
       Lock execLock = lockForRow(r, lastRow);
       ScriptSpan span = ScriptSpan.NONE;
+      // set when this batch ends in a lock stall: the rows past the stall are not computed,
+      // so the row table is not complete even if the base has no more rows (bug #77123)
+      boolean stalled = false;
 
       try {
          int nrows = getProcessedRowCount();
@@ -417,7 +420,6 @@ public class FormulaTableLens extends AbstractTableLens
 
             int j = 0;
             Object[] row = new Object[formulas.length];
-            boolean stalled = false;
 
             // remove change listener then add change listener, for script might
             // change the table lens(set object), then the process will delegate
@@ -476,6 +478,11 @@ public class FormulaTableLens extends AbstractTableLens
             }
          }
       }
+      catch(LockStallException ex) {
+         // also a stall of the base read in the loop condition, outside the row's catch
+         stalled = true;
+         throw ex;
+      }
       finally {
          // the lock is released even if closing the span throws
          try {
@@ -490,7 +497,9 @@ public class FormulaTableLens extends AbstractTableLens
             execLock.unlock();
          }
 
-         if(!more) {
+         // a stalled batch leaves the row table open: a completed one may be swapped out,
+         // and the rows a resumed read appends to it would be lost (bug #77123)
+         if(!more && !stalled) {
             if(rows != null) {
                rows.complete();
             }
