@@ -112,6 +112,22 @@ class JoinConcatSubQueryUserMessageTest {
       assertCallerHas("sub0 warning");
    }
 
+   @Test
+   void joinFailingFirstSubQueryKeepsItsMessage() throws Exception {
+      JoinQuery query = joinQuery(2, -1);
+      AssetQuery[] subs = (AssetQuery[]) getField(JoinQuery.class, query, "queries");
+      // doAnswer, so stubbing does not run the previous answer on this thread
+      doAnswer(inv -> {
+         Tool.addUserWarning("sub0 warning");
+         throw new IllegalStateException("sub0 failed");
+      }).when(subs[0]).getTableLens(any());
+      assertNull(Tool.getUserMessage());
+
+      assertThrows(ExecutionException.class,
+         () -> query.getPostBaseTableLens0(new VariableTable()));
+      assertCallerHas("sub0 warning");
+   }
+
    private static void assertOwnFailureMessage(Exception ex) {
       assertInstanceOf(MessageException.class, ex);
       assertFalse(ex.getMessage().contains("warning"),
