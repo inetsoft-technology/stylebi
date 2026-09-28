@@ -20,7 +20,7 @@ package inetsoft.web.admin.security.user;
 /*
  * Bug #77136: renaming an organization to a reserved or unsafe id must be rejected in the EM
  * edit path before any organization property is saved, so a rejected rename leaves nothing
- * behind.
+ * behind. Bug #77235: the same holds for a rejected theme.
  */
 
 import inetsoft.sree.SreeEnv;
@@ -104,6 +104,27 @@ class UserTreeServiceEditOrganizationIdTest {
 
       assertEquals(Catalog.getCatalog().getString("em.security.reservedOrganizationID", newId),
                    thrown.getMessage());
+      sreeEnvStatic.verify(SreeEnv::save, never());
+      sreeEnvStatic.verify(() -> SreeEnv.setProperty(anyString(), any(), anyBoolean()), never());
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   // Bug #77235: a rejected theme must also leave the organization properties unchanged
+   @Test
+   void rejectedTheme_rejectedBeforeAnyPropertySave() throws Exception {
+      EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
+         .name("Org A")
+         .oldName("Org A")
+         .id("orgA")
+         .theme("btheme")
+         .properties(List.of(PropertyModel.builder().name("max.row.count").value("10").build()))
+         .build();
+      doThrow(new java.lang.SecurityException("denied"))
+         .when(identityService).checkOrganizationTheme(orgA, model, principal);
+
+      assertThrows(java.lang.SecurityException.class,
+                   () -> service.editOrganization(model, "Primary", principal));
+
       sreeEnvStatic.verify(SreeEnv::save, never());
       sreeEnvStatic.verify(() -> SreeEnv.setProperty(anyString(), any(), anyBoolean()), never());
       verify(identityService, never()).setIdentity(any(), any(), any(), any());

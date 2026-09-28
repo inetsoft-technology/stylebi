@@ -1818,6 +1818,43 @@ public class IdentityService {
    }
 
    /**
+    * Rejects assigning a theme to an organization by a caller who is not a site administrator
+    * unless the theme is global or owned by the organization being edited. The edited
+    * organization's original id is used because its own themes are only moved to a new id after
+    * the theme is assigned. The default theme and the theme already stored on the organization
+    * are always allowed. A missing theme and another organization's theme get the same error so
+    * that theme ids cannot be probed.
+    */
+   public void checkOrganizationTheme(Organization oldOrg, EditOrganizationPaneModel model,
+                                      Principal principal)
+   {
+      String themeId = model.theme();
+
+      if(!SUtil.isMultiTenant() || !securityEngine.isSecurityEnabled() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return;
+      }
+
+      if(Tool.isEmptyString(themeId) || CustomTheme.DEFAULT_THEME_ID.equals(themeId) ||
+         Tool.equals(themeId, oldOrg.getTheme()))
+      {
+         return;
+      }
+
+      String orgId = oldOrg.getId();
+      boolean assignable = customThemesManager.getCustomThemes().stream()
+         .anyMatch(t -> themeId.equals(t.getId()) &&
+            (Tool.isEmptyString(t.getOrgID()) || t.getOrgID().equalsIgnoreCase(orgId)));
+
+      if(!assignable) {
+         throw new java.lang.SecurityException(
+            "Unauthorized attempt to assign theme \"" + themeId + "\" to organization \"" + orgId +
+            "\" by user " + principal);
+      }
+   }
+
+   /**
     * Update an identity.
     */
    public void setIdentity(Identity identity,
@@ -1845,6 +1882,8 @@ public class IdentityService {
             checkDefaultOrganizationRename((Organization) identity, (EditOrganizationPaneModel) model);
             OrganizationIdRules.checkRename(((Organization) identity).getId(),
                                             ((EditOrganizationPaneModel) model).id());
+            checkOrganizationTheme((Organization) identity, (EditOrganizationPaneModel) model,
+                                   principal);
          }
 
          SecurityEngine.touch();

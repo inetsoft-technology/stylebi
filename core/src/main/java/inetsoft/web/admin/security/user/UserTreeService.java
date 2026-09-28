@@ -1370,8 +1370,9 @@ public class UserTreeService {
          checkDuplicateOrgIDs(model, oldOrg);
       }
 
-      // before any org property is saved, so a rejected rename leaves nothing behind
+      // before any org property is saved, so a rejected rename or theme leaves nothing behind
       OrganizationIdRules.checkRename(oldOrg.getId(), model.id());
+      identityService.checkOrganizationTheme(oldOrg, model, principal);
 
       OrganizationManager.runInOrgScope(oldOrg.getId(), () -> {
          boolean saveProperties = false;
