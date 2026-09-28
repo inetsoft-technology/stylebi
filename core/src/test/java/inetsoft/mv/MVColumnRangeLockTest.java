@@ -99,6 +99,24 @@ class MVColumnRangeLockTest {
    }
 
    @Test
+   void convertCompletesAHalfInitializedRange() {
+      // a concurrent first update can be observed with min0 set but max0 still null, the
+      // lock-free fast path in convert() must fall through to the locked update instead of
+      // dereferencing the missing bound
+      DateMVColumn col = newYearIntervalColumn();
+      col.setMin(new Date(5 * DAY));
+      newTable(col, new Date(10 * DAY)).getObject(1, 1);
+      assertEquals(new Date(5 * DAY), col.getMin());
+      assertEquals(new Date(10 * DAY), col.getMax());
+
+      col = newYearIntervalColumn();
+      col.setMax(new Date(5 * DAY));
+      newTable(col, new Date(1 * DAY)).getObject(1, 1);
+      assertEquals(new Date(1 * DAY), col.getMin());
+      assertEquals(new Date(5 * DAY), col.getMax());
+   }
+
+   @Test
    void setRangeWaitsForTheColumnMonitor() throws Exception {
       ColumnRef numRef = new ColumnRef(new AttributeRef("test", "num"));
       numRef.setDataType(XSchema.DOUBLE);
