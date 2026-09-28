@@ -4012,10 +4012,9 @@ public abstract class AssetQuery extends PreAssetQuery {
                         sconds.add(acond);
                      }
                      catch(Exception ex) {
-                        LOG.warn("Failed to execute condition sub-query", ex);
-
-                        // ignore the condition item
-                        col = -1;
+                        // fail the query: ignoring the item would evaluate it as true and
+                        // silently return (and cache) unfiltered rows
+                        throw AssetConditionGroup.subQueryFailed(tassembly, ex);
                      }
                   }
                   else {
