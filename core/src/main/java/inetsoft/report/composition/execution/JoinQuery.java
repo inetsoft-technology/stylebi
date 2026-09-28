@@ -333,8 +333,16 @@ public class JoinQuery extends AssetQuery {
          final List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
          final Thread currentThread = Thread.currentThread();
 
-         for(AssetQuery query : queries) {
-            final AssetQuery q = query;
+         // @by Bug #77248: user messages raised by a sub-query on a pool thread
+         // stay in that thread's USER_MESSAGE_LOCAL. Drain them per task and
+         // re-add them on the calling thread, as AssetDataCache does for its
+         // processor thread. Draining also keeps a reused pool thread from
+         // leaking one task's messages into the next task's MessageException.
+         final UserMessage[] subMessages = new UserMessage[queries.length];
+
+         for(int qi = 0; qi < queries.length; qi++) {
+            final AssetQuery q = queries[qi];
+            final int index = qi;
             Callable<TableLens> task = () -> {
                q.setSubQuery(false);
                q.setTimeLimited(isTimeLimited());
@@ -373,6 +381,12 @@ public class JoinQuery extends AssetQuery {
                }
                finally {
                   WSExecution.setAssetQuerySandbox(prevBox);
+
+                  // the serial path runs on the calling thread, where the
+                  // messages already are, so only drain a pool thread
+                  if(!serial) {
+                     subMessages[index] = Tool.getUserMessage();
+                  }
                }
             };
 
@@ -388,7 +402,15 @@ public class JoinQuery extends AssetQuery {
             }
          }
 
-         TableLens table = results.get(0).get();
+         TableLens table;
+
+         try {
+            table = results.get(0).get();
+         }
+         finally {
+            Tool.addUserMessage(subMessages[0]);
+         }
+
          List<String> ids = new ArrayList<>();
          String name = this.tables[0].getName();
 
@@ -428,6 +450,9 @@ public class JoinQuery extends AssetQuery {
                }
 
                throw mex;
+            }
+            finally {
+               Tool.addUserMessage(subMessages[i]);
             }
 
             name = this.tables[i].getName();
