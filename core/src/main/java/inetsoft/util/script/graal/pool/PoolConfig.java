@@ -28,10 +28,12 @@ import inetsoft.sree.SreeEnv;
  *                            closed instead of reused.
  * @param warnSlotsPerSandbox warn (never cap) when one sandbox has more contexts than this.
  * @param warnSlotsPerNode    warn (never cap) when the node has more pooled contexts than this.
- * @param batchRows           the minimum rows a lens populates under one claimed span.
+ * @param batchRows           above 0, a formula lens batches its rows under one claimed span;
+ *                            0 turns batching off. A first or random batch is what pool off
+ *                            computes (context-pool regression D1).
  * @param maxBatchRows        the most rows one batch reads ahead: under sequential access a
- *                            consumer's batches double from batchRows up to this (spec §14.14).
- *                            Never below batchRows.
+ *                            lens's batches double from the pool-off look-ahead up to this
+ *                            (spec §14.14). Never below batchRows.
  */
 public record PoolConfig(long idleMillis, int cleanThreshold, int warnSlotsPerSandbox,
                          int warnSlotsPerNode, int batchRows, int maxBatchRows)

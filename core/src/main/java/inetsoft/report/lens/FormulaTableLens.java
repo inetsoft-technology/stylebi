@@ -352,7 +352,10 @@ public class FormulaTableLens extends AbstractTableLens
       try {
          int nrows = getProcessedRowCount();
 
-         if(r < nrows) {
+         // lens rows hrows..nrows + hrows - 1 are computed. Off the pool lockForRow() already
+         // answers them as COMPUTED; in pool mode a re-read of the last computed row must not
+         // count as a sequential read that starts the next batch (context-pool regression D1)
+         if(r >= hrows ? r < nrows + hrows : r < nrows) {
             return true;
          }
 
@@ -412,7 +415,9 @@ public class FormulaTableLens extends AbstractTableLens
          // least one pooled batch, so one context clean serves a batch (spec §14.8).
          // Design cost (spec §14.14): in pool mode the lens lock is held for up to
          // maxBatchRows rows of script evaluation, so a concurrent reader of an already
-         // computed row can wait that long for this batch to finish
+         // computed row can wait that long for this batch to finish. A condition filter
+         // reads this lens in reads of at most maxBatchRows rows; a direct far or EOT read
+         // computes through r in one batch, as off the pool
          final int batch = Math.max(advance, nextPoolBatch(span, r, nrows + hrows));
          // under the engine lock, stop at the rows whose base was loaded before taking it,
          // see lockForRow(); a pooled env takes no engine lock, so its batch is not capped
@@ -1606,24 +1611,34 @@ public class FormulaTableLens extends AbstractTableLens
    }
 
    /**
-    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}: batches
-    * start at batchRows and double, up to maxBatchRows, while this lens is read sequentially,
-    * that is while each batch starts at the first row not yet computed; any other access
-    * starts over at batchRows. 0 off the pool, where batchRows is 0.
+    * The rows of the next pooled batch (bug #76960, spec §14.14), under {@link #lock}. A first
+    * batch, or one that does not start at the first row not yet computed, is what pool off
+    * computes (0 here, so the caller's look-ahead applies), so a bounded or random read runs
+    * scripts for no more rows than pool off (context-pool regression D1). While each batch
+    * starts at the first row not yet computed (a sequential read), batches double from there,
+    * up to maxBatchRows (never below batchRows, see PoolConfig), so a row-by-row reader of N
+    * rows computes at most about 2N + 10. A batch computes its read-ahead plus the row that
+    * asked for it, as pool off does, so a capped batch is maxBatchRows + 1 rows. 0 off the
+    * pool, where batchRows is 0.
     *
     * @param next the first row not yet computed.
     */
    private int nextPoolBatch(ScriptSpan span, int r, int next) {
-      int min = span.batchRows();
-
-      if(min <= 0) {
+      if(span.batchRows() <= 0) {
          return 0;
       }
 
-      int max = Math.max(min, span.maxBatchRows());
-      int batch = poolBatch > 0 && r <= next ? (poolBatch >= max / 2 ? max : poolBatch * 2) : min;
-      poolBatch = Math.min(Math.max(batch, min), max);
-      return poolBatch;
+      // next == hrows: no row computed, as after invalidate(), so a reset lens starts over like
+      // a fresh one (review r2 minor A)
+      if(poolBatch > 0 && r <= next && next > hrows) {
+         int max = Math.max(span.batchRows(), span.maxBatchRows());
+         poolBatch = poolBatch >= max / 2 ? max : poolBatch * 2;
+         return poolBatch;
+      }
+
+      // the pool-off look-ahead of moreRows()
+      poolBatch = Math.min(Math.max(r / 100, 10), 100);
+      return 0;
    }
 
    /**
@@ -1785,7 +1800,7 @@ public class FormulaTableLens extends AbstractTableLens
    private transient TableChangeListener listener = null;
    private transient TableIteratorScriptable iterator = null;
    private transient OwnedLock lock = new OwnedLock();
-   // the rows of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
+   // the look-ahead of the last pooled batch, 0 before the first; guarded by lock (bug #76960)
    private transient int poolBatch;
    private transient boolean forceType = Drivers.getInstance().isDataCached();
    private transient String reportName;
