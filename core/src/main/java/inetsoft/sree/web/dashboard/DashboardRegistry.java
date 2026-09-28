@@ -409,6 +409,14 @@ public class DashboardRegistry {
    }
 
    /**
+    * Re-load the dashboards after a change of the file. The path is read under the lock, because
+    * the registry may have been moved to another org (modifyOrgId) while the event waited for it.
+    */
+   private synchronized void reload(DashboardRegistry globalRegistry) {
+      loadDashboard(getPath(), globalRegistry, true);
+   }
+
+   /**
     * Reads the registry file fully, closing the stream before returning.
     *
     * @return the file content, or {@code null} if the file does not exist.
@@ -652,10 +660,10 @@ public class DashboardRegistry {
          // Get the global registry of this registry's own org (the event thread's org is not
          // related to it) before locking this one. It may lock the registry manager, which
          // must never be locked while holding a registry, so it must not be resolved in
-         // loadDashboard().
+         // reload().
          DashboardRegistry globalRegistry = isGlobal() ? null :
             DashboardRegistryManager.getInstance().getGlobalForPort(getOrgID());
-         loadDashboard(getPath(), globalRegistry, true);
+         reload(globalRegistry);
       }
       catch(Exception ex) {
          LOG.error("Failed to reload dashboard registry", ex);
