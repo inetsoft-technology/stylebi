@@ -18,6 +18,9 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.uql.viewsheet.XDimensionRef;
+import inetsoft.uql.viewsheet.graph.AxisDescriptor;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.uql.viewsheet.graph.ChartRef;
 import inetsoft.uql.viewsheet.graph.TitleDescriptor;
@@ -25,6 +28,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.composer.vs.dialog.RegionPropertyDialogService;
 import inetsoft.web.graph.handler.ChartRegionHandler;
+import inetsoft.web.graph.model.dialog.AxisLinePaneModel;
 import inetsoft.web.graph.model.dialog.AxisPropertyDialogModel;
 import inetsoft.web.graph.model.dialog.LegendFormatDialogModel;
 import inetsoft.web.graph.model.dialog.ModelAlias;
@@ -34,7 +38,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Stream;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Properties of a chart's <b>sub-elements</b>: its axes, legends and titles.
@@ -126,12 +130,26 @@ public class ChartRegionPropertyService {
             "list_chart_region_properties reports the names this region accepts.");
       }
 
+      // Item 3 (bug #77027): a raw dotted path that happens to alias exactly onto a known
+      // property is normalized back to that property's plain name *before* any keyed guard
+      // below runs. Every guard in this class (this one, the increment guard, the rotation/
+      // aliases special-casing, the legend renamed-key checks) matches by the bare alias name --
+      // a caller could otherwise write "axisLinePaneModel.minimum" on a categorical axis and
+      // reproduce the exact corruption requireLinearAxisForLinearOnlyKeys exists to refuse,
+      // simply by spelling the same property as its raw model path instead of its alias. A path
+      // that does not match any known alias is left untouched -- that is the documented escape
+      // hatch this method still supports, not the bug. Also gives every call site below a fresh,
+      // mutable map, replacing the old conditional-copy special case for "rotation"/"aliases".
+      properties = normalizeToAliasKeys(name, properties);
+
       if("axis".equals(name)) {
          requireLinearAxisForLinearOnlyKeys(sessionToken, user, assembly, key, field, properties);
+         requireLinearOrTimeSeriesAxisForIncrement(
+            sessionToken, user, assembly, key, field, properties);
       }
 
-      if(properties.containsKey("rotation") || properties.containsKey("aliases")) {
-         properties = new LinkedHashMap<>(properties);
+      if("legend".equals(name)) {
+         requireSymbolSizeInRange(properties);
       }
 
       if(properties.containsKey("rotation")) {
@@ -158,13 +176,25 @@ public class ChartRegionPropertyService {
       Map<String, Object> resolved = new LinkedHashMap<>();
 
       for(Map.Entry<String, Object> property : properties.entrySet()) {
-         String path = property.getKey() != null && property.getKey().contains(".")
-            ? property.getKey()
-            : aliases.get(property.getKey());
+         String propertyKey = property.getKey();
+         String path = propertyKey != null && propertyKey.contains(".")
+            ? propertyKey
+            : aliases.get(propertyKey);
 
          if(path == null) {
+            // Items 4/5 (bug #77027): "visible"/"fillColor" used to be real legend property
+            // names, renamed to "titleVisible"/"borderColor" because the old names collided with
+            // a different, wider meaning elsewhere (see legend()'s own comment). A caller still
+            // spelling the old name gets a message naming the replacement, not the generic
+            // "unknown property" list a brand-new typo gets.
+            String renamed = "legend".equals(name) ? LEGEND_RENAMED_KEYS.get(propertyKey) : null;
+
+            if(renamed != null) {
+               throw new IllegalArgumentException(legendRenamedKeyMessage(propertyKey, renamed));
+            }
+
             throw new IllegalArgumentException(
-               "'" + property.getKey() + "' is not a property of a chart " + name + ". Known " +
+               "'" + propertyKey + "' is not a property of a chart " + name + ". Known " +
                "names: " + String.join(", ", new TreeSet<>(aliases.keySet())) +
                ". A raw model path (containing a '.') is also accepted.");
          }
@@ -240,7 +270,96 @@ public class ChartRegionPropertyService {
          return;
       }
 
-      boolean linear = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+      boolean linear = computeTrueAxisKind(sessionToken, user, assembly, axisTarget, field).linear();
+
+      if(!linear) {
+         throw new IllegalArgumentException(
+            "'" + String.join("', '", requested) + "' only apply to a linear (measure) axis. " +
+            "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
+            + " on this chart is bound to a dimension, not a measure, so these would be " +
+            "silently ignored — or, on some chart types, corrupt the render instead of being " +
+            "ignored. Omit them for a dimension axis.");
+      }
+   }
+
+   /** {@code increment} does not fit the plain linear/non-linear split {@link #LINEAR_ONLY_AXIS_KEYS}
+    * checks -- see {@link #requireLinearOrTimeSeriesAxisForIncrement}. */
+   private static final Set<String> LINEAR_OR_TIME_SERIES_AXIS_KEYS = Set.of("increment");
+
+   /**
+    * Refuses {@code increment} on an axis that is neither linear nor a non-linear time-series
+    * date axis (bug #77027 item 2).
+    *
+    * <p>{@code AxisPropertyDialogModel.updateAxisPropertyDialogModel} applies {@code increment}
+    * under {@code if(this.linear || this.timeSeries && !this.outer)} -- a three-variable
+    * condition matched exactly by the real UI's own visibility guard on the "Major Increment"
+    * field ({@code axis-line-pane.component.html}: {@code @if (linear || timeSeries && !outer)}).
+    * Adding {@code increment} to {@link #LINEAR_ONLY_AXIS_KEYS} would wrongly refuse a legitimate
+    * write on a genuinely non-linear, time-series axis, so it gets its own guard with the same
+    * compound shape instead.
+    *
+    * <p>{@code linear} is independently re-derived the same way {@link
+    * #requireLinearAxisForLinearOnlyKeys} does (via {@link #computeTrueAxisKind}). {@code
+    * timeSeries} is re-derived the same way {@code AxisPropertyDialogModel}'s own constructor
+    * defines it ({@code ref instanceof XDimensionRef && ref.isTimeSeries() &&
+    * GraphUtil.isTimeSeriesVisible(...)}) -- <b>except</b> for the {@code !outer} factor, which is
+    * deliberately left out: {@code outer} is derived the very same area-index-0-dependent way
+    * {@code linear} itself needed correcting, and re-deriving it independently for a faceted or
+    * scatter-matrix chart (where more than one dimension-label area can legitimately exist at
+    * different indices) needs closer study than an 8-item audit's fix pass covers. Omitting it
+    * only makes this guard <em>more permissive</em> than the real UI's own condition -- it may
+    * allow an {@code increment} write on an inner-facet time-series axis the UI hides the control
+    * for, which the underlying {@code AxisDescriptor.setIncrement} tolerates without corrupting
+    * anything -- never less safe, since a genuinely non-time-series, non-linear axis is still
+    * refused exactly as before.
+    */
+   private void requireLinearOrTimeSeriesAxisForIncrement(
+      String sessionToken, Principal user, String assembly, String axisTarget, String field,
+      Map<String, Object> properties)
+      throws Exception
+   {
+      if(Collections.disjoint(properties.keySet(), LINEAR_OR_TIME_SERIES_AXIS_KEYS)) {
+         return;
+      }
+
+      AxisKind kind = computeTrueAxisKind(sessionToken, user, assembly, axisTarget, field);
+
+      if(kind.linear()) {
+         return;
+      }
+
+      boolean timeSeries = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         if(!(kind.matchedRef() instanceof XDimensionRef dim) || !dim.isTimeSeries()) {
+            return false;
+         }
+
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         return GraphUtil.isTimeSeriesVisible(info, kind.matchedRef());
+      });
+
+      if(!timeSeries) {
+         throw new IllegalArgumentException(
+            "'increment' only applies to a linear (measure) axis, or a non-linear time-series " +
+            "date axis. '" + axisTarget + "'" +
+            (field != null && !field.isBlank() ? " ('" + field + "')" : "") +
+            " on this chart is neither, so this would be silently ignored. Omit it.");
+      }
+   }
+
+   /** An axis's true kind, re-derived off its actual binding rather than off the area-index-0
+    * read every axis request in this class necessarily uses (see {@link
+    * #requireLinearAxisForLinearOnlyKeys}'s own javadoc for why that read is unreliable).
+    * {@code matchedRef} is the specific {@link ChartRef} this determination is based on -- the
+    * matching {@link ChartAggregateRef} when {@code linear} is true, or the sole candidate ref on
+    * the shelf when unambiguous and non-linear, else {@code null} when there is more than one
+    * candidate and no way to say which one this axis-target/field pair actually means. */
+   private record AxisKind(boolean linear, ChartRef matchedRef) {}
+
+   private AxisKind computeTrueAxisKind(String sessionToken, Principal user, String assembly,
+                                         String axisTarget, String field)
+      throws Exception
+   {
+      return sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
          VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
          String canonical = ChartRegionResolver.canonical(axisTarget);
          boolean secondary = "y2".equals(canonical) || "x2".equals(canonical);
@@ -256,7 +375,7 @@ public class ChartRegionPropertyService {
          // unconditionally inverted) -- reopening the exact corruption this method exists to close,
          // or wrongly refusing a legitimate write on a real measure axis.
          ChartRef[] refs = onYShelf ? info.getYFields() : info.getXFields();
-         Stream<ChartRef> candidates = Arrays.stream(refs);
+         List<ChartRef> candidates = new ArrayList<>(Arrays.asList(refs));
 
          // A shelf can carry more than one field of the same axis type (the tool's own
          // vocabulary() note: "to address one of several axes of the same type... pass the
@@ -267,25 +386,24 @@ public class ChartRegionPropertyService {
          // it is not, matching how the rest of this class already treats an absent field as "the
          // shelf has just the one".
          if(field != null && !field.isBlank()) {
-            candidates = candidates.filter(ref ->
-               field.equals(ref.getFullName()) || field.equals(ref.getName()));
+            candidates.removeIf(ref ->
+               !field.equals(ref.getFullName()) && !field.equals(ref.getName()));
          }
 
          // Exact match, not "secondary implies acceptable, primary accepts anything": a measure
          // that lives on the OTHER axis of this type must not make this one look linear, in
          // either direction.
-         return candidates.anyMatch(ref ->
-            ref instanceof ChartAggregateRef aggregate && aggregate.isSecondaryY() == secondary);
-      });
+         ChartRef measureMatch = candidates.stream()
+            .filter(ref -> ref instanceof ChartAggregateRef aggregate &&
+               aggregate.isSecondaryY() == secondary)
+            .findFirst().orElse(null);
 
-      if(!linear) {
-         throw new IllegalArgumentException(
-            "'" + String.join("', '", requested) + "' only apply to a linear (measure) axis. " +
-            "'" + axisTarget + "'" + (field != null && !field.isBlank() ? " ('" + field + "')" : "")
-            + " on this chart is bound to a dimension, not a measure, so these would be " +
-            "silently ignored — or, on some chart types, corrupt the render instead of being " +
-            "ignored. Omit them for a dimension axis.");
-      }
+         if(measureMatch != null) {
+            return new AxisKind(true, measureMatch);
+         }
+
+         return new AxisKind(false, candidates.size() == 1 ? candidates.get(0) : null);
+      });
    }
 
    /** The angles both the axis label and the title actually offer, degrees, "auto" aside. */
@@ -339,6 +457,50 @@ public class ChartRegionPropertyService {
       throw new IllegalArgumentException(
          "'rotation' on a chart " + region + " accepts only " + allowedDescription +
          "; '" + rotation + "' is not one of them.");
+   }
+
+   /** {@code LegendDescriptor.setSymbolSize}'s own clamp range (bug #77027 item 6). */
+   private static final int LEGEND_SYMBOL_SIZE_MIN = 6;
+   private static final int LEGEND_SYMBOL_SIZE_MAX = 50;
+
+   /**
+    * Refuses a legend {@code symbolSize} outside {@code [6, 50]} rather than letting it reach
+    * {@code LegendDescriptor.setSymbolSize}, which unconditionally clamps to that range with no
+    * indication (round r1: the lead's dispatched decision is a loud refusal here, not a
+    * warn-and-proceed shape -- the plugin's own client-side check mirrors this, and this
+    * server-side guard is what makes the refusal apply no matter which caller reaches this
+    * method, not only the wiz plugin). Same pattern as {@link #canonicalRotation}: parse, and
+    * name the accepted range in the refusal rather than letting a raw parse failure or a silent
+    * clamp through.
+    */
+   private static void requireSymbolSizeInRange(Map<String, Object> properties) {
+      if(!properties.containsKey("symbolSize")) {
+         return;
+      }
+
+      Object value = properties.get("symbolSize");
+      Integer parsed = null;
+
+      if(value instanceof Number number) {
+         parsed = number.intValue();
+      }
+      else if(value != null) {
+         try {
+            parsed = Integer.parseInt(String.valueOf(value).trim());
+         }
+         catch(NumberFormatException ignore) {
+            // falls through to the refusal below -- a non-numeric symbolSize gets the same
+            // "here is the accepted range" message, not a raw NumberFormatException
+         }
+      }
+
+      if(parsed == null || parsed < LEGEND_SYMBOL_SIZE_MIN || parsed > LEGEND_SYMBOL_SIZE_MAX) {
+         throw new IllegalArgumentException(
+            "'symbolSize' must be a whole number between " + LEGEND_SYMBOL_SIZE_MIN + " and " +
+            LEGEND_SYMBOL_SIZE_MAX + " inclusive; '" + value + "' is not. Outside that range, " +
+            "LegendDescriptor.setSymbolSize silently clamps it instead of refusing, which this " +
+            "check exists to prevent.");
+      }
    }
 
    /**
@@ -573,11 +735,17 @@ public class ChartRegionPropertyService {
          });
 
       if(!visible) {
+         // Bug #77027 item 8: the two remedies this message used to name were both dead ends --
+         // showing a single non-chart axis title with a target is refused by
+         // ChartElementService.titleFields itself (there is no per-axis-title show), and
+         // list_chart_elements' vocabulary() never reported a titleVisible field to check. The
+         // only real recovery path is showing every title at once (target omitted), which is
+         // already what set_chart_element_visibility's own no-target show branch does.
          throw new IllegalArgumentException(
-            "The " + titleType + " title is currently hidden — show it with " +
-            "set_chart_element_visibility {element: 'title', target: '" + titleType +
-            "'} before reading or setting its region properties, or use list_chart_elements to " +
-            "check titleVisible.");
+            "The " + titleType + " title is currently hidden, and there is no way to show only " +
+            "this one title -- the Composer has no per-title show. Use " +
+            "set_chart_element_visibility {element: 'title', visible: true} (no target) to show " +
+            "every title on this chart, then retry.");
       }
    }
 
@@ -587,12 +755,92 @@ public class ChartRegionPropertyService {
    {
       String runtimeId = sessions.runtimeId(sessionToken, user);
 
-      return switch(region) {
+      Object model = switch(region) {
          case "axis" -> regions.getAxisPropertyDialogModel(runtimeId, assembly, axisType(target),
                                                            "0", field, "", user);
          case "legend" -> regions.getLegendFormatDialogModel(runtimeId, assembly, target, "", user);
          default -> regions.getTitleFormatDialogModel(runtimeId, assembly, target, "", user);
       };
+
+      // Item 1 (bug #77027): correct the model's own `linear` flag with the same independent,
+      // ref-binding-based check requireLinearAxisForLinearOnlyKeys already uses, immediately after
+      // fetching -- both list() and set() call this method, so both get the corrected value with
+      // one change. This fixes updateAxisPropertyDialogModel's branch selection on the WRITE side
+      // (an `ignoreNull`/`truncate` write to a categorical axis area-index-0 wrongly reports as
+      // linear no longer lands in the `else if(this.linear)` branch and gets silently dropped).
+      //
+      // Round r1 addendum (B3): correcting `linear` alone does not fix the READ side.
+      // `ignoreNull`/`truncate` (or `logarithmicScale`/`shared`/`reverse`) were already populated
+      // -- or left at the AxisLinePaneModel bean's Java defaults -- inside the *constructor*,
+      // under the WRONG `linear` value, before this method ever sees the model; correcting the
+      // flag here changes nothing already written to those fields. Confirmed by round-r1 review to
+      // be PERMANENT, not stale-until-a-write: every call reconstructs the model from scratch
+      // under the identical wrong classification, so `list_chart_region_properties` on a
+      // previously-misclassified axis reported the stale default forever, reproducing the
+      // original bug's user-visible symptom through the read path instead of the write path.
+      // Backfilled below via backfillAxisLinearOnlyFields.
+      if("axis".equals(region)) {
+         AxisKind kind = computeTrueAxisKind(sessionToken, user, assembly, target, field);
+         AxisPropertyDialogModel axisModel = (AxisPropertyDialogModel) model;
+
+         if(axisModel.getLinear() != kind.linear()) {
+            axisModel.setLinear(kind.linear());
+            backfillAxisLinearOnlyFields(sessionToken, user, assembly, target, field, kind,
+                                         axisModel);
+         }
+      }
+
+      return model;
+   }
+
+   /**
+    * Backfills the pane fields {@link AxisPropertyDialogModel}'s constructor populated under the
+    * WRONG {@code linear} value, once {@link #readModel} has corrected the flag itself (bug
+    * #77027 item 1, round r1 addendum B3).
+    *
+    * <p>Re-fetches the real {@code AxisDescriptor} via {@code ChartRegionHandler}'s own
+    * correctly-dispatched {@code getAxisDescriptor(ChartInfo, String, String, AtomicBoolean)}
+    * overload -- the same one {@code ChartRegionHandler.updateAxisPropertyDialogModel} uses on the
+    * write path -- rather than re-deriving that dispatch logic here: radar/mekko/
+    * secondary-axis-sharing charts have real special-casing in it this class must not duplicate.
+    *
+    * <p>Needs a resolved column name: {@code field}, if given, or {@code kind}'s own {@code
+    * matchedRef} when the shelf had exactly one unambiguous candidate (see {@link
+    * #computeTrueAxisKind}). When neither is available -- a blank {@code field} on a shelf with
+    * more than one field of this axis type -- there is no reliable way to say which descriptor
+    * this axis-target/field pair means, so the backfill is skipped and the pane keeps its
+    * construction-time state; a narrower, still-documented residual, not a silent guess.
+    */
+   private void backfillAxisLinearOnlyFields(String sessionToken, Principal user, String assembly,
+                                             String axisTarget, String field, AxisKind kind,
+                                             AxisPropertyDialogModel model)
+      throws Exception
+   {
+      String columnName = field != null && !field.isBlank() ? field
+         : kind.matchedRef() != null ? kind.matchedRef().getFullName() : null;
+
+      if(columnName == null) {
+         return;
+      }
+
+      Void ignored = sessions.read(sessionToken, user, (rvs, runtimeId, dispatcher) -> {
+         VSChartInfo info = ChartRegionResolver.requireChart(rvs, assembly).getVSChartInfo();
+         AxisDescriptor axisDesc = regionHandler.getAxisDescriptor(
+            info, columnName, axisType(axisTarget), new AtomicBoolean());
+         AxisLinePaneModel pane = model.getAxisLinePaneModel();
+
+         if(kind.linear()) {
+            pane.setLogarithmicScale(axisDesc.isLogarithmicScale());
+            pane.setShared(axisDesc.isSharedRange());
+            pane.setReverse(axisDesc.isReversed());
+         }
+         else {
+            pane.setIgnoreNull(axisDesc.isNoNull());
+            pane.setTruncate(axisDesc.isTruncate());
+         }
+
+         return null;
+      });
    }
 
    /**
@@ -699,6 +947,74 @@ public class ChartRegionPropertyService {
       };
    }
 
+   /** {@code path -> alias} for a region, the inverse of {@link #aliasesFor}. Built fresh per
+    * call -- these maps are small and this is not a hot path -- rather than cached alongside
+    * AXIS/LEGEND/TITLE, since it exists purely to serve {@link #normalizeToAliasKeys}. */
+   private static Map<String, String> reverseAliasesFor(String region) {
+      Map<String, String> reverse = new HashMap<>();
+
+      for(Map.Entry<String, String> entry : aliasesFor(region).entrySet()) {
+         reverse.put(entry.getValue(), entry.getKey());
+      }
+
+      return reverse;
+   }
+
+   /**
+    * Normalizes an incoming property key back to its alias name when the raw dotted-path form
+    * happens to match a known alias's own path exactly -- e.g. {@code "axisLinePaneModel.minimum"}
+    * becomes {@code "minimum"} (bug #77027 item 3).
+    *
+    * <p>Every keyed guard in this class ({@link #requireLinearAxisForLinearOnlyKeys}, {@link
+    * #requireLinearOrTimeSeriesAxisForIncrement}, the {@code rotation}/{@code aliases}
+    * special-casing in {@link #set}, the legend renamed-key checks) matches by the bare alias
+    * name only. {@link #set}'s own resolve loop deliberately accepts a raw model path as an
+    * escape hatch ("A raw model path (containing a '.') is also accepted"), which every one of
+    * those guards was blind to: a caller spelling a linear-only key as its raw path (e.g. {@code
+    * "axisLinePaneModel.minimum": "5"} on a categorical axis) sailed straight past
+    * {@code requireLinearAxisForLinearOnlyKeys} and reproduced the exact numeric-range corruption
+    * that guard exists to refuse, simply by using the path form instead of the alias.
+    *
+    * <p>A raw path that does not match any known alias exactly is left untouched -- that is the
+    * documented escape hatch this method still supports, not the bug. Always returns a fresh,
+    * mutable map, which lets every call site after this one ({@code rotation}, {@code aliases})
+    * mutate it freely without its own defensive copy.
+    */
+   private static Map<String, Object> normalizeToAliasKeys(String region,
+                                                            Map<String, Object> properties)
+   {
+      Map<String, String> reverse = reverseAliasesFor(region);
+      Map<String, Object> normalized = new LinkedHashMap<>();
+
+      for(Map.Entry<String, Object> entry : properties.entrySet()) {
+         String key = entry.getKey();
+         String canonical = key != null ? reverse.get(key) : null;
+         normalized.put(canonical != null ? canonical : key, entry.getValue());
+      }
+
+      return normalized;
+   }
+
+   /** Old legend property names renamed for clarity (bug #77027 items 4/5) -- kept only so a
+    * caller still spelling the old name gets a message naming the replacement, rather than the
+    * generic "unknown property" list a brand-new typo gets. */
+   private static final Map<String, String> LEGEND_RENAMED_KEYS =
+      Map.of("visible", "titleVisible", "fillColor", "borderColor");
+
+   private static String legendRenamedKeyMessage(String oldName, String newName) {
+      if("visible".equals(oldName)) {
+         return "'visible' is not a property of a chart legend -- it was renamed to '" + newName +
+            "' because it only shows or hides the legend's TITLE text, never the legend itself " +
+            "(the real Composer's own 'Visible' checkbox sits beside the Title combo box for the " +
+            "same reason). To hide the whole legend, use set_chart_element_visibility " +
+            "{element: 'legend', target: <the legend's field or channel>, visible: false} instead.";
+      }
+
+      return "'" + oldName + "' is not a property of a chart legend -- it was renamed to '" +
+         newName + "' (it sets the legend's border color, not a fill; 'fillColor' was a " +
+         "historical misnomer on the underlying bean). Use '" + newName + "' instead.";
+   }
+
    private static final List<String> REGIONS = List.of("axis", "legend", "title");
 
    /**
@@ -749,9 +1065,20 @@ public class ChartRegionPropertyService {
       // set_chart_region_properties({region:"legend", properties:{title:"X"}}) returned ok:true
       // and silently changed nothing, confirmed live 2026-09-02.
       aliases.put("title", "legendFormatGeneralPaneModel.titleValue");
-      aliases.put("visible", "legendFormatGeneralPaneModel.visible");
+      // "visible" (bug #77027 item 4) collides with set_chart_element_visibility's own,
+      // differently-scoped "visible" -- this one only ever maps to LegendDescriptor's
+      // isTitleVisible()/setTitleVisible() (the legend's TITLE caption, shown/hidden by the same
+      // checkbox row as the Title combo box), never LegendDescriptor's separate whole-legend
+      // isVisible()/setVisible(), which only set_chart_element_visibility reaches. Named
+      // "titleVisible" for the same reason "title" was renamed to "titleValue" above: the old
+      // name read like it meant the other, wider thing.
+      aliases.put("titleVisible", "legendFormatGeneralPaneModel.visible");
       aliases.put("position", "legendFormatGeneralPaneModel.position");
-      aliases.put("fillColor", "legendFormatGeneralPaneModel.fillColor");
+      // "fillColor" (bug #77027 item 5) is a historical misnomer on the underlying bean: it maps
+      // only to LegendsDescriptor.getBorderColor()/setBorderColor() -- there is no separate
+      // fill-color concept on that class, and the UI places this exact color editor beside the
+      // "Legend Border" style dropdown. Renamed to the name that actually describes it.
+      aliases.put("borderColor", "legendFormatGeneralPaneModel.fillColor");
       aliases.put("style", "legendFormatGeneralPaneModel.style");
       aliases.put("notShowNull", "legendFormatGeneralPaneModel.notShowNull");
       aliases.put("symbolSize", "legendFormatGeneralPaneModel.symbolSize");
