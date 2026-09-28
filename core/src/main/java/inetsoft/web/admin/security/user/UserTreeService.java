@@ -711,17 +711,33 @@ public class UserTreeService {
                                              principal, permittedIdentities, groupOrgID);
 
       if(!oldID.equals(newID)) {
-         IndexedStorage storage = indexedStorage;
-         DataCycleManager cycleManager = dataCycleManager;
-
-         // the migrations resolve the current org, which is not the group's org when a site
-         // admin edits a group of another org
-         OrganizationManager.runInOrgScope(groupOrgID, () -> {
-            storage.migrateStorageData(oldID.getName(), newID.getName());
-            cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
-            return null;
-         });
+         migrateGroupRename(oldID, newID);
       }
+   }
+
+   /**
+    * Updates the stored data that references a renamed group: the schedule tasks that run as the
+    * group or email it, and the data cycle notifications. The data of a same-named user is left
+    * untouched.
+    *
+    * @param oldID the old group ID, which also gives the organization to update.
+    * @param newID the new group ID.
+    */
+   public void migrateGroupRename(IdentityID oldID, IdentityID newID) throws Exception {
+      if(newID.equals(oldID)) {
+         return;
+      }
+
+      IndexedStorage storage = indexedStorage;
+      DataCycleManager cycleManager = dataCycleManager;
+
+      // the data cycle migration resolves the current org, which is not the group's org when a
+      // site admin edits a group of another org
+      OrganizationManager.runInOrgScope(oldID.getOrgID(), () -> {
+         storage.migrateStorageData(oldID, newID, Identity.GROUP);
+         cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
+         return null;
+      });
    }
 
    /**
@@ -1282,7 +1298,7 @@ public class UserTreeService {
       identityService.setIdentityPermissions(
          oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities,
          model.organization());
-      renameUserAsset(newID, oldID);
+      migrateUserRename(oldID, newID);
    }
 
 
@@ -1913,7 +1929,15 @@ public class UserTreeService {
       }
    }
 
-   private void renameUserAsset(IdentityID newID, IdentityID oldID) throws Exception {
+   /**
+    * Updates the stored data that references a renamed user: the user's private assets, schedule
+    * tasks, materialized views, dependencies, recycle bin entries, favorites and data cycle
+    * notifications. The data of a same-named group is left untouched.
+    *
+    * @param oldID the old user ID, which also gives the organization to update.
+    * @param newID the new user ID.
+    */
+   public void migrateUserRename(IdentityID oldID, IdentityID newID) throws Exception {
       if(newID.equals(oldID)) {
          return;
       }
@@ -1930,7 +1954,7 @@ public class UserTreeService {
             favoritesService.moveFavorites(oldID.convertToKey(), newID.convertToKey());
          }
 
-         storage.migrateStorageData(oldID.getName(), newID.getName());
+         storage.migrateStorageData(oldID, newID, Identity.USER);
          mvManager.migrateUserAssetsMV(oldID, newID);
          mvManager.updateMVUser(oldID, newID);
          cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);

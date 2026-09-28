@@ -1275,54 +1275,62 @@ public class ScheduleManager {
             changedTasks.add(task);
          }
 
-         //completion condition relies on user name, change if user changes
-         for(int c = 0; c < task.getConditionCount(); c++) {
-            ScheduleCondition condition = task.getCondition(c);
+         // the task ids in the completion conditions, the dependencies and the batch actions,
+         // the private viewsheets and the bookmarks are owned by a user, so a group rename must
+         // not change the ones of a same-named user
+         if(type == Identity.USER) {
+            //completion condition relies on user name, change if user changes
+            for(int c = 0; c < task.getConditionCount(); c++) {
+               ScheduleCondition condition = task.getCondition(c);
 
-            if(condition instanceof CompletionCondition) {
-               CompletionCondition completeCondition = (CompletionCondition) condition;
-               String taskName = completeCondition.getTaskName();
-               int colonIdx = taskName == null ? -1 : taskName.indexOf(":");
+               if(condition instanceof CompletionCondition) {
+                  CompletionCondition completeCondition = (CompletionCondition) condition;
+                  String taskName = completeCondition.getTaskName();
+                  int colonIdx = taskName == null ? -1 : taskName.indexOf(":");
+
+                  if(colonIdx < 0) {
+                     continue;
+                  }
+
+                  String userName = taskName.substring(0, colonIdx);
+
+                  if(Tool.equals(userName, oname.getName()) ||
+                     Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
+                  {
+                     completeCondition.setTaskName(taskName.replace(oname.getName(), name));
+                     changedTasks.add(task);
+                  }
+               }
+            }
+
+            Enumeration<String> taskDependencies = task.getDependency();
+
+            while(taskDependencies.hasMoreElements()) {
+               String taskDep = taskDependencies.nextElement();
+               int colonIdx = taskDep == null ? -1 : taskDep.indexOf(":");
 
                if(colonIdx < 0) {
                   continue;
                }
 
-               String userName = taskName.substring(0, colonIdx);
+               String userName = taskDep.substring(0, colonIdx);
 
                if(Tool.equals(userName, oname.getName()) ||
                   Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
                {
-                  completeCondition.setTaskName(taskName.replace(oname.getName(), name));
+                  task.renameDependency(taskDep, taskDep.replace(oname.getName(), name));
                   changedTasks.add(task);
                }
-            }
-         }
-
-         Enumeration<String> taskDependencies = task.getDependency();
-
-         while(taskDependencies.hasMoreElements()) {
-            String taskDep = taskDependencies.nextElement();
-            int colonIdx = taskDep == null ? -1 : taskDep.indexOf(":");
-
-            if(colonIdx < 0) {
-               continue;
-            }
-
-            String userName = taskDep.substring(0, colonIdx);
-
-            if(Tool.equals(userName, oname.getName()) ||
-               Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
-            {
-               task.renameDependency(taskDep, taskDep.replace(oname.getName(), name));
-               changedTasks.add(task);
             }
          }
 
          for(int j = 0; j < task.getActionCount(); j++) {
             ScheduleAction action = task.getAction(j);
             updateNotifications(action, id, task, changedTasks);
-            updateScheduleAction(action, oname, id, task, changedTasks);
+
+            if(type == Identity.USER) {
+               updateScheduleAction(action, oname, id, task, changedTasks);
+            }
          }
       }
 

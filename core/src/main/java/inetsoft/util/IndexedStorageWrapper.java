@@ -17,6 +17,7 @@
  */
 package inetsoft.util;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.util.AbstractIdentity;
 import org.slf4j.Logger;
@@ -405,6 +406,13 @@ public class IndexedStorageWrapper implements IndexedStorage {
    @Override
    public void migrateStorageData(String oname, String nname) throws Exception {
       storage.migrateStorageData(oname, nname);
+   }
+
+   @Override
+   public void migrateStorageData(IdentityID oldID, IdentityID newID, int identityType)
+      throws Exception
+   {
+      storage.migrateStorageData(oldID, newID, identityType);
    }
 
    @Override

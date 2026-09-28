@@ -440,6 +440,52 @@ public class ScheduleManagerTest {
    }
 
    /**
+    * Regression test for Bug #77097: a group rename must not rewrite the task chain, the private
+    * viewsheet or the bookmarks of a same-named user, which the task ids and viewsheet paths only
+    * identify by name. Only the "execute as" group is renamed.
+    */
+   @Test
+   void checkGroupRenamedLeavesSameNamedUserTask() throws Exception {
+      IdentityID userSales = new IdentityID("sales", "host-org");
+      String privateVS = "4^128^sales~;~host-org^vs1^host-org";
+
+      ViewsheetAction vsAction = new ViewsheetAction();
+      vsAction.setViewsheet(privateVS);
+      vsAction.setBookmarks(new String[] { "bk1" });
+      vsAction.setBookmarkTypes(new int[] { VSBookmarkInfo.PRIVATE });
+      vsAction.setBookmarkUsers(new IdentityID[] { userSales });
+
+      CompletionCondition condition = new CompletionCondition();
+      condition.setTaskName("sales~;~host-org:group_tk2");
+
+      ScheduleTask task = new ScheduleTask("group_tk1");
+      task.setOwner(userSales);
+      task.addAction(vsAction);
+      task.addCondition(condition);
+      task.setIdentity(new Group(new IdentityID("sales", "host-org")));
+      scheduleManager.setScheduleTask("sales~;~host-org:group_tk1", task, admin);
+
+      Group sales2 = new Group(new IdentityID("sales2", "host-org"));
+      scheduleManager.identityRenamed(new IdentityID("sales", "host-org"), sales2);
+
+      ScheduleTask renamed = scheduleManager.getScheduleTask("sales~;~host-org:group_tk1");
+      assertNotNull(renamed, "the user's task must keep its id");
+      assertEquals(userSales, renamed.getOwner());
+      assertEquals("sales~;~host-org:group_tk2",
+                   ((CompletionCondition) renamed.getCondition(0)).getTaskName());
+
+      Enumeration<String> dependencies = renamed.getDependency();
+
+      while(dependencies.hasMoreElements()) {
+         assertFalse(dependencies.nextElement().startsWith("sales2~;~"));
+      }
+
+      ViewsheetAction action = (ViewsheetAction) renamed.getAction(0);
+      assertEquals(privateVS, action.getViewsheet());
+      assertArrayEquals(new IdentityID[] { userSales }, action.getBookmarkUsers());
+   }
+
+   /**
     * Regression test for Bug #74651: identityRenamed() must not throw
     * StringIndexOutOfBoundsException when a CompletionCondition or dependency
     * references a system/internal task name that has no owner prefix (no colon).
