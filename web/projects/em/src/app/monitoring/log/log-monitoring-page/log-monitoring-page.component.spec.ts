@@ -17,7 +17,7 @@
  */
 
 import { ScrollingModule } from "@angular/cdk/scrolling";
-import { HttpClientTestingModule, } from "@angular/common/http/testing";
+import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -73,5 +73,26 @@ describe("LogMonitoringPageComponent", () => {
 
    it("should create", () => {
       expect(component).toBeTruthy();
+   });
+
+   it("should not request the log files when fluentd logging is used", () => {
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne("../api/em/monitoring/log/links")
+         .flush({fluentdLogging: true, logViewUrl: null});
+
+      http.expectNone("../em/monitoring/logviewer/all-logs");
+      expect(component.fluentdLogging).toBe(true);
+      expect(component.model).toBeNull();
+      http.verify();
+   });
+
+   it("should request the log files when file logging is used", () => {
+      const http = TestBed.inject(HttpTestingController);
+      http.expectOne("../api/em/monitoring/log/links")
+         .flush({fluentdLogging: false, logViewUrl: null});
+
+      http.expectOne("../em/monitoring/logviewer/all-logs");
+      expect(component.fluentdLogging).toBe(false);
+      http.verify();
    });
 });
