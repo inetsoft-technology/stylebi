@@ -19,6 +19,8 @@ package inetsoft.util.health;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
+import inetsoft.storage.KeyValueStorage;
+import inetsoft.storage.KeyValueStorageManager;
 import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,8 +33,9 @@ import org.springframework.stereotype.Service;
 @Service
 @Lazy
 public class ClusterHealthService {
-   public ClusterHealthService(Cluster cluster) {
+   public ClusterHealthService(Cluster cluster, KeyValueStorageManager keyValueStorageManager) {
       this.cluster = cluster;
+      this.keyValueStorageManager = keyValueStorageManager;
    }
 
    /**
@@ -65,8 +68,13 @@ public class ClusterHealthService {
 
    /**
     * Checks if the sreeProperties KeyValueStorage has been loaded.
-    * This verifies that the distributed map is accessible and can be read from.
-    * If the cluster topology is not ready, these operations will fail.
+    * This first verifies that the distributed map is accessible and can be read from (if the
+    * cluster topology is not ready, these operations will fail), then confirms the store's
+    * initial load from the backend actually completed. The map-reachability check alone is not
+    * sufficient: {@code Cluster.getReplicatedMap()} creates the underlying Ignite cache on
+    * demand, so it can succeed even before the load has started, let alone while it is stalled
+    * (see {@link inetsoft.storage.LocalKeyValueStorage}) — hence the additional
+    * {@link KeyValueStorage#isLoaded()} check below.
     */
    private boolean isSreePropertiesLoaded(Cluster cluster) {
       try {
@@ -82,7 +90,6 @@ public class ClusterHealthService {
          map.containsKey("__health_check__");
 
          LOG.debug("sreeProperties map accessible, size: {}", size);
-         return true;
       }
       catch(NullPointerException e) {
          // Likely AffinityTopologyVersion is null - topology not ready
@@ -93,9 +100,24 @@ public class ClusterHealthService {
          LOG.debug("Failed to access sreeProperties map: {}", e.getMessage());
          return false;
       }
+
+      // Reachability alone doesn't prove the store finished loading. Peek at the cached
+      // storage instance (never triggers a fresh load) and require its initial load to have
+      // actually completed; a store that hasn't been requested yet, or whose load timed out,
+      // correctly reports not-loaded here instead of a false-positive "ready".
+      KeyValueStorage<?> storage = keyValueStorageManager.peekStorage(SREE_PROPERTIES_STORE_ID);
+
+      if(storage == null || !storage.isLoaded()) {
+         LOG.debug("sreeProperties key-value storage has not finished its initial load yet");
+         return false;
+      }
+
+      return true;
    }
 
    private final Cluster cluster;
+   private final KeyValueStorageManager keyValueStorageManager;
    private static final String SREE_PROPERTIES_MAP = "inetsoft.storage.kv.sreeProperties";
+   private static final String SREE_PROPERTIES_STORE_ID = "sreeProperties";
    private static final Logger LOG = LoggerFactory.getLogger(ClusterHealthService.class);
 }

@@ -83,6 +83,23 @@ public class KeyValueStorageManager implements AutoCloseable {
       return get(id, storeId -> KeyValueStorage.newInstance(storeId, cluster, task));
    }
 
+   /**
+    * Gets the currently cached {@link KeyValueStorage} for the given store ID, if one has
+    * already been created, without creating a new one. Unlike {@link #getStorage(String)},
+    * this never triggers (and blocks on) a fresh load — used by health checks that need to
+    * observe whether a store has actually finished loading rather than force a load of their
+    * own.
+    *
+    * @param id the store identifier.
+    * @param <T> the value type.
+    *
+    * @return the cached storage instance, or {@code null} if none has been created yet.
+    */
+   @SuppressWarnings("unchecked")
+   public <T extends Serializable> KeyValueStorage<T> peekStorage(String id) {
+      return (KeyValueStorage<T>) storages.asMap().get(id);
+   }
+
    @Override
    @PreDestroy
    public void close() {
