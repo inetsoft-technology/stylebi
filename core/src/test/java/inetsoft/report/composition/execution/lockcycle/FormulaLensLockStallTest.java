@@ -21,6 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.FormulaTableLens;
+import inetsoft.report.script.TableArray;
 import inetsoft.test.*;
 import inetsoft.util.stall.*;
 import org.junit.jupiter.api.*;
@@ -493,6 +494,108 @@ public class FormulaLensLockStallTest {
          if(fragment != null) {
             ((inetsoft.uql.table.XTableFragment) fragment).swap(false);
          }
+      }
+   }
+
+   /**
+    * The formula reads a column of another table through {@code TableArray}
+    * ({@code T2['value'][0]}) whose formula lens lock is held by a parked thread: the
+    * column read's stall reaches the outer lens reader as it is (bug #77123), not a null
+    * column that the script would turn into its fallback value.
+    */
+   @Test
+   public void stalledTableArrayColumnReadReachesTheReader() throws Exception {
+      Sandbox s = harness.control();
+      Sandbox s2 = harness.control();
+      FormulaTableLens t2 = harness.track(s2.formula(new DefaultTableLens(rows(20))));
+      s.env.put("T2", new TableArray(t2));
+      FormulaTableLens lens = harness.track(
+         s.formula(new DefaultTableLens(rows(20)), "f",
+                   "var c = T2['value']; c == null ? -1 : c[0]"));
+      ReentrantLock t2Lock = lensLock(t2);
+      CountDownLatch held = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      Future<Object> owner = harness.submit(() -> {
+         t2Lock.lock();
+
+         try {
+            held.countDown();
+            release.await();
+         }
+         finally {
+            t2Lock.unlock();
+         }
+
+         return null;
+      });
+      assertTrue(held.await(10, TimeUnit.SECONDS), "the owner never took T2's lens lock");
+
+      try {
+         Throwable failure =
+            StallTestSupport.failureOf(harness.submit(() -> drain(lens)), ACTIVE_CAP);
+         assertInstanceOf(LockStallException.class, failure,
+                          "the reader must get the stall of T2's column read, got " + failure);
+         assertEquals("FormulaTableLens.moreRows", ((LockStallException) failure).getSite());
+      }
+      finally {
+         release.countDown();
+      }
+
+      harness.await(owner, ACTIVE_CAP, "T2 lens lock owner");
+   }
+
+   /**
+    * Alert mode (the default): the same {@code TableArray} column read only waits past the
+    * limit, is alerted, and gives the right column once T2's lock is free.
+    */
+   @Test
+   public void alertModeTableArrayColumnReadCompletes() throws Exception {
+      StallPolicy.setOverride(new StallPolicy(StallPolicy.Mode.ALERT, 1000, 200, dumpDir));
+      Sandbox s = harness.control();
+      Sandbox s2 = harness.control();
+      FormulaTableLens t2 = harness.track(s2.formula(new DefaultTableLens(rows(20))));
+      s.env.put("T2", new TableArray(t2));
+      FormulaTableLens lens = harness.track(
+         s.formula(new DefaultTableLens(rows(20)), "f",
+                   "var c = T2['value']; c == null ? -1 : c[0]"));
+      ReentrantLock t2Lock = lensLock(t2);
+      CountDownLatch held = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      Future<Object> owner = harness.submit(() -> {
+         t2Lock.lock();
+
+         try {
+            held.countDown();
+            release.await();
+         }
+         finally {
+            t2Lock.unlock();
+         }
+
+         return null;
+      });
+      assertTrue(held.await(10, TimeUnit.SECONDS), "the owner never took T2's lens lock");
+      int dumps = WaitRegistry.global().getDumper().getDumpCount();
+      Future<List<List<Object>>> reader = harness.submit(() -> drain(lens));
+
+      try {
+         StallTestSupport.awaitTrue(
+            () -> WaitRegistry.global().getDumper().getDumpCount() > dumps, 15,
+            "the T2 lens-lock wait was never alerted");
+         assertFalse(reader.isDone(), "the reader must still be waiting, got a result");
+      }
+      finally {
+         release.countDown();
+      }
+
+      harness.await(owner, ACTIVE_CAP, "T2 lens lock owner");
+      List<List<Object>> result = harness.await(reader, ACTIVE_CAP, "alerted reader");
+      assertEquals(21, result.size());
+
+      for(int r = 1; r < result.size(); r++) {
+         List<Object> row = result.get(r);
+         // T2['value'][0] is the first data value of T2, 1
+         assertEquals(1, ((Number) row.get(row.size() - 1)).intValue(), "row " + r + ": " + row);
       }
    }
 

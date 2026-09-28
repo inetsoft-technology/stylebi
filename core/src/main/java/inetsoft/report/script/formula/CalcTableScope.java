@@ -26,6 +26,7 @@ import inetsoft.report.script.*;
 import inetsoft.report.script.graal.ReportGraalJavaScriptEngine;
 import inetsoft.util.script.DynamicScope;
 import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.util.stall.LockStallException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -789,6 +790,13 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
          return sum.getResult();
       }
       catch(Exception ex) {
+         // a stalled table has no value to return, the stall is not a script value (#77123)
+         LockStallException stall = LockStallException.find(ex);
+
+         if(stall != null) {
+            throw stall;
+         }
+
          LOG.warn("Failed to summarize range " + range +
             " using formula " + sum, ex);
       }
