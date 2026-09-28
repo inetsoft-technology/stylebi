@@ -1463,7 +1463,8 @@ public class TableBindingService {
       return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
                           field.namedGroup(), field.chartType(), field.runtimeChartType(),
                           field.namedGroupValues(), field.calculateInfo(), label,
-                          field.secondaryY(), field.visible(), field.timeSeries());
+                          field.secondaryY(), field.visible(), field.timeSeries(),
+                          field.secondaryColumn());
    }
 
    /**
@@ -1565,7 +1566,8 @@ public class TableBindingService {
       return new FieldRef(field.column(), field.type(), field.aggregate(), field.dateLevel(),
                           field.namedGroup(), field.chartType(), field.runtimeChartType(),
                           field.namedGroupValues(), field.calculateInfo(), field.label(),
-                          field.secondaryY(), visible, field.timeSeries());
+                          field.secondaryY(), visible, field.timeSeries(),
+                          field.secondaryColumn());
    }
 
    private static Map<String, Object> describeOptions(BaseTableBindingModel model) {

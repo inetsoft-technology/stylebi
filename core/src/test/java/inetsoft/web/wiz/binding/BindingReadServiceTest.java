@@ -223,6 +223,31 @@ class BindingReadServiceTest {
    }
 
    /**
+    * Bug #77012, chart axis: {@code withTypes}'s own comment already documented a fix for the
+    * {@code secondaryY}-dropping bug above and claimed it now called "the canonical 11-component
+    * constructor" -- but {@code FieldRef} has since grown a further component,
+    * {@code secondaryColumn}, so that 11-arg overload was itself lossy and silently dropped it for
+    * every multi-style measure on x/y (a Covariance/Correlation/WeightedAverage measure). {@code
+    * visible}/{@code timeSeries} are not exercised here: {@link FieldRefFactory#from} always
+    * passes {@code null} for both on an aggregate ref (they are dimension-only, per {@link
+    * FieldRef}'s own javadoc, and {@code BAggregateRefModel}/{@code ChartAggregateRefModel} have
+    * no setter for either) -- there is nothing non-null for this rebuild to have lost.
+    */
+   @Test
+   void reportsSecondaryColumnForAMeasureOnAMultiStyleChart() {
+      ChartBindingModel model = new ChartBindingModel();
+      model.setMultiStyles(true);
+      ChartAggregateRefModel secondary = aggregate("SALES", "Covariance");
+      secondary.setSecondaryColumnValue("DISCOUNT");
+      model.setYFields(List.of(withChartType(secondary, GraphTypes.CHART_BAR)));
+
+      FieldRef ref = read(model).shelves().get("y").get(0);
+
+      assertEquals("DISCOUNT", ref.secondaryColumn(),
+         "secondaryColumn must survive the per-measure chart-type rebuild under multi-style");
+   }
+
+   /**
     * {@code withTypes(FieldRef, ChartAestheticModel)} rebuilds the ref through the full
     * 9-arg {@code FieldRef} constructor to stamp on the per-measure chart type — the same
     * reconstruction shape that dropped {@code namedGroupValues} before this fix, and would
