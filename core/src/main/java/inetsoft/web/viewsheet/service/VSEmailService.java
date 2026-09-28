@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.VSPortalHelper;
+import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.csv.CSVConfig;
@@ -30,6 +31,7 @@ import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -39,6 +41,8 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
@@ -472,7 +476,40 @@ public class VSEmailService {
                                              Principal principal, AssetEntry entry)
       throws Exception
    {
-      return new ViewsheetSandbox(bookmark, mode, principal, entry);
+      // Run onInit/onLoad in this thread like bookmark export does (VSExportService), instead
+      // of the constructor's reset without onLoad. Otherwise a wrapper's onLoad never runs when
+      // the bookmark is exported through a print layout, which skips prepareForExport(). (77180)
+      ViewsheetSandbox sandbox = new ViewsheetSandbox(bookmark, mode, principal, false, entry);
+
+      // Clear input assembly variables from the sandbox variable table before reset.
+      // During reset, applyParameterToInput() reads from this table and would otherwise
+      // overwrite bookmark-restored assembly selections (checkbox, radio button, etc.).
+      // Also clear the bare variable-name key used by $(varname)-bound assemblies. (74212)
+      VariableTable sandboxVars = sandbox.getVariableTable();
+
+      if(sandboxVars != null) {
+         for(Assembly assembly : bookmark.getAssemblies()) {
+            if(assembly instanceof InputVSAssembly inputAssembly) {
+               sandboxVars.remove(assembly.getName());
+               String varKey = inputAssembly.getVariableTableKey();
+
+               if(varKey != null) {
+                  sandboxVars.remove(varKey);
+               }
+            }
+         }
+      }
+
+      try {
+         sandbox.processOnInit();
+         sandbox.reset(null, bookmark.getAssemblies(),
+                       new ChangedAssemblyList(), true, true, null);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to execute onInit() and onLoad() scripts", ex);
+      }
+
+      return sandbox;
    }
 
    /*
@@ -634,4 +671,5 @@ public class VSEmailService {
    }
 
    private final FileSystemService fileSystemService;
+   private static final Logger LOG = LoggerFactory.getLogger(VSEmailService.class);
 }
