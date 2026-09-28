@@ -22,6 +22,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XDataSource;
+import inetsoft.uql.XDataSourceWrapper;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.AssetEntry;
@@ -87,6 +88,7 @@ class DatasourcesServiceSavedSecretTest {
       securityEngine = mock(SecurityEngine.class);
       when(securityEngine.isSecurityEnabled()).thenReturn(true);
       registry = mock(DataSourceRegistry.class);
+      REGISTRY.set(registry);
       when(registry.getEntries(any(), any(AssetEntry.Type.class))).thenReturn(new AssetEntry[0]);
       when(registry.getDataSourceFullNames()).thenReturn(new String[0]);
       service = new DatasourcesService(repository, securityEngine,
@@ -98,6 +100,7 @@ class DatasourcesServiceSavedSecretTest {
    @AfterEach
    void tearDown() {
       STORE.remove();
+      REGISTRY.remove();
       xutil.close();
       configStatic.close();
       orgManagerStatic.close();
@@ -214,6 +217,24 @@ class DatasourcesServiceSavedSecretTest {
    }
 
    @Test
+   void authorizedAdditionalConnectionIsResolvedOnceAndSavedAsChecked() throws Exception {
+      grantCreateOnly();
+      storeSharedSource(true);
+      DataSourceDefinition definition = definition(CLOUD, "mine", null);
+      definition.setAdditionalConnections(List.of(definition(CLOUD, "child", FOREIGN_ID)));
+
+      service.createNewDataSource(definition, false, principal);
+
+      // the additional connection is created once, so its secret is only fetched once
+      verify(secretsManager, times(1))
+         .getCredential(argThat(c -> FOREIGN_ID.equals(c.getId())));
+      ArgumentCaptor<XDataSourceWrapper> child = ArgumentCaptor.forClass(XDataSourceWrapper.class);
+      verify(registry).setObject(
+         argThat(e -> e.getPath().endsWith("/child")), child.capture());
+      assertEquals(FOREIGN_ID, ((CloudTestDs) child.getValue().getSource()).getCredentialId());
+   }
+
+   @Test
    void localModeIsUnaffected() throws Exception {
       grantCreateOnly();
 
@@ -316,6 +337,7 @@ class DatasourcesServiceSavedSecretTest {
    private static final String OWN_ID = "own-secret";
    private static final String FOREIGN_ID = "org-b-secret";
    static final ThreadLocal<AbstractSecretsManager> STORE = new ThreadLocal<>();
+   static final ThreadLocal<DataSourceRegistry> REGISTRY = new ThreadLocal<>();
 
    public static class TestCloudClientCredentials extends CloudClientCredentials {
       @Override
@@ -343,6 +365,11 @@ class DatasourcesServiceSavedSecretTest {
       @Override
       public String[] getDataSourceNames() {
          return new String[0];
+      }
+
+      @Override
+      protected DataSourceRegistry getRegistry() {
+         return REGISTRY.get();
       }
 
       @Property(label = "Client ID")

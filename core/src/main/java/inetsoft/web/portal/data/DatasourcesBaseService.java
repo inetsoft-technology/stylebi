@@ -253,43 +253,44 @@ public abstract class DatasourcesBaseService {
    }
 
    /**
-    * Creates the data source that a client-supplied definition describes, so that it can be
-    * saved. Each secret id that the definition or one of its additional connections references
-    * is only resolved if the caller may use it, and the definition is rejected before anything is
-    * saved if the caller may not.
+    * Creates the data source that a client-supplied definition describes, and its additional
+    * connections, so that they can be saved. Each secret id that the definition or one of its
+    * additional connections references is only resolved if the caller may use it, and the
+    * definition is rejected before anything is saved if the caller may not.
     *
     * @param definition the data source definition.
     * @param ds         the data source to update, or {@code null} to create a new one.
     * @param stored     the data source that is stored at the path being saved, if any.
     * @param principal  the caller.
     *
-    * @return the data source.
+    * @return the data source and the additional connections to save with it.
     */
-   private XDataSource createAuthorizedDataSource(BaseDataSourceDefinition definition,
-                                                  XDataSource ds, XDataSource stored,
-                                                  Principal principal)
+   private AuthorizedDataSource createAuthorizedDataSource(BaseDataSourceDefinition definition,
+                                                           XDataSource ds, XDataSource stored,
+                                                           Principal principal)
    {
       Predicate<String> check = secretIdAuthorizer.createCheck(stored, principal);
 
       return TabularDataSource.withCredentialFetchGate(check, () -> {
          XDataSource result = createDataSource(definition, ds);
          SecretIdAuthorizer.checkSecretId(SecretIdAuthorizer.getCloudSecretId(result), check);
+         List<AdditionalConnectionDataSource<?>> additionals = null;
 
-         // additional connections are created after the data source is saved, so check the
-         // secret ids they reference now
-         if(result instanceof AdditionalConnectionDataSource &&
-            definition instanceof DataSourceDefinition dsDefinition &&
-            dsDefinition.getAdditionalConnections() != null)
+         // additional connections are added after the data source is saved, so create them now
+         // and check the secret ids they reference. The same objects are saved later, so each
+         // definition is only applied once.
+         if(result instanceof AdditionalConnectionDataSource<?> parent &&
+            definition instanceof DataSourceDefinition dsDefinition)
          {
-            for(DataSourceDefinition additional : dsDefinition.getAdditionalConnections()) {
-               if(refreshAndGetDataSource(additional) instanceof XDataSource child) {
-                  SecretIdAuthorizer.checkSecretId(
-                     SecretIdAuthorizer.getCloudSecretId(child), check);
-               }
+            additionals = createAdditionalConnections(dsDefinition, parent);
+
+            for(AdditionalConnectionDataSource<?> child : additionals) {
+               SecretIdAuthorizer.checkSecretId(
+                  SecretIdAuthorizer.getCloudSecretId(child), check);
             }
          }
 
-         return result;
+         return new AuthorizedDataSource(result, additionals);
       });
    }
 
@@ -441,7 +442,9 @@ public abstract class DatasourcesBaseService {
                principal);
       }
 
-      XDataSource ds = createAuthorizedDataSource(definition, null, null, principal);
+      AuthorizedDataSource authorized =
+         createAuthorizedDataSource(definition, null, null, principal);
+      XDataSource ds = authorized.dataSource();
 
       if(ds != null) {
          String name = ds.getName();
@@ -484,11 +487,9 @@ public abstract class DatasourcesBaseService {
             updateDataSourceAssetEntry(entry);
          }
 
-         if(ds instanceof AdditionalConnectionDataSource &&
-            definition instanceof DataSourceDefinition)
-         {
+         if(authorized.additionalConnections() != null) {
             saveAdditionalConnections((DataSourceDefinition) definition,
-               (AdditionalConnectionDataSource<?>) ds);
+               (AdditionalConnectionDataSource<?>) ds, authorized.additionalConnections());
          }
       }
    }
@@ -511,8 +512,9 @@ public abstract class DatasourcesBaseService {
       String nName = parentPath + definition.getName();
       XDataSource oldSrc = repository.getDataSource(oldName);
       checkUpdateDatasourcePermission(nName, oldSrc, principal);
-      XDataSource newSrc = createAuthorizedDataSource(
+      AuthorizedDataSource authorized = createAuthorizedDataSource(
          definition, (XDataSource) Tool.clone(oldSrc), oldSrc, principal);
+      XDataSource newSrc = authorized.dataSource();
 
       if(newSrc != null) {
          if(oldSrc == null) {
@@ -520,11 +522,9 @@ public abstract class DatasourcesBaseService {
                "data.datasources.saveDataSourceLost"));
          }
 
-         if(newSrc instanceof AdditionalConnectionDataSource &&
-            definition instanceof DataSourceDefinition)
-         {
+         if(authorized.additionalConnections() != null) {
             saveAdditionalConnections((DataSourceDefinition) definition,
-               (AdditionalConnectionDataSource<?>) newSrc);
+               (AdditionalConnectionDataSource<?>) newSrc, authorized.additionalConnections());
          }
 
          updateDatasource(oldName, newSrc, definition);
@@ -594,14 +594,17 @@ public abstract class DatasourcesBaseService {
       }
    }
 
-   private void saveAdditionalConnections(DataSourceDefinition definition,
-                                          AdditionalConnectionDataSource<?> parent)
+   /**
+    * Creates the additional connections that a definition describes, without adding them to the
+    * parent data source.
+    */
+   private List<AdditionalConnectionDataSource<?>> createAdditionalConnections(
+      DataSourceDefinition definition, AdditionalConnectionDataSource<?> parent)
    {
-      Set<String> updated = new HashSet<>();
+      List<AdditionalConnectionDataSource<?>> additionals = new ArrayList<>();
 
       if(definition.getAdditionalConnections() != null) {
          for(DataSourceDefinition additional : definition.getAdditionalConnections()) {
-            updated.add(additional.getName());
             additional.setParentPath(definition.getParentPath());
             additional.setParentDataSource(definition.getName());
 
@@ -614,7 +617,29 @@ public abstract class DatasourcesBaseService {
                child = (AdditionalConnectionDataSource<?>) createDataSource(additional, child);
             }
 
-            parent.addDatasource(child);
+            additionals.add(child);
+         }
+      }
+
+      return additionals;
+   }
+
+   /**
+    * Saves the additional connections created by
+    * {@link #createAdditionalConnections(DataSourceDefinition, AdditionalConnectionDataSource)}
+    * and removes the ones that the definition no longer contains.
+    */
+   private void saveAdditionalConnections(DataSourceDefinition definition,
+                                          AdditionalConnectionDataSource<?> parent,
+                                          List<AdditionalConnectionDataSource<?>> additionals)
+   {
+      Set<String> updated = new HashSet<>();
+
+      if(definition.getAdditionalConnections() != null) {
+         for(int i = 0; i < additionals.size(); i++) {
+            DataSourceDefinition additional = definition.getAdditionalConnections().get(i);
+            updated.add(additional.getName());
+            parent.addDatasource(additionals.get(i));
             updateAdditionalPermission(definition, additional);
          }
       }
@@ -735,5 +760,10 @@ public abstract class DatasourcesBaseService {
    private final DataSourceRegistry dataSourceRegistry;
    private final Config uqlConfig;
    private final SecretIdAuthorizer secretIdAuthorizer;
+
+   private record AuthorizedDataSource(XDataSource dataSource,
+                                       List<AdditionalConnectionDataSource<?>> additionalConnections)
+   {
+   }
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }
