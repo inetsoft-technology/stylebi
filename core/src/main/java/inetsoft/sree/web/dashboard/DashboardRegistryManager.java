@@ -70,13 +70,15 @@ public class DashboardRegistryManager {
       }
    }
 
-   void renameDashboard(String oname, String name) {
+   void renameDashboard(String oname, String name, String orgId) {
       List<DashboardRegistry> renamed = new ArrayList<>();
       lock.lock();
 
       try {
          for(DashboardRegistry registry : registries.values()) {
-            if(!registry.isGlobal() && registry.getDashboard(oname) != null) {
+            if(!registry.isGlobal() && Tool.equals(registry.getOrgID(), orgId) &&
+               registry.getDashboard(oname) != null)
+            {
                renamed.add(registry);
             }
          }
@@ -189,7 +191,8 @@ public class DashboardRegistryManager {
             nregistry = new DashboardRegistry(norg.getId(), eventPublisher, securityEngine);
          }
          else {
-            nregistry = new DashboardRegistry.UserDashboardRegistry(new IdentityID(name, norg.getId()), eventPublisher, securityEngine);
+            nregistry = new DashboardRegistry.UserDashboardRegistry(
+               new IdentityID(name, norg.getId()), norg.getId(), eventPublisher, securityEngine);
          }
 
          String[] dashboardNames = registry.getDashboardNames();

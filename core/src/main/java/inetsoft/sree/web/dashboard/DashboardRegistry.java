@@ -404,7 +404,17 @@ public class DashboardRegistry {
             }
 
             if(isGlobal()) {
-               DashboardRegistryManager.getInstance().renameDashboard(oname, name);
+               // this registry's own org id may be unresolved (e.g. the org was not yet known to
+               // the security provider when this registry was constructed); fall back to the
+               // current org context rather than passing null, since a null org id would match no
+               // candidate registry and silently rename nothing, not even this org's own.
+               String orgId = getOrgID();
+
+               if(orgId == null) {
+                  orgId = OrganizationManager.getInstance().getCurrentOrgID();
+               }
+
+               DashboardRegistryManager.getInstance().renameDashboard(oname, name, orgId);
                SecurityProvider provider = securityEngine.getSecurityProvider();
 
                if(!provider.isVirtual()) {
