@@ -40,6 +40,8 @@ import inetsoft.web.admin.favorites.FavoritesService;
 import inetsoft.web.admin.general.LocalizationSettingsService;
 import inetsoft.web.admin.general.model.LocalizationModel;
 import inetsoft.web.admin.security.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
@@ -50,6 +52,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class UserTreeService {
@@ -1251,7 +1254,8 @@ public class UserTreeService {
             getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER, rootID.convertToKey(), ResourceAction.ADMIN))
          {
             identityService.setIdentityPermissions(
-              rootID, rootID, ResourceType.SECURITY_USER, principal, model.permittedIdentities(), "");
+              rootID, rootID, ResourceType.SECURITY_USER, principal, model.permittedIdentities(),
+              model.organization());
          }
 
          return;
@@ -1785,7 +1789,7 @@ public class UserTreeService {
       identityService.setIdentity(oldRole, model, provider, principal);
       themeService.updateTheme(model.oldName(), model.name(), model.organization(),
                                CustomTheme::getRoles);
-      renameVPMRole(model.oldName(), model.name());
+      migrateRoleRename(oldID, new IdentityID(model.name(), model.organization()));
    }
 
    private List<IdentityID> getDefaultRoles(AuthenticationProvider provider, String org) {
@@ -1891,9 +1895,80 @@ public class UserTreeService {
       return false;
    }
 
-   private void renameVPMRole(String oldName, String newName) throws RemoteException {
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+   /**
+    * Updates the VPM hidden columns that reference a renamed role. The VPMs of the role's
+    * organization are updated, or the VPMs of every organization for a global role. A VPM stores
+    * bare role names, so in each organization the new name is only added if no other role visible
+    * there has that name, and the old name is only removed if no role visible there still has it.
+    * A failure in one organization does not stop the other organizations from being updated; the
+    * first failure is rethrown after all of them were attempted.
+    *
+    * @param oldRoleID the old role ID, which also gives the organization to update. A global role
+    *                  has a null organization or the global organization key.
+    * @param newRoleID the new role ID.
+    */
+   public void migrateRoleRename(IdentityID oldRoleID, IdentityID newRoleID) throws Exception {
+      // the key round trip maps the global organization key to the null organization of a global
+      // role
+      IdentityID oldID = IdentityID.getIdentityIDFromKey(oldRoleID.convertToKey());
+      IdentityID newID = IdentityID.getIdentityIDFromKey(newRoleID.convertToKey());
+
+      if(newID.equals(oldID)) {
+         return;
+      }
+
+      String[] orgIDs = oldID.getOrgID() != null ?
+         new String[] { oldID.getOrgID() } : getSecurityProvider().getOrganizationIDs();
+      Exception failure = null;
+
+      for(String orgID : orgIDs) {
+         try {
+            boolean addNew = !isOtherRoleVisible(newID.getName(), orgID, oldID, newID);
+            boolean removeOld = !isOtherRoleVisible(oldID.getName(), orgID, oldID, newID);
+
+            // the data source registry resolves the current org, which is not the role's org when
+            // a site admin edits a role of another org or a global role
+            OrganizationManager.runInOrgScope(orgID, () -> {
+               renameVPMRole(orgID, oldID.getName(), newID.getName(), addNew, removeOld);
+               return null;
+            });
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to update the VPMs of organization {} for the role renamed from {} " +
+                     "to {}", orgID, oldID.getName(), newID.getName(), ex);
+
+            if(failure == null) {
+               failure = ex;
+            }
+            else {
+               failure.addSuppressed(ex);
+            }
+         }
+      }
+
+      if(failure != null) {
+         throw failure;
+      }
+   }
+
+   /**
+    * Checks if a role other than the renamed role has the specified name in an organization.
+    */
+   private boolean isOtherRoleVisible(String name, String orgID, IdentityID oldID,
+                                      IdentityID newID)
+   {
+      SecurityProvider provider = getSecurityProvider();
+
+      return Stream.of(new IdentityID(name, orgID), new IdentityID(name, null))
+         .filter(id -> !id.equals(oldID) && !id.equals(newID))
+         .anyMatch(id -> provider.getRole(id) != null);
+   }
+
+   private void renameVPMRole(String orgID, String oldName, String newName, boolean addNew,
+                              boolean removeOld) throws RemoteException
+   {
       String[] dataSources = xRepository.getDataSourceFullNames(new IdentityID(orgID, orgID));
+      boolean skipped = false;
 
       for(String dataSource : dataSources) {
          XDataModel dataModel = xRepository.getDataModel(dataSource);
@@ -1906,26 +1981,42 @@ public class UserTreeService {
 
          for(String vpm : vpms) {
             VirtualPrivateModel vm = dataModel.getVirtualPrivateModel(vpm);
-            HiddenColumns hiddenColumns = vm.getHiddenColumns();
+            HiddenColumns hiddenColumns = vm == null ? null : vm.getHiddenColumns();
+            List<String> roles = hiddenColumns == null ?
+               List.of() : Collections.list(hiddenColumns.getRoles());
 
-            if(hiddenColumns == null) {
+            if(!roles.contains(oldName)) {
                continue;
             }
 
-            Enumeration<?> roles = hiddenColumns.getRoles();
+            boolean changed = false;
 
-            while(roles.hasMoreElements()) {
-               Object role = roles.nextElement();
-
-               if(Tool.equals(oldName, role)) {
-                  hiddenColumns.removeRole(oldName);
-                  hiddenColumns.addRole(newName);
-                  break;
-               }
+            if(removeOld) {
+               hiddenColumns.removeRole(oldName);
+               changed = true;
             }
 
-            dataModel.addVirtualPrivateModel(vm, true);
+            if(addNew) {
+               if(!roles.contains(newName)) {
+                  hiddenColumns.addRole(newName);
+                  changed = true;
+               }
+            }
+            else if(!roles.contains(newName)) {
+               skipped = true;
+            }
+
+            if(changed) {
+               dataModel.addVirtualPrivateModel(vm, true);
+            }
          }
+      }
+
+      if(skipped) {
+         LOG.warn(
+            "The hidden columns of the VPMs in organization {} were not granted to the renamed " +
+            "role {}, because another role in the organization is named {}", orgID, newName,
+            newName);
       }
    }
 
@@ -2076,4 +2167,5 @@ public class UserTreeService {
    private final DependencyStorageService dependencyStorageService;
    private final RecycleBin recycleBin;
    private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
+   private static final Logger LOG = LoggerFactory.getLogger(UserTreeService.class);
 }

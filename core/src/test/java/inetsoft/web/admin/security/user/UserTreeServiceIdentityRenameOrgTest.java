@@ -22,13 +22,24 @@ package inetsoft.web.admin.security.user;
  * resolve the current org, without switching to the renamed identity's org. A site admin whose
  * session was on org A renaming an identity of org B therefore rewrote org A's data and left org
  * B's stale. The permission grants of the renamed identity were stamped with the current org too.
+ *
+ * Bug #77098: the EM role rename rewrote the VPM hidden-column roles of the current org, and the
+ * Users root permission grants were stamped with the current org.
  */
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import inetsoft.mv.MVManager;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.erm.HiddenColumns;
+import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.IndexedStorage;
 import inetsoft.web.RecycleBin;
@@ -38,10 +49,10 @@ import inetsoft.web.admin.security.IdentityService;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
+import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -98,10 +109,26 @@ class UserTreeServiceIdentityRenameOrgTest {
       doAnswer(inv -> record("mvAssets")).when(mvManager).migrateUserAssetsMV(any(), any());
       doAnswer(inv -> record("mvUsers")).when(mvManager).updateMVUser(any(), any());
 
+      // each org has one data source "ds" whose data model holds that org's VPMs; the data model
+      // resolves the org from the current org, like DataSourceRegistry
+      xRepository = mock(XRepository.class, withSettings().lenient());
+      when(xRepository.getDataSourceFullNames(any(IdentityID.class))).thenAnswer(inv -> {
+         IdentityID orgID = inv.getArgument(0);
+         vpmEvents.add("list(" + orgID.getOrgID() + ")@" + orgManager.getCurrentOrgID());
+         return vpms.containsKey(orgID.getOrgID()) ? new String[] { "ds" } : new String[0];
+      });
+      when(xRepository.getDataModel("ds")).thenAnswer(inv -> {
+         if(orgManager.getCurrentOrgID().equals(failingOrg)) {
+            throw new IllegalStateException("unreadable data model");
+         }
+
+         return dataModel(orgManager.getCurrentOrgID());
+      });
+
       service = new UserTreeService(
          providerService, systemAdminService, identityService, null, securityEngine,
          mock(IdentityThemeService.class), null, mock(FavoritesService.class), cycleManager, null,
-         mvManager, storage, null, null, null, dependencyStorageService, recycleBin);
+         mvManager, storage, null, null, xRepository, dependencyStorageService, recycleBin);
    }
 
    @AfterEach
@@ -248,6 +275,186 @@ class UserTreeServiceIdentityRenameOrgTest {
       verifyNoInteractions(storage, cycleManager, mvManager, dependencyStorageService, recycleBin);
    }
 
+   @Test
+   void siteAdmin_renamesRoleOfOtherOrg_rewritesVpmsOfRoleOrg() throws Exception {
+      addVpm(ORG_A, "v", "analyst");
+      addVpm(ORG_B, "v", "analyst");
+      stubRole(new IdentityID("analyst", ORG_B));
+
+      service.editRole(roleModel("analyst", "analyst2", ORG_B), "Primary", principal);
+
+      assertEquals(List.of("analyst2"), vpmRoles(ORG_B, "v"));
+      assertEquals(List.of("analyst"), vpmRoles(ORG_A, "v"));
+      assertEquals(List.of("list(" + ORG_B + ")@" + ORG_B, "save:v@" + ORG_B), vpmEvents);
+      assertEquals(ORG_A, orgManager.getCurrentOrgID(), "the org scope must be restored");
+   }
+
+   @Test
+   void renamesRoleOfCurrentOrg_savesOnlyVpmsListingTheRole() throws Exception {
+      addVpm(ORG_A, "v1", "analyst", "sales");
+      addVpm(ORG_A, "v2", "sales");
+      addVpm(ORG_A, "v3");
+      stubRole(new IdentityID("analyst", ORG_A));
+
+      service.editRole(roleModel("analyst", "analyst2", ORG_A), "Primary", principal);
+
+      assertEquals(List.of("sales", "analyst2"), vpmRoles(ORG_A, "v1"));
+      assertEquals(List.of("sales"), vpmRoles(ORG_A, "v2"));
+      assertEquals(List.of("list(" + ORG_A + ")@" + ORG_A, "save:v1@" + ORG_A), vpmEvents);
+   }
+
+   @Test
+   void renamesGlobalRole_rewritesVpmsOfEveryOrgListingIt() throws Exception {
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { ORG_A, ORG_B, ORG_C });
+      addVpm(ORG_A, "v", "gRole");
+      addVpm(ORG_B, "v", "gRole");
+      addVpm(ORG_C, "v", "sales");
+      stubRole(new IdentityID("gRole", null));
+
+      service.editRole(roleModel("gRole", "gRole2", null), "Primary", principal);
+
+      assertEquals(List.of("gRole2"), vpmRoles(ORG_A, "v"));
+      assertEquals(List.of("gRole2"), vpmRoles(ORG_B, "v"));
+      assertEquals(List.of("sales"), vpmRoles(ORG_C, "v"));
+      assertTrue(vpmEvents.contains("save:v@" + ORG_A), vpmEvents::toString);
+      assertTrue(vpmEvents.contains("save:v@" + ORG_B), vpmEvents::toString);
+      assertFalse(vpmEvents.contains("save:v@" + ORG_C), "unchanged VPMs must not be saved");
+      assertEquals(ORG_A, orgManager.getCurrentOrgID(), "the org scope must be restored");
+   }
+
+   @Test
+   void renamesGlobalRoleOntoNameOfOrgRole_doesNotExemptTheOrgRole() throws Exception {
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { ORG_A, ORG_B });
+      addVpm(ORG_A, "v", "gRole");
+      addVpm(ORG_B, "v", "gRole");
+      stubRole(new IdentityID("gRole", null));
+      // org B has its own role with the new name, which the VPM does not exempt
+      when(securityProvider.getRole(new IdentityID("gRole2", ORG_B)))
+         .thenReturn(new FSRole(new IdentityID("gRole2", ORG_B)));
+      ListAppender<ILoggingEvent> appender = attachAppender();
+
+      try {
+         service.editRole(roleModel("gRole", "gRole2", null), "Primary", principal);
+      }
+      finally {
+         detachAppender(appender);
+      }
+
+      assertEquals(List.of("gRole2"), vpmRoles(ORG_A, "v"));
+      assertFalse(vpmRoles(ORG_B, "v").contains("gRole2"),
+                  "the VPM must not start exempting org B's own gRole2 role");
+      assertTrue(vpmEvents.contains("save:v@" + ORG_B), "the removal must be saved");
+      assertTrue(appender.list.stream().anyMatch(
+                    e -> e.getLevel() == Level.WARN && e.getFormattedMessage().contains("gRole2") &&
+                       e.getFormattedMessage().contains(ORG_B)),
+                 "the skipped VPM role rename must be logged");
+   }
+
+   @Test
+   void renamesGlobalRole_keepsOldNameWhereSameNamedOrgRoleRemains() throws Exception {
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { ORG_A, ORG_B });
+      addVpm(ORG_A, "v", "gRole");
+      addVpm(ORG_B, "v", "gRole");
+      stubRole(new IdentityID("gRole", null));
+      // org B has its own role gRole, which the VPM keeps exempting
+      when(securityProvider.getRole(new IdentityID("gRole", ORG_B)))
+         .thenReturn(new FSRole(new IdentityID("gRole", ORG_B)));
+
+      service.editRole(roleModel("gRole", "gRole2", null), "Primary", principal);
+
+      assertEquals(List.of("gRole2"), vpmRoles(ORG_A, "v"));
+      assertEquals(List.of("gRole", "gRole2"), vpmRoles(ORG_B, "v"));
+      assertTrue(vpmEvents.contains("save:v@" + ORG_B), "the addition must be saved");
+   }
+
+   @Test
+   void renamesOrgRole_keepsOldNameWhereSameNamedGlobalRoleRemains() throws Exception {
+      addVpm(ORG_B, "v", "analyst");
+      stubRole(new IdentityID("analyst", ORG_B));
+      when(securityProvider.getRole(new IdentityID("analyst", null)))
+         .thenReturn(new FSRole(new IdentityID("analyst", null)));
+
+      service.editRole(roleModel("analyst", "analyst2", ORG_B), "Primary", principal);
+
+      assertEquals(List.of("analyst", "analyst2"), vpmRoles(ORG_B, "v"));
+      assertEquals(List.of("list(" + ORG_B + ")@" + ORG_B, "save:v@" + ORG_B), vpmEvents);
+   }
+
+   // Bug #77098 review: a caller may pass the global organization key instead of a null org
+   @Test
+   void migrateRoleRename_globalOrgKey_rewritesVpmsOfEveryOrg() throws Exception {
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { ORG_A, ORG_B });
+      addVpm(ORG_A, "v", "gRole");
+      addVpm(ORG_B, "v", "gRole");
+      // the renamed global role itself must not count as a colliding role
+      when(securityProvider.getRole(new IdentityID("gRole2", null)))
+         .thenReturn(new FSRole(new IdentityID("gRole2", null)));
+
+      service.migrateRoleRename(new IdentityID("gRole", "__GLOBAL__"),
+                                new IdentityID("gRole2", "__GLOBAL__"));
+
+      assertEquals(List.of("gRole2"), vpmRoles(ORG_A, "v"));
+      assertEquals(List.of("gRole2"), vpmRoles(ORG_B, "v"));
+   }
+
+   @Test
+   void renamesGlobalRole_failureInOneOrg_stillMigratesOtherOrgs() throws Exception {
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[] { ORG_A, ORG_B, ORG_C });
+      addVpm(ORG_A, "v", "gRole");
+      addVpm(ORG_B, "v", "gRole");
+      addVpm(ORG_C, "v", "gRole");
+      stubRole(new IdentityID("gRole", null));
+      failingOrg = ORG_B;
+
+      IllegalStateException ex = assertThrows(
+         IllegalStateException.class,
+         () -> service.editRole(roleModel("gRole", "gRole2", null), "Primary", principal));
+
+      assertEquals("unreadable data model", ex.getMessage());
+      assertEquals(List.of("gRole2"), vpmRoles(ORG_A, "v"));
+      assertEquals(List.of("gRole"), vpmRoles(ORG_B, "v"));
+      assertEquals(List.of("gRole2"), vpmRoles(ORG_C, "v"),
+                   "the orgs after the failing org must still be migrated");
+      assertEquals(ORG_A, orgManager.getCurrentOrgID(), "the org scope must be restored");
+   }
+
+   @Test
+   void renamesOrgRoleOntoNameOfGlobalRole_doesNotExemptTheGlobalRole() throws Exception {
+      addVpm(ORG_B, "v", "analyst");
+      stubRole(new IdentityID("analyst", ORG_B));
+      when(securityProvider.getRole(new IdentityID("everyone", null)))
+         .thenReturn(new FSRole(new IdentityID("everyone", null)));
+
+      service.editRole(roleModel("analyst", "everyone", ORG_B), "Primary", principal);
+
+      assertEquals(List.of(), vpmRoles(ORG_B, "v"));
+   }
+
+   @Test
+   void roleEditWithoutRename_savesNoVpms() throws Exception {
+      addVpm(ORG_B, "v", "analyst");
+      stubRole(new IdentityID("analyst", ORG_B));
+
+      service.editRole(roleModel("analyst", "analyst", ORG_B), "Primary", principal);
+
+      verify(identityService).setIdentity(any(Role.class), any(EditRolePaneModel.class),
+                                          eq(provider), eq(principal));
+      verifyNoInteractions(xRepository);
+      assertEquals(List.of("analyst"), vpmRoles(ORG_B, "v"));
+   }
+
+   @Test
+   void siteAdmin_editsUsersRootOfOtherOrg_stampsGrantsWithThatOrg() throws Exception {
+      when(securityProvider.checkPermission(any(), any(ResourceType.class), anyString(),
+                                            any(ResourceAction.class))).thenReturn(true);
+      IdentityID rootID = new IdentityID("Users", ORG_B);
+
+      service.editUser(userModel("Users", "Users", ORG_B), "Primary", principal);
+
+      verify(identityService).setIdentityPermissions(
+         eq(rootID), eq(rootID), eq(ResourceType.SECURITY_USER), eq(principal), any(), eq(ORG_B));
+   }
+
    private Object record(String step) {
       migrations.add(step + "@" + orgManager.getCurrentOrgID());
       return null;
@@ -258,6 +465,62 @@ class UserTreeServiceIdentityRenameOrgTest {
       when(user.getIdentityID()).thenReturn(userID);
       when(user.getPassword()).thenReturn("secret");
       when(provider.getUser(userID)).thenReturn(user);
+   }
+
+   private void stubRole(IdentityID roleID) {
+      when(provider.getRole(roleID)).thenReturn(new FSRole(roleID));
+   }
+
+   private void addVpm(String orgID, String name, String... roles) {
+      VirtualPrivateModel vpm = new VirtualPrivateModel(name);
+      HiddenColumns hiddenColumns = new HiddenColumns();
+
+      for(String role : roles) {
+         hiddenColumns.addRole(role);
+      }
+
+      vpm.setHiddenColumns(hiddenColumns);
+      vpms.computeIfAbsent(orgID, k -> new LinkedHashMap<>()).put(name, vpm);
+   }
+
+   private List<String> vpmRoles(String orgID, String name) {
+      return Collections.list(vpms.get(orgID).get(name).getHiddenColumns().getRoles());
+   }
+
+   private XDataModel dataModel(String orgID) {
+      Map<String, VirtualPrivateModel> orgVpms = vpms.getOrDefault(orgID, Map.of());
+      XDataModel dataModel = mock(XDataModel.class, withSettings().lenient());
+      when(dataModel.getVirtualPrivateModelNames())
+         .thenReturn(orgVpms.keySet().toArray(new String[0]));
+      when(dataModel.getVirtualPrivateModel(anyString()))
+         .thenAnswer(inv -> orgVpms.get(inv.<String>getArgument(0)));
+      doAnswer(inv -> {
+         vpmEvents.add("save:" + inv.<VirtualPrivateModel>getArgument(0).getName() + "@" +
+                       orgManager.getCurrentOrgID());
+         return null;
+      }).when(dataModel).addVirtualPrivateModel(any(VirtualPrivateModel.class), anyBoolean());
+      return dataModel;
+   }
+
+   private static ListAppender<ILoggingEvent> attachAppender() {
+      ListAppender<ILoggingEvent> appender = new ListAppender<>();
+      appender.start();
+      ((Logger) LoggerFactory.getLogger(UserTreeService.class)).addAppender(appender);
+      return appender;
+   }
+
+   private static void detachAppender(ListAppender<ILoggingEvent> appender) {
+      ((Logger) LoggerFactory.getLogger(UserTreeService.class)).detachAppender(appender);
+   }
+
+   private static EditRolePaneModel roleModel(String oldName, String name, String orgID) {
+      return EditRolePaneModel.builder()
+         .name(name)
+         .oldName(oldName)
+         .organization(orgID)
+         .isSysAdmin(false)
+         .isOrgAdmin(false)
+         .build();
    }
 
    private static EditGroupPaneModel groupModel(String oldName, String name, String orgID) {
@@ -279,7 +542,12 @@ class UserTreeServiceIdentityRenameOrgTest {
 
    private static final String ORG_A = "organizationA";
    private static final String ORG_B = "organizationB";
+   private static final String ORG_C = "organizationC";
    private final List<String> migrations = new ArrayList<>();
+   private final List<String> vpmEvents = new ArrayList<>();
+   private final Map<String, Map<String, VirtualPrivateModel>> vpms = new HashMap<>();
+   private XRepository xRepository;
+   private String failingOrg;
    private EditableAuthenticationProvider provider;
    private SecurityProvider securityProvider;
    private IdentityService identityService;
