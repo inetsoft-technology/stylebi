@@ -66,6 +66,7 @@ import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -475,6 +476,54 @@ class DashboardRegistryConcurrencyTest {
       assertEquals(List.of("m__GLOBAL"), namesInFile(registry.getPath()));
    }
 
+   // ── M4a: a reload during migrateRegistry doesn't replace the migrated dashboards ──
+
+   @Test
+   void migrateRegistry_reloadBeforeTheSave_keepsTheMigratedDashboards() throws Exception {
+      String orgFrom = "dashcc_migr_from";
+      String orgTo = "dashcc_migr_to";
+      setupOrgs(orgFrom, orgTo);
+      DashboardRegistry registry = registryManager.getRegistry(orgFrom);
+      registry.addDashboard("m__GLOBAL", newVsDashboard(orgFrom, null));
+      registry.save();
+
+      // park the migration when it evicts the old key, after the dashboards are migrated and
+      // before the registry is moved to the new org and saved
+      CountDownLatch parked = new CountDownLatch(1);
+      CountDownLatch release = new CountDownLatch(1);
+      String oldKey = orgFrom + "__ADMIN__";
+      Map<String, DashboardRegistry> cache = new ConcurrentHashMap<>(registryCache()) {
+         @Override
+         public DashboardRegistry remove(Object key) {
+            if(oldKey.equals(key) && threads.contains(Thread.currentThread()) &&
+               parked.getCount() > 0)
+            {
+               parked.countDown();
+               await(release);
+            }
+
+            return super.remove(key);
+         }
+      };
+      setField(DashboardRegistryManager.class, "registries", registryManager, cache);
+
+      Thread migrator = start("M.migrateRegistry", () -> registryManager.migrateRegistry(
+         null, new Organization(orgFrom), new Organization(orgTo)));
+      await(parked);
+
+      // a change event that reaches the registry while it is being migrated
+      Thread reloader = start("R_g.reload", () -> changeListener(registry).dataChanged(null));
+      awaitBlockedByOrEnded(reloader, migrator);
+      release.countDown();
+      assertCompletes(migrator, reloader);
+
+      assertEquals(List.of("m__GLOBAL"), namesInFile(registry.getPath()));
+      VSDashboard dashboard = (VSDashboard) registry.getDashboard("m__GLOBAL");
+      assertNotNull(dashboard);
+      assertEquals(orgTo, AssetEntry.createAssetEntry(dashboard.getViewsheet().getIdentifier())
+                      .getOrgID(), "a reload must not replace the migrated dashboards");
+   }
+
    // ── fixture helpers ──
 
    private String currentOrg() {
@@ -650,6 +699,17 @@ class DashboardRegistryConcurrencyTest {
       }
    }
 
+   private static void setField(Class<?> type, String name, Object target, Object value) {
+      try {
+         Field field = type.getDeclaredField(name);
+         field.setAccessible(true);
+         field.set(target, value);
+      }
+      catch(ReflectiveOperationException e) {
+         throw new AssertionError(e);
+      }
+   }
+
    // ── thread helpers ──
 
    private Thread start(String name, Runnable action) {
@@ -695,6 +755,27 @@ class DashboardRegistryConcurrencyTest {
       }
 
       fail(thread.getName() + " never blocked on a lock held by " + owner.getName());
+   }
+
+   /**
+    * Waits until a thread is blocked on a lock owned by another thread, or has ended.
+    */
+   private static void awaitBlockedByOrEnded(Thread thread, Thread owner)
+      throws InterruptedException
+   {
+      ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+
+      while(thread.isAlive()) {
+         ThreadInfo info = bean.getThreadInfo(thread.getId());
+
+         if(info != null && info.getLockOwnerId() == owner.getId()) {
+            return;
+         }
+
+         assertTrue(System.nanoTime() < deadline, thread.getName() + " neither blocked nor ended");
+         Thread.sleep(10);
+      }
    }
 
    /**
