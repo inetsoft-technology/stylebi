@@ -63,6 +63,7 @@ public class DataCycleManager
     * Data Cycle task.
     */
    public static final String TASK_PREFIX = "DataCycle Task: ";
+   private static final String STAGE2_SUFFIX = " Stage 2";
 
    /**
     * Spring constructor — ScheduleManager and IndexedStorage are injected, ensuring correct
@@ -373,7 +374,7 @@ public class DataCycleManager
       }
 
       ScheduleTask task2 = new ScheduleTask(
-         TASK_PREFIX + cycle + " Stage 2", ScheduleTask.Type.CYCLE_TASK);
+         TASK_PREFIX + cycle + STAGE2_SUFFIX, ScheduleTask.Type.CYCLE_TASK);
       task2.setEditable(false);
       task2.setRemovable(false);
       task2.setEnabled(task.isEnabled());
@@ -429,7 +430,7 @@ public class DataCycleManager
    @Override
    public boolean setEnable(String name, String orgId, boolean enable) {
       IndexedStorage storage = getIndexedStorage();
-      String entry = getCycleEntry(name, orgId).toIdentifier();
+      String entry = getCycleEntry(getCycleName(name, orgId), orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
          try {
@@ -451,7 +452,7 @@ public class DataCycleManager
    @Override
    public boolean isEnable(String name, String orgId) {
       IndexedStorage storage = getIndexedStorage();
-      String entry = getCycleEntry(name, orgId).toIdentifier();
+      String entry = getCycleEntry(getCycleName(name, orgId), orgId).toIdentifier();
 
       if(storage.contains(entry, orgId)) {
          try {
@@ -472,6 +473,48 @@ public class DataCycleManager
    @Override
    public boolean containsTask(String name, String orgId) {
       return findTask(name, orgId) != null;
+   }
+
+   /**
+    * Get the data cycle name for isEnable/setEnable. The name is either a data cycle name
+    * (MVService, ScheduleCycleService) or, per the ScheduleExt contract, the id of one of the
+    * tasks generated for a data cycle (ScheduleManager), e.g.
+    * "INETSOFT_SYSTEM~;~host-org__DataCycle Task: c1 Stage 2" for data cycle "c1".
+    */
+   private String getCycleName(String name, String orgId) {
+      IndexedStorage storage = getIndexedStorage();
+
+      if(name == null || storage.contains(getCycleEntry(name, orgId).toIdentifier(), orgId)) {
+         return name;
+      }
+
+      ScheduleTask task = findTask(name, orgId);
+
+      if(task != null && task.getCycleInfo() != null && task.getCycleInfo().getName() != null) {
+         return task.getCycleInfo().getName();
+      }
+
+      // the task may not carry a cycle info (legacy asset), parse the cycle name from the id
+      String taskName = name;
+      int idx = taskName.indexOf("__" + TASK_PREFIX);
+
+      if(idx >= 0) {
+         taskName = taskName.substring(idx + 2);
+      }
+
+      if(!taskName.startsWith(TASK_PREFIX)) {
+         return name;
+      }
+
+      String cycle = taskName.substring(TASK_PREFIX.length());
+
+      if(cycle.endsWith(STAGE2_SUFFIX) &&
+         !storage.contains(getCycleEntry(cycle, orgId).toIdentifier(), orgId))
+      {
+         cycle = cycle.substring(0, cycle.length() - STAGE2_SUFFIX.length());
+      }
+
+      return cycle;
    }
 
    private void loadOldConfig() {

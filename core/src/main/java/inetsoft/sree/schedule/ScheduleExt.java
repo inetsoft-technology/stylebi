@@ -43,6 +43,7 @@ public interface ScheduleExt extends Iterable<ScheduleTask> {
 
    /**
     * Check if contains a task.
+    * @param name the task id, see {@link ScheduleTask#getTaskId()}.
     */
    boolean containsTask(String name, String orgId);
 
@@ -54,11 +55,13 @@ public interface ScheduleExt extends Iterable<ScheduleTask> {
 
    /**
     * Check if a given task is enabled.
+    * @param name the task id, see {@link ScheduleTask#getTaskId()}.
     */
    boolean isEnable(String name, String orgId);
 
    /**
     * Enable/Disable a given task.
+    * @param name the task id, see {@link ScheduleTask#getTaskId()}.
     * @return <tt>true</tt> if the extension changed, <tt>false</tt> otherwise.
     */
    boolean setEnable(String name, String orgId, boolean enable);

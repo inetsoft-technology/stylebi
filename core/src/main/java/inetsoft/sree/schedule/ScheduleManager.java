@@ -312,31 +312,52 @@ public class ScheduleManager {
       return new ExtTaskKey(taskId, orgId);
    }
 
-   private boolean updateExtensionEnabled(ScheduleTask task) {
-      boolean changed = false;
-      String orgId;
-      if(task.getCycleInfo() != null) {
-         orgId = task.getCycleInfo().getOrgId();
-      }
-      else {
-         orgId = OrganizationManager.getInstance().getCurrentOrgID();
-      }
+   private String getExtensionTaskOrgId(ScheduleTask task, String defaultOrgId) {
+      return task.getCycleInfo() != null ? task.getCycleInfo().getOrgId() : defaultOrgId;
+   }
 
+   /**
+    * Get the schedule extension that owns a task, or null if the task is not an extension task.
+    */
+   private ScheduleExt getTaskExtension(ScheduleTask task, String orgId) {
       for(ScheduleExt ext : extensions) {
-         // for a schedule task in a schedule extension, we
-         // should not save it but only change enable option
          if(ext.containsTask(task.getTaskId(), orgId)) {
-            if(ext.isEnable(task.getTaskId(), orgId) != task.isEnabled())
-            {
-               ext.setEnable(task.getTaskId(), orgId, task.isEnabled());
-               changed = true;
-            }
-
-            break;
+            return ext;
          }
       }
 
-      return changed;
+      return null;
+   }
+
+   /**
+    * For a schedule task in a schedule extension, we should not save it but only change the
+    * enable option in the extension.
+    *
+    * @return <tt>true</tt> if the extension changed, <tt>false</tt> otherwise.
+    */
+   private boolean updateExtensionEnabled(ScheduleExt ext, ScheduleTask task, String orgId) {
+      if(ext.isEnable(task.getTaskId(), orgId) != task.isEnabled()) {
+         ext.setEnable(task.getTaskId(), orgId, task.isEnabled());
+         return true;
+      }
+
+      return false;
+   }
+
+   /**
+    * A data cycle task is generated from its data cycle and is never stored as an ordinary
+    * schedule task. One that no extension owns (e.g. read back from XML, which mangles its id
+    * and drops the cycle info) is stale and must be dropped, the data cycle is the source of
+    * truth.
+    */
+   private boolean isUnownedCycleTask(ScheduleTask task) {
+      if(task.getType() == ScheduleTask.Type.CYCLE_TASK) {
+         LOG.warn("Data cycle task {} does not belong to an existing data cycle, " +
+                     "it is not saved as a schedule task", task.getTaskId());
+         return true;
+      }
+
+      return false;
    }
 
    /**
@@ -366,8 +387,16 @@ public class ScheduleManager {
     * Save the all the schedule task.
     */
    private boolean save(ScheduleTask task, String orgID) throws Exception {
-      if(updateExtensionEnabled(task)) {
-         return true;
+      String extOrgId = getExtensionTaskOrgId(
+         task, OrganizationManager.getInstance().getCurrentOrgID());
+      ScheduleExt ext = getTaskExtension(task, extOrgId);
+
+      if(ext != null) {
+         return updateExtensionEnabled(ext, task, extOrgId);
+      }
+
+      if(isUnownedCycleTask(task)) {
+         return false;
       }
 
       ScheduleTaskMessage.Action action;
@@ -658,6 +687,25 @@ public class ScheduleManager {
       }
       else {
          orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      }
+
+      // Bug #77213: an extension (data cycle) task is derived from the extension's own asset.
+      // Only its enabled state can change and that belongs to the extension, it must never be
+      // stored as an ordinary task. Lock order: this monitor -> extensionLock (reload) ->
+      // extension monitor.
+      String extOrgId = getExtensionTaskOrgId(task, orgID);
+      ScheduleExt ext = getTaskExtension(task, extOrgId);
+
+      if(ext != null) {
+         if(updateExtensionEnabled(ext, task, extOrgId)) {
+            reloadExtensions(extOrgId);
+         }
+
+         return;
+      }
+
+      if(isUnownedCycleTask(task)) {
+         return;
       }
 
       if(principal == null) {
