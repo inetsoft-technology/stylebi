@@ -230,6 +230,39 @@ class WizVisualizationServiceTest {
       assertNotNull(newVs.getCalcFields("Query1"));
    }
 
+   /**
+    * A chart whose source is not ASSET/VS_ASSEMBLY has a null getTableName(), so only the
+    * SourceInfo branch can find its calc fields. Guards the DataVSAssembly-first branch order.
+    */
+   @Test
+   void savingAChartWithANonAssetSourceStillCarriesOverItsCalcFields() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      ChartVSAssembly chart = new ChartVSAssembly(sourceVs, "Chart1");
+      chart.setSourceInfo(new SourceInfo(SourceInfo.MODEL, "Orders", "Sales"));
+      sourceVs.addAssembly(chart);
+      sourceVs.addCalcField("Sales", calc("Margin", "field['PRICE'] - field['COST']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Chart1");
+
+      assertNotNull(newVs.getCalcFields("Sales"));
+   }
+
+   /** Only the saved Text's own table is carried over, not every calc-field table. */
+   @Test
+   void savingATextDoesNotCarryOverCalcFieldsOfOtherTables() throws Exception {
+      Viewsheet sourceVs = new Viewsheet();
+      TextVSAssembly text = new TextVSAssembly(sourceVs, "Text1");
+      bindScalar(text, "Query1");
+      sourceVs.addAssembly(text);
+      sourceVs.addCalcField("Query1", calc("Margin", "field['PRICE'] - field['COST']"));
+      sourceVs.addCalcField("Query2", calc("Other", "field['PRICE']"));
+
+      Viewsheet newVs = saveAndCapture(sourceVs, "Text1");
+
+      assertNotNull(newVs.getCalcFields("Query1"));
+      assertNull(newVs.getCalcFields("Query2"));
+   }
+
    private static void bindScalar(OutputVSAssembly assembly, String table) {
       ScalarBindingInfo binding = new ScalarBindingInfo();
       binding.setTableName(table);
