@@ -27,6 +27,7 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import org.junit.jupiter.api.*;
@@ -47,6 +48,7 @@ class IdentityThemeServiceTest {
    @BeforeEach
    void setUp() {
       manager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(manager);
       service = new IdentityThemeService(manager);
    }
 

@@ -2358,36 +2358,41 @@ public class IdentityService {
 
    private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
       if(!Tool.equals(oldThemeId, themeID)) {
-         Set<CustomTheme> themes = new HashSet<>(customThemesManager.getCustomThemes());
-         boolean modified = false;
+         customThemesManager.updateCustomThemes(themes -> {
+            boolean modified = false;
 
-         if(oldThemeId != null) {
-            CustomTheme oldTheme = themes.stream()
-               .filter(t -> Tool.equals(t.getId(), oldThemeId))
-               .findFirst().orElse(null);
+            if(oldThemeId != null) {
+               CustomTheme oldTheme = themes.stream()
+                  .filter(t -> Tool.equals(t.getId(), oldThemeId))
+                  .findFirst().orElse(null);
 
-            if(oldTheme != null) {
-               oldTheme.getOrganizations().remove(oldOrgID);
-               modified = true;
+               if(oldTheme != null) {
+                  oldTheme.getOrganizations().remove(oldOrgID);
+                  modified = true;
+               }
             }
-         }
+
+            if(themeID != null) {
+               CustomTheme theme = themes.stream()
+                  .filter(t -> Tool.equals(t.getId(), themeID))
+                  .findFirst().orElse(null);
+
+               if(theme != null) {
+                  List<String> themeOrgs = theme.getOrganizations();
+
+                  if(!themeOrgs.contains(newOrgID)) {
+                     themeOrgs.add(newOrgID);
+                  }
+
+                  theme.setOrganizations(themeOrgs);
+                  modified = true;
+               }
+            }
+
+            return modified ? themes : null;
+         });
 
          if(themeID != null) {
-            CustomTheme theme = themes.stream()
-               .filter(t -> Tool.equals(t.getId(), themeID))
-               .findFirst().orElse(null);
-
-            if(theme != null) {
-               List<String> themeOrgs = theme.getOrganizations();
-
-               if(!themeOrgs.contains(newOrgID)) {
-                  themeOrgs.add(newOrgID);
-               }
-
-               theme.setOrganizations(themeOrgs);
-               modified = true;
-            }
-
             customThemesManager.setOrgSelectedTheme(themeID, newOrgID);
          }
          else {
@@ -2397,10 +2402,6 @@ public class IdentityService {
          // If org ID changed, clean up old org's selection property
          if(!Tool.equals(oldOrgID, newOrgID)) {
             customThemesManager.setOrgSelectedTheme("default", oldOrgID);
-         }
-
-         if(modified) {
-            customThemesManager.setCustomThemes(themes);
          }
       }
    }
