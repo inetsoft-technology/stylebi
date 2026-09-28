@@ -37,6 +37,8 @@
  *   Group 9 [Risk 2] — selectionChanged(): navigatingAway=false for event.length>1 — pageChanged
  *                       and incomplete-new-user guards both silently bypassed on multi-select
  *                       (Design Gap)
+ *   Group 10 [Risk 2] — setOrganization(): the message returned by the save must be shown as is,
+ *                       not replaced by the fixed rename issue
  *
  * KEY contracts:
  *   - clearIncompleteNewUser(false) must NOT trigger refreshTree.
@@ -66,12 +68,16 @@ import { SecurityTreeNode } from "../../security-tree-view/security-tree-node";
 import { SecurityTreeService } from "../security-tree.service";
 import { SecurityBusyService } from "../security-busy.service";
 import { ErrorHandlerService } from "../../../../common/util/error/error-handler.service";
+import { MessageDialogType } from "../../../../common/util/message-dialog";
 import { OrganizationDropdownService } from "../../../../navbar/organization-dropdown.service";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { IdentityId } from "../identity-id";
-import { EditUserPaneModel } from "../edit-identity-pane/edit-identity-pane.model";
+import {
+   EditOrganizationPaneModel,
+   EditUserPaneModel
+} from "../edit-identity-pane/edit-identity-pane.model";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixtures
@@ -857,5 +863,97 @@ describe("UsersSettingsPageComponent — selectionChanged(): multi-select bypass
       expect(dialogSpy.open).not.toHaveBeenCalled();
       expect(comp.newUserIdentity).toBe(pendingId); // pending user still tracked but not cleaned up
       expect(comp.selectedNodes).toEqual([node1, node2]);
+   });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Group 10 [Risk 2] — setOrganization(): message returned by the save
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("UsersSettingsPageComponent — setOrganization(): save message", () => {
+
+   const makeOrgModel = (name: string, id: string): EditOrganizationPaneModel => ({
+      name,
+      oldName: name,
+      id,
+      organization: id,
+      root: false,
+      identityNames: [],
+      members: [],
+      roles: [],
+      permittedIdentities: [],
+      editable: true,
+      properties: [],
+      localesList: [],
+      currentUserName: "admin",
+   });
+
+   function respondWith(message: string) {
+      server.use(
+         http.post("*/api/em/security/users/edit-organization/*", () =>
+            HttpResponse.json(message),
+         ),
+      );
+   }
+
+   afterEach(() => vi.restoreAllMocks());
+
+   // 🔁 Regression-sensitive (Bug #77101): the save returns localized text such as a refused
+   // drop or a failed member cleanup, which must not be reported as a locked folder
+   it("should show the returned message text in an OK-only dialog", async () => {
+      respondWith("Cannot delete yourself.");
+      const { comp, dialogSpy } = await renderComponent();
+
+      dialogSpy.open.mockClear();
+      comp.setOrganization(makeOrgModel("OtherOrg", "otherorg"));
+
+      await vi.waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      const data = dialogSpy.open.mock.calls[0][1].data;
+      expect(data.content).toBe("Cannot delete yourself.");
+      expect(data.type).toBe(MessageDialogType.WARNING);
+   });
+
+   // Bug #77101: the server now sends the localized rename issue itself for a failed folder
+   // rename, so the client shows the returned text instead of the fixed token
+   it("should show the rename issue text sent by the server", async () => {
+      respondWith("Renaming server files for the organization has failed because the folder is locked.");
+      const { comp, dialogSpy } = await renderComponent();
+
+      dialogSpy.open.mockClear();
+      comp.setOrganization(makeOrgModel("OtherOrg", "otherorg"));
+
+      await vi.waitFor(() => expect(dialogSpy.open).toHaveBeenCalledTimes(1));
+      expect(dialogSpy.open.mock.calls[0][1].data.content)
+         .toBe("Renaming server files for the organization has failed because the folder is locked.");
+   });
+
+   it("should not open a dialog when the save returns no message", async () => {
+      respondWith("");
+      const { comp, dialogSpy } = await renderComponent();
+
+      dialogSpy.open.mockClear();
+      comp.setOrganization(makeOrgModel("OtherOrg", "otherorg"));
+
+      await vi.waitFor(() => expect(comp.loading).toBe(false));
+      expect(dialogSpy.open).not.toHaveBeenCalled();
+   });
+
+   // the current organization path shows the returned text too, after the confirmation dialog
+   it("should show the returned message text when the current organization changes", async () => {
+      respondWith("Cannot delete yourself.");
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+      const { comp, dialogSpy } = await renderComponent({
+         dialogClosesWith: true,
+         loginUserOrgName: "CurrentOrg",
+         loginUserOrgID: "currentorg",
+      });
+
+      const model: EditOrganizationPaneModel = { ...makeOrgModel("CurrentOrg", "currentorg"), id: "renamedorg" };
+      dialogSpy.open.mockClear();
+      comp.setOrganization(model);
+
+      await vi.waitFor(() => expect(openSpy).toHaveBeenCalled());
+      expect(dialogSpy.open).toHaveBeenCalledTimes(2);
+      expect(dialogSpy.open.mock.calls[1][1].data.content).toBe("Cannot delete yourself.");
    });
 });
