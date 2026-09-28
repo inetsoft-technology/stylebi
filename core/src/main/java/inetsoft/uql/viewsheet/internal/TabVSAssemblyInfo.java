@@ -660,7 +660,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * position even though the restored flag itself is correct (Bug #76927).</p>
     *
     * <p>Gated strictly on {@link #isPositionNeedsSync()}, which is only set when a restore
-    * (or a design-time script, see {@link #markPositionNeedsSync()}) actually changed the
+    * (or a design-time script, see {@link #updateDesignPositionNeedsSync()}) actually changed the
     * effective value without repositioning -- the sweep itself never compares positions -- so
     * an ordinary refresh (including the INITIAL_STATE round-trip every runtime open performs)
     * can't fight a tab position the user or a script established (Bug #77179).</p>
@@ -784,7 +784,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
     * unconditionally made the open-time sweep re-anchor every tab, moving non-flush layouts
     * and undoing onInit/onLoad position changes (Bug #77179). The flag is sticky -- an equal
     * restore never clears one raised earlier (e.g. by a preceding restore in the same open, or
-    * by {@link #markPositionNeedsSync()}).</p>
+    * by a design-time script, see {@link #updateDesignPositionNeedsSync()}).</p>
     */
    public void restoreBottomTabs(boolean bottomTabs) {
       boolean changed = isBottomTabs() != bottomTabs;
@@ -796,18 +796,16 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    /**
-    * Mark that the bottomTabs rValue was changed without a matching reposition. Used by
-    * {@link inetsoft.report.script.viewsheet.TabVSAScriptable#setBottomTabs} when a script
-    * changes the value in a design-time (non-runtime) sandbox, where positions are never
-    * moved: the flag travels with the viewsheet clone into Composer Preview, whose runtime
-    * script run or open-time sweep then settles the reposition (Bug #77179).
+    * Mark that the bottomTabs rValue was changed without a matching reposition, so the next
+    * runtime script run or open-time sweep settles it. Design-time scripts use {@link
+    * #updateDesignPositionNeedsSync()}, which also clears a flag that is no longer owed.
     */
    public void markPositionNeedsSync() {
       positionNeedsSync = true;
    }
 
    /**
-    * Design-time counterpart of {@link #restoreBottomTabs}/{@link #markPositionNeedsSync()}:
+    * Design-time counterpart of {@link #restoreBottomTabs}:
     * in a design (non-runtime) viewsheet the pixel positions are laid out for the design value
     * ({@link #getBottomTabsValue()}) -- the property dialog repositions for it and design-time
     * scripts never move anything -- so a reposition is owed exactly when the effective value
