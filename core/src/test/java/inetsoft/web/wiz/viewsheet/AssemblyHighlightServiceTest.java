@@ -18,7 +18,11 @@
 package inetsoft.web.wiz.viewsheet;
 
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.uql.viewsheet.CylinderVSAssembly;
+import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.CylinderVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.vs.HighlightDialogModel;
 import inetsoft.web.composer.model.vs.HighlightModel;
@@ -134,6 +138,61 @@ class AssemblyHighlightServiceTest {
       assertEquals(2, posted.getHighlights().length, "replacing must not add a second entry");
       assertNotNull(posted.getHighlights()[0].getVsConditionDialogModel(),
                     "the replaced one is the rebuilt highlight, in its original position");
+   }
+
+   /**
+    * replace:true on a name that matches nothing used to append a new highlight -- leaving the
+    * intended one unchanged, stacking a second next to it, and reporting "Updated".
+    */
+   @Test
+   void refusesReplaceOnANameThatDoesNotExist() throws Exception {
+      Harness h = harness(model(existing("HighRevenue")));
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Table1", null, highlight("HighRevenu"), true,
+                             ""));
+
+      assertTrue(thrown.getMessage().contains("HighRevenu'"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("It has: HighRevenue"), thrown.getMessage());
+      verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                             anyString(), any(Principal.class),
+                                                             any());
+   }
+
+   /**
+    * A range output (Gauge/Cylinder/Thermometer/SlidingScale) never applies a highlight -- only
+    * Text and Image do -- so storing one would report success and render nothing.
+    */
+   @Test
+   void refusesAHighlightOnARangeOutput() throws Exception {
+      Harness h = harness(model());
+      CylinderVSAssembly cylinder = mock(CylinderVSAssembly.class);
+      when(cylinder.getVSAssemblyInfo()).thenReturn(mock(CylinderVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Cylinder1")).thenReturn(cylinder);
+
+      Exception thrown = assertThrows(
+         Exception.class,
+         () -> h.service.set("tok", principal(), "Cylinder1", null, highlight("X"), false, ""));
+
+      assertTrue(thrown.getMessage().contains("'Cylinder1' is a Cylinder"), thrown.getMessage());
+      assertTrue(thrown.getMessage().contains("does not render highlights"), thrown.getMessage());
+      verify(h.highlights, never()).setHighlightDialogModel(anyString(), anyString(), any(),
+                                                             anyString(), any(Principal.class),
+                                                             any());
+   }
+
+   /** Control: a Text output does render highlights, so it must still be accepted. */
+   @Test
+   void stillAcceptsAHighlightOnAText() throws Exception {
+      Harness h = harness(model());
+      TextVSAssembly text = mock(TextVSAssembly.class);
+      when(text.getVSAssemblyInfo()).thenReturn(mock(TextVSAssemblyInfo.class));
+      when(h.rvs.getViewsheet().getAssembly("Text1")).thenReturn(text);
+
+      h.service.set("tok", principal(), "Text1", null, highlight("X"), false, "");
+
+      assertEquals(1, capture(h.highlights).getHighlights().length);
    }
 
    @Test
@@ -638,7 +697,7 @@ class AssemblyHighlightServiceTest {
    // ── harness ───────────────────────────────────────────────────────────────
 
    private record Harness(AssemblyHighlightService service, ViewsheetSessionService sessions,
-                          HighlightDialogService highlights) {}
+                          HighlightDialogService highlights, RuntimeViewsheet rvs) {}
 
    private static HighlightDialogModel capture(HighlightDialogService highlights)
       throws Exception
@@ -676,7 +735,8 @@ class AssemblyHighlightServiceTest {
          throw new IllegalStateException(e);
       }
 
-      return new Harness(new AssemblyHighlightService(sessions, highlights), sessions, highlights);
+      return new Harness(new AssemblyHighlightService(sessions, highlights), sessions, highlights,
+                         rvs);
    }
 
    private static Principal principal() {
