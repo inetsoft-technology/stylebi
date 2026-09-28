@@ -191,6 +191,73 @@ class ScheduleManagerExtensionTaskTest {
       assertTrue(live.isEnabled(), "the cached extension task must not be mutated");
    }
 
+   // Direct storage checks: the DataCycle asset is re-read (parsed) from IndexedStorage and the
+   // storage keys are scanned, so neither depends on ScheduleManager/ScheduleTaskMap caches.
+
+   @Test
+   void toggleOfStage2TaskDisablesDataCycleAndWritesNoStorageKey() throws Exception {
+      ScheduleTask stage1 = createCycleTask(true);
+      ScheduleTask stage2 = createCycleTask(DataCycleManager.TASK_PREFIX + CYCLE + " Stage 2", true);
+      assertEquals(STAGE2_ID, stage2.getTaskId(), "precondition: stage 2 task id");
+      installGeneratedTask(stage1, stage2);
+      Set<String> keysBefore = getCycleStorageKeys();
+
+      ScheduleTask task = scheduleManager.getScheduleTask(STAGE2_ID, ORG).clone();
+      task.setEnabled(false);
+      scheduleManager.setScheduleTask(STAGE2_ID, task, null, admin);
+
+      assertEquals(keysBefore, getCycleStorageKeys(), "no schedule task may be written to storage");
+      assertNoStoredCycleTaskKey();
+      assertFalse(readAsset().isEnabled(), "the stage 2 toggle must disable the data cycle");
+   }
+
+   @Test
+   void toggleOfStage1TaskWritesNoStorageKey() throws Exception {
+      installGeneratedTask(createCycleTask(true));
+      Set<String> keysBefore = getCycleStorageKeys();
+
+      ScheduleTask task = scheduleManager.getScheduleTask(TASK_ID, ORG).clone();
+      task.setEnabled(false);
+      scheduleManager.setScheduleTask(TASK_ID, task, null, admin);
+
+      assertEquals(keysBefore, getCycleStorageKeys(), "no schedule task may be written to storage");
+      assertNoStoredCycleTaskKey();
+      assertFalse(readAsset().isEnabled(), "the toggle must disable the data cycle");
+   }
+
+   @Test
+   void importOfDataCycleTaskDoesNotCreateGhost() throws Exception {
+      // the asset deploy import path, content as written by ScheduleTaskAsset.writeContent()
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      writer.write("<ScheduleTask>");
+      createCycleTask(true).writeXML(writer);
+      writer.write("</ScheduleTask>");
+      writer.flush();
+      Set<String> keysBefore = getCycleStorageKeys();
+
+      new inetsoft.util.dep.ScheduleTaskAsset().parseContent(
+         new java.io.ByteArrayInputStream(
+            buffer.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+         null, true, false);
+
+      assertEquals(keysBefore, getCycleStorageKeys(), "import must not store the cycle task");
+      assertNoStoredCycleTaskKey();
+      assertEquals(List.of(), getStoredCycleTasks(), "no ghost may be listed");
+      assertTrue(readAsset().isEnabled(), "the data cycle must be left unchanged");
+   }
+
+   private Set<String> getCycleStorageKeys() {
+      return new TreeSet<>(indexedStorage.getKeys(key -> key.contains(CYCLE), ORG));
+   }
+
+   private void assertNoStoredCycleTaskKey() {
+      Set<String> keys = indexedStorage.getKeys(
+         key -> key.contains(DataCycleManager.TASK_PREFIX.trim()) ||
+            key.contains("DataCycle Task" + IdentityID.KEY_DELIMITER), ORG);
+      assertEquals(Set.of(), keys, "no data cycle task key may exist in storage");
+   }
+
    // cycle tasks stored in the ordinary task map (they read back without a cycle info)
    private List<String> getStoredCycleTasks() {
       List<String> result = new ArrayList<>();
@@ -206,8 +273,11 @@ class ScheduleManagerExtensionTaskTest {
 
    // mirrors DataCycleManager.generateTasks()
    private ScheduleTask createCycleTask(boolean enabled) {
-      ScheduleTask task = new ScheduleTask(DataCycleManager.TASK_PREFIX + CYCLE,
-                                           ScheduleTask.Type.CYCLE_TASK);
+      return createCycleTask(DataCycleManager.TASK_PREFIX + CYCLE, enabled);
+   }
+
+   private ScheduleTask createCycleTask(String name, boolean enabled) {
+      ScheduleTask task = new ScheduleTask(name, ScheduleTask.Type.CYCLE_TASK);
       task.setEditable(false);
       task.setRemovable(false);
       task.setEnabled(enabled);
@@ -232,7 +302,7 @@ class ScheduleManagerExtensionTaskTest {
 
    // real generation needs an MV bound to the cycle, install a generated task directly
    @SuppressWarnings({ "unchecked", "rawtypes" })
-   private void installGeneratedTask(ScheduleTask task) throws Exception {
+   private void installGeneratedTask(ScheduleTask... tasks) throws Exception {
       Field tasksField = DataCycleManager.class.getDeclaredField("pregeneratedTasksMap");
       tasksField.setAccessible(true);
       Field statusField = DataCycleManager.class.getDeclaredField("orgPregeneratedTaskLoadedStatus");
@@ -240,7 +310,7 @@ class ScheduleManagerExtensionTaskTest {
 
       synchronized(dataCycleManager) {
          ((Map<String, Vector<ScheduleTask>>) tasksField.get(dataCycleManager))
-            .put(ORG, new Vector<>(List.of(task)));
+            .put(ORG, new Vector<>(List.of(tasks)));
          ((Map<String, Boolean>) statusField.get(dataCycleManager)).put(ORG, true);
       }
 
@@ -249,7 +319,11 @@ class ScheduleManagerExtensionTaskTest {
       Class<?> keyClass = Class.forName("inetsoft.sree.schedule.ScheduleManager$ExtTaskKey");
       Constructor<?> keyConstructor = keyClass.getDeclaredConstructor(String.class, String.class);
       keyConstructor.setAccessible(true);
-      ((Map) extField.get(scheduleManager)).put(keyConstructor.newInstance(TASK_ID, ORG), task);
+      for(ScheduleTask task : tasks) {
+         ((Map) extField.get(scheduleManager))
+            .put(keyConstructor.newInstance(task.getTaskId(), ORG), task);
+      }
+
       Field loadedField = ScheduleManager.class.getDeclaredField("extensionTasksLoadedOrgs");
       loadedField.setAccessible(true);
       ((Set<String>) loadedField.get(scheduleManager)).add(ORG);
