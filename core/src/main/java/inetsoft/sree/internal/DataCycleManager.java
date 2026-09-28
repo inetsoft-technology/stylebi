@@ -954,6 +954,7 @@ public class DataCycleManager
             }
          }
 
+         // an unmatched field keeps its original string (separators are not normalized to ",")
          if(changed) {
             setter.accept(String.join(",", emailList));
          }
