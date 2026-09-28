@@ -745,7 +745,7 @@ public class TablePaintable extends BasePaintable {
 
                      // in printlayout mode, don't paint left border of the
                      // first column but only show table's left border.
-                     ver[i + n][j + m] = (j == 0 && tableBorders.left != 0) ?
+                     ver[i + n][j + m] = (j == 0 && tableBorders.left != 0 && getCardLeft() == 0) ?
                         StyleConstants.NO_BORDER : (m == area.width - 1 ||
                         (j + m) == hor[i].length - 2) ? colborder :
                         StyleConstants.NO_BORDER;
@@ -758,7 +758,7 @@ public class TablePaintable extends BasePaintable {
                    lens.getRowBorder(row, col));
                // in printlayout mode, don't paint left border of the
                // first column but only show table's left border.
-               ver[i][j] = (j == 0 && tableBorders.left != 0) ?
+               ver[i][j] = (j == 0 && tableBorders.left != 0 && getCardLeft() == 0) ?
                   StyleConstants.NO_BORDER : (i == 0) ?
                   StyleConstants.NO_BORDER : (isSummary ?
                   summary.getSummaryColBorder(col) :
@@ -797,7 +797,7 @@ public class TablePaintable extends BasePaintable {
          // in printlayout mode, if content width is match the table
          // width, don't paint the right border of the last column but
          // only show table's right border.
-         if(hideLeftBorder && tableBorders.right != 0) {
+         if(hideLeftBorder && tableBorders.right != 0 && getCardRight() == 0) {
             ver[i][rcol] = StyleConstants.NO_BORDER;
          }
          else {
@@ -815,7 +815,7 @@ public class TablePaintable extends BasePaintable {
          for(int j = 1; j < hor[0].length - 1; j++) {
             // in printlayout mode, don't paint the bottom border
             // of the last row border but only show table's bottom border.
-            if(lastregion && tableBorders.bottom != 0) {
+            if(lastregion && tableBorders.bottom != 0 && getCardBottom() == 0) {
                hor[brow][j] = 0;
             }
             else {
@@ -850,6 +850,15 @@ public class TablePaintable extends BasePaintable {
 
    private int getCardLeft() {
       return cardInset == null ? 0 : cardInset.left;
+   }
+
+   private int getCardRight() {
+      return cardInset == null ? 0 : cardInset.right;
+   }
+
+   // the bottom inset belongs to the last region only
+   private int getCardBottom() {
+      return cardInset == null || !lastregion ? 0 : cardInset.bottom;
    }
 
    /**
@@ -4529,7 +4538,7 @@ public class TablePaintable extends BasePaintable {
          return false;
       }
 
-      float pw = printb.width;
+      float pw = printb.width - getCardLeft() - getCardRight();
       return w + borderw >= pw;
    }
 
