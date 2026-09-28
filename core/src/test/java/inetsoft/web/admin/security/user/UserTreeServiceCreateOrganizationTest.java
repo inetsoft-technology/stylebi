@@ -33,6 +33,8 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 
@@ -112,6 +114,31 @@ class UserTreeServiceCreateOrganizationTest {
          service.createOrganization(null, "Primary", "New Org", "org1", principal, null));
 
       assertEquals(Catalog.getCatalog().getString("em.duplicateOrganizationID"), thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   // Bug #77136: an explicit id naming a system folder of external storage, or containing path
+   // characters, must be rejected before the organization is added or cloned
+   @ParameterizedTest
+   @ValueSource(strings = { "backup", "HEAPDUMP", "status", "..", "a/b", "a b" })
+   void explicitId_reservedOrUnsafe_rejected(String orgId) {
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization(null, "Primary", "New Org", orgId, principal, null));
+
+      assertEquals(Catalog.getCatalog().getString("em.security.reservedOrganizationID", orgId),
+                   thrown.getMessage());
+      verify(editProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void explicitId_reserved_cloneRejectedBeforeCopy() {
+      MessageException thrown = assertThrows(MessageException.class, () ->
+         service.createOrganization("org1", "Primary", "New Org", "backup", principal, "Str0ng!Passw0rd"));
+
+      assertEquals(Catalog.getCatalog().getString("em.security.reservedOrganizationID", "backup"),
+                   thrown.getMessage());
+      verify(editProvider, never()).copyOrganization(any(), any(), any(), any(), any(), any(), any(),
+                                                     anyBoolean(), any());
       verify(editProvider, never()).addOrganization(any());
    }
 

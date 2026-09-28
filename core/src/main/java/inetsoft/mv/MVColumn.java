@@ -180,21 +180,26 @@ public class MVColumn implements XMLSerializable, Serializable {
    /**
     * Get the original max value.
     */
-   public Number getOriginalMax() {
+   public synchronized Number getOriginalMax() {
       return max0;
    }
 
    /**
     * Get the original min value.
     */
-   public Number getOriginalMin() {
+   public synchronized Number getOriginalMin() {
       return min0;
    }
 
    /**
     * Reset the range mv column.
+    * <p>
+    * The range state of a column is shared by all the dispatcher threads of a parallel
+    * mv build (they share one MVDef), so every reader and writer of it is synchronized on
+    * the column itself, the same monitor MVDef.snapshotColumn() holds while it sizes and
+    * writes the column (Bug #77154).
     */
-   public void setRange(Number min, Number max) {
+   public synchronized void setRange(Number min, Number max) {
       this.min0 = min;
       this.max0 = max;
    }
@@ -202,7 +207,7 @@ public class MVColumn implements XMLSerializable, Serializable {
    /**
     * Expand the range, by a number
     */
-    public void expandRange(Number n) {
+    public synchronized void expandRange(Number n) {
       if(n != null) {
          if(this.min0 == null || n.doubleValue() < this.min0.doubleValue()) {
             this.min0 = n;
@@ -292,7 +297,7 @@ public class MVColumn implements XMLSerializable, Serializable {
    /**
     * Write context to byte buffer.
     */
-   public void write(ByteBuffer buf) {
+   public synchronized void write(ByteBuffer buf) {
       String[] strs = getData();
 
       for(String str : strs) {
@@ -328,7 +333,7 @@ public class MVColumn implements XMLSerializable, Serializable {
     * @param writer the destination print writer.
     */
    @Override
-   public void writeXML(PrintWriter writer) {
+   public synchronized void writeXML(PrintWriter writer) {
       writer.print("<mvcolumn");
       writeAttributes(writer);
       writer.print(">");

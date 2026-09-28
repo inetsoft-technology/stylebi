@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * public API (constructor, {@link DataSetIndex#addIndex}, and
  * {@link DataSetIndex#createSubDataSet(Map, boolean)}).
  */
+@Tag("core")
 class DataSetIndexTest {
 
    // -----------------------------------------------------------------------

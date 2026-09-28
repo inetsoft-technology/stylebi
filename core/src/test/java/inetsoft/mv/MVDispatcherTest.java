@@ -80,4 +80,52 @@ class MVDispatcherTest {
       // constructor signature is (MVDef def, VariableTable vars, Principal principal)
       assertSame(currentPrincipal, constructedWith.get(0).get(2));
    }
+
+   /**
+    * Bug #77154: the composite dispatchers of one parallel build share the def's columns, so they
+    * must share one set of already reset columns, otherwise each dispatcher's MVBuilder resets the
+    * shared columns and wipes the range its siblings already accumulated.
+    */
+   @Test
+   void compositeDispatchersOfOneBuildShareOneResetColumnSet() throws Throwable {
+      MVDef def = mock(MVDef.class);
+      when(def.getName()).thenReturn("mv1");
+
+      MVDispatcher dispatcher = new MVDispatcher(def);
+      List<MVCompositeDispatcher> constructed = new ArrayList<>();
+
+      try(MockedStatic<SreeEnv> sreeEnvStatic = mockStatic(SreeEnv.class);
+          MockedStatic<ThreadContext> threadContextStatic = mockStatic(ThreadContext.class);
+          MockedConstruction<MVCompositeDispatcher> construction = mockConstruction(
+             MVCompositeDispatcher.class,
+             (mock, context) -> {
+                constructed.add(mock);
+                when(mock.isCompleted()).thenReturn(true);
+                when(mock.getException()).thenReturn(null);
+             }))
+      {
+         sreeEnvStatic.when(() -> SreeEnv.getProperty("mv.dispatcher.count")).thenReturn("3");
+
+         Method processDispatch =
+            MVDispatcher.class.getDeclaredMethod("processDispatch", boolean.class);
+         processDispatch.setAccessible(true);
+
+         try {
+            processDispatch.invoke(dispatcher, true);
+         }
+         catch(java.lang.reflect.InvocationTargetException e) {
+            throw e.getCause();
+         }
+      }
+
+      assertEquals(3, constructed.size());
+      assertNotNull(constructed.get(0).resetColumns);
+
+      for(MVCompositeDispatcher composite : constructed) {
+         assertSame(constructed.get(0).resetColumns, composite.resetColumns);
+      }
+
+      // a dispatcher outside a parallel build keeps resetting its builder's columns
+      assertNull(new MVDispatcher(def).resetColumns);
+   }
 }

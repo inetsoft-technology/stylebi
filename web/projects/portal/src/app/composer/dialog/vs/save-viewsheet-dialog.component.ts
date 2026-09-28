@@ -63,11 +63,13 @@ export class SaveViewsheetDialog implements OnInit {
    }
 
    ngOnInit(): void {
-      this.initForm();
-
+      // Clear the auto-generated name before building the form so the name control starts from
+      // the same value as model.name; otherwise its validity flips during the first check (NG0100).
       if(this.model.name.indexOf("Untitled-") == 0) {
          this.model.name = "";
       }
+
+      this.initForm();
    }
 
    initForm() {

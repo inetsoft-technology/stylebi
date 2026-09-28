@@ -222,23 +222,38 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
          level == DateRangeRef.DAY_INTERVAL || level == DateRangeRef.HOUR_INTERVAL ||
          level == DateRangeRef.MINUTE_INTERVAL)
       {
-         if(min0 == null) {
-            min0 = (Date) obj;
-            max0 = (Date) obj;
-         }
-         else {
-            Date dval = (Date) obj;
+         Date dval = (Date) obj;
+         // fast path: the range only grows during a build, so a value already inside
+         // [min0, max0] needs no update. read each volatile field once and require both
+         // to be non-null, a concurrent initialization may have set min0 but not max0 yet.
+         Date min = min0;
+         Date max = max0;
 
-            if(min0.compareTo(dval) > 0) {
-               min0 = dval;
-            }
-            else if(max0.compareTo(dval) < 0) {
-               max0 = dval;
-            }
+         if(min == null || max == null || min.compareTo(dval) > 0 || max.compareTo(dval) < 0) {
+            updateRange(dval);
          }
       }
 
       return DateRangeRef.getData(level, (Date) obj);
+   }
+
+   /**
+    * Expand the date range with the given value. The range state is shared by all the
+    * dispatcher threads of a parallel mv build (they share one MVDef), so it is guarded
+    * by this column's monitor, the same monitor MVDef.snapshotColumn() holds while it
+    * sizes and writes this column (Bug #77154).
+    */
+   private synchronized void updateRange(Date dval) {
+      if(min0 == null || max0 == null) {
+         min0 = min0 == null || min0.compareTo(dval) > 0 ? dval : min0;
+         max0 = max0 == null || max0.compareTo(dval) < 0 ? dval : max0;
+      }
+      else if(min0.compareTo(dval) > 0) {
+         min0 = dval;
+      }
+      else if(max0.compareTo(dval) < 0) {
+         max0 = dval;
+      }
    }
 
    /**
@@ -252,33 +267,33 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
    /**
     * Get the original max value.
     */
-   public Date getMax() {
+   public synchronized Date getMax() {
       return max0;
    }
 
    /**
     * Set the date range max value.
     */
-   public void setMax(Date max) {
+   public synchronized void setMax(Date max) {
       this.max0 = max;
    }
 
    /**
     * Get the original min value.
     */
-   public Date getMin() {
+   public synchronized Date getMin() {
       return min0;
    }
 
    /**
     * Set the date range min value.
     */
-   public void setMin(Date min) {
+   public synchronized void setMin(Date min) {
       this.min0 = min;
    }
 
    @Override
-   public int getDataLength() {
+   public synchronized int getDataLength() {
       int len = super.getDataLength() + base.getDataLength() + 4;
       len += 8;
 
@@ -295,7 +310,7 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
    }
 
    @Override
-   public void write(ByteBuffer buf) {
+   public synchronized void write(ByteBuffer buf) {
       super.write(buf);
       base.write(buf);
       buf.putInt(level);
@@ -350,7 +365,7 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
    }
 
    @Override
-   protected void writeContents(PrintWriter writer) {
+   protected synchronized void writeContents(PrintWriter writer) {
       super.writeContents(writer);
       base.writeXML(writer);
 
@@ -401,8 +416,10 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
 
    private int level = 0;
    private MVColumn base = null;
-   private Date max0 = null;
-   private Date min0 = null;
+   // guarded by this column's monitor for writes, volatile for the lock-free
+   // fast path in convert()
+   private volatile Date max0 = null;
+   private volatile Date min0 = null;
    private boolean real = true;
 
    private static int[] alldates = new int[] {

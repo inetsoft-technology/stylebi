@@ -20,9 +20,11 @@ package inetsoft.graph.scale;
 import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.visual.ElementVO;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class StackRangeTest {
 
    // Build a dataset from a header row + data rows.

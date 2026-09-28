@@ -37,8 +37,10 @@ import java.util.function.Function;
  *
  * <p>Only a {@code fail}-mode wait that its timeout did not release (its thread could not
  * unwind, or never reached its check) turns the deadlock health check DOWN. {@code alert}
- * never fails a query and never turns health DOWN by itself; a JVM deadlock is DOWN in every
- * mode, as before the watchdog.
+ * never fails a query and a single {@code alert}-mode wait never turns health DOWN by itself;
+ * a JVM deadlock is DOWN in every mode, as before the watchdog, and so is a wait-for cycle of
+ * registered waits and monitors that no member's timeout can release, one with no plain
+ * {@code fail}-mode wait (bug #77152, see {@link StallWatchdog}).
  *
  * <p>The properties are cached for 10 seconds, like {@code SreeEnv.Value}, so a change takes
  * effect without a restart. Before the server environment is initialized (e.g. in plain unit
@@ -70,7 +72,8 @@ public final class StallPolicy {
       FAIL,
       /**
        * Only dump the threads and log a warning, the wait goes on. Never fails a query and
-       * never turns health DOWN by itself, however long the stall persists.
+       * never turns health DOWN by itself, however long the stall persists, unless the wait
+       * is stuck in a wait-for cycle (see {@link StallWatchdog}).
        */
       ALERT,
       /** No watchdog, waits are not registered. */

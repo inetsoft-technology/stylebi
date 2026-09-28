@@ -255,6 +255,34 @@ describe("Group 6 — buttonClicked: routes OAUTH to authorize, others to refres
       expect(oauthCalls.length).toBeGreaterThan(0);
    });
 
+   // Bug #77151: the URLs must match TabularQueryDialogController's
+   // /api/composer/ws/tabular-query-dialog/oauth-* mappings exactly (the /ws/ segment was missing).
+   it("should post oauth-params and oauth-tokens to the /ws/ controller URLs", () => {
+      const http = makeHttp();
+      const { comp } = makeComponent({ http });
+      http.post.mockClear();
+      http.post.mockImplementation((url: string) => {
+         if(url.includes("oauth-params")) return of({ code: "params" });
+         return of(makeTabularView());
+      });
+
+      const button = {
+         type: "OAUTH", clicked: true, loading: false,
+         oauthClientId: "cid", oauthClientSecret: "secret",
+         oauthScope: "read", oauthAuthorizationUri: "http://auth",
+         oauthTokenUri: "http://token", oauthFlags: 0,
+         oauthServiceName: "svc", method: "GET",
+      } as any;
+
+      comp.buttonClicked(button);
+
+      const urls = http.post.mock.calls.map((c: any[]) => c[0]);
+      expect(urls).toEqual([
+         "../api/composer/ws/tabular-query-dialog/oauth-params",
+         "../api/composer/ws/tabular-query-dialog/oauth-tokens",
+      ]);
+   });
+
    it("should call http.post (refreshView) when button.type=REFRESH", () => {
       const http = makeHttp();
       const { comp } = makeComponent({ http });
