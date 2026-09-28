@@ -294,7 +294,7 @@ class IdentityServiceCrossOrgMemberUpdateTest {
       when(securityProvider.getUser(any())).thenAnswer(inv -> users.get(inv.<IdentityID>getArgument(0)));
       when(securityProvider.checkPermission(any(), eq(ResourceType.SECURITY_USER), anyString(),
                                             eq(ResourceAction.ADMIN)))
-         .thenAnswer(inv -> !HIDDEN.getName().equals(inv.getArgument(2)));
+         .thenAnswer(inv -> !HIDDEN.convertToKey().equals(inv.getArgument(2)));
       EditOrganizationPaneModel model = EditOrganizationPaneModel.builder()
          .id(ORG_1)
          .name(SHARED_NAME)
