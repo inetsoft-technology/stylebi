@@ -250,7 +250,8 @@ public class AuthenticationService {
     * @param userId the requested user id.
     *
     * @return the stored user id, or <tt>userId</tt> if the provider has no such user, stores it
-    *         exactly as requested, or returns a user that differs other than by case.
+    *         exactly as requested, returns a user that differs other than by case, or returns
+    *         the anonymous user.
     */
    private IdentityID getStoredUserID(IdentityID userId) {
       if(userId == null || userId.name == null || userId.orgID == null) {
@@ -262,7 +263,10 @@ public class AuthenticationService {
          User user = provider == null ? null : provider.getUser(userId);
          IdentityID storedID = user == null ? null : user.getIdentityID();
 
+         // a case variant is never turned into the anonymous user, whose log in is not
+         // password checked
          if(storedID != null && storedID.name != null && storedID.orgID != null &&
+            !ClientInfo.ANONYMOUS.equals(storedID.name) &&
             !storedID.equals(userId) && storedID.equalsIgnoreCase(userId))
          {
             return new IdentityID(storedID.name, storedID.orgID);

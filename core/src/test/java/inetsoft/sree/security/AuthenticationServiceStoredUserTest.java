@@ -19,6 +19,7 @@ package inetsoft.sree.security;
 
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -146,6 +147,16 @@ class AuthenticationServiceStoredUserTest {
       verify(sessionService).createSessionID(XSessionService.USER, "BOB");
       assertEquals(upperBob.convertToKey(), auditedUser());
       assertEquals(List.of(upperBob), queried, "users query bound");
+   }
+
+   // a stored "anonymous" user: a case variant is not turned into the anonymous log in, which
+   // skips the password check, so its password is still checked
+   @Test
+   void caseInsensitive_anonymousCaseVariant_passwordStillChecked() throws Exception {
+      setUp(false, true, ClientInfo.ANONYMOUS);
+
+      assertNull(login("Anonymous", "wrong"));
+      assertFalse(queried.isEmpty(), "users query bound");
    }
 
    // the local (shell) connect overload checks the stored user's password too
