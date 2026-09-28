@@ -173,11 +173,19 @@ public class StallWatchdogCycleTest {
     * this wait-for cycle and report it unreleased regardless of the per-record alert/fail mode,
     * the same way a JVM-visible deadlock always does.
     *
+    * <p>The cycle is reported once T1 is stalled (the 2000 ms limit) and found again on the
+    * next scan. The reason must name this cycle's own threads: other cases of this JVM may
+    * have left other stalls or cycles registered.
+    *
     * <p>Unlike {@link #monitorFirstLensFailsOneReader}, this test never joins T1/T2's futures:
     * in {@code alert} mode neither ever completes, so their daemon threads are intentionally
-    * left stuck for the rest of this JVM, the same as an actual, still-open lock cycle would
-    * (see {@code MonitorFirstLensCycleTest}'s {@code known-deadlock} cases) — the point of the
-    * test is only that the health check notices before that.
+    * left stuck, and the cycle stays reported by the global watchdog, for the rest of this JVM,
+    * the same as an actual, still-open lock cycle would (see {@code MonitorFirstLensCycleTest}'s
+    * {@code known-deadlock} cases). That is acceptable, as an alert-mode cycle cannot be
+    * released at all: no test of this module asserts that the global watchdog reports nothing
+    * or that no wait is registered, each only checks its own threads' waits and reasons (e.g.
+    * {@code LendableReentrantLockReclaimStallTest}, {@code XSwappableTableStallTest}, and this
+    * class's {@code preexisting}).
     */
    @Test
    public void monitorFirstLensAlertModeTurnsHealthDown() throws Exception {
@@ -210,10 +218,15 @@ public class StallWatchdogCycleTest {
       // and permanent, alert mode never releases either side of it
       gate.release();
 
+      String t1Name = "\"" + t1.thread.getName() + "\"(" + t1.thread.threadId() + ")";
+      String t2Name = "\"" + t2.thread.getName() + "\"(" + t2.thread.threadId() + ")";
       StallTestSupport.awaitTrue(() -> {
          StallWatchdog.global().scan();
-         return StallWatchdog.global().getUnreleasedStall() != null;
-      }, KNOWN_CAP, "the wait-for cycle never turned health DOWN under alert mode");
+         String reason = StallWatchdog.global().getUnreleasedStall();
+         return reason != null && java.util.Arrays.stream(reason.split("; ")).anyMatch(
+            part -> part.startsWith("wait-for cycle") && part.contains(t1Name) &&
+               part.contains(t2Name));
+      }, KNOWN_CAP, "the wait-for cycle of T1 and T2 never turned health DOWN under alert mode");
    }
 
    /**

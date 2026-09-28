@@ -128,7 +128,9 @@ public final class WaitRecord implements AutoCloseable {
       // the episode fields are checked and set under this record's monitor, as the watchdog
       // does. The waiter may hold engine locks here (CrossJoinTableLens even its own monitor),
       // but there is no cycle: the watchdog only takes its own monitor, this record's and the
-      // dumper's, in that order, never an engine lock or a lens monitor.
+      // dumper's, in that order, never an engine lock or a lens monitor. It also calls the
+      // blocker suppliers, outside of any record's monitor, which take at most the private
+      // monitor of a LendableReentrantLock, as a leaf (see StallWatchdog.scanRecord()).
       synchronized(this) {
          long stalledNanos = now - progressNanos;
 
@@ -260,6 +262,10 @@ public final class WaitRecord implements AutoCloseable {
     * Get the threads this wait is currently for (e.g. a lock owner), sampled fresh from the
     * wait's blocker supplier. Never throws: an error, or a {@code null} result, is treated as
     * no blockers, matching this class's own "never fail the waiter" convention.
+    *
+    * <p>The watchdog calls it too, on its own thread and under its own monitor, to look for
+    * wait-for cycles (bug #77152), see {@link WaitRegistry#begin(String, LongSupplier,
+    * Supplier)}.
     */
    public Thread[] getBlockers() {
       try {
@@ -311,6 +317,13 @@ public final class WaitRecord implements AutoCloseable {
       if(this != NOOP) {
          reportOnly = label;
       }
+   }
+
+   /**
+    * Check if the wait is report-only, see {@link #setReportOnly}.
+    */
+   boolean isReportOnly() {
+      return reportOnly != null;
    }
 
    /**
