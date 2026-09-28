@@ -23,17 +23,22 @@ package inetsoft.sree.security;
  * ids colliding with the S3 base path, and ids with path characters such as "..".
  */
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.config.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.mockito.quality.Strictness;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @Tag("core")
@@ -133,6 +138,72 @@ class OrganizationIdRulesTest {
       when(storage.getS3()).thenReturn(s3);
       when(storage.getType()).thenReturn("gcs");
       assertFalse(OrganizationIdRules.isReserved("data"));
+   }
+
+   // Bug #77137: the task save files of an organization are also in a folder named by its id in
+   // each server save location, so an id naming a folder of a location path shares that folder
+   @ParameterizedTest
+   @CsvSource({
+      "reports|Reports, reports",
+      "reports|Reports, REPORTS",
+      "archive/x|Archive, archive",
+      "archive/x|Archive, x",
+      "/var/reports|Var, var",
+      "reports|Reports;reports/archive|Archive, archive",
+   })
+   void saveLocationFolder_rejectedOnCreateAndRename(String locations, String id) {
+      try(MockedStatic<SreeEnv> ignored = useSaveLocations(locations)) {
+         assertFalse(OrganizationIdRules.isReserved(id), "not a reserved id, a separate check");
+         assertLocationRejected(() -> OrganizationIdRules.checkCreate(id), id);
+         assertLocationRejected(() -> OrganizationIdRules.checkRename("orgA", id), id);
+      }
+   }
+
+   @Test
+   void saveLocationFolder_otherIdsAccepted() {
+      try(MockedStatic<SreeEnv> ignored = useSaveLocations("reports|Reports;archive/x|Archive")) {
+         assertDoesNotThrow(() -> OrganizationIdRules.checkCreate("rep"));
+         assertDoesNotThrow(() -> OrganizationIdRules.checkCreate("reports2"));
+         assertDoesNotThrow(() -> OrganizationIdRules.checkRename("orgA", "orgB"));
+         // an unchanged legacy id can still be saved
+         assertDoesNotThrow(() -> OrganizationIdRules.checkRename("reports", "reports"));
+      }
+   }
+
+   @Test
+   void ftpSaveLocation_notAFolderOfExternalStorage() {
+      try(MockedStatic<SreeEnv> ignored = useSaveLocations("ftp://host/reports|FTP|user|pass")) {
+         assertDoesNotThrow(() -> OrganizationIdRules.checkCreate("reports"));
+      }
+   }
+
+   @Test
+   void containsSaveLocation_folderIsOrHoldsALocation() {
+      List<String> locations = List.of("reports", "/var/reports", "a/b/");
+
+      assertTrue(OrganizationIdRules.containsSaveLocation("reports", locations));
+      assertTrue(OrganizationIdRules.containsSaveLocation("Reports", locations));
+      assertTrue(OrganizationIdRules.containsSaveLocation("var", locations));
+      assertTrue(OrganizationIdRules.containsSaveLocation("/var/reports", locations));
+      assertTrue(OrganizationIdRules.containsSaveLocation("a", locations));
+      assertTrue(OrganizationIdRules.containsSaveLocation("a/b", locations));
+      assertFalse(OrganizationIdRules.containsSaveLocation("rep", locations));
+      assertFalse(OrganizationIdRules.containsSaveLocation("reports/orgA", locations));
+      assertFalse(OrganizationIdRules.containsSaveLocation("a/b/orgA", locations));
+      assertFalse(OrganizationIdRules.containsSaveLocation("", locations));
+   }
+
+   private static MockedStatic<SreeEnv> useSaveLocations(String locations) {
+      MockedStatic<SreeEnv> sreeEnvStatic = mockStatic(SreeEnv.class);
+      sreeEnvStatic.when(() -> SreeEnv.getProperty(anyString()))
+         .thenAnswer(i -> "server.save.locations".equals(i.getArgument(0)) ? locations : null);
+      return sreeEnvStatic;
+   }
+
+   private static void assertLocationRejected(Executable executable, String id) {
+      MessageException thrown = assertThrows(MessageException.class, executable);
+      assertEquals(Catalog.getCatalog().getString("em.security.saveLocationOrganizationID", id),
+                   thrown.getMessage());
    }
 
    private void useS3Base(String path) {

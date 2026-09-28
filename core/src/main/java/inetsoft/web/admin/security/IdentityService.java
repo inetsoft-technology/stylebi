@@ -3060,11 +3060,45 @@ public class IdentityService {
          return;
       }
 
-      try {
-         externalStorageService.renameFolder(oorg, norg);
+      // the files are in a folder named by the id at the top of external storage, and in each
+      // save location that is not an FTP server (location/orgId/user/...)
+      List<String> locations = OrganizationIdRules.getSaveLocationPaths();
+      List<String[]> folders = new ArrayList<>();
+      folders.add(new String[] { oorg, norg });
+
+      for(String location : locations) {
+         folders.add(new String[] { location + "/" + oorg, location + "/" + norg });
       }
-      catch(Exception e) {
-         LOG.warn("Failed to rename folder for organization", oorg, e);
+
+      boolean failed = false;
+
+      for(String[] folder : folders) {
+         // a folder that is, or holds, a save location has the files of every organization
+         if(OrganizationIdRules.containsSaveLocation(folder[0], locations) ||
+            OrganizationIdRules.containsSaveLocation(folder[1], locations))
+         {
+            LOG.warn(
+               "Did not move the external storage folder {} to {}, the folder is used by a " +
+               "server save location. Move the organization files manually.", folder[0], folder[1]);
+            continue;
+         }
+
+         // keep moving the other folders when one fails
+         try {
+            externalStorageService.renameFolder(folder[0], folder[1]);
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to rename folder {} to {} for organization {}",
+                     folder[0], folder[1], oorg, e);
+            failed = true;
+         }
+      }
+
+      if(failed) {
+         // one localized message for every failure, never the raw exception text, which can
+         // contain server paths
+         Tool.addUserMessage(Catalog.getCatalog(ThreadContext.getContextPrincipal())
+                                .getString("em.organization.renameIssue"));
       }
    }
 
