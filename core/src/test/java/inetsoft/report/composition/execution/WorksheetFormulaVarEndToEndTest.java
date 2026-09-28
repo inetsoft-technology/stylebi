@@ -50,6 +50,7 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.function.IntToDoubleFunction;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -306,7 +307,66 @@ class WorksheetFormulaVarEndToEndTest {
       }
    }
 
+   /**
+    * undefined and null stay apart for an owned var on every row, including a transition
+    * from one to the other and back that is stored and read on the next row. Each result is
+    * a code of four checks: {@code === undefined} (1), {@code == null} (2),
+    * {@code typeof == 'undefined'} (4), {@code typeof == 'object'} (8), so undefined is 7
+    * and null is 10. The {@code if} goes after the declarations: before them, a body is still
+    * one piece and compiles on the plain path, not the multi-statement one.
+    */
+   @ParameterizedTest(name = "pool={0} path={1}")
+   @MethodSource("modes")
+   void anOwnedVarKeepsUndefinedAndNullApartFromRowToRow(boolean pool, String path)
+      throws Exception
+   {
+      // declarations, result expression, expected value of row r
+      List<Object[]> cases = List.of(
+         new Object[] { "var c = (typeof c == 'undefined') ? 100 : c + 1;", "c",
+                        (IntToDoubleFunction) r -> 99 + r },
+         new Object[] { "var s = (typeof s == 'undefined' ? '' : s) + 'b';",
+                        "(s.indexOf('null') >= 0 || s.indexOf('undefined') >= 0 ? -1 : s.length)",
+                        (IntToDoubleFunction) r -> r },
+         new Object[] { "var w;", code("w"), (IntToDoubleFunction) r -> 7 },
+         new Object[] { "var z = null;", code("z"), (IntToDoubleFunction) r -> 10 },
+         new Object[] { "var e = undefined;", code("e"), (IntToDoubleFunction) r -> 7 },
+         new Object[] { "var arr = [1]; var a9 = arr[99];", code("a9"),
+                        (IntToDoubleFunction) r -> 7 },
+         new Object[] { "function f0() {} var q = f0();", code("q"),
+                        (IntToDoubleFunction) r -> 7 },
+         // null stored on row 1 is read as null (not undefined) on row 2
+         new Object[] { "var n; var k = " + code("n") + "; n = null;", "k",
+                        (IntToDoubleFunction) r -> r == 1 ? 7 : 10 },
+         // a number, then undefined stored again: the next row reads undefined, not the number
+         new Object[] { "var m; var k2 = " + code("m") +
+                           "; m = (field['id'] % 2 == 0) ? undefined : 5;", "k2",
+                        (IntToDoubleFunction) r -> r % 2 == 1 ? 7 : 0 });
+
+      for(Object[] c : cases) {
+         String decls = (String) c[0];
+         String result = (String) c[1];
+         String f = switch(path) {
+         case "plain" -> decls + " " + result;
+         case "eval" -> decls + " (this, " + result + ")";
+         default -> decls + " if(field['id'] < 0) { throw 'negative'; } " + result;
+         };
+         IntToDoubleFunction expected = (IntToDoubleFunction) c[2];
+         double[] v = pages(box(ws("A", f), pool).getTableLens("A", RUNTIME), "out");
+
+         for(int r = 1; r <= ROWS; r++) {
+            if(v[r] != expected.applyAsDouble(r)) {
+               fail(f + ": row " + r + " is " + v[r] + ", expected " + expected.applyAsDouble(r));
+            }
+         }
+      }
+   }
+
    // --- helpers ---
+
+   private static String code(String x) {
+      return "((" + x + " === undefined ? 1 : 0) + (" + x + " == null ? 2 : 0) + (typeof " + x +
+         " == 'undefined' ? 4 : 0) + (typeof " + x + " == 'object' ? 8 : 0))";
+   }
 
    private static String formula(String path) {
       return switch(path) {
