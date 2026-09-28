@@ -19,8 +19,8 @@
 package inetsoft.sree.schedule;
 
 import inetsoft.analytic.composition.VSPortalHelper;
-import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.io.viewsheet.AbstractVSExporter;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
@@ -149,9 +149,13 @@ class ViewsheetActionRangeAlertTest {
    @ValueSource(strings = { "gauge", "thermometer", "cylinder", "slidingScale" })
    void alertOnRangeKeptByElementScriptUsesScriptRanges(String type) throws Exception {
       // design Range_2 is [30,60), the script makes it [40,80)
-      assertTrue(exportWithScript(type, 70, "ranges = ['40','80'];", "RangeOutput_Range_2"));
-      assertFalse(exportWithScript(type, 35, "ranges = ['40','80'];", "RangeOutput_Range_2"));
-      assertTrue(exportWithScript(type, 35, "ranges = ['40','80'];", "RangeOutput_Range_1"));
+      assertAll(
+         () -> assertTrue(exportWithScript(type, 70, "ranges = ['40','80'];",
+                                           "RangeOutput_Range_2"), "70 in script Range_2"),
+         () -> assertFalse(exportWithScript(type, 35, "ranges = ['40','80'];",
+                                            "RangeOutput_Range_2"), "35 not in script Range_2"),
+         () -> assertTrue(exportWithScript(type, 35, "ranges = ['40','80'];",
+                                           "RangeOutput_Range_1"), "35 in script Range_1"));
    }
 
    @Test
@@ -215,12 +219,7 @@ class ViewsheetActionRangeAlertTest {
       map.put(alertKey, alerts);
       AtomicBoolean triggered = new AtomicBoolean(false);
 
-      Class<?> cls = Class.forName(ViewsheetAction.class.getName() + "$AlertExporter");
-      Constructor<?> cstr = cls.getDeclaredConstructor(
-         Map.class, AtomicBoolean.class, ViewsheetSandbox.class);
-      cstr.setAccessible(true);
-      AbstractVSExporter exporter =
-         (AbstractVSExporter) cstr.newInstance(map, triggered, null);
+      AbstractVSExporter exporter = createAlertExporter(map, triggered);
 
       AssetEntry entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
          AssetEntry.Type.VIEWSHEET, "RangeAlertTest", null);
@@ -250,12 +249,10 @@ class ViewsheetActionRangeAlertTest {
       map.put(assembly, alerts);
       AtomicBoolean triggered = new AtomicBoolean(false);
 
-      Class<?> cls = Class.forName(ViewsheetAction.class.getName() + "$AlertExporter");
-      Constructor<?> cstr = cls.getDeclaredConstructor(
-         Map.class, AtomicBoolean.class, ViewsheetSandbox.class);
-      cstr.setAccessible(true);
-      Object exporter = cstr.newInstance(map, triggered, null);
-      Method method = cls.getDeclaredMethod("checkHighlight", VSAssembly.class);
+      AbstractVSExporter exporter = createAlertExporter(map, triggered);
+      Method method = assertDoesNotThrow(
+         () -> exporter.getClass().getDeclaredMethod("checkHighlight", VSAssembly.class),
+         "ViewsheetAction.AlertExporter.checkHighlight(VSAssembly) not found");
       method.setAccessible(true);
 
       try {
@@ -266,5 +263,24 @@ class ViewsheetActionRangeAlertTest {
       }
 
       return triggered.get();
+   }
+
+   // AlertExporter is a private nested class of ViewsheetAction, looked up from the
+   // declared classes so a rename fails here with a clear message
+   private static AbstractVSExporter createAlertExporter(Map<Assembly, List<ScheduleAlert>> map,
+                                                         AtomicBoolean triggered)
+      throws Exception
+   {
+      Class<?> cls = Arrays.stream(ViewsheetAction.class.getDeclaredClasses())
+         .filter(c -> "AlertExporter".equals(c.getSimpleName()))
+         .findFirst()
+         .orElseGet(() -> fail("ViewsheetAction.AlertExporter not found"));
+      assertTrue(AbstractVSExporter.class.isAssignableFrom(cls),
+                 "ViewsheetAction.AlertExporter is not an AbstractVSExporter");
+      Constructor<?> cstr = assertDoesNotThrow(
+         () -> cls.getDeclaredConstructor(Map.class, AtomicBoolean.class, ViewsheetSandbox.class),
+         "ViewsheetAction.AlertExporter(Map, AtomicBoolean, ViewsheetSandbox) not found");
+      cstr.setAccessible(true);
+      return (AbstractVSExporter) cstr.newInstance(map, triggered, null);
    }
 }
