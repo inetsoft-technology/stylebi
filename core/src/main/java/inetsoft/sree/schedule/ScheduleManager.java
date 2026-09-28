@@ -1498,7 +1498,7 @@ public class ScheduleManager {
                AssetSupport action = (AssetSupport) task.getAction(j);
                AssetEntry entry2 = action.getEntry();
 
-               if(entry2.equals(oentry)) {
+               if(Tool.equals(entry2, oentry)) {
                   action.setEntry(nentry);
                   LOG.debug(
                      "Schedule action in task " + task.getTaskId() +
