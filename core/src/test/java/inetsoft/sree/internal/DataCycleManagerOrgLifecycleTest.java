@@ -58,6 +58,7 @@ import inetsoft.mv.MVManager;
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.TimeCondition;
@@ -352,6 +353,7 @@ class DataCycleManagerOrgLifecycleTest {
       fromOrg.setName("CycleCloneFrom");
 
       CustomThemesManager themesManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(themesManager);
       when(themesManager.getCustomThemes()).thenReturn(new HashSet<>());
 
       // deliberately NOT wrapped in OrganizationManager.runInOrgScope(fromOrgId, ...) -- this

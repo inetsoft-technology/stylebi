@@ -30,6 +30,7 @@ package inetsoft.sree.security;
 import inetsoft.sree.RepletRegistryManager;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.CustomThemesManager;
+import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.portal.PortalWelcomePage;
 import inetsoft.sree.web.dashboard.DashboardRegistryManager;
@@ -388,6 +389,7 @@ class OrgLifecyclePortalBrandingTest {
    // this scenario, see OrgLifecycleThemeOrchestrationTest for why it's mocked rather than a real bean.
    private static CustomThemesManager noopThemesManager() {
       CustomThemesManager mockManager = mock(CustomThemesManager.class);
+      CustomThemesManagerMocks.applyUpdates(mockManager);
       when(mockManager.getCustomThemes()).thenReturn(Collections.emptySet());
       return mockManager;
    }

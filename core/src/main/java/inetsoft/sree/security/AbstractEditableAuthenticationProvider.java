@@ -395,24 +395,45 @@ public abstract class AbstractEditableAuthenticationProvider
          return null;
       }
 
-      DataSpace dataSpace = DataSpace.getDataSpace();
       CustomThemesManager manager = CustomThemesManager.getManager();
       manager.loadThemes();
-      Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
+      String[] newOrgThemeId = { null };
 
-      // setCustomThemes() below does a full replace of the entire CustomThemes store. If
-      // no themes could be read there is nothing to migrate, and persisting an empty set
-      // (e.g. when the themes failed to load) would wipe every custom theme across all
-      // orgs. Skip persistence entirely in that case so a failed/empty read cannot delete
-      // the store.
-      if(themes.isEmpty()) {
-         if(replace) {
-            manager.setOrgSelectedTheme(null, fromOrgId);
+      // The themes are read, migrated and written back under the themes lock, so a theme
+      // created or changed on another node in the meantime is not lost by the full replace
+      // of the store (Bug #76978). The migration copies theme jars and moves the selected
+      // theme pointers of the organizations, which are entangled with the change of the set,
+      // so they are done under the lock as well; this is a rare administrative operation.
+      manager.updateCustomThemes(themes -> {
+         // the store is fully replaced with the returned set. If no themes could be read
+         // there is nothing to migrate, and persisting an empty set (e.g. when the themes
+         // failed to load) would wipe every custom theme across all orgs. Skip persistence
+         // entirely in that case so a failed/empty read cannot delete the store.
+         if(themes.isEmpty()) {
+            if(replace) {
+               manager.setOrgSelectedTheme(null, fromOrgId);
+            }
+
+            return null;
          }
 
-         return null;
-      }
+         newOrgThemeId[0] = copyThemes(themes, manager, fromOrgId, toOrgId, replace);
+         return themes;
+      });
 
+      return newOrgThemeId[0];
+   }
+
+   /**
+    * Migrates the themes of an organization in the given set of themes, see
+    * {@link #copyThemes(String, String, boolean)}.
+    *
+    * @return the ID of the theme selected by the target organization, or <tt>null</tt>.
+    */
+   private String copyThemes(Set<CustomTheme> themes, CustomThemesManager manager,
+                             String fromOrgId, String toOrgId, boolean replace)
+   {
+      DataSpace dataSpace = DataSpace.getDataSpace();
       List<CustomTheme> sourceThemes = new ArrayList<>();
 
       for(CustomTheme t : themes) {
@@ -554,7 +575,7 @@ public abstract class AbstractEditableAuthenticationProvider
             {
                // Global themes are shared; propagate selection pointer only, no clone.
                // Mutate the live entry in `themes` (not the sourceThemes copy) so the
-               // change is visible when setCustomThemes is called below.
+               // change is visible when the set is written back.
                CustomTheme original = themes.stream()
                   .filter(t -> t.getId().equals(theme.getId()))
                   .findFirst()
@@ -590,7 +611,6 @@ public abstract class AbstractEditableAuthenticationProvider
          manager.setOrgSelectedTheme(null, fromOrgId);
       }
 
-      manager.setCustomThemes(themes);
       return newOrgThemeId;
    }
 
