@@ -1142,7 +1142,10 @@ public class VsToReportConverter {
       Insets inset = getCardInset(info);
       final Rectangle bounds;
 
-      if(info.isTitleVisible()) {
+      if(!isZero(inset)) {
+         bounds = createCardTop(assembly, inset, sectionName);
+      }
+      else if(info.isTitleVisible()) {
          bounds = createTitle(assembly, sectionName, true);
       }
       else {
@@ -1216,6 +1219,11 @@ public class VsToReportConverter {
          tableelem.setFont(fmt.getFont());
          tableelem.setForeground(fmt.getForeground());
          tableelem.setBackground(fmt.getBackground());
+      }
+
+      if(!isZero(inset)) {
+         // the card-top box holds the top inset; the element carries the other three edges
+         tableelem.setCardInset(new Insets(0, inset.left, inset.bottom, inset.right));
       }
 
       addElement0(bounds, tableelem, sectionName);
@@ -1487,6 +1495,67 @@ public class VsToReportConverter {
       newBounds.height -= titleHeight;
 
       return newBounds;
+   }
+
+   /**
+    * Draw the part of a padded table's card that never grows: the top inset and the title lane,
+    * framed on the top, left and right, with the title inside the side insets.
+    * @return the bounds left for the table element.
+    */
+   private Rectangle createCardTop(TableDataVSAssembly assembly, Insets inset,
+                                   String sectionName)
+   {
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+      Rectangle bounds = getPixelBounds(assembly);
+      int titleH = getTitleHeight(assembly, true);
+      int laneH = info.isTitleVisible() ? titleH : 0;
+      Rectangle topBounds = new Rectangle(bounds.x, bounds.y, bounds.width, inset.top + laneH);
+      TextBoxElementDef top = addTextBoxElement0(
+         info, new TableDataPath(-1, TableDataPath.OBJECT), "", topBounds, sectionName);
+      VSCompositeFormat objfmt = info.getFormat();
+      Insets borders = objfmt == null ? null : objfmt.getBorders();
+      // the table element below continues the sides and closes the bottom
+      setBoxBorders(top, borders == null ? new Insets(0, 0, 0, 0) :
+         new Insets(borders.top, borders.left, StyleConstants.NO_BORDER, borders.right));
+
+      if(info.isTitleVisible()) {
+         addCardTitle(assembly, new Rectangle(bounds.x + inset.left, bounds.y + inset.top,
+            Math.max(0, bounds.width - inset.left - inset.right), titleH), sectionName);
+      }
+
+      // 1px up so the sides join, as the table joins its title without an inset
+      return new Rectangle(bounds.x, bounds.y + inset.top + laneH - 1, bounds.width,
+                           Math.max(0, bounds.height - inset.top - titleH));
+   }
+
+   // the title inside a padded table's card keeps its own format and borders, not the card's
+   private void addCardTitle(TableDataVSAssembly assembly, Rectangle titleBounds,
+                             String sectionName)
+   {
+      TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+      TextBoxElementDef textbox =
+         new TextBoxElementDef(report, new DefaultTextLens(info.getTitle()));
+      FormatInfo finfo = info.getFormatInfo();
+      VSCompositeFormat detailfmt = finfo == null ? null :
+         finfo.getFormat(new TableDataPath(-1, TableDataPath.TITLE), false);
+      applyFormat(textbox, info.getFormat(), detailfmt, info, true);
+      Insets own = detailfmt == null ? null : detailfmt.getBorders();
+      setBoxBorders(textbox, own == null ? new Insets(0, 0, 0, 0) : (Insets) own.clone());
+      textbox.setZIndex(assembly.getZIndex());
+      addElement0(titleBounds, textbox, sectionName);
+   }
+
+   // an empty frame also clears the box's overall border, as applyFormat does
+   private static void setBoxBorders(TextBoxElementDef box, Insets borders) {
+      box.setBorders(borders);
+
+      if(isZero(borders)) {
+         box.setBorder(StyleConstants.NO_BORDER);
+      }
+   }
+
+   private static boolean isZero(Insets inset) {
+      return inset.top == 0 && inset.left == 0 && inset.bottom == 0 && inset.right == 0;
    }
 
    /**
