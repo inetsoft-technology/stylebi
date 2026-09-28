@@ -19,9 +19,11 @@ package inetsoft.uql.asset.sync;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class TaskAssetDependencyTransformerTest {
    private TaskAssetDependencyTransformer transformer;
 

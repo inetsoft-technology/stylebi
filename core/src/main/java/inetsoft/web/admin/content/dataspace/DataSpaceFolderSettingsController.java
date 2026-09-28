@@ -332,6 +332,12 @@ public class DataSpaceFolderSettingsController {
                   "settings/presentation/org-settings", ResourceAction.ACCESS);
          }
 
+         // The global shapes folder is shared by all organizations, only a site admin
+         // may modify it in multi-tenant mode.
+         if(SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+            return false;
+         }
+
          return securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
             "settings/presentation/settings", ResourceAction.ACCESS);
       }

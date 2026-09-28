@@ -687,6 +687,19 @@ public class TabularUtil {
                                                         String tokenUriProperty,
                                                         String flagsProperty, Object bean)
    {
+      // the property names come from the client, only read the ones that the bean's own OAuth
+      // buttons declare
+      if(!isOAuthButtonProperties(
+         new LayoutCreator().createLayout(bean).getViews(), userProperty, passwordProperty,
+         clientIdProperty, clientSecretProperty, scopeProperty, authorizationUriProperty,
+         tokenUriProperty, flagsProperty))
+      {
+         LOG.warn(
+            "Rejected OAuth parameter names that are not declared by an OAuth button of {}",
+            bean.getClass().getName());
+         return null;
+      }
+
       Map<String, PropertyMeta> properties = getPropertyMap(bean.getClass());
       String user = getOAuthParameter(userProperty, properties, bean);
       String password = getOAuthParameter(passwordProperty, properties, bean);
@@ -726,6 +739,50 @@ public class TabularUtil {
       }
 
       return null;
+   }
+
+   /**
+    * Determines if the requested OAuth property names match an OAuth button in a view. A name
+    * that is not requested matches any button.
+    */
+   private static boolean isOAuthButtonProperties(TabularView[] views, String user,
+                                                  String password, String clientId,
+                                                  String clientSecret, String scope,
+                                                  String authorizationUri, String tokenUri,
+                                                  String flags)
+   {
+      if(views == null) {
+         return false;
+      }
+
+      for(TabularView view : views) {
+         TabularButton button = view.getButton();
+
+         if(button != null && button.getType() == ButtonType.OAUTH &&
+            isOAuthButtonProperty(user, button.getOauthUser()) &&
+            isOAuthButtonProperty(password, button.getOauthPassword()) &&
+            isOAuthButtonProperty(clientId, button.getOauthClientId()) &&
+            isOAuthButtonProperty(clientSecret, button.getOauthClientSecret()) &&
+            isOAuthButtonProperty(scope, button.getOauthScope()) &&
+            isOAuthButtonProperty(authorizationUri, button.getOauthAuthorizationUri()) &&
+            isOAuthButtonProperty(tokenUri, button.getOauthTokenUri()) &&
+            isOAuthButtonProperty(flags, button.getOauthFlags()))
+         {
+            return true;
+         }
+
+         if(isOAuthButtonProperties(view.getViews(), user, password, clientId, clientSecret,
+                                    scope, authorizationUri, tokenUri, flags))
+         {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private static boolean isOAuthButtonProperty(String requested, String declared) {
+      return requested == null || requested.isEmpty() || requested.equals(declared);
    }
 
    public static void setOAuthTokens(Tokens tokens, Object bean,

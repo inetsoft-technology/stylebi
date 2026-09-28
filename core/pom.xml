@@ -34,6 +34,17 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
+    <!--
+      JUnit 5 tag expression for the tests surefire runs in this module. Tags in use
+      under src/test: core, slow, integration, known-bug, known-deadlock.
+      Select other tags with -Dsurefire.groups=<expr>, e.g. -Dsurefire.groups=slow or
+      "-Dsurefire.groups=core | slow". Do not use -Dgroups: it is ignored here and it
+      also narrows modules that only set excludedGroups (they then run 0 tests).
+      An empty value (-Dsurefire.groups=) disables the tag filter entirely.
+      Add -DfailIfNoTests=true so a filter that matches nothing fails instead of
+      reporting a green "Tests run: 0".
+    -->
+    <surefire.groups>core</surefire.groups>
   </properties>
 
   <dependencyManagement>
@@ -993,7 +1004,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
         <configuration>
-          <groups>core</groups>
+          <groups>${surefire.groups}</groups>
           <workingDirectory>${project.build.directory}/test-workdir</workingDirectory>
           <argLine>-Xmx2g --add-opens=java.base/jdk.internal.access=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=java.desktop/java.awt=ALL-UNNAMED --add-opens=java.desktop/java.beans=ALL-UNNAMED -Djava.awt.headless=true -Duser.language=en -Duser.country=US -Duser.timezone=America/New_York</argLine>
           <environmentVariables>

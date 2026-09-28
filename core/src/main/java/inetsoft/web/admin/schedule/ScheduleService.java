@@ -1838,7 +1838,14 @@ public class ScheduleService {
       boolean dumpException = true;
       ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
 
-      if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+      // the task must resolve in the caller's organization, otherwise the raw name would be
+      // passed to the global quartz scheduler and could run another organization's task
+      if(task == null) {
+         throw new MessageException(catalog.getString(
+            "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
+      }
+
+      if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
          throw new SecurityException(String.format(
             "Unauthorized access to resource \"%s\" by %s", taskName, principal));
       }
@@ -1852,7 +1859,7 @@ public class ScheduleService {
          String taskNameForLog = SUtil.getTaskNameForLogging(taskName);
          MDC.put("SCHEDULE_TASK", taskNameForLog);
 
-         if(task != null && !task.isEnabled()) {
+         if(!task.isEnabled()) {
             errorMsg = catalog.getString("em.scheduler.startDisabledTask", taskNameWithoutOrg);
          }
          else {
@@ -1873,7 +1880,7 @@ public class ScheduleService {
       String actionName = ActionRecord.ACTION_NAME_RUN;
       String objectType = ActionRecord.OBJECT_TYPE_TASK;
       ActionRecord actionRecord = SUtil.getActionRecord(principal, actionName, taskName, objectType);
-      actionRecord.setObjectUser(task == null ? null : task.getOwner().name);
+      actionRecord.setObjectUser(task.getOwner().name);
 
       if(errorMsg != null) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -1917,22 +1924,29 @@ public class ScheduleService {
    public void stopScheduledTask(String taskName, Principal principal)
       throws Exception
    {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       taskName = Tool.byteDecode(taskName);
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMsg = null;
+      ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
+
+      // the task must resolve in the caller's organization, otherwise the raw name would be
+      // passed to the global quartz scheduler and could stop another organization's task
+      if(task == null) {
+         throw new MessageException(catalog.getString(
+            "em.scheduler.taskNotFound", SUtil.getTaskNameWithoutOrg(taskName)));
+      }
+
+      if(!ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
+         throw new SecurityException(String.format(
+            "Unauthorized access to resource \"%s\" by %s", taskName, principal));
+      }
 
       if(!scheduleClient.isReady()) {
          errorMsg = catalog.getString("em.scheduler.notStarted");
       }
       else {
-         ScheduleTask task = scheduleManager.getScheduleTask(taskName);
-
-         if(task != null && !ScheduleManager.hasTaskPermission(task.getOwner(), principal, ResourceAction.READ)) {
-            throw new SecurityException(String.format(
-               "Unauthorized access to resource \"%s\" by %s", taskName, principal));
-         }
-
-         if(task != null && !task.isEnabled()) {
+         if(!task.isEnabled()) {
             errorMsg = catalog.getString("em.scheduler.stopDisabledTask",
                                          task.getTaskId());
          }

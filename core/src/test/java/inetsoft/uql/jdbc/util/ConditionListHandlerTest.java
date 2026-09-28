@@ -25,12 +25,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.lang.reflect.Method;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for ConditionListHandler.
  */
+@Tag("core")
 public class ConditionListHandlerTest {
 
    private ConditionListHandler handler;

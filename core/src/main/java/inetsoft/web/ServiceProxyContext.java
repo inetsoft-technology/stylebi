@@ -149,8 +149,14 @@ public class ServiceProxyContext {
          }
       }
 
-      for(UserMessage message : userMessages) {
-         Tool.addUserMessage(message);
+      // Bug #77135: for a sync call, apply() runs on the caller's thread and hands the proxied
+      // service's messages back to the caller, which owns (and must consume) them. For an async
+      // call, apply() runs on the pooled executor thread right after postprocess(); re-adding
+      // there would leave this user's messages for the next, unrelated task on that thread.
+      if(!async) {
+         for(UserMessage message : userMessages) {
+            Tool.addUserMessage(message);
+         }
       }
 
       for(AspectTask task : tasks) {

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.awt.geom.Point2D;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * accumulation sums (the log would be undefined).  The generation loop
  * uses an increment of max(inc, 1) to avoid an excessive number of points.</p>
  */
+@Tag("core")
 class PowerLineEquationTest {
 
    private PowerLineEquation equation;

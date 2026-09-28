@@ -295,7 +295,18 @@ public class IgniteSessionRepository
          }
          else {
             LOG.debug("Session deleted with ID: {}", session.getId());
-            sendApplicationEvent(new SessionDeletedEvent(this.getClass().getName(), session));
+
+            // Publish the event using a properly-wrapped IgniteSession so its attributes (the
+            // principal, LOGGED_OUT) resolve correctly for consumers like
+            // SessionConnectionService -- the bare MapSession from the cache event never carries
+            // attributes (they live only in the per-session DistributedMap, see IgniteSession's
+            // getAttribute()/setAttribute()), so publishing it directly always produced an
+            // event with a null principal (bug #77178). This wrapper is only used for the event
+            // payload; it is deliberately NOT passed to the logout() call below -- see that
+            // call's own comment and logout()'s javadoc for why this branch's logout() must stay
+            // inert.
+            IgniteSession igniteSession = new IgniteSession(session, false);
+            sendApplicationEvent(new SessionDeletedEvent(this.getClass().getName(), igniteSession));
             logout(session, "");
             destroySessionAttributeMap(session.getId());
          }
@@ -324,8 +335,12 @@ public class IgniteSessionRepository
       // the session is already gone/expiring from the cache regardless of what logout() does, so
       // resolving the principal here only keeps SecurityEngine.users consistent with a removal
       // that has already happened -- it cannot itself force-remove an otherwise-active session.
-      logout(new IgniteSession(session, false), SessionRecord.LOGOFF_SESSION_TIMEOUT);
-      sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
+      // Reuse the same wrapper for the published event (bug #77178) -- publishing it with the
+      // raw `session` instead (as before) always produced an event with a null principal/
+      // LOGGED_OUT attribute, for the same reason logout() needed the wrapper above.
+      IgniteSession igniteSession = new IgniteSession(session, false);
+      logout(igniteSession, SessionRecord.LOGOFF_SESSION_TIMEOUT);
+      sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), igniteSession));
       destroySessionAttributeMap(session.getId());
    }
 

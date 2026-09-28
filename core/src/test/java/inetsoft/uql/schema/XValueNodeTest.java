@@ -25,12 +25,14 @@ import org.junit.jupiter.params.provider.CsvSource;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for XValueNode and its static factory methods.
  */
+@Tag("core")
 public class XValueNodeTest {
 
    // -----------------------------------------------------------------------

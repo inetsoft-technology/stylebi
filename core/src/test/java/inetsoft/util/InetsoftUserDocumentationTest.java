@@ -28,6 +28,7 @@ import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("core")
 class InetsoftUserDocumentationTest {
 
    private static final String FALLBACK_BASE =

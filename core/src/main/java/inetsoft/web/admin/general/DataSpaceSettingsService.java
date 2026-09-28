@@ -177,7 +177,9 @@ public class DataSpaceSettingsService extends BackupSupport {
 
       for(int i = 0; i < deleteCount; i++) {
          try {
-            this.externalStorageService.delete(BACKUP_FOLDER + File.separator + zips.get(i));
+            // external storage keys always use "/" (as getBackFile() writes them); File.separator
+            // is "\\" on Windows, which S3/GCS treat as a different key
+            this.externalStorageService.delete(BACKUP_FOLDER + "/" + zips.get(i));
          }
          catch(IOException e) {
             LOG.error("Failed to delete backup file {}", zips.get(i), e);
