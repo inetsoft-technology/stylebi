@@ -42,6 +42,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Runs against the real FileAuthenticationProvider/FileAuthorizationProvider and a real
  * IdentityService, with the copy-on-read cluster from PermissionMatrixOrgLifecycleTest so a
  * Permission fetched and mutated for one key does not also change the one stored under another.
+ *
+ * Also covers the generic re-key in setIdentityPermissions() removing the old key for user grants.
  */
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = { BaseTestConfiguration.class,
@@ -68,6 +70,7 @@ class OrgSelfGrantRenameRevokeTest {
          .addUserToRole("admin", "Administrator", ORG_ID)
          .addUser("grantee", ORG_ID, "password")
          .addUser("target", ORG_ID, "password")
+         .addUser("stale", ORG_ID, "password")
          .setup();
 
       chain = SecurityEngine.getSecurity().getAuthorizationChain()
@@ -150,11 +153,36 @@ class OrgSelfGrantRenameRevokeTest {
       renameOrg();
       assertTrue(granteeIsAdmin(), "precondition: the (id, id)-only grant is still honored");
 
-      // the next EM org pane save, which shows no grantees, must absorb the stale key
+      // the next EM org pane save, which shows no grantees, must drop the stale key (its
+      // grantees are not carried over)
       grant(renamedKey, renamedKey, List.of());
       assertNull(chain.getPermission(ResourceType.SECURITY_ORGANIZATION, orgKey, ORG_ID),
                  "saving the renamed org must drop the stale (id, id) grant");
       assertFalse(granteeIsAdmin(), "the stale (id, id) grant must not survive the save");
+   }
+
+   @Test
+   void saveWithBothKeysDropsStaleIdKeyAndKeepsLiveGrant() throws Exception {
+      IdentityID orgKey = new IdentityID(ORG_ID, ORG_ID);
+      IdentityID renamedKey = new IdentityID(RENAMED_ORG_NAME, ORG_ID);
+
+      // data written before this fix: a live (name, id) grant plus a stale (id, id) grant with
+      // different grantees. The (id, id) save is a same-key save, so it removes nothing.
+      grant(renamedKey, renamedKey, List.of(granteeModel()));
+      grant(orgKey, orgKey, List.of(userModel("stale")));
+      renameOrg();
+      assertNotNull(chain.getPermission(ResourceType.SECURITY_ORGANIZATION, renamedKey, ORG_ID),
+                    "precondition: the (name, id) grant must be stored");
+      assertNotNull(chain.getPermission(ResourceType.SECURITY_ORGANIZATION, orgKey, ORG_ID),
+                    "precondition: the stale (id, id) grant must be stored");
+
+      // EM org pane save of the renamed org with its current grantees
+      grant(renamedKey, renamedKey, List.of(granteeModel()));
+
+      assertNull(chain.getPermission(ResourceType.SECURITY_ORGANIZATION, orgKey, ORG_ID),
+                 "saving the renamed org must drop the stale (id, id) grant");
+      assertTrue(granteeIsAdmin(), "the save must keep the (name, id) grant");
+      assertFalse(isAdmin("stale"), "the stale (id, id) grantee must not be an admin");
    }
 
    @Test
@@ -175,9 +203,18 @@ class OrgSelfGrantRenameRevokeTest {
       reused.setMembers(org.getMembers());
       fileProvider.addOrganization(reused);
 
+      // the org delete also removed its users, so recreate the grantee and target in the new org
+      // to make the ADMIN check depend only on the grant
+      addUser("grantee");
+      addUser("target");
+
       assertNull(chain.getPermission(ResourceType.SECURITY_ORGANIZATION, orgKey, ORG_ID),
                  "deleting the org must remove its stale (id, id) grant");
       assertFalse(granteeIsAdmin(), "an org reusing a deleted org's id must not inherit its grant");
+
+      // control: a grant made in the new org does make grantee an admin
+      grant(orgKey, orgKey, List.of(granteeModel()));
+      assertTrue(granteeIsAdmin(), "control: a grant in the new org must make grantee an admin");
    }
 
    @Test
@@ -219,13 +256,23 @@ class OrgSelfGrantRenameRevokeTest {
          oldID, newID, ResourceType.SECURITY_ORGANIZATION, admin, grantees, ORG_ID);
    }
 
+   private void addUser(String userName) {
+      FSUser user = new FSUser(new IdentityID(userName, ORG_ID));
+      user.setActive(true);
+      fileProvider.addUser(user);
+   }
+
    private boolean granteeIsAdmin() throws Exception {
-      SRPrincipal grantee = builder.principalOf("grantee", ORG_ID);
+      return isAdmin("grantee");
+   }
+
+   private boolean isAdmin(String userName) throws Exception {
+      SRPrincipal user = builder.principalOf(userName, ORG_ID);
 
       try {
-         ThreadContext.setContextPrincipal(grantee);
+         ThreadContext.setContextPrincipal(user);
          return SecurityEngine.getSecurity().checkPermission(
-            grantee, ResourceType.SECURITY_USER, new IdentityID("target", ORG_ID).convertToKey(),
+            user, ResourceType.SECURITY_USER, new IdentityID("target", ORG_ID).convertToKey(),
             ResourceAction.ADMIN);
       }
       finally {
@@ -234,8 +281,12 @@ class OrgSelfGrantRenameRevokeTest {
    }
 
    private static IdentityModel granteeModel() {
+      return userModel("grantee");
+   }
+
+   private static IdentityModel userModel(String userName) {
       return IdentityModel.builder()
-         .identityID(new IdentityID("grantee", ORG_ID))
+         .identityID(new IdentityID(userName, ORG_ID))
          .type(Identity.USER)
          .build();
    }

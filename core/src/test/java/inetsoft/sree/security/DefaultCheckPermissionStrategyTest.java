@@ -416,7 +416,7 @@ class DefaultCheckPermissionStrategyTest {
    // Bug #76866 follow-up: SecurityService writes an org's SECURITY_ORGANIZATION self grant keyed
    // by (org name, org id). The inherited SECURITY_USER/GROUP/ROLE org-admin fallback must read
    // that same key when the org name differs from its id, and still read the (org id, org id)
-   // key written for orgs created before bug #76866. A role grantee is used and the 2-arg
+   // key an org has before its first rename (name == id). A role grantee is used and the 2-arg
    // lookups (line ~59 and checkOrgAdminPermission) are left unstubbed to isolate the fallback.
    @ParameterizedTest
    @MethodSource("orgSelfGrantKeyCases")
@@ -489,7 +489,7 @@ class DefaultCheckPermissionStrategyTest {
 
    static Stream<Arguments> orgSelfGrantKeyCases() {
       return Stream.of(
-         // org created after bug #76866 (or edited), name != id
+         // (name, id) grant, name != id
          Arguments.of("Test Org", new IdentityID("Test Org", TEST_ORG), true),
          // name != id, no (name, id) grant, only the pre-rename (id, id) grant
          Arguments.of("Test Org", new IdentityID(TEST_ORG, TEST_ORG), true),
