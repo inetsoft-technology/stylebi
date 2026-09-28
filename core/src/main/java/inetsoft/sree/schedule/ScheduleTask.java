@@ -1043,6 +1043,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    }
 
    /**
+    * Get the type of this task.
+    */
+   public Type getType() {
+      return type;
+   }
+
+   /**
     * Get the task Id.
     */
    public String getTaskId() {

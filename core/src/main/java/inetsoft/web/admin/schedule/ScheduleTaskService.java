@@ -480,7 +480,9 @@ public class ScheduleTaskService {
    }
 
    public void setTaskEnabled(String name, boolean enabled, Principal principal) throws Exception {
-      ScheduleTask task = scheduleManager.getScheduleTask(name);
+      // Bug #77213, don't mutate the cached task (for an extension task this is the instance
+      // the extension reload compares against to decide whether to update the scheduler)
+      ScheduleTask task = scheduleManager.getScheduleTask(name).clone();
       task.setEnabled(enabled);
       scheduleService.saveTask(name, task, principal);
    }
@@ -969,9 +971,12 @@ public class ScheduleTaskService {
                                              Principal principal)
       throws Exception
    {
+      // Bug #77213, data cycle tasks are scheduled by their data cycle and can't be saved
+      // as schedule tasks. Skip them instead of changing the conditions of the cached tasks.
       List<ScheduleTask> tasks = taskNames.stream()
          .map(scheduleManager::getScheduleTask)
          .filter(Objects::nonNull)
+         .filter(task -> task.getType() != ScheduleTask.Type.CYCLE_TASK)
          .collect(Collectors.toList());
       long count = tasks.stream()
          .flatMap(ScheduleTask::getConditionStream)

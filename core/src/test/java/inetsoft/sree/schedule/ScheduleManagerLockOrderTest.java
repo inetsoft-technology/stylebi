@@ -63,6 +63,7 @@ class ScheduleManagerLockOrderTest {
       // a data cycle task that ended up in the regular task map
       ScheduleTask task = mock(ScheduleTask.class);
       when(task.getTaskId()).thenReturn(TASK_ID);
+      when(task.getType()).thenReturn(ScheduleTask.Type.CYCLE_TASK);
       when(task.getCycleInfo()).thenReturn(cycleInfo);
       when(task.isEnabled()).thenReturn(true);
 
