@@ -258,8 +258,9 @@ public class SecurityOrganization {
     *
     * @return the default password.
     */
-   @Schema(description = "The default password assigned to cloned users when copying from an existing organization. " +
-      "Required when copyFromOrgID is provided. Must be 8-72 characters and contain uppercase, lowercase, a digit, and a special character.",
+   @Schema(description = "The default password assigned to cloned users when copying from an existing organization, " +
+      "or to the memberUsers created with a new organization. Required when copyFromOrgID is provided, or when " +
+      "memberUsers is not empty without copyFromOrgID. Must be 8-72 characters and contain uppercase, lowercase, a digit, and a special character.",
       example = "P@ssw0rd!")
    public String getDefaultPassword() {
       return defaultPassword;

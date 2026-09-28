@@ -40,6 +40,7 @@ import inetsoft.sree.portal.CustomThemesManagerMocks;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
+import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.InvalidResourceException;
 import inetsoft.web.admin.general.LocalizationSettingsService;
@@ -47,6 +48,7 @@ import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.admin.security.action.ActionTreeNode;
 import inetsoft.web.admin.security.user.*;
 import inetsoft.web.security.auth.MissingResourceException;
+import inetsoft.web.security.auth.ResourceExistsException;
 import inetsoft.web.security.auth.UnauthorizedAccessException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +58,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import java.security.Principal;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -1360,6 +1364,145 @@ class SecurityServiceTest {
       assertTrue(theme.getRoles().contains("orgrole1"));
    }
 
+   // ── theme organization scoping (Bug #77056) ─────────────────────────────
+
+   // Bug #77056: the group's organization is passed to the theme rename, so a same-named
+   // group of another organization keeps its theme assignment
+   @Test
+   void updateGroup_rename_themeRenameScopedToGroupOrg() throws Exception {
+      IdentityID groupId = new IdentityID("sales", "org1");
+      FSGroup oldGroup = new FSGroup(groupId);
+      when(securityProvider.getGroup(groupId)).thenReturn(oldGroup);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
+                                            groupId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getGroup(groupId)).thenReturn(oldGroup);
+      CustomTheme org1Theme = theme("org1Theme", "org1");
+      org1Theme.getGroups().add("sales");
+      CustomTheme org2Theme = theme("org2Theme", "org2");
+      org2Theme.getGroups().add("sales");
+      when(customThemesManager.getCustomThemes())
+         .thenReturn(new HashSet<>(Set.of(org1Theme, org2Theme)));
+
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(new IdentityID("sales2", "org1"));
+
+      service.updateGroup(groupId, request, principal);
+
+      assertEquals(List.of("sales2"), org1Theme.getGroups());
+      assertEquals(List.of("sales"), org2Theme.getGroups());
+      assertEquals("org2", org2Theme.getOrgID());
+   }
+
+   // Bug #77056: createGroup/createRole passed a null old name to the theme rename, which
+   // threw a NullPointerException for every global theme after the identity had been added
+   @Test
+   void createGroup_globalThemeExists_noExceptionAndThemeUntouched() throws Exception {
+      stubCommonCreateGates();
+      CustomTheme globalTheme = theme("globalTheme", null);
+      when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(new IdentityID("newgroup1", "org1"));
+      request.setOrgID("org1");
+
+      assertDoesNotThrow(() -> service.createGroup(request, null, principal));
+
+      assertNull(globalTheme.getOrgID());
+      assertEquals("portal/theme/globalTheme.jar", globalTheme.getJarPath());
+      assertFalse(globalTheme.getGroups().contains("newgroup1"));
+   }
+
+   @Test
+   void createRole_globalThemeExists_noExceptionAndThemeUntouched() throws Exception {
+      stubCommonCreateGates();
+      CustomTheme globalTheme = theme("globalTheme", null);
+      when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Set.of(globalTheme)));
+
+      SecurityRole request = new SecurityRole();
+      request.setIdentityID(new IdentityID("neworgrole1", "org1"));
+
+      assertDoesNotThrow(() -> service.createRole(request, null, principal));
+
+      assertNull(globalTheme.getOrgID());
+      assertEquals("portal/theme/globalTheme.jar", globalTheme.getJarPath());
+      assertFalse(globalTheme.getRoles().contains("neworgrole1"));
+   }
+
+   private static CustomTheme theme(String id, String orgID) {
+      CustomTheme theme = new CustomTheme();
+      theme.setId(id);
+      theme.setName(id);
+      theme.setOrgID(orgID);
+      theme.setJarPath(orgID == null ? "portal/theme/" + id + ".jar" :
+                          "portal/" + orgID + "/theme/" + id + ".jar");
+      return theme;
+   }
+
+   // ── getGroup (theme) ────────────────────────────────────────────────────
+   //
+   // Bug #77096: getGroupModel looked the group's theme up in CustomTheme.getRoles instead of
+   // getGroups, so the group GET reported a same-named role's theme and missed the group's own.
+   // These tests use the fixture's real IdentityThemeService over the given themes so the
+   // accessor is exercised.
+
+   @Test
+   void getGroup_themeAssignedToGroup_returnsThatTheme() throws Exception {
+      SecurityGroup result =
+         getGroupWithThemes(groupRoleTheme("groupTheme", List.of("sales"), List.of()));
+
+      assertEquals("groupTheme", result.getTheme());
+   }
+
+   @Test
+   void getGroup_themeAssignedOnlyToSameNamedRole_returnsNoTheme() throws Exception {
+      SecurityGroup result =
+         getGroupWithThemes(groupRoleTheme("roleTheme", List.of(), List.of("sales")));
+
+      assertNull(result.getTheme());
+   }
+
+   @Test
+   void getGroup_groupAndSameNamedRoleHaveDifferentThemes_returnsGroupTheme() throws Exception {
+      SecurityGroup result = getGroupWithThemes(
+         groupRoleTheme("groupTheme", List.of("sales"), List.of()),
+         groupRoleTheme("roleTheme", List.of(), List.of("sales")));
+
+      assertEquals("groupTheme", result.getTheme());
+   }
+
+   @Test
+   void getGroup_noThemeAssigned_returnsNoTheme() throws Exception {
+      SecurityGroup result =
+         getGroupWithThemes(groupRoleTheme("otherTheme", List.of("hr"), List.of("hr")));
+
+      assertNull(result.getTheme());
+   }
+
+   private SecurityGroup getGroupWithThemes(CustomTheme... themes) throws Exception {
+      // host-org: the themes below are global (no orgID), and a global theme only applies to
+      // default-org identities once #77056 scopes theme references by organization
+      IdentityID groupId = new IdentityID("sales", Organization.getDefaultOrganizationID());
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
+                                            groupId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(securityProvider.getGroup(groupId)).thenReturn(new FSGroup(groupId));
+      when(identityService.getIdentityInfo(groupId, Identity.GROUP, securityProvider))
+         .thenReturn(new IdentityInfo());
+      when(customThemesManager.getCustomThemes()).thenReturn(new HashSet<>(Arrays.asList(themes)));
+
+      return service.getGroup(groupId, principal);
+   }
+
+   private static CustomTheme groupRoleTheme(String id, List<String> groups, List<String> roles) {
+      CustomTheme theme = new CustomTheme();
+      theme.setId(id);
+      theme.setName(id);
+      theme.setGroups(new ArrayList<>(groups));
+      theme.setRoles(new ArrayList<>(roles));
+      return theme;
+   }
+
    // ── organization theme (Bug #76671) ──────────────────────────────────────
    //
    // createOrganization's only membership-registration call used the rename-only
@@ -1793,6 +1936,600 @@ class SecurityServiceTest {
          + "updateCustomThemeOrganization actually writes -- reading by display name (the "
          + "pre-fix behavior) could never see this entry whenever an org's id differs from its "
          + "name");
+   }
+
+   private SecurityOrganization newOrgRequest(String id, String name) {
+      SecurityOrganization request = new SecurityOrganization();
+      request.setId(id);
+      request.setName(name);
+      return request;
+   }
+
+   // ── createOrganization member user default password (Bug #77207) ────────
+   //
+   // The non-clone create path ignored defaultPassword and gave every member user the
+   // hard-coded, policy-violating password "success123". defaultPassword is now required and
+   // validated (before any write) whenever memberUsers is not empty, and used for the members.
+
+   @Test
+   void createOrganization_memberUsers_noDefaultPassword_rejectedBeforeAnyWrite() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org" });
+      SecurityOrganization request = newOrgRequest("sales", "Sales");
+      request.setMemberUsers(List.of("alice"));
+      request.setMemberGroups(List.of("staff"));
+      request.setRoles(List.of("analyst"));
+
+      assertThrows(inetsoft.util.MessageException.class,
+                   () -> service.createOrganization(request, null, principal));
+
+      verify(editableProvider, never()).addOrganization(any());
+      verify(editableProvider, never()).addUser(any());
+      verify(editableProvider, never()).addGroup(any());
+      verify(editableProvider, never()).addRole(any());
+      sUtilStatic.verify(() -> SUtil.setPassword(any(FSUser.class), any()), never());
+   }
+
+   @Test
+   void createOrganization_memberUsers_weakDefaultPassword_rejectedBeforeAnyWrite() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org" });
+      SecurityOrganization request = newOrgRequest("sales", "Sales");
+      request.setMemberUsers(List.of("alice"));
+      request.setMemberGroups(List.of("staff"));
+      request.setRoles(List.of("analyst"));
+      request.setDefaultPassword("success123");
+
+      assertThrows(inetsoft.util.MessageException.class,
+                   () -> service.createOrganization(request, null, principal));
+
+      verify(editableProvider, never()).addOrganization(any());
+      verify(editableProvider, never()).addUser(any());
+      verify(editableProvider, never()).addGroup(any());
+      verify(editableProvider, never()).addRole(any());
+      sUtilStatic.verify(() -> SUtil.setPassword(any(FSUser.class), anyString()), never());
+   }
+
+   @Test
+   void createOrganization_memberUsers_weakDefaultPassword_noSuccessAuditRecorded() {
+      // createOrganization's finally marks any created ActionRecord SUCCESS, so the password
+      // check must run before the record exists or a rejected request is audited as a success
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org" });
+      SecurityOrganization request = newOrgRequest("sales", "Sales");
+      request.setMemberUsers(List.of("alice"));
+      request.setDefaultPassword("success123");
+
+      assertThrows(inetsoft.util.MessageException.class,
+                   () -> service.createOrganization(request, null, principal));
+
+      // only a SUCCESS record is wrong here; a future FAILURE record on rejection is legitimate
+      verify(Audit.getInstance(), never()).auditAction(
+         argThat(r -> r != null && ActionRecord.ACTION_STATUS_SUCCESS.equals(r.getActionStatus())),
+         any());
+      // no organization was created, so no identity-info (create) record may exist at all
+      verify(Audit.getInstance(), never()).auditIdentityInfo(any(), any());
+   }
+
+   @Test
+   void createOrganization_memberUsers_strongDefaultPassword_membersGetThatPassword()
+      throws Exception
+   {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org" });
+      SecurityOrganization request = newOrgRequest("sales", "Sales");
+      request.setMemberUsers(List.of("alice", "bob"));
+      request.setDefaultPassword("Str0ng!Passw0rd");
+
+      service.createOrganization(request, null, principal);
+
+      verify(editableProvider).addOrganization(any());
+      verify(editableProvider, times(2)).addUser(any());
+      sUtilStatic.verify(() -> SUtil.setPassword(any(FSUser.class), eq("Str0ng!Passw0rd")), times(2));
+      sUtilStatic.verify(() -> SUtil.setPassword(any(FSUser.class), eq("success123")), never());
+   }
+
+   @Test
+   void createOrganization_emptyMemberUsers_noDefaultPassword_proceeds() throws Exception {
+      // Bug #77207: defaultPassword stays optional when no member user is created
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org" });
+      SecurityOrganization request = newOrgRequest("sales", "Sales");
+      request.setMemberUsers(List.of());
+
+      service.createOrganization(request, null, principal);
+
+      verify(editableProvider).addOrganization(any());
+      verify(editableProvider, never()).addUser(any());
+   }
+
+   // ── organization name/id namespace (Bug #77082) ─────────────────────────
+   //
+   // Org names and ids share one case-insensitive namespace (bare SECURITY_ORGANIZATION keys are
+   // sometimes ids and sometimes names), but updateOrganization had no name check at all and
+   // never compared a name with another org's id (or vice versa), so an org admin could rename
+   // their org to another org's id or name. updateOrganization wraps the refusal in
+   // PreMutationRefusalException (Bug #76855), with the ResourceExistsException as its cause;
+   // createOrganization throws the ResourceExistsException directly.
+
+   private FSOrganization stubOrgsForUpdate() {
+      FSOrganization org1 = new FSOrganization("org1");
+      org1.setName("Org One");
+      FSOrganization org2 = new FSOrganization("org2");
+      org2.setName("acme");
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            "org1", ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(securityProvider.getOrganization("org1")).thenReturn(org1);
+      when(securityProvider.getOrganization("org2")).thenReturn(org2);
+      doReturn(org1).when(editableProvider).getOrganization("org1");
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1", "org2" });
+      return org1;
+   }
+
+   private ResourceExistsException assertUpdateOrganizationRefusedAsExisting(
+      String id, SecurityOrganization request)
+   {
+      SecurityService.PreMutationRefusalException thrown = assertThrows(
+         SecurityService.PreMutationRefusalException.class,
+         () -> service.updateOrganization(id, request, principal));
+      return assertInstanceOf(ResourceExistsException.class, thrown.getCause());
+   }
+
+   @Test
+   void updateOrganization_renameToAnotherOrgIdIgnoringCase_rejected() throws Exception {
+      stubOrgsForUpdate();
+
+      ResourceExistsException thrown =
+         assertUpdateOrganizationRefusedAsExisting("org1", newOrgRequest("org1", "ORG2"));
+
+      assertEquals("ORG2", thrown.getMessage());
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateOrganization_renameToAnotherOrgNameIgnoringCase_rejected() throws Exception {
+      stubOrgsForUpdate();
+
+      ResourceExistsException thrown =
+         assertUpdateOrganizationRefusedAsExisting("org1", newOrgRequest("org1", "Acme"));
+
+      assertEquals("Acme", thrown.getMessage());
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateOrganization_idChangedToAnotherOrgNameIgnoringCase_rejected() throws Exception {
+      stubOrgsForUpdate();
+
+      ResourceExistsException thrown =
+         assertUpdateOrganizationRefusedAsExisting("org1", newOrgRequest("ACME", "Org One"));
+
+      assertEquals("ACME", thrown.getMessage());
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateOrganization_nameEqualToOwnId_accepted() throws Exception {
+      FSOrganization org1 = stubOrgsForUpdate();
+
+      service.updateOrganization("org1", newOrgRequest("org1", "org1"), principal);
+
+      verify(identityService).setIdentity(eq(org1), any(EditOrganizationPaneModel.class),
+                                          eq(editableProvider), eq(principal));
+   }
+
+   @Test
+   void updateOrganization_existingNameCollision_unchangedNameStillEditable() throws Exception {
+      // pre-existing data: org1's name already equals org2's id; saving with that name unchanged
+      // (only the id changes) must not be rejected
+      FSOrganization org1 = stubOrgsForUpdate();
+      org1.setName("org2");
+
+      service.updateOrganization("org1", newOrgRequest("org1b", "org2"), principal);
+
+      verify(identityService).setIdentity(eq(org1), any(EditOrganizationPaneModel.class),
+                                          eq(editableProvider), eq(principal));
+   }
+
+   @Test
+   void updateOrganization_caseOnlyIdChangeOntoCaseVariantTwin_rejected() throws Exception {
+      // pre-existing twins "host-org" and "HOST-ORG": changing HOST-ORG's id to "host-org"
+      // would copyOrganization(replace=true) into the existing default org
+      FSOrganization variant = new FSOrganization("HOST-ORG");
+      variant.setName("Case Variant");
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            "HOST-ORG", ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(securityProvider.getOrganization("HOST-ORG")).thenReturn(variant);
+      doReturn(variant).when(editableProvider).getOrganization("HOST-ORG");
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "HOST-ORG" });
+
+      ResourceExistsException thrown = assertUpdateOrganizationRefusedAsExisting(
+         "HOST-ORG", newOrgRequest("host-org", "Case Variant"));
+
+      assertEquals("host-org", thrown.getMessage());
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateOrganization_caseOnlyRenameOntoAnotherOrgsExactName_rejected() throws Exception {
+      // pre-existing case-insensitive name collision: org1 "ACME" vs org2 "acme"
+      FSOrganization org1 = stubOrgsForUpdate();
+      org1.setName("ACME");
+
+      ResourceExistsException thrown =
+         assertUpdateOrganizationRefusedAsExisting("org1", newOrgRequest("org1", "acme"));
+
+      assertEquals("acme", thrown.getMessage());
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateOrganization_caseOnlyRenameOfOwnNameAndId_noTwin_accepted() throws Exception {
+      FSOrganization org1 = stubOrgsForUpdate();
+
+      service.updateOrganization("org1", newOrgRequest("ORG1", "ORG ONE"), principal);
+
+      verify(identityService).setIdentity(eq(org1), any(EditOrganizationPaneModel.class),
+                                          eq(editableProvider), eq(principal));
+   }
+
+   @Test
+   void createOrganization_nameEqualToExistingOrgIdIgnoringCase_rejected() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1" });
+
+      ResourceExistsException thrown = assertThrows(ResourceExistsException.class,
+         () -> service.createOrganization(newOrgRequest("neworg", "ORG1"), null, principal));
+
+      assertEquals("ORG1", thrown.getMessage());
+      verify(editableProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void createOrganization_idEqualToExistingOrgNameIgnoringCase_rejected() {
+      FSOrganization org1 = new FSOrganization("org1");
+      org1.setName("acme");
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1" });
+      when(securityProvider.getOrganization("org1")).thenReturn(org1);
+
+      ResourceExistsException thrown = assertThrows(ResourceExistsException.class,
+         () -> service.createOrganization(newOrgRequest("ACME", "New Org"), "org1", principal));
+
+      assertEquals("ACME", thrown.getMessage());
+      verifyNoInteractions(userTreeService);
+   }
+
+   // ── updateOrganization member lists (Bug #77228) ────────────────────────
+   //
+   // updateOrganization guarded the memberGroups list on getMemberUsers() == null, so a body
+   // with memberUsers but no memberGroups threw an NPE, and a body with memberGroups but no
+   // memberUsers silently dropped the groups. A body that omits both lists must still yield an
+   // empty member list.
+
+   @Test
+   void updateOrganization_memberUsersWithoutMemberGroups_updatesUsers() throws Exception {
+      FSOrganization org1 = stubOrgsForUpdate();
+      when(securityProvider.checkPermission(eq(principal), eq(ResourceType.SECURITY_USER),
+                                            anyString(), eq(ResourceAction.ADMIN)))
+         .thenReturn(true);
+      SecurityOrganization request = newOrgRequest("org1", "Org One");
+      request.setMemberUsers(List.of("u1"));
+
+      service.updateOrganization("org1", request, principal);
+
+      ArgumentCaptor<EditOrganizationPaneModel> model =
+         ArgumentCaptor.forClass(EditOrganizationPaneModel.class);
+      verify(identityService).setIdentity(eq(org1), model.capture(), eq(editableProvider),
+                                          eq(principal));
+      assertEquals(List.of(IdentityModel.builder().identityID(new IdentityID("u1", "org1"))
+                              .type(Identity.USER).build()),
+                   model.getValue().members());
+   }
+
+   @Test
+   void updateOrganization_memberGroupsWithoutMemberUsers_keepsGroups() throws Exception {
+      FSOrganization org1 = stubOrgsForUpdate();
+      when(securityProvider.checkPermission(eq(principal), eq(ResourceType.SECURITY_GROUP),
+                                            anyString(), eq(ResourceAction.ADMIN)))
+         .thenReturn(true);
+      SecurityOrganization request = newOrgRequest("org1", "Org One");
+      request.setMemberGroups(List.of("g1"));
+
+      service.updateOrganization("org1", request, principal);
+
+      ArgumentCaptor<EditOrganizationPaneModel> model =
+         ArgumentCaptor.forClass(EditOrganizationPaneModel.class);
+      verify(identityService).setIdentity(eq(org1), model.capture(), eq(editableProvider),
+                                          eq(principal));
+      assertEquals(List.of(IdentityModel.builder().identityID(new IdentityID("g1", "org1"))
+                              .type(Identity.GROUP).build()),
+                   model.getValue().members());
+   }
+
+   @Test
+   void updateOrganization_memberUsersAndMemberGroupsOmitted_emptyMembers() throws Exception {
+      FSOrganization org1 = stubOrgsForUpdate();
+      SecurityOrganization request = newOrgRequest("org1", "Org One");
+
+      service.updateOrganization("org1", request, principal);
+
+      ArgumentCaptor<EditOrganizationPaneModel> model =
+         ArgumentCaptor.forClass(EditOrganizationPaneModel.class);
+      verify(identityService).setIdentity(eq(org1), model.capture(), eq(editableProvider),
+                                          eq(principal));
+      assertEquals(List.of(), model.getValue().members());
+   }
+
+   // ── createOrganization / updateOrganization org id case (Bug #76995) ────
+   //
+   // Org ids are case-insensitive system-wide (lowercased storage buckets and org-scoped
+   // properties, case-insensitive org-boundary and ACL identity checks), but the public API only
+   // did an exact duplicate-id lookup on create and no duplicate-id check at all on update, so an
+   // org "HOST-ORG" could be created alongside (or renamed next to) "host-org". The clone branch
+   // also passed id/name to UserTreeService.createOrganization in swapped order. The id check is
+   // now part of checkOrganizationIdentityConflict (Bug #77082).
+
+   @Test
+   void createOrganization_caseVariantOfExistingOrgId_rejected() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1" });
+
+      ResourceExistsException thrown = assertThrows(ResourceExistsException.class,
+                   () -> service.createOrganization(newOrgRequest("HOST-ORG", "Case Variant"),
+                                                    null, principal));
+
+      // the id collided, so the message names the id, not the (free) requested name
+      assertEquals("HOST-ORG", thrown.getMessage());
+      verify(editableProvider, never()).addOrganization(any());
+   }
+
+   @Test
+   void createOrganization_nonCollidingId_plainCreateProceeds()
+      throws Exception
+   {
+      // control: an id that no existing org has (ignoring case) passes the id check and the
+      // plain (non-clone) create proceeds
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org2" });
+
+      service.createOrganization(newOrgRequest("Sales", "Sales West"), null, principal);
+
+      verify(editableProvider).addOrganization(any());
+   }
+
+   @Test
+   void createOrganization_cloneOfCaseVariantOrgId_rejectedBeforeClone() {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1" });
+
+      assertThrows(ResourceExistsException.class,
+                   () -> service.createOrganization(newOrgRequest("HOST-ORG", "Case Variant"),
+                                                    "org1", principal));
+
+      verifyNoInteractions(userTreeService);
+   }
+
+   @Test
+   void createOrganization_clone_passesNameThenIdToUserTreeService() throws Exception {
+      when(orgManager.isSiteAdmin(principal)).thenReturn(true);
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1" });
+      doReturn("Primary").when(editableProvider).getProviderName();
+      SecurityOrganization request = newOrgRequest("neworg", "New Org");
+      request.setDefaultPassword("Str0ng!Passw0rd");
+
+      service.createOrganization(request, "org1", principal);
+
+      // signature: createOrganization(copyFromOrgID, providerName, orgName, orgID, principal, pwd)
+      verify(userTreeService).createOrganization("org1", "Primary", "New Org", "neworg",
+                                                 principal, "Str0ng!Passw0rd");
+   }
+
+   @Test
+   void updateOrganization_renameToCaseVariantOfAnotherOrgId_rejected() throws Exception {
+      FSOrganization org1 = new FSOrganization("org1");
+      org1.setName("Org One");
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            "org1", ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(securityProvider.getOrganization("org1")).thenReturn(org1);
+      doReturn(org1).when(editableProvider).getOrganization("org1");
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1" });
+
+      // updateOrganization wraps the refusal (Bug #76855), keeping ResourceExistsException as cause
+      assertUpdateOrganizationRefusedAsExisting("org1", newOrgRequest("Host-Org", "Org One"));
+
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateOrganization_renameToExactDuplicateOfAnotherOrgId_rejected() throws Exception {
+      // before #76995 the REST update path had no duplicate-id check at all, not even exact
+      FSOrganization org1 = new FSOrganization("org1");
+      org1.setName("Org One");
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            "org1", ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(securityProvider.getOrganization("org1")).thenReturn(org1);
+      doReturn(org1).when(editableProvider).getOrganization("org1");
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "org1", "org2" });
+
+      ResourceExistsException thrown =
+         assertUpdateOrganizationRefusedAsExisting("org1", newOrgRequest("org2", "Org One"));
+
+      assertEquals("org2", thrown.getMessage());
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+   }
+
+   @Test
+   void updateOrganization_idUnchanged_notRejectedEvenIfCaseVariantPairAlreadyExists()
+      throws Exception
+   {
+      // a pre-existing case-variant pair (created before the fix) must stay editable
+      FSOrganization variant = new FSOrganization("HOST-ORG");
+      variant.setName("Case Variant");
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_ORGANIZATION,
+                                            "HOST-ORG", ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(securityProvider.getOrganization("HOST-ORG")).thenReturn(variant);
+      doReturn(variant).when(editableProvider).getOrganization("HOST-ORG");
+      when(securityProvider.getOrganizationIDs()).thenReturn(new String[]{ "host-org", "HOST-ORG" });
+
+      service.updateOrganization("HOST-ORG", newOrgRequest("HOST-ORG", "Case Variant"), principal);
+
+      verify(identityService).setIdentity(eq(variant), any(EditOrganizationPaneModel.class),
+                                          eq(editableProvider), eq(principal));
+   }
+
+   // ── system administrator parent groups (Bug #77073) ─────────────────────
+   //
+   // Group membership set through the public API is written to the provider directly, so it
+   // bypasses the system administrator grant check in IdentityService.setIdentity(). The
+   // SECURITY_GROUP ADMIN check alone does not stop an org admin from adding an identity under a
+   // group whose ancestor grants system administrator (or, for a caller holding the org or
+   // "Groups" root ADMIN grant, under the administrator group itself).
+
+   private void stubParentGroupGrantsSystemAdmin(String group) {
+      stubParentGroupExists(group);
+      doThrow(new java.lang.SecurityException("grants system administrator"))
+         .when(identityService).checkSystemAdminParentGroup(group, "org1", principal);
+   }
+
+   // createUser/createGroup only keep a requested parent group that exists
+   // (filterPermittedIds's authenticationProvider.getGroup() check), so the group must resolve
+   // for the system administrator check to be reached at all
+   private void stubParentGroupExists(String group) {
+      IdentityID groupId = new IdentityID(group, "org1");
+      doReturn(new FSGroup(groupId)).when(authenticationProvider).getGroup(groupId);
+   }
+
+   @Test
+   void createUser_parentGroupGrantsSystemAdmin_rejectedBeforeUserAdded() throws Exception {
+      stubCommonCreateGates();
+      stubParentGroupGrantsSystemAdmin("admins");
+
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("escalated", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+      request.setGroups(List.of("admins"));
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.createUser(request, null, principal));
+      verify(editableProvider, never()).addUser(any());
+   }
+
+   @Test
+   void createUser_ordinaryParentGroup_isChecked_andUserAddedToGroup() throws Exception {
+      stubCommonCreateGates();
+      stubParentGroupExists("plain");
+      when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("newuser1", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+      request.setGroups(List.of("plain"));
+
+      service.createUser(request, null, principal);
+
+      verify(identityService).checkSystemAdminParentGroup("plain", "org1", principal);
+      ArgumentCaptor<FSUser> captor = ArgumentCaptor.forClass(FSUser.class);
+      verify(editableProvider).addUser(captor.capture());
+      assertEquals(List.of("plain"), List.of(captor.getValue().getGroups()));
+   }
+
+   @Test
+   void createGroup_parentGroupGrantsSystemAdmin_rejectedBeforeAnyWrite() throws Exception {
+      stubCommonCreateGates();
+      stubParentGroupGrantsSystemAdmin("admins");
+
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(new IdentityID("sneaky", "org1"));
+      request.setOrgID("org1");
+      request.setParentGroups(List.of("admins"));
+      request.setMemberUsers(List.of("caller"));
+
+      assertThrows(UnauthorizedAccessException.class,
+                   () -> service.createGroup(request, null, principal));
+      verify(editableProvider, never()).addGroup(any());
+      verify(editableProvider, never()).setUser(any(), any());
+      verify(editableProvider, never()).setGroup(any(), any());
+   }
+
+   @Test
+   void updateGroup_newParentGroupGrantsSystemAdmin_rejectedBeforeAnyWrite() throws Exception {
+      IdentityID groupId = new IdentityID("plain", "org1");
+      FSGroup oldGroup = new FSGroup(groupId);
+      when(securityProvider.getGroup(groupId)).thenReturn(oldGroup);
+      when(securityProvider.checkPermission(eq(principal), eq(ResourceType.SECURITY_GROUP),
+                                            anyString(), eq(ResourceAction.ADMIN)))
+         .thenReturn(true);
+      when(editableProvider.getGroup(groupId)).thenReturn(oldGroup);
+      stubParentGroupGrantsSystemAdmin("admins");
+
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(groupId);
+      request.setParentGroups(List.of("admins"));
+
+      // updateGroup wraps pre-mutation refusals (Bug #76855), keeping the original as the cause
+      SecurityService.PreMutationRefusalException thrown = assertThrows(
+         SecurityService.PreMutationRefusalException.class,
+         () -> service.updateGroup(groupId, request, principal));
+      assertInstanceOf(UnauthorizedAccessException.class, thrown.getCause());
+      verify(identityService, never()).setIdentity(any(), any(), any(), any());
+      verify(editableProvider, never()).setGroup(any(), any());
+   }
+
+   @Test
+   void updateGroup_existingParentGroupNotRechecked_updateProceeds() throws Exception {
+      IdentityID groupId = new IdentityID("plain", "org1");
+      FSGroup oldGroup = new FSGroup(groupId);
+      oldGroup.setGroups(new String[]{ "admins" });
+      when(securityProvider.getGroup(groupId)).thenReturn(oldGroup);
+      when(securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
+                                            groupId.convertToKey(), ResourceAction.ADMIN))
+         .thenReturn(true);
+      when(editableProvider.getGroup(groupId)).thenReturn(oldGroup);
+      stubParentGroupGrantsSystemAdmin("admins");
+
+      SecurityGroup request = new SecurityGroup();
+      request.setIdentityID(groupId);
+      request.setParentGroups(List.of("admins"));
+
+      service.updateGroup(groupId, request, principal);
+
+      verify(identityService, never()).checkSystemAdminParentGroup(eq("admins"), any(), any());
+      verify(identityService).setIdentity(eq(oldGroup), any(EditGroupPaneModel.class),
+                                          eq(editableProvider), eq(principal));
+   }
+
+   // ── role inheriting a system administrator role (Bug #77199) ────────────
+   //
+   // filterSystemAdminRoles only dropped a role that is itself a system administrator role, so
+   // a non-site-admin could still grant site-wide administrator privileges by assigning an org
+   // role that inherits the Administrator role.
+
+   @Test
+   void createUser_nonSiteAdmin_filtersRoleInheritingAdministrator() throws Exception {
+      stubCommonCreateGates();
+      when(editableProvider.getOrganization("org1")).thenReturn(new FSOrganization("org1"));
+      IdentityID inheritsAdmin = new IdentityID("inheritsAdmin", "org1");
+      FSRole inheritsAdminRole = new FSRole(inheritsAdmin);
+      inheritsAdminRole.setRoles(new IdentityID[]{ ADMIN_ROLE });
+      when(editableProvider.getRole(inheritsAdmin)).thenReturn(inheritsAdminRole);
+      doReturn(inheritsAdminRole).when(authenticationProvider).getRole(inheritsAdmin);
+
+      SecurityUser request = new SecurityUser();
+      request.setIdentityID(new IdentityID("newuser1", "org1"));
+      request.setPassword("Str0ng!Passw0rd");
+      request.setRoles(List.of(inheritsAdmin, VIEWER_ROLE));
+
+      service.createUser(request, null, principal);
+
+      ArgumentCaptor<FSUser> captor = ArgumentCaptor.forClass(FSUser.class);
+      verify(editableProvider).addUser(captor.capture());
+      assertEquals(List.of(VIEWER_ROLE), List.of(captor.getValue().getRoles()));
    }
 
    // ── changeUserPassword ──────────────────────────────────────────────────

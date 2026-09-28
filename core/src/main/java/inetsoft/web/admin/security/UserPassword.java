@@ -39,7 +39,7 @@ public class UserPassword {
     * @return the clear-text password.
     */
    @NotNull
-   @Schema(description = "The new, clear-text password for the user.", example = "success123")
+   @Schema(description = "The new, clear-text password for the user.", example = "P@ssw0rd!")
    public String getPassword() {
       return password;
    }

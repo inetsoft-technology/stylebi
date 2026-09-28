@@ -230,6 +230,7 @@ public class SecurityService {
          EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
 
          IdentityID id = setDefaultOrgID(request.getIdentityID());
+         checkSystemAdminParentGroups(parentGroups, id.orgID, principal);
 
          if(provider.getUser(id) != null) {
             throw new ResourceExistsException(request.getIdentityID() == null ? null : request.getIdentityID().getName());
@@ -503,6 +504,7 @@ public class SecurityService {
 
          EditableAuthenticationProvider provider = getEditableAuthenticationProvider(securityProvider);
          IdentityID identityID = setDefaultOrgID(request.getIdentityID());
+         checkSystemAdminParentGroups(parentGroups, identityID.orgID, principal);
 
          if(provider.getGroup(identityID) != null) {
             throw new ResourceExistsException(request.getIdentityID() == null ? null : request.getIdentityID().getName());
@@ -622,6 +624,16 @@ public class SecurityService {
                   .type(Identity.USER)
                   .build())
                .collect(Collectors.toList()));
+
+         // Existing parent groups are not re-checked so that unrelated edits of a group already
+         // under an administrator group still succeed (Bug #77073).
+         if(request.getParentGroups() != null) {
+            Set<String> oldParents = oldGroup.getGroups() == null ?
+               new HashSet<>() : new HashSet<>(Arrays.asList(oldGroup.getGroups()));
+            checkSystemAdminParentGroups(
+               request.getParentGroups().stream().filter(p -> !oldParents.contains(p)).toList(),
+               identityID.orgID, principal);
+         }
 
          EditGroupPaneModel.Builder builder = EditGroupPaneModel.builder()
             .name(request.getIdentityID() == null ? null : request.getIdentityID().getName())
@@ -838,6 +850,9 @@ public class SecurityService {
             throw new ResourceExistsException(request.getName());
          }
 
+         // org names and ids share one case-insensitive namespace
+         checkOrganizationIdentityConflict(securityProvider, null, request);
+
          // Validated ahead of both branches so an invalid code is rejected consistently whether or
          // not copyFrom was supplied, and before the ActionRecord exists -- this method's finally
          // block stamps ACTION_STATUS_SUCCESS unconditionally, so a throw after that point would
@@ -846,10 +861,15 @@ public class SecurityService {
 
          if(!Tool.isEmptyString(copyFromOrgID)) {
             userTreeService.createOrganization(
-               copyFromOrgID, provider.getProviderName(), request.getId(), request.getName(), principal, request.getDefaultPassword());
+               copyFromOrgID, provider.getProviderName(), request.getName(), request.getId(), principal, request.getDefaultPassword());
             return;
          }
          else {
+            // member users are created with defaultPassword, validate it before any write
+            if(request.getMemberUsers() != null && !request.getMemberUsers().isEmpty()) {
+               IdentityService.validatePasswordStrength(request.getDefaultPassword());
+            }
+
             record = new ActionRecord(SUtil.getUserName(principal), ActionRecord.ACTION_NAME_CREATE,
                                       request.getName(), ActionRecord.OBJECT_TYPE_USERPERMISSION,
                                       actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, "");
@@ -891,7 +911,7 @@ public class SecurityService {
 
          for(IdentityID memberUser : memberUserIds) {
             FSUser user = new FSUser(memberUser);
-            SUtil.setPassword(user, "success123");
+            SUtil.setPassword(user, request.getDefaultPassword());
             provider.addUser(user);
          }
 
@@ -958,15 +978,12 @@ public class SecurityService {
             throw new InvalidResourceException();
          }
 
-         // org ids are case-insensitive: reject renaming to an id that another org already has,
-         // ignoring case. Only checked when the id actually changes so existing orgs stay editable.
-         if(request.getId() != null && !request.getId().equals(oldOrganization.getId()) &&
-            isOrganizationIdTaken(securityProvider, request.getId(), oldOrganization.getId()))
-         {
-            throw new ResourceExistsException(request.getId());
-         }
+         // org names and ids share one case-insensitive namespace: reject a name or id that equals
+         // another org's name or id, ignoring case. Only checked for the fields that actually
+         // change so existing orgs stay editable.
+         checkOrganizationIdentityConflict(securityProvider, oldOrganization, request);
 
-         List<String> requestGroups = request.getMemberUsers() == null ?
+         List<String> requestGroups = request.getMemberGroups() == null ?
             Collections.emptyList() : request.getMemberGroups();
          List<IdentityID> memberGroupIds = requestGroups.stream()
             .map(n -> new IdentityID(n, id)).collect(Collectors.toList());
@@ -1047,22 +1064,23 @@ public class SecurityService {
    }
 
    /**
-    * Checks whether an organization other than {@code excludeId} already uses {@code orgId},
-    * ignoring case. Org ids are case-insensitive system-wide (storage buckets, org-scoped
-    * properties, org-boundary and ACL identity checks), so two orgs whose ids differ only in
-    * case must never coexist.
+    * Throws {@link ResourceExistsException} if the requested organization name or id collides
+    * with another organization's name or id (see {@link OrganizationIdentityConflict}).
     */
-   private static boolean isOrganizationIdTaken(SecurityProvider securityProvider, String orgId,
-                                                String excludeId)
+   private static void checkOrganizationIdentityConflict(SecurityProvider securityProvider,
+                                                         Organization editedOrg,
+                                                         SecurityOrganization request)
+      throws ResourceExistsException
    {
-      if(orgId == null) {
-         return false;
+      OrganizationIdentityConflict conflict = OrganizationIdentityConflict.find(
+         securityProvider, editedOrg, request.getName(), request.getId());
+
+      if(conflict == OrganizationIdentityConflict.ID) {
+         throw new ResourceExistsException(request.getId());
       }
-
-      String[] orgIds = securityProvider.getOrganizationIDs();
-
-      return orgIds != null && Arrays.stream(orgIds)
-         .anyMatch(id -> id != null && !id.equals(excludeId) && id.equalsIgnoreCase(orgId));
+      else if(conflict == OrganizationIdentityConflict.NAME) {
+         throw new ResourceExistsException(request.getName());
+      }
    }
 
    public void deleteOrganization(String organizationid, Principal principal) throws Exception {
@@ -1632,6 +1650,31 @@ public class SecurityService {
    }
 
    /**
+    * Rejects placing an identity under any of the given parent groups when the group, or one of
+    * its ancestors, grants system administrator and the caller is not a site administrator.
+    * Group membership set through this API is written to the provider directly, bypassing the
+    * system administrator grant check in IdentityService.setIdentity() (Bug #77073).
+    */
+   private void checkSystemAdminParentGroups(Collection<String> parentGroups, String orgID,
+                                             Principal principal)
+      throws UnauthorizedAccessException
+   {
+      if(parentGroups == null) {
+         return;
+      }
+
+      for(String parentGroup : parentGroups) {
+         try {
+            identityService.checkSystemAdminParentGroup(parentGroup, orgID, principal);
+         }
+         catch(java.lang.SecurityException e) {
+            throw new UnauthorizedAccessException(
+               "Permission denied to add a member to group " + parentGroup);
+         }
+      }
+   }
+
+   /**
     * Determines whether a requested role assignment references the system administrator
     * role. System administrator roles are global (orgID == null), so a non-site-admin
     * must not be able to bypass the filter by supplying a spoofed or foreign organization
@@ -1643,6 +1686,14 @@ public class SecurityService {
       }
 
       if(provider.isSystemAdministratorRole(role)) {
+         return true;
+      }
+
+      // A role that inherits a system administrator role grants the same privileges.
+      if(provider.getRole(role) != null &&
+         Arrays.stream(provider.getAllRoles(new IdentityID[] { role }))
+            .anyMatch(r -> r != null && provider.isSystemAdministratorRole(r)))
+      {
          return true;
       }
 
