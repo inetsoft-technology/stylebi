@@ -59,7 +59,9 @@ class WsBoundaryPolicyTest {
                                         "3 s longer", "logged at INFO",
                                         // Testing #77123, the table-owned formula var
                                         "belongs to its table", "var r; if(c)",
-                                        "try/catch", "Use let", "logs one warning" })
+                                        "try/catch", "Use let", "logs one warning",
+                                        "kept only within one batch",
+                                        "count the row twice" })
       {
          assertTrue(note.contains(topic), "release note misses: " + topic);
       }
