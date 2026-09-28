@@ -209,7 +209,7 @@ class OrgHiddenMemberSaveTest {
       return new IdentityService(
          SecurityEngine.getSecurity(), SecurityEngine.getSecurity().getSecurityProvider(),
          null, null, null, mock(FavoritesService.class), null, null, null, null,
-         null, null, null, null, Optional.empty(), null, null, null,
+         null, null, null, mock(IndexedStorage.class), Optional.empty(), null, null, null,
          mock(DashboardRegistryManager.class), null, null, null, null, null, null, null, null,
          mock(RepletRegistryManager.class), Optional.empty());
    }
