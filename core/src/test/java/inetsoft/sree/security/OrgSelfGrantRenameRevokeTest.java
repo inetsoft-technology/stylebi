@@ -126,11 +126,7 @@ class OrgSelfGrantRenameRevokeTest {
       assertTrue(granteeIsAdmin(), "precondition: the org self grant must make grantee an admin");
 
       // EM org pane save with a new name and the same id and grantees
-      Organization org = fileProvider.getOrganization(ORG_ID);
-      FSOrganization renamedOrg = new FSOrganization(ORG_ID);
-      renamedOrg.setName(RENAMED_ORG_NAME);
-      renamedOrg.setMembers(org.getMembers());
-      fileProvider.setOrganization(ORG_ID, renamedOrg);
+      renameOrg();
       grant(orgKey, renamedKey, List.of(granteeModel()));
 
       assertTrue(granteeIsAdmin(), "the rename must keep the org self grant");
@@ -141,6 +137,81 @@ class OrgSelfGrantRenameRevokeTest {
       grant(renamedKey, renamedKey, List.of());
       assertFalse(granteeIsAdmin(),
                   "revoking the org self grant after a rename must remove grantee's admin");
+   }
+
+   @Test
+   void saveAfterEarlierRenameDropsStaleIdKeyGrant() throws Exception {
+      IdentityID orgKey = new IdentityID(ORG_ID, ORG_ID);
+      IdentityID renamedKey = new IdentityID(RENAMED_ORG_NAME, ORG_ID);
+
+      // data written before this fix: the rename left the grant at (id, id) and nothing at
+      // (name, id), so the legacy fallback still honors it
+      grant(orgKey, orgKey, List.of(granteeModel()));
+      renameOrg();
+      assertTrue(granteeIsAdmin(), "precondition: the (id, id)-only grant is still honored");
+
+      // the next EM org pane save, which shows no grantees, must absorb the stale key
+      grant(renamedKey, renamedKey, List.of());
+      assertNull(chain.getPermission(ResourceType.SECURITY_ORGANIZATION, orgKey, ORG_ID),
+                 "saving the renamed org must drop the stale (id, id) grant");
+      assertFalse(granteeIsAdmin(), "the stale (id, id) grant must not survive the save");
+   }
+
+   @Test
+   void deletedOrgGrantNotInheritedByOrgReusingItsId() throws Exception {
+      IdentityID orgKey = new IdentityID(ORG_ID, ORG_ID);
+
+      // a stale (id, id) grant left by a rename, as in deployments hit by the bug
+      grant(orgKey, orgKey, List.of(granteeModel()));
+      Organization org = renameOrg();
+
+      // org delete, as IdentityService.syncIdentity() does it
+      fileProvider.removeOrganization(ORG_ID);
+      chain.cleanOrganizationFromPermissions(ORG_ID);
+
+      // EM auto ids are reused: a new org gets the same id, with name == id
+      FSOrganization reused = new FSOrganization(ORG_ID);
+      reused.setName(ORG_ID);
+      reused.setMembers(org.getMembers());
+      fileProvider.addOrganization(reused);
+
+      assertNull(chain.getPermission(ResourceType.SECURITY_ORGANIZATION, orgKey, ORG_ID),
+                 "deleting the org must remove its stale (id, id) grant");
+      assertFalse(granteeIsAdmin(), "an org reusing a deleted org's id must not inherit its grant");
+   }
+
+   @Test
+   void userRenameThroughSetIdentityPermissionsDropsOldKey() {
+      IdentityID oldUser = new IdentityID("target", ORG_ID);
+      IdentityID newUser = new IdentityID("target2", ORG_ID);
+
+      try {
+         identityService.setIdentityPermissions(
+            oldUser, oldUser, ResourceType.SECURITY_USER, admin, List.of(granteeModel()), ORG_ID);
+         assertNotNull(chain.getPermission(ResourceType.SECURITY_USER, oldUser, ORG_ID),
+                       "precondition: the user grant must be stored");
+
+         identityService.setIdentityPermissions(
+            oldUser, newUser, ResourceType.SECURITY_USER, admin, List.of(granteeModel()), ORG_ID);
+         assertNotNull(chain.getPermission(ResourceType.SECURITY_USER, newUser, ORG_ID),
+                       "the grant must be stored under the new key");
+         assertNull(chain.getPermission(ResourceType.SECURITY_USER, oldUser, ORG_ID),
+                    "re-keying the grant must remove the old key");
+      }
+      finally {
+         chain.removePermission(ResourceType.SECURITY_USER, oldUser, ORG_ID);
+         chain.removePermission(ResourceType.SECURITY_USER, newUser, ORG_ID);
+      }
+   }
+
+   // name-only rename of the org, as IdentityService.setOrganizationInfo() does it
+   private Organization renameOrg() {
+      Organization org = fileProvider.getOrganization(ORG_ID);
+      FSOrganization renamedOrg = new FSOrganization(ORG_ID);
+      renamedOrg.setName(RENAMED_ORG_NAME);
+      renamedOrg.setMembers(org.getMembers());
+      fileProvider.setOrganization(ORG_ID, renamedOrg);
+      return org;
    }
 
    private void grant(IdentityID oldID, IdentityID newID, List<IdentityModel> grantees) {
