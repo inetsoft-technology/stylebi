@@ -2152,7 +2152,7 @@ public class IdentityService {
       user.setActive(model.status());
       user.setOrganization(model.organization());
       user.setGoogleSSOId(ouser.getGoogleSSOId());
-      addOrganizationMember(model.organization(),model.name(),eprovider);
+      renameOrganizationMember(model.organization(), ouser.getName(), model.name(), eprovider);
 
       Properties localeProperties = SUtil.loadLocaleProperties();
       String localeString = null;
@@ -2255,7 +2255,7 @@ public class IdentityService {
       final FSGroup group = new FSGroup(id, locale, memberNames, roles);
 
       group.setOrganization(model.organization());
-      addOrganizationMember(model.organization(),model.name(),eprovider);
+      renameOrganizationMember(model.organization(), oldGroup.getName(), model.name(), eprovider);
 
       IdentityID[] mgroups = new IdentityID[groupV.size()];
       groupV.toArray(mgroups);
@@ -2658,10 +2658,31 @@ public class IdentityService {
       }
    }
 
-   private void addOrganizationMember(String orgID, String memberName, EditableAuthenticationProvider provider) {
+   /**
+    * Replaces a renamed identity's name in the organization's member list. Does nothing when
+    * the name is unchanged.
+    */
+   private void renameOrganizationMember(String orgID, String oldName, String newName,
+                                         EditableAuthenticationProvider provider)
+   {
+      if(Tool.equals(oldName, newName)) {
+         return;
+      }
+
       Organization org = provider.getOrganization(orgID);
+
+      if(org == null) {
+         return;
+      }
+
       List<String> members = org.getMembers() != null ? new ArrayList<>(Arrays.asList(org.getMembers())) : new ArrayList<>();
-      members.add(memberName);
+      members.remove(oldName);
+
+      if(!members.contains(newName)) {
+         members.add(newName);
+      }
+
+      org.setMembers(members.toArray(new String[0]));
       provider.setOrganization(orgID, org);
    }
 
