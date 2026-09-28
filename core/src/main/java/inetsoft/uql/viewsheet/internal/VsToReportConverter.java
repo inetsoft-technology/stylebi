@@ -68,6 +68,7 @@ import java.io.*;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -84,6 +85,20 @@ public class VsToReportConverter {
       this.fileSystemService = fileSystemService;
       this.dataSpace = dataSpace;
       this.report = new TabularSheet(libManagerProvider, cluster);
+   }
+
+   /**
+    * Resolve each table's card inset through the exporter. Without a resolver, tables print
+    * with no inset.
+    */
+   public void setTableCardInsets(Function<TableDataVSAssemblyInfo, Insets> resolver) {
+      this.tableCardInsets = resolver;
+   }
+
+   // the table's card inset in this export, never null
+   private Insets getCardInset(TableDataVSAssemblyInfo info) {
+      Insets inset = tableCardInsets == null ? null : tableCardInsets.apply(info);
+      return inset == null ? new Insets(0, 0, 0, 0) : inset;
    }
 
    /**
@@ -1062,7 +1077,9 @@ public class VsToReportConverter {
             (int) Math.round(lens.getRowHeightWithPadding(AssetUtil.defh * scalefont, i, info));
       }
 
-      return height;
+      // the card's top and bottom insets
+      Insets inset = getCardInset(info);
+      return height + inset.top + inset.bottom;
    }
 
    /**
@@ -1122,6 +1139,7 @@ public class VsToReportConverter {
     */
    private void addTable(TableDataVSAssembly assembly, VSTableLens lens, String sectionName) {
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
+      Insets inset = getCardInset(info);
       final Rectangle bounds;
 
       if(info.isTitleVisible()) {
@@ -1160,10 +1178,13 @@ public class VsToReportConverter {
          totalw += columnPixelW[i];
       }
 
-      if(totalw < info.getLayoutSize().width) {
+      // compared with the grid, since the columns were filled to it
+      int gridW = Math.max(0, info.getLayoutSize().width - inset.left - inset.right);
+
+      if(totalw < gridW) {
          tableelem.setLayout(ReportSheet.TABLE_FIT_PAGE);
       }
-      else if(totalw > info.getLayoutSize().width * 5 && tableLayout == ReportSheet.TABLE_FIT_PAGE) {
+      else if(totalw > gridW * 5 && tableLayout == ReportSheet.TABLE_FIT_PAGE) {
          tableelem.setLayout(ReportSheet.TABLE_FIT_CONTENT_PAGE);
       }
 
@@ -1274,7 +1295,10 @@ public class VsToReportConverter {
 
       int totalWidth = 0;
       int totalPixelW = 0;
-      int layoutPixelW = info.getLayoutSize().width;
+      // the columns fill the grid, the card less its side insets
+      Insets inset = getCardInset(info);
+      int insetW = inset.left + inset.right;
+      int layoutPixelW = Math.max(0, info.getLayoutSize().width - insetW);
       int[] ws = new int[lens.getColCount()];
       int[] widths = lens.getColumnWidths();
 
@@ -1283,7 +1307,7 @@ public class VsToReportConverter {
          double w = info.getColumnWidth2(i, lens);
 
          if((Double.isNaN(w) || w <= 0) && widths != null && i < widths.length) {
-            w = widths[i];
+            w = lens.getColumnWidthInGrid(i, info, insetW);
          }
 
          if(scalefont != 1) {
@@ -1295,7 +1319,7 @@ public class VsToReportConverter {
       }
 
       Dimension infoSize = info.getPixelSize();
-      totalPixelW += infoSize.width;
+      totalPixelW += Math.max(0, infoSize.width - insetW);
 
       if(totalWidth < layoutPixelW) {
          int remainWidth = layoutPixelW - totalWidth;
@@ -3306,6 +3330,7 @@ public class VsToReportConverter {
    private final DataSpace dataSpace;
    private int zindex = 0;
    private float scalefont = 1;
+   private Function<TableDataVSAssemblyInfo, Insets> tableCardInsets = null;
    private PrintLayout playout = null;
    private String baseName = null;
    private ViewsheetSandbox box = null;

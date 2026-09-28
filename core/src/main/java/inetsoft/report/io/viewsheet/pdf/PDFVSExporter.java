@@ -129,8 +129,7 @@ public class PDFVSExporter extends AbstractVSExporter {
 
          viewsheet.updateCSSFormat("pdf", null, layoutBox);
 
-         VsToReportConverter converter = new VsToReportConverter(layoutBox, libManagerProvider, cluster, fileSystemService, dataSpace);
-         ReportSheet report = converter.generateReport();
+         ReportSheet report = createReportConverter(layoutBox).generateReport();
 
          // Build a list of report sheets instead of generating a printlayout
          // pdf here so we can build a CompositeSheet later; see write()
@@ -164,6 +163,16 @@ public class PDFVSExporter extends AbstractVSExporter {
       }
 
       return embeddedBox;
+   }
+
+   /**
+    * The print-layout converter, reading each table's card inset through this exporter.
+    */
+   protected VsToReportConverter createReportConverter(ViewsheetSandbox box) {
+      VsToReportConverter converter =
+         new VsToReportConverter(box, libManagerProvider, cluster, fileSystemService, dataSpace);
+      converter.setTableCardInsets(this::getTableCardInset);
+      return converter;
    }
 
    /**
