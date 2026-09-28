@@ -285,6 +285,160 @@ class GraalJavaScriptEngineLexicalDeclarationTest {
       assertEquals(2.0, num("const t1 = 1; t1 = 2; t1"));
    }
 
+   // ---- Bug #77181: an initializer-less rewritten let/const must start undefined
+   // on every run of the plain with(__scope__) path, as FormulaTableLens runs it:
+   // compiled once, one engine, one reused row scope, only the row value changing.
+
+   private List<Object> rows(String script, Object... values) throws Exception {
+      Object compiled = engine.compile(script);
+      MapScope row = new MapScope();
+      List<Object> out = new ArrayList<>();
+
+      for(Object v : values) {
+         row.putMember("a", v);
+         out.add(engine.exec(compiled, row, row));
+      }
+
+      return out;
+   }
+
+   private static List<Object> highNullNull() {
+      return Arrays.asList("High", null, null);
+   }
+
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
+      "let r; (a > 5) && (r = 'High'); r",
+      "let r2; r2 = a > 5 ? 'High' : r2; r2",
+      "let r3; let s3; (a > 5) && (r3 = 'High'); r3",
+      "let r4, s4; (a > 5) && (r4 = 'High'); r4",
+      "let s5, r5; (a > 5) && (r5 = 'High'); r5",
+      "let x6 = 1, r6; (a > 5) && (r6 = 'High'); r6",
+      "let x7 = Math.max(1, 2), r7; (a > 5) && (r7 = 'High'); r7",
+      "let x8 = [1, 2], y8 = {p: 1, q: 2}, r8; (a > 5) && (r8 = 'High'); r8",
+      "let x9 = 'a,b', z9 = `c,${1 + 1}`, r9; (a > 5) && (r9 = 'High'); r9",
+      "let x10 = function(p, q) { return p, q; }, r10; (a > 5) && (r10 = 'High'); r10",
+      "let {p11} = {p11: 1}, r11; (a > 5) && (r11 = 'High'); r11",
+      "const r12; (a > 5) && (r12 = 'High'); r12",
+      "let r13 /* c, d */; (a > 5) && (r13 = 'High'); r13",
+      "let r14;\\n(a > 5) && (r14 = 'High');\\nr14",
+      "let r15\\n(a > 5) && (r15 = 'High'); r15",
+      "let x16 = 1\\n, r16; (a > 5) && (r16 = 'High'); r16",
+      // the paths that were already right stay right
+      "let r17; if(a > 5) r17 = 'High'; r17",
+      "let r18 = null; (a > 5) && (r18 = 'High'); r18",
+      "let r19; (a > 5) && (r19 = 'High'); this; r19",
+      "{ let r20; (a > 5) && (r20 = 'High'); r20 }",
+   })
+   void initializerlessDeclarationStartsUndefinedEveryRow(String script) throws Exception {
+      assertEquals(highNullNull(), rows(script.replace("\\n", "\n"), 10, 1, 1), script);
+   }
+
+   // the reporter's counter: each row starts from undefined
+   @Test void counterDoesNotAccumulateAcrossRows() throws Exception {
+      assertEquals(Arrays.asList(1.0, 1.0, 1.0),
+                   rows("let n; n = (n || 0) + 1; n", 10, 1, 1).stream()
+                      .map(v -> ((Number) v).doubleValue()).toList());
+   }
+
+   // native var is unchanged: its global persists across runs (#75596)
+   @Test void nativeVarStillKeepsValue() throws Exception {
+      assertEquals(Arrays.asList("High", "High", "High"),
+                   rows("var rv; (a > 5) && (rv = 'High'); rv", 10, 1, 1));
+   }
+
+   // different formulas sharing a name on one engine
+   @Test void noLeakAcrossFormulas() throws Exception {
+      assertEquals("fromA", run("let q; q = 'fromA'; q"));
+      assertNull(run("let q; q"));
+   }
+
+   // a later script that only reads the name is not reset (#76980 persistence)
+   @Test void readerOfInitializerlessLetKeepsValue() throws Exception {
+      run("let pk; pk = 7;");
+      assertEquals(7.0, num("pk"));
+   }
+
+   // the reset is outside the with: a same-named scope member is never written
+   @Test void scopeMemberNotClobbered() throws Exception {
+      MapScope scope = new MapScope();
+      scope.putMember("data", "SCOPE");
+      assertEquals("SCOPE", engine.exec(engine.compile("let data; data"), scope, scope));
+      assertEquals("SCOPE", scope.getMember("data"));
+   }
+
+   // engine-owned globals are never reset by a declaration of the same name
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', value = {
+      "split|function", "isNull|function", "Math|object", "CALC|object",
+      "java|object", "Packages|object", "globalThis|object", "parameter|string",
+      "viewsheet|string",
+   })
+   void engineGlobalsNotReset(String name, String type) throws Exception {
+      engine.close();
+      engine = new GraalJavaScriptEngine();
+      Map<String, Object> vars = new HashMap<>();
+      vars.put("parameter", "P");
+      engine.init(vars);
+      engine.put("viewsheet", "VS");
+
+      run("let " + name + "; 1");
+      assertEquals(type, run("typeof " + name), name);
+      // and the engine still runs scripts afterwards
+      assertEquals(3.0, num("1 + 2"));
+   }
+
+   @Test void scopeBindingNeverReset() throws Exception {
+      run("let __scope__; 1");
+      MapScope scope = new MapScope();
+      scope.putMember("a", 4);
+      assertEquals(5.0, ((Number) engine.exec(engine.compile("a + 1"), scope, scope)).doubleValue());
+   }
+
+   // `let split;` then a later script that calls split(...)
+   @Test void letSplitDoesNotBreakLaterSplitCall() throws Exception {
+      run("let split; 1");
+      assertEquals("b", run("split('a,b', ',')[1]"));
+   }
+
+   // error line numbers do not move with the reset prefix
+   @Test void errorLineUnchanged() {
+      Exception ex = assertThrows(Exception.class,
+                                  () -> run("let rl;\nundefinedFn77181()"));
+      assertTrue(ex.getMessage().contains("(line 3)"), ex.getMessage());
+   }
+
+   // the extractor: which names it takes, and where it declines
+   @ParameterizedTest
+   @CsvSource(delimiter = '|', quoteCharacter = '"', value = {
+      "let r;                                  | r",
+      "let r, s;                               | r,s",
+      "let x = 1, r;                           | r",
+      "let x = Math.max(1, 2), r;              | r",
+      "let x = f(a, [b, {c: d}]), r, s = 2, t  | r,t",
+      "let x = 'a,b', r;                       | r",
+      "let x = /,/g, r;                        | r",
+      "let r\\nfoo = 1, bar = 2                | r",
+      "let x = a\\nfoo = 1, bar = 2            | \"\"",
+      "let x = a +\\nb, r;                     | \"\"",
+      "let x = 1\\n, r                         | r",
+      "let r; let s; var v; const c;           | r,s,c",
+      "let {p} = o, r;                         | r",
+      "let r = 1;                              | \"\"",
+      "{ let r; }                              | \"\"",
+      "for(let i; ;) {}                        | \"\"",
+      "var r;                                  | \"\"",
+      "let __scope__;                          | \"\"",
+   })
+   void initializerlessNames(String body, String expected) throws Exception {
+      java.lang.reflect.Method m = GraalJavaScriptEngine.class
+         .getDeclaredMethod("collectInitializerlessLexicalNames", String.class);
+      m.setAccessible(true);
+      @SuppressWarnings("unchecked")
+      Set<String> names = (Set<String>) m.invoke(null, body.replace("\\n", "\n"));
+      assertEquals(expected, String.join(",", names), body);
+   }
+
    private static String rewrite(String body) throws Exception {
       java.lang.reflect.Method m = GraalJavaScriptEngine.class
          .getDeclaredMethod("rewriteTopLevelLexicalDeclarations", String.class);
