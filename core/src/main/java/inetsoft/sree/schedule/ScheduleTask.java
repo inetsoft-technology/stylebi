@@ -635,6 +635,9 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
 
             @Override
             public void run() {
+               // pooled threads are reused across tasks/users, drop any residue
+               CoreTool.clearUserMessage();
+
                try {
                   if(principal instanceof XPrincipal) {
                      ((XPrincipal) principal).setProperty("__TASK_NAME__",
@@ -649,12 +652,16 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                   taskId = SUtil.getTaskNameForLogging(taskId);
                   MDC.put("SCHEDULE_TASK", taskId);
                   act.run(principal);
-                  MDC.remove("SCHEDULE_TASK");
                }
                catch(Throwable ex) {
                   exceptions.add(ex);
                }
                finally {
+                  MDC.remove("SCHEDULE_TASK");
+                  CoreTool.clearUserMessage();
+                  CoreTool.clearUserMessageAssemblyName();
+                  ThreadContext.setContextPrincipal(null);
+
                   synchronized(ScheduleTask.this) {
                      counter.decrementAndGet();
                      ScheduleTask.this.notifyAll();
