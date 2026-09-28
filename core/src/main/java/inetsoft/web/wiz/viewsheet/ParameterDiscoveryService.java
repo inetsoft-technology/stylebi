@@ -130,11 +130,19 @@ public class ParameterDiscoveryService {
    {
       String type = variable.getTypeNode() != null ? variable.getTypeNode().getType() : "string";
       Object[] choicesArr = variable.getChoices();
+      Object[] valuesArr = variable.getValues();
+
+      // Only expose `values` when it is genuinely index-paired with `choices` -- a length
+      // mismatch (or either side missing) means the two arrays cannot be correlated by
+      // position, and reporting a misaligned `values` would be worse than reporting none.
+      List<Object> valuesList = choicesArr != null && valuesArr != null &&
+         valuesArr.length == choicesArr.length ? List.of(valuesArr) : null;
 
       return new ParameterModel(
          variable.getName(), variable.getAlias(), type, variable.isMultipleSelection(),
          boundToInputAssembly,
          choicesArr == null ? null : List.of(choicesArr),
+         valuesList,
          currentValue == null ? null : List.of(currentValue));
    }
 

@@ -67,9 +67,15 @@ public class ParameterValueService {
 
          for(Map.Entry<String, List<Object>> entry : values.entrySet()) {
             UserVariable var = ParameterDiscoveryService.find(discovered, entry.getKey());
-            Object value = entry.getValue() == null ? null
-               : entry.getValue().size() == 1 ? entry.getValue().get(0)
-               : entry.getValue().toArray();
+            // Always build a real Object[], even for a single-element list -- collapsing a
+            // size-1 list to its bare element (as this used to) is indistinguishable, once the
+            // sole element is null, from "no value at all" to VariableAssemblyModelInfo's
+            // two-arg constructor (its null-check runs on the collapsed scalar, not on the
+            // list), which then means a caller's `[null]` clear request never reaches
+            // fillVariableTable/refreshVariableTable at all and the stale value survives.
+            // VariableAssemblyModelInfo already re-wraps a bare scalar into a one-element array
+            // for every other case, so this is a no-op for a non-null single value.
+            Object value = entry.getValue() == null ? null : entry.getValue().toArray();
             variables.add(new VariableAssemblyModelInfo(var, value));
             applied.add(entry.getKey());
          }
