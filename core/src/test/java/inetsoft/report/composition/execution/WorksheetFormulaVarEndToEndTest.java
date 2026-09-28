@@ -279,6 +279,33 @@ class WorksheetFormulaVarEndToEndTest {
       }
    }
 
+   /**
+    * The tester's failing formulas of PR #5806 (04-verify §3): an owned var not assigned yet
+    * reads as undefined, not null, so the "initialize once" idioms give 100, 101, ... and
+    * "a", "aa", ... (not 1, 2, ... and "nulla").
+    */
+   @ParameterizedTest(name = "pool={0} path={1}")
+   @MethodSource("modes")
+   void aTypeofUndefinedInitializerRunsOnceOnTheFirstRow(boolean pool, String path)
+      throws Exception
+   {
+      String prefix = switch(path) {
+      case "plain" -> "";
+      case "eval" -> "var t0 = this.field['id']; ";
+      default -> "if(field['id'] < 0) { throw 'negative'; } ";
+      };
+      String[] formulas = {
+         "var c = (typeof c == 'undefined') ? 100 : c + 1; c - 99",
+         "var u = (u === undefined) ? 100 : u + 1; u - 99",
+         "var s = (typeof s == 'undefined') ? '' : s; s = s + 'a'; s.length"
+      };
+
+      for(String f : formulas) {
+         assertCounts(pages(box(ws("A", prefix + f), pool).getTableLens("A", RUNTIME), "out"),
+                      prefix + f);
+      }
+   }
+
    // --- helpers ---
 
    private static String formula(String path) {

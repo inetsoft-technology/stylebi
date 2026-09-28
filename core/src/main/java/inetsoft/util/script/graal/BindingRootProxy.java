@@ -290,10 +290,13 @@ public class BindingRootProxy implements ProxyObject {
       return found;
    }
 
-   /** Resolve a name through the full chain; returns null if not found. */
+   /**
+    * Resolve a name through the full chain; returns null if not found, or if it is an owned
+    * var that reads as undefined.
+    */
    public Object resolve(String name) {
       Object result = findInChain(name);
-      return result == NOT_FOUND ? null : result;
+      return result == NOT_FOUND || result == OwnedVarScope.UNDEFINED ? null : result;
    }
 
    private boolean resolves(String name) {
@@ -352,7 +355,9 @@ public class BindingRootProxy implements ProxyObject {
          return ownedVarProbe;
       }
 
-      return ScriptValueConverter.toGuest(resolve(key));
+      Object result = findInChain(key);
+      // an owned var's OwnedVarScope.UNDEFINED reads as the context's undefined (Testing #77123)
+      return ScriptValueConverter.toGuest(result == NOT_FOUND ? null : result);
    }
    @Override public boolean hasMember(String key) {
       return OWNED_VAR_PROBE.equals(key) || resolves(key);

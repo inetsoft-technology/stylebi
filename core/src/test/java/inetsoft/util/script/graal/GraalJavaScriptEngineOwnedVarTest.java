@@ -103,6 +103,47 @@ class GraalJavaScriptEngineOwnedVarTest {
       }
    }
 
+   /**
+    * An owned var that is unset or holds undefined reads as undefined, not null, on every
+    * compile path (review B-1 of PR #5806); an explicit null stays null.
+    */
+   @Test
+   void anUnsetOrUndefinedOwnedVarReadsAsUndefined() throws Exception {
+      GraalJavaScriptEngine engine = new GraalJavaScriptEngine();
+      engine.init(new HashMap<>());
+
+      try {
+         String[] prefixes = { "", "this; ", "if(1 < 0) { throw 'x'; } " };
+
+         for(String prefix : prefixes) {
+            Owner owner = new Owner(Set.of("p1Un", "p1Nu"));
+            Object init = engine.compile(
+               prefix + "var p1Un = (typeof p1Un == 'undefined') ? 100 : p1Un + 1; p1Un");
+
+            for(int i = 0; i < 3; i++) {
+               assertEquals(100 + i, ((Number) engine.exec(init, owner, null)).intValue(),
+                            prefix + "run " + i);
+            }
+
+            owner = new Owner(Set.of("p1Un", "p1Nu"));
+            assertEquals("undefined:true", engine.exec(engine.compile(
+               prefix + "var p1Un; typeof p1Un + ':' + (p1Un === undefined)"), owner, null));
+            assertEquals("undefined:true", engine.exec(engine.compile(
+               prefix + "var p1Un = ({}).y; typeof p1Un + ':' + (p1Un == null)"), owner, null));
+            assertSame(OwnedVarScope.UNDEFINED, owner.vars.get("p1Un"), prefix);
+            assertEquals("object:true", engine.exec(engine.compile(
+               prefix + "var p1Nu = null; typeof p1Nu + ':' + (p1Nu === null)"), owner, null));
+            assertTrue(owner.vars.containsKey("p1Nu"));
+            assertNull(owner.vars.get("p1Nu"), prefix);
+            assertEquals("object:true", engine.exec(engine.compile(
+               prefix + "typeof p1Nu + ':' + (p1Nu === null)"), owner, null));
+         }
+      }
+      finally {
+         engine.close();
+      }
+   }
+
    private static Set<String> owned(String script) {
       return GraalJavaScriptEngine.collectOwnedVarNames(List.of(script));
    }
@@ -124,7 +165,8 @@ class GraalJavaScriptEngineOwnedVarTest {
 
       @Override
       public Object getMember(String name) {
-         return vars.get(name);
+         // as TableRowScope: an owned var not assigned yet reads as undefined
+         return vars.containsKey(name) || !owned.contains(name) ? vars.get(name) : UNDEFINED;
       }
 
       @Override

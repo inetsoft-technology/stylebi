@@ -1198,6 +1198,17 @@ public class FormulaTableLens extends AbstractTableLens
       senv = null;
       table.dispose();
 
+      // a disposed table that was read in part keeps no context alive by its vars' objects;
+      // only if no batch runs now (Testing #77123)
+      if(tableRow != null && !lock.isHeldByCurrentThread() && lock.tryLock()) {
+         try {
+            tableRow.thisScope.releaseOwnedObjects();
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+
       if(rows != null) {
          rows.dispose();
          rows = null;

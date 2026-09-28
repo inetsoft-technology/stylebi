@@ -29,6 +29,20 @@ import org.graalvm.polyglot.Value;
  */
 public interface OwnedVarScope {
    /**
+    * What {@code getMember} of an owned var returns when the var is declared and not assigned
+    * yet, or holds {@code undefined}: it reads as JS {@code undefined}, not {@code null}, as a
+    * real {@code var} does ({@code typeof v == 'undefined'}, {@code v === undefined}).
+    * {@link ScriptValueConverter#toGuest} turns it into the executing context's
+    * {@code undefined}; {@link BindingRootProxy#resolve} into Java {@code null}.
+    */
+   Object UNDEFINED = new Object() {
+      @Override
+      public String toString() {
+         return "undefined";
+      }
+   };
+
+   /**
     * @return whether {@code name} is a var this scope owns.
     */
    boolean ownsVar(String name);

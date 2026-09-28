@@ -82,8 +82,12 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
 
    /**
     * Drop the script objects the owned vars hold, once the table has computed all its rows
-    * and runs no formula until it is computed again, in a new scope: a script object keeps
-    * its whole context alive, which in a pool may be a retired one. Primitives are kept.
+    * and runs no formula until it is computed again, in a new scope, or is disposed: a script
+    * object keeps its whole context alive, which in a pool may be a retired one. Primitives
+    * are kept. A table that is read only in part (a first page) and then kept in a cache keeps
+    * its objects until it is completed, invalidated (the scope is replaced and becomes
+    * garbage) or disposed; with the pool off this pins nothing, as the table's script
+    * environment keeps its context anyway.
     */
    public void releaseOwnedObjects() {
       ((HashMap<?, ?>) valmap).entrySet().removeIf(
@@ -97,8 +101,9 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
          return v instanceof Value gv && owned.contains(id) ? ownedObject(id, gv) : v;
       }
       else if(owned.contains(id) && !base.hasMember(id)) {
-         // declared and not assigned yet: undefined, not a same-named name up the chain
-         return null;
+         // declared and not assigned yet: undefined (not null), not a same-named name up
+         // the chain
+         return UNDEFINED;
       }
       else if(basename != null && basename.equals(id)) {
          return base;
@@ -179,7 +184,7 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
                   "must last for the whole table.", id);
       }
 
-      return null;
+      return UNDEFINED;
    }
 
    private static boolean isOf(Value v, Context context) {
@@ -197,8 +202,8 @@ public class TableRowScope implements DynamicScope, ScriptArrayScope, OwnedVarSc
    private boolean builtinDate = true;
    // from put(), and the values of the owned vars; written and read only by the formulas of
    // the one table this scope belongs to, under that table's lock
-   private transient HashMap valmap = new HashMap();
-   private transient Set<String> owned = Set.of();
-   private transient final Set<String> warned = new HashSet<>();
+   private HashMap valmap = new HashMap();
+   private Set<String> owned = Set.of();
+   private final Set<String> warned = new HashSet<>();
    private static final Logger LOG = LoggerFactory.getLogger(TableRowScope.class);
 }

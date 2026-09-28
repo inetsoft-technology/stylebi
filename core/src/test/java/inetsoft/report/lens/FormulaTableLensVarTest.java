@@ -276,7 +276,78 @@ class FormulaTableLensVarTest {
       }
    }
 
+   @ParameterizedTest(name = "pool={0}")
+   @ValueSource(booleans = { false, true })
+   void aPartlyReadTableDropsItsScriptObjectsWhenDisposed(boolean pool) throws Exception {
+      AssetQuerySandbox box = box(pool);
+      FormulaTableLens t = (FormulaTableLens) make(
+         box, base(ROWS), "var a = a || []; a.push(1); var n = a.length; n", "P");
+      assertTrue(t.moreRows(10));
+      assertEquals(10.0, num(t.getObject(10, 2)));
+      Map<?, ?> valmap = (Map<?, ?>) field(ownedScope(t), "valmap");
+      assertTrue(valmap.values().stream().anyMatch(v -> v instanceof org.graalvm.polyglot.Value),
+                 "the running table holds its array");
+
+      t.dispose();
+
+      for(Object value : valmap.values()) {
+         assertFalse(value instanceof org.graalvm.polyglot.Value, "a disposed table holds " + value);
+      }
+
+      assertTrue(valmap.containsKey("n"), "a primitive var is kept");
+   }
+
+   /**
+    * An owned var that is declared and not assigned yet, or holds undefined, reads as JS
+    * undefined and not as null (review B-1 / tester FAIL of PR #5806): the Rhino-era
+    * "initialize once" idioms {@code typeof x == 'undefined'} and {@code x === undefined}
+    * work as on main's plain path with the pool off; an explicit null stays null.
+    */
+   @ParameterizedTest(name = "pool={0} path={1}")
+   @MethodSource("paths")
+   void anUnsetOrUndefinedVarReadsAsUndefined(boolean pool, String path) throws Exception {
+      AssetQuerySandbox box = box(pool);
+      // formula -> the expected value of row r
+      Map<String, Function<Integer, Double>> cases = new LinkedHashMap<>();
+      cases.put("var c1 = (typeof c1 == 'undefined') ? 100 : c1 + 1; c1", r -> 99.0 + r);
+      cases.put("var u = (u === undefined) ? 100 : u + 1; u", r -> 99.0 + r);
+      cases.put("var s = (typeof s == 'undefined') ? '' : s; s = s + 'a'; s.length",
+                r -> (double) r);
+      cases.put("var nn = (nn === undefined) ? NaN : nn; isNaN(nn) ? field['id'] : -1",
+                r -> (double) r);
+      cases.put("var w; typeof w == 'undefined' ? 1 : (w === null ? 2 : 3)", r -> 1.0);
+      cases.put("var e2 = undefined; typeof e2 == 'undefined' ? 1 : 2", r -> 1.0);
+      cases.put("var x = ({}).y; x === undefined && x == null ? 1 : 2", r -> 1.0);
+      // an explicit null stays null, and is still == undefined
+      cases.put("var z = null; z === null && typeof z == 'object' && z == undefined ? 1 : 2",
+                r -> 1.0);
+      cases.put("var z2 = (typeof z2 == 'undefined') ? null : (z2 === null ? 5 : z2 + 1); " +
+                   "z2 === null ? 0 : z2", r -> r == 1 ? 0.0 : 3.0 + r);
+      cases.put("var seen; if(typeof seen === 'undefined') { seen = {}; } " +
+                   "seen.n = (seen.n || 0) + 1; seen.n", r -> (double) r);
+
+      for(Map.Entry<String, Function<Integer, Double>> e : cases.entrySet()) {
+         String f = onPath(path, e.getKey());
+         TableLens t = make(box, base(ROWS), f, "U");
+
+         for(int r = 1; r <= ROWS; r++) {
+            assertTrue(t.moreRows(r), f + " row " + r);
+            Object v = t.getObject(r, 2);
+            assertEquals(e.getValue().apply(r), num(v), f + " row " + r + " is " + v);
+         }
+      }
+   }
+
    // --- helpers ---
+
+   // the same formula on the eval (this) or multi-statement compile path
+   private static String onPath(String path, String formula) {
+      return switch(path) {
+      case "plain" -> formula;
+      case "eval" -> "var t0 = this.field['id']; " + formula;
+      default -> "if(field['id'] < 0) { throw 'negative'; } " + formula;
+      };
+   }
 
    static Stream<Arguments> paths() {
       List<Arguments> args = new ArrayList<>();

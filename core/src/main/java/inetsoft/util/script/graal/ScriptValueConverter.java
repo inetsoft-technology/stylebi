@@ -50,6 +50,10 @@ public final class ScriptValueConverter {
     * {@code === undefined}.
     */
    public static Object toGuest(Object value) {
+      if(value == OwnedVarScope.UNDEFINED) {
+         return undefinedValue();
+      }
+
       if(value instanceof ScriptArrayScope) {
          return new ArrayProxy((ScriptArrayScope) value);
       }
@@ -174,8 +178,13 @@ public final class ScriptValueConverter {
     * identity and in-place changes. A guest value is valid only on its own context.
     */
    public static Object toOwnedVar(Value v) {
-      if(v == null || v.isNull()) {
+      if(v == null) {
          return null;
+      }
+
+      // undefined stays undefined (Testing #77123 B-1): both read isNull()
+      if(v.isNull()) {
+         return isUndefined(v) ? OwnedVarScope.UNDEFINED : null;
       }
 
       if(v.isBoolean() || v.isString() || v.isHostObject() || v.isProxyObject()) {
@@ -187,6 +196,28 @@ public final class ScriptValueConverter {
       }
 
       return v;
+   }
+
+   /**
+    * @return whether {@code v} is JS {@code undefined}, not {@code null}: both are
+    * {@link Value#isNull()}, only their string forms differ.
+    */
+   static boolean isUndefined(Value v) {
+      return v.isNull() && "undefined".equals(v.toString());
+   }
+
+   /**
+    * @return the {@code undefined} of the context executing on this thread, so a
+    * proxy member reads as {@code undefined} and not as {@code null} (a Java
+    * {@code null} member reads as {@code null}); {@code null} when no context is entered.
+    */
+   private static Object undefinedValue() {
+      try {
+         return Context.getCurrent().getBindings("js").getMember("undefined");
+      }
+      catch(IllegalStateException ex) {
+         return null;
+      }
    }
 
    /**
