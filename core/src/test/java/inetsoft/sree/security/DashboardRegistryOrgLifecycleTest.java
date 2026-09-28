@@ -77,6 +77,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.util.*;
@@ -561,6 +562,111 @@ class DashboardRegistryOrgLifecycleTest {
       assertTrue(dataSpace.exists(null, "portal/" + otherOrgId + "/dashboard-registry.xml"));
    }
 
+   @Test
+   void delete_syncIdentity_userRegistriesOfAnotherOrgWhoseIdStartsWithTheDeletedIdAreKept()
+      throws Exception
+   {
+      String orgId = "dashreg_uab";
+      String otherOrgId = "dashreg_uab__b";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg("DashRegUab", orgId)
+         .addOrg("DashRegUabB", otherOrgId)
+         .setup();
+
+      // Keys are org__user and both parts may contain "__": the deleted org's user "b__y" is
+      // cached as dashreg_uab__b__y, which looks like org dashreg_uab__b + user y. The other
+      // org's user "x" is cached as dashreg_uab__b__x.
+      DashboardRegistry ownUser = dashboardRegistryManager.getRegistry(new IdentityID("b__y", orgId));
+      DashboardRegistry otherUser =
+         dashboardRegistryManager.getRegistry(new IdentityID("x", otherOrgId));
+      DashboardRegistry otherGlobal = dashboardRegistryManager.getRegistry(otherOrgId);
+      detachFileWatch(otherUser);
+      detachFileWatch(otherGlobal);
+      assertSame(ownUser, registryCache().get(orgId + "__b__y"), "precondition: own user cached");
+      assertSame(otherUser, registryCache().get(otherOrgId + "__x"),
+                 "precondition: other org's user cached");
+
+      deleteOrganization(fileProvider(), new IdentityID("DashRegUab", orgId));
+
+      assertFalse(registryCache().containsKey(orgId + "__b__y"),
+                  "the deleted org's user registry must be evicted, whatever its user name");
+      assertTrue(isDetached(ownUser));
+      assertSame(otherUser, registryCache().get(otherOrgId + "__x"),
+                 "deleting org " + orgId + " must not evict the user registries of org " + otherOrgId);
+      assertSame(otherGlobal, registryCache().get(otherOrgId + "__ADMIN__"),
+                 "deleting org " + orgId + " must not evict the global registry of org " + otherOrgId);
+   }
+
+   @Test
+   void delete_syncIdentity_evictsUserRegistryNotListedByTheProvider() throws Exception {
+      String orgId = "dashreg_sso_org";
+      String orgName = "DashRegSsoOrg";
+      // An SSO (SAML ORGID_CLAIM) / virtual user: it has a session and a cached registry for
+      // the org, but the editable provider does not list it.
+      IdentityID ssoUser = new IdentityID("sso_user", orgId);
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(orgName, orgId)
+         .setup();
+
+      FileAuthenticationProvider fileProvider = fileProvider();
+      assertFalse(Arrays.asList(fileProvider.getUsers()).contains(ssoUser),
+                  "precondition: the provider must not list the SSO user");
+
+      DashboardRegistry ssoRegistry = dashboardRegistryManager.getRegistry(ssoUser);
+      assertSame(ssoRegistry, registryCache().get(orgId + "__sso_user"),
+                 "precondition: SSO user registry cached");
+
+      deleteOrganization(fileProvider, new IdentityID(orgName, orgId));
+
+      assertFalse(registryCache().containsKey(orgId + "__sso_user"),
+                  "org delete must evict the registry of a user the provider does not list");
+      assertTrue(isDetached(ssoRegistry), "the evicted registry must no longer watch its file");
+   }
+
+   @Test
+   void delete_syncIdentity_mixedCaseOrg_evictsGlobalCachedUnderLowercasedCurrentOrgId()
+      throws Exception
+   {
+      String orgId = "DashRegMixedCo";
+      String orgName = "DashRegMixedCoName";
+
+      builder = SecurityTestDataBuilder.create()
+         .addOrg(orgName, orgId)
+         .setup();
+
+      // No-arg / current-org path, as DashboardManager does: getCurrentOrgID() lowercases the id.
+      DashboardRegistry currentOrgGlobal;
+      OrganizationContextHolder.setCurrentOrgId(orgId);
+
+      try {
+         currentOrgGlobal = dashboardRegistryManager.getRegistry((IdentityID) null);
+      }
+      finally {
+         OrganizationContextHolder.setCurrentOrgId(null);
+      }
+
+      detachFileWatch(currentOrgGlobal);
+      String lowercasedKey = orgId.toLowerCase() + "__ADMIN__";
+      assertSame(currentOrgGlobal, registryCache().get(lowercasedKey),
+                 "precondition: the current-org global is cached under the lowercased id");
+      assertFalse(registryCache().containsKey(orgId + "__ADMIN__"),
+                  "precondition: it is not cached under the org id as given");
+
+      DashboardRegistry exactGlobal = dashboardRegistryManager.getRegistry(orgId);
+      detachFileWatch(exactGlobal);
+
+      deleteOrganization(fileProvider(), new IdentityID(orgName, orgId));
+
+      assertFalse(registryCache().containsKey(lowercasedKey),
+                  "org delete must evict the global cached under the lowercased current-org id");
+      assertFalse(registryCache().containsKey(orgId + "__ADMIN__"),
+                  "org delete must evict the global cached under the org id as given");
+      assertFalse(registryCache().containsValue(currentOrgGlobal));
+      assertFalse(registryCache().containsValue(exactGlobal));
+   }
+
    /**
     * Runs the org branch of IdentityService.syncIdentity() (private) for a delete, with the
     * storage helpers unrelated to dashboards stubbed.
@@ -600,7 +706,7 @@ class DashboardRegistryOrgLifecycleTest {
                              new inetsoft.uql.util.DefaultIdentity(orgIdentity, Identity.ORGANIZATION),
                              null);
       }
-      catch(Exception e) {
+      catch(InvocationTargetException e) {
          // Tolerated: the tail of the org delete may hit statics (FSService/XJobPool/...) absent
          // in this minimal context; the registry eviction and the file removal run earlier.
       }
