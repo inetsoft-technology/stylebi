@@ -980,9 +980,7 @@ public class TablePaintable extends BasePaintable {
          }
       }
 
-      if(cardInset != null) {
-         paintCardBackground(g);
-      }
+      boolean cardFilled = cardInset != null && paintCardBackground(g);
 
       // print contents
       content_loop:
@@ -1045,8 +1043,9 @@ public class TablePaintable extends BasePaintable {
                   summary.getSummaryBackground(col) :
                   lens.getBackground(vrow, vcol);
 
-               // if bg not defined for a cell, use element background
-               if(bg == null && elem instanceof TableElementDef) {
+               // if bg not defined for a cell, use element background, unless the card
+               // background already filled this region and would double it under alpha
+               if(bg == null && elem instanceof TableElementDef && !cardFilled) {
                   bg = elem.getBackground();
                }
 
@@ -1530,20 +1529,22 @@ public class TablePaintable extends BasePaintable {
       return new float[] { x0, y0, x1, y1 };
    }
 
-   // a print-layout card's background also fills its inset bands
-   private void paintCardBackground(Graphics g) {
+   // a print-layout card's background also fills its inset bands; returns true when it
+   // filled the region, so the per-cell fallback below does not paint it a second time
+   private boolean paintCardBackground(Graphics g) {
       Color bg = elem.getBackground();
       Insets borders = elem instanceof TableElementDef table ? table.getBorders() : null;
       float[] frame = getCardFrame(borders == null ? new Insets(0, 0, 0, 0) : borders);
 
       if(bg == null || frame == null) {
-         return;
+         return false;
       }
 
       Color oc = g.getColor();
       g.setColor(bg);
       Common.fillRect(g, frame[0], frame[1], frame[2] - frame[0], frame[3] - frame[1]);
       g.setColor(oc);
+      return true;
    }
 
    /**

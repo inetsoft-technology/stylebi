@@ -128,6 +128,16 @@ class PrintTableCardGeometryTest {
    }
 
    @Test
+   void aTranslucentBackgroundFillsTheGridAndBandsOnce() {
+      BufferedImage page = PrintTableFixture.render(new PrintTableFixture().inset(16, 16, 16)
+         .background(new Color(255, 255, 0, 128)).print().get(0));
+
+      // (64, 100) is the left band; (180, 100) is clear of text and row borders inside cell 0
+      assertEquals(page.getRGB(64, 100), page.getRGB(180, 100),
+                  "the grid and the bands share one fill");
+   }
+
+   @Test
    void theInsetSurvivesAPageSwap() throws Exception {
       // a swapped page restores its element as a bare BaseElement, so the inset must be the
       // paintable's own
