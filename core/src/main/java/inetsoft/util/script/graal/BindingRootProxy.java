@@ -330,7 +330,7 @@ public class BindingRootProxy implements ProxyObject {
 
    /**
     * The member the declaration hoist asks whether a name is a var an {@link OwnedVarScope}
-    * of the current chain owns, {@code __scope__.__inetsoft_owned_var__("n")}: such a var
+    * of the current chain owns, {@code this.__inetsoft_owned_var__("n")}: such a var
     * stays in its owner and is never copied to the global scope (Testing #77123).
     */
    public static final String OWNED_VAR_PROBE = "__inetsoft_owned_var__";

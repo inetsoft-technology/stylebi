@@ -2194,7 +2194,9 @@ public class GraalJavaScriptEngine implements AutoCloseable {
     * table's var, Testing #77123) is not copied: {@code typeof} reads it from its
     * owner through {@code with(__scope__)}, and a copy would leak it to other tables
     * and later scripts. The owner check is made at run time, since a compiled
-    * script is cached and shared by every scope that runs it.
+    * script is cached and shared by every scope that runs it. It asks {@code this},
+    * which both wrappers bind to {@code __scope__}: a {@code __scope__} reference
+    * inside {@code with(__scope__)} would first miss through the whole scope chain.
     */
    private static String buildDeclarationHoist(String body) {
       Set<String> names = collectTopLevelDeclarations(body);
@@ -2206,7 +2208,7 @@ public class GraalJavaScriptEngine implements AutoCloseable {
       StringBuilder sb = new StringBuilder();
 
       for(String name : names) {
-         sb.append("try{if(typeof ").append(name).append("!==\"undefined\"&&!__scope__.")
+         sb.append("try{if(typeof ").append(name).append("!==\"undefined\"&&!this.")
             .append(BindingRootProxy.OWNED_VAR_PROBE).append("(")
             .append(toJsStringLiteral(name)).append(")){globalThis[")
             .append(toJsStringLiteral(name)).append("]=").append(name)
