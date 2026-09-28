@@ -546,9 +546,12 @@ public class DataSourceController {
    @PostMapping("/api/portal/data/datasources/refreshView")
 //   @Secured(permissions = @RequiredPermission(ActionTypes.DATA_TAB))
    public DataSourceDefinition refreshTabularView(@RequestBody DataSourceDefinition definition,
-                                                  HttpServletRequest request)
+                                                  HttpServletRequest request,
+                                                  Principal principal)
    {
       TabularUtil.setSessionId(request.getSession().getId());
+      // drop any message left on this pooled thread so only this refresh's messages are sent
+      CoreTool.clearUserMessage();
       DataSourceDefinition def2 = datasourcesService.refreshTabularView(definition);
       def2.setSequenceNumber(definition.getSequenceNumber());
 
@@ -556,7 +559,8 @@ public class DataSourceController {
 
       if(msg != null) {
          try {
-            notificationService.sendNotification(msg.getMessage());
+            // send only to the requesting user, never broadcast to every connected client
+            notificationService.sendNotificationToUser(msg.getMessage(), principal);
          }
          catch(Exception e) {
             LOG.info("Failed to send notification: ", e);
